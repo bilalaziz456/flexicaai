@@ -13,7 +13,7 @@ _Last updated: 2026-07-05_
 
 - Node: v24.18.0 ✅
 - npm: 11.16.0 ✅
-- git: **not installed** ⚠️ (needed before version control / Vercel deploys)
+- git: **2.55.0** ✅ (repo initialized; commit identity set locally as "Bilal Aziz" &lt;bilalaziz456@gmail.com&gt;)
 - Next.js: **16.2.10** (spec said "14+"; scaffold gave latest — App Router, satisfies "14+")
 - React: 19.2.4 · Tailwind: **v4** · TypeScript: strict ✅
 - Note: an `AGENTS.md` (added by create-next-app) warns Next 16 has API changes vs
