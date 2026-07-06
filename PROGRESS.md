@@ -98,11 +98,15 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · **Dr
 - **Adding a specialty later:** implement `/modules/<id>/config.ts`, register in `/config/modules.ts`,
   flip catalog entry to "available" — zero `/core` changes.
 
-### 5. Super Admin panel (`/admin`) ⬜
-- [ ] Service-role Supabase admin client (`core/db/client.admin.ts`) — provisions accounts
-- [ ] Create clinic + select specialties (checkboxes → `modules_enabled`) + create its Clinic Admin
-- [ ] Toggle modules for an existing clinic
-- [ ] View billing / usage
+### 5. Super Admin panel (`/admin`) ✅ (billing deferred)
+- [x] `/admin` layout guards super_admin; header + sign out
+- [x] Clinics list (`/admin`) with specialty badges
+- [x] Create clinic + **specialty checkboxes** (from `SPECIALTY_CATALOG`) + its Clinic Admin,
+      in one transaction (`/admin/clinics/new`) — no service-role client needed (local Postgres)
+- [x] Clinic detail (`/admin/clinics/[id]`): toggle modules + staff list (uses `byClinic()`)
+- [x] Reusable `SpecialtyCheckboxes` (dental selectable; derma/hair disabled "coming soon")
+- [x] Verified: `/admin` + `/admin/clinics/new` render 200 with a real super_admin session
+- [ ] View billing / usage (deferred — not MVP-critical)
 
 ### 6. Clinic Admin panel (`/clinic`) ⬜
 - [ ] Dashboard
@@ -174,3 +178,4 @@ Other DB commands: `npm run db:generate` (new migration after schema change) ·
 | 2026-07-06 | **DB live end-to-end.** Postgres on port 5433; created `klenic` DB, applied migration `0000`, seeded super admin. Verified: `/login` 200, `/admin` 307→login, form renders. Login works in browser. |
 | 2026-07-06 | **Step 3 (Core DB schema) complete.** Added `patients`, `appointments`, `visits`, `recalls` (module-tagged, status enums, JSONB note, indexed by clinic_id). Added `byClinic()` tenant helper. Migration `0001` applied → 7 tables. Typecheck + build green. |
 | 2026-07-06 | **Step 4 (Module registry) complete.** `ModuleDefinition` contract + dental module (scribe prompt, recall rules, PK drug formulary) + `/config/modules.ts` registry with specialty catalog (dental available; derma/hair coming_soon). Golden rule verified: /core imports no module. Build green. |
+| 2026-07-06 | **Step 5 (Super Admin panel) complete.** `/admin` clinics list, create-clinic-with-admin (transaction) + specialty checkboxes from registry, clinic detail with module toggles + staff. Added shadcn checkbox/table/badge. Verified authed pages render 200 (Dental selectable, derma/hair coming soon). Build green. Billing deferred. |
