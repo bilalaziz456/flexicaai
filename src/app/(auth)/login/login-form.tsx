@@ -13,6 +13,7 @@ import {
 } from "@/core/ui/card";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
+import { PasswordInput } from "@/core/ui/password-input";
 
 export function LoginForm({ initialError }: { initialError?: string }) {
   const [state, formAction, pending] = useActionState<
@@ -42,10 +43,9 @@ export function LoginForm({ initialError }: { initialError?: string }) {
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input
+            <PasswordInput
               id="password"
               name="password"
-              type="password"
               autoComplete="current-password"
               required
             />

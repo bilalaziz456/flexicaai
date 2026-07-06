@@ -11,8 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
+import { PasswordInput } from "@/core/ui/password-input";
 
 export function ChangePasswordForm({ forced }: { forced: boolean }) {
   const [state, formAction, pending] = useActionState<
@@ -34,20 +34,18 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="password">New password</Label>
-            <Input
+            <PasswordInput
               id="password"
               name="password"
-              type="password"
               autoComplete="new-password"
               required
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="confirmPassword">Confirm new password</Label>
-            <Input
+            <PasswordInput
               id="confirmPassword"
               name="confirmPassword"
-              type="password"
               autoComplete="new-password"
               required
             />

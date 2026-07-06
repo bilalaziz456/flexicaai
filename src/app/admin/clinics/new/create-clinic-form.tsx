@@ -18,6 +18,7 @@ import {
 } from "@/core/ui/card";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
+import { PasswordInput } from "@/core/ui/password-input";
 
 export function CreateClinicForm({
   catalog,
@@ -74,10 +75,9 @@ export function CreateClinicForm({
           </div>
           <div className="space-y-2">
             <Label htmlFor="adminPassword">Temporary password</Label>
-            <Input
+            <PasswordInput
               id="adminPassword"
               name="adminPassword"
-              type="password"
               autoComplete="new-password"
               required
             />

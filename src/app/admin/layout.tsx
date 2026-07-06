@@ -17,13 +17,15 @@ export default async function AdminLayout({
 
   return (
     <div className="min-h-screen">
-      <header className="border-b">
+      <header className="border-b bg-card">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
-          <Link href="/admin" className="font-semibold">
-            Klenic <span className="text-muted-foreground">Admin</span>
+          <Link href="/admin" className="text-lg font-bold tracking-tight text-primary">
+            Klenic
           </Link>
           <div className="flex items-center gap-3 text-sm">
-            <span className="text-muted-foreground">{user.username}</span>
+            <span className="rounded-full bg-accent px-2.5 py-1 font-medium text-accent-foreground">
+              {user.username}
+            </span>
             <SignOutButton />
           </div>
         </div>
