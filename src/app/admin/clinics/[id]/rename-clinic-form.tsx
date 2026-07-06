@@ -21,7 +21,7 @@ export function RenameClinicForm({
   return (
     <form action={formAction} className="flex items-start gap-3">
       <div className="flex-1">
-        <Input name="name" defaultValue={name} required />
+        <Input key={name} name="name" defaultValue={name} required />
         {state.error ? (
           <p className="mt-1 text-sm text-destructive" role="alert">
             {state.error}
