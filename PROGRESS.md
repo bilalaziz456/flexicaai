@@ -107,6 +107,10 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · **Dr
 - [x] Reusable `SpecialtyCheckboxes` (dental selectable; derma/hair disabled "coming soon")
 - [x] Verified: `/admin` + `/admin/clinics/new` render 200 with a real super_admin session
 - [ ] View billing / usage (deferred — not MVP-critical)
+- **Deferred backlog (revisit after Step 6):** force password change on first login (High) ·
+  reset a clinic admin's password (High) · edit/rename clinic (Med) · suspend/deactivate
+  clinic or user via `is_active` (Med) · delete clinic (Med) · billing & usage (Later) ·
+  audit log of admin actions per §10 (Later) · search/pagination on clinics (Later).
 
 ### 6. Clinic Admin panel (`/clinic`) ⬜
 - [ ] Dashboard
