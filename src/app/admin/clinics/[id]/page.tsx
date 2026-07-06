@@ -130,7 +130,12 @@ export default async function ClinicDetailPage({
                     )}
                   </TableCell>
                   <TableCell>
-                    <StaffActions userId={u.id} isActive={u.isActive} />
+                    <StaffActions
+                      userId={u.id}
+                      username={u.username}
+                      fullName={u.fullName}
+                      isActive={u.isActive}
+                    />
                   </TableCell>
                 </TableRow>
               ))}

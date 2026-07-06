@@ -109,6 +109,7 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · **Dr
 - [x] **Force password change on first login** — `must_change_password` col (migration 0002),
       `/change-password` flow, enforced in `requireRole`; created clinic admins start with the flag.
       Verified: flag on → `/admin` 307 → `/change-password` 200.
+- [x] **Edit a staff member's name + username** (unique-checked) from the clinic detail page
 - [x] **Reset a staff password** — issues a temp password + sets the flag + revokes their sessions
 - [x] **Rename clinic**; **suspend/reactivate** account (`is_active`, revokes sessions on suspend);
       **delete clinic** (danger zone, confirm by typing the name; cascades all its data)
@@ -190,4 +191,5 @@ Other DB commands: `npm run db:generate` (new migration after schema change) ·
 | 2026-07-06 | **Super Admin management tier complete.** `must_change_password` (migration 0002) + forced `/change-password` flow; reset staff password (revokes sessions); rename clinic; suspend/reactivate accounts; delete clinic (confirm-by-name, cascades). Verified force-change redirect (flag on → /admin 307 → /change-password 200). Build green. Auth bits reused by Step 6. |
 | 2026-07-06 | **Login switched from email → username.** Added `users.username` (unique, migration 0003, backfilled admin@klenic.local → `admin`); email now optional contact. Updated login/create-clinic forms, signIn, seed (`SEED_ADMIN_USERNAME`), displays. Verified: login form shows Username, credential check passes (admin/change-me-now). Login now: **admin** / change-me-now. |
 | 2026-07-06 | **UI polish.** Reusable `PasswordInput` with show/hide eye (login, change-password, create-clinic). Font → Plus Jakarta Sans (the `--font-sans` var was previously unwired → browser default). Teal brand palette in light+dark (primary/ring/accent/charts). Admin top bar: removed duplicate "Admin" on the left (now "Klenic" wordmark), username pill on right. Colored auth backgrounds. Verified via curl. |
+| 2026-07-06 | **Edit clinic staff.** Super admin can edit a staff member's full name + username (unique-checked, `updateStaffProfile`) from the clinic detail page, alongside the existing rename-clinic. Verified staff row + Edit control render (200). Build green. |
 | 2026-07-06 | **Per-account dark/light/system theme.** `users.theme` enum (migration 0004, default system) + mirrored `klenic_theme` cookie; no-flash inline script applies `.dark` before paint and follows OS for "system". `ThemeToggle` (System/Light/Dark) in headers persists via `setThemePreference` action + cookie; login seeds the cookie from the account's saved theme. Verified: dark→html.dark, light→none, script present. Root layout now dynamic (reads cookie). |

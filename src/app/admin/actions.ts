@@ -155,6 +155,55 @@ export async function updateClinicName(
   return { saved: true };
 }
 
+const updateStaffSchema = z.object({
+  fullName: z.string().trim().min(2, "Name is required."),
+  username: z
+    .string()
+    .trim()
+    .min(3, "Username must be at least 3 characters.")
+    .max(32, "Username must be at most 32 characters.")
+    .transform((s) => s.toLowerCase())
+    .refine((s) => USERNAME_REGEX.test(s), {
+      message: "Username may use lowercase letters, digits, and . _ - only.",
+    }),
+});
+
+/** Edits a staff member's display name and login username. */
+export async function updateStaffProfile(
+  userId: string,
+  _prevState: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  await requireRole("super_admin");
+
+  const parsed = updateStaffSchema.safeParse({
+    fullName: formData.get("fullName"),
+    username: formData.get("username"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  try {
+    await db
+      .update(users)
+      .set({
+        fullName: parsed.data.fullName,
+        username: parsed.data.username,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return { error: "That username is already in use." };
+    }
+    throw err;
+  }
+
+  revalidatePath("/admin", "layout");
+  return { saved: true };
+}
+
 const resetPasswordSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters."),
 });
