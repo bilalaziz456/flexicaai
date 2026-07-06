@@ -1,0 +1,21 @@
+import type { ReactNode } from "react";
+
+/**
+ * Shared shell for auth pages (login, signup). Public — no session required.
+ * Specialty-agnostic: shows Klenic branding, never a specific module.
+ */
+export default function AuthLayout({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4 py-12">
+      <div className="w-full max-w-sm">
+        <div className="mb-6 text-center">
+          <h1 className="text-2xl font-semibold tracking-tight">Klenic</h1>
+          <p className="text-sm text-muted-foreground">
+            Clinic management platform
+          </p>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}

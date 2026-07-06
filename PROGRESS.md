@@ -5,7 +5,7 @@
 >
 > **Legend:** ✅ done · 🔨 in progress · ⬜ not started · ⚠️ blocked/needs attention
 
-_Last updated: 2026-07-05_
+_Last updated: 2026-07-06_
 
 ---
 
@@ -35,10 +35,18 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · Supa
 - [x] Typecheck clean + production build passes
 - **Left for you:** paste real Supabase keys into `.env.local` before running against a DB
 
-### 2. Auth ⬜
-- [ ] Supabase Auth login/signup
-- [ ] Roles: super_admin, clinic_admin, doctor, receptionist
-- [ ] Session handling + route protection
+### 2. Auth ✅
+- [x] Supabase Auth login/signup (`(auth)/login`, `(auth)/signup` + server actions in `core/auth/actions.ts`)
+- [x] Roles modeled: super_admin, clinic_admin, doctor, receptionist (`core/types/auth.ts`)
+- [x] Session handling + route protection via Next 16 **proxy** (`src/proxy.ts`) + `core/auth/update-session.ts`
+- [x] Server guards `requireUser` / `requireRole` (`core/auth/user.ts`); `signOut` action + button
+- [x] Placeholder panel pages at `/admin`, `/clinic`, `/doctor`, `/reception` (role-gated; real UIs come in Steps 5-11)
+- [x] Typecheck + build green
+- **Design note:** role/clinic_id read from Supabase **app_metadata** (tamper-proof, admin-set) so the
+  proxy can authorize from the JWT with no DB call. Step 3's `users` table becomes the canonical profile;
+  role stays mirrored in app_metadata. Only `getCurrentUser()` / `updateSession()` change when we wire it.
+- **Left for you:** put real Supabase keys in `.env.local`, then a Super Admin must set a user's
+  `app_metadata.role` (and `clinic_id`) before they can enter a panel. Signup alone grants no access (B2B).
 
 ### 3. Core DB schema ⬜
 - [ ] `clinics` (with `modules_enabled` text[])
@@ -104,3 +112,5 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · Supa
 | 2026-07-05 | **Step 1 complete** — typecheck + `next build` green. Next: Step 2 (Auth). |
 | 2026-07-05 | Git 2.55 installed; repo initialized (`main`). Added `.gitattributes` (LF normalization) and `.idea` ignore. |
 | 2026-07-05 | Pushed to GitHub: https://github.com/bilalaziz456/klenic (origin/main). |
+| 2026-07-06 | **Step 2 (Auth) complete** — roles, login/signup, session proxy, route protection, role guards, placeholder panels. Module-agnostic (authorizes by role, never specialty). Typecheck + build green. |
+| 2026-07-06 | Next 16 learning: `middleware.ts` convention deprecated → renamed to `src/proxy.ts` (`export function proxy`), per bundled docs. |
