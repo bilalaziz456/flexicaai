@@ -127,4 +127,22 @@
   html {
     @apply font-sans;
   }
+
+  /* Chrome/Safari force a pale background on autofilled inputs that normal
+     background-color can't override. The inset box-shadow trick paints over it
+     with the theme surface colour, and text-fill-color fixes the text — so
+     autofilled fields stay dark in dark mode instead of flashing white. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-text-fill-color: var(--foreground);
+    -webkit-box-shadow: 0 0 0 1000px var(--card) inset;
+    box-shadow: 0 0 0 1000px var(--card) inset;
+    caret-color: var(--foreground);
+    /* Delays Chrome re-applying its own background after interaction. */
+    transition: background-color 5000s ease-in-out 0s;
+  }
 }
