@@ -88,12 +88,15 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · **Dr
 - **Note:** specialty clinical data (e.g. dental tooth-chart rows) will live in module tables
   linked to `visits`, never as columns on these core tables (CLAUDE.md §5).
 
-### 4. Module registry + dental skeleton ⬜
-- [ ] `/config/modules.ts` registry
-- [ ] `ModuleDefinition` interface
-- [ ] `/modules/dental/config.ts`
-- [ ] Registry exposes a "selectable specialties" list (with available/coming-soon flags)
-      for the Super Admin create-clinic checkboxes (Step 5)
+### 4. Module registry + dental skeleton ✅
+- [x] `ModuleDefinition` contract + specialty-catalog types (`core/types/module.ts`)
+- [x] Dental module: `config.ts`, `prompts/scribe.ts`, `recall-rules.ts`, `drug-formulary.ts` (Pakistan brands)
+- [x] `/config/modules.ts` registry: `MODULES`, helpers (`getModule`, `loadModules`, `getClinicWorkspace`)
+- [x] `SPECIALTY_CATALOG` for Step 5 checkboxes: Dental=available, Derma/Hair=coming_soon (architected, not built)
+- [x] Verified golden rule: `/core` imports from neither `/modules` nor `/config` (grep-clean)
+- [x] Typecheck + build green
+- **Adding a specialty later:** implement `/modules/<id>/config.ts`, register in `/config/modules.ts`,
+  flip catalog entry to "available" — zero `/core` changes.
 
 ### 5. Super Admin panel (`/admin`) ⬜
 - [ ] Service-role Supabase admin client (`core/db/client.admin.ts`) — provisions accounts
@@ -170,3 +173,4 @@ Other DB commands: `npm run db:generate` (new migration after schema change) ·
 | 2026-07-06 | **Major rework: Supabase → local PostgreSQL + Drizzle + custom session auth.** Removed `@supabase/*`; added drizzle-orm/pg/bcryptjs/drizzle-kit/tsx/dotenv. New DB layer (`core/db/index.ts` + `schema.ts`), custom auth (`session.ts`/`password.ts`/`constants.ts`), Edge-safe proxy, seed script. Generated migration `0000_*`. Updated CLAUDE.md §2/§5/§8/§10/§11. Typecheck + build green. |
 | 2026-07-06 | **DB live end-to-end.** Postgres on port 5433; created `klenic` DB, applied migration `0000`, seeded super admin. Verified: `/login` 200, `/admin` 307→login, form renders. Login works in browser. |
 | 2026-07-06 | **Step 3 (Core DB schema) complete.** Added `patients`, `appointments`, `visits`, `recalls` (module-tagged, status enums, JSONB note, indexed by clinic_id). Added `byClinic()` tenant helper. Migration `0001` applied → 7 tables. Typecheck + build green. |
+| 2026-07-06 | **Step 4 (Module registry) complete.** `ModuleDefinition` contract + dental module (scribe prompt, recall rules, PK drug formulary) + `/config/modules.ts` registry with specialty catalog (dental available; derma/hair coming_soon). Golden rule verified: /core imports no module. Build green. |
