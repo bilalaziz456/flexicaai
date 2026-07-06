@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState } from "react";
 import { signIn, type AuthActionState } from "@/core/auth/actions";
 import { Button } from "@/core/ui/button";
@@ -55,16 +54,10 @@ export function LoginForm({ initialError }: { initialError?: string }) {
             </p>
           ) : null}
         </CardContent>
-        <CardFooter className="flex flex-col gap-3">
+        <CardFooter>
           <Button type="submit" className="w-full" disabled={pending}>
             {pending ? "Signing in…" : "Sign in"}
           </Button>
-          <p className="text-center text-sm text-muted-foreground">
-            No account?{" "}
-            <Link href="/signup" className="underline underline-offset-4">
-              Sign up
-            </Link>
-          </p>
         </CardFooter>
       </form>
     </Card>

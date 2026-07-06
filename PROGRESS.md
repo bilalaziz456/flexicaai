@@ -11,16 +11,15 @@ _Last updated: 2026-07-06_
 
 ## Product decisions
 
-- **Signup model = public "clinic trial" signup** (decided 2026-07-06). Public `/signup`
-  creates a **new clinic + a `clinic_admin`**, then routes to `/clinic` onboarding.
-  Doctors/receptionists are still added by the clinic admin (not self-signup).
-  - The signup form doubles as the **specialty-selection screen**: checkboxes for
-    Dental (available now), Derma & Hair (shown "coming soon" until built). Ticked
-    specialties become `clinics.modules_enabled`. Checkboxes render from the module
-    registry, so new modules appear with zero form changes.
-  - **Depends on:** Step 3 (`clinics` table) + Step 4 (module registry) + a service-role
-    Supabase client (to create the user with role/clinic in app_metadata and insert the
-    clinic row). Build order: Step 3 → Step 4 → then replace the placeholder signup.
+- **No public signup — accounts are invite/admin-provisioned only** (decided 2026-07-06,
+  supersedes an earlier trial-signup idea). There is no `/signup` page.
+  - **Super Admin** (seeded directly) creates **clinics + each clinic's Clinic Admin**,
+    and selects that clinic's specialties → `clinics.modules_enabled` (Step 5).
+  - **Clinic Admin** creates their own staff: doctors, receptionists (Step 6).
+  - **No account = no login.** Everyone provisioned this way uses the single `/login`.
+  - The **specialty checkboxes** (Dental now; Derma/Hair "coming soon") therefore live on
+    the Super Admin "create clinic" screen (Step 5), rendered from the module registry so
+    new modules appear with zero UI changes.
 - **Login = single shared page** for all roles; the proxy routes each role to its panel.
 
 ---
@@ -52,7 +51,7 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · Supa
 - **Left for you:** paste real Supabase keys into `.env.local` before running against a DB
 
 ### 2. Auth ✅
-- [x] Supabase Auth login/signup (`(auth)/login`, `(auth)/signup` + server actions in `core/auth/actions.ts`)
+- [x] Supabase Auth login (`(auth)/login` + `signIn`/`signOut` in `core/auth/actions.ts`); no public signup (see decision)
 - [x] Roles modeled: super_admin, clinic_admin, doctor, receptionist (`core/types/auth.ts`)
 - [x] Session handling + route protection via Next 16 **proxy** (`src/proxy.ts`) + `core/auth/update-session.ts`
 - [x] Server guards `requireUser` / `requireRole` (`core/auth/user.ts`); `signOut` action + button
@@ -78,16 +77,12 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · Supa
 - [ ] `ModuleDefinition` interface
 - [ ] `/modules/dental/config.ts`
 - [ ] Registry exposes a "selectable specialties" list (with available/coming-soon flags)
-      for the signup checkboxes
-
-### 4b. Trial signup (replaces placeholder) ⬜ — depends on Steps 3 + 4
-- [ ] Service-role Supabase admin client (`core/db/client.admin.ts`)
-- [ ] `/signup` form: clinic name + email + password + specialty checkboxes
-- [ ] Server action: create clinic (modules_enabled) + clinic_admin user (app_metadata) → `/clinic`
+      for the Super Admin create-clinic checkboxes (Step 5)
 
 ### 5. Super Admin panel (`/admin`) ⬜
-- [ ] Create clinic
-- [ ] Toggle modules
+- [ ] Service-role Supabase admin client (`core/db/client.admin.ts`) — provisions accounts
+- [ ] Create clinic + select specialties (checkboxes → `modules_enabled`) + create its Clinic Admin
+- [ ] Toggle modules for an existing clinic
 - [ ] View billing / usage
 
 ### 6. Clinic Admin panel (`/clinic`) ⬜
@@ -138,4 +133,4 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · Supa
 | 2026-07-06 | **Step 2 (Auth) complete** — roles, login/signup, session proxy, route protection, role guards, placeholder panels. Module-agnostic (authorizes by role, never specialty). Typecheck + build green. |
 | 2026-07-06 | Next 16 learning: `middleware.ts` convention deprecated → renamed to `src/proxy.ts` (`export function proxy`), per bundled docs. |
 | 2026-07-06 | Fixed Grammarly hydration warning (`suppressHydrationWarning`); set Klenic metadata; `/` now redirects to `/login`. |
-| 2026-07-06 | **Decision:** signup = public clinic-trial flow with specialty checkboxes (see Product decisions). Scheduled as Step 4b after DB schema + registry. |
+| 2026-07-06 | **Decision revised:** removed public signup entirely — accounts are admin-provisioned only (Super Admin → clinics + clinic admins; clinic admin → staff). Deleted `/signup` page/form/action + login link; specialty checkboxes move to Step 5. Build green. |

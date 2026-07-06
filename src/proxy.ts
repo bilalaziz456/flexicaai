@@ -5,7 +5,7 @@ import {
   matchProtectedPrefix,
 } from "@/core/types/auth";
 
-const AUTH_PAGES = ["/login", "/signup"];
+const AUTH_PAGES = ["/login"];
 
 /**
  * Global auth gate (Next.js 16 "proxy" convention — formerly middleware).
@@ -13,7 +13,7 @@ const AUTH_PAGES = ["/login", "/signup"];
  *  1. Refreshes the Supabase session cookie.
  *  2. Blocks unauthenticated users from the four panels.
  *  3. Enforces role→panel access (a receptionist cannot open /admin).
- *  4. Bounces already-authenticated users away from /login and /signup.
+ *  4. Bounces already-authenticated users away from /login.
  *
  * CORE and specialty-agnostic: it authorizes by ROLE only. It never inspects
  * which modules a clinic has enabled — that gating happens inside each panel.

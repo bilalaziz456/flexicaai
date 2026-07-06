@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 /**
- * Shared shell for auth pages (login, signup). Public — no session required.
+ * Shared shell for auth pages (login). Public — no session required.
  * Specialty-agnostic: shows Klenic branding, never a specific module.
  */
 export default function AuthLayout({ children }: { children: ReactNode }) {

@@ -46,46 +46,11 @@ export async function signIn(
   redirect(ROLE_HOME_ROUTE[rawRole]);
 }
 
-const signUpSchema = credentialsSchema.extend({
-  confirmPassword: z.string(),
-}).refine((v) => v.password === v.confirmPassword, {
-  message: "Passwords do not match.",
-  path: ["confirmPassword"],
-});
-
 /**
- * Creates an account. Role and clinic are NOT set here — a Super Admin or
- * Clinic Admin provisions those later (Steps 5-6). Until then the user has no
- * panel access, which is intentional for this B2B flow.
+ * NOTE: There is intentionally no public signup. Accounts are provisioned only
+ * from inside the app — a Super Admin creates clinics + clinic admins (Step 5),
+ * and a clinic admin creates their own staff (Step 6). No account = no login.
  */
-export async function signUp(
-  _prevState: AuthActionState,
-  formData: FormData,
-): Promise<AuthActionState> {
-  const parsed = signUpSchema.safeParse({
-    email: formData.get("email"),
-    password: formData.get("password"),
-    confirmPassword: formData.get("confirmPassword"),
-  });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
-  }
-
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.auth.signUp({
-    email: parsed.data.email,
-    password: parsed.data.password,
-  });
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  return {
-    message:
-      "Account created. If email confirmation is enabled, check your inbox. An administrator will grant your access.",
-  };
-}
 
 /** Signs the user out and returns to the login page. */
 export async function signOut() {
