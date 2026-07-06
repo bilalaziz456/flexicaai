@@ -74,15 +74,19 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · **Dr
 - [x] Typecheck + build green
 - **Left for you:** after migrating, `npm run db:seed` to create your super admin, then log in.
 
-### 3. Core DB schema 🔨 (partially started by the auth rework)
-- [x] `clinics` (with `modules_enabled` text[]) — minimal; more columns may be added here
+### 3. Core DB schema ✅
+- [x] `clinics` (with `modules_enabled` text[])
 - [x] `users` (role, clinic_id, bcrypt hash, is_active) + `sessions`
-- [x] Indexes on `users.email` (unique), `users.clinic_id`, `sessions.token_hash` (unique), etc.
-- [ ] `patients`
-- [ ] `appointments` (with `module` field)
-- [ ] `visits` (with `module` field)
-- [ ] `recalls`
-- [ ] `clinic_id` scoping helper + (optional) native Postgres RLS as defense-in-depth
+- [x] `patients` (clinic-scoped; phone/WhatsApp, DOB, data-consent flag)
+- [x] `appointments` (`module` text tag, status enum, scheduled_at, doctor)
+- [x] `visits` (`module` tag, `status` draft/approved enum, transcript, JSONB note, approved_by)
+- [x] `recalls` (`module` tag, due_at, status enum, source_visit link) — recall engine reads these
+- [x] `module` kept as free-text tag (NOT enum) so new specialties need no schema change
+- [x] Indexes on every `clinic_id` + common lookups (name/phone/date/status)
+- [x] Tenant-scoping helper `byClinic()` (`core/db/tenant.ts`) — the multi-tenancy boundary
+- [x] Migrations `0000` + `0001` applied; production build green
+- **Note:** specialty clinical data (e.g. dental tooth-chart rows) will live in module tables
+  linked to `visits`, never as columns on these core tables (CLAUDE.md §5).
 
 ### 4. Module registry + dental skeleton ⬜
 - [ ] `/config/modules.ts` registry
@@ -165,3 +169,4 @@ Other DB commands: `npm run db:generate` (new migration after schema change) ·
 | 2026-07-06 | **Decision revised:** removed public signup entirely — accounts are admin-provisioned only (Super Admin → clinics + clinic admins; clinic admin → staff). Deleted `/signup` page/form/action + login link; specialty checkboxes move to Step 5. Build green. |
 | 2026-07-06 | **Major rework: Supabase → local PostgreSQL + Drizzle + custom session auth.** Removed `@supabase/*`; added drizzle-orm/pg/bcryptjs/drizzle-kit/tsx/dotenv. New DB layer (`core/db/index.ts` + `schema.ts`), custom auth (`session.ts`/`password.ts`/`constants.ts`), Edge-safe proxy, seed script. Generated migration `0000_*`. Updated CLAUDE.md §2/§5/§8/§10/§11. Typecheck + build green. |
 | 2026-07-06 | **DB live end-to-end.** Postgres on port 5433; created `klenic` DB, applied migration `0000`, seeded super admin. Verified: `/login` 200, `/admin` 307→login, form renders. Login works in browser. |
+| 2026-07-06 | **Step 3 (Core DB schema) complete.** Added `patients`, `appointments`, `visits`, `recalls` (module-tagged, status enums, JSONB note, indexed by clinic_id). Added `byClinic()` tenant helper. Migration `0001` applied → 7 tables. Typecheck + build green. |
