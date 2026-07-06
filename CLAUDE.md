@@ -29,9 +29,14 @@ When writing any feature, always ask: "Would a dentist, dermatologist, and hair 
 - **Framework:** Next.js 14+ (App Router, not Pages Router)
 - **Language:** TypeScript (strict mode)
 - **Styling:** Tailwind CSS + shadcn/ui components
-- **Database:** PostgreSQL via Supabase
-- **Auth:** Supabase Auth
-- **File storage:** Supabase Storage (audio, PDFs, photos)
+- **Database:** PostgreSQL (self-hosted / local; no Supabase)
+- **ORM / query layer:** Drizzle ORM over `pg` (node-postgres), single pool.
+  Default to Drizzle; drop to raw SQL via `db.execute(sql\`…\`)` on the SAME pool
+  for heavy analytics / hand-tuned queries. See `src/core/db/index.ts` for the policy.
+- **Auth:** Custom session auth — `users` table (bcrypt hashes) + `sessions` table +
+  HTTP-only cookie holding an opaque token (SHA-256 hash stored). No third-party auth.
+- **File storage:** local filesystem for now (audio, PDFs, photos); swap to an
+  S3-compatible store later. (Was Supabase Storage.)
 - **AI reasoning:** Anthropic Claude API (scribe, chat)
 - **Voice transcription:** OpenAI Whisper API
 - **WhatsApp:** AiSensy (WhatsApp Business API provider)
@@ -40,6 +45,10 @@ When writing any feature, always ask: "Would a dentist, dermatologist, and hair 
 - **PDF generation:** react-pdf or pdfkit
 
 Do not introduce new libraries or frameworks without a clear reason. Prefer boring, proven choices.
+
+> **Stack note (2026-07-06):** The DB/Auth/Storage stack was changed from Supabase to
+> **local PostgreSQL + Drizzle + custom session auth** at the owner's direction. Any older
+> references to Supabase elsewhere in this file are superseded by this section.
 
 ---
 
@@ -168,9 +177,13 @@ Design every table to support multiple specialties from day one.
 - When derma is added, `derma_records` is a new table. Core tables never change.
 
 ### Multi-tenancy
-- Every table has a `clinic_id`.
-- Every query filters by `clinic_id`.
-- Use Supabase Row Level Security (RLS) so a clinic can never see another clinic's data.
+- Every tenant table has a `clinic_id`.
+- Every query filters by `clinic_id` — enforced in the server-side query layer
+  (the browser never queries the DB directly; all access goes through Server
+  Actions / Route Handlers).
+- Centralise tenant scoping so a query can't accidentally omit `clinic_id`
+  (e.g. a `forClinic(clinicId)` helper). Consider native Postgres Row Level
+  Security later as defense-in-depth; for now the query layer is the boundary.
 
 ---
 
@@ -203,7 +216,7 @@ Default to server components. Only use client components for genuine interactivi
 
 Flow:
 1. Doctor records voice (client component, browser MediaRecorder)
-2. Audio uploaded to Supabase Storage
+2. Audio uploaded to file storage (local filesystem for now; S3-compatible later)
 3. `/api/ai/scribe` route: audio → Whisper (transcript) → Claude (structured note)
 4. Claude uses the ENABLED MODULE's prompt (dental prompt for a dental clinic)
 5. Return structured note as JSON
@@ -242,8 +255,10 @@ Flow:
 
 ## 10. Security & compliance (healthcare data)
 
-- Patient data is sensitive. Encrypt at rest (Supabase handles this) and in transit (HTTPS).
-- Use Supabase Row Level Security on every table.
+- Patient data is sensitive. Encrypt in transit (HTTPS); enable Postgres encryption
+  at rest on the deployment (disk/volume encryption or `pgcrypto` for specific fields).
+- Enforce tenant isolation in the server query layer (filter every query by `clinic_id`);
+  add native Postgres RLS later as defense-in-depth.
 - Role-based access: a receptionist should not see clinical notes unless the clinic allows it.
 - Audit log every action that touches patient data.
 - Never log patient PII to console or error trackers in plain text.
@@ -256,7 +271,7 @@ Flow:
 
 Do not jump ahead. Build in this sequence:
 
-1. Project setup: Next.js + Supabase + Tailwind + shadcn/ui
+1. Project setup: Next.js + PostgreSQL/Drizzle + Tailwind + shadcn/ui
 2. Auth: login/signup, roles, session
 3. Core DB schema: clinics (with `modules_enabled`), users, patients, appointments, visits, recalls
 4. Module registry + dental module skeleton (`/modules/dental/config.ts`)

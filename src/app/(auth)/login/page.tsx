@@ -1,21 +1,15 @@
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/core/auth/user";
+import { ROLE_HOME_ROUTE } from "@/core/types/auth";
 import { LoginForm } from "./login-form";
 
-const ERROR_MESSAGES: Record<string, string> = {
-  no_access:
-    "Your account has no access yet. An administrator must assign your role.",
-};
-
 /**
- * Login page (Server Component). Reads the ?error query set by middleware /
- * failed logins and passes a friendly message into the client form.
+ * Login page (Server Component). Redirects already-authenticated users to their
+ * panel. Login errors surface inline via the form's action state.
  */
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
-  const { error } = await searchParams;
-  const initialError = error ? ERROR_MESSAGES[error] : undefined;
+export default async function LoginPage() {
+  const user = await getCurrentUser();
+  if (user) redirect(ROLE_HOME_ROUTE[user.role]);
 
-  return <LoginForm initialError={initialError} />;
+  return <LoginForm />;
 }

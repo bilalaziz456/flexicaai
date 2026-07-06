@@ -1,7 +1,8 @@
+import "server-only";
+
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "@/core/db/client.server";
+import { getSessionUser } from "@/core/auth/session";
 import {
-  isUserRole,
   ROLE_HOME_ROUTE,
   type CurrentUser,
   type UserRole,
@@ -9,28 +10,19 @@ import {
 
 /**
  * Reads the authenticated user for Server Components, Server Actions, and Route
- * Handlers. Returns null when signed out.
- *
- * Role and clinicId come from app_metadata (tamper-proof, admin-controlled).
- * The `users` table (Step 3) will hold the fuller profile; this helper is the
- * one place to update when that becomes the source of truth for extra fields.
+ * Handlers. Returns null when signed out. Role and clinicId come straight from
+ * the users table (the canonical source, CLAUDE.md §5).
  */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = await getSessionUser();
   if (!user) return null;
-
-  const rawRole = user.app_metadata?.role;
-  const clinicId = user.app_metadata?.clinic_id;
 
   return {
     id: user.id,
-    email: user.email ?? null,
-    role: isUserRole(rawRole) ? rawRole : null,
-    clinicId: typeof clinicId === "string" ? clinicId : null,
+    email: user.email,
+    // role is a NOT NULL enum column, so it is always a valid UserRole here.
+    role: user.role as UserRole,
+    clinicId: user.clinicId,
   };
 }
 
@@ -44,8 +36,9 @@ export async function requireUser(): Promise<CurrentUser> {
 /**
  * Guards a panel to specific role(s). Use at the top of a protected layout/page:
  *   const user = await requireRole("doctor");
- * Redirects to the user's own home if their role isn't allowed, or to /login
- * if signed out / not yet provisioned with a role.
+ * This is the REAL authorization gate (the Edge proxy only does a coarse
+ * cookie-presence check). Redirects to the user's own home if their role isn't
+ * allowed, or to /login if signed out.
  */
 export async function requireRole(
   allowed: UserRole | UserRole[],
@@ -53,7 +46,6 @@ export async function requireRole(
   const user = await requireUser();
   const allowedRoles = Array.isArray(allowed) ? allowed : [allowed];
 
-  if (!user.role) redirect("/login?error=no_access");
   if (!allowedRoles.includes(user.role)) {
     redirect(ROLE_HOME_ROUTE[user.role]);
   }

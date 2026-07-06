@@ -21,6 +21,15 @@ _Last updated: 2026-07-06_
     the Super Admin "create clinic" screen (Step 5), rendered from the module registry so
     new modules appear with zero UI changes.
 - **Login = single shared page** for all roles; the proxy routes each role to its panel.
+- **Stack change: Supabase → local PostgreSQL + Drizzle + custom auth** (decided 2026-07-06,
+  supersedes CLAUDE.md's original Supabase stack; §2/§5/§10 updated). Owner wants data on
+  own Postgres + fastest local queries. Implications:
+  - DB access is 100% server-side (no browser DB client). Multi-tenancy enforced by
+    filtering every query by `clinic_id` in the query layer (Postgres RLS later, optional).
+  - Auth is home-grown: `users` (bcrypt) + `sessions` (opaque cookie token, SHA-256 in DB).
+  - **Drizzle vs raw SQL policy:** default Drizzle; raw SQL via `db.execute(sql\`…\`)` on the
+    same pool for heavy analytics / hand-tuned queries. Full policy in `src/core/db/index.ts`.
+  - File storage → local filesystem for now (audio/PDF/photos), S3-compatible later.
 
 ---
 
@@ -31,6 +40,8 @@ _Last updated: 2026-07-06_
 - git: **2.55.0** ✅ (repo initialized; commit identity set locally as "Bilal Aziz" &lt;bilalaziz456@gmail.com&gt;)
 - Next.js: **16.2.10** (spec said "14+"; scaffold gave latest — App Router, satisfies "14+")
 - React: 19.2.4 · Tailwind: **v4** · TypeScript: strict ✅
+- **PostgreSQL 17** ✅ (local service `postgresql-x64-17` running) · **Drizzle ORM** + `pg`
+  · **bcryptjs** · drizzle-kit / tsx / dotenv (dev)
 - Note: an `AGENTS.md` (added by create-next-app) warns Next 16 has API changes vs
   older docs — check `node_modules/next/dist/docs/` when unsure. Imported from CLAUDE.md.
 
@@ -38,39 +49,40 @@ _Last updated: 2026-07-06_
 
 ## Build order (CLAUDE.md §11)
 
-### 1. Project setup ✅
-Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · Supabase client
+### 1. Project setup ✅  _(reworked to local Postgres 2026-07-06)_
+Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · **Drizzle + local Postgres**
 - [x] Next.js app scaffolded (App Router, TS strict)
 - [x] Tailwind configured (v4)
 - [x] shadcn/ui initialized — output realigned to `/core/ui` + `/core/lib` per §3
 - [x] Folder structure created per CLAUDE.md §3 (`/core`, `/modules`, `/config`)
-- [x] Supabase clients wired: `core/db/client.browser.ts`, `core/db/client.server.ts`
-- [x] Zod-validated env (`core/lib/env.ts`): public vs server-only secrets split
-- [x] `.env.example` (committed) + `.env.local` (placeholders) documented
+- [x] DB layer wired: `core/db/index.ts` (single `pg` pool + Drizzle + raw escape hatch), `core/db/schema.ts`
+- [x] Zod-validated env (`core/lib/env.ts`): server-only `DATABASE_URL` (no public vars now)
+- [x] `.env.example` + `.env.local` updated to `DATABASE_URL` + seed vars
+- [x] `drizzle.config.ts` + npm scripts (`db:generate/migrate/push/studio/seed`)
 - [x] Typecheck clean + production build passes
-- **Left for you:** paste real Supabase keys into `.env.local` before running against a DB
+- **Left for you:** set your Postgres password in `.env.local` `DATABASE_URL`, create the `klenic`
+  database, then `npm run db:migrate` (see "How to run the DB" below).
 
-### 2. Auth ✅
-- [x] Supabase Auth login (`(auth)/login` + `signIn`/`signOut` in `core/auth/actions.ts`); no public signup (see decision)
-- [x] Roles modeled: super_admin, clinic_admin, doctor, receptionist (`core/types/auth.ts`)
-- [x] Session handling + route protection via Next 16 **proxy** (`src/proxy.ts`) + `core/auth/update-session.ts`
-- [x] Server guards `requireUser` / `requireRole` (`core/auth/user.ts`); `signOut` action + button
-- [x] Placeholder panel pages at `/admin`, `/clinic`, `/doctor`, `/reception` (role-gated; real UIs come in Steps 5-11)
+### 2. Auth ✅  _(reworked to custom session auth 2026-07-06)_
+- [x] Email/password login (`(auth)/login` + `signIn`/`signOut` in `core/auth/actions.ts`); no public signup
+- [x] Roles: super_admin, clinic_admin, doctor, receptionist (`core/types/auth.ts` + `user_role` pg enum)
+- [x] Custom sessions: `core/auth/session.ts` (opaque cookie token, SHA-256 hash in `sessions`), `password.ts` (bcrypt)
+- [x] Server guards `requireUser` / `requireRole` (`core/auth/user.ts`) — the REAL auth gate; `signOut` + button
+- [x] Edge-safe proxy (`src/proxy.ts`): coarse cookie-presence check only (no DB in Edge); role enforced in pages
+- [x] Placeholder panel pages at `/admin`, `/clinic`, `/doctor`, `/reception` (role-gated)
+- [x] Seed script `scripts/seed.ts` (`npm run db:seed`) creates the first super_admin
 - [x] Typecheck + build green
-- **Design note:** role/clinic_id read from Supabase **app_metadata** (tamper-proof, admin-set) so the
-  proxy can authorize from the JWT with no DB call. Step 3's `users` table becomes the canonical profile;
-  role stays mirrored in app_metadata. Only `getCurrentUser()` / `updateSession()` change when we wire it.
-- **Left for you:** put real Supabase keys in `.env.local`, then a Super Admin must set a user's
-  `app_metadata.role` (and `clinic_id`) before they can enter a panel. Signup alone grants no access (B2B).
+- **Left for you:** after migrating, `npm run db:seed` to create your super admin, then log in.
 
-### 3. Core DB schema ⬜
-- [ ] `clinics` (with `modules_enabled` text[])
-- [ ] `users`
+### 3. Core DB schema 🔨 (partially started by the auth rework)
+- [x] `clinics` (with `modules_enabled` text[]) — minimal; more columns may be added here
+- [x] `users` (role, clinic_id, bcrypt hash, is_active) + `sessions`
+- [x] Indexes on `users.email` (unique), `users.clinic_id`, `sessions.token_hash` (unique), etc.
 - [ ] `patients`
 - [ ] `appointments` (with `module` field)
 - [ ] `visits` (with `module` field)
 - [ ] `recalls`
-- [ ] RLS policies + `clinic_id` on every table
+- [ ] `clinic_id` scoping helper + (optional) native Postgres RLS as defense-in-depth
 
 ### 4. Module registry + dental skeleton ⬜
 - [ ] `/config/modules.ts` registry
@@ -117,6 +129,20 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · Supa
 
 ---
 
+## How to run the DB (local Postgres)
+
+1. In `.env.local`, set `DATABASE_URL` — replace `YOUR_PASSWORD` with your Postgres password.
+2. Create the database (once):
+   `psql -U postgres -c "CREATE DATABASE klenic;"`
+3. Apply migrations: `npm run db:migrate`
+4. Seed the first super admin: `npm run db:seed` (set `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` first).
+5. `npm run dev`, open http://localhost:3000, log in with the seeded admin → lands on `/admin`.
+
+Other DB commands: `npm run db:generate` (new migration after schema change) ·
+`npm run db:push` (dev-only quick sync) · `npm run db:studio` (browse data in a GUI).
+
+---
+
 ## Change log
 
 | Date | Change |
@@ -134,3 +160,4 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · Supa
 | 2026-07-06 | Next 16 learning: `middleware.ts` convention deprecated → renamed to `src/proxy.ts` (`export function proxy`), per bundled docs. |
 | 2026-07-06 | Fixed Grammarly hydration warning (`suppressHydrationWarning`); set Klenic metadata; `/` now redirects to `/login`. |
 | 2026-07-06 | **Decision revised:** removed public signup entirely — accounts are admin-provisioned only (Super Admin → clinics + clinic admins; clinic admin → staff). Deleted `/signup` page/form/action + login link; specialty checkboxes move to Step 5. Build green. |
+| 2026-07-06 | **Major rework: Supabase → local PostgreSQL + Drizzle + custom session auth.** Removed `@supabase/*`; added drizzle-orm/pg/bcryptjs/drizzle-kit/tsx/dotenv. New DB layer (`core/db/index.ts` + `schema.ts`), custom auth (`session.ts`/`password.ts`/`constants.ts`), Edge-safe proxy, seed script. Generated migration `0000_*`. Updated CLAUDE.md §2/§5/§8/§10/§11. Typecheck + build green. |

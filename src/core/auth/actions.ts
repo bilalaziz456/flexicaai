@@ -1,21 +1,27 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { createSupabaseServerClient } from "@/core/db/client.server";
-import { isUserRole, ROLE_HOME_ROUTE } from "@/core/types/auth";
+import { createSession, destroySession } from "@/core/auth/session";
+import { verifyPassword } from "@/core/auth/password";
+import { db } from "@/core/db";
+import { users } from "@/core/db/schema";
+import { ROLE_HOME_ROUTE, type UserRole } from "@/core/types/auth";
 
-/** Shared shape for useActionState in the auth forms. */
+/** Shared shape for useActionState in the login form. */
 export type AuthActionState = { error?: string; message?: string };
 
 const credentialsSchema = z.object({
   email: z.string().email("Enter a valid email address."),
-  password: z.string().min(8, "Password must be at least 8 characters."),
+  password: z.string().min(1, "Enter your password."),
 });
 
 /**
  * Signs a user in with email + password, then routes them to the panel their
  * role owns. CORE: routing is by role only, never by specialty/module.
+ *
+ * DRIZZLE: a single indexed lookup by email — the query builder's sweet spot.
  */
 export async function signIn(
   _prevState: AuthActionState,
@@ -29,32 +35,34 @@ export async function signIn(
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
+  const email = parsed.data.email.toLowerCase();
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
 
-  if (error) {
-    // Deliberately generic — don't reveal whether the email exists.
-    return { error: "Incorrect email or password." };
-  }
+  // Same generic message whether the email is unknown, the password is wrong,
+  // or the account is disabled — never reveal which.
+  const invalid: AuthActionState = { error: "Incorrect email or password." };
+  if (!user || !user.isActive) return invalid;
 
-  const rawRole = data.user?.app_metadata?.role;
-  if (!isUserRole(rawRole)) {
-    // Authenticated but no role provisioned yet.
-    redirect("/login?error=no_access");
-  }
+  const ok = await verifyPassword(parsed.data.password, user.passwordHash);
+  if (!ok) return invalid;
 
-  redirect(ROLE_HOME_ROUTE[rawRole]);
+  await createSession(user.id);
+  redirect(ROLE_HOME_ROUTE[user.role as UserRole]);
 }
 
 /**
  * NOTE: There is intentionally no public signup. Accounts are provisioned only
  * from inside the app — a Super Admin creates clinics + clinic admins (Step 5),
  * and a clinic admin creates their own staff (Step 6). No account = no login.
+ * The very first Super Admin is created by `npm run db:seed`.
  */
 
 /** Signs the user out and returns to the login page. */
 export async function signOut() {
-  const supabase = await createSupabaseServerClient();
-  await supabase.auth.signOut();
+  await destroySession();
   redirect("/login");
 }

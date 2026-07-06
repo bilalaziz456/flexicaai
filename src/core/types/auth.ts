@@ -51,13 +51,13 @@ export function matchProtectedPrefix(pathname: string) {
 }
 
 /**
- * The authenticated user as the rest of the app consumes it. `clinicId` is null
- * for super_admin (company staff belong to no single clinic) and until an admin
- * assigns a newly signed-up user to a clinic.
+ * The authenticated user as the rest of the app consumes it. A signed-in user
+ * always has a role (NOT NULL in the DB). `clinicId` is null for super_admin
+ * (company staff belong to no single clinic).
  */
 export interface CurrentUser {
   id: string;
-  email: string | null;
-  role: UserRole | null;
+  email: string;
+  role: UserRole;
   clinicId: string | null;
 }
