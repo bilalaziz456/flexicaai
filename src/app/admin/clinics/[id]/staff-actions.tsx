@@ -78,6 +78,7 @@ export function StaffActions({
               Full name
             </Label>
             <Input
+              key={`name-${fullName ?? ""}`}
               id={`name-${userId}`}
               name="fullName"
               defaultValue={fullName ?? ""}
@@ -90,6 +91,7 @@ export function StaffActions({
               Username
             </Label>
             <Input
+              key={`user-${username}`}
               id={`user-${userId}`}
               name="username"
               defaultValue={username}
