@@ -141,6 +141,9 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · **Dr
 Other DB commands: `npm run db:generate` (new migration after schema change) ·
 `npm run db:push` (dev-only quick sync) · `npm run db:studio` (browse data in a GUI).
 
+> **This machine:** local Postgres runs on **port 5433** (not the default 5432); `.env.local`
+> reflects that. Migration `0000` applied and a super admin is seeded — login works.
+
 ---
 
 ## Change log
@@ -161,3 +164,4 @@ Other DB commands: `npm run db:generate` (new migration after schema change) ·
 | 2026-07-06 | Fixed Grammarly hydration warning (`suppressHydrationWarning`); set Klenic metadata; `/` now redirects to `/login`. |
 | 2026-07-06 | **Decision revised:** removed public signup entirely — accounts are admin-provisioned only (Super Admin → clinics + clinic admins; clinic admin → staff). Deleted `/signup` page/form/action + login link; specialty checkboxes move to Step 5. Build green. |
 | 2026-07-06 | **Major rework: Supabase → local PostgreSQL + Drizzle + custom session auth.** Removed `@supabase/*`; added drizzle-orm/pg/bcryptjs/drizzle-kit/tsx/dotenv. New DB layer (`core/db/index.ts` + `schema.ts`), custom auth (`session.ts`/`password.ts`/`constants.ts`), Edge-safe proxy, seed script. Generated migration `0000_*`. Updated CLAUDE.md §2/§5/§8/§10/§11. Typecheck + build green. |
+| 2026-07-06 | **DB live end-to-end.** Postgres on port 5433; created `klenic` DB, applied migration `0000`, seeded super admin. Verified: `/login` 200, `/admin` 307→login, form renders. Login works in browser. |
