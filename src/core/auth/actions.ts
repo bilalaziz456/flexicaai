@@ -14,7 +14,7 @@ import { ROLE_HOME_ROUTE, type UserRole } from "@/core/types/auth";
 export type AuthActionState = { error?: string; message?: string };
 
 const credentialsSchema = z.object({
-  email: z.string().email("Enter a valid email address."),
+  username: z.string().trim().min(1, "Enter your username."),
   password: z.string().min(1, "Enter your password."),
 });
 
@@ -29,23 +29,23 @@ export async function signIn(
   formData: FormData,
 ): Promise<AuthActionState> {
   const parsed = credentialsSchema.safeParse({
-    email: formData.get("email"),
+    username: formData.get("username"),
     password: formData.get("password"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
-  const email = parsed.data.email.toLowerCase();
+  const username = parsed.data.username.toLowerCase();
   const [user] = await db
     .select()
     .from(users)
-    .where(eq(users.email, email))
+    .where(eq(users.username, username))
     .limit(1);
 
-  // Same generic message whether the email is unknown, the password is wrong,
+  // Same generic message whether the username is unknown, the password is wrong,
   // or the account is disabled — never reveal which.
-  const invalid: AuthActionState = { error: "Incorrect email or password." };
+  const invalid: AuthActionState = { error: "Incorrect username or password." };
   if (!user || !user.isActive) return invalid;
 
   const ok = await verifyPassword(parsed.data.password, user.passwordHash);

@@ -46,7 +46,7 @@ export default async function ClinicDetailPage({
   const staff = await db
     .select({
       id: users.id,
-      email: users.email,
+      username: users.username,
       role: users.role,
       fullName: users.fullName,
       isActive: users.isActive,
@@ -106,7 +106,7 @@ export default async function ClinicDetailPage({
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
+                <TableHead>Username</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -118,7 +118,7 @@ export default async function ClinicDetailPage({
                   <TableCell className="font-medium">
                     {u.fullName ?? "—"}
                   </TableCell>
-                  <TableCell>{u.email}</TableCell>
+                  <TableCell>{u.username}</TableCell>
                   <TableCell>
                     <Badge variant="secondary">{u.role}</Badge>
                   </TableCell>

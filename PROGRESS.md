@@ -64,7 +64,7 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · **Dr
   database, then `npm run db:migrate` (see "How to run the DB" below).
 
 ### 2. Auth ✅  _(reworked to custom session auth 2026-07-06)_
-- [x] Email/password login (`(auth)/login` + `signIn`/`signOut` in `core/auth/actions.ts`); no public signup
+- [x] Username/password login (`(auth)/login` + `signIn`/`signOut` in `core/auth/actions.ts`); no public signup
 - [x] Roles: super_admin, clinic_admin, doctor, receptionist (`core/types/auth.ts` + `user_role` pg enum)
 - [x] Custom sessions: `core/auth/session.ts` (opaque cookie token, SHA-256 hash in `sessions`), `password.ts` (bcrypt)
 - [x] Server guards `requireUser` / `requireRole` (`core/auth/user.ts`) — the REAL auth gate; `signOut` + button
@@ -188,3 +188,4 @@ Other DB commands: `npm run db:generate` (new migration after schema change) ·
 | 2026-07-06 | **Step 4 (Module registry) complete.** `ModuleDefinition` contract + dental module (scribe prompt, recall rules, PK drug formulary) + `/config/modules.ts` registry with specialty catalog (dental available; derma/hair coming_soon). Golden rule verified: /core imports no module. Build green. |
 | 2026-07-06 | **Step 5 (Super Admin panel) complete.** `/admin` clinics list, create-clinic-with-admin (transaction) + specialty checkboxes from registry, clinic detail with module toggles + staff. Added shadcn checkbox/table/badge. Verified authed pages render 200 (Dental selectable, derma/hair coming soon). Build green. Billing deferred. |
 | 2026-07-06 | **Super Admin management tier complete.** `must_change_password` (migration 0002) + forced `/change-password` flow; reset staff password (revokes sessions); rename clinic; suspend/reactivate accounts; delete clinic (confirm-by-name, cascades). Verified force-change redirect (flag on → /admin 307 → /change-password 200). Build green. Auth bits reused by Step 6. |
+| 2026-07-06 | **Login switched from email → username.** Added `users.username` (unique, migration 0003, backfilled admin@klenic.local → `admin`); email now optional contact. Updated login/create-clinic forms, signIn, seed (`SEED_ADMIN_USERNAME`), displays. Verified: login form shows Username, credential check passes (admin/change-me-now). Login now: **admin** / change-me-now. |

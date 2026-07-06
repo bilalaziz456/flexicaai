@@ -67,7 +67,10 @@ export const users = pgTable(
     clinicId: uuid("clinic_id").references(() => clinics.id, {
       onDelete: "set null",
     }),
-    email: text("email").notNull(),
+    // Login identifier — a short handle like "admin" (not an email).
+    username: text("username").notNull(),
+    // Optional contact email (for future notifications / password reset).
+    email: text("email"),
     passwordHash: text("password_hash").notNull(),
     role: userRole("role").notNull(),
     fullName: text("full_name"),
@@ -83,7 +86,9 @@ export const users = pgTable(
       .defaultNow(),
   },
   (table) => [
-    // Emails are stored lowercased; enforce global uniqueness.
+    // Username is the login credential — globally unique, stored lowercased.
+    uniqueIndex("users_username_unique").on(table.username),
+    // Email is optional; unique when present (Postgres treats NULLs as distinct).
     uniqueIndex("users_email_unique").on(table.email),
     // Multi-tenant lookups filter by clinic_id constantly — index it.
     index("users_clinic_id_idx").on(table.clinicId),

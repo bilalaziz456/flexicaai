@@ -24,7 +24,7 @@ export function PanelPlaceholder({
       <dl className="mt-6 space-y-1 text-sm text-muted-foreground">
         <div>
           <span className="font-medium text-foreground">Signed in as:</span>{" "}
-          {user.email ?? "—"}
+          {user.username}
         </div>
         <div>
           <span className="font-medium text-foreground">Role:</span>{" "}

@@ -61,8 +61,16 @@ export function CreateClinicForm({
             <Input id="adminFullName" name="adminFullName" required />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="adminEmail">Email</Label>
-            <Input id="adminEmail" name="adminEmail" type="email" required />
+            <Label htmlFor="adminUsername">Username</Label>
+            <Input
+              id="adminUsername"
+              name="adminUsername"
+              type="text"
+              autoCapitalize="none"
+              spellCheck={false}
+              placeholder="e.g. citydental"
+              required
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="adminPassword">Temporary password</Label>

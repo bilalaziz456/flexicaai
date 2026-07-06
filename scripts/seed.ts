@@ -17,12 +17,15 @@ import { users } from "../src/core/db/schema";
 config({ path: ".env.local" });
 
 async function main() {
+  const username = (process.env.SEED_ADMIN_USERNAME ?? "admin")
+    .toLowerCase()
+    .trim();
   const email = (process.env.SEED_ADMIN_EMAIL ?? "").toLowerCase().trim();
   const password = process.env.SEED_ADMIN_PASSWORD ?? "";
 
-  if (!email || !password) {
+  if (!username || !password) {
     throw new Error(
-      "Set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD in .env.local first.",
+      "Set SEED_ADMIN_USERNAME and SEED_ADMIN_PASSWORD in .env.local first.",
     );
   }
   if (password.length < 8) {
@@ -37,19 +40,20 @@ async function main() {
   const inserted = await db
     .insert(users)
     .values({
-      email,
+      username,
+      email: email || null,
       passwordHash,
       role: "super_admin",
       fullName: "Super Admin",
       clinicId: null,
     })
-    .onConflictDoNothing({ target: users.email })
+    .onConflictDoNothing({ target: users.username })
     .returning({ id: users.id });
 
   if (inserted.length > 0) {
-    console.log(`✓ Created super admin: ${email}`);
+    console.log(`✓ Created super admin: ${username}`);
   } else {
-    console.log(`• Super admin already exists: ${email} (no change)`);
+    console.log(`• Super admin already exists: ${username} (no change)`);
   }
 
   await pool.end();

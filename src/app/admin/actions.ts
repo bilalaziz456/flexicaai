@@ -9,6 +9,7 @@ import { hashPassword } from "@/core/auth/password";
 import { db } from "@/core/db";
 import { clinics, sessions, users } from "@/core/db/schema";
 import { availableSpecialtyIds } from "@/config/modules";
+import { USERNAME_REGEX } from "@/core/types/auth";
 
 export type AdminActionState = { error?: string; saved?: boolean };
 
@@ -25,7 +26,15 @@ function isUniqueViolation(err: unknown): boolean {
 const createClinicSchema = z.object({
   clinicName: z.string().trim().min(2, "Clinic name is required."),
   adminFullName: z.string().trim().min(2, "Admin name is required."),
-  adminEmail: z.string().email("Enter a valid admin email."),
+  adminUsername: z
+    .string()
+    .trim()
+    .min(3, "Username must be at least 3 characters.")
+    .max(32, "Username must be at most 32 characters.")
+    .transform((s) => s.toLowerCase())
+    .refine((s) => USERNAME_REGEX.test(s), {
+      message: "Username may use lowercase letters, digits, and . _ - only.",
+    }),
   adminPassword: z.string().min(8, "Password must be at least 8 characters."),
 });
 
@@ -46,7 +55,7 @@ export async function createClinicWithAdmin(
   const parsed = createClinicSchema.safeParse({
     clinicName: formData.get("clinicName"),
     adminFullName: formData.get("adminFullName"),
-    adminEmail: formData.get("adminEmail"),
+    adminUsername: formData.get("adminUsername"),
     adminPassword: formData.get("adminPassword"),
   });
   if (!parsed.success) {
@@ -60,7 +69,6 @@ export async function createClinicWithAdmin(
     .map(String)
     .filter((id) => allowed.has(id));
 
-  const email = parsed.data.adminEmail.toLowerCase();
   const passwordHash = await hashPassword(parsed.data.adminPassword);
 
   let newClinicId: string;
@@ -73,7 +81,7 @@ export async function createClinicWithAdmin(
 
       await tx.insert(users).values({
         clinicId: clinic.id,
-        email,
+        username: parsed.data.adminUsername,
         passwordHash,
         role: "clinic_admin",
         fullName: parsed.data.adminFullName,
@@ -85,7 +93,7 @@ export async function createClinicWithAdmin(
     });
   } catch (err) {
     if (isUniqueViolation(err)) {
-      return { error: "That admin email is already in use." };
+      return { error: "That username is already in use." };
     }
     throw err;
   }

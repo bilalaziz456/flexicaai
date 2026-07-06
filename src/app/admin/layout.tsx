@@ -23,7 +23,7 @@ export default async function AdminLayout({
             Klenic <span className="text-muted-foreground">Admin</span>
           </Link>
           <div className="flex items-center gap-3 text-sm">
-            <span className="text-muted-foreground">{user.email}</span>
+            <span className="text-muted-foreground">{user.username}</span>
             <SignOutButton />
           </div>
         </div>

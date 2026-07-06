@@ -19,6 +19,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 
   return {
     id: user.id,
+    username: user.username,
     email: user.email,
     // role is a NOT NULL enum column, so it is always a valid UserRole here.
     role: user.role as UserRole,

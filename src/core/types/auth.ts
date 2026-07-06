@@ -57,9 +57,18 @@ export function matchProtectedPrefix(pathname: string) {
  */
 export interface CurrentUser {
   id: string;
-  email: string;
+  /** Login handle, e.g. "admin". */
+  username: string;
+  /** Optional contact email (not used for login). */
+  email: string | null;
   role: UserRole;
   clinicId: string | null;
   /** True while the user still has an admin-issued temporary password. */
   mustChangePassword: boolean;
 }
+
+/**
+ * Username rules for login handles: lowercase letters, digits, dot, underscore,
+ * hyphen; 3-32 chars. Kept here so login and account-creation validate identically.
+ */
+export const USERNAME_REGEX = /^[a-z0-9._-]+$/;
