@@ -9,6 +9,22 @@ _Last updated: 2026-07-06_
 
 ---
 
+## Product decisions
+
+- **Signup model = public "clinic trial" signup** (decided 2026-07-06). Public `/signup`
+  creates a **new clinic + a `clinic_admin`**, then routes to `/clinic` onboarding.
+  Doctors/receptionists are still added by the clinic admin (not self-signup).
+  - The signup form doubles as the **specialty-selection screen**: checkboxes for
+    Dental (available now), Derma & Hair (shown "coming soon" until built). Ticked
+    specialties become `clinics.modules_enabled`. Checkboxes render from the module
+    registry, so new modules appear with zero form changes.
+  - **Depends on:** Step 3 (`clinics` table) + Step 4 (module registry) + a service-role
+    Supabase client (to create the user with role/clinic in app_metadata and insert the
+    clinic row). Build order: Step 3 → Step 4 → then replace the placeholder signup.
+- **Login = single shared page** for all roles; the proxy routes each role to its panel.
+
+---
+
 ## Environment
 
 - Node: v24.18.0 ✅
@@ -61,6 +77,13 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · Supa
 - [ ] `/config/modules.ts` registry
 - [ ] `ModuleDefinition` interface
 - [ ] `/modules/dental/config.ts`
+- [ ] Registry exposes a "selectable specialties" list (with available/coming-soon flags)
+      for the signup checkboxes
+
+### 4b. Trial signup (replaces placeholder) ⬜ — depends on Steps 3 + 4
+- [ ] Service-role Supabase admin client (`core/db/client.admin.ts`)
+- [ ] `/signup` form: clinic name + email + password + specialty checkboxes
+- [ ] Server action: create clinic (modules_enabled) + clinic_admin user (app_metadata) → `/clinic`
 
 ### 5. Super Admin panel (`/admin`) ⬜
 - [ ] Create clinic
@@ -114,3 +137,5 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · Supa
 | 2026-07-05 | Pushed to GitHub: https://github.com/bilalaziz456/klenic (origin/main). |
 | 2026-07-06 | **Step 2 (Auth) complete** — roles, login/signup, session proxy, route protection, role guards, placeholder panels. Module-agnostic (authorizes by role, never specialty). Typecheck + build green. |
 | 2026-07-06 | Next 16 learning: `middleware.ts` convention deprecated → renamed to `src/proxy.ts` (`export function proxy`), per bundled docs. |
+| 2026-07-06 | Fixed Grammarly hydration warning (`suppressHydrationWarning`); set Klenic metadata; `/` now redirects to `/login`. |
+| 2026-07-06 | **Decision:** signup = public clinic-trial flow with specialty checkboxes (see Product decisions). Scheduled as Step 4b after DB schema + registry. |
