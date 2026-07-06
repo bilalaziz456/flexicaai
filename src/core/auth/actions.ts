@@ -1,8 +1,13 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import {
+  THEME_COOKIE_MAX_AGE,
+  THEME_COOKIE_NAME,
+} from "@/core/theme/theme";
 import { createSession, destroySession } from "@/core/auth/session";
 import { hashPassword, verifyPassword } from "@/core/auth/password";
 import { requireUser } from "@/core/auth/user";
@@ -52,6 +57,15 @@ export async function signIn(
   if (!ok) return invalid;
 
   await createSession(user.id);
+
+  // Apply the account's saved theme on this browser (no flash on next render).
+  const cookieStore = await cookies();
+  cookieStore.set(THEME_COOKIE_NAME, user.theme, {
+    path: "/",
+    maxAge: THEME_COOKIE_MAX_AGE,
+    sameSite: "lax",
+  });
+
   if (user.mustChangePassword) redirect("/change-password");
   redirect(ROLE_HOME_ROUTE[user.role as UserRole]);
 }

@@ -34,6 +34,13 @@ export const userRole = pgEnum("user_role", [
   "receptionist",
 ]);
 
+/** Per-user theme preference. "system" follows the OS. */
+export const themePreference = pgEnum("theme_preference", [
+  "system",
+  "light",
+  "dark",
+]);
+
 /**
  * Tenants. `modulesEnabled` is the array the specialty checkboxes read/write —
  * e.g. ['dental']. Core code checks this list but never hardcodes a specialty.
@@ -78,6 +85,8 @@ export const users = pgTable(
     // Set true when an admin creates the account with a temporary password;
     // cleared once the user sets their own (forced on first login).
     mustChangePassword: boolean("must_change_password").notNull().default(false),
+    // UI theme preference; "system" follows the OS.
+    theme: themePreference("theme").notNull().default("system"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

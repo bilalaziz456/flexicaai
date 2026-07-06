@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { requireRole } from "@/core/auth/user";
 import { SignOutButton } from "@/core/auth/sign-out-button";
+import { getThemeCookie } from "@/core/theme/server";
+import { ThemeToggle } from "@/core/ui/theme-toggle";
 
 /**
  * Super Admin panel shell. Guards EVERY /admin/* route to super_admin — if a
@@ -14,6 +16,7 @@ export default async function AdminLayout({
   children: ReactNode;
 }) {
   const user = await requireRole("super_admin");
+  const theme = await getThemeCookie();
 
   return (
     <div className="min-h-screen">
@@ -23,6 +26,7 @@ export default async function AdminLayout({
             Klenic
           </Link>
           <div className="flex items-center gap-3 text-sm">
+            <ThemeToggle initial={theme} />
             <span className="rounded-full bg-accent px-2.5 py-1 font-medium text-accent-foreground">
               {user.username}
             </span>
