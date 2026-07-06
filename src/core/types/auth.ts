@@ -60,4 +60,6 @@ export interface CurrentUser {
   email: string;
   role: UserRole;
   clinicId: string | null;
+  /** True while the user still has an admin-issued temporary password. */
+  mustChangePassword: boolean;
 }

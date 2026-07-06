@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { createSession, destroySession } from "@/core/auth/session";
-import { verifyPassword } from "@/core/auth/password";
+import { hashPassword, verifyPassword } from "@/core/auth/password";
+import { requireUser } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { users } from "@/core/db/schema";
 import { ROLE_HOME_ROUTE, type UserRole } from "@/core/types/auth";
@@ -51,7 +52,45 @@ export async function signIn(
   if (!ok) return invalid;
 
   await createSession(user.id);
+  if (user.mustChangePassword) redirect("/change-password");
   redirect(ROLE_HOME_ROUTE[user.role as UserRole]);
+}
+
+const changePasswordSchema = z
+  .object({
+    password: z.string().min(8, "Password must be at least 8 characters."),
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.password === v.confirmPassword, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
+  });
+
+/**
+ * Sets the signed-in user's own password and clears the must-change flag. Used
+ * for the forced first-login change; also usable as a normal "change password".
+ */
+export async function changePassword(
+  _prevState: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
+  const user = await requireUser();
+
+  const parsed = changePasswordSchema.safeParse({
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const passwordHash = await hashPassword(parsed.data.password);
+  await db
+    .update(users)
+    .set({ passwordHash, mustChangePassword: false, updatedAt: new Date() })
+    .where(eq(users.id, user.id));
+
+  redirect(ROLE_HOME_ROUTE[user.role]);
 }
 
 /**

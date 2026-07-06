@@ -106,11 +106,15 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · **Dr
 - [x] Clinic detail (`/admin/clinics/[id]`): toggle modules + staff list (uses `byClinic()`)
 - [x] Reusable `SpecialtyCheckboxes` (dental selectable; derma/hair disabled "coming soon")
 - [x] Verified: `/admin` + `/admin/clinics/new` render 200 with a real super_admin session
+- [x] **Force password change on first login** — `must_change_password` col (migration 0002),
+      `/change-password` flow, enforced in `requireRole`; created clinic admins start with the flag.
+      Verified: flag on → `/admin` 307 → `/change-password` 200.
+- [x] **Reset a staff password** — issues a temp password + sets the flag + revokes their sessions
+- [x] **Rename clinic**; **suspend/reactivate** account (`is_active`, revokes sessions on suspend);
+      **delete clinic** (danger zone, confirm by typing the name; cascades all its data)
 - [ ] View billing / usage (deferred — not MVP-critical)
-- **Deferred backlog (revisit after Step 6):** force password change on first login (High) ·
-  reset a clinic admin's password (High) · edit/rename clinic (Med) · suspend/deactivate
-  clinic or user via `is_active` (Med) · delete clinic (Med) · billing & usage (Later) ·
-  audit log of admin actions per §10 (Later) · search/pagination on clinics (Later).
+- **Still deferred (revisit later):** billing & usage · audit log of admin actions (§10) ·
+  search/pagination on clinics · clinic-level suspend. Not premature to skip now.
 
 ### 6. Clinic Admin panel (`/clinic`) ⬜
 - [ ] Dashboard
@@ -183,3 +187,4 @@ Other DB commands: `npm run db:generate` (new migration after schema change) ·
 | 2026-07-06 | **Step 3 (Core DB schema) complete.** Added `patients`, `appointments`, `visits`, `recalls` (module-tagged, status enums, JSONB note, indexed by clinic_id). Added `byClinic()` tenant helper. Migration `0001` applied → 7 tables. Typecheck + build green. |
 | 2026-07-06 | **Step 4 (Module registry) complete.** `ModuleDefinition` contract + dental module (scribe prompt, recall rules, PK drug formulary) + `/config/modules.ts` registry with specialty catalog (dental available; derma/hair coming_soon). Golden rule verified: /core imports no module. Build green. |
 | 2026-07-06 | **Step 5 (Super Admin panel) complete.** `/admin` clinics list, create-clinic-with-admin (transaction) + specialty checkboxes from registry, clinic detail with module toggles + staff. Added shadcn checkbox/table/badge. Verified authed pages render 200 (Dental selectable, derma/hair coming soon). Build green. Billing deferred. |
+| 2026-07-06 | **Super Admin management tier complete.** `must_change_password` (migration 0002) + forced `/change-password` flow; reset staff password (revokes sessions); rename clinic; suspend/reactivate accounts; delete clinic (confirm-by-name, cascades). Verified force-change redirect (flag on → /admin 307 → /change-password 200). Build green. Auth bits reused by Step 6. |

@@ -72,6 +72,9 @@ export const users = pgTable(
     role: userRole("role").notNull(),
     fullName: text("full_name"),
     isActive: boolean("is_active").notNull().default(true),
+    // Set true when an admin creates the account with a temporary password;
+    // cleared once the user sets their own (forced on first login).
+    mustChangePassword: boolean("must_change_password").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

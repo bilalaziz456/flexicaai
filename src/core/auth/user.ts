@@ -23,6 +23,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     // role is a NOT NULL enum column, so it is always a valid UserRole here.
     role: user.role as UserRole,
     clinicId: user.clinicId,
+    mustChangePassword: user.mustChangePassword,
   };
 }
 
@@ -48,6 +49,10 @@ export async function requireRole(
 
   if (!allowedRoles.includes(user.role)) {
     redirect(ROLE_HOME_ROUTE[user.role]);
+  }
+  // A user with a temporary password can't use any panel until they change it.
+  if (user.mustChangePassword) {
+    redirect("/change-password");
   }
   return user;
 }

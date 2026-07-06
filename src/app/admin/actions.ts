@@ -7,7 +7,7 @@ import { z } from "zod";
 import { requireRole } from "@/core/auth/user";
 import { hashPassword } from "@/core/auth/password";
 import { db } from "@/core/db";
-import { clinics, users } from "@/core/db/schema";
+import { clinics, sessions, users } from "@/core/db/schema";
 import { availableSpecialtyIds } from "@/config/modules";
 
 export type AdminActionState = { error?: string; saved?: boolean };
@@ -77,6 +77,8 @@ export async function createClinicWithAdmin(
         passwordHash,
         role: "clinic_admin",
         fullName: parsed.data.adminFullName,
+        // Temp password — force them to set their own on first login.
+        mustChangePassword: true,
       });
 
       return clinic.id;
@@ -116,4 +118,111 @@ export async function updateClinicModules(
   revalidatePath(`/admin/clinics/${clinicId}`);
   revalidatePath("/admin");
   return { saved: true };
+}
+
+const renameSchema = z.object({
+  name: z.string().trim().min(2, "Clinic name is required."),
+});
+
+/** Renames a clinic. */
+export async function updateClinicName(
+  clinicId: string,
+  _prevState: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  await requireRole("super_admin");
+
+  const parsed = renameSchema.safeParse({ name: formData.get("name") });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  await db
+    .update(clinics)
+    .set({ name: parsed.data.name, updatedAt: new Date() })
+    .where(eq(clinics.id, clinicId));
+
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  revalidatePath("/admin");
+  return { saved: true };
+}
+
+const resetPasswordSchema = z.object({
+  password: z.string().min(8, "Password must be at least 8 characters."),
+});
+
+/**
+ * Resets a user's password to a new temporary one and forces them to change it
+ * on next login. Also revokes their existing sessions so the old password (and
+ * any active session) can no longer be used.
+ */
+export async function resetUserPassword(
+  userId: string,
+  _prevState: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  await requireRole("super_admin");
+
+  const parsed = resetPasswordSchema.safeParse({
+    password: formData.get("password"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const passwordHash = await hashPassword(parsed.data.password);
+  await db.transaction(async (tx) => {
+    await tx
+      .update(users)
+      .set({ passwordHash, mustChangePassword: true, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+    await tx.delete(sessions).where(eq(sessions.userId, userId));
+  });
+
+  return { saved: true };
+}
+
+/**
+ * Suspends or reactivates an account. Suspending also revokes active sessions so
+ * access is cut immediately (a disabled user also fails getSessionUser's check).
+ */
+export async function setUserActive(
+  userId: string,
+  isActive: boolean,
+  _formData: FormData,
+): Promise<void> {
+  await requireRole("super_admin");
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(users)
+      .set({ isActive, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+    if (!isActive) {
+      await tx.delete(sessions).where(eq(sessions.userId, userId));
+    }
+  });
+
+  // We don't know the clinic id here; refresh the whole admin area.
+  revalidatePath("/admin", "layout");
+}
+
+/**
+ * Deletes a clinic and everything under it. Users are removed explicitly first
+ * (their sessions cascade); deleting the clinic then cascades patients,
+ * appointments, visits and recalls. Destructive — the UI confirms by name.
+ */
+export async function deleteClinic(
+  clinicId: string,
+  _formData: FormData,
+): Promise<void> {
+  await requireRole("super_admin");
+
+  await db.transaction(async (tx) => {
+    await tx.delete(users).where(eq(users.clinicId, clinicId));
+    await tx.delete(clinics).where(eq(clinics.id, clinicId));
+  });
+
+  revalidatePath("/admin");
+  redirect("/admin");
 }
