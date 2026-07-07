@@ -66,6 +66,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.91 0.008 210);
   --input: oklch(0.91 0.008 210);
+  --input-bg: oklch(0.98 0.005 200);
   --ring: oklch(0.58 0.115 195);
   --chart-1: oklch(0.6 0.12 195);
   --chart-2: oklch(0.62 0.14 250);
@@ -101,6 +102,7 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
+  --input-bg: oklch(0.26 0.014 200);
   --ring: oklch(0.72 0.11 195);
   --chart-1: oklch(0.7 0.12 195);
   --chart-2: oklch(0.68 0.14 250);
@@ -146,8 +148,8 @@ input:-webkit-autofill:active,
 textarea:-webkit-autofill,
 select:-webkit-autofill {
   -webkit-text-fill-color: var(--foreground) !important;
-  -webkit-box-shadow: 0 0 0 1000px var(--card) inset !important;
-  box-shadow: 0 0 0 1000px var(--card) inset !important;
+  -webkit-box-shadow: 0 0 0 1000px var(--input-bg) inset !important;
+  box-shadow: 0 0 0 1000px var(--input-bg) inset !important;
   caret-color: var(--foreground);
   transition: background-color 5000s ease-in-out 0s;
 }
