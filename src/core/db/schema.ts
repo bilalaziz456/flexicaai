@@ -45,21 +45,29 @@ export const themePreference = pgEnum("theme_preference", [
  * Tenants. `modulesEnabled` is the array the specialty checkboxes read/write —
  * e.g. ['dental']. Core code checks this list but never hardcodes a specialty.
  */
-export const clinics = pgTable("clinics", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
-  // text[] of module ids, e.g. {dental}. Empty until a specialty is enabled.
-  modulesEnabled: text("modules_enabled")
-    .array()
-    .notNull()
-    .default([]),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const clinics = pgTable(
+  "clinics",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    // text[] of module ids, e.g. {dental}. Empty until a specialty is enabled.
+    modulesEnabled: text("modules_enabled")
+      .array()
+      .notNull()
+      .default([]),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    // Fast case-insensitive contains-search (ILIKE '%q%') on name via pg_trgm.
+    // A plain btree can't serve a leading-wildcard LIKE; a GIN trigram index can.
+    index("clinics_name_trgm_idx").using("gin", t.name.op("gin_trgm_ops")),
+  ],
+);
 
 /**
  * Staff accounts. Role + clinicId are the authorization anchors (CLAUDE.md §5).
