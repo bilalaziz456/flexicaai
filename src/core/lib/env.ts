@@ -25,6 +25,27 @@ const serverSchema = z.object({
   // Where uploaded audio is stored on disk for now (swap to S3 later). Relative
   // to the project root. Gitignored.
   STORAGE_DIR: z.string().default("./storage"),
+
+  // Absolute base URL of this app — used to build public links (e.g. a
+  // prescription PDF link sent over WhatsApp).
+  APP_URL: z.string().url().default("http://localhost:3000"),
+
+  // WhatsApp via AiSensy (WhatsApp Business API provider). OPTIONAL — the app
+  // boots without it; send calls fail with a clear message and messages are
+  // still logged (queued) so nothing is lost.
+  AISENSY_API_KEY: z.string().optional(),
+  AISENSY_API_URL: z
+    .string()
+    .url()
+    .default("https://backend.aisensy.com/campaign/t1/api/v2"),
+  // AiSensy campaign (maps to an approved template) used to deliver prescriptions.
+  AISENSY_RX_CAMPAIGN: z.string().default("prescription"),
+  // Shared secret AiSensy includes (?token=) when calling our inbound webhook.
+  WHATSAPP_WEBHOOK_TOKEN: z.string().optional(),
+
+  // HMAC secret for signing public, unguessable links (prescription PDFs sent
+  // over WhatsApp). OPTIONAL — without it, public links are disabled.
+  LINK_SIGNING_SECRET: z.string().optional(),
 });
 
 export const serverEnv = serverSchema.parse({
@@ -33,6 +54,12 @@ export const serverEnv = serverSchema.parse({
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   STORAGE_DIR: process.env.STORAGE_DIR,
+  APP_URL: process.env.APP_URL,
+  AISENSY_API_KEY: process.env.AISENSY_API_KEY,
+  AISENSY_API_URL: process.env.AISENSY_API_URL,
+  AISENSY_RX_CAMPAIGN: process.env.AISENSY_RX_CAMPAIGN,
+  WHATSAPP_WEBHOOK_TOKEN: process.env.WHATSAPP_WEBHOOK_TOKEN,
+  LINK_SIGNING_SECRET: process.env.LINK_SIGNING_SECRET,
 });
 
 export const isProduction = serverEnv.NODE_ENV === "production";

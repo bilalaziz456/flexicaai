@@ -57,6 +57,13 @@
       "when": 1783450507823,
       "tag": "0007_closed_crystal",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783462802501,
+      "tag": "0008_fixed_lionheart",
+      "breakpoints": true
     }
   ]
 }

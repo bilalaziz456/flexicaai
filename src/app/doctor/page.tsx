@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { ScribeWorkspace } from "./scribe-workspace";
+import { SendRxWhatsApp } from "./send-rx-whatsapp";
 
 /** Doctor home — voice scribe + recent notes, scoped to the doctor's clinic. */
 export default async function DoctorHome() {
@@ -75,14 +76,17 @@ export default async function DoctorHome() {
                   </span>
                   <span className="flex items-center gap-3 text-muted-foreground">
                     {v.status === "approved" ? (
-                      <a
-                        href={`/api/prescriptions/${v.id}`}
-                        target="_blank"
-                        rel="noopener"
-                        className="text-primary underline underline-offset-4"
-                      >
-                        Prescription
-                      </a>
+                      <>
+                        <a
+                          href={`/api/prescriptions/${v.id}`}
+                          target="_blank"
+                          rel="noopener"
+                          className="text-primary underline underline-offset-4"
+                        >
+                          Prescription
+                        </a>
+                        <SendRxWhatsApp visitId={v.id} />
+                      </>
                     ) : null}
                     <span className="hidden sm:inline">
                       {v.visitDate.toLocaleDateString()}

@@ -332,6 +332,70 @@ export const recalls = pgTable(
   ],
 );
 
+/** Direction of a WhatsApp message relative to the clinic. */
+export const whatsappDirection = pgEnum("whatsapp_direction", [
+  "inbound",
+  "outbound",
+]);
+
+/** Delivery lifecycle for a WhatsApp message (mirrors provider statuses). */
+export const whatsappStatus = pgEnum("whatsapp_status", [
+  "queued",
+  "sent",
+  "delivered",
+  "read",
+  "failed",
+  "received",
+]);
+
+/**
+ * WhatsApp message log — shared/core. Every send is recorded (so nothing is lost
+ * even when the provider is unconfigured) and every inbound message/status is
+ * stored here. This is also the source for the receptionist's WhatsApp queue
+ * (Step 11). `clinicId`/`patientId` are nullable because an inbound message from
+ * an unknown number can't always be attributed yet.
+ */
+export const whatsappMessages = pgTable(
+  "whatsapp_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id").references(() => clinics.id, {
+      onDelete: "cascade",
+    }),
+    patientId: uuid("patient_id").references(() => patients.id, {
+      onDelete: "set null",
+    }),
+    direction: whatsappDirection("direction").notNull(),
+    // E.164-ish destination/sender (digits, country code included).
+    phone: text("phone").notNull(),
+    status: whatsappStatus("status").notNull().default("queued"),
+    // AiSensy campaign / template used (outbound), if any.
+    templateName: text("template_name"),
+    // Human-readable body / preview text.
+    body: text("body"),
+    mediaUrl: text("media_url"),
+    // Provider message id, for status correlation.
+    externalId: text("external_id"),
+    error: text("error"),
+    // Raw provider payload, for debugging / audit.
+    payload: jsonb("payload").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("wa_messages_clinic_id_idx").on(t.clinicId),
+    index("wa_messages_patient_id_idx").on(t.patientId),
+    index("wa_messages_phone_idx").on(t.phone),
+    // The reception queue reads newest-first per clinic.
+    index("wa_messages_clinic_created_idx").on(t.clinicId, t.createdAt),
+    index("wa_messages_external_id_idx").on(t.externalId),
+  ],
+);
+
 // Inferred row types for use across the app.
 export type Clinic = typeof clinics.$inferSelect;
 export type User = typeof users.$inferSelect;
@@ -340,3 +404,4 @@ export type Patient = typeof patients.$inferSelect;
 export type Appointment = typeof appointments.$inferSelect;
 export type Visit = typeof visits.$inferSelect;
 export type Recall = typeof recalls.$inferSelect;
+export type WhatsappMessage = typeof whatsappMessages.$inferSelect;
