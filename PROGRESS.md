@@ -114,8 +114,9 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · **Dr
 - [x] **Rename clinic**; **suspend/reactivate** account (`is_active`, revokes sessions on suspend);
       **delete clinic** (danger zone, confirm by typing the name; cascades all its data)
 - [ ] View billing / usage (deferred — not MVP-critical)
+- [x] **Search** clinics by name on `/admin` (URL-driven `?q=`, debounced, case-insensitive)
 - **Still deferred (revisit later):** billing & usage · audit log of admin actions (§10) ·
-  search/pagination on clinics · clinic-level suspend. Not premature to skip now.
+  pagination on clinics · clinic-level suspend. Not premature to skip now.
 
 ### 6. Clinic Admin panel (`/clinic`) ⬜
 - [ ] Dashboard
