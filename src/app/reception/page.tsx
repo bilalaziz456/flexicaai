@@ -1,38 +1,157 @@
+import Link from "next/link";
+import { Plus } from "lucide-react";
+import { desc, eq } from "drizzle-orm";
 import { requireRole } from "@/core/auth/user";
+import { db } from "@/core/db";
+import { byClinic } from "@/core/db/tenant";
+import { appointments, patients, users } from "@/core/db/schema";
+import { Badge } from "@/core/ui/badge";
+import { buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/core/ui/card";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/core/ui/table";
+import { AppointmentActions } from "./appointment-actions";
 
-/** Receptionist panel. Appointments + WhatsApp queue land here in Step 11. */
+const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive"> = {
+  confirmed: "default",
+  completed: "default",
+  scheduled: "secondary",
+  cancelled: "destructive",
+  no_show: "destructive",
+};
+
+/** Receptionist: the clinic's appointments, newest first, with quick status actions. */
 export default async function ReceptionHome() {
-  await requireRole("receptionist");
+  const user = await requireRole("receptionist");
+  if (!user.clinicId) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Your account isn&apos;t linked to a clinic yet. Ask your clinic admin.
+      </p>
+    );
+  }
+
+  const rows = await db
+    .select({
+      id: appointments.id,
+      scheduledAt: appointments.scheduledAt,
+      status: appointments.status,
+      reason: appointments.reason,
+      patientName: patients.fullName,
+      patientPhone: patients.phone,
+      doctorName: users.fullName,
+      doctorUsername: users.username,
+    })
+    .from(appointments)
+    .innerJoin(patients, eq(appointments.patientId, patients.id))
+    .leftJoin(users, eq(appointments.doctorId, users.id))
+    .where(byClinic(appointments.clinicId, user.clinicId))
+    .orderBy(desc(appointments.scheduledAt))
+    .limit(100);
+
+  const fmt = (d: Date) =>
+    d.toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  const doctorLabel = (name: string | null, username: string | null) =>
+    name ?? username ?? "Any doctor";
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Reception</h1>
-        <p className="text-sm text-muted-foreground">
-          Appointments and the WhatsApp queue.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Appointments</h1>
+          <p className="text-sm text-muted-foreground">
+            {rows.length} appointment{rows.length === 1 ? "" : "s"}.
+          </p>
+        </div>
+        <Link
+          href="/reception/new"
+          className={cn(buttonVariants(), "hidden sm:inline-flex")}
+        >
+          New appointment
+        </Link>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Coming soon</CardTitle>
-          <CardDescription>
-            Appointments, the WhatsApp queue, and payments are built in Step 11.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-            This panel is a placeholder for now. Your navigation and sign-out
-            work; the receptionist workflow arrives with the receptionist step.
-          </p>
-        </CardContent>
-      </Card>
+      {rows.length === 0 ? (
+        <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
+          No appointments yet. Schedule the first one.
+        </div>
+      ) : (
+        <>
+          {/* Desktop: full table. */}
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>When</TableHead>
+                  <TableHead>Patient</TableHead>
+                  <TableHead>Doctor</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((a) => (
+                  <TableRow key={a.id}>
+                    <TableCell className="font-medium">{fmt(a.scheduledAt)}</TableCell>
+                    <TableCell>{a.patientName}</TableCell>
+                    <TableCell>{doctorLabel(a.doctorName, a.doctorUsername)}</TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"}>
+                        {a.status.replace("_", " ")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <AppointmentActions id={a.id} status={a.status} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Mobile: stacked cards — no horizontal scroll; icon-only actions. */}
+          <ul className="space-y-3 md:hidden">
+            {rows.map((a) => (
+              <li key={a.id} className="space-y-2 rounded-md border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">{a.patientName}</span>
+                  <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"}>
+                    {a.status.replace("_", " ")}
+                  </Badge>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {fmt(a.scheduledAt)} · {doctorLabel(a.doctorName, a.doctorUsername)}
+                  {a.reason ? ` · ${a.reason}` : ""}
+                </div>
+                <AppointmentActions id={a.id} status={a.status} />
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {/* Mobile FAB. */}
+      <Link
+        href="/reception/new"
+        aria-label="New appointment"
+        className={cn(
+          buttonVariants({ size: "icon" }),
+          "fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg sm:hidden",
+        )}
+      >
+        <Plus className="size-6" aria-hidden="true" />
+      </Link>
     </div>
   );
 }

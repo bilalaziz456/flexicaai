@@ -4,12 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BellRing,
   Building2,
   CalendarClock,
   Contact,
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageCircle,
   Stethoscope,
   Users,
   X,
@@ -41,6 +43,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
       { href: "/clinic", label: "Dashboard", Icon: LayoutDashboard, exact: true },
       { href: "/clinic/staff", label: "Staff", Icon: Users },
       { href: "/clinic/patients", label: "Patients", Icon: Contact },
+      { href: "/clinic/recalls", label: "Recalls", Icon: BellRing },
     ],
   },
   doctor: {
@@ -52,7 +55,8 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
   reception: {
     brand: "/reception",
     items: [
-      { href: "/reception", label: "Reception", Icon: CalendarClock, exact: true },
+      { href: "/reception", label: "Appointments", Icon: CalendarClock, exact: true },
+      { href: "/reception/whatsapp", label: "WhatsApp", Icon: MessageCircle },
     ],
   },
 };

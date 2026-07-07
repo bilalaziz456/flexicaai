@@ -40,6 +40,11 @@ const serverSchema = z.object({
     .default("https://backend.aisensy.com/campaign/t1/api/v2"),
   // AiSensy campaign (maps to an approved template) used to deliver prescriptions.
   AISENSY_RX_CAMPAIGN: z.string().default("prescription"),
+  // AiSensy campaign used for recall reminders (Step 10).
+  AISENSY_RECALL_CAMPAIGN: z.string().default("recall_reminder"),
+  // Secret protecting the cron endpoint that runs the recall engine. Vercel
+  // sends it as `Authorization: Bearer <CRON_SECRET>` automatically.
+  CRON_SECRET: z.string().optional(),
   // Shared secret AiSensy includes (?token=) when calling our inbound webhook.
   WHATSAPP_WEBHOOK_TOKEN: z.string().optional(),
 
@@ -58,6 +63,8 @@ export const serverEnv = serverSchema.parse({
   AISENSY_API_KEY: process.env.AISENSY_API_KEY,
   AISENSY_API_URL: process.env.AISENSY_API_URL,
   AISENSY_RX_CAMPAIGN: process.env.AISENSY_RX_CAMPAIGN,
+  AISENSY_RECALL_CAMPAIGN: process.env.AISENSY_RECALL_CAMPAIGN,
+  CRON_SECRET: process.env.CRON_SECRET,
   WHATSAPP_WEBHOOK_TOKEN: process.env.WHATSAPP_WEBHOOK_TOKEN,
   LINK_SIGNING_SECRET: process.env.LINK_SIGNING_SECRET,
 });

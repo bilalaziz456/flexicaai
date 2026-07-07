@@ -8,6 +8,7 @@ import { clinics, patients, visits } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import { isPublicLinkingEnabled, signToken } from "@/core/lib/signed-link";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
+import { scheduleRecall } from "@/core/recall";
 
 /**
  * Doctor actions on scribe drafts — CLAUDE.md §8: AI output is a DRAFT until the
@@ -22,7 +23,7 @@ export async function approveVisit(
   const user = await requireRole("doctor");
   if (!user.clinicId) return { error: "No clinic." };
 
-  const result = await db
+  const [updated] = await db
     .update(visits)
     .set({
       note,
@@ -38,9 +39,29 @@ export async function approveVisit(
         eq(visits.status, "draft"),
       ),
     )
-    .returning({ id: visits.id });
+    .returning({ id: visits.id, patientId: visits.patientId, module: visits.module });
 
-  if (result.length === 0) return { error: "Draft not found." };
+  if (!updated) return { error: "Draft not found." };
+
+  // Capture a recall from the note's nextVisit ({ reason, afterDays }) — the
+  // scribe extracts it; approving schedules it (CLAUDE.md §10). Reading the note
+  // shape is fine here (app-level), not in /core.
+  const nextVisit = note.nextVisit;
+  if (nextVisit && typeof nextVisit === "object") {
+    const nv = nextVisit as { reason?: unknown; afterDays?: unknown };
+    const afterDays = Number(nv.afterDays);
+    if (Number.isFinite(afterDays) && afterDays > 0) {
+      await scheduleRecall({
+        clinicId: user.clinicId,
+        patientId: updated.patientId,
+        sourceVisitId: visitId,
+        module: updated.module,
+        reason: typeof nv.reason === "string" ? nv.reason : null,
+        afterDays,
+      });
+    }
+  }
+
   revalidatePath("/doctor");
   return { ok: true };
 }
