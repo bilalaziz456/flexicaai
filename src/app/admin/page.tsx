@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { desc } from "drizzle-orm";
+import { desc, ilike } from "drizzle-orm";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
 import { buttonVariants } from "@/core/ui/button";
 import { Badge } from "@/core/ui/badge";
+import { ClinicsSearch } from "./clinics-search";
 import {
   Table,
   TableBody,
@@ -16,11 +17,19 @@ import {
 
 const SPECIALTY_NAME = new Map(SPECIALTY_CATALOG.map((s) => [s.id, s.name]));
 
-/** Super Admin home — all clinics on the platform. */
-export default async function AdminHome() {
+/** Super Admin home — all clinics on the platform, with name search. */
+export default async function AdminHome({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q } = await searchParams;
+  const query = q?.trim();
+
   const allClinics = await db
     .select()
     .from(clinics)
+    .where(query ? ilike(clinics.name, `%${query}%`) : undefined)
     .orderBy(desc(clinics.createdAt));
 
   return (
@@ -29,8 +38,8 @@ export default async function AdminHome() {
         <div>
           <h1 className="text-xl font-semibold">Clinics</h1>
           <p className="text-sm text-muted-foreground">
-            {allClinics.length} clinic{allClinics.length === 1 ? "" : "s"} on the
-            platform.
+            {allClinics.length} clinic{allClinics.length === 1 ? "" : "s"}
+            {query ? ` matching “${query}”` : " on the platform"}.
           </p>
         </div>
         <Link href="/admin/clinics/new" className={buttonVariants()}>
@@ -38,10 +47,13 @@ export default async function AdminHome() {
         </Link>
       </div>
 
+      <ClinicsSearch initial={query ?? ""} />
+
       {allClinics.length === 0 ? (
         <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          No clinics yet. Create the first one to enable its specialties and add
-          its admin.
+          {query
+            ? `No clinics match “${query}”.`
+            : "No clinics yet. Create the first one to enable its specialties and add its admin."}
         </div>
       ) : (
         <Table>
