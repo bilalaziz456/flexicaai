@@ -1,16 +1,13 @@
-import { desc, inArray } from "drizzle-orm";
+import Link from "next/link";
+import { Plus } from "lucide-react";
+import { and, desc, ilike, inArray, or } from "drizzle-orm";
 import { requireClinicAdmin } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { users } from "@/core/db/schema";
 import { Badge } from "@/core/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/core/ui/card";
+import { buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
 import {
   Table,
   TableBody,
@@ -19,14 +16,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/core/ui/table";
-import { AddStaffForm } from "./add-staff-form";
 import { StaffActions } from "./staff-actions";
+import { StaffSearch } from "./staff-search";
 
-/** Clinic Admin: manage this clinic's doctors and receptionists. */
-export default async function ClinicStaffPage() {
+/** Clinic Admin: the staff list, with search + add. Mirrors the admin flow. */
+export default async function ClinicStaffPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const { clinicId } = await requireClinicAdmin();
+  const { q } = await searchParams;
+  const query = q?.trim();
 
-  // Clinic-scoped (byClinic) + role filter; both use the clinic_id index.
+  const roleFilter = inArray(users.role, ["doctor", "receptionist"]);
+  const search = query
+    ? or(
+        ilike(users.fullName, `%${query}%`),
+        ilike(users.username, `%${query}%`),
+      )
+    : undefined;
+
   const staff = await db
     .select({
       id: users.id,
@@ -37,46 +47,45 @@ export default async function ClinicStaffPage() {
     })
     .from(users)
     .where(
-      byClinic(users.clinicId, clinicId, inArray(users.role, [
-        "doctor",
-        "receptionist",
-      ])),
+      byClinic(
+        users.clinicId,
+        clinicId,
+        search ? and(roleFilter, search) : roleFilter,
+      ),
     )
     .orderBy(desc(users.createdAt));
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Staff</h1>
-        <p className="text-sm text-muted-foreground">
-          Add doctors and receptionists. They log in with the username and
-          temporary password you set.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Staff</h1>
+          <p className="text-sm text-muted-foreground">
+            {staff.length} staff member{staff.length === 1 ? "" : "s"}
+            {query ? ` matching “${query}”` : ""}.
+          </p>
+        </div>
+        {/* Desktop/tablet: inline button. Hidden on mobile (see FAB below). */}
+        <Link
+          href="/clinic/staff/new"
+          className={cn(buttonVariants(), "hidden sm:inline-flex")}
+        >
+          Add staff
+        </Link>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Add staff</CardTitle>
-          <CardDescription>Create a doctor or receptionist account.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AddStaffForm />
-        </CardContent>
-      </Card>
+      <StaffSearch initial={query ?? ""} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Team</CardTitle>
-          <CardDescription>
-            {staff.length} staff member{staff.length === 1 ? "" : "s"}.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {staff.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No staff yet. Add your first doctor or receptionist above.
-            </p>
-          ) : (
+      {staff.length === 0 ? (
+        <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
+          {query
+            ? `No staff match “${query}”.`
+            : "No staff yet. Add your first doctor or receptionist."}
+        </div>
+      ) : (
+        <>
+          {/* Desktop: full table. */}
+          <div className="hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -105,15 +114,53 @@ export default async function ClinicStaffPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <StaffActions userId={u.id} isActive={u.isActive} />
+                      <StaffActions
+                        userId={u.id}
+                        username={u.username}
+                        fullName={u.fullName}
+                        isActive={u.isActive}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+
+          {/* Mobile: stacked cards — no horizontal scroll; icon-only actions. */}
+          <ul className="space-y-3 md:hidden">
+            {staff.map((u) => (
+              <li key={u.id} className="space-y-2 rounded-md border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">{u.fullName ?? "—"}</span>
+                  <Badge variant="secondary">{u.role}</Badge>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  @{u.username} · {u.isActive ? "Active" : "Suspended"}
+                </div>
+                <StaffActions
+                  userId={u.id}
+                  username={u.username}
+                  fullName={u.fullName}
+                  isActive={u.isActive}
+                />
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {/* Mobile: floating "+" to add staff (replaces the header button). */}
+      <Link
+        href="/clinic/staff/new"
+        aria-label="Add staff"
+        className={cn(
+          buttonVariants({ size: "icon" }),
+          "fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg sm:hidden",
+        )}
+      >
+        <Plus className="size-6" aria-hidden="true" />
+      </Link>
     </div>
   );
 }

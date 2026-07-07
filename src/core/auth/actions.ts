@@ -48,13 +48,23 @@ export async function signIn(
     .where(eq(users.username, username))
     .limit(1);
 
-  // Same generic message whether the username is unknown, the password is wrong,
-  // or the account is disabled — never reveal which.
+  // Generic message for an unknown username OR a wrong password — never reveal
+  // which, to avoid username enumeration.
   const invalid: AuthActionState = { error: "Incorrect username or password." };
-  if (!user || !user.isActive) return invalid;
+  if (!user) return invalid;
 
   const ok = await verifyPassword(parsed.data.password, user.passwordHash);
   if (!ok) return invalid;
+
+  // Only AFTER the password is verified do we reveal a suspended account. The
+  // person has proven they own the credentials, so this leaks nothing an
+  // attacker could enumerate — and it's clearer than "wrong password".
+  if (!user.isActive) {
+    return {
+      error:
+        "Your account has been suspended. Please contact your administrator.",
+    };
+  }
 
   await createSession(user.id);
 

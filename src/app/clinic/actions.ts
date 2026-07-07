@@ -1,10 +1,12 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { requireClinicAdmin } from "@/core/auth/user";
 import { hashPassword } from "@/core/auth/password";
+import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { patients, sessions, users } from "@/core/db/schema";
@@ -13,12 +15,21 @@ import { USERNAME_REGEX } from "@/core/types/auth";
 export type ClinicActionState = { error?: string; saved?: boolean };
 
 function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    (err as { code?: string }).code === "23505"
-  );
+  // Drizzle wraps the pg error, so the Postgres code (23505 = unique_violation)
+  // may sit on `err` OR on a nested `err.cause`. Walk the cause chain.
+  let e: unknown = err;
+  for (let depth = 0; depth < 5 && e; depth++) {
+    if (
+      typeof e === "object" &&
+      e !== null &&
+      "code" in e &&
+      (e as { code?: string }).code === "23505"
+    ) {
+      return true;
+    }
+    e = (e as { cause?: unknown })?.cause;
+  }
+  return false;
 }
 
 const emptyToNull = (v: FormDataEntryValue | null): string | null => {
@@ -77,7 +88,7 @@ export async function createStaff(
   }
 
   revalidatePath("/clinic/staff");
-  return { saved: true };
+  redirect("/clinic/staff");
 }
 
 /**
@@ -102,6 +113,37 @@ export async function setStaffActive(
   });
 
   revalidatePath("/clinic/staff");
+}
+
+/**
+ * Permanently deletes a staff member — clinic-scoped and limited to doctors/
+ * receptionists (a clinic admin can never delete another admin or themselves).
+ * Their sessions cascade away; their appointments/visits are kept but their
+ * doctor reference is set null, so clinical history is preserved.
+ */
+export async function deleteStaff(
+  userId: string,
+  password: string,
+): Promise<ClinicActionState> {
+  const { clinicId } = await requireClinicAdmin();
+
+  // Step-up auth: re-verify the admin's own password before deleting.
+  if (!(await verifyCurrentUserPassword(password))) {
+    return { error: "Incorrect password." };
+  }
+
+  await db
+    .delete(users)
+    .where(
+      byClinic(
+        users.clinicId,
+        clinicId,
+        and(eq(users.id, userId), inArray(users.role, ["doctor", "receptionist"])),
+      ),
+    );
+
+  revalidatePath("/clinic/staff");
+  return { saved: true };
 }
 
 const resetStaffSchema = z.object({
@@ -131,6 +173,70 @@ export async function resetStaffPassword(
       .where(byClinic(users.clinicId, clinicId, eq(users.id, userId)));
     await tx.delete(sessions).where(eq(sessions.userId, userId));
   });
+
+  revalidatePath("/clinic/staff");
+  return { saved: true };
+}
+
+const updateStaffSchema = z.object({
+  fullName: z.string().trim().min(2, "Name is required."),
+  username: z
+    .string()
+    .trim()
+    .min(3, "Username must be at least 3 characters.")
+    .max(32, "Username must be at most 32 characters.")
+    .transform((s) => s.toLowerCase())
+    .refine((s) => USERNAME_REGEX.test(s), {
+      message: "Username may use lowercase letters, digits, and . _ - only.",
+    }),
+});
+
+/**
+ * Edits a staff member's name + username — clinic-scoped and limited to
+ * doctors/receptionists, so a clinic admin can never rename another admin (or
+ * themselves) through this. A userId from another clinic matches 0 rows.
+ */
+export async function updateStaffProfile(
+  userId: string,
+  _prevState: ClinicActionState,
+  formData: FormData,
+): Promise<ClinicActionState> {
+  const { clinicId } = await requireClinicAdmin();
+
+  const parsed = updateStaffSchema.safeParse({
+    fullName: formData.get("fullName"),
+    username: formData.get("username"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  try {
+    const result = await db
+      .update(users)
+      .set({
+        fullName: parsed.data.fullName,
+        username: parsed.data.username,
+        updatedAt: new Date(),
+      })
+      .where(
+        byClinic(
+          users.clinicId,
+          clinicId,
+          and(
+            eq(users.id, userId),
+            inArray(users.role, ["doctor", "receptionist"]),
+          ),
+        ),
+      )
+      .returning({ id: users.id });
+    if (result.length === 0) return { error: "Staff member not found." };
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return { error: "That username is already in use." };
+    }
+    throw err;
+  }
 
   revalidatePath("/clinic/staff");
   return { saved: true };
@@ -166,5 +272,5 @@ export async function createPatient(
   });
 
   revalidatePath("/clinic/patients");
-  return { saved: true };
+  redirect("/clinic/patients");
 }

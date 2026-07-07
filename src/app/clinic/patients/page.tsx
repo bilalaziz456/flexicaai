@@ -1,15 +1,12 @@
+import Link from "next/link";
+import { Plus } from "lucide-react";
 import { desc, ilike, or } from "drizzle-orm";
 import { requireClinicAdmin } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { patients } from "@/core/db/schema";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/core/ui/card";
+import { buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
 import {
   Table,
   TableBody,
@@ -18,10 +15,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/core/ui/table";
-import { AddPatientForm } from "./add-patient-form";
 import { PatientsSearch } from "./patients-search";
 
-/** Clinic Admin: register and search this clinic's patients. */
+/** Clinic Admin: the patient list, with search + add. Mirrors the admin flow. */
 export default async function ClinicPatientsPage({
   searchParams,
 }: {
@@ -54,38 +50,33 @@ export default async function ClinicPatientsPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Patients</h1>
-        <p className="text-sm text-muted-foreground">
-          Register patients and search by name or phone.
-        </p>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Add patient</CardTitle>
-          <CardDescription>Only the name is required.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AddPatientForm />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Patient list</CardTitle>
-          <CardDescription>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Patients</h1>
+          <p className="text-sm text-muted-foreground">
             {rows.length} patient{rows.length === 1 ? "" : "s"}
             {query ? ` matching “${query}”` : ""}.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <PatientsSearch initial={query ?? ""} />
-          {rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {query ? `No patients match “${query}”.` : "No patients yet."}
-            </p>
-          ) : (
+          </p>
+        </div>
+        {/* Desktop/tablet: inline button. Hidden on mobile (see FAB below). */}
+        <Link
+          href="/clinic/patients/new"
+          className={cn(buttonVariants(), "hidden sm:inline-flex")}
+        >
+          Add patient
+        </Link>
+      </div>
+
+      <PatientsSearch initial={query ?? ""} />
+
+      {rows.length === 0 ? (
+        <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
+          {query ? `No patients match “${query}”.` : "No patients yet."}
+        </div>
+      ) : (
+        <>
+          {/* Desktop: full table. */}
+          <div className="hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -100,17 +91,41 @@ export default async function ClinicPatientsPage({
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">{p.fullName}</TableCell>
                     <TableCell>{p.phone ?? "—"}</TableCell>
-                    <TableCell className="capitalize">
-                      {p.gender ?? "—"}
-                    </TableCell>
+                    <TableCell className="capitalize">{p.gender ?? "—"}</TableCell>
                     <TableCell>{p.dateOfBirth ?? "—"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+
+          {/* Mobile: stacked cards — no horizontal scroll. */}
+          <ul className="space-y-3 md:hidden">
+            {rows.map((p) => (
+              <li key={p.id} className="space-y-1 rounded-md border p-3">
+                <div className="font-medium">{p.fullName}</div>
+                <div className="text-sm text-muted-foreground">
+                  {p.phone ?? "No phone"}
+                  {p.gender ? ` · ${p.gender}` : ""}
+                  {p.dateOfBirth ? ` · ${p.dateOfBirth}` : ""}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {/* Mobile: floating "+" to add a patient (replaces the header button). */}
+      <Link
+        href="/clinic/patients/new"
+        aria-label="Add patient"
+        className={cn(
+          buttonVariants({ size: "icon" }),
+          "fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg sm:hidden",
+        )}
+      >
+        <Plus className="size-6" aria-hidden="true" />
+      </Link>
     </div>
   );
 }

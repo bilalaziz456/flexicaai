@@ -2,10 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { requireRole } from "@/core/auth/user";
 import { hashPassword } from "@/core/auth/password";
+import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { db } from "@/core/db";
 import { clinics, sessions, users } from "@/core/db/schema";
 import { availableSpecialtyIds } from "@/config/modules";
@@ -13,14 +14,23 @@ import { USERNAME_REGEX } from "@/core/types/auth";
 
 export type AdminActionState = { error?: string; saved?: boolean };
 
-/** True for a Postgres unique-constraint violation (e.g. duplicate email). */
+/** True for a Postgres unique-constraint violation (e.g. duplicate username). */
 function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    (err as { code?: string }).code === "23505"
-  );
+  // Drizzle wraps the pg error, so the Postgres code (23505 = unique_violation)
+  // may sit on `err` OR on a nested `err.cause`. Walk the cause chain.
+  let e: unknown = err;
+  for (let depth = 0; depth < 5 && e; depth++) {
+    if (
+      typeof e === "object" &&
+      e !== null &&
+      "code" in e &&
+      (e as { code?: string }).code === "23505"
+    ) {
+      return true;
+    }
+    e = (e as { cause?: unknown })?.cause;
+  }
+  return false;
 }
 
 const createClinicSchema = z.object({
@@ -250,12 +260,37 @@ export async function setUserActive(
   await requireRole("super_admin");
 
   await db.transaction(async (tx) => {
-    await tx
+    const [target] = await tx
       .update(users)
       .set({ isActive, updatedAt: new Date() })
-      .where(eq(users.id, userId));
+      .where(eq(users.id, userId))
+      .returning({ role: users.role, clinicId: users.clinicId });
+
     if (!isActive) {
       await tx.delete(sessions).where(eq(sessions.userId, userId));
+    }
+
+    // A CLINIC ADMIN's active state cascades to their whole clinic in ONE
+    // action: suspending takes the clinic offline (staff suspended + logged
+    // out); reactivating brings the whole clinic back (staff re-enabled).
+    if (target?.role === "clinic_admin" && target.clinicId) {
+      const staff = await tx
+        .update(users)
+        .set({ isActive, updatedAt: new Date() })
+        .where(
+          and(
+            eq(users.clinicId, target.clinicId),
+            inArray(users.role, ["doctor", "receptionist"]),
+          ),
+        )
+        .returning({ id: users.id });
+      // Only on suspend do we revoke staff sessions (log them out now).
+      if (!isActive) {
+        const staffIds = staff.map((s) => s.id);
+        if (staffIds.length > 0) {
+          await tx.delete(sessions).where(inArray(sessions.userId, staffIds));
+        }
+      }
     }
   });
 
@@ -270,9 +305,14 @@ export async function setUserActive(
  */
 export async function deleteClinic(
   clinicId: string,
-  _formData: FormData,
-): Promise<void> {
+  password: string,
+): Promise<AdminActionState> {
   await requireRole("super_admin");
+
+  // Step-up auth: re-verify the super admin's own password before wiping a clinic.
+  if (!(await verifyCurrentUserPassword(password))) {
+    return { error: "Incorrect password." };
+  }
 
   await db.transaction(async (tx) => {
     await tx.delete(users).where(eq(users.clinicId, clinicId));

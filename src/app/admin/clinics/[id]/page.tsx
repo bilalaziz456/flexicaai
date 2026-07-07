@@ -102,45 +102,77 @@ export default async function ClinicDetailPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Username</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {staff.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell className="font-medium">
-                    {u.fullName ?? "—"}
-                  </TableCell>
-                  <TableCell>{u.username}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{u.role}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {u.isActive ? (
-                      "Active"
-                    ) : (
-                      <span className="text-muted-foreground">Disabled</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
+          {staff.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No staff yet. The clinic admin adds doctors and receptionists.
+            </p>
+          ) : (
+            <>
+              {/* Desktop: full table. */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Username</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {staff.map((u) => (
+                      <TableRow key={u.id}>
+                        <TableCell className="font-medium">
+                          {u.fullName ?? "—"}
+                        </TableCell>
+                        <TableCell>{u.username}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{u.role}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {u.isActive ? (
+                            "Active"
+                          ) : (
+                            <span className="text-muted-foreground">Disabled</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <StaffActions
+                            userId={u.id}
+                            username={u.username}
+                            fullName={u.fullName}
+                            isActive={u.isActive}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile: stacked cards — no horizontal scroll; icon-only actions. */}
+              <ul className="space-y-3 md:hidden">
+                {staff.map((u) => (
+                  <li key={u.id} className="space-y-2 rounded-md border p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium">{u.fullName ?? "—"}</span>
+                      <Badge variant="secondary">{u.role}</Badge>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      @{u.username} · {u.isActive ? "Active" : "Disabled"}
+                    </div>
                     <StaffActions
                       userId={u.id}
                       username={u.username}
                       fullName={u.fullName}
                       isActive={u.isActive}
                     />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </CardContent>
       </Card>
 

@@ -254,8 +254,13 @@ export const visits = pgTable(
     status: visitStatus("status").notNull().default("draft"),
     // Raw Whisper transcript kept for the accuracy flywheel (CLAUDE.md §8).
     transcript: text("transcript"),
-    // Module-shaped structured note.
+    // Module-shaped structured note (the doctor's approved/edited version).
     note: jsonb("note").$type<Record<string, unknown>>(),
+    // The AI's ORIGINAL draft, frozen at generation time. Diffing it against
+    // `note` yields the doctor's edits — the accuracy flywheel (CLAUDE.md §8).
+    aiDraft: jsonb("ai_draft").$type<Record<string, unknown>>(),
+    // Storage key of the source audio (for the flywheel / re-transcription).
+    audioKey: text("audio_key"),
     visitDate: timestamp("visit_date", { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -18,11 +18,21 @@ const serverSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
+  // AI keys — OPTIONAL so the app still boots without them. The scribe route
+  // fails with a clear message if a call is attempted and its key is missing.
+  ANTHROPIC_API_KEY: z.string().optional(), // Claude (note generation)
+  OPENAI_API_KEY: z.string().optional(), // Whisper (transcription) — separate provider
+  // Where uploaded audio is stored on disk for now (swap to S3 later). Relative
+  // to the project root. Gitignored.
+  STORAGE_DIR: z.string().default("./storage"),
 });
 
 export const serverEnv = serverSchema.parse({
   DATABASE_URL: process.env.DATABASE_URL,
   NODE_ENV: process.env.NODE_ENV,
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  STORAGE_DIR: process.env.STORAGE_DIR,
 });
 
 export const isProduction = serverEnv.NODE_ENV === "production";

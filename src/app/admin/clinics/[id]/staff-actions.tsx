@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Ban, KeyRound, Pencil, RotateCcw } from "lucide-react";
 import {
   resetUserPassword,
   setUserActive,
@@ -49,22 +50,38 @@ export function StaffActions({
           type="button"
           variant="outline"
           size="sm"
+          aria-label="Edit"
           onClick={() => setEditOpen((o) => !o)}
         >
-          Edit
+          <Pencil className="size-4" aria-hidden="true" />
+          <span className="hidden md:inline">Edit</span>
         </Button>
         <form action={setUserActive.bind(null, userId, !isActive)}>
-          <Button type="submit" variant="outline" size="sm">
-            {isActive ? "Suspend" : "Reactivate"}
+          <Button
+            type="submit"
+            variant="outline"
+            size="sm"
+            aria-label={isActive ? "Suspend" : "Reactivate"}
+          >
+            {isActive ? (
+              <Ban className="size-4" aria-hidden="true" />
+            ) : (
+              <RotateCcw className="size-4" aria-hidden="true" />
+            )}
+            <span className="hidden md:inline">
+              {isActive ? "Suspend" : "Reactivate"}
+            </span>
           </Button>
         </form>
         <Button
           type="button"
           variant="ghost"
           size="sm"
+          aria-label="Reset password"
           onClick={() => setResetOpen((o) => !o)}
         >
-          Reset password
+          <KeyRound className="size-4" aria-hidden="true" />
+          <span className="hidden md:inline">Reset password</span>
         </Button>
       </div>
 

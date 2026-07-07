@@ -128,16 +128,22 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · **Dr
 - [x] Verified: /clinic, /clinic/staff, /clinic/patients render 200 as clinic001; role isolation (clinic_admin → /admin 307)
 - **Note:** clinic admin can only create `doctor`/`receptionist` — never admins.
 
-### 7. Doctor panel — voice scribe (`/doctor`) ⬜
-- [ ] Voice recorder (client)
-- [ ] Audio → Supabase Storage
-- [ ] `/api/ai/scribe`: Whisper → Claude → structured note
-- [ ] Draft → review → approve → save to `visits`
+### 7. Doctor panel — voice scribe (`/doctor`) ✅ _(needs API keys to run live)_
+- [x] Voice recorder (client, browser MediaRecorder) — `scribe-workspace.tsx`
+- [x] Audio → local filesystem storage (`core/integrations/storage`, clinic-namespaced; swap to S3 later)
+- [x] `/api/ai/scribe`: Whisper (OpenAI, separate) → Claude (`claude-sonnet-4-6`) → structured note, using the CLINIC'S MODULE prompt (generic engine in `core/ai/scribe-engine` + `prompt-runner`; JSON via prompt + safe parse — Sonnet 4.6 has no `output_config.format`)
+- [x] Draft → review/edit (generic `NoteEditor`, specialty-agnostic) → approve → save to `visits`
+- [x] Flywheel: `visits.ai_draft` + `audio_key` (migration 0007) freeze the original AI output for edit-diffing
+- [x] Drug validation against the module formulary (warns, doesn't block)
 
-### 8. Prescription generator ⬜
-- [ ] Dental drug formulary validation
-- [ ] PDF generation
-- [ ] WhatsApp delivery
+### 8. Prescription generator 🟨 _(PDF done; WhatsApp delivery deferred to Step 9)_
+- [x] Dental drug formulary validation (drugs checked against the module formulary; scribe already warns at draft time)
+- [x] PDF generation — generic CORE `core/lib/prescription-pdf.ts` (pdf-lib, built-in Helvetica; specialty-agnostic, renders {drug,dosage,duration}); `GET /api/prescriptions/[visitId]` serves it from the APPROVED visit note, clinic-scoped; doctor "Prescription" link on approved visits
+- [ ] WhatsApp delivery → Step 9
+
+> Lib note: used **pdf-lib** (not react-pdf/pdfkit from CLAUDE.md §2). Reason: both
+> pdfkit and @react-pdf/renderer have font-file/asset bundling issues under Turbopack;
+> pdf-lib embeds standard fonts with zero config and renders reliably in a Next route.
 
 ### 9. WhatsApp integration ⬜
 - [ ] Send/receive via AiSensy
@@ -232,3 +238,5 @@ Other DB commands: `npm run db:generate` (new migration after schema change) ·
 | 2026-07-06 | **Step 6 (Clinic Admin panel) complete.** `/clinic` dashboard (counts) + staff (add doctor/receptionist, suspend/reset) + patients (add, search by name/phone). All clinic-scoped via `byClinic()`. Trigram indexes on patients name/phone (migration 0006). Verified 200s + role isolation. |
 | 2026-07-07 | **UI: brand logo + panel chrome.** Vector-traced `logo2.png` → theme-aware SVGs (`logo.svg`/`logo-dark.svg`) with refined Plus Jakarta Sans tagline; icon-only transparent favicon set (`app/icon.svg`/`favicon.ico`/`apple-icon.png`). Locked exact logo colors into theme tokens (`--brand-teal #0FB4BB`, `--brand-blue #069FC5`, `--brand-navy #082957`; primary/ring/charts + `bg-brand-gradient`). Responsive shells: desktop sidebar + mobile hamburger drawer (animated slide/fade) for `/clinic` + `/admin`, icon+text nav, sign-out icon-only on mobile. Added `loading.tsx` boundaries (spinner) so nav doesn't linger on the old page. Mobile FAB for "New clinic". |
 | 2026-07-07 | **Scaling review (deferred to deploy).** Analyzed ~1000-request behavior; documented deploy-time fixes in "Deployment & scaling" section: pool `max:10` → needs a connection pooler on serverless; bcryptjs (pure-JS) login blocks the event loop → native bcrypt/argon2 + login rate-limit; no rate limiting yet; load-test on a prod build. Owner: handle at server deploy. |
+| 2026-07-07 | **Step 7 (voice scribe) complete.** Generic CORE scribe: `core/integrations/storage` (local fs, clinic-namespaced), `core/ai/prompt-runner` (Anthropic SDK, `claude-sonnet-4-6`, safe JSON parse — Sonnet 4.6 lacks `output_config.format`), `core/ai/scribe-engine` (Whisper transcribe + note-gen). `POST /api/ai/scribe` (doctor-guarded, tenant-scoped) uses the clinic's MODULE prompt → saves a DRAFT visit. Doctor UI: `/doctor` shell + `ScribeWorkspace` (MediaRecorder → review → approve) + generic `NoteEditor`. Migration 0007: `visits.ai_draft`+`audio_key` (flywheel). Drug-formulary warnings. Verified end-to-end (auth→patient→module→storage→AI-key gate) via a minted doctor session; typecheck green. **Needs `ANTHROPIC_API_KEY` + `OPENAI_API_KEY` in `.env.local` to run live.** Added `@anthropic-ai/sdk`. |
+| 2026-07-07 | **Nav unified + delete/suspend UX + Step 8 (prescription PDF).** All four panels use one shared `PanelShell` (sidebar/hamburger); doctor+reception got the shell; deleted per-panel shells. Clinic staff/patients pages match the admin flow (list-first + search + `/new` page + mobile `+` FAB; table→cards on mobile with icon actions); same responsive cards+icons on the super-admin clinic-detail staff table. Delete flows: reusable `ConfirmDeleteDialog` (portal modal, step-up password re-auth via `core/auth/reauth`, autofill-proof text field with eye toggle) on staff+clinic deletes. Suspend/reactivate a clinic_admin cascades to all clinic staff (bidirectional, sessions revoked on suspend). Login now shows a distinct "suspended" message after the password verifies. Fixed duplicate-username crash (`isUniqueViolation` walks the drizzle `.cause` chain). **Step 8:** `core/lib/prescription-pdf.ts` (pdf-lib) + `GET /api/prescriptions/[visitId]` → PDF from the approved visit note, clinic-scoped, formulary-validated; doctor "Prescription" link. Verified: PDF text decoded + checked (patient/doctor/diagnosis/Rx/advice/footer). Added `pdf-lib`. Typecheck green. |

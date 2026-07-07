@@ -4,10 +4,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Building2,
+  CalendarClock,
   Contact,
   LayoutDashboard,
   LogOut,
   Menu,
+  Stethoscope,
   Users,
   X,
   type LucideIcon,
@@ -19,28 +22,60 @@ import type { ThemePreference } from "@/core/theme/theme";
 import { cn } from "@/core/lib/utils";
 
 type NavItem = { href: string; label: string; Icon: LucideIcon; exact?: boolean };
-
-const NAV: NavItem[] = [
-  { href: "/clinic", label: "Dashboard", Icon: LayoutDashboard, exact: true },
-  { href: "/clinic/staff", label: "Staff", Icon: Users },
-  { href: "/clinic/patients", label: "Patients", Icon: Contact },
-];
+export type PanelId = "admin" | "clinic" | "doctor" | "reception";
 
 /**
- * Clinic panel chrome: a left sidebar on desktop (logo + icon/text nav + sign
- * out with label) and a top bar with a hamburger drawer on mobile (sign out is
- * icon-only). Client component so it can track the active route and toggle the
- * drawer; the server layout passes in the clinic name + saved theme.
+ * Per-panel navigation. Icons live here (a client module) so the server layouts
+ * only pass a serializable panel id — you can't hand a component across the
+ * server/client boundary. Every role gets the same chrome; only the items and
+ * the brand link differ.
  */
-export function ClinicShell({
-  clinicName,
+const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
+  admin: {
+    brand: "/admin",
+    items: [{ href: "/admin", label: "Clinics", Icon: Building2, exact: true }],
+  },
+  clinic: {
+    brand: "/clinic",
+    items: [
+      { href: "/clinic", label: "Dashboard", Icon: LayoutDashboard, exact: true },
+      { href: "/clinic/staff", label: "Staff", Icon: Users },
+      { href: "/clinic/patients", label: "Patients", Icon: Contact },
+    ],
+  },
+  doctor: {
+    brand: "/doctor",
+    items: [
+      { href: "/doctor", label: "Voice scribe", Icon: Stethoscope, exact: true },
+    ],
+  },
+  reception: {
+    brand: "/reception",
+    items: [
+      { href: "/reception", label: "Reception", Icon: CalendarClock, exact: true },
+    ],
+  },
+};
+
+/**
+ * Shared panel chrome for every role — desktop left sidebar (logo + icon/text
+ * nav + sign out with label) and a mobile top bar with an animated hamburger
+ * drawer (sign out is icon-only on mobile). Client component: tracks the active
+ * route and drawer state. Server layouts pass the panel id, the identity label
+ * (username or clinic name), and the saved theme.
+ */
+export function PanelShell({
+  panel,
+  identityLabel,
   theme,
   children,
 }: {
-  clinicName: string;
+  panel: PanelId;
+  identityLabel: string;
   theme: ThemePreference;
   children: React.ReactNode;
 }) {
+  const { brand, items } = NAV_BY_PANEL[panel];
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -70,15 +105,15 @@ export function ClinicShell({
       {/* ---- Desktop sidebar ---- */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r bg-card md:flex">
         <div className="p-4">
-          <Link href="/clinic" className="flex items-center">
-            <Logo className="h-10" />
+          <Link href={brand} className="flex items-center">
+            <Logo className="h-7" />
           </Link>
         </div>
-        <nav className="flex-1 space-y-1 px-3">{NAV.map((i) => navLink(i))}</nav>
+        <nav className="flex-1 space-y-1 px-3">{items.map((i) => navLink(i))}</nav>
         <div className="space-y-3 border-t p-3">
           <div className="flex items-center justify-between gap-2">
             <span className="max-w-[9rem] truncate rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground">
-              {clinicName}
+              {identityLabel}
             </span>
             <ThemeToggle initial={theme} />
           </div>
@@ -104,7 +139,7 @@ export function ClinicShell({
         >
           <Menu className="size-6" aria-hidden="true" />
         </button>
-        <Link href="/clinic" className="flex items-center">
+        <Link href={brand} className="flex items-center">
           <Logo className="h-8" />
         </Link>
         <div className="flex items-center gap-1">
@@ -156,11 +191,11 @@ export function ClinicShell({
           </div>
           <div className="mb-4">
             <span className="inline-block max-w-full truncate rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground">
-              {clinicName}
+              {identityLabel}
             </span>
           </div>
           <nav className="space-y-1">
-            {NAV.map((i) => navLink(i, () => setOpen(false)))}
+            {items.map((i) => navLink(i, () => setOpen(false)))}
           </nav>
         </div>
       </div>

@@ -4,13 +4,13 @@ import { requireClinicAdmin } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
 import { getThemeCookie } from "@/core/theme/server";
-import { ClinicShell } from "./clinic-shell";
+import { PanelShell } from "@/core/ui/panel-shell";
 
 /**
  * Clinic Admin panel shell. Guards to clinic_admin (with a guaranteed clinicId)
  * and shows the clinic's own name. Every child page/action is scoped to this
  * clinic — the admin never sees another clinic's data. The responsive chrome
- * (desktop sidebar / mobile hamburger) lives in ClinicShell.
+ * (sidebar / hamburger) is the shared PanelShell.
  */
 export default async function ClinicLayout({
   children,
@@ -26,8 +26,12 @@ export default async function ClinicLayout({
   const theme = await getThemeCookie();
 
   return (
-    <ClinicShell clinicName={clinic?.name ?? user.username} theme={theme}>
+    <PanelShell
+      panel="clinic"
+      identityLabel={clinic?.name ?? user.username}
+      theme={theme}
+    >
       {children}
-    </ClinicShell>
+    </PanelShell>
   );
 }

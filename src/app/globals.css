@@ -173,3 +173,13 @@ select:-webkit-autofill {
   caret-color: var(--foreground);
   transition: background-color 5000s ease-in-out 0s;
 }
+
+/* Masks a text field like a password WITHOUT using type="password", so the
+   browser and password managers never treat it as a login field — no saved-
+   password suggestions or autofill. Used by the delete-confirmation dialog,
+   where the user must type their password manually. Toggle the class off to
+   reveal (the eye icon). */
+.text-security-disc {
+  -webkit-text-security: disc;
+  text-security: disc;
+}
