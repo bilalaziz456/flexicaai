@@ -71,9 +71,8 @@ export async function createClinicWithAdmin(
 
   const passwordHash = await hashPassword(parsed.data.adminPassword);
 
-  let newClinicId: string;
   try {
-    newClinicId = await db.transaction(async (tx) => {
+    await db.transaction(async (tx) => {
       const [clinic] = await tx
         .insert(clinics)
         .values({ name: parsed.data.clinicName, modulesEnabled })
@@ -88,8 +87,6 @@ export async function createClinicWithAdmin(
         // Temp password — force them to set their own on first login.
         mustChangePassword: true,
       });
-
-      return clinic.id;
     });
   } catch (err) {
     if (isUniqueViolation(err)) {
@@ -98,7 +95,9 @@ export async function createClinicWithAdmin(
     throw err;
   }
 
-  redirect(`/admin/clinics/${newClinicId}`);
+  // Back to the clinics list (refreshed so the new clinic appears immediately).
+  revalidatePath("/admin");
+  redirect("/admin");
 }
 
 /**
