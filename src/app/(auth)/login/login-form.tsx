@@ -56,7 +56,7 @@ export function LoginForm({ initialError }: { initialError?: string }) {
             </p>
           ) : null}
         </CardContent>
-        <CardFooter>
+        <CardFooter className="border-t-0 bg-transparent" style={{ paddingTop: "1rem" }}>
           <Button type="submit" className="w-full" disabled={pending}>
             {pending ? "Signing in…" : "Sign in"}
           </Button>

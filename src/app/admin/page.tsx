@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { desc, ilike } from "drizzle-orm";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
 import { buttonVariants } from "@/core/ui/button";
 import { Badge } from "@/core/ui/badge";
+import { cn } from "@/core/lib/utils";
 import { ClinicsSearch } from "./clinics-search";
 import {
   Table,
@@ -34,7 +36,7 @@ export default async function AdminHome({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Clinics</h1>
           <p className="text-sm text-muted-foreground">
@@ -42,7 +44,11 @@ export default async function AdminHome({
             {query ? ` matching “${query}”` : " on the platform"}.
           </p>
         </div>
-        <Link href="/admin/clinics/new" className={buttonVariants()}>
+        {/* Desktop/tablet: inline button. Hidden on mobile (see FAB below). */}
+        <Link
+          href="/admin/clinics/new"
+          className={cn(buttonVariants(), "hidden sm:inline-flex")}
+        >
           New clinic
         </Link>
       </div>
@@ -98,6 +104,18 @@ export default async function AdminHome({
           </TableBody>
         </Table>
       )}
+
+      {/* Mobile: floating "+" action to add a clinic (replaces the header button). */}
+      <Link
+        href="/admin/clinics/new"
+        aria-label="New clinic"
+        className={cn(
+          buttonVariants({ size: "icon" }),
+          "fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg sm:hidden",
+        )}
+      >
+        <Plus className="size-6" aria-hidden="true" />
+      </Link>
     </div>
   );
 }

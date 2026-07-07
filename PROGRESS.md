@@ -155,6 +155,34 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · **Dr
 
 ---
 
+## Deployment & scaling (DEFERRED — handle at server deploy, not now)
+
+Current settings are deliberate MVP/local defaults. Under load (~1000 concurrent
+requests) the failure points are known and must be addressed **before production**:
+
+- **DB connection pool** — `core/db/index.ts` uses a single pool `max: 10`. On
+  Vercel serverless each instance opens its own pool → concurrent instances can
+  exhaust Postgres `max_connections` (~100) → "too many connections" errors.
+  **Fix:** put a pooler in front (PgBouncer / Neon / Supabase pooler / Vercel
+  Postgres) and tune `max` to `pooler_limit ÷ expected_instances`.
+- **Login CPU / event-loop block** — `auth/password.ts` uses **bcryptjs (pure JS,
+  cost 12)**, chosen for no native build on Windows. Pure-JS hashing runs *on*
+  the Node event loop (~250ms each), so a burst of logins serializes and stalls
+  all other requests. **Fix (prod):** native `bcrypt`/`argon2` (thread pool) or a
+  worker thread, and **rate-limit `/login`** per IP.
+- **No rate limiting** anywhere — add per-IP throttling (login + general) so a
+  burst/abuse can't take the app down.
+- **Session validation hits the DB every request** (`sessions ⋈ users`). Fine for
+  now; consider a short-TTL cache if it becomes hot.
+- **Verify with a real load test** against a **production build** (`npm run build
+  && npm start`), not `next dev` — e.g. `autocannon` or `k6`. Dev numbers are
+  meaningless for capacity.
+
+> Reads (indexed, tenant-scoped) hold up for bursts; the real risks are login
+> CPU and serverless connection exhaustion. Owner's call: tackle at deploy time.
+
+---
+
 ## How to run the DB (local Postgres)
 
 1. In `.env.local`, set `DATABASE_URL` — replace `YOUR_PASSWORD` with your Postgres password.
@@ -202,3 +230,5 @@ Other DB commands: `npm run db:generate` (new migration after schema change) ·
 | 2026-07-06 | **UI/UX fixes.** Keyed inputs to kill Base UI defaultValue warning (staff/rename edits); Chrome autofill kept on-theme in dark (unlayered box-shadow); unified solid input surface (`--input-bg`) so inputs look identical everywhere; clearer dark borders; create-clinic now redirects to the list. |
 | 2026-07-06 | **Clinics search + perf rule.** Name search on `/admin` (URL `?q=`, debounced, case-insensitive). Saved standing memory: build every data op for fastest response. Added pg_trgm GIN index on `clinics.name` (migration 0005). |
 | 2026-07-06 | **Step 6 (Clinic Admin panel) complete.** `/clinic` dashboard (counts) + staff (add doctor/receptionist, suspend/reset) + patients (add, search by name/phone). All clinic-scoped via `byClinic()`. Trigram indexes on patients name/phone (migration 0006). Verified 200s + role isolation. |
+| 2026-07-07 | **UI: brand logo + panel chrome.** Vector-traced `logo2.png` → theme-aware SVGs (`logo.svg`/`logo-dark.svg`) with refined Plus Jakarta Sans tagline; icon-only transparent favicon set (`app/icon.svg`/`favicon.ico`/`apple-icon.png`). Locked exact logo colors into theme tokens (`--brand-teal #0FB4BB`, `--brand-blue #069FC5`, `--brand-navy #082957`; primary/ring/charts + `bg-brand-gradient`). Responsive shells: desktop sidebar + mobile hamburger drawer (animated slide/fade) for `/clinic` + `/admin`, icon+text nav, sign-out icon-only on mobile. Added `loading.tsx` boundaries (spinner) so nav doesn't linger on the old page. Mobile FAB for "New clinic". |
+| 2026-07-07 | **Scaling review (deferred to deploy).** Analyzed ~1000-request behavior; documented deploy-time fixes in "Deployment & scaling" section: pool `max:10` → needs a connection pooler on serverless; bcryptjs (pure-JS) login blocks the event loop → native bcrypt/argon2 + login rate-limit; no rate limiting yet; load-test on a prod build. Owner: handle at server deploy. |

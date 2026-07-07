@@ -39,6 +39,10 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  /* Klenic brand colors (taken from the logo). */
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-navy: var(--brand-navy);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -49,39 +53,44 @@
 }
 
 :root {
+  /* Brand palette — exact logo colors. */
+  --brand-teal: #0fb4bb;
+  --brand-blue: #069fc5;
+  --brand-navy: #082957;
+
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.58 0.115 195);
-  --primary-foreground: oklch(0.99 0.01 195);
+  --primary: var(--brand-teal);
+  --primary-foreground: var(--brand-navy);
   --secondary: oklch(0.965 0.012 200);
   --secondary-foreground: oklch(0.32 0.04 200);
   --muted: oklch(0.968 0.008 200);
   --muted-foreground: oklch(0.53 0.02 210);
   --accent: oklch(0.95 0.03 195);
-  --accent-foreground: oklch(0.4 0.09 200);
+  --accent-foreground: var(--brand-navy);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.91 0.008 210);
   --input: oklch(0.91 0.008 210);
   --input-bg: oklch(0.98 0.005 200);
-  --ring: oklch(0.58 0.115 195);
-  --chart-1: oklch(0.6 0.12 195);
-  --chart-2: oklch(0.62 0.14 250);
-  --chart-3: oklch(0.7 0.15 155);
+  --ring: var(--brand-teal);
+  --chart-1: var(--brand-teal);
+  --chart-2: var(--brand-blue);
+  --chart-3: var(--brand-navy);
   --chart-4: oklch(0.75 0.15 65);
   --chart-5: oklch(0.65 0.19 15);
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0.005 200);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.58 0.115 195);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: var(--brand-teal);
+  --sidebar-primary-foreground: var(--brand-navy);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-ring: var(--brand-teal);
 }
 
 .dark {
@@ -91,8 +100,8 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.72 0.11 195);
-  --primary-foreground: oklch(0.18 0.03 200);
+  --primary: var(--brand-teal);
+  --primary-foreground: var(--brand-navy);
   --secondary: oklch(0.28 0.02 200);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.27 0.015 200);
@@ -103,20 +112,20 @@
   --border: oklch(1 0 0 / 18%);
   --input: oklch(1 0 0 / 22%);
   --input-bg: oklch(0.26 0.014 200);
-  --ring: oklch(0.72 0.11 195);
-  --chart-1: oklch(0.7 0.12 195);
-  --chart-2: oklch(0.68 0.14 250);
+  --ring: var(--brand-teal);
+  --chart-1: var(--brand-teal);
+  --chart-2: var(--brand-blue);
   --chart-3: oklch(0.75 0.15 155);
   --chart-4: oklch(0.78 0.15 65);
   --chart-5: oklch(0.7 0.19 15);
   --sidebar: oklch(0.205 0.01 200);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.72 0.11 195);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: var(--brand-teal);
+  --sidebar-primary-foreground: var(--brand-navy);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-ring: var(--brand-teal);
 }
 
 @layer base {
@@ -129,6 +138,17 @@
   html {
     @apply font-sans;
   }
+}
+
+/* Brand gradient — the logo's teal→blue→navy chevron sweep. Use on hero
+   surfaces, banners, or accents: class="bg-brand-gradient". */
+@utility bg-brand-gradient {
+  background-image: linear-gradient(
+    135deg,
+    var(--brand-teal) 0%,
+    var(--brand-blue) 45%,
+    var(--brand-navy) 100%
+  );
 }
 
 /* Chrome/Safari force a pale background on autofilled inputs that normal

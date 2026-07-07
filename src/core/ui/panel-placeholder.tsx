@@ -19,8 +19,8 @@ export async function PanelPlaceholder({
 }) {
   const theme = await getThemeCookie();
   return (
-    <main className="mx-auto max-w-2xl px-6 py-12">
-      <div className="flex items-center justify-between">
+    <main className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">{title}</h1>
         <div className="flex items-center gap-3">
           <ThemeToggle initial={theme} />
