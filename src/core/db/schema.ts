@@ -171,6 +171,9 @@ export const patients = pgTable(
     // Tenant-scoped lookups by phone / name are common in reception search.
     index("patients_clinic_phone_idx").on(t.clinicId, t.phone),
     index("patients_clinic_name_idx").on(t.clinicId, t.fullName),
+    // Fast ILIKE '%q%' contains-search on name and phone (pg_trgm GIN).
+    index("patients_name_trgm_idx").using("gin", t.fullName.op("gin_trgm_ops")),
+    index("patients_phone_trgm_idx").using("gin", t.phone.op("gin_trgm_ops")),
   ],
 );
 

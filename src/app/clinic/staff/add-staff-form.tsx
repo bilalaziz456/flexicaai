@@ -1,0 +1,72 @@
+"use client";
+
+import { useActionState } from "react";
+import { createStaff, type ClinicActionState } from "@/app/clinic/actions";
+import { Button } from "@/core/ui/button";
+import { Input } from "@/core/ui/input";
+import { Label } from "@/core/ui/label";
+import { PasswordInput } from "@/core/ui/password-input";
+
+export function AddStaffForm() {
+  const [state, formAction, pending] = useActionState<
+    ClinicActionState,
+    FormData
+  >(createStaff, {});
+
+  return (
+    <form action={formAction} className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="fullName">Full name</Label>
+          <Input id="fullName" name="fullName" required />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="role">Role</Label>
+          <select
+            id="role"
+            name="role"
+            defaultValue="doctor"
+            className="h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <option value="doctor">Doctor</option>
+            <option value="receptionist">Receptionist</option>
+          </select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="username">Username</Label>
+          <Input
+            id="username"
+            name="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="password">Temporary password</Label>
+          <PasswordInput
+            id="password"
+            name="password"
+            autoComplete="new-password"
+            required
+          />
+        </div>
+      </div>
+
+      {state.error ? (
+        <p className="text-sm text-destructive" role="alert">
+          {state.error}
+        </p>
+      ) : null}
+      {state.saved ? (
+        <p className="text-sm text-emerald-600" role="status">
+          Staff member added. They&apos;ll set their own password at first login.
+        </p>
+      ) : null}
+
+      <Button type="submit" disabled={pending}>
+        {pending ? "Adding…" : "Add staff"}
+      </Button>
+    </form>
+  );
+}

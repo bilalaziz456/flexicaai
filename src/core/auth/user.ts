@@ -57,3 +57,16 @@ export async function requireRole(
   }
   return user;
 }
+
+/**
+ * Guards the Clinic Admin panel and guarantees a non-null clinicId, so callers
+ * can scope every query to the admin's own clinic without null checks.
+ */
+export async function requireClinicAdmin(): Promise<
+  CurrentUser & { clinicId: string }
+> {
+  const user = await requireRole("clinic_admin");
+  // A clinic_admin should always have a clinic; if not, treat as unprovisioned.
+  if (!user.clinicId) redirect("/login?error=no_access");
+  return { ...user, clinicId: user.clinicId };
+}

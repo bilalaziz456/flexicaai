@@ -43,6 +43,13 @@
       "when": 1783383744593,
       "tag": "0005_organic_surge",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783384181412,
+      "tag": "0006_omniscient_aaron_stack",
+      "breakpoints": true
     }
   ]
 }

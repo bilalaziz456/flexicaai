@@ -118,10 +118,15 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · **Dr
 - **Still deferred (revisit later):** billing & usage · audit log of admin actions (§10) ·
   pagination on clinics · clinic-level suspend. Not premature to skip now.
 
-### 6. Clinic Admin panel (`/clinic`) ⬜
-- [ ] Dashboard
-- [ ] Add staff
-- [ ] Add patients
+### 6. Clinic Admin panel (`/clinic`) ✅
+- [x] Layout guards `clinic_admin` (via `requireClinicAdmin`, guarantees non-null clinicId); shows clinic name; nav
+- [x] Dashboard: staff + patient counts (clinic-scoped, index-backed COUNTs)
+- [x] Staff: add doctor/receptionist (temp password → must-change), list, suspend/reactivate, reset password
+- [x] Patients: add (name, phone/WhatsApp, DOB, gender, address, consent), list, **search by name/phone**
+- [x] All writes/reads clinic-scoped via `byClinic()`; staff mgmt also filters `clinic_id` so cross-clinic ids match 0 rows
+- [x] Trigram (pg_trgm GIN) indexes on `patients.full_name` + `patients.phone` for fast ILIKE (migration 0006)
+- [x] Verified: /clinic, /clinic/staff, /clinic/patients render 200 as clinic001; role isolation (clinic_admin → /admin 307)
+- **Note:** clinic admin can only create `doctor`/`receptionist` — never admins.
 
 ### 7. Doctor panel — voice scribe (`/doctor`) ⬜
 - [ ] Voice recorder (client)
@@ -194,3 +199,6 @@ Other DB commands: `npm run db:generate` (new migration after schema change) ·
 | 2026-07-06 | **UI polish.** Reusable `PasswordInput` with show/hide eye (login, change-password, create-clinic). Font → Plus Jakarta Sans (the `--font-sans` var was previously unwired → browser default). Teal brand palette in light+dark (primary/ring/accent/charts). Admin top bar: removed duplicate "Admin" on the left (now "Klenic" wordmark), username pill on right. Colored auth backgrounds. Verified via curl. |
 | 2026-07-06 | **Edit clinic staff.** Super admin can edit a staff member's full name + username (unique-checked, `updateStaffProfile`) from the clinic detail page, alongside the existing rename-clinic. Verified staff row + Edit control render (200). Build green. |
 | 2026-07-06 | **Per-account dark/light/system theme.** `users.theme` enum (migration 0004, default system) + mirrored `klenic_theme` cookie; no-flash inline script applies `.dark` before paint and follows OS for "system". `ThemeToggle` (System/Light/Dark) in headers persists via `setThemePreference` action + cookie; login seeds the cookie from the account's saved theme. Verified: dark→html.dark, light→none, script present. Root layout now dynamic (reads cookie). |
+| 2026-07-06 | **UI/UX fixes.** Keyed inputs to kill Base UI defaultValue warning (staff/rename edits); Chrome autofill kept on-theme in dark (unlayered box-shadow); unified solid input surface (`--input-bg`) so inputs look identical everywhere; clearer dark borders; create-clinic now redirects to the list. |
+| 2026-07-06 | **Clinics search + perf rule.** Name search on `/admin` (URL `?q=`, debounced, case-insensitive). Saved standing memory: build every data op for fastest response. Added pg_trgm GIN index on `clinics.name` (migration 0005). |
+| 2026-07-06 | **Step 6 (Clinic Admin panel) complete.** `/clinic` dashboard (counts) + staff (add doctor/receptionist, suspend/reset) + patients (add, search by name/phone). All clinic-scoped via `byClinic()`. Trigram indexes on patients name/phone (migration 0006). Verified 200s + role isolation. |
