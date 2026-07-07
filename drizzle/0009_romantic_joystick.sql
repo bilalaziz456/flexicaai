@@ -1,0 +1,1 @@
+ALTER TABLE "clinics" ADD COLUMN "avg_visit_value" integer DEFAULT 3000 NOT NULL;

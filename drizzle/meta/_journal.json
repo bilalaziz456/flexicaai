@@ -64,6 +64,13 @@
       "when": 1783462802501,
       "tag": "0008_fixed_lionheart",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783464734174,
+      "tag": "0009_romantic_joystick",
+      "breakpoints": true
     }
   ]
 }

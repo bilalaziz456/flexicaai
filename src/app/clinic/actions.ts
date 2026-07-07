@@ -9,7 +9,7 @@ import { hashPassword } from "@/core/auth/password";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
-import { patients, sessions, users } from "@/core/db/schema";
+import { clinics, patients, sessions, users } from "@/core/db/schema";
 import { USERNAME_REGEX } from "@/core/types/auth";
 
 export type ClinicActionState = { error?: string; saved?: boolean };
@@ -273,4 +273,35 @@ export async function createPatient(
 
   revalidatePath("/clinic/patients");
   redirect("/clinic/patients");
+}
+
+const clinicSettingsSchema = z.object({
+  avgVisitValue: z.coerce
+    .number({ message: "Enter a number." })
+    .int("Whole rupees only.")
+    .min(0, "Cannot be negative.")
+    .max(100_000_000, "That's too large."),
+});
+
+/** Owner setting: average revenue per visit — drives the "Revenue Recovered" metric. */
+export async function updateClinicSettings(
+  _prev: ClinicActionState,
+  formData: FormData,
+): Promise<ClinicActionState> {
+  const { clinicId } = await requireClinicAdmin();
+
+  const parsed = clinicSettingsSchema.safeParse({
+    avgVisitValue: formData.get("avgVisitValue"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  await db
+    .update(clinics)
+    .set({ avgVisitValue: parsed.data.avgVisitValue, updatedAt: new Date() })
+    .where(eq(clinics.id, clinicId));
+
+  revalidatePath("/clinic");
+  return { saved: true };
 }

@@ -174,8 +174,31 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · **Dr
 - [ ] Payments (JazzCash/Easypaisa/Raast/Stripe) — DEFERRED (needs provider accounts; like billing). Record-a-payment can be a light follow-up.
 - Booking a recall → appointment from an inbound reply: natural next connection (recall `sent` → `booked` + create appointment).
 
-### 12. Owner dashboard ⬜
-- [ ] "Revenue Recovered" metric
+### 12. Owner dashboard ✅ — MVP finale 🎉
+- [x] **"Revenue Recovered" hero metric** on the clinic-admin dashboard (`/clinic`): return
+      visits driven by recall reminders × the clinic's average visit value (PKR).
+- [x] "Recovered" = a recall in status `sent`/`booked`/`completed` whose patient then had a
+      `completed` appointment on/after the reminder — correlated `EXISTS` (raw SQL on the same
+      pool per the db/index.ts analytics policy), all clinic-scoped.
+- [x] Owner setting `clinics.avg_visit_value` (migration 0009, default 3000) editable inline via
+      `AvgVisitValueForm` → `updateClinicSettings` (validated, clinic-scoped).
+- [x] Supporting stat cards: Return visits · Recalls sent · Upcoming appts · Patients · Staff
+      (each index-backed COUNT; the last three deep-link to their pages).
+- [x] Verified with a seeded clinic_admin + a recall→completed-appointment scenario: dashboard
+      200, hero renders **Rs 5,000** (1 return visit × 5,000 avg), settings form present; test data
+      cleaned up. Typecheck green.
+
+---
+
+## 🎉 MVP complete (CLAUDE.md §11 steps 1–12)
+
+All twelve build-order steps are done. Per CLAUDE.md §11, **stop here** — do NOT build derma,
+hair, mobile apps, or advanced analytics until instructed. Config left to go live (owner's task):
+`ANTHROPIC_API_KEY` + `OPENAI_API_KEY` (scribe), an AiSensy account + approved
+`AISENSY_RX_CAMPAIGN`/`AISENSY_RECALL_CAMPAIGN` templates + `WHATSAPP_WEBHOOK_TOKEN` +
+`LINK_SIGNING_SECRET` (WhatsApp/recalls), `CRON_SECRET` (Vercel cron), and the deploy-time
+scaling fixes in "Deployment & scaling". Deferred within-MVP items: billing/usage (Steps 5–6),
+payments (Step 11), audit log.
 
 ---
 
@@ -261,3 +284,4 @@ Other DB commands: `npm run db:generate` (new migration after schema change) ·
 | 2026-07-07 | **Step 9 (WhatsApp) — infra.** CORE AiSensy client (`core/integrations/whatsapp`, template Campaign API, config-gated), `whatsapp_messages` log (migration 0008), notification channel (`core/notifications/whatsapp`, record-then-send), inbound webhook (`/api/whatsapp/webhook`, token-secured, logs inbound + advances outbound status on receipts, best-effort patient match). Prescription delivery: HMAC signed public link (`core/lib/signed-link`) → `/p/rx/[token]` serves the PDF session-free; doctor "WhatsApp" button. Env: APP_URL, AISENSY_*, WHATSAPP_WEBHOOK_TOKEN, LINK_SIGNING_SECRET (dev values added to .env.local). Verified end-to-end (webhook 401/200 + logged, status receipt → delivered, public link 200 PDF, tampered → 404). Needs an AiSensy account + approved template to send live. Typecheck green. |
 | 2026-07-07 | **Step 10 (recall engine).** CORE `core/recall`: `scheduleRecall` (capture) + `processDueRecalls` (sends due reminders via the WhatsApp channel, specialty-agnostic). Capture wired into `approveVisit` from the note's `nextVisit`. Cron `GET /api/cron/recalls` (CRON_SECRET, Bearer/?token) + `vercel.json` daily 09:00. Success → recall `sent`; failure → stays `pending` (retry) with the attempt logged; no phone → skipped. Clinic `Recalls` page + nav (responsive table/cards). Verified: cron 401 unauthorized, authorized run `{processed:1,sent:0,skipped:1}` on a seeded due recall, pending retained + failed WhatsApp row logged when unconfigured; recalls page 200. Env: AISENSY_RECALL_CAMPAIGN, CRON_SECRET. Typecheck green. |
 | 2026-07-07 | **Step 11 (receptionist panel) — appointments + WhatsApp queue.** `/reception` appointments list (patient+doctor, status badges, confirm/complete/cancel/no-show icon actions, responsive table→cards, mobile + FAB); `/reception/new` schedule form (patient picker + doctor select + datetime + reason); `/reception/whatsapp` queue (inbound+outbound from the Step 9 log, patient-matched). Reception nav = Appointments + WhatsApp. Actions: createAppointment / setAppointmentStatus / searchClinicPatients (tenant-scoped). Verified with a seeded receptionist: all pages 200, appointment + inbound message render, actions + nav present. Payments DEFERRED (provider accounts). Typecheck green. |
+| 2026-07-07 | **Step 12 (owner dashboard) — MVP finale.** `/clinic` dashboard rebuilt around a "Revenue Recovered" hero: return visits from recall reminders × `clinics.avg_visit_value` (migration 0009, default 3000, editable via `AvgVisitValueForm` → `updateClinicSettings`). "Recovered" = a `sent`/`booked`/`completed` recall whose patient later had a `completed` appointment on/after the reminder (correlated `EXISTS`, raw SQL on the same pool, clinic-scoped). Supporting stat cards (Return visits, Recalls sent, Upcoming appts, Patients, Staff). Verified with a seeded clinic_admin + recall→completed-appt scenario: dashboard 200, hero = Rs 5,000 (1×5000), settings form present; data cleaned up. Typecheck green. **All 12 MVP steps complete — stop per CLAUDE.md §11.** |

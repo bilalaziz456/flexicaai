@@ -55,6 +55,9 @@ export const clinics = pgTable(
       .array()
       .notNull()
       .default([]),
+    // Owner-set average revenue per visit (whole PKR). Drives the owner
+    // dashboard's "Revenue Recovered" metric (recovered return visits × this).
+    avgVisitValue: integer("avg_visit_value").notNull().default(3000),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
