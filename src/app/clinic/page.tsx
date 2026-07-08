@@ -122,7 +122,7 @@ export default async function ClinicDashboard() {
     ...(revenueEnabled
       ? [{ title: "Return visits", value: recovered, note: "From recall reminders" }]
       : []),
-    { title: "Recalls sent", value: recallsSent.value, note: "Reminders delivered" },
+    { title: "Recalls sent", value: recallsSent.value, note: "Reminders delivered", href: "/clinic/recalls" },
     { title: "Upcoming appts", value: upcoming.value, note: "Scheduled ahead", href: "/clinic/appointments" },
     { title: "Patients", value: patientRows.value, note: "Registered", href: "/clinic/patients" },
     { title: "Staff", value: staff.value, note: "Doctors & reception", href: "/clinic/staff" },

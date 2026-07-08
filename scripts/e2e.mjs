@@ -184,6 +184,11 @@ async function run() {
   }
   record("clinic_admin GET /clinic/recalls → 200", (await req("/clinic/recalls", { cookie: S.adminA })).status === 200);
   {
+    // The dashboard must offer a way into Recalls (the stat card links there).
+    const r = await req("/clinic", { cookie: S.adminA });
+    record("dashboard links to /clinic/recalls", r.status === 200 && r.text.includes('href="/clinic/recalls"'));
+  }
+  {
     // Manage-appointments view: lists the seeded appt + status controls + New button.
     const r = await req("/clinic/appointments", { cookie: S.adminA });
     const ok = r.status === 200 && r.text.includes("Ayesha Recovered") && r.text.includes("Confirm") && r.text.includes("New appointment");
