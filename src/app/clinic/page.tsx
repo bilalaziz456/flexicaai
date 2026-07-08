@@ -123,9 +123,7 @@ export default async function ClinicDashboard() {
       ? [{ title: "Return visits", value: recovered, note: "From recall reminders" }]
       : []),
     { title: "Recalls sent", value: recallsSent.value, note: "Reminders delivered" },
-    // No href: appointments live in the receptionist panel, which a clinic_admin
-    // can't open — linking there just bounces back here. Plain stat for now.
-    { title: "Upcoming appts", value: upcoming.value, note: "Scheduled ahead" },
+    { title: "Upcoming appts", value: upcoming.value, note: "Scheduled ahead", href: "/clinic/appointments" },
     { title: "Patients", value: patientRows.value, note: "Registered", href: "/clinic/patients" },
     { title: "Staff", value: staff.value, note: "Doctors & reception", href: "/clinic/staff" },
   ];

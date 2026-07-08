@@ -183,6 +183,16 @@ async function run() {
     record("clinic_admin GET /clinic/patients → 200 + shows patient", r.status === 200 && r.text.includes("Ayesha Recovered"));
   }
   record("clinic_admin GET /clinic/recalls → 200", (await req("/clinic/recalls", { cookie: S.adminA })).status === 200);
+  {
+    // Read-only upcoming-appointments view: lists the seeded future appt, not the past/completed one.
+    const r = await req("/clinic/appointments", { cookie: S.adminA });
+    record("clinic_admin GET /clinic/appointments → 200 + lists upcoming appt", r.status === 200 && r.text.includes("Upcoming appointments") && r.text.includes("Ayesha Recovered"), r.status === 200 ? "" : `status=${r.status}`);
+  }
+  {
+    // Tenant scoping: clinic B (no appointments) must not see clinic A's patient.
+    const r = await req("/clinic/appointments", { cookie: S.adminB });
+    record("clinic appointments tenant-scoped (clinic B empty)", r.status === 200 && !r.text.includes("Ayesha Recovered"));
+  }
   record("clinic_admin GET /admin → redirect (isolation)", is3xx((await req("/admin", { cookie: S.adminA })).status));
 
   record("doctor GET /doctor → 200", (await req("/doctor", { cookie: S.docA })).status === 200);

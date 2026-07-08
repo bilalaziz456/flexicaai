@@ -43,6 +43,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
       { href: "/clinic", label: "Dashboard", Icon: LayoutDashboard, exact: true },
       { href: "/clinic/staff", label: "Staff", Icon: Users },
       { href: "/clinic/patients", label: "Patients", Icon: Contact },
+      { href: "/clinic/appointments", label: "Appointments", Icon: CalendarClock },
       { href: "/clinic/recalls", label: "Recalls", Icon: BellRing },
     ],
   },
