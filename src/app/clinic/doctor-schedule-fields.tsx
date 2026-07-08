@@ -47,7 +47,7 @@ export function DoctorScheduleFields({
     .map((r) => ({ weekday: r.weekday, start: r.start, end: r.end }));
 
   return (
-    <div className="space-y-4 rounded-md border p-4">
+    <div className="space-y-4 rounded-md border p-3 sm:p-4">
       <div className="space-y-2">
         <Label>Working days &amp; hours</Label>
         <p className="text-xs text-muted-foreground">
@@ -58,31 +58,36 @@ export function DoctorScheduleFields({
           {WEEKDAYS.map((d) => {
             const row = rows.find((r) => r.weekday === d.value)!;
             return (
-              <div key={d.value} className="flex flex-wrap items-center gap-3">
-                <label className="flex w-28 items-center gap-2 text-sm">
+              <div
+                key={d.value}
+                className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:gap-3 sm:border-0 sm:p-0"
+              >
+                <label className="flex items-center gap-2 text-sm sm:w-28">
                   <Checkbox
                     checked={row.on}
                     onCheckedChange={(v) => update(d.value, { on: Boolean(v) })}
                   />
                   {d.label}
                 </label>
-                <Input
-                  type="time"
-                  aria-label={`${d.label} start`}
-                  value={row.start}
-                  disabled={!row.on}
-                  onChange={(e) => update(d.value, { start: e.target.value })}
-                  className="h-8 w-32"
-                />
-                <span className="text-sm text-muted-foreground">to</span>
-                <Input
-                  type="time"
-                  aria-label={`${d.label} end`}
-                  value={row.end}
-                  disabled={!row.on}
-                  onChange={(e) => update(d.value, { end: e.target.value })}
-                  className="h-8 w-32"
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="time"
+                    aria-label={`${d.label} start`}
+                    value={row.start}
+                    disabled={!row.on}
+                    onChange={(e) => update(d.value, { start: e.target.value })}
+                    className="h-8 min-w-0 flex-1 sm:w-32 sm:flex-none"
+                  />
+                  <span className="text-sm text-muted-foreground">to</span>
+                  <Input
+                    type="time"
+                    aria-label={`${d.label} end`}
+                    value={row.end}
+                    disabled={!row.on}
+                    onChange={(e) => update(d.value, { end: e.target.value })}
+                    className="h-8 min-w-0 flex-1 sm:w-32 sm:flex-none"
+                  />
+                </div>
               </div>
             );
           })}
