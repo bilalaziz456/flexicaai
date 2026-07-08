@@ -14,11 +14,14 @@ export function AvgVisitValueForm({ value }: { value: number }) {
   >(updateClinicSettings, {});
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3">
-      <div className="space-y-1">
-        <Label htmlFor="avgVisitValue" className="text-xs">
-          Average visit value (PKR)
-        </Label>
+    <form action={formAction} className="space-y-1.5">
+      <Label htmlFor="avgVisitValue" className="text-xs">
+        Average visit value (PKR)
+      </Label>
+      {/* Input, button and status message share one vertically-centred row so
+          the button lines up with the field (both h-8) and the message sits
+          centred beside them, not hanging at the bottom edge. */}
+      <div className="flex flex-wrap items-center gap-3">
         <Input
           // Remount when the saved value changes (after revalidation) so the
           // uncontrolled field re-inits cleanly — Base UI warns if defaultValue
@@ -32,16 +35,16 @@ export function AvgVisitValueForm({ value }: { value: number }) {
           defaultValue={value}
           className="h-8 w-40"
         />
+        <Button type="submit" variant="outline" disabled={pending}>
+          {pending ? "Saving…" : "Save"}
+        </Button>
+        {state.error ? (
+          <span className="text-xs text-destructive">{state.error}</span>
+        ) : null}
+        {state.saved ? (
+          <span className="text-xs text-emerald-600">Saved.</span>
+        ) : null}
       </div>
-      <Button type="submit" size="sm" variant="outline" disabled={pending}>
-        {pending ? "Saving…" : "Save"}
-      </Button>
-      {state.error ? (
-        <span className="text-xs text-destructive">{state.error}</span>
-      ) : null}
-      {state.saved ? (
-        <span className="text-xs text-emerald-600">Saved.</span>
-      ) : null}
     </form>
   );
 }
