@@ -92,7 +92,8 @@ async function seed() {
   const q = (t, v) => pool.query(t, v).then((r) => r.rows[0]);
   const uniq = Date.now();
 
-  const cA = await q("insert into clinics (name, modules_enabled, avg_visit_value) values ('E2E Clinic A', ARRAY['dental'], 4000) returning id");
+  // Clinic A has the Revenue dashboard feature ON; Clinic B leaves it OFF (default).
+  const cA = await q("insert into clinics (name, modules_enabled, features_enabled, avg_visit_value) values ('E2E Clinic A', ARRAY['dental'], ARRAY['revenue_dashboard'], 4000) returning id");
   const cB = await q("insert into clinics (name, modules_enabled) values ('E2E Clinic B', ARRAY['dental']) returning id");
   ids.clinics = [cA.id, cB.id];
 
@@ -158,7 +159,7 @@ async function run() {
   }
   {
     const r = await req(`/admin/clinics/${ids.clinics[0]}`, { cookie: S.sadmin });
-    record("super_admin GET /admin/clinics/[A] → 200", r.status === 200, r.status === 200 ? "" : `status=${r.status} ${snip(r.text)}`);
+    record("super_admin GET /admin/clinics/[A] → 200 + Features toggle", r.status === 200 && r.text.includes("Revenue dashboard"), r.status === 200 ? "" : `status=${r.status} ${snip(r.text)}`);
   }
   record("super_admin GET /clinic → redirect (role isolation)", is3xx((await req("/clinic", { cookie: S.sadmin })).status));
 
@@ -167,9 +168,14 @@ async function run() {
     const okRev = r.text.includes("Revenue recovered");
     const okMoney = /Rs\s*4,000/.test(r.text) || r.text.includes("Rs 4,000");
     const okCount = /1\s*(<!--[^>]*-->)?\s*return visit/.test(r.text);
-    record("clinic_admin GET /clinic → 200 + 'Revenue recovered'", r.status === 200 && okRev);
+    record("clinic_admin (feature ON) GET /clinic → 200 + 'Revenue recovered'", r.status === 200 && okRev);
     record("Revenue Recovered = Rs 4,000 (1 return visit × 4000)", okMoney, okMoney ? "" : "money not found in HTML");
     record("Dashboard shows '1 return visit'", okCount, okCount ? "" : "count text not matched");
+  }
+  {
+    // Clinic B has the feature OFF → the Revenue section must NOT appear.
+    const r = await req("/clinic", { cookie: S.adminB });
+    record("clinic_admin (feature OFF) GET /clinic → 200 + Revenue section hidden", r.status === 200 && !r.text.includes("Revenue recovered"), r.status === 200 ? "" : `status=${r.status}`);
   }
   record("clinic_admin GET /clinic/staff → 200", (await req("/clinic/staff", { cookie: S.adminA })).status === 200);
   {

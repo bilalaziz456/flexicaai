@@ -1,0 +1,1 @@
+ALTER TABLE "clinics" ADD COLUMN "features_enabled" text[] DEFAULT '{}' NOT NULL;

@@ -55,6 +55,13 @@ export const clinics = pgTable(
       .array()
       .notNull()
       .default([]),
+    // text[] of optional platform-feature ids the super admin has switched on
+    // for this clinic, e.g. {revenue_dashboard}. Specialty-agnostic (works for
+    // dental/derma/hair alike) and off by default — see core/lib/features.ts.
+    featuresEnabled: text("features_enabled")
+      .array()
+      .notNull()
+      .default([]),
     // Owner-set average revenue per visit (whole PKR). Drives the owner
     // dashboard's "Revenue Recovered" metric (recovered return visits × this).
     avgVisitValue: integer("avg_visit_value").notNull().default(3000),

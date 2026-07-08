@@ -10,6 +10,7 @@ import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { db } from "@/core/db";
 import { clinics, sessions, users } from "@/core/db/schema";
 import { availableSpecialtyIds } from "@/config/modules";
+import { CLINIC_FEATURE_IDS } from "@/core/lib/features";
 import { USERNAME_REGEX } from "@/core/types/auth";
 
 export type AdminActionState = { error?: string; saved?: boolean };
@@ -134,6 +135,35 @@ export async function updateClinicModules(
 
   revalidatePath(`/admin/clinics/${clinicId}`);
   revalidatePath("/admin");
+  return { saved: true };
+}
+
+/**
+ * Updates which optional platform features a clinic has switched on (e.g. the
+ * Revenue dashboard). Only the super admin can change these; unknown ids are
+ * dropped. Specialty-agnostic — see core/lib/features.ts.
+ */
+export async function updateClinicFeatures(
+  clinicId: string,
+  _prevState: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  await requireRole("super_admin");
+
+  const allowed = new Set<string>(CLINIC_FEATURE_IDS);
+  const featuresEnabled = formData
+    .getAll("features")
+    .map(String)
+    .filter((id) => allowed.has(id));
+
+  await db
+    .update(clinics)
+    .set({ featuresEnabled, updatedAt: new Date() })
+    .where(eq(clinics.id, clinicId));
+
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  // The clinic admin's dashboard shows/hides based on this — refresh it too.
+  revalidatePath("/clinic");
   return { saved: true };
 }
 

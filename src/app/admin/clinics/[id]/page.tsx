@@ -5,6 +5,7 @@ import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { clinics, users } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
+import { CLINIC_FEATURES } from "@/core/lib/features";
 import { Badge } from "@/core/ui/badge";
 import {
   Card,
@@ -22,6 +23,7 @@ import {
   TableRow,
 } from "@/core/ui/table";
 import { ModulesForm } from "./modules-form";
+import { FeaturesForm } from "./features-form";
 import { RenameClinicForm } from "./rename-clinic-form";
 import { StaffActions } from "./staff-actions";
 import { DeleteClinic } from "./delete-clinic";
@@ -89,6 +91,24 @@ export default async function ClinicDetailPage({
             clinicId={clinic.id}
             catalog={SPECIALTY_CATALOG}
             enabled={clinic.modulesEnabled}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Features</CardTitle>
+          <CardDescription>
+            Optional platform features for this clinic. These apply across any
+            specialty (dental, derma, hair); only what you enable here appears in
+            the clinic admin&apos;s panel.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <FeaturesForm
+            clinicId={clinic.id}
+            features={CLINIC_FEATURES}
+            enabled={clinic.featuresEnabled}
           />
         </CardContent>
       </Card>
