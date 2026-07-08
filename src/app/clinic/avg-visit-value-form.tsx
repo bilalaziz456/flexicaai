@@ -20,6 +20,10 @@ export function AvgVisitValueForm({ value }: { value: number }) {
           Average visit value (PKR)
         </Label>
         <Input
+          // Remount when the saved value changes (after revalidation) so the
+          // uncontrolled field re-inits cleanly — Base UI warns if defaultValue
+          // changes on an already-initialized uncontrolled control.
+          key={value}
           id="avgVisitValue"
           name="avgVisitValue"
           type="number"
