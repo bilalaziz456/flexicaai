@@ -1,9 +1,13 @@
-import { and, asc, eq, gte, inArray } from "drizzle-orm";
+import Link from "next/link";
+import { Plus } from "lucide-react";
+import { desc, eq } from "drizzle-orm";
 import { requireClinicAdmin } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { appointments, patients, users } from "@/core/db/schema";
 import { Badge } from "@/core/ui/badge";
+import { buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
 import {
   Table,
   TableBody,
@@ -12,21 +16,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/core/ui/table";
+// Reuse the receptionist's status controls — appointment management is shared,
+// and the underlying actions now accept clinic_admin too.
+import { AppointmentActions } from "@/app/reception/appointment-actions";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive"> = {
   confirmed: "default",
+  completed: "default",
   scheduled: "secondary",
+  cancelled: "destructive",
+  no_show: "destructive",
 };
 
 /**
- * Clinic Admin: read-only view of all UPCOMING appointments for the clinic
- * (scheduled/confirmed, from now on, soonest first). Scheduling and status
- * changes stay in the receptionist panel — the owner only needs visibility.
- * Matches the dashboard "Upcoming appts" count. Clinic-scoped via byClinic().
+ * Clinic Admin: manage the clinic's appointments — same capabilities as the
+ * receptionist (schedule, confirm, complete, cancel, no-show). Clinic-scoped via
+ * byClinic(); the shared actions route back here (not /reception) for this role.
  */
 export default async function ClinicAppointmentsPage() {
   const { clinicId } = await requireClinicAdmin();
-  const now = new Date();
 
   const rows = await db
     .select({
@@ -41,18 +49,9 @@ export default async function ClinicAppointmentsPage() {
     .from(appointments)
     .innerJoin(patients, eq(appointments.patientId, patients.id))
     .leftJoin(users, eq(appointments.doctorId, users.id))
-    .where(
-      byClinic(
-        appointments.clinicId,
-        clinicId,
-        and(
-          inArray(appointments.status, ["scheduled", "confirmed"]),
-          gte(appointments.scheduledAt, now),
-        ),
-      ),
-    )
-    .orderBy(asc(appointments.scheduledAt))
-    .limit(200);
+    .where(byClinic(appointments.clinicId, clinicId))
+    .orderBy(desc(appointments.scheduledAt))
+    .limit(100);
 
   const fmt = (d: Date) =>
     d.toLocaleString("en-GB", {
@@ -67,17 +66,24 @@ export default async function ClinicAppointmentsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Upcoming appointments</h1>
-        <p className="text-sm text-muted-foreground">
-          {rows.length} upcoming appointment{rows.length === 1 ? "" : "s"}.
-          Reception schedules and updates these.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Appointments</h1>
+          <p className="text-sm text-muted-foreground">
+            {rows.length} appointment{rows.length === 1 ? "" : "s"}.
+          </p>
+        </div>
+        <Link
+          href="/clinic/appointments/new"
+          className={cn(buttonVariants(), "hidden sm:inline-flex")}
+        >
+          New appointment
+        </Link>
       </div>
 
       {rows.length === 0 ? (
         <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          No upcoming appointments.
+          No appointments yet. Schedule the first one.
         </div>
       ) : (
         <>
@@ -90,6 +96,7 @@ export default async function ClinicAppointmentsPage() {
                   <TableHead>Patient</TableHead>
                   <TableHead>Doctor</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -103,16 +110,19 @@ export default async function ClinicAppointmentsPage() {
                         {a.status.replace("_", " ")}
                       </Badge>
                     </TableCell>
+                    <TableCell>
+                      <AppointmentActions id={a.id} status={a.status} />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
 
-          {/* Mobile: stacked cards — no horizontal scroll. */}
+          {/* Mobile: stacked cards — no horizontal scroll; icon-only actions. */}
           <ul className="space-y-3 md:hidden">
             {rows.map((a) => (
-              <li key={a.id} className="space-y-1 rounded-md border p-3">
+              <li key={a.id} className="space-y-2 rounded-md border p-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">{a.patientName}</span>
                   <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"}>
@@ -123,11 +133,24 @@ export default async function ClinicAppointmentsPage() {
                   {fmt(a.scheduledAt)} · {doctorLabel(a.doctorName, a.doctorUsername)}
                   {a.reason ? ` · ${a.reason}` : ""}
                 </div>
+                <AppointmentActions id={a.id} status={a.status} />
               </li>
             ))}
           </ul>
         </>
       )}
+
+      {/* Mobile FAB. */}
+      <Link
+        href="/clinic/appointments/new"
+        aria-label="New appointment"
+        className={cn(
+          buttonVariants({ size: "icon" }),
+          "fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg sm:hidden",
+        )}
+      >
+        <Plus className="size-6" aria-hidden="true" />
+      </Link>
     </div>
   );
 }

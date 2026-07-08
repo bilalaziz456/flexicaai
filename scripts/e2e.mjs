@@ -184,10 +184,12 @@ async function run() {
   }
   record("clinic_admin GET /clinic/recalls → 200", (await req("/clinic/recalls", { cookie: S.adminA })).status === 200);
   {
-    // Read-only upcoming-appointments view: lists the seeded future appt, not the past/completed one.
+    // Manage-appointments view: lists the seeded appt + status controls + New button.
     const r = await req("/clinic/appointments", { cookie: S.adminA });
-    record("clinic_admin GET /clinic/appointments → 200 + lists upcoming appt", r.status === 200 && r.text.includes("Upcoming appointments") && r.text.includes("Ayesha Recovered"), r.status === 200 ? "" : `status=${r.status}`);
+    const ok = r.status === 200 && r.text.includes("Ayesha Recovered") && r.text.includes("Confirm") && r.text.includes("New appointment");
+    record("clinic_admin GET /clinic/appointments → 200 + manage controls", ok, r.status === 200 ? "" : `status=${r.status}`);
   }
+  record("clinic_admin GET /clinic/appointments/new → 200 (schedule form)", (await req("/clinic/appointments/new", { cookie: S.adminA })).status === 200);
   {
     // Tenant scoping: clinic B (no appointments) must not see clinic A's patient.
     const r = await req("/clinic/appointments", { cookie: S.adminB });

@@ -19,10 +19,22 @@ const APPT_STATUSES = [
   "no_show",
 ] as const;
 
-async function requireReceptionClinic(): Promise<string> {
-  const user = await requireRole("receptionist");
+/**
+ * Appointment management is shared by the receptionist AND the clinic admin, so
+ * these actions accept either role. The `home` route (where we revalidate and
+ * redirect back to) depends on which panel the user came from — sending a clinic
+ * admin to /reception would just bounce off the receptionist-only guard.
+ */
+async function requireAppointmentsAccess(): Promise<{
+  clinicId: string;
+  home: string;
+}> {
+  const user = await requireRole(["receptionist", "clinic_admin"]);
   if (!user.clinicId) redirect("/login?error=no_access");
-  return user.clinicId;
+  return {
+    clinicId: user.clinicId,
+    home: user.role === "clinic_admin" ? "/clinic/appointments" : "/reception",
+  };
 }
 
 const createSchema = z.object({
@@ -45,7 +57,7 @@ export async function createAppointment(
   _prev: ReceptionActionState,
   formData: FormData,
 ): Promise<ReceptionActionState> {
-  const clinicId = await requireReceptionClinic();
+  const { clinicId, home } = await requireAppointmentsAccess();
 
   const parsed = createSchema.safeParse({
     patientId: formData.get("patientId"),
@@ -101,8 +113,8 @@ export async function createAppointment(
     reason: parsed.data.reason ?? null,
   });
 
-  revalidatePath("/reception");
-  redirect("/reception");
+  revalidatePath(home);
+  redirect(home);
 }
 
 /** Advances an appointment's status (confirm / complete / cancel / no-show). */
@@ -111,7 +123,7 @@ export async function setAppointmentStatus(
   status: (typeof APPT_STATUSES)[number],
   _formData: FormData,
 ): Promise<void> {
-  const clinicId = await requireReceptionClinic();
+  const { clinicId, home } = await requireAppointmentsAccess();
   if (!APPT_STATUSES.includes(status)) return;
 
   await db
@@ -119,14 +131,14 @@ export async function setAppointmentStatus(
     .set({ status, updatedAt: new Date() })
     .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)));
 
-  revalidatePath("/reception");
+  revalidatePath(home);
 }
 
 /** Patient typeahead for the new-appointment picker (clinic-scoped). */
 export async function searchClinicPatients(
   query: string,
 ): Promise<{ id: string; fullName: string; phone: string | null }[]> {
-  const clinicId = await requireReceptionClinic();
+  const { clinicId } = await requireAppointmentsAccess();
   const q = query.trim();
 
   return db
