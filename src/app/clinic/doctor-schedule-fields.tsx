@@ -17,9 +17,11 @@ type Row = { weekday: number; on: boolean; start: string; end: string };
 export function DoctorScheduleFields({
   defaultAvailability = [],
   defaultLimit = 0,
+  defaultFee = 0,
 }: {
   defaultAvailability?: DayAvailability[];
   defaultLimit?: number;
+  defaultFee?: number;
 }) {
   const [rows, setRows] = useState<Row[]>(() =>
     WEEKDAYS.map((d) => {
@@ -33,6 +35,7 @@ export function DoctorScheduleFields({
     }),
   );
   const [limit, setLimit] = useState(String(defaultLimit ?? 0));
+  const [fee, setFee] = useState(String(defaultFee ?? 0));
 
   const update = (weekday: number, patch: Partial<Row>) =>
     setRows((prev) =>
@@ -86,21 +89,39 @@ export function DoctorScheduleFields({
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="dailyLimit">Daily appointment limit</Label>
-        <Input
-          id="dailyLimit"
-          name="dailyLimit"
-          type="number"
-          min={0}
-          max={500}
-          value={limit}
-          onChange={(e) => setLimit(e.target.value)}
-          className="w-40"
-        />
-        <p className="text-xs text-muted-foreground">
-          Max appointments per day. <strong>0 = no limit.</strong>
-        </p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="dailyLimit">Daily appointment limit</Label>
+          <Input
+            id="dailyLimit"
+            name="dailyLimit"
+            type="number"
+            min={0}
+            max={500}
+            value={limit}
+            onChange={(e) => setLimit(e.target.value)}
+            className="w-40"
+          />
+          <p className="text-xs text-muted-foreground">
+            Max appointments per day. <strong>0 = no limit.</strong>
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="fee">Consultation fee (PKR)</Label>
+          <Input
+            id="fee"
+            name="fee"
+            type="number"
+            min={0}
+            step={100}
+            value={fee}
+            onChange={(e) => setFee(e.target.value)}
+            className="w-40"
+          />
+          <p className="text-xs text-muted-foreground">
+            This doctor&apos;s fee per visit. 0 = not set.
+          </p>
+        </div>
       </div>
 
       {/* Submitted with the form. */}

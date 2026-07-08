@@ -178,14 +178,18 @@ async function run() {
     const r = await req("/clinic", { cookie: S.adminB });
     record("clinic_admin (feature OFF) GET /clinic → 200 + Revenue section hidden", r.status === 200 && !r.text.includes("Revenue recovered"), r.status === 200 ? "" : `status=${r.status}`);
   }
-  record("clinic_admin GET /clinic/staff → 200", (await req("/clinic/staff", { cookie: S.adminA })).status === 200);
+  {
+    const r = await req("/clinic/staff", { cookie: S.adminA });
+    record("clinic_admin GET /clinic/staff → 200 + 'Open' (no inline actions)", r.status === 200 && r.text.includes(">Open") && !r.text.includes("Reset password"));
+  }
   {
     const r = await req("/clinic/staff/new", { cookie: S.adminA });
-    record("add-staff form shows doctor schedule fields", r.status === 200 && r.text.includes("Working days"));
+    record("add-staff form shows doctor schedule + fee fields", r.status === 200 && r.text.includes("Working days") && r.text.includes("Consultation fee"));
   }
   {
     const r = await req(`/clinic/staff/${ids.docAId}`, { cookie: S.adminA });
-    record("clinic_admin GET doctor schedule page → 200", r.status === 200 && r.text.includes("Working hours"));
+    const ok = r.status === 200 && r.text.includes("Schedule &amp; fees") && r.text.includes("Consultation fee") && r.text.includes("Danger zone");
+    record("clinic_admin GET staff detail → 200 + full management", ok, r.status === 200 ? "" : `status=${r.status}`);
   }
   {
     const r = await req("/clinic/patients", { cookie: S.adminA });

@@ -40,13 +40,21 @@ const dailyLimitSchema = z.coerce
   .min(0, "Cannot be negative.")
   .max(500, "That's too large.");
 
+const feeSchema = z.coerce
+  .number({ message: "Invalid fee." })
+  .int("Whole rupees only.")
+  .min(0, "Cannot be negative.")
+  .max(10_000_000, "That's too large.");
+
 /**
- * Parses the doctor scheduling fields (availability + daily limit) from a form.
- * Returns an error string on invalid input, or the parsed values.
+ * Parses the doctor config fields (working hours + daily limit + fee) from a
+ * form. Returns an error string on invalid input, or the parsed values.
  */
 function parseDoctorSchedule(
   formData: FormData,
-): { error: string } | { availability: DayAvailability[]; dailyLimit: number } {
+):
+  | { error: string }
+  | { availability: DayAvailability[]; dailyLimit: number; fee: number } {
   const rawAvail = formData.get("availability");
   let availability: DayAvailability[] = [];
   if (typeof rawAvail === "string" && rawAvail.trim()) {
@@ -67,7 +75,13 @@ function parseDoctorSchedule(
   if (!limit.success) {
     return { error: limit.error.issues[0]?.message ?? "Invalid daily limit." };
   }
-  return { availability, dailyLimit: limit.data };
+
+  const fee = feeSchema.safeParse(formData.get("fee") ?? 0);
+  if (!fee.success) {
+    return { error: fee.error.issues[0]?.message ?? "Invalid fee." };
+  }
+
+  return { availability, dailyLimit: limit.data, fee: fee.data };
 }
 
 function isUniqueViolation(err: unknown): boolean {
@@ -126,14 +140,16 @@ export async function createStaff(
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
-  // Doctors carry a working-hours schedule + daily cap; receptionists don't.
+  // Doctors carry a working-hours schedule + daily cap + fee; receptionists don't.
   let availability: DayAvailability[] = [];
   let dailyLimit = 0;
+  let fee = 0;
   if (parsed.data.role === "doctor") {
     const schedule = parseDoctorSchedule(formData);
     if ("error" in schedule) return { error: schedule.error };
     availability = schedule.availability;
     dailyLimit = schedule.dailyLimit;
+    fee = schedule.fee;
   }
 
   const passwordHash = await hashPassword(parsed.data.password);
@@ -147,6 +163,7 @@ export async function createStaff(
       mustChangePassword: true,
       availability,
       dailyAppointmentLimit: dailyLimit,
+      consultationFee: fee,
     });
   } catch (err) {
     if (isUniqueViolation(err)) {
@@ -180,7 +197,8 @@ export async function setStaffActive(
     }
   });
 
-  revalidatePath("/clinic/staff");
+  // "layout" scope refreshes both the list and the staff detail page.
+  revalidatePath("/clinic/staff", "layout");
 }
 
 /**
@@ -210,8 +228,9 @@ export async function deleteStaff(
       ),
     );
 
+  // Deletion happens from the staff detail page — leave it (the record is gone).
   revalidatePath("/clinic/staff");
-  return { saved: true };
+  redirect("/clinic/staff");
 }
 
 const resetStaffSchema = z.object({
@@ -330,6 +349,7 @@ export async function updateDoctorSchedule(
     .set({
       availability: schedule.availability,
       dailyAppointmentLimit: schedule.dailyLimit,
+      consultationFee: schedule.fee,
       updatedAt: new Date(),
     })
     .where(

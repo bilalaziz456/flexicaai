@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "consultation_fee" integer DEFAULT 0 NOT NULL;

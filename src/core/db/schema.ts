@@ -117,6 +117,8 @@ export const users = pgTable(
     dailyAppointmentLimit: integer("daily_appointment_limit")
       .notNull()
       .default(0),
+    // Doctor's consultation fee in whole PKR (0 = not set). Per-doctor.
+    consultationFee: integer("consultation_fee").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

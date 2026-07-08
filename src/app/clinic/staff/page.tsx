@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { and, desc, ilike, inArray, or } from "drizzle-orm";
 import { requireClinicAdmin } from "@/core/auth/user";
 import { db } from "@/core/db";
@@ -17,7 +17,6 @@ import {
   TableRow,
 } from "@/core/ui/table";
 import { describeAvailability } from "@/core/lib/availability";
-import { StaffActions } from "./staff-actions";
 import { StaffSearch } from "./staff-search";
 
 /** Clinic Admin: the staff list, with search + add. Mirrors the admin flow. */
@@ -47,6 +46,7 @@ export default async function ClinicStaffPage({
       isActive: users.isActive,
       availability: users.availability,
       dailyLimit: users.dailyAppointmentLimit,
+      fee: users.consultationFee,
     })
     .from(users)
     .where(
@@ -96,7 +96,7 @@ export default async function ClinicStaffPage({
                   <TableHead>Username</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-right"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -116,25 +116,16 @@ export default async function ClinicStaffPage({
                         <span className="text-muted-foreground">Suspended</span>
                       )}
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-2">
-                        {u.role === "doctor" ? (
-                          <Link
-                            href={`/clinic/staff/${u.id}`}
-                            className={cn(
-                              buttonVariants({ variant: "outline", size: "sm" }),
-                            )}
-                          >
-                            Schedule
-                          </Link>
-                        ) : null}
-                        <StaffActions
-                          userId={u.id}
-                          username={u.username}
-                          fullName={u.fullName}
-                          isActive={u.isActive}
-                        />
-                      </div>
+                    <TableCell className="text-right">
+                      <Link
+                        href={`/clinic/staff/${u.id}`}
+                        className={cn(
+                          buttonVariants({ variant: "outline", size: "sm" }),
+                        )}
+                      >
+                        Open
+                        <ChevronRight className="size-4" aria-hidden="true" />
+                      </Link>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -157,26 +148,20 @@ export default async function ClinicStaffPage({
                   <div className="text-xs text-muted-foreground">
                     {describeAvailability(u.availability)} ·{" "}
                     {u.dailyLimit > 0 ? `${u.dailyLimit}/day` : "no daily limit"}
+                    {u.fee > 0
+                      ? ` · Rs ${new Intl.NumberFormat("en-PK").format(u.fee)}`
+                      : ""}
                   </div>
                 ) : null}
-                <div className="flex items-center gap-2">
-                  {u.role === "doctor" ? (
-                    <Link
-                      href={`/clinic/staff/${u.id}`}
-                      className={cn(
-                        buttonVariants({ variant: "outline", size: "sm" }),
-                      )}
-                    >
-                      Schedule
-                    </Link>
-                  ) : null}
-                  <StaffActions
-                    userId={u.id}
-                    username={u.username}
-                    fullName={u.fullName}
-                    isActive={u.isActive}
-                  />
-                </div>
+                <Link
+                  href={`/clinic/staff/${u.id}`}
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" }),
+                  )}
+                >
+                  Open
+                  <ChevronRight className="size-4" aria-hidden="true" />
+                </Link>
               </li>
             ))}
           </ul>
