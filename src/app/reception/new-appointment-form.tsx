@@ -160,7 +160,9 @@ export function NewAppointmentForm({
               : "border-destructive/40 text-destructive"
           }`}
         >
-          {!slots.available ? (
+          {slots.onLeave ? (
+            <>Doctor is on leave that day — pick another date or doctor.</>
+          ) : !slots.available ? (
             <>Doctor isn&apos;t available on that day.</>
           ) : slots.remaining === null ? (
             <>

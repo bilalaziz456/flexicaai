@@ -2,12 +2,18 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, count, desc, eq, gte, ilike, inArray, lt, or } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, inArray, lt, lte, or } from "drizzle-orm";
 import { z } from "zod";
 import { requireRole } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
-import { appointments, clinics, patients, users } from "@/core/db/schema";
+import {
+  appointments,
+  clinics,
+  doctorLeaves,
+  patients,
+  users,
+} from "@/core/db/schema";
 import {
   ACTIVE_APPT_STATUSES,
   availabilityForWeekday,
@@ -43,6 +49,42 @@ async function requireAppointmentsAccess(): Promise<{
     clinicId: user.clinicId,
     home: user.role === "clinic_admin" ? "/clinic/appointments" : "/reception",
   };
+}
+
+/** Local "YYYY-MM-DD" for a Date (clinic wall-clock day). */
+function localDateStr(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** Local midnight Date from a "YYYY-MM-DD" string. */
+function dateFromStr(s: string): Date {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/** Is the doctor on leave/vacation on the given local date (YYYY-MM-DD)? */
+async function doctorOnLeave(
+  clinicId: string,
+  doctorId: string,
+  dateStr: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: doctorLeaves.id })
+    .from(doctorLeaves)
+    .where(
+      byClinic(
+        doctorLeaves.clinicId,
+        clinicId,
+        and(
+          eq(doctorLeaves.doctorId, doctorId),
+          lte(doctorLeaves.startDate, dateStr),
+          gte(doctorLeaves.endDate, dateStr),
+        ),
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
 }
 
 /** Counts a doctor's slot-consuming appointments on the calendar day of `when`. */
@@ -136,6 +178,13 @@ export async function createAppointment(
 
     const docName = doc.fullName ?? doc.username;
 
+    // Hard block: the doctor must not be on leave/vacation that day.
+    if (await doctorOnLeave(clinicId, doc.id, localDateStr(when))) {
+      return {
+        error: `${docName} is on leave that day — pick another date or doctor.`,
+      };
+    }
+
     // Hard block: the doctor must be working at that day & time.
     if (!isDoctorAvailableAt(doc.availability, when)) {
       const slot = availabilityForWeekday(doc.availability, when.getDay());
@@ -219,6 +268,7 @@ export async function searchClinicPatients(
 
 export type DoctorDaySlots = {
   available: boolean;
+  onLeave: boolean;
   limit: number;
   booked: number;
   remaining: number | null; // null = unlimited
@@ -253,12 +303,23 @@ export async function doctorDayAvailability(
     .limit(1);
 
   if (!doc || Number.isNaN(when.getTime())) {
-    return { available: false, limit: 0, booked: 0, remaining: 0, hours: null };
+    return {
+      available: false,
+      onLeave: false,
+      limit: 0,
+      booked: 0,
+      remaining: 0,
+      hours: null,
+    };
   }
+
+  // Leave overrides everything: a doctor on leave is unavailable that day.
+  const onLeave = await doctorOnLeave(clinicId, doctorId, localDateStr(when));
 
   const avail = (doc.availability ?? []) as DayAvailability[];
   const slot = availabilityForWeekday(avail, when.getDay());
-  const available = avail.length === 0 ? true : Boolean(slot);
+  const availableByHours = avail.length === 0 ? true : Boolean(slot);
+  const available = !onLeave && availableByHours;
   const hours = slot
     ? `${slot.start}–${slot.end}`
     : avail.length === 0
@@ -269,7 +330,7 @@ export async function doctorDayAvailability(
   const remaining =
     doc.dailyLimit > 0 ? Math.max(0, doc.dailyLimit - booked) : null;
 
-  return { available, limit: doc.dailyLimit, booked, remaining, hours };
+  return { available, onLeave, limit: doc.dailyLimit, booked, remaining, hours };
 }
 
 /**
@@ -310,4 +371,111 @@ export async function setDoctorDailyLimit(
   revalidatePath("/reception/doctors");
   revalidatePath("/clinic/staff");
   return { saved: true };
+}
+
+export type LeaveActionState = {
+  error?: string;
+  saved?: boolean;
+  cancelled?: number;
+};
+
+const leaveSchema = z
+  .object({
+    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a start date."),
+    endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick an end date."),
+    reason: z.string().trim().max(200).optional(),
+  })
+  .refine((d) => d.endDate >= d.startDate, {
+    message: "End date can't be before the start date.",
+    path: ["endDate"],
+  });
+
+/**
+ * Marks a doctor on leave/vacation for a date range — usable by the receptionist
+ * AND the clinic admin. Any active (scheduled/confirmed) appointments for that
+ * doctor within the range are CANCELLED, since the doctor won't be in. Returns
+ * how many were cancelled. Clinic-scoped and doctor-only.
+ */
+export async function addDoctorLeave(
+  doctorId: string,
+  _prev: LeaveActionState,
+  formData: FormData,
+): Promise<LeaveActionState> {
+  const { clinicId, home } = await requireAppointmentsAccess();
+
+  const parsed = leaveSchema.safeParse({
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
+    reason: (formData.get("reason") as string) || undefined,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid dates." };
+  }
+
+  const [doc] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(
+      byClinic(
+        users.clinicId,
+        clinicId,
+        and(eq(users.id, doctorId), eq(users.role, "doctor")),
+      ),
+    )
+    .limit(1);
+  if (!doc) return { error: "Doctor not found." };
+
+  let cancelled = 0;
+  await db.transaction(async (tx) => {
+    await tx.insert(doctorLeaves).values({
+      clinicId,
+      doctorId,
+      startDate: parsed.data.startDate,
+      endDate: parsed.data.endDate,
+      reason: parsed.data.reason ?? null,
+    });
+
+    // Cancel active appointments within [start, end] (inclusive of the last day).
+    const start = dateFromStr(parsed.data.startDate);
+    const end = dateFromStr(parsed.data.endDate);
+    end.setDate(end.getDate() + 1); // exclusive upper bound
+    const cancelledRows = await tx
+      .update(appointments)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(
+        byClinic(
+          appointments.clinicId,
+          clinicId,
+          and(
+            eq(appointments.doctorId, doctorId),
+            inArray(appointments.status, ["scheduled", "confirmed"]),
+            gte(appointments.scheduledAt, start),
+            lt(appointments.scheduledAt, end),
+          ),
+        ),
+      )
+      .returning({ id: appointments.id });
+    cancelled = cancelledRows.length;
+  });
+
+  revalidatePath(home);
+  revalidatePath("/reception/doctors");
+  revalidatePath("/clinic/staff", "layout");
+  return { saved: true, cancelled };
+}
+
+/** Removes a leave entry (does not restore already-cancelled appointments). */
+export async function removeDoctorLeave(
+  leaveId: string,
+  _formData: FormData,
+): Promise<void> {
+  const { clinicId, home } = await requireAppointmentsAccess();
+
+  await db
+    .delete(doctorLeaves)
+    .where(byClinic(doctorLeaves.clinicId, clinicId, eq(doctorLeaves.id, leaveId)));
+
+  revalidatePath(home);
+  revalidatePath("/reception/doctors");
+  revalidatePath("/clinic/staff", "layout");
 }

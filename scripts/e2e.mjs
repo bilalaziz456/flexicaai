@@ -188,8 +188,8 @@ async function run() {
   }
   {
     const r = await req(`/clinic/staff/${ids.docAId}`, { cookie: S.adminA });
-    const ok = r.status === 200 && r.text.includes("Schedule &amp; fees") && r.text.includes("Consultation fee") && r.text.includes("Danger zone");
-    record("clinic_admin GET staff detail → 200 + full management", ok, r.status === 200 ? "" : `status=${r.status}`);
+    const ok = r.status === 200 && r.text.includes("Schedule &amp; fees") && r.text.includes("Consultation fee") && r.text.includes("Leave &amp; vacation") && r.text.includes("Danger zone");
+    record("clinic_admin GET staff detail → 200 + full management + leave", ok, r.status === 200 ? "" : `status=${r.status}`);
   }
   {
     const r = await req("/clinic/patients", { cookie: S.adminA });
@@ -222,7 +222,7 @@ async function run() {
   record("receptionist GET /reception/new → 200", (await req("/reception/new", { cookie: S.recepA })).status === 200);
   {
     const r = await req("/reception/doctors", { cookie: S.recepA });
-    record("receptionist GET /reception/doctors → 200 + daily-limit control", r.status === 200 && r.text.includes("Daily limit"));
+    record("receptionist GET /reception/doctors → 200 + limit + leave controls", r.status === 200 && r.text.includes("Daily appointment limit") && r.text.includes("Leave / vacation"));
   }
   {
     const r = await req("/reception/whatsapp", { cookie: S.recepA });

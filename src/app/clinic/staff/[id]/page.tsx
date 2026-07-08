@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
-import { Ban, CalendarClock, RotateCcw } from "lucide-react";
+import { and, asc, eq, gte } from "drizzle-orm";
+import { Ban, CalendarClock, CalendarOff, RotateCcw } from "lucide-react";
 import { requireClinicAdmin } from "@/core/auth/user";
 import { setStaffActive } from "@/app/clinic/actions";
+import { DoctorLeaves } from "@/app/reception/doctor-leaves";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
-import { users } from "@/core/db/schema";
+import { doctorLeaves, users } from "@/core/db/schema";
 import { Badge } from "@/core/ui/badge";
 import { Button } from "@/core/ui/button";
 import {
@@ -57,6 +58,33 @@ export default async function StaffDetailPage({
   }
 
   const label = member.fullName ?? member.username;
+
+  // Current + upcoming leave for doctors.
+  const now = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  const today = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
+  const leaves =
+    member.role === "doctor"
+      ? await db
+          .select({
+            id: doctorLeaves.id,
+            startDate: doctorLeaves.startDate,
+            endDate: doctorLeaves.endDate,
+            reason: doctorLeaves.reason,
+          })
+          .from(doctorLeaves)
+          .where(
+            byClinic(
+              doctorLeaves.clinicId,
+              clinicId,
+              and(
+                eq(doctorLeaves.doctorId, member.id),
+                gte(doctorLeaves.endDate, today),
+              ),
+            ),
+          )
+          .orderBy(asc(doctorLeaves.startDate))
+      : [];
 
   return (
     <div className="space-y-6">
@@ -111,6 +139,24 @@ export default async function StaffDetailPage({
               dailyLimit={member.dailyLimit}
               fee={member.fee}
             />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {member.role === "doctor" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarOff className="size-5 text-muted-foreground" aria-hidden="true" />
+              Leave &amp; vacation
+            </CardTitle>
+            <CardDescription>
+              Mark days off. Appointments in the range are cancelled and no new
+              bookings are allowed on those days.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DoctorLeaves doctorId={member.id} leaves={leaves} />
           </CardContent>
         </Card>
       ) : null}

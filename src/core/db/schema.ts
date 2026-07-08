@@ -420,8 +420,43 @@ export const whatsappMessages = pgTable(
   ],
 );
 
+/**
+ * Doctor leave / vacation — shared/core. A row marks a doctor unavailable across
+ * an inclusive date range [startDate, endDate] (a single day sets both equal).
+ * Set by the receptionist or clinic admin; booking is blocked on these days and
+ * existing appointments in the range are cancelled when the leave is created.
+ */
+export const doctorLeaves = pgTable(
+  "doctor_leaves",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    doctorId: uuid("doctor_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    reason: text("reason"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("doctor_leaves_clinic_id_idx").on(t.clinicId),
+    // The booking guard asks "is THIS doctor on leave on date X".
+    index("doctor_leaves_doctor_range_idx").on(
+      t.doctorId,
+      t.startDate,
+      t.endDate,
+    ),
+  ],
+);
+
 // Inferred row types for use across the app.
 export type Clinic = typeof clinics.$inferSelect;
+export type DoctorLeave = typeof doctorLeaves.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type Patient = typeof patients.$inferSelect;
