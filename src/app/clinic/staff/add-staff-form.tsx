@@ -1,17 +1,19 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { createStaff, type ClinicActionState } from "@/app/clinic/actions";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { PasswordInput } from "@/core/ui/password-input";
+import { DoctorScheduleFields } from "@/app/clinic/doctor-schedule-fields";
 
 export function AddStaffForm() {
   const [state, formAction, pending] = useActionState<
     ClinicActionState,
     FormData
   >(createStaff, {});
+  const [role, setRole] = useState("doctor");
 
   return (
     <form action={formAction} className="space-y-4">
@@ -25,7 +27,8 @@ export function AddStaffForm() {
           <select
             id="role"
             name="role"
-            defaultValue="doctor"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
             className="h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <option value="doctor">Doctor</option>
@@ -52,6 +55,9 @@ export function AddStaffForm() {
           />
         </div>
       </div>
+
+      {/* Doctors get a working-hours schedule + daily appointment cap. */}
+      {role === "doctor" ? <DoctorScheduleFields /> : null}
 
       {state.error ? (
         <p className="text-sm text-destructive" role="alert">

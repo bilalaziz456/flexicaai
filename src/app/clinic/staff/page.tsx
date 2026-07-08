@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/core/ui/table";
+import { describeAvailability } from "@/core/lib/availability";
 import { StaffActions } from "./staff-actions";
 import { StaffSearch } from "./staff-search";
 
@@ -44,6 +45,8 @@ export default async function ClinicStaffPage({
       fullName: users.fullName,
       role: users.role,
       isActive: users.isActive,
+      availability: users.availability,
+      dailyLimit: users.dailyAppointmentLimit,
     })
     .from(users)
     .where(
@@ -114,12 +117,24 @@ export default async function ClinicStaffPage({
                       )}
                     </TableCell>
                     <TableCell>
-                      <StaffActions
-                        userId={u.id}
-                        username={u.username}
-                        fullName={u.fullName}
-                        isActive={u.isActive}
-                      />
+                      <div className="flex items-center justify-end gap-2">
+                        {u.role === "doctor" ? (
+                          <Link
+                            href={`/clinic/staff/${u.id}`}
+                            className={cn(
+                              buttonVariants({ variant: "outline", size: "sm" }),
+                            )}
+                          >
+                            Schedule
+                          </Link>
+                        ) : null}
+                        <StaffActions
+                          userId={u.id}
+                          username={u.username}
+                          fullName={u.fullName}
+                          isActive={u.isActive}
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -138,12 +153,30 @@ export default async function ClinicStaffPage({
                 <div className="text-sm text-muted-foreground">
                   @{u.username} · {u.isActive ? "Active" : "Suspended"}
                 </div>
-                <StaffActions
-                  userId={u.id}
-                  username={u.username}
-                  fullName={u.fullName}
-                  isActive={u.isActive}
-                />
+                {u.role === "doctor" ? (
+                  <div className="text-xs text-muted-foreground">
+                    {describeAvailability(u.availability)} ·{" "}
+                    {u.dailyLimit > 0 ? `${u.dailyLimit}/day` : "no daily limit"}
+                  </div>
+                ) : null}
+                <div className="flex items-center gap-2">
+                  {u.role === "doctor" ? (
+                    <Link
+                      href={`/clinic/staff/${u.id}`}
+                      className={cn(
+                        buttonVariants({ variant: "outline", size: "sm" }),
+                      )}
+                    >
+                      Schedule
+                    </Link>
+                  ) : null}
+                  <StaffActions
+                    userId={u.id}
+                    username={u.username}
+                    fullName={u.fullName}
+                    isActive={u.isActive}
+                  />
+                </div>
               </li>
             ))}
           </ul>

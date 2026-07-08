@@ -78,6 +78,13 @@
       "when": 1783539183200,
       "tag": "0010_happy_vanisher",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1783541742822,
+      "tag": "0011_clammy_forge",
+      "breakpoints": true
     }
   ]
 }

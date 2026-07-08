@@ -109,6 +109,7 @@ async function seed() {
   const suspU = await mkUser(cA.id, `e2e_susp_${uniq}`, "receptionist");
   ids.users = [sadmin, adminA, docA, recepA, adminB, suspU].map((u) => u.id);
   ids.suspUserId = suspU.id;
+  ids.docAId = docA.id;
 
   const patA1 = await q("insert into patients (clinic_id, full_name, phone) values ($1,'Ayesha Recovered','+923009990001') returning id", [cA.id]);
   const patA2 = await q("insert into patients (clinic_id, full_name, phone) values ($1,'Bilal NoPhone', null) returning id", [cA.id]);
@@ -179,6 +180,14 @@ async function run() {
   }
   record("clinic_admin GET /clinic/staff → 200", (await req("/clinic/staff", { cookie: S.adminA })).status === 200);
   {
+    const r = await req("/clinic/staff/new", { cookie: S.adminA });
+    record("add-staff form shows doctor schedule fields", r.status === 200 && r.text.includes("Working days"));
+  }
+  {
+    const r = await req(`/clinic/staff/${ids.docAId}`, { cookie: S.adminA });
+    record("clinic_admin GET doctor schedule page → 200", r.status === 200 && r.text.includes("Working hours"));
+  }
+  {
     const r = await req("/clinic/patients", { cookie: S.adminA });
     record("clinic_admin GET /clinic/patients → 200 + shows patient", r.status === 200 && r.text.includes("Ayesha Recovered"));
   }
@@ -207,6 +216,10 @@ async function run() {
 
   record("receptionist GET /reception → 200", (await req("/reception", { cookie: S.recepA })).status === 200);
   record("receptionist GET /reception/new → 200", (await req("/reception/new", { cookie: S.recepA })).status === 200);
+  {
+    const r = await req("/reception/doctors", { cookie: S.recepA });
+    record("receptionist GET /reception/doctors → 200 + daily-limit control", r.status === 200 && r.text.includes("Daily limit"));
+  }
   {
     const r = await req("/reception/whatsapp", { cookie: S.recepA });
     record("receptionist GET /reception/whatsapp → 200 + inbound msg", r.status === 200 && r.text.includes("I need an appointment"));

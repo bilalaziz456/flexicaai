@@ -3,7 +3,9 @@
 import { useActionState, useState } from "react";
 import {
   createAppointment,
+  doctorDayAvailability,
   searchClinicPatients,
+  type DoctorDaySlots,
   type ReceptionActionState,
 } from "./actions";
 import { Button } from "@/core/ui/button";
@@ -24,6 +26,9 @@ export function NewAppointmentForm({
   const [patient, setPatient] = useState<Patient | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Patient[]>(initialPatients);
+  const [doctorId, setDoctorId] = useState("");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [slots, setSlots] = useState<DoctorDaySlots | null>(null);
   const [state, formAction, pending] = useActionState<
     ReceptionActionState,
     FormData
@@ -32,6 +37,15 @@ export function NewAppointmentForm({
   async function runSearch(q: string) {
     setQuery(q);
     setResults(await searchClinicPatients(q));
+  }
+
+  // Show the doctor's remaining capacity once both a doctor and a date are set.
+  async function refreshSlots(dId: string, when: string) {
+    if (!dId || !when) {
+      setSlots(null);
+      return;
+    }
+    setSlots(await doctorDayAvailability(dId, when));
   }
 
   return (
@@ -90,7 +104,11 @@ export function NewAppointmentForm({
           <select
             id="doctorId"
             name="doctorId"
-            defaultValue=""
+            value={doctorId}
+            onChange={(e) => {
+              setDoctorId(e.target.value);
+              void refreshSlots(e.target.value, scheduledAt);
+            }}
             className="h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <option value="">— Any —</option>
@@ -115,13 +133,51 @@ export function NewAppointmentForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="scheduledAt">Date &amp; time</Label>
-          <Input id="scheduledAt" name="scheduledAt" type="datetime-local" required />
+          <Input
+            id="scheduledAt"
+            name="scheduledAt"
+            type="datetime-local"
+            required
+            value={scheduledAt}
+            onChange={(e) => {
+              setScheduledAt(e.target.value);
+              void refreshSlots(doctorId, e.target.value);
+            }}
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="reason">Reason (optional)</Label>
           <Input id="reason" name="reason" placeholder="e.g. Cleaning" />
         </div>
       </div>
+
+      {/* Live availability for the chosen doctor + date. */}
+      {slots ? (
+        <div
+          className={`rounded-md border p-3 text-sm ${
+            slots.available
+              ? "border-border text-muted-foreground"
+              : "border-destructive/40 text-destructive"
+          }`}
+        >
+          {!slots.available ? (
+            <>Doctor isn&apos;t available on that day.</>
+          ) : slots.remaining === null ? (
+            <>
+              Available{slots.hours ? ` (${slots.hours})` : ""} · no daily limit —{" "}
+              {slots.booked} booked so far.
+            </>
+          ) : (
+            <>
+              <strong className="text-foreground">
+                {slots.remaining} of {slots.limit}
+              </strong>{" "}
+              appointment{slots.remaining === 1 ? "" : "s"} left
+              {slots.hours ? ` · hours ${slots.hours}` : ""}.
+            </>
+          )}
+        </div>
+      ) : null}
 
       {state.error ? (
         <p className="text-sm text-destructive" role="alert">

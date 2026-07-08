@@ -10,9 +10,65 @@ import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { clinics, patients, sessions, users } from "@/core/db/schema";
+import { TIME_RE, timeToMinutes, type DayAvailability } from "@/core/lib/availability";
 import { USERNAME_REGEX } from "@/core/types/auth";
 
 export type ClinicActionState = { error?: string; saved?: boolean };
+
+/** Validates the doctor schedule JSON emitted by DoctorScheduleFields. */
+const availabilitySchema = z
+  .array(
+    z
+      .object({
+        weekday: z.number().int().min(0).max(6),
+        start: z.string().regex(TIME_RE, "Invalid time."),
+        end: z.string().regex(TIME_RE, "Invalid time."),
+      })
+      .refine((d) => (timeToMinutes(d.start) ?? 0) < (timeToMinutes(d.end) ?? 0), {
+        message: "End time must be after start time.",
+      }),
+  )
+  .max(7)
+  // At most one window per weekday.
+  .refine((arr) => new Set(arr.map((a) => a.weekday)).size === arr.length, {
+    message: "Duplicate day in schedule.",
+  });
+
+const dailyLimitSchema = z.coerce
+  .number({ message: "Invalid daily limit." })
+  .int("Whole number only.")
+  .min(0, "Cannot be negative.")
+  .max(500, "That's too large.");
+
+/**
+ * Parses the doctor scheduling fields (availability + daily limit) from a form.
+ * Returns an error string on invalid input, or the parsed values.
+ */
+function parseDoctorSchedule(
+  formData: FormData,
+): { error: string } | { availability: DayAvailability[]; dailyLimit: number } {
+  const rawAvail = formData.get("availability");
+  let availability: DayAvailability[] = [];
+  if (typeof rawAvail === "string" && rawAvail.trim()) {
+    let json: unknown;
+    try {
+      json = JSON.parse(rawAvail);
+    } catch {
+      return { error: "Invalid schedule." };
+    }
+    const parsed = availabilitySchema.safeParse(json);
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0]?.message ?? "Invalid schedule." };
+    }
+    availability = parsed.data;
+  }
+
+  const limit = dailyLimitSchema.safeParse(formData.get("dailyLimit") ?? 0);
+  if (!limit.success) {
+    return { error: limit.error.issues[0]?.message ?? "Invalid daily limit." };
+  }
+  return { availability, dailyLimit: limit.data };
+}
 
 function isUniqueViolation(err: unknown): boolean {
   // Drizzle wraps the pg error, so the Postgres code (23505 = unique_violation)
@@ -70,6 +126,16 @@ export async function createStaff(
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
+  // Doctors carry a working-hours schedule + daily cap; receptionists don't.
+  let availability: DayAvailability[] = [];
+  let dailyLimit = 0;
+  if (parsed.data.role === "doctor") {
+    const schedule = parseDoctorSchedule(formData);
+    if ("error" in schedule) return { error: schedule.error };
+    availability = schedule.availability;
+    dailyLimit = schedule.dailyLimit;
+  }
+
   const passwordHash = await hashPassword(parsed.data.password);
   try {
     await db.insert(users).values({
@@ -79,6 +145,8 @@ export async function createStaff(
       role: parsed.data.role,
       fullName: parsed.data.fullName,
       mustChangePassword: true,
+      availability,
+      dailyAppointmentLimit: dailyLimit,
     });
   } catch (err) {
     if (isUniqueViolation(err)) {
@@ -239,6 +307,43 @@ export async function updateStaffProfile(
   }
 
   revalidatePath("/clinic/staff");
+  return { saved: true };
+}
+
+/**
+ * Edits a doctor's working-hours schedule + daily appointment limit. Clinic-
+ * scoped and limited to role = doctor, so a crafted id from another clinic or a
+ * non-doctor matches 0 rows.
+ */
+export async function updateDoctorSchedule(
+  userId: string,
+  _prevState: ClinicActionState,
+  formData: FormData,
+): Promise<ClinicActionState> {
+  const { clinicId } = await requireClinicAdmin();
+
+  const schedule = parseDoctorSchedule(formData);
+  if ("error" in schedule) return { error: schedule.error };
+
+  const result = await db
+    .update(users)
+    .set({
+      availability: schedule.availability,
+      dailyAppointmentLimit: schedule.dailyLimit,
+      updatedAt: new Date(),
+    })
+    .where(
+      byClinic(
+        users.clinicId,
+        clinicId,
+        and(eq(users.id, userId), eq(users.role, "doctor")),
+      ),
+    )
+    .returning({ id: users.id });
+  if (result.length === 0) return { error: "Doctor not found." };
+
+  revalidatePath("/clinic/staff");
+  revalidatePath(`/clinic/staff/${userId}`);
   return { saved: true };
 }
 

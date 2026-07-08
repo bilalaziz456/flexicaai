@@ -11,6 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { DayAvailability } from "@/core/lib/availability";
 
 /**
  * Drizzle schema — the single source of truth for the database structure.
@@ -105,6 +106,17 @@ export const users = pgTable(
     mustChangePassword: boolean("must_change_password").notNull().default(false),
     // UI theme preference; "system" follows the OS.
     theme: themePreference("theme").notNull().default("system"),
+    // Doctor scheduling (specialty-agnostic, core/lib/availability.ts). Empty for
+    // non-doctors and for doctors with no restriction. `availability` is the
+    // per-weekday working windows; `dailyAppointmentLimit` caps bookings per day
+    // (0 = unlimited). Both only meaningful for role = doctor.
+    availability: jsonb("availability")
+      .$type<DayAvailability[]>()
+      .notNull()
+      .default([]),
+    dailyAppointmentLimit: integer("daily_appointment_limit")
+      .notNull()
+      .default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
