@@ -4,6 +4,7 @@ import { db } from "@/core/db";
 import { patients, whatsappMessages } from "@/core/db/schema";
 import { normalisePhone } from "@/core/integrations/whatsapp";
 import { handleRescheduleReply } from "@/core/appointments/reschedule";
+import { handleBookingReply } from "@/core/appointments/booking";
 import { serverEnv } from "@/core/lib/env";
 
 /**
@@ -109,17 +110,29 @@ export async function POST(request: Request) {
     payload,
   });
 
-  // Self-service reschedule: a matched patient can reply "reschedule <date time>".
+  // Self-service for a matched patient: reschedule an existing appointment
+  // ("reschedule …") or book a new one ("book …"). Reschedule is checked first;
+  // booking only runs if the message wasn't a reschedule request.
   let rescheduled = false;
+  let booked = false;
   if (matched && text) {
-    const outcome = await handleRescheduleReply({
+    const resched = await handleRescheduleReply({
       clinicId: matched.clinicId,
       patientId: matched.id,
       phone,
       text,
     });
-    rescheduled = outcome.rescheduled;
+    rescheduled = resched.rescheduled;
+    if (!resched.handled) {
+      const booking = await handleBookingReply({
+        clinicId: matched.clinicId,
+        patientId: matched.id,
+        phone,
+        text,
+      });
+      booked = booking.booked;
+    }
   }
 
-  return NextResponse.json({ ok: true, kind: "inbound", rescheduled });
+  return NextResponse.json({ ok: true, kind: "inbound", rescheduled, booked });
 }

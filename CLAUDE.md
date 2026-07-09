@@ -306,7 +306,9 @@ are in `.env.example`.
 - **WhatsApp appointment lifecycle** (`core/notifications/appointment.ts`, campaigns in
   env): booking confirmation, cancellation notice, day-before reminder (cron
   `/api/cron/reminders`, `appointments.reminder_sent_at`), and patient self-service
-  **reschedule via reply** (`core/appointments/reschedule.ts` + `parse-when.ts`).
+  over inbound replies — **reschedule** (`core/appointments/reschedule.ts`) and
+  **new booking** (`core/appointments/booking.ts`), both parsing dates via
+  `parse-when.ts` and validating via `checkDoctorSlot`. Wired in the inbound webhook.
 
 Still NOT to build without instruction (§11/§12 unchanged): derma, hair, mobile apps,
 advanced analytics.
