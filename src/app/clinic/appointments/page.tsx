@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { desc, eq } from "drizzle-orm";
 import { requireClinicAdmin } from "@/core/auth/user";
 import { db } from "@/core/db";
@@ -111,7 +111,16 @@ export default async function ClinicAppointmentsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <AppointmentActions id={a.id} status={a.status} />
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <Link
+                          href={`/clinic/appointments/${a.id}`}
+                          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                        >
+                          Open
+                          <ChevronRight className="size-4" aria-hidden="true" />
+                        </Link>
+                        <AppointmentActions id={a.id} status={a.status} />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -133,7 +142,16 @@ export default async function ClinicAppointmentsPage() {
                   {fmt(a.scheduledAt)} · {doctorLabel(a.doctorName, a.doctorUsername)}
                   {a.reason ? ` · ${a.reason}` : ""}
                 </div>
-                <AppointmentActions id={a.id} status={a.status} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href={`/clinic/appointments/${a.id}`}
+                    className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                  >
+                    Open
+                    <ChevronRight className="size-4" aria-hidden="true" />
+                  </Link>
+                  <AppointmentActions id={a.id} status={a.status} />
+                </div>
               </li>
             ))}
           </ul>

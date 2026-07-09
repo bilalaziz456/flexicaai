@@ -121,7 +121,7 @@ async function seed() {
 
   // "Revenue Recovered" scenario: patA1 got a 'sent' recall 10d ago AND a completed appt 2d ago → 1 recovered × 4000.
   await q("insert into appointments (clinic_id, patient_id, doctor_id, scheduled_at, status) values ($1,$2,$3, now()-interval '2 days','completed')", [cA.id, patA1.id, docA.id]);
-  await q("insert into appointments (clinic_id, patient_id, doctor_id, scheduled_at, status) values ($1,$2,$3, now()+interval '3 days','scheduled')", [cA.id, patA1.id, docA.id]);
+  ids.apptA = (await q("insert into appointments (clinic_id, patient_id, doctor_id, scheduled_at, status) values ($1,$2,$3, now()+interval '3 days','scheduled') returning id", [cA.id, patA1.id, docA.id])).id;
   await q("insert into recalls (clinic_id, patient_id, reason, due_at, status, sent_at) values ($1,$2,'6-month cleaning', now()-interval '12 days','sent', now()-interval '10 days')", [cA.id, patA1.id]);
   // A due 'pending' recall whose patient has NO phone → cron should skip it.
   await q("insert into recalls (clinic_id, patient_id, reason, due_at, status) values ($1,$2,'checkup', now()-interval '1 day','pending')", [cA.id, patA2.id]);
@@ -216,8 +216,12 @@ async function run() {
   {
     // Manage-appointments view: lists the seeded appt + status controls + New button.
     const r = await req("/clinic/appointments", { cookie: S.adminA });
-    const ok = r.status === 200 && r.text.includes("Ayesha Recovered") && r.text.includes("Confirm") && r.text.includes("New appointment");
-    record("clinic_admin GET /clinic/appointments → 200 + manage controls", ok, r.status === 200 ? "" : `status=${r.status}`);
+    const ok = r.status === 200 && r.text.includes("Ayesha Recovered") && r.text.includes("Confirm") && r.text.includes("New appointment") && r.text.includes(`/clinic/appointments/${ids.apptA}`);
+    record("clinic_admin GET /clinic/appointments → 200 + Open + manage controls", ok, r.status === 200 ? "" : `status=${r.status}`);
+  }
+  {
+    const r = await req(`/clinic/appointments/${ids.apptA}`, { cookie: S.adminA });
+    record("clinic_admin GET appointment detail → 200 + edit + delete", r.status === 200 && r.text.includes("Danger zone") && r.text.includes(">Edit</"));
   }
   record("clinic_admin GET /clinic/appointments/new → 200 (schedule form)", (await req("/clinic/appointments/new", { cookie: S.adminA })).status === 200);
   {

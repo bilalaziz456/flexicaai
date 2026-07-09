@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { and, desc, eq, gte, ilike, inArray, lt, or } from "drizzle-orm";
 import { z } from "zod";
 import { requireRole } from "@/core/auth/user";
+import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import {
@@ -130,6 +131,93 @@ export async function createAppointment(
 
   // Confirm to the patient over WhatsApp (doctor, hours, fee, time).
   await notifyAppointmentBooked(clinicId, created.id);
+
+  revalidatePath(home);
+  redirect(home);
+}
+
+const updateSchema = z.object({
+  doctorId: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v ? v : undefined))
+    .refine((v) => v === undefined || z.string().uuid().safeParse(v).success, {
+      message: "Invalid doctor.",
+    }),
+  scheduledAt: z.string().min(1, "Pick a date & time."),
+  durationMinutes: z.coerce.number().int().min(5).max(480).default(30),
+  reason: z.string().trim().optional(),
+});
+
+/** Edits an existing appointment (doctor / date-time / duration / reason). */
+export async function updateAppointment(
+  appointmentId: string,
+  _prev: ReceptionActionState,
+  formData: FormData,
+): Promise<ReceptionActionState> {
+  const { clinicId, home } = await requireAppointmentsAccess();
+
+  const parsed = updateSchema.safeParse({
+    doctorId: formData.get("doctorId"),
+    scheduledAt: formData.get("scheduledAt"),
+    durationMinutes: formData.get("durationMinutes"),
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const when = new Date(parsed.data.scheduledAt);
+  if (Number.isNaN(when.getTime())) return { error: "Invalid date & time." };
+
+  const [appt] = await db
+    .select({ id: appointments.id })
+    .from(appointments)
+    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
+    .limit(1);
+  if (!appt) return { error: "Appointment not found." };
+
+  if (parsed.data.doctorId) {
+    // Same leave / hours / cap enforcement as booking (excludes this appt).
+    const check = await checkDoctorSlot(clinicId, parsed.data.doctorId, when, {
+      excludeAppointmentId: appointmentId,
+    });
+    if (!check.ok) return { error: check.reason };
+  }
+
+  await db
+    .update(appointments)
+    .set({
+      doctorId: parsed.data.doctorId ?? null,
+      scheduledAt: when,
+      durationMinutes: parsed.data.durationMinutes,
+      reason: parsed.data.reason ?? null,
+      reminderSentAt: null, // time may have changed → re-send the reminder
+      updatedAt: new Date(),
+    })
+    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)));
+
+  revalidatePath(home);
+  revalidatePath(`/clinic/appointments/${appointmentId}`);
+  revalidatePath(`/reception/appointments/${appointmentId}`);
+  return { saved: true };
+}
+
+/** Permanently deletes an appointment (step-up password). Clinic-scoped. */
+export async function deleteAppointment(
+  appointmentId: string,
+  password: string,
+): Promise<ReceptionActionState> {
+  const { clinicId, home } = await requireAppointmentsAccess();
+
+  if (!(await verifyCurrentUserPassword(password))) {
+    return { error: "Incorrect password." };
+  }
+
+  await db
+    .delete(appointments)
+    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)));
 
   revalidatePath(home);
   redirect(home);
