@@ -22,6 +22,7 @@ import {
   isDoctorAvailableAt,
   type DayAvailability,
 } from "@/core/lib/availability";
+import { notifyAppointmentsCancelled } from "@/core/notifications/appointment";
 
 export type ReceptionActionState = { error?: string; saved?: boolean };
 
@@ -236,10 +237,16 @@ export async function setAppointmentStatus(
   const { clinicId, home } = await requireAppointmentsAccess();
   if (!APPT_STATUSES.includes(status)) return;
 
-  await db
+  const updated = await db
     .update(appointments)
     .set({ status, updatedAt: new Date() })
-    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)));
+    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
+    .returning({ id: appointments.id });
+
+  // Tell the patient (with doctor + time) when their appointment is cancelled.
+  if (status === "cancelled" && updated.length > 0) {
+    await notifyAppointmentsCancelled(clinicId, [appointmentId]);
+  }
 
   revalidatePath(home);
 }
@@ -425,7 +432,7 @@ export async function addDoctorLeave(
     .limit(1);
   if (!doc) return { error: "Doctor not found." };
 
-  let cancelled = 0;
+  let cancelledIds: string[] = [];
   await db.transaction(async (tx) => {
     await tx.insert(doctorLeaves).values({
       clinicId,
@@ -455,13 +462,18 @@ export async function addDoctorLeave(
         ),
       )
       .returning({ id: appointments.id });
-    cancelled = cancelledRows.length;
+    cancelledIds = cancelledRows.map((r) => r.id);
   });
+
+  // Notify affected patients (doctor + time) after the cancellations commit.
+  if (cancelledIds.length > 0) {
+    await notifyAppointmentsCancelled(clinicId, cancelledIds);
+  }
 
   revalidatePath(home);
   revalidatePath("/reception/doctors");
   revalidatePath("/clinic/staff", "layout");
-  return { saved: true, cancelled };
+  return { saved: true, cancelled: cancelledIds.length };
 }
 
 /** Removes a leave entry (does not restore already-cancelled appointments). */
