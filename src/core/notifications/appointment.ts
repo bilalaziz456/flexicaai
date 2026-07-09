@@ -4,8 +4,19 @@ import { and, inArray, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { appointments, clinics, patients, users } from "@/core/db/schema";
+import {
+  describeAvailability,
+  type DayAvailability,
+} from "@/core/lib/availability";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
+
+/** "Rs 1,500" or "Not specified" for a 0/absent fee. */
+function formatFee(fee: number | null): string {
+  return fee && fee > 0
+    ? `Rs ${new Intl.NumberFormat("en-PK").format(fee)}`
+    : "Not specified";
+}
 
 /** "Mon 12 Jul, 10:00" — the appointment time for the patient message. */
 function formatWhen(d: Date): string {
@@ -77,5 +88,78 @@ export async function notifyAppointmentsCancelled(
     }
   } catch {
     // Best-effort: never let a notification error affect the cancellation.
+  }
+}
+
+/**
+ * Best-effort WhatsApp confirmation to a patient that their appointment is
+ * booked — with the doctor's name, working hours, and consultation fee, plus the
+ * date & time. CORE, clinic-scoped, only messages a patient with a phone, and
+ * never throws (a notify failure must not block the booking).
+ *
+ * Template params order (map these in the AiSensy "appointment_booked" template):
+ * {{1}} patient, {{2}} doctor, {{3}} date & time, {{4}} working hours,
+ * {{5}} fee, {{6}} clinic.
+ */
+export async function notifyAppointmentBooked(
+  clinicId: string,
+  appointmentId: string,
+): Promise<void> {
+  try {
+    const [r] = await db
+      .select({
+        patientId: patients.id,
+        patientName: patients.fullName,
+        patientPhone: patients.phone,
+        scheduledAt: appointments.scheduledAt,
+        doctorName: users.fullName,
+        doctorUsername: users.username,
+        availability: users.availability,
+        fee: users.consultationFee,
+        clinicName: clinics.name,
+      })
+      .from(appointments)
+      .innerJoin(patients, eq(appointments.patientId, patients.id))
+      .innerJoin(clinics, eq(appointments.clinicId, clinics.id))
+      .leftJoin(users, eq(appointments.doctorId, users.id))
+      .where(
+        byClinic(
+          appointments.clinicId,
+          clinicId,
+          and(eq(appointments.id, appointmentId), isNotNull(patients.phone)),
+        ),
+      )
+      .limit(1);
+
+    if (!r || !r.patientPhone) return;
+
+    const doctor = r.doctorName ?? r.doctorUsername ?? null;
+    const when = formatWhen(r.scheduledAt);
+    const hours = doctor
+      ? describeAvailability((r.availability ?? []) as DayAvailability[])
+      : "—";
+    const fee = formatFee(doctor ? r.fee : null);
+    const body = doctor
+      ? `Appointment confirmed with ${doctor} on ${when}. Working hours: ${hours}. Fee: ${fee}. — ${r.clinicName}`
+      : `Appointment confirmed on ${when}. — ${r.clinicName}`;
+
+    await sendWhatsAppToPatient({
+      clinicId,
+      patientId: r.patientId,
+      phone: r.patientPhone,
+      campaignName: serverEnv.AISENSY_BOOKING_CAMPAIGN,
+      userName: r.patientName,
+      templateParams: [
+        r.patientName,
+        doctor ?? "the clinic",
+        when,
+        hours,
+        fee,
+        r.clinicName,
+      ],
+      body,
+    });
+  } catch {
+    // Best-effort: never let a notification error affect the booking.
   }
 }

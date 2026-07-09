@@ -22,7 +22,10 @@ import {
   isDoctorAvailableAt,
   type DayAvailability,
 } from "@/core/lib/availability";
-import { notifyAppointmentsCancelled } from "@/core/notifications/appointment";
+import {
+  notifyAppointmentBooked,
+  notifyAppointmentsCancelled,
+} from "@/core/notifications/appointment";
 
 export type ReceptionActionState = { error?: string; saved?: boolean };
 
@@ -214,15 +217,21 @@ export async function createAppointment(
     .where(eq(clinics.id, clinicId))
     .limit(1);
 
-  await db.insert(appointments).values({
-    clinicId,
-    patientId: parsed.data.patientId,
-    doctorId: parsed.data.doctorId ?? null,
-    module: clinic?.modulesEnabled?.[0] ?? null,
-    scheduledAt: when,
-    durationMinutes: parsed.data.durationMinutes,
-    reason: parsed.data.reason ?? null,
-  });
+  const [created] = await db
+    .insert(appointments)
+    .values({
+      clinicId,
+      patientId: parsed.data.patientId,
+      doctorId: parsed.data.doctorId ?? null,
+      module: clinic?.modulesEnabled?.[0] ?? null,
+      scheduledAt: when,
+      durationMinutes: parsed.data.durationMinutes,
+      reason: parsed.data.reason ?? null,
+    })
+    .returning({ id: appointments.id });
+
+  // Confirm to the patient over WhatsApp (doctor, hours, fee, time).
+  await notifyAppointmentBooked(clinicId, created.id);
 
   revalidatePath(home);
   redirect(home);
