@@ -11,11 +11,40 @@ import {
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
+import { TimeSelect } from "@/core/ui/time-select";
 
 type Patient = { id: string; fullName: string; phone: string | null };
 type Doctor = { id: string; fullName: string | null; username: string };
 
-/** New-appointment form: pick a patient, optional doctor, date/time, reason. */
+const pad = (n: number) => String(n).padStart(2, "0");
+const timeToMin = (s: string) => {
+  const [h, m] = s.split(":").map(Number);
+  return h * 60 + m;
+};
+const minToTime = (mins: number) =>
+  `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`;
+/** "09:30" → "9:30 AM" */
+const label12 = (hhmm: string) => {
+  const [h, m] = hhmm.split(":").map(Number);
+  const mer = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${pad(m)} ${mer}`;
+};
+/** Slot start times within [start, end) at 30-min steps. */
+const genSlots = (start: string, end: string) => {
+  const out: string[] = [];
+  for (let t = timeToMin(start); t < timeToMin(end); t += 30) out.push(minToTime(t));
+  return out;
+};
+
+const selectCls =
+  "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+
+/**
+ * New-appointment form. The time picker ADAPTS to the doctor: a doctor with set
+ * visiting hours shows a dropdown of valid slots within those hours for the
+ * chosen date; a flexible doctor (or "Any doctor") shows a free time picker.
+ */
 export function NewAppointmentForm({
   initialPatients,
   doctors,
@@ -27,7 +56,8 @@ export function NewAppointmentForm({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Patient[]>(initialPatients);
   const [doctorId, setDoctorId] = useState("");
-  const [scheduledAt, setScheduledAt] = useState("");
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("09:00");
   const [slots, setSlots] = useState<DoctorDaySlots | null>(null);
   const [state, formAction, pending] = useActionState<
     ReceptionActionState,
@@ -39,18 +69,54 @@ export function NewAppointmentForm({
     setResults(await searchClinicPatients(q));
   }
 
-  // Show the doctor's remaining capacity once both a doctor and a date are set.
-  async function refreshSlots(dId: string, when: string) {
-    if (!dId || !when) {
+  // Fetch the doctor's availability/window for the chosen date (local noon so the
+  // weekday is right). Only meaningful once a specific doctor + date are picked.
+  async function refreshSlots(dId: string, d: string) {
+    if (!dId || !d) {
       setSlots(null);
       return;
     }
-    setSlots(await doctorDayAvailability(dId, when));
+    setSlots(await doctorDayAvailability(dId, `${d}T12:00`));
   }
+
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const isToday = date === todayStr;
+
+  // A doctor with set hours (not flexible) working that day → constrained slots.
+  const constrained =
+    Boolean(doctorId) &&
+    slots !== null &&
+    !slots.flexible &&
+    slots.window !== null &&
+    !slots.onLeave &&
+    slots.available;
+  const slotOptions =
+    constrained && slots?.window
+      ? genSlots(slots.window.start, slots.window.end).filter(
+          (t) => !isToday || timeToMin(t) > nowMin,
+        )
+      : [];
+  const effectiveTime = constrained
+    ? slotOptions.includes(time)
+      ? time
+      : (slotOptions[0] ?? "")
+    : time;
+  const scheduledAt = date && effectiveTime ? `${date}T${effectiveTime}` : "";
+
+  // Non-flexible doctor who can't take that day (off / on leave).
+  const unavailable =
+    Boolean(doctorId) &&
+    date &&
+    slots !== null &&
+    !slots.flexible &&
+    (slots.onLeave || !slots.available);
 
   return (
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="patientId" value={patient?.id ?? ""} />
+      <input type="hidden" name="scheduledAt" value={scheduledAt} />
 
       <div className="space-y-2">
         <Label>Patient</Label>
@@ -107,9 +173,9 @@ export function NewAppointmentForm({
             value={doctorId}
             onChange={(e) => {
               setDoctorId(e.target.value);
-              void refreshSlots(e.target.value, scheduledAt);
+              void refreshSlots(e.target.value, date);
             }}
-            className="h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            className={selectCls}
           >
             <option value="">— Any —</option>
             {doctors.map((d) => (
@@ -131,54 +197,76 @@ export function NewAppointmentForm({
             defaultValue={30}
           />
         </div>
+
         <div className="space-y-2">
-          <Label htmlFor="scheduledAt">Date &amp; time</Label>
+          <Label htmlFor="date">Date</Label>
           <Input
-            id="scheduledAt"
-            name="scheduledAt"
-            type="datetime-local"
+            id="date"
+            type="date"
             required
-            value={scheduledAt}
+            min={todayStr}
+            value={date}
             onChange={(e) => {
-              setScheduledAt(e.target.value);
+              setDate(e.target.value);
               void refreshSlots(doctorId, e.target.value);
             }}
           />
         </div>
+
         <div className="space-y-2">
+          <Label>Time</Label>
+          {unavailable ? (
+            <p className="text-sm text-destructive">
+              {slots?.onLeave
+                ? "Doctor is on leave that day."
+                : "Doctor doesn't work that day — pick another date."}
+            </p>
+          ) : constrained ? (
+            slotOptions.length > 0 ? (
+              <select
+                aria-label="Time"
+                value={effectiveTime}
+                onChange={(e) => setTime(e.target.value)}
+                className={selectCls}
+              >
+                {slotOptions.map((t) => (
+                  <option key={t} value={t}>
+                    {label12(t)}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-sm text-destructive">
+                No time slots left for that day.
+              </p>
+            )
+          ) : (
+            <TimeSelect
+              ariaLabel="Appointment time"
+              value={effectiveTime || "09:00"}
+              onChange={setTime}
+            />
+          )}
+        </div>
+
+        <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="reason">Reason (optional)</Label>
           <Input id="reason" name="reason" placeholder="e.g. Cleaning" />
         </div>
       </div>
 
-      {/* Live availability for the chosen doctor + date. */}
-      {slots ? (
-        <div
-          className={`rounded-md border p-3 text-sm ${
-            slots.available
-              ? "border-border text-muted-foreground"
-              : "border-destructive/40 text-destructive"
-          }`}
-        >
-          {slots.onLeave ? (
-            <>Doctor is on leave that day — pick another date or doctor.</>
-          ) : !slots.available ? (
-            <>Doctor isn&apos;t available on that day.</>
-          ) : slots.remaining === null ? (
-            <>
-              Available{slots.hours ? ` (${slots.hours})` : ""} · no daily limit —{" "}
-              {slots.booked} booked so far.
-            </>
-          ) : (
-            <>
-              <strong className="text-foreground">
-                {slots.remaining} of {slots.limit}
-              </strong>{" "}
-              appointment{slots.remaining === 1 ? "" : "s"} left
-              {slots.hours ? ` · hours ${slots.hours}` : ""}.
-            </>
-          )}
-        </div>
+      {/* Doctor's hours + remaining capacity for the chosen day. */}
+      {slots && slots.available ? (
+        <p className="text-xs text-muted-foreground">
+          {slots.flexible
+            ? "Flexible — book any time."
+            : slots.window
+              ? `Working hours ${slots.window.start}–${slots.window.end}.`
+              : ""}
+          {slots.remaining !== null
+            ? ` ${slots.remaining} of ${slots.limit} appointment${slots.remaining === 1 ? "" : "s"} left that day.`
+            : ""}
+        </p>
       ) : null}
 
       {state.error ? (
@@ -187,7 +275,7 @@ export function NewAppointmentForm({
         </p>
       ) : null}
 
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" disabled={pending || !scheduledAt}>
         {pending ? "Scheduling…" : "Schedule appointment"}
       </Button>
     </form>

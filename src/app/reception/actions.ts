@@ -200,6 +200,9 @@ export async function searchClinicPatients(
 export type DoctorDaySlots = {
   available: boolean;
   onLeave: boolean;
+  flexible: boolean;
+  /** The doctor's working window on the selected date (null when flexible / off). */
+  window: { start: string; end: string } | null;
   limit: number;
   booked: number;
   remaining: number | null; // null = unlimited
@@ -238,6 +241,8 @@ export async function doctorDayAvailability(
     return {
       available: false,
       onLeave: false,
+      flexible: false,
+      window: null,
       limit: 0,
       booked: 0,
       remaining: 0,
@@ -250,10 +255,12 @@ export async function doctorDayAvailability(
 
   const avail = (doc.availability ?? []) as DayAvailability[];
   const slot = availabilityForWeekday(avail, when.getDay());
+  const flexible = doc.flexibleHours;
   // Flexible doctors are bookable any time; otherwise the day must have hours.
-  const availableByHours = doc.flexibleHours ? true : Boolean(slot);
+  const availableByHours = flexible ? true : Boolean(slot);
   const available = !onLeave && availableByHours;
-  const hours = doc.flexibleHours
+  const window = !flexible && slot ? { start: slot.start, end: slot.end } : null;
+  const hours = flexible
     ? "Any time"
     : slot
       ? `${slot.start}–${slot.end}`
@@ -263,7 +270,7 @@ export async function doctorDayAvailability(
   const remaining =
     doc.dailyLimit > 0 ? Math.max(0, doc.dailyLimit - booked) : null;
 
-  return { available, onLeave, limit: doc.dailyLimit, booked, remaining, hours };
+  return { available, onLeave, flexible, window, limit: doc.dailyLimit, booked, remaining, hours };
 }
 
 /**
