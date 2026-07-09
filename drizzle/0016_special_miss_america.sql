@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "flexible_hours" boolean DEFAULT false NOT NULL;

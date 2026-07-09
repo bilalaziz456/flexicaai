@@ -45,6 +45,7 @@ export default async function StaffDetailPage({
       role: users.role,
       isActive: users.isActive,
       availability: users.availability,
+      flexibleHours: users.flexibleHours,
       dailyLimit: users.dailyAppointmentLimit,
       fee: users.consultationFee,
     })
@@ -138,6 +139,7 @@ export default async function StaffDetailPage({
               availability={member.availability}
               dailyLimit={member.dailyLimit}
               fee={member.fee}
+              flexibleHours={member.flexibleHours}
             />
           </CardContent>
         </Card>

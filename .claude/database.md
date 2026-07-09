@@ -58,9 +58,10 @@ Index: GIN pg_trgm on `name` (fast ILIKE search).
 null`), `username` (**unique**, lowercased), `email` (**unique when present**),
 `password_hash` (bcrypt), `role` (enum), `full_name`, `is_active` (default true),
 `must_change_password` (default false), `theme` (enum). **Doctor-only fields:**
-`availability` jsonb `DayAvailability[]` (per-weekday working windows; empty = no
-restriction — `core/lib/availability.ts`), `daily_appointment_limit` int (0 =
-unlimited), `consultation_fee` int (PKR, 0 = not set). Timestamps.
+`availability` jsonb `DayAvailability[]` (per-weekday working windows), 
+`flexible_hours` bool (default false; true = bookable any time, hours not enforced —
+leave + cap still apply), `daily_appointment_limit` int (0 = unlimited),
+`consultation_fee` int (PKR, 0 = not set). Timestamps.
 Indexes: unique `username`, unique `email`, `clinic_id`.
 
 ### `sessions` — server-side sessions
@@ -79,8 +80,9 @@ on `full_name` and `phone`.
 `id`, `clinic_id` → clinics (`cascade`), `patient_id` → patients (`cascade`),
 `doctor_id` → users (`set null`), `module` (free-text tag), `scheduled_at`,
 `duration_minutes` (default 30), `status` (enum, default scheduled), `reason`,
-`reminder_sent_at` (set once the day-before reminder is sent; NULL = not reminded),
-timestamps.
+`source` (free-text, default 'staff'; 'whatsapp' = patient self-booked → stays a
+request until staff confirm), `reminder_sent_at` (set once the day-before reminder
+is sent; NULL = not reminded), timestamps.
 Indexes: `clinic_id`; `patient_id`; (`clinic_id`,`scheduled_at`); `doctor_id`;
 (`scheduled_at`,`reminder_sent_at`) for the reminder cron.
 
@@ -130,4 +132,4 @@ Indexes: `clinic_id`; (`doctor_id`,`start_date`,`end_date`) for the booking guar
 - **Timezone caveat (deploy):** availability, "tomorrow" (reminder), and day
   bounds use the **server's local timezone**. For a multi-region rollout
   (Pakistan vs GCC), pin each clinic to its own timezone.
-- Migrations `0000`–`0014` applied; new tables/columns are always additive to core.
+- Migrations `0000`–`0016` applied; new tables/columns are always additive to core.

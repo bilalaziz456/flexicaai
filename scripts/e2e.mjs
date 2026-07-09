@@ -110,6 +110,9 @@ async function seed() {
   ids.users = [sadmin, adminA, docA, recepA, adminB, suspU].map((u) => u.id);
   ids.suspUserId = suspU.id;
   ids.docAId = docA.id;
+  // docA has no working hours; make it flexible so any future slot books
+  // (booking/reschedule checks rely on this).
+  await pool.query("update users set flexible_hours = true where id = $1", [docA.id]);
 
   const patA1 = await q("insert into patients (clinic_id, full_name, phone) values ($1,'Ayesha Recovered','+923009990001') returning id", [cA.id]);
   const patA2 = await q("insert into patients (clinic_id, full_name, phone) values ($1,'Bilal NoPhone', null) returning id", [cA.id]);

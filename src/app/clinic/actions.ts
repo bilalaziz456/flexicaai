@@ -54,7 +54,12 @@ function parseDoctorSchedule(
   formData: FormData,
 ):
   | { error: string }
-  | { availability: DayAvailability[]; dailyLimit: number; fee: number } {
+  | {
+      availability: DayAvailability[];
+      dailyLimit: number;
+      fee: number;
+      flexibleHours: boolean;
+    } {
   const rawAvail = formData.get("availability");
   let availability: DayAvailability[] = [];
   if (typeof rawAvail === "string" && rawAvail.trim()) {
@@ -81,7 +86,9 @@ function parseDoctorSchedule(
     return { error: fee.error.issues[0]?.message ?? "Invalid fee." };
   }
 
-  return { availability, dailyLimit: limit.data, fee: fee.data };
+  const flexibleHours = formData.get("flexibleHours") === "true";
+
+  return { availability, dailyLimit: limit.data, fee: fee.data, flexibleHours };
 }
 
 function isUniqueViolation(err: unknown): boolean {
@@ -144,12 +151,14 @@ export async function createStaff(
   let availability: DayAvailability[] = [];
   let dailyLimit = 0;
   let fee = 0;
+  let flexibleHours = false;
   if (parsed.data.role === "doctor") {
     const schedule = parseDoctorSchedule(formData);
     if ("error" in schedule) return { error: schedule.error };
     availability = schedule.availability;
     dailyLimit = schedule.dailyLimit;
     fee = schedule.fee;
+    flexibleHours = schedule.flexibleHours;
   }
 
   const passwordHash = await hashPassword(parsed.data.password);
@@ -162,6 +171,7 @@ export async function createStaff(
       fullName: parsed.data.fullName,
       mustChangePassword: true,
       availability,
+      flexibleHours,
       dailyAppointmentLimit: dailyLimit,
       consultationFee: fee,
     });
@@ -348,6 +358,7 @@ export async function updateDoctorSchedule(
     .update(users)
     .set({
       availability: schedule.availability,
+      flexibleHours: schedule.flexibleHours,
       dailyAppointmentLimit: schedule.dailyLimit,
       consultationFee: schedule.fee,
       updatedAt: new Date(),

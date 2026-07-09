@@ -103,10 +103,12 @@ export function DoctorScheduleFields({
   defaultAvailability = [],
   defaultLimit = 0,
   defaultFee = 0,
+  defaultFlexible = false,
 }: {
   defaultAvailability?: DayAvailability[];
   defaultLimit?: number;
   defaultFee?: number;
+  defaultFlexible?: boolean;
 }) {
   const [rows, setRows] = useState<Row[]>(() =>
     WEEKDAYS.map((d) => {
@@ -121,6 +123,7 @@ export function DoctorScheduleFields({
   );
   const [limit, setLimit] = useState(String(defaultLimit ?? 0));
   const [fee, setFee] = useState(String(defaultFee ?? 0));
+  const [flexible, setFlexible] = useState(Boolean(defaultFlexible));
 
   const update = (weekday: number, patch: Partial<Row>) =>
     setRows((prev) =>
@@ -133,11 +136,26 @@ export function DoctorScheduleFields({
 
   return (
     <div className="space-y-4 rounded-md border p-3 sm:p-4">
-      <div className="space-y-2">
+      <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/50">
+        <Checkbox
+          className="mt-0.5"
+          checked={flexible}
+          onCheckedChange={(v) => setFlexible(Boolean(v))}
+        />
+        <div className="space-y-0.5">
+          <div className="text-sm font-medium">Flexible hours</div>
+          <p className="text-xs text-muted-foreground">
+            Book at any time — the working hours below are not enforced. Leave off
+            to only allow appointments during the doctor&apos;s visiting hours.
+          </p>
+        </div>
+      </label>
+
+      <div className={`space-y-2 ${flexible ? "opacity-50" : ""}`}>
         <Label>Working days &amp; hours</Label>
         <p className="text-xs text-muted-foreground">
-          Enable each day the doctor works and set the hours. Leave all off for no
-          time restriction.
+          Enable each day the doctor works and set the hours.
+          {flexible ? " (Not enforced while Flexible hours is on.)" : ""}
         </p>
         <div className="space-y-2">
           {WEEKDAYS.map((d) => {
@@ -224,6 +242,7 @@ export function DoctorScheduleFields({
 
       {/* Submitted with the form. */}
       <input type="hidden" name="availability" value={JSON.stringify(availability)} />
+      <input type="hidden" name="flexibleHours" value={flexible ? "true" : "false"} />
     </div>
   );
 }

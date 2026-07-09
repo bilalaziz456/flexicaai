@@ -103,6 +103,7 @@ export async function checkDoctorSlot(
       fullName: users.fullName,
       username: users.username,
       availability: users.availability,
+      flexibleHours: users.flexibleHours,
       dailyLimit: users.dailyAppointmentLimit,
       fee: users.consultationFee,
     })
@@ -124,14 +125,24 @@ export async function checkDoctorSlot(
     return { ok: false, reason: `${name} is on leave that day.` };
   }
 
-  if (!isDoctorAvailableAt(availability, when)) {
-    const slot = availabilityForWeekday(availability, when.getDay());
-    return {
-      ok: false,
-      reason: slot
-        ? `${name} works ${slot.start}–${slot.end} that day.`
-        : `${name} isn't available then (hours: ${describeAvailability(availability)}).`,
-    };
+  // Working hours are enforced only for non-flexible doctors. A flexible doctor
+  // can be booked at any time (leave + daily cap below still apply).
+  if (!doc.flexibleHours) {
+    if (availability.length === 0) {
+      return {
+        ok: false,
+        reason: `${name} has no visiting hours set — please contact the clinic.`,
+      };
+    }
+    if (!isDoctorAvailableAt(availability, when)) {
+      const slot = availabilityForWeekday(availability, when.getDay());
+      return {
+        ok: false,
+        reason: slot
+          ? `${name} works ${slot.start}–${slot.end} that day.`
+          : `${name} isn't available then (hours: ${describeAvailability(availability)}).`,
+      };
+    }
   }
 
   if (doc.dailyLimit > 0) {

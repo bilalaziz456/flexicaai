@@ -221,6 +221,7 @@ export async function doctorDayAvailability(
   const [doc] = await db
     .select({
       availability: users.availability,
+      flexibleHours: users.flexibleHours,
       dailyLimit: users.dailyAppointmentLimit,
     })
     .from(users)
@@ -249,12 +250,13 @@ export async function doctorDayAvailability(
 
   const avail = (doc.availability ?? []) as DayAvailability[];
   const slot = availabilityForWeekday(avail, when.getDay());
-  const availableByHours = avail.length === 0 ? true : Boolean(slot);
+  // Flexible doctors are bookable any time; otherwise the day must have hours.
+  const availableByHours = doc.flexibleHours ? true : Boolean(slot);
   const available = !onLeave && availableByHours;
-  const hours = slot
-    ? `${slot.start}–${slot.end}`
-    : avail.length === 0
-      ? "Any time"
+  const hours = doc.flexibleHours
+    ? "Any time"
+    : slot
+      ? `${slot.start}–${slot.end}`
       : null;
 
   const booked = await countDoctorDay(clinicId, doctorId, when);

@@ -15,11 +15,13 @@ export function EditScheduleForm({
   availability,
   dailyLimit,
   fee,
+  flexibleHours,
 }: {
   userId: string;
   availability: DayAvailability[];
   dailyLimit: number;
   fee: number;
+  flexibleHours: boolean;
 }) {
   const action = updateDoctorSchedule.bind(null, userId);
   const [state, formAction, pending] = useActionState<
@@ -33,6 +35,7 @@ export function EditScheduleForm({
         defaultAvailability={availability}
         defaultLimit={dailyLimit}
         defaultFee={fee}
+        defaultFlexible={flexibleHours}
       />
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={pending}>

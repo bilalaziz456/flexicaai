@@ -114,6 +114,10 @@ export const users = pgTable(
       .$type<DayAvailability[]>()
       .notNull()
       .default([]),
+    // When true, the doctor can be booked at ANY time — the working-hours in
+    // `availability` are not enforced (leave and the daily cap still apply). When
+    // false, appointments may only be made during those visiting hours.
+    flexibleHours: boolean("flexible_hours").notNull().default(false),
     dailyAppointmentLimit: integer("daily_appointment_limit")
       .notNull()
       .default(0),
