@@ -162,28 +162,24 @@ function getClinicWorkspace(clinic: Clinic) {
 
 ## 5. Database schema principles
 
-Design every table to support multiple specialties from day one.
+Design every table to support multiple specialties from day one. The
+**non-negotiable guardrails** (keep these in mind on every query):
 
-### Core tables (specialty-agnostic)
-- `clinics` — includes `modules_enabled` text array
-- `users` — staff (with role: super_admin, clinic_admin, doctor, receptionist)
-- `patients` — shared across all specialties (a patient may use multiple modules)
-- `appointments` — shared; has a `module` field to tag which specialty
-- `visits` — shared; has a `module` field; stores the generated note
-- `recalls` — shared; the recall engine reads these
+- **Core tables are specialty-agnostic.** The `module` column is a free-text tag,
+  never an enum — adding derma/hair must need no schema change.
+- **Specialty data goes in related tables, not core.** Dental tooth-chart state
+  lives in a `dental_records` table linked to `visits`, never as columns on core
+  tables. When derma is added, `derma_records` is a new table; core tables never
+  change.
+- **Multi-tenancy:** every tenant table has `clinic_id`, and **every query filters
+  by `clinic_id`** via the `byClinic()` helper (`src/core/db/tenant.ts`). The
+  browser never queries the DB; all access is via Server Actions / Route Handlers.
 
-### Specialty data goes in related tables, not crammed into core
-- Dental-specific data (tooth chart state, etc.) lives in a `dental_records` table linked to `visits`, NOT as columns on the core `visits` table.
-- When derma is added, `derma_records` is a new table. Core tables never change.
+**`src/core/db/schema.ts` is the source of truth.** The full table-by-table
+reference (columns, FK behaviours, enums, indexes) lives in the imported file
+below — read it before touching the schema:
 
-### Multi-tenancy
-- Every tenant table has a `clinic_id`.
-- Every query filters by `clinic_id` — enforced in the server-side query layer
-  (the browser never queries the DB directly; all access goes through Server
-  Actions / Route Handlers).
-- Centralise tenant scoping so a query can't accidentally omit `clinic_id`
-  (e.g. a `forClinic(clinicId)` helper). Consider native Postgres Row Level
-  Security later as defense-in-depth; for now the query layer is the boundary.
+@.claude/database.md
 
 ---
 
@@ -383,15 +379,18 @@ Keep the **always-true guardrails** in this root file. Move **reference detail**
 ```
 /CLAUDE.md                    # short: golden rules + imports + build order
 /.claude/
-  architecture.md             # folder structure, module system (sections 3-4)
-  database.md                 # schema, multi-tenancy, RLS (section 5) — grows big
-  ai-scribe.md                # scribe engine rules (section 8)
-  conventions.md              # coding style + security (sections 9-10)
+  database.md                 # schema, multi-tenancy, RLS (section 5) — DONE (imported by §5)
+  architecture.md             # folder structure, module system (sections 3-4) — not yet split
+  ai-scribe.md                # scribe engine rules (section 8) — not yet split
+  conventions.md              # coding style + security (sections 9-10) — not yet split
   /modules/
     dental.md                 # dental module spec (build now)
     derma.md                  # later
     hair.md                   # later
 ```
+**Status:** `.claude/database.md` is split out and imported from §5. The others
+remain inline in this file (still under the ~500-line budget); split them the same
+way if/when they grow.
 
 ### How to reference imported files from root
 Use Claude Code's import syntax in the root CLAUDE.md so the detail is pulled in automatically:
