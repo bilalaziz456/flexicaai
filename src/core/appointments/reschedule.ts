@@ -6,9 +6,19 @@ import { byClinic } from "@/core/db/tenant";
 import { appointments, patients } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
-import { notifyAppointmentBooked } from "@/core/notifications/appointment";
 import { checkDoctorSlot } from "@/core/appointments/availability";
 import { parseWhen } from "@/core/appointments/parse-when";
+
+/** "Mon 13 Jul, 15:00" for the reschedule confirmation. */
+function fmtWhen(d: Date): string {
+  return d.toLocaleString("en-GB", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 /**
  * True when the inbound text looks like a reschedule request. Triggers on
@@ -130,6 +140,8 @@ export async function handleRescheduleReply(args: {
     }
 
     // Validate against the doctor's leave / hours / daily cap (excludes itself).
+    let doctorName = "your doctor";
+    let fee = 0;
     if (appt.doctorId) {
       const check = await checkDoctorSlot(clinicId, appt.doctorId, when, {
         excludeAppointmentId: appt.id,
@@ -143,22 +155,27 @@ export async function handleRescheduleReply(args: {
         );
         return { handled: true, rescheduled: false };
       }
+      doctorName = check.doctorName;
+      fee = check.fee;
     }
 
     // Move it. Reset the reminder so the day-before reminder re-sends for the new
-    // day; keep it "scheduled" (staff can re-confirm).
+    // day. We do NOT touch the status — a reschedule to an already-valid slot
+    // stays as it was (a confirmed appointment stays confirmed; it isn't a new
+    // request needing re-approval).
     await db
       .update(appointments)
-      .set({
-        scheduledAt: when,
-        status: "scheduled",
-        reminderSentAt: null,
-        updatedAt: new Date(),
-      })
+      .set({ scheduledAt: when, reminderSentAt: null, updatedAt: new Date() })
       .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appt.id)));
 
-    // Confirm with the full details (doctor, hours, fee, new time).
-    await notifyAppointmentBooked(clinicId, appt.id);
+    // Tell the patient it's rescheduled (accurate wording — not "confirmed").
+    const feeStr = fee > 0 ? ` Fee: Rs ${new Intl.NumberFormat("en-PK").format(fee)}.` : "";
+    await reply(
+      clinicId,
+      patientId,
+      phone,
+      `Your appointment has been rescheduled to ${fmtWhen(when)} with ${doctorName}.${feeStr}`,
+    );
     return { handled: true, rescheduled: true };
   } catch {
     // Best-effort: an inbound webhook must never fail on a reschedule attempt.

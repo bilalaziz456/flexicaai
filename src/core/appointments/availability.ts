@@ -83,7 +83,7 @@ export async function countDoctorDay(
 }
 
 export type SlotCheck =
-  | { ok: true; doctorName: string }
+  | { ok: true; doctorName: string; fee: number }
   | { ok: false; reason: string };
 
 /**
@@ -104,6 +104,7 @@ export async function checkDoctorSlot(
       username: users.username,
       availability: users.availability,
       dailyLimit: users.dailyAppointmentLimit,
+      fee: users.consultationFee,
     })
     .from(users)
     .where(
@@ -148,5 +149,5 @@ export async function checkDoctorSlot(
     }
   }
 
-  return { ok: true, doctorName: name };
+  return { ok: true, doctorName: name, fee: doc.fee };
 }
