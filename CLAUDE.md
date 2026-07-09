@@ -286,6 +286,35 @@ Do not jump ahead. Build in this sequence:
 
 Stop after this. That's the MVP. Do not build derma, hair, mobile apps, or advanced analytics until instructed.
 
+### Post-MVP additions (built after the §11 MVP, at the owner's direction)
+
+The §11 MVP is complete; the features below were added afterward on the owner's
+instruction. They all still honour the core guardrails (core-vs-module, `clinic_id`
+scoping, draft-then-approve, notifications best-effort). **Source of truth:**
+`src/core/db/schema.ts` (schema) and `PROGRESS.md` (dated change log); new env vars
+are in `.env.example`.
+
+- **Owner "Revenue Recovered" dashboard** — an optional per-clinic feature the super
+  admin toggles. Columns `clinics.avg_visit_value`, `clinics.features_enabled`
+  (registry in `core/lib/features.ts`; specialty-agnostic).
+- **Doctor scheduling** — per-weekday working hours + daily appointment cap +
+  consultation fee. On `users`: `availability` (jsonb), `daily_appointment_limit`,
+  `consultation_fee`. One validator — `core/appointments/availability.ts#checkDoctorSlot`
+  — is enforced by both booking and reschedule.
+- **Doctor leave / vacation** — `doctor_leaves` table. Setting leave cancels the
+  doctor's appointments in the range and blocks new bookings; settable by receptionist
+  and clinic admin.
+- **Appointments beyond reception** — clinic admin can manage appointments
+  (`/clinic/appointments`, `…/new`) and full staff records (`/clinic/staff/[id]`);
+  the appointment actions accept receptionist OR clinic_admin.
+- **WhatsApp appointment lifecycle** (`core/notifications/appointment.ts`, campaigns in
+  env): booking confirmation, cancellation notice, day-before reminder (cron
+  `/api/cron/reminders`, `appointments.reminder_sent_at`), and patient self-service
+  **reschedule via reply** (`core/appointments/reschedule.ts` + `parse-when.ts`).
+
+Still NOT to build without instruction (§11/§12 unchanged): derma, hair, mobile apps,
+advanced analytics.
+
 ---
 
 ## 12. Anti-patterns — do NOT do these
