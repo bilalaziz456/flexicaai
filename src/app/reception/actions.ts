@@ -223,11 +223,14 @@ export async function deleteAppointment(
   redirect(home);
 }
 
-/** Advances an appointment's status (confirm / complete / cancel / no-show). */
+/**
+ * Sets an appointment's status to any value (a dropdown, so it supports undo —
+ * e.g. confirmed → scheduled). Patient notices fire only on an actual TRANSITION
+ * into a status (guarded by the prior status), never on re-selecting the same one.
+ */
 export async function setAppointmentStatus(
   appointmentId: string,
   status: (typeof APPT_STATUSES)[number],
-  _formData: FormData,
 ): Promise<void> {
   const { clinicId, home } = await requireAppointmentsAccess();
   if (!APPT_STATUSES.includes(status)) return;
@@ -238,29 +241,25 @@ export async function setAppointmentStatus(
     .from(appointments)
     .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
     .limit(1);
+  if (!prior || prior.status === status) return; // nothing to change
 
-  const updated = await db
+  await db
     .update(appointments)
     .set({ status, updatedAt: new Date() })
-    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
-    .returning({ id: appointments.id });
+    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)));
 
-  if (updated.length > 0) {
-    if (status === "cancelled") {
-      // Tell the patient (with doctor + time) their appointment is cancelled.
-      await notifyAppointmentsCancelled(clinicId, [appointmentId]);
-    } else if (
-      status === "confirmed" &&
-      prior?.source === "whatsapp" &&
-      prior?.status !== "confirmed"
-    ) {
-      // A WhatsApp self-booking is confirmed by staff → now send the patient the
-      // confirmation with slot, timing, doctor and fee.
-      await notifyAppointmentBooked(clinicId, appointmentId);
-    }
+  if (status === "cancelled") {
+    // Tell the patient (with doctor + time) their appointment is cancelled.
+    await notifyAppointmentsCancelled(clinicId, [appointmentId]);
+  } else if (status === "confirmed" && prior.source === "whatsapp") {
+    // A WhatsApp self-booking is confirmed by staff → send the confirmation
+    // (slot, timing, doctor, fee).
+    await notifyAppointmentBooked(clinicId, appointmentId);
   }
 
   revalidatePath(home);
+  revalidatePath(`/clinic/appointments/${appointmentId}`);
+  revalidatePath(`/reception/appointments/${appointmentId}`);
 }
 
 /** Patient typeahead for the new-appointment picker (clinic-scoped). */

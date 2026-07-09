@@ -1,12 +1,23 @@
 "use client";
 
-import { Ban, Check, CheckCheck, UserX } from "lucide-react";
+import { useTransition } from "react";
 import { setAppointmentStatus } from "./actions";
-import { Button } from "@/core/ui/button";
 
 type Status = "scheduled" | "confirmed" | "completed" | "cancelled" | "no_show";
 
-/** Advance an appointment's status. Contextual; icon-only on mobile. */
+const STATUSES: { value: Status; label: string }[] = [
+  { value: "scheduled", label: "Scheduled" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "completed", label: "Completed" },
+  { value: "cancelled", label: "Cancelled" },
+  { value: "no_show", label: "No-show" },
+];
+
+/**
+ * Appointment status as a dropdown — set it to any value, which also lets you
+ * UNDO (e.g. pick "Scheduled" again after confirming). Applies immediately;
+ * patient notices fire only on a real transition (handled server-side).
+ */
 export function AppointmentActions({
   id,
   status,
@@ -14,32 +25,26 @@ export function AppointmentActions({
   id: string;
   status: Status;
 }) {
-  const done = status === "completed" || status === "cancelled";
-
-  const action = (
-    label: string,
-    to: Status,
-    Icon: typeof Check,
-    variant: "outline" | "ghost" = "outline",
-  ) => (
-    <form action={setAppointmentStatus.bind(null, id, to)}>
-      <Button type="submit" variant={variant} size="sm" aria-label={label}>
-        <Icon className="size-4" aria-hidden="true" />
-        <span className="hidden md:inline">{label}</span>
-      </Button>
-    </form>
-  );
-
-  if (done) {
-    return <span className="text-xs text-muted-foreground">No actions</span>;
-  }
+  const [pending, startTransition] = useTransition();
 
   return (
-    <div className="flex flex-wrap justify-end gap-2">
-      {status === "scheduled" ? action("Confirm", "confirmed", Check) : null}
-      {action("Complete", "completed", CheckCheck)}
-      {action("No-show", "no_show", UserX, "ghost")}
-      {action("Cancel", "cancelled", Ban, "ghost")}
-    </div>
+    <select
+      aria-label="Appointment status"
+      value={status}
+      disabled={pending}
+      onChange={(e) => {
+        const next = e.target.value as Status;
+        startTransition(() => {
+          void setAppointmentStatus(id, next);
+        });
+      }}
+      className="h-8 rounded-lg border border-input bg-[var(--input-bg)] px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+    >
+      {STATUSES.map((s) => (
+        <option key={s.value} value={s.value}>
+          {s.label}
+        </option>
+      ))}
+    </select>
   );
 }

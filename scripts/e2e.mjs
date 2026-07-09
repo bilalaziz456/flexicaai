@@ -216,12 +216,14 @@ async function run() {
   {
     // Manage-appointments view: lists the seeded appt + status controls + New button.
     const r = await req("/clinic/appointments", { cookie: S.adminA });
-    const ok = r.status === 200 && r.text.includes("Ayesha Recovered") && r.text.includes("Confirm") && r.text.includes("New appointment") && r.text.includes(`/clinic/appointments/${ids.apptA}`);
-    record("clinic_admin GET /clinic/appointments → 200 + Open + manage controls", ok, r.status === 200 ? "" : `status=${r.status}`);
+    const ok = r.status === 200 && r.text.includes("Ayesha Recovered") && r.text.includes('aria-label="Appointment status"') && r.text.includes("New appointment") && r.text.includes(`/clinic/appointments/${ids.apptA}`);
+    record("clinic_admin GET /clinic/appointments → 200 + Open + status dropdown", ok, r.status === 200 ? "" : `status=${r.status}`);
   }
   {
     const r = await req(`/clinic/appointments/${ids.apptA}`, { cookie: S.adminA });
-    record("clinic_admin GET appointment detail → 200 + edit + delete", r.status === 200 && r.text.includes("Danger zone") && r.text.includes(">Edit</"));
+    // Status dropdown offers every status (so any state can be set / undone).
+    const undoable = r.text.includes('aria-label="Appointment status"') && r.text.includes(">Scheduled<") && r.text.includes(">No-show<");
+    record("clinic_admin GET appointment detail → 200 + edit + delete + status dropdown", r.status === 200 && r.text.includes("Danger zone") && r.text.includes(">Edit</") && undoable);
   }
   record("clinic_admin GET /clinic/appointments/new → 200 (schedule form)", (await req("/clinic/appointments/new", { cookie: S.adminA })).status === 200);
   {
