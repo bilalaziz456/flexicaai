@@ -196,7 +196,16 @@ async function run() {
   }
   {
     const r = await req("/clinic/patients", { cookie: S.adminA });
-    record("clinic_admin GET /clinic/patients → 200 + shows patient", r.status === 200 && r.text.includes("Ayesha Recovered"));
+    record("clinic_admin GET /clinic/patients → 200 + 'Open' to detail", r.status === 200 && r.text.includes("Ayesha Recovered") && r.text.includes(`/clinic/patients/${ids.patients[0]}`));
+  }
+  {
+    const r = await req(`/clinic/patients/${ids.patients[0]}`, { cookie: S.adminA });
+    record("clinic_admin GET patient detail → 200 + edit + delete", r.status === 200 && r.text.includes("Ayesha Recovered") && r.text.includes("Danger zone"));
+  }
+  {
+    // Tenant isolation: clinic A admin must not see clinic B's patient data.
+    const r = await req(`/clinic/patients/${ids.patients[2]}`, { cookie: S.adminA });
+    record("patient detail tenant-scoped (no clinic-B leak)", !r.text.includes("ClinicB Patient"));
   }
   record("clinic_admin GET /clinic/recalls → 200", (await req("/clinic/recalls", { cookie: S.adminA })).status === 200);
   {

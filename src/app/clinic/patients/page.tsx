@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { desc, ilike, or } from "drizzle-orm";
 import { requireClinicAdmin } from "@/core/auth/user";
 import { db } from "@/core/db";
@@ -84,6 +84,7 @@ export default async function ClinicPatientsPage({
                   <TableHead>Phone</TableHead>
                   <TableHead>Gender</TableHead>
                   <TableHead>Date of birth</TableHead>
+                  <TableHead className="text-right"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -93,6 +94,17 @@ export default async function ClinicPatientsPage({
                     <TableCell>{p.phone ?? "—"}</TableCell>
                     <TableCell className="capitalize">{p.gender ?? "—"}</TableCell>
                     <TableCell>{p.dateOfBirth ?? "—"}</TableCell>
+                    <TableCell className="text-right">
+                      <Link
+                        href={`/clinic/patients/${p.id}`}
+                        className={cn(
+                          buttonVariants({ variant: "outline", size: "sm" }),
+                        )}
+                      >
+                        Open
+                        <ChevronRight className="size-4" aria-hidden="true" />
+                      </Link>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -102,13 +114,20 @@ export default async function ClinicPatientsPage({
           {/* Mobile: stacked cards — no horizontal scroll. */}
           <ul className="space-y-3 md:hidden">
             {rows.map((p) => (
-              <li key={p.id} className="space-y-1 rounded-md border p-3">
+              <li key={p.id} className="space-y-2 rounded-md border p-3">
                 <div className="font-medium">{p.fullName}</div>
                 <div className="text-sm text-muted-foreground">
                   {p.phone ?? "No phone"}
                   {p.gender ? ` · ${p.gender}` : ""}
                   {p.dateOfBirth ? ` · ${p.dateOfBirth}` : ""}
                 </div>
+                <Link
+                  href={`/clinic/patients/${p.id}`}
+                  className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                >
+                  Open
+                  <ChevronRight className="size-4" aria-hidden="true" />
+                </Link>
               </li>
             ))}
           </ul>

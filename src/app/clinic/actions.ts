@@ -408,6 +408,68 @@ export async function createPatient(
   redirect("/clinic/patients");
 }
 
+const updatePatientSchema = z.object({
+  fullName: z.string().trim().min(2, "Patient name is required."),
+});
+
+/** Edits a patient's details — clinic-scoped (a foreign id matches 0 rows). */
+export async function updatePatient(
+  patientId: string,
+  _prevState: ClinicActionState,
+  formData: FormData,
+): Promise<ClinicActionState> {
+  const { clinicId } = await requireClinicAdmin();
+
+  const parsed = updatePatientSchema.safeParse({
+    fullName: formData.get("fullName"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const result = await db
+    .update(patients)
+    .set({
+      fullName: parsed.data.fullName,
+      phone: emptyToNull(formData.get("phone")),
+      email: emptyToNull(formData.get("email")),
+      dateOfBirth: emptyToNull(formData.get("dateOfBirth")),
+      gender: emptyToNull(formData.get("gender")),
+      address: emptyToNull(formData.get("address")),
+      dataConsent: formData.get("dataConsent") === "on",
+      updatedAt: new Date(),
+    })
+    .where(byClinic(patients.clinicId, clinicId, eq(patients.id, patientId)))
+    .returning({ id: patients.id });
+  if (result.length === 0) return { error: "Patient not found." };
+
+  revalidatePath("/clinic/patients");
+  revalidatePath(`/clinic/patients/${patientId}`);
+  return { saved: true };
+}
+
+/**
+ * Deletes a patient and everything under them (appointments, visits, recalls,
+ * whatsapp logs cascade). Clinic-scoped + step-up password. Destructive.
+ */
+export async function deletePatient(
+  patientId: string,
+  password: string,
+): Promise<ClinicActionState> {
+  const { clinicId } = await requireClinicAdmin();
+
+  if (!(await verifyCurrentUserPassword(password))) {
+    return { error: "Incorrect password." };
+  }
+
+  await db
+    .delete(patients)
+    .where(byClinic(patients.clinicId, clinicId, eq(patients.id, patientId)));
+
+  revalidatePath("/clinic/patients");
+  redirect("/clinic/patients");
+}
+
 const clinicSettingsSchema = z.object({
   avgVisitValue: z.coerce
     .number({ message: "Enter a number." })
