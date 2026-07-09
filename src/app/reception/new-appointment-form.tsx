@@ -22,10 +22,6 @@ type Doctor = {
 };
 
 const pad = (n: number) => String(n).padStart(2, "0");
-const timeToMin = (s: string) => {
-  const [h, m] = s.split(":").map(Number);
-  return h * 60 + m;
-};
 /** "09:30" → "9:30 AM" */
 const label12 = (hhmm: string) => {
   const [h, m] = hhmm.split(":").map(Number);
@@ -77,36 +73,17 @@ export function NewAppointmentForm({
     setSlots(await doctorDayAvailability(dId, `${d}T12:00`));
   }
 
-  const now = new Date();
-  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const isToday = date === todayStr;
-
-  // Upcoming dates for the date dropdown (day + date), next ~90 days.
-  const dateOptions = Array.from({ length: 90 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
-    return {
-      value: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-      label: d.toLocaleDateString("en-GB", {
-        weekday: "short",
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }),
-    };
-  });
-
   // Known up-front from the doctor list (no date needed): "Any doctor" or a
   // flexible doctor → free date+time picker. A doctor with set hours → the
-  // visiting-hours slot list only.
+  // visiting-hours window radios.
   const selectedDoctor = doctors.find((d) => d.id === doctorId) ?? null;
   const freeTime = !doctorId || Boolean(selectedDoctor?.flexibleHours);
 
   const onLeaveBlock = Boolean(doctorId) && Boolean(date) && Boolean(slots?.onLeave);
 
   // For a specific-hours doctor: the day may have several windows (e.g.
-  // 09:00–12:00 and 16:00–19:00). The user picks a window (radio) then a slot
-  // within it; a single window just shows its slots.
+  // 09:00–12:00 and 16:00–19:00). The user picks a window; the appointment is
+  // booked at that window's start. Past dates are allowed (recording visits).
   const constrained =
     !freeTime &&
     Boolean(date) &&
@@ -114,11 +91,7 @@ export function NewAppointmentForm({
     !slots.onLeave &&
     slots.available &&
     slots.windows.length > 0;
-  // The day's windows, dropping any already-past window when the date is today.
-  // The appointment time is the START of the chosen window.
-  const windows = constrained
-    ? slots!.windows.filter((w) => !isToday || timeToMin(w.start) > nowMin)
-    : [];
+  const windows = constrained ? slots!.windows : [];
   const activeIdx = Math.min(windowIdx, Math.max(0, windows.length - 1));
   const activeWindow = windows[activeIdx] ?? null;
   const effectiveTime = freeTime ? time : (activeWindow ? activeWindow.start : "");
@@ -213,23 +186,17 @@ export function NewAppointmentForm({
 
         <div className="space-y-2">
           <Label htmlFor="date">Date</Label>
-          <select
+          <Input
             id="date"
+            type="date"
+            required
             value={date}
             onChange={(e) => {
               setDate(e.target.value);
               setWindowIdx(0);
               void refreshSlots(doctorId, e.target.value);
             }}
-            className={selectCls}
-          >
-            <option value="">Select a date…</option>
-            {dateOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+          />
         </div>
 
         <div className="space-y-2">
@@ -257,7 +224,7 @@ export function NewAppointmentForm({
             </p>
           ) : windows.length === 0 ? (
             <p className="text-sm text-destructive">
-              No available times {isToday ? "left today" : "that day"}.
+              No available times that day.
             </p>
           ) : (
             // Specific-hours doctor → radio buttons of the visiting-hours
