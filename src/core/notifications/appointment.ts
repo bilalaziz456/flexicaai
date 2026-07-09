@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, inArray, eq, isNotNull } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, lt } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { appointments, clinics, patients, users } from "@/core/db/schema";
@@ -162,4 +162,80 @@ export async function notifyAppointmentBooked(
   } catch {
     // Best-effort: never let a notification error affect the booking.
   }
+}
+
+/**
+ * Day-before reminder engine — CORE, platform-wide (runs from the daily cron).
+ * Finds every active (scheduled/confirmed) appointment happening TOMORROW that
+ * hasn't been reminded yet and whose patient has a phone, and sends a WhatsApp
+ * reminder with the doctor and time. On success the appointment is stamped
+ * `reminderSentAt` so it's never reminded twice; a failed send is left for the
+ * next run. Returns counts for the cron response.
+ */
+export async function sendDueAppointmentReminders(
+  now: Date = new Date(),
+): Promise<{ processed: number; sent: number; skipped: number }> {
+  // Local "tomorrow" window: [tomorrow 00:00, day-after 00:00).
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  const rows = await db
+    .select({
+      apptId: appointments.id,
+      clinicId: appointments.clinicId,
+      scheduledAt: appointments.scheduledAt,
+      patientId: patients.id,
+      patientName: patients.fullName,
+      patientPhone: patients.phone,
+      doctorName: users.fullName,
+      doctorUsername: users.username,
+      clinicName: clinics.name,
+    })
+    .from(appointments)
+    .innerJoin(patients, eq(appointments.patientId, patients.id))
+    .innerJoin(clinics, eq(appointments.clinicId, clinics.id))
+    .leftJoin(users, eq(appointments.doctorId, users.id))
+    .where(
+      and(
+        inArray(appointments.status, ["scheduled", "confirmed"]),
+        gte(appointments.scheduledAt, start),
+        lt(appointments.scheduledAt, end),
+        isNull(appointments.reminderSentAt),
+        isNotNull(patients.phone),
+      ),
+    );
+
+  let sent = 0;
+  let skipped = 0;
+  for (const r of rows) {
+    if (!r.patientPhone) {
+      skipped++;
+      continue;
+    }
+    const doctor = r.doctorName ?? r.doctorUsername ?? "your doctor";
+    const when = formatWhen(r.scheduledAt);
+    const result = await sendWhatsAppToPatient({
+      clinicId: r.clinicId,
+      patientId: r.patientId,
+      phone: r.patientPhone,
+      campaignName: serverEnv.AISENSY_REMINDER_CAMPAIGN,
+      userName: r.patientName,
+      templateParams: [r.patientName, doctor, when, r.clinicName],
+      body: `Reminder: your appointment with ${doctor} is on ${when}. — ${r.clinicName}`,
+    });
+
+    if (result.ok) {
+      await db
+        .update(appointments)
+        .set({ reminderSentAt: new Date(), updatedAt: new Date() })
+        .where(eq(appointments.id, r.apptId));
+      sent++;
+    } else {
+      // Leave reminderSentAt null so the next run retries.
+      skipped++;
+    }
+  }
+
+  return { processed: rows.length, sent, skipped };
 }

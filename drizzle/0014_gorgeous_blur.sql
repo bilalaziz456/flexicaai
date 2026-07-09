@@ -1,0 +1,2 @@
+ALTER TABLE "appointments" ADD COLUMN "reminder_sent_at" timestamp with time zone;--> statement-breakpoint
+CREATE INDEX "appointments_reminder_scan_idx" ON "appointments" USING btree ("scheduled_at","reminder_sent_at");

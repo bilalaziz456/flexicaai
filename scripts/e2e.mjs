@@ -288,6 +288,12 @@ async function run() {
     try { j = JSON.parse(r.text); } catch { /* ignore */ }
     record("cron authorized → 200 {ok,processed,...}", r.status === 200 && j.ok === true && typeof j.processed === "number", `processed=${j.processed} sent=${j.sent} skipped=${j.skipped}`);
     record("due recall for no-phone patient was skipped", (j.skipped ?? 0) >= 1);
+
+    record("reminder cron without secret → 401", (await req("/api/cron/reminders")).status === 401);
+    const rr = await req(`/api/cron/reminders?token=${CRON}`);
+    let jr = {};
+    try { jr = JSON.parse(rr.text); } catch { /* ignore */ }
+    record("reminder cron authorized → 200 {ok,processed}", rr.status === 200 && jr.ok === true && typeof jr.processed === "number", `processed=${jr.processed} sent=${jr.sent}`);
   }
 
   console.log("\n== VOICE SCRIBE (auth + tenant + unconfigured) ==");

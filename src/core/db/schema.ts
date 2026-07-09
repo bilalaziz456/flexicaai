@@ -233,6 +233,9 @@ export const appointments = pgTable(
     durationMinutes: integer("duration_minutes").notNull().default(30),
     status: appointmentStatus("status").notNull().default("scheduled"),
     reason: text("reason"),
+    // Set when the day-before WhatsApp reminder has been sent, so the reminder
+    // cron never messages the same appointment twice. Null = not yet reminded.
+    reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -246,6 +249,8 @@ export const appointments = pgTable(
     // Calendar/day views query by clinic + time window.
     index("appointments_clinic_scheduled_idx").on(t.clinicId, t.scheduledAt),
     index("appointments_doctor_id_idx").on(t.doctorId),
+    // The reminder cron scans "active, un-reminded, scheduled within a window".
+    index("appointments_reminder_scan_idx").on(t.scheduledAt, t.reminderSentAt),
   ],
 );
 
