@@ -1,0 +1,1 @@
+ALTER TABLE "appointments" ADD COLUMN "source" text DEFAULT 'staff' NOT NULL;

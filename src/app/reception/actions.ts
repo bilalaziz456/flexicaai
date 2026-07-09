@@ -144,15 +144,32 @@ export async function setAppointmentStatus(
   const { clinicId, home } = await requireAppointmentsAccess();
   if (!APPT_STATUSES.includes(status)) return;
 
+  // Source + prior status decide whether/what to message the patient.
+  const [prior] = await db
+    .select({ source: appointments.source, status: appointments.status })
+    .from(appointments)
+    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
+    .limit(1);
+
   const updated = await db
     .update(appointments)
     .set({ status, updatedAt: new Date() })
     .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
     .returning({ id: appointments.id });
 
-  // Tell the patient (with doctor + time) when their appointment is cancelled.
-  if (status === "cancelled" && updated.length > 0) {
-    await notifyAppointmentsCancelled(clinicId, [appointmentId]);
+  if (updated.length > 0) {
+    if (status === "cancelled") {
+      // Tell the patient (with doctor + time) their appointment is cancelled.
+      await notifyAppointmentsCancelled(clinicId, [appointmentId]);
+    } else if (
+      status === "confirmed" &&
+      prior?.source === "whatsapp" &&
+      prior?.status !== "confirmed"
+    ) {
+      // A WhatsApp self-booking is confirmed by staff → now send the patient the
+      // confirmation with slot, timing, doctor and fee.
+      await notifyAppointmentBooked(clinicId, appointmentId);
+    }
   }
 
   revalidatePath(home);

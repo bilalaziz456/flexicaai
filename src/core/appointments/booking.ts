@@ -6,7 +6,6 @@ import { byClinic } from "@/core/db/tenant";
 import { appointments, clinics, users } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
-import { notifyAppointmentBooked } from "@/core/notifications/appointment";
 import { checkDoctorSlot } from "@/core/appointments/availability";
 import { parseWhen } from "@/core/appointments/parse-when";
 import {
@@ -64,6 +63,17 @@ function matchDoctor(docs: DocRow[], text: string): DocRow[] {
       .split(/\s+/)
       .some((part) => part.length >= 3 && t.includes(part)),
   );
+}
+
+/** "Mon 13 Jul, 15:00" — the requested slot for the acknowledgement. */
+function fmtWhen(d: Date): string {
+  return d.toLocaleString("en-GB", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 /** "Dr Khan (Mon 09:00–17:00, …); Dr Ali (Any time)" — names + visiting hours. */
@@ -198,20 +208,25 @@ export async function handleBookingReply(args: {
       .where(eq(clinics.id, clinicId))
       .limit(1);
 
-    const [created] = await db
-      .insert(appointments)
-      .values({
-        clinicId,
-        patientId,
-        doctorId: doctor.id,
-        module: clinic?.modulesEnabled?.[0] ?? null,
-        scheduledAt: when,
-        status: "scheduled",
-      })
-      .returning({ id: appointments.id });
+    await db.insert(appointments).values({
+      clinicId,
+      patientId,
+      doctorId: doctor.id,
+      module: clinic?.modulesEnabled?.[0] ?? null,
+      scheduledAt: when,
+      status: "scheduled",
+      source: "whatsapp",
+    });
 
-    // Confirm with the full details (doctor, hours, fee, time).
-    await notifyAppointmentBooked(clinicId, created.id);
+    // A WhatsApp booking is a REQUEST: acknowledge it as pending. The clinic
+    // confirms it in-panel, and that confirm sends the full confirmation message
+    // (slot, time, doctor, fee) — see setAppointmentStatus.
+    await reply(
+      clinicId,
+      patientId,
+      phone,
+      `Thanks! Your booking request for ${doctor.name} on ${fmtWhen(when)} has been received. The clinic will confirm it shortly and you'll get a confirmation message.`,
+    );
     return { handled: true, booked: true };
   } catch {
     return { handled: true, booked: false };

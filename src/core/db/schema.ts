@@ -233,6 +233,10 @@ export const appointments = pgTable(
     durationMinutes: integer("duration_minutes").notNull().default(30),
     status: appointmentStatus("status").notNull().default("scheduled"),
     reason: text("reason"),
+    // How the appointment was created — free-text tag, default 'staff'. Patient
+    // WhatsApp self-bookings are 'whatsapp': those stay a request until staff
+    // confirm, and the patient's confirmation message fires on that confirm.
+    source: text("source").notNull().default("staff"),
     // Set when the day-before WhatsApp reminder has been sent, so the reminder
     // cron never messages the same appointment twice. Null = not yet reminded.
     reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
