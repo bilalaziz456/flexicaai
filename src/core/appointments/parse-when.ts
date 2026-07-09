@@ -14,6 +14,16 @@ const MONTHS: Record<string, number> = {
   september: 8, oct: 9, october: 9, nov: 10, november: 10, dec: 11, december: 11,
 };
 
+// JS getDay() values (0 = Sunday).
+const DAYS: Record<string, number> = {
+  sunday: 0, sun: 0, monday: 1, mon: 1, tuesday: 2, tues: 2, tue: 2,
+  wednesday: 3, weds: 3, wed: 3, thursday: 4, thurs: 4, thur: 4, thu: 4,
+  friday: 5, fri: 5, saturday: 6, sat: 6,
+};
+// Longest-first, \b-bounded so "mon" never matches inside "month"/"money".
+const DAY_RE =
+  /\b(?:(next|this)\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tues|tue|weds|wed|thurs|thur|thu|fri|sat)\b/;
+
 export type ParsedWhen = {
   date: { y: number; m: number; d: number } | null; // m is 1-12
   time: { h: number; min: number } | null;
@@ -45,6 +55,17 @@ export function parseWhen(text: string, now: Date = new Date()): ParsedWhen {
     date = { y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate() };
   } else if (/\btoday\b/.test(t)) {
     date = { y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate() };
+  } else if ((m = t.match(DAY_RE)) && DAYS[m[2]] !== undefined) {
+    // Weekday name (optionally "next"/"this") → the next upcoming occurrence of
+    // that weekday, never today. We resolve "next"/"this"/bare the same way (the
+    // soonest future occurrence); the confirmation shows the exact date.
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    let delta = (DAYS[m[2]] - today.getDay() + 7) % 7;
+    if (delta === 0) delta = 7;
+    const d = new Date(today);
+    d.setDate(d.getDate() + delta);
+    date = { y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate() };
   } else if ((m = t.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/))) {
     date = { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
     explicitYear = true;
