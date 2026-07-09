@@ -10,9 +10,19 @@ import { notifyAppointmentBooked } from "@/core/notifications/appointment";
 import { checkDoctorSlot } from "@/core/appointments/availability";
 import { parseWhen } from "@/core/appointments/parse-when";
 
-/** True when the inbound text looks like a reschedule request. */
+/**
+ * True when the inbound text looks like a reschedule request. Triggers on
+ * "reschedule"/"postpone", or on move/change/shift when clearly about an
+ * appointment (so unrelated "I'll move to Lahore" doesn't fire).
+ */
 export function isRescheduleIntent(text: string | null | undefined): boolean {
-  return Boolean(text && /reschedul/i.test(text));
+  if (!text) return false;
+  const t = text.toLowerCase();
+  if (/reschedul|postpone/.test(t)) return true;
+  return (
+    /\b(move|change|shift|rebook)\b/.test(t) &&
+    /\b(appointment|appt|appointments|booking|slot|visit)\b/.test(t)
+  );
 }
 
 /** Sends a plain reschedule reply to the patient (logged + best-effort). */
