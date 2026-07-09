@@ -14,7 +14,12 @@ import { Label } from "@/core/ui/label";
 import { TimeSelect } from "@/core/ui/time-select";
 
 type Patient = { id: string; fullName: string; phone: string | null };
-type Doctor = { id: string; fullName: string | null; username: string };
+type Doctor = {
+  id: string;
+  fullName: string | null;
+  username: string;
+  flexibleHours: boolean;
+};
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const timeToMin = (s: string) => {
@@ -84,34 +89,35 @@ export function NewAppointmentForm({
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const isToday = date === todayStr;
 
-  // A doctor with set hours (not flexible) working that day → constrained slots.
+  // Known up-front from the doctor list (no date needed): "Any doctor" or a
+  // flexible doctor → free date+time picker. A doctor with set hours → the
+  // visiting-hours slot list only.
+  const selectedDoctor = doctors.find((d) => d.id === doctorId) ?? null;
+  const freeTime = !doctorId || Boolean(selectedDoctor?.flexibleHours);
+
+  const onLeaveBlock = Boolean(doctorId) && Boolean(date) && Boolean(slots?.onLeave);
+
+  // For a specific-hours doctor: valid slots within the day's window.
   const constrained =
-    Boolean(doctorId) &&
+    !freeTime &&
+    Boolean(date) &&
     slots !== null &&
-    !slots.flexible &&
-    slots.window !== null &&
     !slots.onLeave &&
-    slots.available;
+    slots.available &&
+    slots.window !== null;
   const slotOptions =
     constrained && slots?.window
       ? genSlots(slots.window.start, slots.window.end).filter(
           (t) => !isToday || timeToMin(t) > nowMin,
         )
       : [];
-  const effectiveTime = constrained
-    ? slotOptions.includes(time)
+  const effectiveTime = freeTime
+    ? time
+    : slotOptions.includes(time)
       ? time
-      : (slotOptions[0] ?? "")
-    : time;
-  const scheduledAt = date && effectiveTime ? `${date}T${effectiveTime}` : "";
-
-  // Non-flexible doctor who can't take that day (off / on leave).
-  const unavailable =
-    Boolean(doctorId) &&
-    date &&
-    slots !== null &&
-    !slots.flexible &&
-    (slots.onLeave || !slots.available);
+      : (slotOptions[0] ?? "");
+  const scheduledAt =
+    !onLeaveBlock && date && effectiveTime ? `${date}T${effectiveTime}` : "";
 
   return (
     <form action={formAction} className="space-y-4">
@@ -214,38 +220,46 @@ export function NewAppointmentForm({
         </div>
 
         <div className="space-y-2">
-          <Label>Time</Label>
-          {unavailable ? (
+          <Label>{freeTime ? "Time" : "Available times"}</Label>
+          {onLeaveBlock ? (
             <p className="text-sm text-destructive">
-              {slots?.onLeave
-                ? "Doctor is on leave that day."
-                : "Doctor doesn't work that day — pick another date."}
+              Doctor is on leave that day — pick another date.
             </p>
-          ) : constrained ? (
-            slotOptions.length > 0 ? (
-              <select
-                aria-label="Time"
-                value={effectiveTime}
-                onChange={(e) => setTime(e.target.value)}
-                className={selectCls}
-              >
-                {slotOptions.map((t) => (
-                  <option key={t} value={t}>
-                    {label12(t)}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <p className="text-sm text-destructive">
-                No time slots left for that day.
-              </p>
-            )
-          ) : (
+          ) : freeTime ? (
+            // Flexible doctor or "Any doctor" → free time picker.
             <TimeSelect
               ariaLabel="Appointment time"
               value={effectiveTime || "09:00"}
               onChange={setTime}
             />
+          ) : !date ? (
+            <p className="text-sm text-muted-foreground">
+              Pick a date to see the doctor&apos;s available times.
+            </p>
+          ) : slots === null ? (
+            <p className="text-sm text-muted-foreground">Loading times…</p>
+          ) : !slots.available ? (
+            <p className="text-sm text-destructive">
+              Doctor doesn&apos;t work that day — pick another date.
+            </p>
+          ) : slotOptions.length === 0 ? (
+            <p className="text-sm text-destructive">
+              No time slots left for that day.
+            </p>
+          ) : (
+            // Specific-hours doctor → only the visiting-hours slot list.
+            <select
+              aria-label="Available times"
+              value={effectiveTime}
+              onChange={(e) => setTime(e.target.value)}
+              className={selectCls}
+            >
+              {slotOptions.map((t) => (
+                <option key={t} value={t}>
+                  {label12(t)}
+                </option>
+              ))}
+            </select>
           )}
         </div>
 
