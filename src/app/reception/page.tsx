@@ -113,6 +113,7 @@ export default async function ReceptionHome() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center justify-end gap-2">
+                        <AppointmentActions id={a.id} status={a.status} />
                         <Link
                           href={`/reception/appointments/${a.id}`}
                           className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
@@ -120,7 +121,6 @@ export default async function ReceptionHome() {
                           Open
                           <ChevronRight className="size-4" aria-hidden="true" />
                         </Link>
-                        <AppointmentActions id={a.id} status={a.status} />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -144,6 +144,7 @@ export default async function ReceptionHome() {
                   {a.reason ? ` · ${a.reason}` : ""}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <AppointmentActions id={a.id} status={a.status} />
                   <Link
                     href={`/reception/appointments/${a.id}`}
                     className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
@@ -151,7 +152,6 @@ export default async function ReceptionHome() {
                     Open
                     <ChevronRight className="size-4" aria-hidden="true" />
                   </Link>
-                  <AppointmentActions id={a.id} status={a.status} />
                 </div>
               </li>
             ))}
