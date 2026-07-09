@@ -26,20 +26,12 @@ const timeToMin = (s: string) => {
   const [h, m] = s.split(":").map(Number);
   return h * 60 + m;
 };
-const minToTime = (mins: number) =>
-  `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`;
 /** "09:30" → "9:30 AM" */
 const label12 = (hhmm: string) => {
   const [h, m] = hhmm.split(":").map(Number);
   const mer = h >= 12 ? "PM" : "AM";
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${pad(m)} ${mer}`;
-};
-/** Slot start times within [start, end) at 30-min steps. */
-const genSlots = (start: string, end: string) => {
-  const out: string[] = [];
-  for (let t = timeToMin(start); t < timeToMin(end); t += 30) out.push(minToTime(t));
-  return out;
 };
 
 const selectCls =
@@ -63,6 +55,7 @@ export function NewAppointmentForm({
   const [doctorId, setDoctorId] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("09:00");
+  const [windowIdx, setWindowIdx] = useState(0);
   const [slots, setSlots] = useState<DoctorDaySlots | null>(null);
   const [state, formAction, pending] = useActionState<
     ReceptionActionState,
@@ -111,8 +104,9 @@ export function NewAppointmentForm({
 
   const onLeaveBlock = Boolean(doctorId) && Boolean(date) && Boolean(slots?.onLeave);
 
-  // For a specific-hours doctor: valid slots across ALL the day's windows
-  // (a day can have several, e.g. 09:00–12:00 and 16:00–19:00).
+  // For a specific-hours doctor: the day may have several windows (e.g.
+  // 09:00–12:00 and 16:00–19:00). The user picks a window (radio) then a slot
+  // within it; a single window just shows its slots.
   const constrained =
     !freeTime &&
     Boolean(date) &&
@@ -120,18 +114,14 @@ export function NewAppointmentForm({
     !slots.onLeave &&
     slots.available &&
     slots.windows.length > 0;
-  const slotOptions = constrained
-    ? Array.from(
-        new Set(slots!.windows.flatMap((w) => genSlots(w.start, w.end))),
-      )
-        .filter((t) => !isToday || timeToMin(t) > nowMin)
-        .sort()
+  // The day's windows, dropping any already-past window when the date is today.
+  // The appointment time is the START of the chosen window.
+  const windows = constrained
+    ? slots!.windows.filter((w) => !isToday || timeToMin(w.start) > nowMin)
     : [];
-  const effectiveTime = freeTime
-    ? time
-    : slotOptions.includes(time)
-      ? time
-      : (slotOptions[0] ?? "");
+  const activeIdx = Math.min(windowIdx, Math.max(0, windows.length - 1));
+  const activeWindow = windows[activeIdx] ?? null;
+  const effectiveTime = freeTime ? time : (activeWindow ? activeWindow.start : "");
   const scheduledAt =
     !onLeaveBlock && date && effectiveTime ? `${date}T${effectiveTime}` : "";
 
@@ -195,6 +185,7 @@ export function NewAppointmentForm({
             value={doctorId}
             onChange={(e) => {
               setDoctorId(e.target.value);
+              setWindowIdx(0);
               void refreshSlots(e.target.value, date);
             }}
             className={selectCls}
@@ -227,6 +218,7 @@ export function NewAppointmentForm({
             value={date}
             onChange={(e) => {
               setDate(e.target.value);
+              setWindowIdx(0);
               void refreshSlots(doctorId, e.target.value);
             }}
             className={selectCls}
@@ -263,24 +255,27 @@ export function NewAppointmentForm({
             <p className="text-sm text-destructive">
               Doctor doesn&apos;t work that day — pick another date.
             </p>
-          ) : slotOptions.length === 0 ? (
+          ) : windows.length === 0 ? (
             <p className="text-sm text-destructive">
-              No time slots left for that day.
+              No available times {isToday ? "left today" : "that day"}.
             </p>
           ) : (
-            // Specific-hours doctor → only the visiting-hours slot list.
-            <select
-              aria-label="Available times"
-              value={effectiveTime}
-              onChange={(e) => setTime(e.target.value)}
-              className={selectCls}
-            >
-              {slotOptions.map((t) => (
-                <option key={t} value={t}>
-                  {label12(t)}
-                </option>
+            // Specific-hours doctor → radio buttons of the visiting-hours
+            // window(s); the appointment is booked at the chosen window.
+            <div className="space-y-1.5">
+              {windows.map((w, i) => (
+                <label key={i} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="window"
+                    checked={activeIdx === i}
+                    onChange={() => setWindowIdx(i)}
+                    className="size-4"
+                  />
+                  {label12(w.start)} – {label12(w.end)}
+                </label>
               ))}
-            </select>
+            </div>
           )}
         </div>
 
