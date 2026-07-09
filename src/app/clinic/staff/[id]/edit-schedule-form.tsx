@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   updateDoctorSchedule,
   type ClinicActionState,
@@ -28,6 +28,7 @@ export function EditScheduleForm({
     ClinicActionState,
     FormData
   >(action, {});
+  const [valid, setValid] = useState(true);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -36,9 +37,10 @@ export function EditScheduleForm({
         defaultLimit={dailyLimit}
         defaultFee={fee}
         defaultFlexible={flexibleHours}
+        onValidChange={setValid}
       />
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || !valid}>
           {pending ? "Saving…" : "Save schedule"}
         </Button>
         {state.saved ? (

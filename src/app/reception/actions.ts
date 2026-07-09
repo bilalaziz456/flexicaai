@@ -15,7 +15,7 @@ import {
   users,
 } from "@/core/db/schema";
 import {
-  availabilityForWeekday,
+  windowsForWeekday,
   type DayAvailability,
 } from "@/core/lib/availability";
 import {
@@ -201,8 +201,8 @@ export type DoctorDaySlots = {
   available: boolean;
   onLeave: boolean;
   flexible: boolean;
-  /** The doctor's working window on the selected date (null when flexible / off). */
-  window: { start: string; end: string } | null;
+  /** The doctor's working windows on the selected date (empty when flexible/off). */
+  windows: { start: string; end: string }[];
   limit: number;
   booked: number;
   remaining: number | null; // null = unlimited
@@ -242,7 +242,7 @@ export async function doctorDayAvailability(
       available: false,
       onLeave: false,
       flexible: false,
-      window: null,
+      windows: [],
       limit: 0,
       booked: 0,
       remaining: 0,
@@ -254,23 +254,27 @@ export async function doctorDayAvailability(
   const onLeave = await doctorOnLeave(clinicId, doctorId, localDateStr(when));
 
   const avail = (doc.availability ?? []) as DayAvailability[];
-  const slot = availabilityForWeekday(avail, when.getDay());
   const flexible = doc.flexibleHours;
-  // Flexible doctors are bookable any time; otherwise the day must have hours.
-  const availableByHours = flexible ? true : Boolean(slot);
+  const windows = flexible
+    ? []
+    : windowsForWeekday(avail, when.getDay()).map((w) => ({
+        start: w.start,
+        end: w.end,
+      }));
+  // Flexible doctors are bookable any time; otherwise the day must have windows.
+  const availableByHours = flexible ? true : windows.length > 0;
   const available = !onLeave && availableByHours;
-  const window = !flexible && slot ? { start: slot.start, end: slot.end } : null;
   const hours = flexible
     ? "Any time"
-    : slot
-      ? `${slot.start}–${slot.end}`
+    : windows.length
+      ? windows.map((w) => `${w.start}–${w.end}`).join(", ")
       : null;
 
   const booked = await countDoctorDay(clinicId, doctorId, when);
   const remaining =
     doc.dailyLimit > 0 ? Math.max(0, doc.dailyLimit - booked) : null;
 
-  return { available, onLeave, flexible, window, limit: doc.dailyLimit, booked, remaining, hours };
+  return { available, onLeave, flexible, windows, limit: doc.dailyLimit, booked, remaining, hours };
 }
 
 /**

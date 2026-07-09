@@ -58,7 +58,8 @@ Index: GIN pg_trgm on `name` (fast ILIKE search).
 null`), `username` (**unique**, lowercased), `email` (**unique when present**),
 `password_hash` (bcrypt), `role` (enum), `full_name`, `is_active` (default true),
 `must_change_password` (default false), `theme` (enum). **Doctor-only fields:**
-`availability` jsonb `DayAvailability[]` (per-weekday working windows), 
+`availability` jsonb `DayAvailability[]` (per-weekday working windows — a weekday
+may appear multiple times for split shifts, e.g. Mon 09:00–12:00 AND 16:00–19:00), 
 `flexible_hours` bool (default false; true = bookable any time, hours not enforced —
 leave + cap still apply), `daily_appointment_limit` int (0 = unlimited),
 `consultation_fee` int (PKR, 0 = not set). Timestamps.

@@ -1,13 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { WEEKDAYS, type DayAvailability } from "@/core/lib/availability";
+import { useEffect, useState } from "react";
+import { Plus, X } from "lucide-react";
+import {
+  timeToMinutes,
+  WEEKDAYS,
+  type DayAvailability,
+} from "@/core/lib/availability";
+import { Button } from "@/core/ui/button";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { TimeSelect } from "@/core/ui/time-select";
 
-type Row = { weekday: number; on: boolean; start: string; end: string };
+type Range = { start: string; end: string };
+type DayState = { weekday: number; on: boolean; ranges: Range[] };
 
 /**
  * Doctor working-days/hours + daily-limit editor. Emits the schedule as a hidden
@@ -15,25 +22,37 @@ type Row = { weekday: number; on: boolean; start: string; end: string };
  * <form> submits them like any other field. Reused by the add-staff and
  * edit-schedule forms.
  */
+/** True when a range's end is after its start. */
+const rangeValid = (r: Range) => {
+  const s = timeToMinutes(r.start);
+  const e = timeToMinutes(r.end);
+  return s !== null && e !== null && s < e;
+};
+
 export function DoctorScheduleFields({
   defaultAvailability = [],
   defaultLimit = 0,
   defaultFee = 0,
   defaultFlexible = false,
+  onValidChange,
 }: {
   defaultAvailability?: DayAvailability[];
   defaultLimit?: number;
   defaultFee?: number;
   defaultFlexible?: boolean;
+  /** Reports whether the schedule is valid so the parent can gate submit. */
+  onValidChange?: (valid: boolean) => void;
 }) {
-  const [rows, setRows] = useState<Row[]>(() =>
+  const [days, setDays] = useState<DayState[]>(() =>
     WEEKDAYS.map((d) => {
-      const slot = defaultAvailability.find((a) => a.weekday === d.value);
+      const ws = defaultAvailability.filter((a) => a.weekday === d.value);
       return {
         weekday: d.value,
-        on: Boolean(slot),
-        start: slot?.start ?? "09:00",
-        end: slot?.end ?? "17:00",
+        on: ws.length > 0,
+        ranges:
+          ws.length > 0
+            ? ws.map((w) => ({ start: w.start, end: w.end }))
+            : [{ start: "09:00", end: "17:00" }],
       };
     }),
   );
@@ -41,14 +60,48 @@ export function DoctorScheduleFields({
   const [fee, setFee] = useState(String(defaultFee ?? 0));
   const [flexible, setFlexible] = useState(Boolean(defaultFlexible));
 
-  const update = (weekday: number, patch: Partial<Row>) =>
-    setRows((prev) =>
-      prev.map((r) => (r.weekday === weekday ? { ...r, ...patch } : r)),
+  const patchDay = (weekday: number, patch: Partial<DayState>) =>
+    setDays((prev) =>
+      prev.map((d) => (d.weekday === weekday ? { ...d, ...patch } : d)),
+    );
+  const setRange = (weekday: number, i: number, patch: Partial<Range>) =>
+    setDays((prev) =>
+      prev.map((d) =>
+        d.weekday === weekday
+          ? { ...d, ranges: d.ranges.map((r, j) => (j === i ? { ...r, ...patch } : r)) }
+          : d,
+      ),
+    );
+  const addRange = (weekday: number) =>
+    setDays((prev) =>
+      prev.map((d) =>
+        d.weekday === weekday
+          ? { ...d, ranges: [...d.ranges, { start: "09:00", end: "17:00" }] }
+          : d,
+      ),
+    );
+  const removeRange = (weekday: number, i: number) =>
+    setDays((prev) =>
+      prev.map((d) =>
+        d.weekday === weekday
+          ? { ...d, ranges: d.ranges.filter((_, j) => j !== i) }
+          : d,
+      ),
     );
 
-  const availability: DayAvailability[] = rows
-    .filter((r) => r.on)
-    .map((r) => ({ weekday: r.weekday, start: r.start, end: r.end }));
+  // Flatten enabled days × their ranges into per-window availability entries.
+  const availability: DayAvailability[] = days
+    .filter((d) => d.on)
+    .flatMap((d) =>
+      d.ranges.map((r) => ({ weekday: d.weekday, start: r.start, end: r.end })),
+    );
+
+  // A range is invalid only when its day is enabled and hours are enforced.
+  const hasInvalid =
+    !flexible && days.some((d) => d.on && d.ranges.some((r) => !rangeValid(r)));
+  useEffect(() => {
+    onValidChange?.(!hasInvalid);
+  }, [hasInvalid, onValidChange]);
 
   return (
     <div className="space-y-4 rounded-md border p-3 sm:p-4">
@@ -75,46 +128,77 @@ export function DoctorScheduleFields({
         </p>
         <div className="space-y-2">
           {WEEKDAYS.map((d) => {
-            const row = rows.find((r) => r.weekday === d.value)!;
+            const day = days.find((x) => x.weekday === d.value)!;
             return (
-              <div
-                key={d.value}
-                className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:gap-3 sm:border-0 sm:p-0"
-              >
-                <label className="flex items-center gap-2 text-sm sm:w-28">
+              <div key={d.value} className="space-y-2 rounded-md border p-2">
+                <label className="flex items-center gap-2 text-sm">
                   <Checkbox
-                    checked={row.on}
-                    onCheckedChange={(v) => update(d.value, { on: Boolean(v) })}
+                    checked={day.on}
+                    onCheckedChange={(v) => patchDay(d.value, { on: Boolean(v) })}
                   />
                   {d.label}
                 </label>
-                <div className="flex flex-1 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-9 shrink-0 text-xs text-muted-foreground sm:hidden">
-                      From
-                    </span>
-                    <TimeSelect
-                      ariaLabel={`${d.label} start`}
-                      value={row.start}
-                      disabled={!row.on}
-                      onChange={(v) => update(d.value, { start: v })}
-                    />
+
+                {day.on ? (
+                  <div className="space-y-2 sm:pl-6">
+                    {day.ranges.map((r, i) => {
+                      const invalid = !flexible && !rangeValid(r);
+                      return (
+                        <div key={i} className="space-y-1">
+                          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-9 shrink-0 text-xs text-muted-foreground sm:hidden">
+                                From
+                              </span>
+                              <TimeSelect
+                                ariaLabel={`${d.label} start ${i + 1}`}
+                                value={r.start}
+                                onChange={(v) => setRange(d.value, i, { start: v })}
+                              />
+                            </div>
+                            <span className="hidden text-sm text-muted-foreground sm:inline">
+                              to
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-9 shrink-0 text-xs text-muted-foreground sm:hidden">
+                                To
+                              </span>
+                              <TimeSelect
+                                ariaLabel={`${d.label} end ${i + 1}`}
+                                value={r.end}
+                                onChange={(v) => setRange(d.value, i, { end: v })}
+                              />
+                              {day.ranges.length > 1 ? (
+                                <button
+                                  type="button"
+                                  onClick={() => removeRange(d.value, i)}
+                                  aria-label="Remove time"
+                                  className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                                >
+                                  <X className="size-4" aria-hidden="true" />
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
+                          {invalid ? (
+                            <p className="text-xs text-destructive">
+                              End time must be after the start time.
+                            </p>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => addRange(d.value)}
+                      className="text-primary"
+                    >
+                      <Plus className="size-4" aria-hidden="true" /> Add another time
+                    </Button>
                   </div>
-                  <span className="hidden text-sm text-muted-foreground sm:inline">
-                    to
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-9 shrink-0 text-xs text-muted-foreground sm:hidden">
-                      To
-                    </span>
-                    <TimeSelect
-                      ariaLabel={`${d.label} end`}
-                      value={row.end}
-                      disabled={!row.on}
-                      onChange={(v) => update(d.value, { end: v })}
-                    />
-                  </div>
-                </div>
+                ) : null}
               </div>
             );
           })}

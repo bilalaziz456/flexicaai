@@ -14,6 +14,7 @@ export function AddStaffForm() {
     FormData
   >(createStaff, {});
   const [role, setRole] = useState("doctor");
+  const [scheduleValid, setScheduleValid] = useState(true);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -57,7 +58,9 @@ export function AddStaffForm() {
       </div>
 
       {/* Doctors get a working-hours schedule + daily appointment cap. */}
-      {role === "doctor" ? <DoctorScheduleFields /> : null}
+      {role === "doctor" ? (
+        <DoctorScheduleFields onValidChange={setScheduleValid} />
+      ) : null}
 
       {state.error ? (
         <p className="text-sm text-destructive" role="alert">
@@ -70,7 +73,10 @@ export function AddStaffForm() {
         </p>
       ) : null}
 
-      <Button type="submit" disabled={pending}>
+      <Button
+        type="submit"
+        disabled={pending || (role === "doctor" && !scheduleValid)}
+      >
         {pending ? "Adding…" : "Add staff"}
       </Button>
     </form>

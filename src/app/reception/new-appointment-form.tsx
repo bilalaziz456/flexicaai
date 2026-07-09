@@ -97,20 +97,22 @@ export function NewAppointmentForm({
 
   const onLeaveBlock = Boolean(doctorId) && Boolean(date) && Boolean(slots?.onLeave);
 
-  // For a specific-hours doctor: valid slots within the day's window.
+  // For a specific-hours doctor: valid slots across ALL the day's windows
+  // (a day can have several, e.g. 09:00–12:00 and 16:00–19:00).
   const constrained =
     !freeTime &&
     Boolean(date) &&
     slots !== null &&
     !slots.onLeave &&
     slots.available &&
-    slots.window !== null;
-  const slotOptions =
-    constrained && slots?.window
-      ? genSlots(slots.window.start, slots.window.end).filter(
-          (t) => !isToday || timeToMin(t) > nowMin,
-        )
-      : [];
+    slots.windows.length > 0;
+  const slotOptions = constrained
+    ? Array.from(
+        new Set(slots!.windows.flatMap((w) => genSlots(w.start, w.end))),
+      )
+        .filter((t) => !isToday || timeToMin(t) > nowMin)
+        .sort()
+    : [];
   const effectiveTime = freeTime
     ? time
     : slotOptions.includes(time)
@@ -274,8 +276,8 @@ export function NewAppointmentForm({
         <p className="text-xs text-muted-foreground">
           {slots.flexible
             ? "Flexible — book any time."
-            : slots.window
-              ? `Working hours ${slots.window.start}–${slots.window.end}.`
+            : slots.windows.length
+              ? `Working hours ${slots.windows.map((w) => `${w.start}–${w.end}`).join(", ")}.`
               : ""}
           {slots.remaining !== null
             ? ` ${slots.remaining} of ${slots.limit} appointment${slots.remaining === 1 ? "" : "s"} left that day.`

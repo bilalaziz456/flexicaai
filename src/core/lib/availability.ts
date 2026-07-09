@@ -30,7 +30,15 @@ export function timeToMinutes(hhmm: string): number | null {
   return h * 60 + m;
 }
 
-/** The doctor's window for a JS weekday (0=Sun..6=Sat), if any. */
+/** ALL of the doctor's working windows for a JS weekday (0=Sun..6=Sat). */
+export function windowsForWeekday(
+  availability: DayAvailability[],
+  weekday: number,
+): DayAvailability[] {
+  return availability.filter((a) => a.weekday === weekday);
+}
+
+/** The doctor's FIRST window for a weekday, if any (convenience). */
 export function availabilityForWeekday(
   availability: DayAvailability[],
   weekday: number,
@@ -40,32 +48,40 @@ export function availabilityForWeekday(
 
 /**
  * Is the doctor available at this instant? An EMPTY schedule means no restriction
- * (bookable any time) — availability is opt-in per doctor. Otherwise the weekday
- * must be configured and the start time within [start, end).
+ * (bookable any time) — availability is opt-in per doctor. Otherwise the time
+ * must fall within ANY of the weekday's windows (a day can have several, e.g.
+ * 09:00–12:00 and 16:00–19:00).
  */
 export function isDoctorAvailableAt(
   availability: DayAvailability[],
   when: Date,
 ): boolean {
   if (!availability || availability.length === 0) return true;
-  const slot = availabilityForWeekday(availability, when.getDay());
-  if (!slot) return false;
   const t = when.getHours() * 60 + when.getMinutes();
-  const s = timeToMinutes(slot.start);
-  const e = timeToMinutes(slot.end);
-  if (s === null || e === null) return false;
-  return t >= s && t < e;
+  return windowsForWeekday(availability, when.getDay()).some((w) => {
+    const s = timeToMinutes(w.start);
+    const e = timeToMinutes(w.end);
+    return s !== null && e !== null && t >= s && t < e;
+  });
 }
 
-/** Human-readable summary, e.g. "Mon 09:00–17:00, Tue 10:00–14:00" or "Any time". */
+/**
+ * Human-readable summary, e.g. "Mon 09:00–12:00, 16:00–19:00; Tue 10:00–14:00"
+ * or "Any time". Days are separated by "; " since each day may list several
+ * windows separated by ", ".
+ */
 export function describeAvailability(availability: DayAvailability[]): string {
   if (!availability || availability.length === 0) return "Any time";
-  return WEEKDAYS.filter((d) => availability.some((a) => a.weekday === d.value))
+  return WEEKDAYS.filter(
+    (d) => windowsForWeekday(availability, d.value).length > 0,
+  )
     .map((d) => {
-      const slot = availabilityForWeekday(availability, d.value)!;
-      return `${d.short} ${slot.start}–${slot.end}`;
+      const windows = windowsForWeekday(availability, d.value)
+        .map((w) => `${w.start}–${w.end}`)
+        .join(", ");
+      return `${d.short} ${windows}`;
     })
-    .join(", ");
+    .join("; ");
 }
 
 /** Appointment statuses that consume a slot toward the daily limit. */

@@ -6,10 +6,10 @@ import { byClinic } from "@/core/db/tenant";
 import { appointments, doctorLeaves, users } from "@/core/db/schema";
 import {
   ACTIVE_APPT_STATUSES,
-  availabilityForWeekday,
   dayBounds,
   describeAvailability,
   isDoctorAvailableAt,
+  windowsForWeekday,
   type DayAvailability,
 } from "@/core/lib/availability";
 
@@ -135,11 +135,11 @@ export async function checkDoctorSlot(
       };
     }
     if (!isDoctorAvailableAt(availability, when)) {
-      const slot = availabilityForWeekday(availability, when.getDay());
+      const windows = windowsForWeekday(availability, when.getDay());
       return {
         ok: false,
-        reason: slot
-          ? `${name} works ${slot.start}–${slot.end} that day.`
+        reason: windows.length
+          ? `${name} works ${windows.map((w) => `${w.start}–${w.end}`).join(", ")} that day.`
           : `${name} isn't available then (hours: ${describeAvailability(availability)}).`,
       };
     }

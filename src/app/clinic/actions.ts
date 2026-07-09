@@ -28,11 +28,8 @@ const availabilitySchema = z
         message: "End time must be after start time.",
       }),
   )
-  .max(7)
-  // At most one window per weekday.
-  .refine((arr) => new Set(arr.map((a) => a.weekday)).size === arr.length, {
-    message: "Duplicate day in schedule.",
-  });
+  // A weekday may have several windows (e.g. 09:00–12:00 and 16:00–19:00).
+  .max(70);
 
 const dailyLimitSchema = z.coerce
   .number({ message: "Invalid daily limit." })
