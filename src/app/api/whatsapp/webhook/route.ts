@@ -3,6 +3,7 @@ import { and, eq, ilike, isNotNull } from "drizzle-orm";
 import { db } from "@/core/db";
 import { patients, whatsappMessages } from "@/core/db/schema";
 import { normalisePhone } from "@/core/integrations/whatsapp";
+import { handleRescheduleReply } from "@/core/appointments/reschedule";
 import { serverEnv } from "@/core/lib/env";
 
 /**
@@ -108,5 +109,17 @@ export async function POST(request: Request) {
     payload,
   });
 
-  return NextResponse.json({ ok: true, kind: "inbound" });
+  // Self-service reschedule: a matched patient can reply "reschedule <date time>".
+  let rescheduled = false;
+  if (matched && text) {
+    const outcome = await handleRescheduleReply({
+      clinicId: matched.clinicId,
+      patientId: matched.id,
+      phone,
+      text,
+    });
+    rescheduled = outcome.rescheduled;
+  }
+
+  return NextResponse.json({ ok: true, kind: "inbound", rescheduled });
 }

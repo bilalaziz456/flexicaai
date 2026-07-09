@@ -48,6 +48,8 @@ const serverSchema = z.object({
   AISENSY_BOOKING_CAMPAIGN: z.string().default("appointment_booked"),
   // AiSensy campaign for the day-before appointment reminder.
   AISENSY_REMINDER_CAMPAIGN: z.string().default("appointment_reminder"),
+  // AiSensy campaign for replies to a patient's WhatsApp reschedule request.
+  AISENSY_RESCHEDULE_CAMPAIGN: z.string().default("reschedule_reply"),
   // Secret protecting the cron endpoint that runs the recall engine. Vercel
   // sends it as `Authorization: Bearer <CRON_SECRET>` automatically.
   CRON_SECRET: z.string().optional(),
@@ -73,6 +75,7 @@ export const serverEnv = serverSchema.parse({
   AISENSY_CANCEL_CAMPAIGN: process.env.AISENSY_CANCEL_CAMPAIGN,
   AISENSY_BOOKING_CAMPAIGN: process.env.AISENSY_BOOKING_CAMPAIGN,
   AISENSY_REMINDER_CAMPAIGN: process.env.AISENSY_REMINDER_CAMPAIGN,
+  AISENSY_RESCHEDULE_CAMPAIGN: process.env.AISENSY_RESCHEDULE_CAMPAIGN,
   CRON_SECRET: process.env.CRON_SECRET,
   WHATSAPP_WEBHOOK_TOKEN: process.env.WHATSAPP_WEBHOOK_TOKEN,
   LINK_SIGNING_SECRET: process.env.LINK_SIGNING_SECRET,

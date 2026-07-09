@@ -276,6 +276,19 @@ async function run() {
       const row = (await pool.query("select status from whatsapp_messages where external_id='E2E-EXT-1'")).rows[0];
       record("webhook status receipt → advances outbound to 'read'", r.status === 200 && row && row.status === "read");
     }
+    {
+      // Patient self-service reschedule via WhatsApp reply (docA has no hours
+      // restriction, so any future slot is valid). patA1 has an upcoming appt.
+      const d = new Date(Date.now() + 6 * 864e5);
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const body = JSON.stringify({ mobile: "+923009990001", text: `reschedule ${iso} 2pm` });
+      const r = await req(`/api/whatsapp/webhook?token=${WH_TOKEN}`, { method: "POST", body, headers: json });
+      let j = {};
+      try { j = JSON.parse(r.text); } catch { /* ignore */ }
+      const moved = (await pool.query("select scheduled_at from appointments where clinic_id=$1 and patient_id=$2 and status='scheduled' order by scheduled_at desc limit 1", [ids.clinics[0], ids.patients[0]])).rows[0];
+      const hour = moved ? new Date(moved.scheduled_at).getHours() : null;
+      record("webhook reschedule reply moves the appointment", r.status === 200 && j.rescheduled === true && hour === 14, `rescheduled=${j.rescheduled} hour=${hour}`);
+    }
   }
 
   console.log("\n== RECALL ENGINE (cron) ==");

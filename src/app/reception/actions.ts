@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, count, desc, eq, gte, ilike, inArray, lt, lte, or } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lt, or } from "drizzle-orm";
 import { z } from "zod";
 import { requireRole } from "@/core/auth/user";
 import { db } from "@/core/db";
@@ -15,13 +15,16 @@ import {
   users,
 } from "@/core/db/schema";
 import {
-  ACTIVE_APPT_STATUSES,
   availabilityForWeekday,
-  dayBounds,
-  describeAvailability,
-  isDoctorAvailableAt,
   type DayAvailability,
 } from "@/core/lib/availability";
+import {
+  checkDoctorSlot,
+  countDoctorDay,
+  dateFromStr,
+  doctorOnLeave,
+  localDateStr,
+} from "@/core/appointments/availability";
 import {
   notifyAppointmentBooked,
   notifyAppointmentsCancelled,
@@ -53,67 +56,6 @@ async function requireAppointmentsAccess(): Promise<{
     clinicId: user.clinicId,
     home: user.role === "clinic_admin" ? "/clinic/appointments" : "/reception",
   };
-}
-
-/** Local "YYYY-MM-DD" for a Date (clinic wall-clock day). */
-function localDateStr(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
-
-/** Local midnight Date from a "YYYY-MM-DD" string. */
-function dateFromStr(s: string): Date {
-  const [y, m, d] = s.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
-
-/** Is the doctor on leave/vacation on the given local date (YYYY-MM-DD)? */
-async function doctorOnLeave(
-  clinicId: string,
-  doctorId: string,
-  dateStr: string,
-): Promise<boolean> {
-  const [row] = await db
-    .select({ id: doctorLeaves.id })
-    .from(doctorLeaves)
-    .where(
-      byClinic(
-        doctorLeaves.clinicId,
-        clinicId,
-        and(
-          eq(doctorLeaves.doctorId, doctorId),
-          lte(doctorLeaves.startDate, dateStr),
-          gte(doctorLeaves.endDate, dateStr),
-        ),
-      ),
-    )
-    .limit(1);
-  return Boolean(row);
-}
-
-/** Counts a doctor's slot-consuming appointments on the calendar day of `when`. */
-async function countDoctorDay(
-  clinicId: string,
-  doctorId: string,
-  when: Date,
-): Promise<number> {
-  const { start, end } = dayBounds(when);
-  const [row] = await db
-    .select({ value: count() })
-    .from(appointments)
-    .where(
-      byClinic(
-        appointments.clinicId,
-        clinicId,
-        and(
-          eq(appointments.doctorId, doctorId),
-          gte(appointments.scheduledAt, start),
-          lt(appointments.scheduledAt, end),
-          inArray(appointments.status, [...ACTIVE_APPT_STATUSES]),
-        ),
-      ),
-    );
-  return row?.value ?? 0;
 }
 
 const createSchema = z.object({
@@ -161,53 +103,9 @@ export async function createAppointment(
   if (!patient) return { error: "Patient not found." };
 
   if (parsed.data.doctorId) {
-    const [doc] = await db
-      .select({
-        id: users.id,
-        fullName: users.fullName,
-        username: users.username,
-        availability: users.availability,
-        dailyLimit: users.dailyAppointmentLimit,
-      })
-      .from(users)
-      .where(
-        byClinic(
-          users.clinicId,
-          clinicId,
-          and(eq(users.id, parsed.data.doctorId), eq(users.role, "doctor")),
-        ),
-      )
-      .limit(1);
-    if (!doc) return { error: "Doctor not found." };
-
-    const docName = doc.fullName ?? doc.username;
-
-    // Hard block: the doctor must not be on leave/vacation that day.
-    if (await doctorOnLeave(clinicId, doc.id, localDateStr(when))) {
-      return {
-        error: `${docName} is on leave that day — pick another date or doctor.`,
-      };
-    }
-
-    // Hard block: the doctor must be working at that day & time.
-    if (!isDoctorAvailableAt(doc.availability, when)) {
-      const slot = availabilityForWeekday(doc.availability, when.getDay());
-      return {
-        error: slot
-          ? `${docName} works ${slot.start}–${slot.end} that day — pick a time in that window.`
-          : `${docName} isn't available then (hours: ${describeAvailability(doc.availability)}).`,
-      };
-    }
-
-    // Hard block: respect the doctor's daily cap (0 = unlimited).
-    if (doc.dailyLimit > 0) {
-      const booked = await countDoctorDay(clinicId, doc.id, when);
-      if (booked >= doc.dailyLimit) {
-        return {
-          error: `${docName} is fully booked that day (${booked}/${doc.dailyLimit} appointments).`,
-        };
-      }
-    }
+    // Single source of truth for leave / working hours / daily cap.
+    const check = await checkDoctorSlot(clinicId, parsed.data.doctorId, when);
+    if (!check.ok) return { error: check.reason };
   }
 
   // Tag the appointment with the clinic's first enabled module (if any).
