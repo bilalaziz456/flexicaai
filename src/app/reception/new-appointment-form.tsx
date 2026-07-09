@@ -89,6 +89,20 @@ export function NewAppointmentForm({
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const isToday = date === todayStr;
 
+  // Upcoming dates for the date dropdown (day + date), next ~90 days.
+  const dateOptions = Array.from({ length: 90 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+    return {
+      value: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+      label: d.toLocaleDateString("en-GB", {
+        weekday: "short",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }),
+    };
+  });
+
   // Known up-front from the doctor list (no date needed): "Any doctor" or a
   // flexible doctor → free date+time picker. A doctor with set hours → the
   // visiting-hours slot list only.
@@ -208,17 +222,22 @@ export function NewAppointmentForm({
 
         <div className="space-y-2">
           <Label htmlFor="date">Date</Label>
-          <Input
+          <select
             id="date"
-            type="date"
-            required
-            min={todayStr}
             value={date}
             onChange={(e) => {
               setDate(e.target.value);
               void refreshSlots(doctorId, e.target.value);
             }}
-          />
+            className={selectCls}
+          >
+            <option value="">Select a date…</option>
+            {dateOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="space-y-2">
