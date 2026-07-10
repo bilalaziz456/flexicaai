@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import {
   createAppointment,
   doctorDayAvailability,
@@ -72,6 +72,8 @@ export function NewAppointmentForm({
   const [doctorId, setDoctorId] = useState(initial?.doctorId ?? "");
   const [date, setDate] = useState(initial?.date ?? "");
   const [time, setTime] = useState(initial?.time ?? "09:00");
+  const [duration, setDuration] = useState(initial?.durationMinutes ?? 30);
+  const [reason, setReason] = useState(initial?.reason ?? "");
   const [slots, setSlots] = useState<DoctorDaySlots | null>(null);
   const action = isEdit
     ? updateAppointment.bind(null, appointmentId!)
@@ -80,6 +82,18 @@ export function NewAppointmentForm({
     ReceptionActionState,
     FormData
   >(action, {});
+
+  // React 19 auto-resets the <form> after a successful action: native form.reset()
+  // unchecks the controlled radios / clears inputs, and React skips re-writing the
+  // DOM because the props didn't change from the previous render — so the selection
+  // desyncs (e.g. the chosen "4–7" window snaps away). Remount the field group once
+  // each submit settles so the DOM is rebuilt from the current state.
+  const [fieldsKey, setFieldsKey] = useState(0);
+  const wasPending = useRef(false);
+  useEffect(() => {
+    if (wasPending.current && !pending) setFieldsKey((k) => k + 1);
+    wasPending.current = pending;
+  }, [pending]);
 
   async function runSearch(q: string) {
     setQuery(q);
@@ -192,7 +206,7 @@ export function NewAppointmentForm({
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div key={fieldsKey} className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="doctorId">Doctor (optional)</Label>
           <select
@@ -222,7 +236,8 @@ export function NewAppointmentForm({
             min={5}
             max={480}
             step={5}
-            defaultValue={initial?.durationMinutes ?? 30}
+            value={duration}
+            onChange={(e) => setDuration(Number(e.target.value))}
           />
         </div>
 
@@ -288,7 +303,8 @@ export function NewAppointmentForm({
           <Input
             id="reason"
             name="reason"
-            defaultValue={initial?.reason ?? ""}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
             placeholder="e.g. Cleaning"
           />
         </div>
