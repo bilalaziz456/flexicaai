@@ -10,6 +10,7 @@ import {
   type ReceptionActionState,
 } from "./actions";
 import { Button } from "@/core/ui/button";
+import { DatePicker } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { TimeSelect } from "@/core/ui/time-select";
@@ -231,14 +232,13 @@ export function NewAppointmentForm({
 
         <div className="space-y-2">
           <Label htmlFor="date">Date</Label>
-          <Input
+          <DatePicker
             id="date"
-            type="date"
-            required
+            ariaLabel="Appointment date"
             value={date}
-            onChange={(e) => {
-              setDate(e.target.value);
-              void refreshSlots(doctorId, e.target.value);
+            onChange={(v) => {
+              setDate(v);
+              void refreshSlots(doctorId, v);
             }}
           />
         </div>
