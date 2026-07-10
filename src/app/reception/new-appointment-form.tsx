@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import {
   createAppointment,
   doctorDayAvailability,
   searchClinicPatients,
+  updateAppointment,
   type DoctorDaySlots,
   type ReceptionActionState,
 } from "./actions";
@@ -22,6 +23,10 @@ type Doctor = {
 };
 
 const pad = (n: number) => String(n).padStart(2, "0");
+const timeToMin = (s: string) => {
+  const [h, m] = s.split(":").map(Number);
+  return h * 60 + m;
+};
 /** "09:30" → "9:30 AM" */
 const label12 = (hhmm: string) => {
   const [h, m] = hhmm.split(":").map(Number);
@@ -34,37 +39,55 @@ const selectCls =
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
 /**
- * New-appointment form. The time picker ADAPTS to the doctor: a doctor with set
- * visiting hours shows a dropdown of valid slots within those hours for the
- * chosen date; a flexible doctor (or "Any doctor") shows a free time picker.
+ * Appointment form — create OR edit. The time picker ADAPTS to the doctor: a
+ * doctor with set visiting hours shows radio buttons of the day's window(s); a
+ * flexible / "Any" doctor shows a free time picker.
+ *
+ * Edit mode (pass `appointmentId` + `fixedPatient` + `initial`): the patient is
+ * fixed, the fields are prefilled, and it saves via updateAppointment.
  */
 export function NewAppointmentForm({
   initialPatients,
   doctors,
+  appointmentId,
+  fixedPatient,
+  initial,
 }: {
   initialPatients: Patient[];
   doctors: Doctor[];
+  appointmentId?: string;
+  fixedPatient?: { id: string; fullName: string };
+  initial?: {
+    doctorId: string;
+    date: string;
+    time: string;
+    reason: string;
+    durationMinutes: number;
+  };
 }) {
+  const isEdit = Boolean(appointmentId);
   const [patient, setPatient] = useState<Patient | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Patient[]>(initialPatients);
-  const [doctorId, setDoctorId] = useState("");
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("09:00");
-  const [windowIdx, setWindowIdx] = useState(0);
+  const [doctorId, setDoctorId] = useState(initial?.doctorId ?? "");
+  const [date, setDate] = useState(initial?.date ?? "");
+  const [time, setTime] = useState(initial?.time ?? "09:00");
   const [slots, setSlots] = useState<DoctorDaySlots | null>(null);
+  const action = isEdit
+    ? updateAppointment.bind(null, appointmentId!)
+    : createAppointment;
   const [state, formAction, pending] = useActionState<
     ReceptionActionState,
     FormData
-  >(createAppointment, {});
+  >(action, {});
 
   async function runSearch(q: string) {
     setQuery(q);
     setResults(await searchClinicPatients(q));
   }
 
-  // Fetch the doctor's availability/window for the chosen date (local noon so the
-  // weekday is right). Only meaningful once a specific doctor + date are picked.
+  // Fetch the doctor's availability/windows for the chosen date (local noon so
+  // the weekday is right). Only meaningful once a specific doctor + date are set.
   async function refreshSlots(dId: string, d: string) {
     if (!dId || !d) {
       setSlots(null);
@@ -73,17 +96,16 @@ export function NewAppointmentForm({
     setSlots(await doctorDayAvailability(dId, `${d}T12:00`));
   }
 
-  // Known up-front from the doctor list (no date needed): "Any doctor" or a
-  // flexible doctor → free date+time picker. A doctor with set hours → the
-  // visiting-hours window radios.
+  // On mount (edit prefill), load the doctor's windows for the initial date.
+  useEffect(() => {
+    if (doctorId && date) void refreshSlots(doctorId, date);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const selectedDoctor = doctors.find((d) => d.id === doctorId) ?? null;
   const freeTime = !doctorId || Boolean(selectedDoctor?.flexibleHours);
-
   const onLeaveBlock = Boolean(doctorId) && Boolean(date) && Boolean(slots?.onLeave);
 
-  // For a specific-hours doctor: the day may have several windows (e.g.
-  // 09:00–12:00 and 16:00–19:00). The user picks a window; the appointment is
-  // booked at that window's start. Past dates are allowed (recording visits).
   const constrained =
     !freeTime &&
     Boolean(date) &&
@@ -92,20 +114,41 @@ export function NewAppointmentForm({
     slots.available &&
     slots.windows.length > 0;
   const windows = constrained ? slots!.windows : [];
-  const activeIdx = Math.min(windowIdx, Math.max(0, windows.length - 1));
-  const activeWindow = windows[activeIdx] ?? null;
-  const effectiveTime = freeTime ? time : (activeWindow ? activeWindow.start : "");
+  // The selected window is whichever one contains the current time.
+  const selectedWindowIdx = windows.findIndex(
+    (w) => timeToMin(time) >= timeToMin(w.start) && timeToMin(time) < timeToMin(w.end),
+  );
+
+  // For a specific-hours doctor, keep `time` inside a window (snap to the first
+  // if it isn't — e.g. after switching doctor/date).
+  useEffect(() => {
+    if (freeTime || !slots) return;
+    const ws = slots.windows;
+    if (ws.length === 0) return;
+    const inWindow = ws.some(
+      (w) => timeToMin(time) >= timeToMin(w.start) && timeToMin(time) < timeToMin(w.end),
+    );
+    if (!inWindow) setTime(ws[0].start);
+  }, [slots, freeTime, time]);
+
+  const effectiveTime = freeTime ? time : selectedWindowIdx >= 0 ? time : "";
   const scheduledAt =
     !onLeaveBlock && date && effectiveTime ? `${date}T${effectiveTime}` : "";
 
   return (
     <form action={formAction} className="space-y-4">
-      <input type="hidden" name="patientId" value={patient?.id ?? ""} />
+      <input
+        type="hidden"
+        name="patientId"
+        value={isEdit ? (fixedPatient?.id ?? "") : (patient?.id ?? "")}
+      />
       <input type="hidden" name="scheduledAt" value={scheduledAt} />
 
       <div className="space-y-2">
         <Label>Patient</Label>
-        {patient ? (
+        {isEdit ? (
+          <div className="text-sm font-medium">{fixedPatient?.fullName}</div>
+        ) : patient ? (
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-accent px-2.5 py-1 text-sm font-medium text-accent-foreground">
               {patient.fullName}
@@ -158,7 +201,6 @@ export function NewAppointmentForm({
             value={doctorId}
             onChange={(e) => {
               setDoctorId(e.target.value);
-              setWindowIdx(0);
               void refreshSlots(e.target.value, date);
             }}
             className={selectCls}
@@ -180,7 +222,7 @@ export function NewAppointmentForm({
             min={5}
             max={480}
             step={5}
-            defaultValue={30}
+            defaultValue={initial?.durationMinutes ?? 30}
           />
         </div>
 
@@ -193,7 +235,6 @@ export function NewAppointmentForm({
             value={date}
             onChange={(e) => {
               setDate(e.target.value);
-              setWindowIdx(0);
               void refreshSlots(doctorId, e.target.value);
             }}
           />
@@ -206,7 +247,6 @@ export function NewAppointmentForm({
               Doctor is on leave that day — pick another date.
             </p>
           ) : freeTime ? (
-            // Flexible doctor or "Any doctor" → free time picker.
             <TimeSelect
               ariaLabel="Appointment time"
               value={effectiveTime || "09:00"}
@@ -223,20 +263,17 @@ export function NewAppointmentForm({
               Doctor doesn&apos;t work that day — pick another date.
             </p>
           ) : windows.length === 0 ? (
-            <p className="text-sm text-destructive">
-              No available times that day.
-            </p>
+            <p className="text-sm text-destructive">No available times that day.</p>
           ) : (
-            // Specific-hours doctor → radio buttons of the visiting-hours
-            // window(s); the appointment is booked at the chosen window.
+            // Specific-hours doctor → radio buttons of the visiting-hours window(s).
             <div className="space-y-1.5">
               {windows.map((w, i) => (
                 <label key={i} className="flex items-center gap-2 text-sm">
                   <input
                     type="radio"
                     name="window"
-                    checked={activeIdx === i}
-                    onChange={() => setWindowIdx(i)}
+                    checked={selectedWindowIdx === i}
+                    onChange={() => setTime(w.start)}
                     className="size-4"
                   />
                   {label12(w.start)} – {label12(w.end)}
@@ -248,7 +285,12 @@ export function NewAppointmentForm({
 
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="reason">Reason (optional)</Label>
-          <Input id="reason" name="reason" placeholder="e.g. Cleaning" />
+          <Input
+            id="reason"
+            name="reason"
+            defaultValue={initial?.reason ?? ""}
+            placeholder="e.g. Cleaning"
+          />
         </div>
       </div>
 
@@ -266,15 +308,28 @@ export function NewAppointmentForm({
         </p>
       ) : null}
 
+      <div className="flex items-center gap-3">
+        <Button type="submit" disabled={pending || !scheduledAt}>
+          {pending
+            ? isEdit
+              ? "Saving…"
+              : "Scheduling…"
+            : isEdit
+              ? "Save changes"
+              : "Schedule appointment"}
+        </Button>
+        {isEdit && state.saved ? (
+          <span className="text-sm text-emerald-600" role="status">
+            Saved.
+          </span>
+        ) : null}
+      </div>
+
       {state.error ? (
         <p className="text-sm text-destructive" role="alert">
           {state.error}
         </p>
       ) : null}
-
-      <Button type="submit" disabled={pending || !scheduledAt}>
-        {pending ? "Scheduling…" : "Schedule appointment"}
-      </Button>
     </form>
   );
 }

@@ -13,10 +13,8 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { AppointmentActions } from "./appointment-actions";
-import {
-  DeleteAppointmentButton,
-  EditAppointmentForm,
-} from "./edit-appointment-form";
+import { DeleteAppointmentButton } from "./edit-appointment-form";
+import { NewAppointmentForm } from "./new-appointment-form";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive"> = {
   confirmed: "default",
@@ -49,6 +47,7 @@ export async function AppointmentDetail({
       status: appointments.status,
       reason: appointments.reason,
       source: appointments.source,
+      patientId: patients.id,
       patientName: patients.fullName,
     })
     .from(appointments)
@@ -58,7 +57,12 @@ export async function AppointmentDetail({
   if (!appt) notFound();
 
   const doctors = await db
-    .select({ id: users.id, fullName: users.fullName, username: users.username })
+    .select({
+      id: users.id,
+      fullName: users.fullName,
+      username: users.username,
+      flexibleHours: users.flexibleHours,
+    })
     .from(users)
     .where(byClinic(users.clinicId, clinicId, inArray(users.role, ["doctor"])))
     .orderBy(desc(users.createdAt));
@@ -114,9 +118,11 @@ export async function AppointmentDetail({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <EditAppointmentForm
-            appointmentId={appt.id}
+          <NewAppointmentForm
             doctors={doctors}
+            initialPatients={[]}
+            appointmentId={appt.id}
+            fixedPatient={{ id: appt.patientId, fullName: appt.patientName }}
             initial={{
               doctorId: appt.doctorId ?? "",
               date: dateStr,
