@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import {
   createAppointment,
   doctorDayAvailability,
@@ -82,18 +82,6 @@ export function NewAppointmentForm({
     ReceptionActionState,
     FormData
   >(action, {});
-
-  // React 19 auto-resets the <form> after a successful action: native form.reset()
-  // unchecks the controlled radios / clears inputs, and React skips re-writing the
-  // DOM because the props didn't change from the previous render — so the selection
-  // desyncs (e.g. the chosen "4–7" window snaps away). Remount the field group once
-  // each submit settles so the DOM is rebuilt from the current state.
-  const [fieldsKey, setFieldsKey] = useState(0);
-  const wasPending = useRef(false);
-  useEffect(() => {
-    if (wasPending.current && !pending) setFieldsKey((k) => k + 1);
-    wasPending.current = pending;
-  }, [pending]);
 
   async function runSearch(q: string) {
     setQuery(q);
@@ -206,7 +194,7 @@ export function NewAppointmentForm({
         )}
       </div>
 
-      <div key={fieldsKey} className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="doctorId">Doctor (optional)</Label>
           <select
@@ -280,20 +268,37 @@ export function NewAppointmentForm({
           ) : windows.length === 0 ? (
             <p className="text-sm text-destructive">No available times that day.</p>
           ) : (
-            // Specific-hours doctor → radio buttons of the visiting-hours window(s).
-            <div className="space-y-1.5">
-              {windows.map((w, i) => (
-                <label key={i} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name="window"
-                    checked={selectedWindowIdx === i}
-                    onChange={() => setTime(w.start)}
-                    className="size-4"
-                  />
-                  {label12(w.start)} – {label12(w.end)}
-                </label>
-              ))}
+            // Specific-hours doctor → pick one of the visiting-hours window(s).
+            // These are buttons (not <input type="radio">) on purpose: React 19
+            // auto-resets the <form> after a successful save, and native
+            // form.reset() would clear a real radio and make the selection flash.
+            // As React-state-only controls they're immune to the reset; the value
+            // is submitted via the hidden `scheduledAt`.
+            <div role="radiogroup" aria-label="Available times" className="space-y-1.5">
+              {windows.map((w, i) => {
+                const checked = selectedWindowIdx === i;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    role="radio"
+                    aria-checked={checked}
+                    onClick={() => setTime(w.start)}
+                    className="flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+                  >
+                    <span
+                      className={`inline-flex size-4 shrink-0 items-center justify-center rounded-full border ${
+                        checked ? "border-primary" : "border-input"
+                      }`}
+                    >
+                      {checked ? (
+                        <span className="size-2 rounded-full bg-primary" />
+                      ) : null}
+                    </span>
+                    {label12(w.start)} – {label12(w.end)}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
