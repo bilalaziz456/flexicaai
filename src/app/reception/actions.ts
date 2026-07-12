@@ -27,6 +27,11 @@ import {
   localDateStr,
 } from "@/core/appointments/availability";
 import { queueSessionKey, withQueueNumber } from "@/core/appointments/queue";
+import { saveAppointmentProcedures } from "@/core/appointments/procedures";
+import {
+  recordSaleForAppointment,
+  voidSaleForAppointment,
+} from "@/core/sales/ledger";
 import {
   notifyAppointmentBooked,
   notifyAppointmentsCancelled,
@@ -171,6 +176,14 @@ export async function createAppointment(
         .returning({ id: appointments.id }),
   );
 
+  // Attach the selected procedures (snapshotted prices) before notifying, so the
+  // confirmation quotes the full total.
+  await saveAppointmentProcedures(
+    clinicId,
+    created.id,
+    formData.getAll("procedureId").map(String),
+  );
+
   // Confirm to the patient over WhatsApp (doctor, hours, fee, time).
   await notifyAppointmentBooked(clinicId, created.id);
 
@@ -234,6 +247,7 @@ export async function updateAppointment(
     .select({
       id: appointments.id,
       queueSession: appointments.queueSession,
+      status: appointments.status,
     })
     .from(appointments)
     .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
@@ -298,6 +312,19 @@ export async function updateAppointment(
           .set({ ...baseSet, queueSession: q.queueSession, queueNumber: q.queueNumber })
           .where(where),
     );
+  }
+
+  // Replace the appointment's procedure line items with the current selection.
+  await saveAppointmentProcedures(
+    clinicId,
+    appointmentId,
+    formData.getAll("procedureId").map(String),
+  );
+
+  // If this appointment is already completed, its sale is on the books — re-snapshot
+  // it so the edit (doctor/fee, procedures, discount) flows through to the report.
+  if (appt.status === "completed") {
+    await recordSaleForAppointment(clinicId, appointmentId);
   }
 
   await logActivity({
@@ -372,6 +399,15 @@ export async function setAppointmentStatus(
     // A WhatsApp self-booking is confirmed by staff → send the confirmation
     // (slot, timing, doctor, fee).
     await notifyAppointmentBooked(clinicId, appointmentId);
+  }
+
+  // Sales ledger: a completed appointment is a realised sale; leaving "completed"
+  // (e.g. an accidental mark, or moved back to scheduled) voids it. Best-effort —
+  // never blocks the status change.
+  if (status === "completed") {
+    await recordSaleForAppointment(clinicId, appointmentId);
+  } else if (prior.status === "completed") {
+    await voidSaleForAppointment(clinicId, appointmentId);
   }
 
   await logActivity({

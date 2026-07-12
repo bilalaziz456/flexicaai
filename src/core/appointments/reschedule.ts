@@ -1,11 +1,12 @@
 import "server-only";
 
-import { and, asc, eq, gt, inArray } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
-import { appointments, patients } from "@/core/db/schema";
+import { appointmentProcedures, appointments, patients } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
+import { computeAppointmentTotal } from "@/core/appointments/fee";
 import { checkDoctorSlot } from "@/core/appointments/availability";
 import { queueSessionKey, withQueueNumber } from "@/core/appointments/queue";
 import { parseWhen } from "@/core/appointments/parse-when";
@@ -86,6 +87,9 @@ export async function handleRescheduleReply(args: {
         scheduledAt: appointments.scheduledAt,
         queueSession: appointments.queueSession,
         queueNumber: appointments.queueNumber,
+        discountType: appointments.discountType,
+        discountValue: appointments.discountValue,
+        proceduresTotal: sql<number>`coalesce((select sum(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity}) from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${appointments.id}), 0)`,
       })
       .from(appointments)
       .where(
@@ -198,7 +202,16 @@ export async function handleRescheduleReply(args: {
     }
 
     // Tell the patient it's rescheduled (accurate wording — not "confirmed").
-    const feeStr = fee > 0 ? ` Fee: Rs ${new Intl.NumberFormat("en-PK").format(fee)}.` : "";
+    // Quote the full net total the patient pays: consultation fee + procedures −
+    // discount (the procedures don't change on a move).
+    const { gross, net } = computeAppointmentTotal(
+      fee,
+      Number(appt.proceduresTotal),
+      appt.discountType === "percent" ? "percent" : "amount",
+      appt.discountValue,
+    );
+    const feeStr =
+      gross > 0 ? ` Total: Rs ${new Intl.NumberFormat("en-PK").format(net)}.` : "";
     const tokenStr = tokenNumber != null ? ` Your token number is #${tokenNumber}.` : "";
     await reply(
       clinicId,

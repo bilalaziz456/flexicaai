@@ -2,6 +2,7 @@ import type { ModuleDefinition } from "@/core/types/module";
 import { dentalScribePrompt } from "@/modules/dental/prompts/scribe";
 import { dentalRecallRules } from "@/modules/dental/recall-rules";
 import { dentalDrugFormulary } from "@/modules/dental/drug-formulary";
+import { dentalProcedureTemplates } from "@/modules/dental/procedure-templates";
 
 /**
  * The Dental module — the first (and, for now, only) built specialty.
@@ -18,6 +19,7 @@ export const dentalModule: ModuleDefinition = {
   scribePrompt: dentalScribePrompt,
   recallRules: dentalRecallRules,
   drugFormulary: dentalDrugFormulary,
+  procedureTemplates: dentalProcedureTemplates,
   navItems: [
     { label: "Patients", href: "/doctor/patients", icon: "users" },
     { label: "Voice Scribe", href: "/doctor/scribe", icon: "mic" },

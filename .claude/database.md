@@ -152,6 +152,45 @@ filters (+ clinic filter for the super admin). Written via best-effort
 `ViewLogger` (avoids prefetch phantom logs).
 Indexes: (`clinic_id`,`created_at`); (`created_at`); `actor_user_id`.
 
+### `procedures` — priced services (Sales feature, phase 1)
+`id`, `clinic_id` → clinics (`cascade`), `name`, `price` int (whole PKR),
+`module` (free-text specialty tag), `is_active` bool (default true; inactive =
+hidden from booking, kept for history), timestamps. CORE + specialty-agnostic —
+each clinic manages its own list; the specialty MODULE only supplies suggested
+defaults (`ModuleDefinition.procedureTemplates`, imported via
+`config/modules.ts#procedureTemplatesFor`). CRUD by clinic admin OR receptionist
+(`app/reception/procedure-actions.ts`), audit-logged, gated by the `sales`
+feature (`core/lib/features.ts`). Indexes: `clinic_id`; (`clinic_id`,`is_active`).
+
+### `appointment_procedures` — appointment line items (Sales feature, phase 2)
+`id`, `clinic_id` → clinics (`cascade`), `appointment_id` → appointments
+(`cascade`), `procedure_id` → procedures (`set null`), `name` + `unit_price`
+(**snapshots** — catalog edits never rewrite past appointments), `quantity`
+(default 1), `created_at`. An appointment's **total = doctor `consultation_fee` +
+Σ(unit_price×quantity)**, then the appointment's discount applies to that total
+(`core/appointments/fee.ts#computeAppointmentTotal`). Saved on create/edit via
+`core/appointments/procedures.ts#saveAppointmentProcedures` (replace-all,
+clinic-scoped). Indexes: `appointment_id`; `clinic_id`; `procedure_id`.
+
+### `sales` — realised-revenue ledger (Sales feature, phase 3)
+`id`, `clinic_id` → clinics (`cascade`), `appointment_id` → appointments
+(`cascade`, **UNIQUE** — one sale per appointment), `doctor_id` → users (`set
+null`), `doctor_name` (**snapshot**, survives the doctor being renamed/deleted),
+`gross_amount` / `discount_amount` / `net_amount` (int PKR, **snapshots** computed
+via `computeAppointmentTotal` = fee + procedures − discount), `occurred_at`
+(= the appointment's `scheduled_at`; drives the report's time buckets),
+`created_at`. One row per **completed** appointment, written by
+`core/sales/ledger.ts`: `recordSaleForAppointment` (upsert on the completion hook
+in `setAppointmentStatus`, and re-snapshot when a completed appointment is edited),
+`voidSaleForAppointment` (delete when it leaves "completed"),
+`backfillClinicSales` (idempotent; run when the super admin first enables the
+`sales` feature, in `admin/actions.ts#updateClinic`). All best-effort — a ledger
+hiccup never blocks the status change. The report (`core/sales/report.ts`,
+`/clinic/sales`) reads this table: summary, per-doctor + per-procedure breakdown,
+and a bucketed net-sales-over-time chart, filterable by period / custom range /
+doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
+`appointment_id`; (`clinic_id`,`occurred_at`) for the range scan; `doctor_id`.
+
 ---
 
 ## 4. Notes
@@ -165,9 +204,10 @@ Indexes: (`clinic_id`,`created_at`); (`created_at`); `actor_user_id`.
 - **Timezone caveat (deploy):** availability, "tomorrow" (reminder), and day
   bounds use the **server's local timezone**. For a multi-region rollout
   (Pakistan vs GCC), pin each clinic to its own timezone.
-- Migrations `0000`–`0020` applied; new tables/columns are always additive to core.
+- Migrations `0000`–`0023` applied; new tables/columns are always additive to core.
   (`0017` adds `appointments.discount_type` / `discount_value`; `0018` adds
   `appointments.queue_session` / `queue_number` + the queue unique index; `0019`
   adds the `activity_logs` table; `0020` adds `clinics.log_access` and drops the
   now-unused `activity_logs.visible` — log access is permission-based, not
-  time-based.)
+  time-based; `0021` adds the `procedures` table; `0022` adds `appointment_procedures`;
+  `0023` adds the `sales` ledger table.)

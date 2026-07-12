@@ -2,6 +2,7 @@ import type {
   ModuleDefinition,
   ModuleId,
   NavItem,
+  ProcedureTemplate,
   SpecialtyCatalogEntry,
 } from "@/core/types/module";
 import { dentalModule } from "@/modules/dental/config";
@@ -51,6 +52,28 @@ export const SPECIALTY_CATALOG: SpecialtyCatalogEntry[] = [
 /** A module definition by id, or undefined if not a built module. */
 export function getModule(id: ModuleId): ModuleDefinition | undefined {
   return MODULES[id];
+}
+
+/**
+ * Suggested procedure templates from a clinic's enabled modules (deduped by
+ * name). Core reads only `clinic.modules_enabled` — it never asks "is this
+ * dental?". Empty when no enabled module ships templates.
+ */
+export function procedureTemplatesFor(
+  modulesEnabled: readonly ModuleId[],
+): ProcedureTemplate[] {
+  const seen = new Set<string>();
+  const out: ProcedureTemplate[] = [];
+  for (const m of loadModules(modulesEnabled)) {
+    for (const t of m.procedureTemplates ?? []) {
+      const key = t.name.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(t);
+      }
+    }
+  }
+  return out;
 }
 
 /** True if the id corresponds to a fully-built, enable-able module. */

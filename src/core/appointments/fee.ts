@@ -50,3 +50,31 @@ export function computeFee(
 export function formatPkr(n: number): string {
   return `Rs ${new Intl.NumberFormat("en-PK").format(Math.max(0, Math.round(n)))}`;
 }
+
+export type AppointmentTotal = {
+  consultation: number;
+  procedures: number;
+  gross: number; // consultation + procedures, before discount
+  discount: number;
+  net: number; // what the patient pays
+};
+
+/**
+ * Full appointment bill: the doctor's consultation fee PLUS the selected
+ * procedures, with the discount applied to that combined total. Pure — shared by
+ * the booking form, the lists, and the WhatsApp confirmation.
+ */
+export function computeAppointmentTotal(
+  consultationFee: number | null | undefined,
+  proceduresTotal: number,
+  discountType: DiscountType,
+  discountValue: number,
+): AppointmentTotal {
+  const consultation =
+    consultationFee && consultationFee > 0 ? Math.round(consultationFee) : 0;
+  const procs = Math.max(0, Math.round(proceduresTotal || 0));
+  const gross = consultation + procs;
+  // Reuse the same discount clamp against the combined total.
+  const { discount, net } = computeFee(gross, discountType, discountValue);
+  return { consultation, procedures: procs, gross, discount, net };
+}

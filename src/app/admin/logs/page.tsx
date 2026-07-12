@@ -1,11 +1,13 @@
-import { and, asc, desc, eq, gte, inArray, lt } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { requireRole } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { activityLogs, clinics, users } from "@/core/db/schema";
 import { ActivityLogList } from "@/core/ui/activity-log";
 import { LogFilters } from "@/core/ui/log-filters";
+import { Pagination } from "@/core/ui/pagination";
 import { parseLogFilters } from "@/core/audit/log-filters";
 import { CLINIC_LOG_ROLES } from "@/core/audit/access";
+import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import type { UserRole } from "@/core/types/auth";
 
 /**
@@ -21,10 +23,14 @@ export default async function AdminLogsPage({
     to?: string;
     actor?: string;
     clinic?: string;
+    page?: string;
+    size?: string;
   }>;
 }) {
   await requireRole("super_admin");
   const sp = await searchParams;
+  const page = parsePage(sp.page);
+  const pageSize = parsePageSize(sp.size);
   const { fromStr, toStr, today, actor, clinic, start, endExclusive } =
     parseLogFilters(sp);
 
@@ -37,7 +43,8 @@ export default async function AdminLogsPage({
   // clinic-scoped), so ignore a stray actor when no clinic is selected.
   if (clinic && actor) conds.push(eq(activityLogs.actorUserId, actor));
 
-  const [rows, clinicRows, actorRows] = await Promise.all([
+  const where = and(...conds);
+  const [rows, clinicRows, actorRows, [{ total }]] = await Promise.all([
     db
       .select({
         id: activityLogs.id,
@@ -50,9 +57,10 @@ export default async function AdminLogsPage({
       })
       .from(activityLogs)
       .leftJoin(clinics, eq(activityLogs.clinicId, clinics.id))
-      .where(and(...conds))
+      .where(where)
       .orderBy(desc(activityLogs.createdAt))
-      .limit(300),
+      .limit(pageSize)
+      .offset(pageOffset(page, pageSize)),
     db
       .select({ id: clinics.id, name: clinics.name })
       .from(clinics)
@@ -71,6 +79,7 @@ export default async function AdminLogsPage({
           )
           .orderBy(asc(users.fullName))
       : Promise.resolve([] as { id: string; fullName: string | null; username: string }[]),
+    db.select({ total: count() }).from(activityLogs).where(where),
   ]);
   const actors = actorRows.map((s) => ({ id: s.id, name: s.fullName ?? s.username }));
 
@@ -79,8 +88,8 @@ export default async function AdminLogsPage({
       <div>
         <h1 className="text-xl font-semibold">Activity log</h1>
         <p className="text-sm text-muted-foreground">
-          {rows.length} action{rows.length === 1 ? "" : "s"} across all clinics for
-          the selected range.
+          {total} action{total === 1 ? "" : "s"} across all clinics for the
+          selected range.
         </p>
       </div>
       <LogFilters
@@ -91,6 +100,14 @@ export default async function AdminLogsPage({
         actors={actors}
         clinic={clinic}
         clinics={clinicRows}
+      />
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        basePath="/admin/logs"
+        searchParams={sp}
+        unit="entry"
       />
       <ActivityLogList
         rows={rows}

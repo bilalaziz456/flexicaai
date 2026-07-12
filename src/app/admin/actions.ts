@@ -11,6 +11,7 @@ import { db } from "@/core/db";
 import { clinics, sessions, users } from "@/core/db/schema";
 import { availableSpecialtyIds } from "@/config/modules";
 import { CLINIC_FEATURE_IDS } from "@/core/lib/features";
+import { backfillClinicSales } from "@/core/sales/ledger";
 import { logActivity } from "@/core/audit/log";
 import { sanitizeLogAccess } from "@/core/audit/access";
 import { USERNAME_REGEX } from "@/core/types/auth";
@@ -159,6 +160,17 @@ export async function updateClinic(
 
   const logAccess = sanitizeLogAccess(formData.getAll("actions").map(String));
 
+  // Was the sales feature off before this save? If so, and it's on now, we backfill
+  // the ledger below so the report shows history the moment the feature is enabled.
+  const [before] = await db
+    .select({ featuresEnabled: clinics.featuresEnabled })
+    .from(clinics)
+    .where(eq(clinics.id, clinicId))
+    .limit(1);
+  const salesNewlyEnabled =
+    featuresEnabled.includes("sales") &&
+    !(before?.featuresEnabled ?? []).includes("sales");
+
   await db
     .update(clinics)
     .set({
@@ -169,6 +181,11 @@ export async function updateClinic(
       updatedAt: new Date(),
     })
     .where(eq(clinics.id, clinicId));
+
+  // Snapshot sales for the clinic's already-completed appointments (idempotent).
+  if (salesNewlyEnabled) {
+    await backfillClinicSales(clinicId);
+  }
 
   await logActivity({
     action: "update",

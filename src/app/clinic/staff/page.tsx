@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
-import { and, desc, ilike, inArray, or } from "drizzle-orm";
+import { and, count, desc, ilike, inArray, or } from "drizzle-orm";
 import { requireClinicAdmin } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
@@ -8,6 +8,8 @@ import { users } from "@/core/db/schema";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
+import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
+import { Pagination } from "@/core/ui/pagination";
 import {
   Table,
   TableBody,
@@ -25,11 +27,19 @@ import { StaffSearch } from "./staff-search";
 export default async function ClinicStaffPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; created?: string; updated?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    page?: string;
+    size?: string;
+    created?: string;
+    updated?: string;
+  }>;
 }) {
   const { clinicId } = await requireClinicAdmin();
   const sp = await searchParams;
   const query = sp.q?.trim();
+  const page = parsePage(sp.page);
+  const pageSize = parsePageSize(sp.size);
   const toastMessage = sp.created
     ? "Staff member added."
     : sp.updated
@@ -44,26 +54,30 @@ export default async function ClinicStaffPage({
       )
     : undefined;
 
-  const staff = await db
-    .select({
-      id: users.id,
-      username: users.username,
-      fullName: users.fullName,
-      role: users.role,
-      isActive: users.isActive,
-      availability: users.availability,
-      dailyLimit: users.dailyAppointmentLimit,
-      fee: users.consultationFee,
-    })
-    .from(users)
-    .where(
-      byClinic(
-        users.clinicId,
-        clinicId,
-        search ? and(roleFilter, search) : roleFilter,
-      ),
-    )
-    .orderBy(desc(users.createdAt));
+  const where = byClinic(
+    users.clinicId,
+    clinicId,
+    search ? and(roleFilter, search) : roleFilter,
+  );
+  const [staff, [{ total }]] = await Promise.all([
+    db
+      .select({
+        id: users.id,
+        username: users.username,
+        fullName: users.fullName,
+        role: users.role,
+        isActive: users.isActive,
+        availability: users.availability,
+        dailyLimit: users.dailyAppointmentLimit,
+        fee: users.consultationFee,
+      })
+      .from(users)
+      .where(where)
+      .orderBy(desc(users.createdAt))
+      .limit(pageSize)
+      .offset(pageOffset(page, pageSize)),
+    db.select({ total: count() }).from(users).where(where),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -72,7 +86,7 @@ export default async function ClinicStaffPage({
         <div>
           <h1 className="text-xl font-semibold">Staff</h1>
           <p className="text-sm text-muted-foreground">
-            {staff.length} staff member{staff.length === 1 ? "" : "s"}
+            {total} staff member{total === 1 ? "" : "s"}
             {query ? ` matching “${query}”` : ""}.
           </p>
         </div>
@@ -86,6 +100,15 @@ export default async function ClinicStaffPage({
       </div>
 
       <StaffSearch initial={query ?? ""} />
+
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        basePath="/clinic/staff"
+        searchParams={sp}
+        unit="staff member"
+      />
 
       {staff.length === 0 ? (
         <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">

@@ -83,13 +83,18 @@ export function AppointmentFilters({
     push({ from: today, to: today });
   };
 
+  // One consistent field wrapper (label above control), matching the log filter
+  // bar, so every control — and the Today button — bottom-aligns cleanly.
+  const fieldCls = "flex flex-col gap-1.5";
+  const labelCls = "text-xs font-normal text-muted-foreground";
+
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
-      <div className="space-y-1">
-        <Label htmlFor="from" className="text-xs text-muted-foreground">
+      <div className={fieldCls}>
+        <Label htmlFor="from" className={labelCls}>
           From
         </Label>
-        <div className="w-40">
+        <div className="w-44">
           <DatePicker
             id="from"
             ariaLabel="From date"
@@ -101,11 +106,11 @@ export function AppointmentFilters({
           />
         </div>
       </div>
-      <div className="space-y-1">
-        <Label htmlFor="to" className="text-xs text-muted-foreground">
+      <div className={fieldCls}>
+        <Label htmlFor="to" className={labelCls}>
           To
         </Label>
-        <div className="w-40">
+        <div className="w-44">
           <DatePicker
             id="to"
             ariaLabel="To date"
@@ -117,8 +122,8 @@ export function AppointmentFilters({
           />
         </div>
       </div>
-      <div className="space-y-1">
-        <Label className="text-xs text-muted-foreground">Status</Label>
+      <div className={fieldCls}>
+        <Label className={labelCls}>Status</Label>
         <Select.Root
           items={STATUS_LABELS}
           value={statusV}
@@ -130,7 +135,7 @@ export function AppointmentFilters({
         >
           <Select.Trigger
             aria-label="Filter by status"
-            className="inline-flex h-8 w-40 items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-ring"
+            className="inline-flex h-8 w-44 items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-ring"
           >
             <Select.Value />
             <Select.Icon>
@@ -159,8 +164,8 @@ export function AppointmentFilters({
           </Select.Portal>
         </Select.Root>
       </div>
-      <div className="min-w-0 flex-1 space-y-1">
-        <Label htmlFor="q" className="text-xs text-muted-foreground">
+      <div className={`${fieldCls} min-w-40 flex-1`}>
+        <Label htmlFor="q" className={labelCls}>
           Search
         </Label>
         <Input
@@ -170,13 +175,19 @@ export function AppointmentFilters({
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
-      <button
-        type="button"
-        onClick={resetToday}
-        className="h-8 rounded-lg border border-input bg-[var(--input-bg)] px-3 text-sm outline-none transition-colors hover:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
-        Today
-      </button>
+      <div className={fieldCls}>
+        {/* Invisible label keeps the button column the same height as the others. */}
+        <Label className={`${labelCls} invisible`} aria-hidden="true">
+          Today
+        </Label>
+        <button
+          type="button"
+          onClick={resetToday}
+          className="h-8 rounded-lg border border-input bg-[var(--input-bg)] px-4 text-sm font-medium outline-none transition-colors hover:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          Today
+        </button>
+      </div>
     </div>
   );
 }

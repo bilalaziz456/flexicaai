@@ -1,9 +1,11 @@
-import { desc, eq } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import { requireRole } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { patients, whatsappMessages } from "@/core/db/schema";
 import { Badge } from "@/core/ui/badge";
+import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
+import { Pagination } from "@/core/ui/pagination";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive"> = {
   delivered: "default",
@@ -15,27 +17,39 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive"> = 
 };
 
 /** Receptionist: the WhatsApp queue — inbound + outbound messages, newest first. */
-export default async function ReceptionWhatsAppPage() {
+export default async function ReceptionWhatsAppPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; size?: string }>;
+}) {
   const user = await requireRole("receptionist");
   if (!user.clinicId) {
     return <p className="text-sm text-muted-foreground">No clinic linked.</p>;
   }
+  const sp = await searchParams;
+  const page = parsePage(sp.page);
+  const pageSize = parsePageSize(sp.size);
 
-  const rows = await db
-    .select({
-      id: whatsappMessages.id,
-      direction: whatsappMessages.direction,
-      phone: whatsappMessages.phone,
-      status: whatsappMessages.status,
-      body: whatsappMessages.body,
-      createdAt: whatsappMessages.createdAt,
-      patientName: patients.fullName,
-    })
-    .from(whatsappMessages)
-    .leftJoin(patients, eq(whatsappMessages.patientId, patients.id))
-    .where(byClinic(whatsappMessages.clinicId, user.clinicId))
-    .orderBy(desc(whatsappMessages.createdAt))
-    .limit(100);
+  const where = byClinic(whatsappMessages.clinicId, user.clinicId);
+  const [rows, [{ total }]] = await Promise.all([
+    db
+      .select({
+        id: whatsappMessages.id,
+        direction: whatsappMessages.direction,
+        phone: whatsappMessages.phone,
+        status: whatsappMessages.status,
+        body: whatsappMessages.body,
+        createdAt: whatsappMessages.createdAt,
+        patientName: patients.fullName,
+      })
+      .from(whatsappMessages)
+      .leftJoin(patients, eq(whatsappMessages.patientId, patients.id))
+      .where(where)
+      .orderBy(desc(whatsappMessages.createdAt))
+      .limit(pageSize)
+      .offset(pageOffset(page, pageSize)),
+    db.select({ total: count() }).from(whatsappMessages).where(where),
+  ]);
 
   const fmt = (d: Date) =>
     d.toLocaleString("en-GB", {
@@ -50,9 +64,18 @@ export default async function ReceptionWhatsAppPage() {
       <div>
         <h1 className="text-xl font-semibold">WhatsApp</h1>
         <p className="text-sm text-muted-foreground">
-          Incoming and outgoing messages for your clinic, newest first.
+          {total} message{total === 1 ? "" : "s"} for your clinic, newest first.
         </p>
       </div>
+
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        basePath="/reception/whatsapp"
+        searchParams={sp}
+        unit="message"
+      />
 
       {rows.length === 0 ? (
         <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">

@@ -1,14 +1,20 @@
 import "server-only";
 
-import { and, eq, gte, inArray, isNotNull, isNull, lt } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
-import { appointments, clinics, patients, users } from "@/core/db/schema";
+import {
+  appointmentProcedures,
+  appointments,
+  clinics,
+  patients,
+  users,
+} from "@/core/db/schema";
 import {
   describeAvailability,
   type DayAvailability,
 } from "@/core/lib/availability";
-import { computeFee } from "@/core/appointments/fee";
+import { computeAppointmentTotal } from "@/core/appointments/fee";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 
@@ -119,6 +125,7 @@ export async function notifyAppointmentBooked(
         fee: users.consultationFee,
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
+        proceduresTotal: sql<number>`coalesce((select sum(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity}) from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${appointments.id}), 0)`,
         queueNumber: appointments.queueNumber,
         clinicName: clinics.name,
       })
@@ -142,14 +149,15 @@ export async function notifyAppointmentBooked(
     const hours = doctor
       ? describeAvailability((r.availability ?? []) as DayAvailability[])
       : "—";
-    // Quote the net fee (after any per-appointment discount) — that's what the
-    // patient actually pays.
-    const net = computeFee(
+    // Quote the net total the patient pays: consultation fee + procedures, less
+    // any per-appointment discount.
+    const { gross, net } = computeAppointmentTotal(
       doctor ? r.fee : 0,
+      Number(r.proceduresTotal),
       r.discountType === "percent" ? "percent" : "amount",
       r.discountValue,
-    ).net;
-    const fee = formatFee(doctor ? net : null);
+    );
+    const fee = formatFee(gross > 0 ? net : null);
     // Queue token the patient should quote at the desk (only doctor bookings
     // carry one).
     const token = doctor && r.queueNumber != null ? `#${r.queueNumber}` : "—";

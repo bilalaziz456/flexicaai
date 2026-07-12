@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { Search } from "lucide-react";
+import { Check, Search } from "lucide-react";
+import { cn } from "@/core/lib/utils";
 import {
   createAppointment,
   doctorDayAvailability,
@@ -17,7 +18,7 @@ import { Label } from "@/core/ui/label";
 import { TimeSelect } from "@/core/ui/time-select";
 import { Toast } from "@/core/ui/toast";
 import {
-  computeFee,
+  computeAppointmentTotal,
   formatPkr,
   type DiscountType,
 } from "@/core/appointments/fee";
@@ -30,6 +31,7 @@ type Doctor = {
   flexibleHours: boolean;
   consultationFee: number;
 };
+type ProcedureOption = { id: string; name: string; price: number };
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const timeToMin = (s: string) => {
@@ -58,12 +60,15 @@ const selectCls =
 export function NewAppointmentForm({
   initialPatients,
   doctors,
+  procedures = [],
   appointmentId,
   fixedPatient,
   initial,
 }: {
   initialPatients: Patient[];
   doctors: Doctor[];
+  /** The clinic's active procedures (empty unless the `sales` feature is on). */
+  procedures?: ProcedureOption[];
   appointmentId?: string;
   fixedPatient?: { id: string; fullName: string };
   initial?: {
@@ -74,6 +79,7 @@ export function NewAppointmentForm({
     durationMinutes: number;
     discountType: DiscountType;
     discountValue: number;
+    procedureIds?: string[];
   };
 }) {
   const isEdit = Boolean(appointmentId);
@@ -95,6 +101,19 @@ export function NewAppointmentForm({
     initial?.discountValue ? String(initial.discountValue) : "",
   );
   const discountNumber = Math.max(0, Number(discountValue) || 0);
+  const [selectedProcs, setSelectedProcs] = useState<Set<string>>(
+    () => new Set(initial?.procedureIds ?? []),
+  );
+  const toggleProc = (id: string) =>
+    setSelectedProcs((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const proceduresTotal = procedures
+    .filter((p) => selectedProcs.has(p.id))
+    .reduce((sum, p) => sum + p.price, 0);
   const [slots, setSlots] = useState<DoctorDaySlots | null>(null);
   const action = isEdit
     ? updateAppointment.bind(null, appointmentId!)
@@ -134,10 +153,10 @@ export function NewAppointmentForm({
   }, []);
 
   const selectedDoctor = doctors.find((d) => d.id === doctorId) ?? null;
-  // Live fee preview: the selected doctor's fee, the discount, and the net the
-  // patient pays. Derived on the fly so it tracks the current fee/discount.
-  const feeBreakdown = computeFee(
+  // Live bill preview: consultation fee + selected procedures, minus discount.
+  const bill = computeAppointmentTotal(
     selectedDoctor?.consultationFee ?? 0,
+    proceduresTotal,
     discountType,
     discountNumber,
   );
@@ -354,9 +373,48 @@ export function NewAppointmentForm({
           />
         </div>
 
-        {/* Discount off the doctor's consultation fee. Default type is Amount
-            (flat PKR); switch to Percent for a % of the fee. The value is
-            submitted directly; the net is shown live below. */}
+        {/* Procedures the patient is booked for — priced line items that add to
+            the appointment total. Only shown when the clinic has procedures. */}
+        {procedures.length > 0 ? (
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Procedures (optional)</Label>
+            <div className="flex flex-wrap gap-2">
+              {procedures.map((p) => {
+                const checked = selectedProcs.has(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    aria-pressed={checked}
+                    onClick={() => toggleProc(p.id)}
+                    className={cn(
+                      "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors",
+                      checked ? "border-primary bg-primary/10" : "hover:bg-accent",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "inline-flex size-4 shrink-0 items-center justify-center rounded border",
+                        checked
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-input",
+                      )}
+                    >
+                      {checked ? <Check className="size-3" aria-hidden="true" /> : null}
+                    </span>
+                    {p.name} · {formatPkr(p.price)}
+                  </button>
+                );
+              })}
+            </div>
+            {[...selectedProcs].map((id) => (
+              <input key={id} type="hidden" name="procedureId" value={id} />
+            ))}
+          </div>
+        ) : null}
+
+        {/* Discount off the whole bill (consultation fee + procedures). Default
+            type is Amount (flat PKR); switch to Percent for a % of the total. */}
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="discountValue">Discount (optional)</Label>
           <div className="flex gap-2">
@@ -388,24 +446,23 @@ export function NewAppointmentForm({
               placeholder={discountType === "percent" ? "e.g. 20" : "e.g. 500"}
             />
           </div>
-          {selectedDoctor && feeBreakdown.fee > 0 ? (
+          {bill.gross > 0 ? (
             <p className="text-sm text-muted-foreground">
-              Fee {formatPkr(feeBreakdown.fee)}
-              {feeBreakdown.discount > 0
-                ? ` − ${formatPkr(feeBreakdown.discount)} discount`
-                : ""}{" "}
-              ={" "}
+              {bill.procedures > 0
+                ? `${formatPkr(bill.consultation)} fee + ${formatPkr(bill.procedures)} procedures = ${formatPkr(bill.gross)}`
+                : `Fee ${formatPkr(bill.gross)}`}
+              {bill.discount > 0 ? ` − ${formatPkr(bill.discount)} discount` : ""} ={" "}
               <span className="font-medium text-foreground">
-                {formatPkr(feeBreakdown.net)}
+                {formatPkr(bill.net)}
               </span>
             </p>
           ) : selectedDoctor ? (
             <p className="text-sm text-muted-foreground">
-              This doctor has no consultation fee set.
+              No consultation fee set and no procedures selected.
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Select a doctor to apply a discount to their fee.
+              Pick a doctor or procedures to see the total.
             </p>
           )}
         </div>

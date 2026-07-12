@@ -1,12 +1,14 @@
-import { and, asc, desc, eq, gte, inArray, lt } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { requireClinicAdmin } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { activityLogs, clinics, users } from "@/core/db/schema";
 import { ActivityLogList } from "@/core/ui/activity-log";
 import { LogFilters } from "@/core/ui/log-filters";
+import { Pagination } from "@/core/ui/pagination";
 import { parseLogFilters } from "@/core/audit/log-filters";
 import { CLINIC_LOG_ROLES, logActionLabel } from "@/core/audit/access";
+import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import type { UserRole } from "@/core/types/auth";
 
 /**
@@ -18,10 +20,18 @@ import type { UserRole } from "@/core/types/auth";
 export default async function ClinicLogsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string; actor?: string }>;
+  searchParams: Promise<{
+    from?: string;
+    to?: string;
+    actor?: string;
+    page?: string;
+    size?: string;
+  }>;
 }) {
   const { clinicId } = await requireClinicAdmin();
   const sp = await searchParams;
+  const page = parsePage(sp.page);
+  const pageSize = parsePageSize(sp.size);
   const { fromStr, toStr, today, actor, start, endExclusive } = parseLogFilters(sp);
 
   const [clinic] = await db
@@ -56,7 +66,8 @@ export default async function ClinicLogsPage({
   conds.push(lt(activityLogs.createdAt, endExclusive));
   if (actor) conds.push(eq(activityLogs.actorUserId, actor));
 
-  const [rows, staff] = await Promise.all([
+  const where = byClinic(activityLogs.clinicId, clinicId, and(...conds));
+  const [rows, staff, [{ total }]] = await Promise.all([
     db
       .select({
         id: activityLogs.id,
@@ -67,9 +78,10 @@ export default async function ClinicLogsPage({
         summary: activityLogs.summary,
       })
       .from(activityLogs)
-      .where(byClinic(activityLogs.clinicId, clinicId, and(...conds)))
+      .where(where)
       .orderBy(desc(activityLogs.createdAt))
-      .limit(300),
+      .limit(pageSize)
+      .offset(pageOffset(page, pageSize)),
     // Employee options = the clinic's OWN staff (from the users table), so the
     // dropdown lists everyone even before they've generated any logs.
     db
@@ -83,6 +95,7 @@ export default async function ClinicLogsPage({
         ),
       )
       .orderBy(asc(users.fullName)),
+    db.select({ total: count() }).from(activityLogs).where(where),
   ]);
   const actors = staff.map((s) => ({ id: s.id, name: s.fullName ?? s.username }));
 
@@ -100,6 +113,14 @@ export default async function ClinicLogsPage({
         today={today}
         actor={actor}
         actors={actors}
+      />
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        basePath="/clinic/logs"
+        searchParams={sp}
+        unit="entry"
       />
       <ActivityLogList
         rows={rows}

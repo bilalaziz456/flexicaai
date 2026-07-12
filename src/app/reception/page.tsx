@@ -1,17 +1,24 @@
 import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
-import { and, asc, eq, gte, ilike, lt, or } from "drizzle-orm";
+import { and, asc, count, eq, gte, ilike, lt, or, sql } from "drizzle-orm";
 import { requireRole } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
-import { appointments, patients, users } from "@/core/db/schema";
+import {
+  appointmentProcedures,
+  appointments,
+  patients,
+  users,
+} from "@/core/db/schema";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
-import { computeFee, formatPkr } from "@/core/appointments/fee";
+import { computeAppointmentTotal, formatPkr } from "@/core/appointments/fee";
 import { getDayQueue } from "@/core/appointments/queue";
 import { parseListFilters } from "@/core/appointments/list-filters";
+import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { QueueSummary } from "@/core/ui/queue-summary";
+import { Pagination } from "@/core/ui/pagination";
 import { RowLink } from "@/core/ui/row-link";
 import { FlashToast } from "@/core/ui/toast";
 import { AppointmentFilters } from "./appointment-filters";
@@ -45,10 +52,14 @@ export default async function ReceptionHome({
     q?: string;
     status?: string;
     session?: string;
+    page?: string;
+    size?: string;
   }>;
 }) {
   const user = await requireRole("receptionist");
   const sp = await searchParams;
+  const page = parsePage(sp.page);
+  const pageSize = parsePageSize(sp.size);
   const toastMessage = sp.created
     ? "Appointment scheduled."
     : sp.updated
@@ -81,7 +92,8 @@ export default async function ReceptionHome({
   }
   if (!session && status) conds.push(eq(appointments.status, status));
 
-  const [rows, queue] = await Promise.all([
+  const whereClause = byClinic(appointments.clinicId, user.clinicId, and(...conds));
+  const [rows, queue, [{ total }]] = await Promise.all([
     db
       .select({
         id: appointments.id,
@@ -96,14 +108,21 @@ export default async function ReceptionHome({
         doctorName: users.fullName,
         doctorUsername: users.username,
         consultationFee: users.consultationFee,
+        proceduresTotal: sql<number>`coalesce((select sum(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity}) from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${appointments.id}), 0)`,
       })
       .from(appointments)
       .innerJoin(patients, eq(appointments.patientId, patients.id))
       .leftJoin(users, eq(appointments.doctorId, users.id))
-      .where(byClinic(appointments.clinicId, user.clinicId, and(...conds)))
+      .where(whereClause)
       .orderBy(session ? asc(appointments.queueNumber) : asc(appointments.scheduledAt))
-      .limit(200),
+      .limit(pageSize)
+      .offset(pageOffset(page, pageSize)),
     getDayQueue(user.clinicId, new Date()),
+    db
+      .select({ total: count() })
+      .from(appointments)
+      .innerJoin(patients, eq(appointments.patientId, patients.id))
+      .where(whereClause),
   ]);
 
   const activeQueue = session ? (queue.find((s) => s.key === session) ?? null) : null;
@@ -119,13 +138,14 @@ export default async function ReceptionHome({
     name ?? username ?? "Any doctor";
   // Net fee (after discount) the patient pays. Null when no doctor fee applies.
   const feeLabel = (a: (typeof rows)[number]) => {
-    const { fee, discount, net } = computeFee(
+    const { gross, discount, net } = computeAppointmentTotal(
       a.consultationFee,
+      Number(a.proceduresTotal),
       a.discountType === "percent" ? "percent" : "amount",
       a.discountValue,
     );
-    if (fee === 0) return null;
-    return { net: formatPkr(net), discounted: discount > 0, full: formatPkr(fee) };
+    if (gross === 0) return null;
+    return { net: formatPkr(net), discounted: discount > 0, full: formatPkr(gross) };
   };
 
   const rangeLabel =
@@ -142,7 +162,7 @@ export default async function ReceptionHome({
         <div>
           <h1 className="text-xl font-semibold">Appointments</h1>
           <p className="text-sm text-muted-foreground">
-            {rows.length} appointment{rows.length === 1 ? "" : "s"} · {contextLabel}.
+            {total} appointment{total === 1 ? "" : "s"} · {contextLabel}.
           </p>
         </div>
         <Link
@@ -186,6 +206,15 @@ export default async function ReceptionHome({
           today={today}
         />
       )}
+
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        basePath="/reception"
+        searchParams={sp}
+        unit="appointment"
+      />
 
       {rows.length === 0 ? (
         <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">

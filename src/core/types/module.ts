@@ -48,6 +48,13 @@ export interface Drug {
  * tooth chart) is intentionally omitted until the doctor panel needs it (Step 7)
  * — we don't abstract UI before a second module exists (CLAUDE.md §12).
  */
+export interface ProcedureTemplate {
+  /** Procedure name, e.g. "Scaling & polishing". */
+  name: string;
+  /** Suggested price in whole PKR; the clinic can edit after importing. */
+  price: number;
+}
+
 export interface ModuleDefinition {
   id: ModuleId;
   /** Display name of the specialty, e.g. "Dental". */
@@ -58,6 +65,12 @@ export interface ModuleDefinition {
   drugFormulary: Drug[];
   /** Menu items this module adds to the relevant panels. */
   navItems: NavItem[];
+  /**
+   * Suggested priced procedures a clinic can one-click import into its own
+   * catalog (the `sales` feature). Optional — core stays specialty-agnostic and
+   * a clinic always edits/adds its own afterwards.
+   */
+  procedureTemplates?: ProcedureTemplate[];
 }
 
 /** Whether a specialty is usable now or only planned. */

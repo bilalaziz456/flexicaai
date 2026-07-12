@@ -14,12 +14,13 @@ import {
 // Same schedule form as reception; createAppointment routes back to /clinic for
 // this role.
 import { NewAppointmentForm } from "@/app/reception/new-appointment-form";
+import { getBookingProcedures } from "@/core/appointments/procedures";
 
 /** Clinic Admin: schedule a new appointment (shared form with reception). */
 export default async function ClinicNewAppointmentPage() {
   const { clinicId } = await requireClinicAdmin();
 
-  const [recentPatients, doctors] = await Promise.all([
+  const [recentPatients, doctors, bookingProcedures] = await Promise.all([
     db
       .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })
       .from(patients)
@@ -31,6 +32,7 @@ export default async function ClinicNewAppointmentPage() {
       .from(users)
       .where(byClinic(users.clinicId, clinicId, inArray(users.role, ["doctor"])))
       .orderBy(desc(users.createdAt)),
+    getBookingProcedures(clinicId),
   ]);
 
   return (
@@ -51,7 +53,11 @@ export default async function ClinicNewAppointmentPage() {
           <CardDescription>Pick a patient and a date &amp; time.</CardDescription>
         </CardHeader>
         <CardContent>
-          <NewAppointmentForm initialPatients={recentPatients} doctors={doctors} />
+          <NewAppointmentForm
+            initialPatients={recentPatients}
+            doctors={doctors}
+            procedures={bookingProcedures}
+          />
         </CardContent>
       </Card>
     </div>

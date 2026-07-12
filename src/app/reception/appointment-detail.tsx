@@ -13,6 +13,10 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { ViewLogger } from "@/core/ui/view-logger";
+import {
+  getAppointmentProcedureIds,
+  getBookingProcedures,
+} from "@/core/appointments/procedures";
 import { AppointmentActions } from "./appointment-actions";
 import { DeleteAppointmentButton } from "./edit-appointment-form";
 import { NewAppointmentForm } from "./new-appointment-form";
@@ -59,17 +63,21 @@ export async function AppointmentDetail({
     .limit(1);
   if (!appt) notFound();
 
-  const doctors = await db
-    .select({
-      id: users.id,
-      fullName: users.fullName,
-      username: users.username,
-      flexibleHours: users.flexibleHours,
-      consultationFee: users.consultationFee,
-    })
-    .from(users)
-    .where(byClinic(users.clinicId, clinicId, inArray(users.role, ["doctor"])))
-    .orderBy(desc(users.createdAt));
+  const [doctors, bookingProcedures, selectedProcedureIds] = await Promise.all([
+    db
+      .select({
+        id: users.id,
+        fullName: users.fullName,
+        username: users.username,
+        flexibleHours: users.flexibleHours,
+        consultationFee: users.consultationFee,
+      })
+      .from(users)
+      .where(byClinic(users.clinicId, clinicId, inArray(users.role, ["doctor"])))
+      .orderBy(desc(users.createdAt)),
+    getBookingProcedures(clinicId),
+    getAppointmentProcedureIds(clinicId, appointmentId),
+  ]);
 
   const d = appt.scheduledAt;
   const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -123,13 +131,14 @@ export async function AppointmentDetail({
         <CardHeader>
           <CardTitle>Edit</CardTitle>
           <CardDescription>
-            Change the doctor, date &amp; time, duration or reason.
+            Change the doctor, date &amp; time, duration, procedures or reason.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <NewAppointmentForm
             doctors={doctors}
             initialPatients={[]}
+            procedures={bookingProcedures}
             appointmentId={appt.id}
             fixedPatient={{ id: appt.patientId, fullName: appt.patientName }}
             initial={{
@@ -140,6 +149,7 @@ export async function AppointmentDetail({
               durationMinutes: appt.durationMinutes,
               discountType: appt.discountType === "percent" ? "percent" : "amount",
               discountValue: appt.discountValue,
+              procedureIds: selectedProcedureIds,
             }}
           />
         </CardContent>

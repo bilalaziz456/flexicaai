@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import { desc, ilike } from "drizzle-orm";
+import { count, desc, ilike } from "drizzle-orm";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
 import { buttonVariants } from "@/core/ui/button";
 import { Badge } from "@/core/ui/badge";
 import { cn } from "@/core/lib/utils";
+import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
+import { Pagination } from "@/core/ui/pagination";
 import { FlashToast } from "@/core/ui/toast";
 import { RowLink } from "@/core/ui/row-link";
 import { ClinicsSearch } from "./clinics-search";
@@ -27,6 +29,8 @@ export default async function AdminHome({
 }: {
   searchParams: Promise<{
     q?: string;
+    page?: string;
+    size?: string;
     created?: string;
     updated?: string;
     deleted?: string;
@@ -34,6 +38,8 @@ export default async function AdminHome({
 }) {
   const sp = await searchParams;
   const query = sp.q?.trim();
+  const page = parsePage(sp.page);
+  const pageSize = parsePageSize(sp.size);
   const toastMessage = sp.created
     ? "Clinic created."
     : sp.updated
@@ -42,11 +48,17 @@ export default async function AdminHome({
         ? "Clinic deleted."
         : null;
 
-  const allClinics = await db
-    .select()
-    .from(clinics)
-    .where(query ? ilike(clinics.name, `%${query}%`) : undefined)
-    .orderBy(desc(clinics.createdAt));
+  const where = query ? ilike(clinics.name, `%${query}%`) : undefined;
+  const [allClinics, [{ total }]] = await Promise.all([
+    db
+      .select()
+      .from(clinics)
+      .where(where)
+      .orderBy(desc(clinics.createdAt))
+      .limit(pageSize)
+      .offset(pageOffset(page, pageSize)),
+    db.select({ total: count() }).from(clinics).where(where),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -55,7 +67,7 @@ export default async function AdminHome({
         <div>
           <h1 className="text-xl font-semibold">Clinics</h1>
           <p className="text-sm text-muted-foreground">
-            {allClinics.length} clinic{allClinics.length === 1 ? "" : "s"}
+            {total} clinic{total === 1 ? "" : "s"}
             {query ? ` matching “${query}”` : " on the platform"}.
           </p>
         </div>
@@ -69,6 +81,15 @@ export default async function AdminHome({
       </div>
 
       <ClinicsSearch initial={query ?? ""} />
+
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        basePath="/admin"
+        searchParams={sp}
+        unit="clinic"
+      />
 
       {allClinics.length === 0 ? (
         <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">

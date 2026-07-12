@@ -7,6 +7,7 @@ import {
   BellRing,
   Building2,
   CalendarClock,
+  ClipboardList,
   Contact,
   LayoutDashboard,
   LogOut,
@@ -14,6 +15,7 @@ import {
   MessageCircle,
   ScrollText,
   Stethoscope,
+  TrendingUp,
   Users,
   X,
   type LucideIcon,
@@ -48,6 +50,8 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
       { href: "/clinic/staff", label: "Staff", Icon: Users },
       { href: "/clinic/patients", label: "Patients", Icon: Contact },
       { href: "/clinic/appointments", label: "Appointments", Icon: CalendarClock },
+      { href: "/clinic/procedures", label: "Procedures", Icon: ClipboardList },
+      { href: "/clinic/sales", label: "Sales", Icon: TrendingUp },
       { href: "/clinic/recalls", label: "Recalls", Icon: BellRing },
       { href: "/clinic/logs", label: "Activity log", Icon: ScrollText },
     ],
@@ -63,10 +67,14 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
     items: [
       { href: "/reception", label: "Appointments", Icon: CalendarClock, exact: true },
       { href: "/reception/doctors", label: "Doctors", Icon: Stethoscope },
+      { href: "/reception/procedures", label: "Procedures", Icon: ClipboardList },
       { href: "/reception/whatsapp", label: "WhatsApp", Icon: MessageCircle },
     ],
   },
 };
+
+/** Nav hrefs gated by the `sales` feature (hidden until the super admin enables it). */
+const SALES_HREFS = new Set(["/clinic/procedures", "/reception/procedures", "/clinic/sales"]);
 
 /**
  * Shared panel chrome for every role — desktop left sidebar (logo + icon/text
@@ -80,6 +88,7 @@ export function PanelShell({
   identityLabel,
   theme,
   logsEnabled = true,
+  salesEnabled = false,
   children,
 }: {
   panel: PanelId;
@@ -87,13 +96,18 @@ export function PanelShell({
   theme: ThemePreference;
   /** Clinic panel: hide the Activity-log nav item when the clinic has no log access. */
   logsEnabled?: boolean;
+  /** Hide Procedures/Sales nav items unless the clinic has the `sales` feature. */
+  salesEnabled?: boolean;
   children: React.ReactNode;
 }) {
   const { brand, items: allItems } = NAV_BY_PANEL[panel];
-  // The clinic's Activity-log page is gated by super-admin-granted access.
-  const items = allItems.filter(
-    (i) => logsEnabled || i.href !== "/clinic/logs",
-  );
+  // Feature-gated nav items: Activity log (super-admin-granted) and the
+  // Procedures/Sales items (the `sales` feature).
+  const items = allItems.filter((i) => {
+    if (i.href === "/clinic/logs") return logsEnabled;
+    if (SALES_HREFS.has(i.href)) return salesEnabled;
+    return true;
+  });
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 

@@ -24,6 +24,12 @@ export const CLINIC_FEATURES = [
     description:
       "Show the owner's “Revenue Recovered” metric and average-visit-value setting on the clinic dashboard.",
   },
+  {
+    id: "sales",
+    name: "Sales & procedures",
+    description:
+      "Priced procedures the clinic manages, procedure selection on appointments, and the Sales report (revenue from completed visits).",
+  },
 ] as const satisfies readonly ClinicFeature[];
 
 export type ClinicFeatureId = (typeof CLINIC_FEATURES)[number]["id"];

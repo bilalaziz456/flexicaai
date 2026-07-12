@@ -1,9 +1,11 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, count, eq } from "drizzle-orm";
 import { requireClinicAdmin } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { patients, recalls } from "@/core/db/schema";
 import { Badge } from "@/core/ui/badge";
+import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
+import { Pagination } from "@/core/ui/pagination";
 import {
   Table,
   TableBody,
@@ -24,23 +26,35 @@ const STATUS_VARIANT: Record<
 };
 
 /** Clinic Admin: upcoming & sent recalls. The engine (cron) sends reminders. */
-export default async function ClinicRecallsPage() {
+export default async function ClinicRecallsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; size?: string }>;
+}) {
   const { clinicId } = await requireClinicAdmin();
+  const sp = await searchParams;
+  const page = parsePage(sp.page);
+  const pageSize = parsePageSize(sp.size);
 
-  const rows = await db
-    .select({
-      id: recalls.id,
-      reason: recalls.reason,
-      dueAt: recalls.dueAt,
-      status: recalls.status,
-      patientName: patients.fullName,
-      patientPhone: patients.phone,
-    })
-    .from(recalls)
-    .innerJoin(patients, eq(recalls.patientId, patients.id))
-    .where(byClinic(recalls.clinicId, clinicId))
-    .orderBy(asc(recalls.dueAt))
-    .limit(200);
+  const where = byClinic(recalls.clinicId, clinicId);
+  const [rows, [{ total }]] = await Promise.all([
+    db
+      .select({
+        id: recalls.id,
+        reason: recalls.reason,
+        dueAt: recalls.dueAt,
+        status: recalls.status,
+        patientName: patients.fullName,
+        patientPhone: patients.phone,
+      })
+      .from(recalls)
+      .innerJoin(patients, eq(recalls.patientId, patients.id))
+      .where(where)
+      .orderBy(asc(recalls.dueAt))
+      .limit(pageSize)
+      .offset(pageOffset(page, pageSize)),
+    db.select({ total: count() }).from(recalls).where(where),
+  ]);
 
   const fmt = (d: Date) =>
     d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -50,10 +64,19 @@ export default async function ClinicRecallsPage() {
       <div>
         <h1 className="text-xl font-semibold">Recalls</h1>
         <p className="text-sm text-muted-foreground">
-          {rows.length} recall{rows.length === 1 ? "" : "s"}. Reminders go out
-          automatically over WhatsApp when they&apos;re due.
+          {total} recall{total === 1 ? "" : "s"}. Reminders go out automatically
+          over WhatsApp when they&apos;re due.
         </p>
       </div>
+
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        basePath="/clinic/recalls"
+        searchParams={sp}
+        unit="recall"
+      />
 
       {rows.length === 0 ? (
         <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">

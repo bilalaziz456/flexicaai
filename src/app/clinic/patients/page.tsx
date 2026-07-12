@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
-import { desc, ilike, or } from "drizzle-orm";
+import { count, desc, ilike, or } from "drizzle-orm";
 import { requireClinicAdmin } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { patients } from "@/core/db/schema";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
+import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
+import { Pagination } from "@/core/ui/pagination";
 import {
   Table,
   TableBody,
@@ -26,6 +28,8 @@ export default async function ClinicPatientsPage({
 }: {
   searchParams: Promise<{
     q?: string;
+    page?: string;
+    size?: string;
     created?: string;
     updated?: string;
     deleted?: string;
@@ -34,6 +38,8 @@ export default async function ClinicPatientsPage({
   const { clinicId } = await requireClinicAdmin();
   const sp = await searchParams;
   const query = sp.q?.trim();
+  const page = parsePage(sp.page);
+  const pageSize = parsePageSize(sp.size);
   const toastMessage = sp.created
     ? "Patient added."
     : sp.updated
@@ -50,18 +56,23 @@ export default async function ClinicPatientsPage({
       )
     : undefined;
 
-  const rows = await db
-    .select({
-      id: patients.id,
-      fullName: patients.fullName,
-      phone: patients.phone,
-      gender: patients.gender,
-      dateOfBirth: patients.dateOfBirth,
-    })
-    .from(patients)
-    .where(byClinic(patients.clinicId, clinicId, search))
-    .orderBy(desc(patients.createdAt))
-    .limit(100);
+  const where = byClinic(patients.clinicId, clinicId, search);
+  const [rows, [{ total }]] = await Promise.all([
+    db
+      .select({
+        id: patients.id,
+        fullName: patients.fullName,
+        phone: patients.phone,
+        gender: patients.gender,
+        dateOfBirth: patients.dateOfBirth,
+      })
+      .from(patients)
+      .where(where)
+      .orderBy(desc(patients.createdAt))
+      .limit(pageSize)
+      .offset(pageOffset(page, pageSize)),
+    db.select({ total: count() }).from(patients).where(where),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -70,7 +81,7 @@ export default async function ClinicPatientsPage({
         <div>
           <h1 className="text-xl font-semibold">Patients</h1>
           <p className="text-sm text-muted-foreground">
-            {rows.length} patient{rows.length === 1 ? "" : "s"}
+            {total} patient{total === 1 ? "" : "s"}
             {query ? ` matching “${query}”` : ""}.
           </p>
         </div>
@@ -84,6 +95,15 @@ export default async function ClinicPatientsPage({
       </div>
 
       <PatientsSearch initial={query ?? ""} />
+
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        basePath="/clinic/patients"
+        searchParams={sp}
+        unit="patient"
+      />
 
       {rows.length === 0 ? (
         <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">

@@ -4,6 +4,7 @@ import { requireClinicAdmin } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
 import { getThemeCookie } from "@/core/theme/server";
+import { clinicHasFeature } from "@/core/lib/features";
 import { PanelShell } from "@/core/ui/panel-shell";
 
 /**
@@ -19,7 +20,11 @@ export default async function ClinicLayout({
 }) {
   const user = await requireClinicAdmin();
   const [clinic] = await db
-    .select({ name: clinics.name, logAccess: clinics.logAccess })
+    .select({
+      name: clinics.name,
+      logAccess: clinics.logAccess,
+      featuresEnabled: clinics.featuresEnabled,
+    })
     .from(clinics)
     .where(eq(clinics.id, user.clinicId))
     .limit(1);
@@ -31,6 +36,7 @@ export default async function ClinicLayout({
       identityLabel={clinic?.name ?? user.username}
       theme={theme}
       logsEnabled={(clinic?.logAccess?.length ?? 0) > 0}
+      salesEnabled={clinicHasFeature(clinic?.featuresEnabled, "sales")}
     >
       {children}
     </PanelShell>

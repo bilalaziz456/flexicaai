@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { NewAppointmentForm } from "../new-appointment-form";
+import { getBookingProcedures } from "@/core/appointments/procedures";
 
 /** Receptionist: schedule a new appointment. */
 export default async function NewAppointmentPage() {
@@ -20,7 +21,7 @@ export default async function NewAppointmentPage() {
     return <p className="text-sm text-muted-foreground">No clinic linked.</p>;
   }
 
-  const [recentPatients, doctors] = await Promise.all([
+  const [recentPatients, doctors, bookingProcedures] = await Promise.all([
     db
       .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })
       .from(patients)
@@ -32,6 +33,7 @@ export default async function NewAppointmentPage() {
       .from(users)
       .where(byClinic(users.clinicId, user.clinicId, inArray(users.role, ["doctor"])))
       .orderBy(desc(users.createdAt)),
+    getBookingProcedures(user.clinicId),
   ]);
 
   return (
@@ -52,7 +54,11 @@ export default async function NewAppointmentPage() {
           <CardDescription>Pick a patient and a date & time.</CardDescription>
         </CardHeader>
         <CardContent>
-          <NewAppointmentForm initialPatients={recentPatients} doctors={doctors} />
+          <NewAppointmentForm
+            initialPatients={recentPatients}
+            doctors={doctors}
+            procedures={bookingProcedures}
+          />
         </CardContent>
       </Card>
     </div>

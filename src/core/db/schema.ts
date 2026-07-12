@@ -496,6 +496,114 @@ export const doctorLeaves = pgTable(
 );
 
 /**
+ * Priced procedures/treatments a clinic offers (e.g. "Cleaning", "Root canal").
+ * CORE + specialty-agnostic: the STRUCTURE is generic (a named priced service);
+ * the specialty only supplies suggested defaults (see the module registry). Each
+ * clinic manages its own list + prices. `module` tags the specialty for later
+ * per-specialty reporting. Gated by the `sales` feature (core/lib/features.ts).
+ */
+export const procedures = pgTable(
+  "procedures",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    // Price in whole PKR.
+    price: integer("price").notNull().default(0),
+    module: text("module"),
+    // Inactive procedures are hidden from booking but kept for history.
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("procedures_clinic_id_idx").on(t.clinicId),
+    // The booking picker lists a clinic's ACTIVE procedures.
+    index("procedures_clinic_active_idx").on(t.clinicId, t.isActive),
+  ],
+);
+
+/**
+ * Sales ledger — one row per COMPLETED appointment (the `sales` feature). The
+ * amounts are SNAPSHOTTED when the appointment is marked completed (doctor's
+ * consultation fee + Σ procedures, minus discount), so a later fee/discount/
+ * procedure edit or a catalog price change never rewrites historical revenue.
+ * `occurred_at` is the visit date (the appointment's scheduled time). A sale is
+ * removed when the appointment leaves "completed" (or is deleted — FK cascade).
+ */
+export const sales = pgTable(
+  "sales",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    appointmentId: uuid("appointment_id")
+      .notNull()
+      .references(() => appointments.id, { onDelete: "cascade" }),
+    doctorId: uuid("doctor_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    doctorName: text("doctor_name"), // snapshot
+    grossAmount: integer("gross_amount").notNull().default(0),
+    discountAmount: integer("discount_amount").notNull().default(0),
+    netAmount: integer("net_amount").notNull().default(0),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    // One sale per appointment (upserted on completion).
+    uniqueIndex("sales_appointment_unique").on(t.appointmentId),
+    // The report aggregates by clinic + date window.
+    index("sales_clinic_occurred_idx").on(t.clinicId, t.occurredAt),
+    index("sales_doctor_idx").on(t.doctorId),
+  ],
+);
+
+/**
+ * Line items linking an appointment to the priced procedures it's booked for /
+ * had done (the `sales` feature). Name + unit price are SNAPSHOTTED so editing
+ * or deleting the catalog procedure never rewrites past appointments/sales.
+ * `clinic_id` is carried for cheap per-procedure reporting without joining
+ * appointments. Appointment total = doctor's consultation fee + Σ(unit×qty);
+ * the appointment's discount then applies to that total.
+ */
+export const appointmentProcedures = pgTable(
+  "appointment_procedures",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    appointmentId: uuid("appointment_id")
+      .notNull()
+      .references(() => appointments.id, { onDelete: "cascade" }),
+    procedureId: uuid("procedure_id").references(() => procedures.id, {
+      onDelete: "set null",
+    }),
+    name: text("name").notNull(), // snapshot
+    unitPrice: integer("unit_price").notNull().default(0), // snapshot, PKR
+    quantity: integer("quantity").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("appt_procedures_appointment_idx").on(t.appointmentId),
+    index("appt_procedures_clinic_idx").on(t.clinicId),
+    index("appt_procedures_procedure_idx").on(t.procedureId),
+  ],
+);
+
+/**
  * Activity / audit log — CORE, platform-wide. Records staff actions (create /
  * update / delete / login / view) so a clinic admin can audit their clinic and
  * the super admin has the full platform trail. Actor identity is SNAPSHOTTED
@@ -541,6 +649,9 @@ export const activityLogs = pgTable(
 // Inferred row types for use across the app.
 export type Clinic = typeof clinics.$inferSelect;
 export type ActivityLog = typeof activityLogs.$inferSelect;
+export type Procedure = typeof procedures.$inferSelect;
+export type AppointmentProcedure = typeof appointmentProcedures.$inferSelect;
+export type Sale = typeof sales.$inferSelect;
 export type DoctorLeave = typeof doctorLeaves.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
