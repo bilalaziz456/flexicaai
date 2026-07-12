@@ -49,7 +49,9 @@
 ### `clinics` — tenants
 `id`, `name`, `modules_enabled` text[] (e.g. `{dental}`; specialty checkboxes
 read/write this), `features_enabled` text[] (super-admin-toggled optional features,
-e.g. `{revenue_dashboard}` — see `core/lib/features.ts`), `avg_visit_value` int
+e.g. `{revenue_dashboard}` — see `core/lib/features.ts`), `log_access` text[]
+(activity-log action categories the clinic admin may see, e.g. `{login,update}`;
+empty = no log access — see `core/audit/access.ts`), `avg_visit_value` int
 (PKR, default 3000; drives "Revenue Recovered"), timestamps.
 Index: GIN pg_trgm on `name` (fast ILIKE search).
 
@@ -138,17 +140,17 @@ actions), `actor_user_id` → users (`set null`, **nullable**), `actor_name`
 (snapshot, so the row survives the user being renamed/deleted), `actor_role`
 (snapshot), `action` (free-text: create/update/delete/login/view/status),
 `entity` (patient/appointment/staff/clinic/settings/session/leave), `entity_id`
-(uuid, nullable), `summary` (human line), `metadata` jsonb, `visible` bool
-(default **true**), `created_at`. Records **all clinic-staff actions + logins +
-record views**. `visible` gates who sees a row: a daily cron
-(`/api/cron/log-visibility`, `core/audit/log.ts#hideOldLogs`) flips it **false**
-once older than **5 days** (`LOG_VISIBLE_DAYS`), after which ONLY the super admin
-sees it (`/admin/logs`); the clinic admin (`/clinic/logs`) sees only `visible=true`
-rows for their own clinic. Written via best-effort `logActivity` /`logActivityAs`
-(never throws, never blocks the action). Views are logged from a client
+(uuid, nullable), `summary` (human line), `metadata` jsonb, `created_at`. Records
+**all clinic-staff actions + logins + record views**. Access is PERMISSION-based
+(not time-based): the super admin grants each clinic a set of visible ACTION
+categories via `clinics.log_access` (see `core/audit/access.ts`); the clinic admin
+(`/clinic/logs`) sees only those categories for their own clinic, and no log page
+at all when `log_access` is empty. The super admin (`/admin/logs`) always sees
+everything across clinics. Both pages default to TODAY with date-range + employee
+filters (+ clinic filter for the super admin). Written via best-effort
+`logActivity`/`logActivityAs` (never throws/blocks); views come from a client
 `ViewLogger` (avoids prefetch phantom logs).
-Indexes: (`clinic_id`,`visible`,`created_at`) clinic view; (`clinic_id`,`created_at`)
-super-admin per-clinic; (`visible`,`created_at`) cron scan; `actor_user_id`.
+Indexes: (`clinic_id`,`created_at`); (`created_at`); `actor_user_id`.
 
 ---
 
@@ -163,7 +165,9 @@ super-admin per-clinic; (`visible`,`created_at`) cron scan; `actor_user_id`.
 - **Timezone caveat (deploy):** availability, "tomorrow" (reminder), and day
   bounds use the **server's local timezone**. For a multi-region rollout
   (Pakistan vs GCC), pin each clinic to its own timezone.
-- Migrations `0000`–`0019` applied; new tables/columns are always additive to core.
+- Migrations `0000`–`0020` applied; new tables/columns are always additive to core.
   (`0017` adds `appointments.discount_type` / `discount_value`; `0018` adds
   `appointments.queue_session` / `queue_number` + the queue unique index; `0019`
-  adds the `activity_logs` table.)
+  adds the `activity_logs` table; `0020` adds `clinics.log_access` and drops the
+  now-unused `activity_logs.visible` — log access is permission-based, not
+  time-based.)

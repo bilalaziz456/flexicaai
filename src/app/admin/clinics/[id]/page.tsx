@@ -22,9 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/core/ui/table";
-import { ModulesForm } from "./modules-form";
-import { FeaturesForm } from "./features-form";
-import { RenameClinicForm } from "./rename-clinic-form";
+import { ClinicSettingsForm } from "./clinic-settings-form";
 import { StaffActions } from "./staff-actions";
 import { DeleteClinic } from "./delete-clinic";
 
@@ -70,45 +68,21 @@ export default async function ClinicDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Clinic name</CardTitle>
-          <CardDescription>Rename this clinic.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <RenameClinicForm clinicId={clinic.id} name={clinic.name} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Specialties</CardTitle>
+          <CardTitle>Settings</CardTitle>
           <CardDescription>
-            Toggle which modules this clinic can use. Only these appear in the
-            clinic&apos;s workspace.
+            Name, specialties, optional features and activity-log access — all
+            saved together.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ModulesForm
+          <ClinicSettingsForm
             clinicId={clinic.id}
+            name={clinic.name}
             catalog={SPECIALTY_CATALOG}
-            enabled={clinic.modulesEnabled}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Features</CardTitle>
-          <CardDescription>
-            Optional platform features for this clinic. These apply across any
-            specialty (dental, derma, hair); only what you enable here appears in
-            the clinic admin&apos;s panel.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <FeaturesForm
-            clinicId={clinic.id}
             features={CLINIC_FEATURES}
-            enabled={clinic.featuresEnabled}
+            modulesEnabled={clinic.modulesEnabled}
+            featuresEnabled={clinic.featuresEnabled}
+            logAccess={clinic.logAccess}
           />
         </CardContent>
       </Card>

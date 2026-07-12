@@ -25,15 +25,22 @@ const SPECIALTY_NAME = new Map(SPECIALTY_CATALOG.map((s) => [s.id, s.name]));
 export default async function AdminHome({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; created?: string; deleted?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    created?: string;
+    updated?: string;
+    deleted?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const query = sp.q?.trim();
   const toastMessage = sp.created
     ? "Clinic created."
-    : sp.deleted
-      ? "Clinic deleted."
-      : null;
+    : sp.updated
+      ? "Clinic updated."
+      : sp.deleted
+        ? "Clinic deleted."
+        : null;
 
   const allClinics = await db
     .select()

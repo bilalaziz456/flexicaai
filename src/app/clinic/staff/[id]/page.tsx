@@ -18,10 +18,9 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { ViewLogger } from "@/core/ui/view-logger";
-import { EditScheduleForm } from "./edit-schedule-form";
 import {
   DeleteStaffButton,
-  EditProfileForm,
+  EditStaffForm,
   ResetPasswordForm,
 } from "./staff-admin";
 
@@ -115,41 +114,34 @@ export default async function StaffDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Profile</CardTitle>
-          <CardDescription>Edit the name and login username.</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            {member.role === "doctor" ? (
+              <CalendarClock
+                className="size-5 text-muted-foreground"
+                aria-hidden="true"
+              />
+            ) : null}
+            Details
+          </CardTitle>
+          <CardDescription>
+            {member.role === "doctor"
+              ? "Name, login, working hours, daily cap and fee — saved together."
+              : "Edit the name and login username."}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <EditProfileForm
+          <EditStaffForm
             userId={member.id}
             fullName={member.fullName}
             username={member.username}
+            role={member.role}
+            availability={member.availability}
+            dailyLimit={member.dailyLimit}
+            fee={member.fee}
+            flexibleHours={member.flexibleHours}
           />
         </CardContent>
       </Card>
-
-      {member.role === "doctor" ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CalendarClock className="size-5 text-muted-foreground" aria-hidden="true" />
-              Schedule &amp; fees
-            </CardTitle>
-            <CardDescription>
-              Working days &amp; hours, daily appointment cap, and consultation
-              fee. Bookings outside these are blocked.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <EditScheduleForm
-              userId={member.id}
-              availability={member.availability}
-              dailyLimit={member.dailyLimit}
-              fee={member.fee}
-              flexibleHours={member.flexibleHours}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
 
       {member.role === "doctor" ? (
         <Card>

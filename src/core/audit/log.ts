@@ -1,12 +1,16 @@
 import "server-only";
 
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, gte, isNull } from "drizzle-orm";
 import { db } from "@/core/db";
 import { activityLogs } from "@/core/db/schema";
 import { getCurrentUser } from "@/core/auth/user";
 
-/** How long a log stays visible to the clinic admin before the cron hides it. */
-export const LOG_VISIBLE_DAYS = 5;
+/**
+ * Window for de-duplicating record VIEWS: if the same user re-opens/refreshes
+ * the same record within this many minutes, it's not logged again — so a working
+ * session on one record doesn't spam the log with repeated "view" rows.
+ */
+export const VIEW_DEDUPE_MINUTES = 30;
 
 export type LogInput = {
   action: string; // create | update | delete | login | view | status | …
@@ -45,6 +49,55 @@ export async function logActivity(input: LogInput): Promise<void> {
 }
 
 /**
+ * Records a record "view" for the current user, but SKIPS it when the same user
+ * has already viewed the same record within `VIEW_DEDUPE_MINUTES` — so opening
+ * or refreshing a record repeatedly in one sitting logs a single view. The
+ * dedupe check + insert aren't transactional (a rare concurrent double is
+ * harmless noise-reduction, not correctness), and it's best-effort like the rest.
+ */
+export async function logView(
+  entity: string,
+  entityId: string | null,
+  summary: string,
+): Promise<void> {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return;
+
+    const since = new Date(Date.now() - VIEW_DEDUPE_MINUTES * 60_000);
+    const [recent] = await db
+      .select({ id: activityLogs.id })
+      .from(activityLogs)
+      .where(
+        and(
+          eq(activityLogs.actorUserId, user.id),
+          eq(activityLogs.action, "view"),
+          eq(activityLogs.entity, entity),
+          entityId
+            ? eq(activityLogs.entityId, entityId)
+            : isNull(activityLogs.entityId),
+          gte(activityLogs.createdAt, since),
+        ),
+      )
+      .limit(1);
+    if (recent) return; // already logged this view recently
+
+    await db.insert(activityLogs).values({
+      clinicId: user.clinicId,
+      actorUserId: user.id,
+      actorName: user.username,
+      actorRole: user.role,
+      action: "view",
+      entity,
+      entityId: entityId ?? null,
+      summary,
+    });
+  } catch {
+    // best-effort
+  }
+}
+
+/**
  * Records a log with an EXPLICIT actor — used at login, where the session isn't
  * established on the current render yet. Best-effort; never throws.
  */
@@ -72,24 +125,4 @@ export async function logActivityAs(
   } catch {
     // best-effort
   }
-}
-
-/**
- * Hides logs older than `LOG_VISIBLE_DAYS` from the clinic admin by flipping
- * `visible` to false (super admin still sees them). Idempotent — only touches
- * still-visible rows. Returns how many were hidden. Runs from the daily cron.
- */
-export async function hideOldLogs(
-  now: Date = new Date(),
-): Promise<{ hidden: number }> {
-  const cutoff = new Date(now);
-  cutoff.setDate(cutoff.getDate() - LOG_VISIBLE_DAYS);
-
-  const rows = await db
-    .update(activityLogs)
-    .set({ visible: false })
-    .where(and(eq(activityLogs.visible, true), lt(activityLogs.createdAt, cutoff)))
-    .returning({ id: activityLogs.id });
-
-  return { hidden: rows.length };
 }

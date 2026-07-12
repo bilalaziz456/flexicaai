@@ -79,14 +79,21 @@ export function PanelShell({
   panel,
   identityLabel,
   theme,
+  logsEnabled = true,
   children,
 }: {
   panel: PanelId;
   identityLabel: string;
   theme: ThemePreference;
+  /** Clinic panel: hide the Activity-log nav item when the clinic has no log access. */
+  logsEnabled?: boolean;
   children: React.ReactNode;
 }) {
-  const { brand, items } = NAV_BY_PANEL[panel];
+  const { brand, items: allItems } = NAV_BY_PANEL[panel];
+  // The clinic's Activity-log page is gated by super-admin-granted access.
+  const items = allItems.filter(
+    (i) => logsEnabled || i.href !== "/clinic/logs",
+  );
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 

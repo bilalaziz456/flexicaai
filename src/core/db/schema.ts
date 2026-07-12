@@ -63,6 +63,10 @@ export const clinics = pgTable(
       .array()
       .notNull()
       .default([]),
+    // text[] of activity-log ACTION categories the clinic admin is allowed to
+    // see (e.g. {login,view,update,delete}). Empty = the clinic has NO log
+    // access. Granted per-clinic by the super admin — see core/audit/access.ts.
+    logAccess: text("log_access").array().notNull().default([]),
     // Owner-set average revenue per visit (whole PKR). Drives the owner
     // dashboard's "Revenue Recovered" metric (recovered return visits × this).
     avgVisitValue: integer("avg_visit_value").notNull().default(3000),
@@ -497,9 +501,10 @@ export const doctorLeaves = pgTable(
  * the super admin has the full platform trail. Actor identity is SNAPSHOTTED
  * (`actorName`/`actorRole`) so the row survives the user being renamed/deleted.
  *
- * `visible` gates who sees a row: it starts true (clinic admin + super admin can
- * see it); a daily cron flips it to false once the row is older than 5 days, and
- * from then on ONLY the super admin sees it. Super admin always sees everything.
+ * Access is PERMISSION-based (not time-based): the super admin grants each
+ * clinic a set of visible action categories via `clinics.log_access`; a clinic
+ * admin sees only those categories for their own clinic. The super admin always
+ * sees everything, across all clinics. See core/audit/access.ts.
  */
 export const activityLogs = pgTable(
   "activity_logs",
@@ -520,23 +525,15 @@ export const activityLogs = pgTable(
     entityId: uuid("entity_id"),
     summary: text("summary").notNull(), // human-readable line
     metadata: jsonb("metadata").$type<Record<string, unknown>>(),
-    // Clinic-admin visibility; the daily cron flips this false after 5 days.
-    visible: boolean("visible").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (t) => [
-    // Clinic-admin view: this clinic's still-visible rows, newest first.
-    index("activity_logs_clinic_visible_idx").on(
-      t.clinicId,
-      t.visible,
-      t.createdAt,
-    ),
-    // Super-admin per-clinic view (all rows).
+    // Log views filter by clinic + date window (default today), newest first.
     index("activity_logs_clinic_created_idx").on(t.clinicId, t.createdAt),
-    // The daily cron scans "still visible, older than 5 days".
-    index("activity_logs_visible_scan_idx").on(t.visible, t.createdAt),
+    // Global (super-admin) date-window scan across clinics.
+    index("activity_logs_created_idx").on(t.createdAt),
     index("activity_logs_actor_idx").on(t.actorUserId),
   ],
 );

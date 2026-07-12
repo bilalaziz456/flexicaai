@@ -15,7 +15,6 @@ export type ActivityLogRow = {
   actorRole: string | null;
   action: string;
   summary: string;
-  visible: boolean;
   clinicName?: string | null;
 };
 
@@ -45,19 +44,15 @@ const who = (r: ActivityLogRow) =>
 
 /**
  * Activity-log list (server component) — a responsive table of audit rows.
- * `showClinic` adds a Clinic column (super-admin, cross-clinic view);
- * `showVisibility` adds a Visible column so the super admin can tell which rows
- * the clinic admin can still see.
+ * `showClinic` adds a Clinic column (super-admin, cross-clinic view).
  */
 export function ActivityLogList({
   rows,
   showClinic = false,
-  showVisibility = false,
   emptyHint = "No activity yet.",
 }: {
   rows: ActivityLogRow[];
   showClinic?: boolean;
-  showVisibility?: boolean;
   emptyHint?: string;
 }) {
   if (rows.length === 0) {
@@ -80,7 +75,6 @@ export function ActivityLogList({
               <TableHead>Action</TableHead>
               <TableHead>Details</TableHead>
               {showClinic ? <TableHead>Clinic</TableHead> : null}
-              {showVisibility ? <TableHead>Visible</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -99,15 +93,6 @@ export function ActivityLogList({
                 {showClinic ? (
                   <TableCell className="text-muted-foreground">
                     {r.clinicName ?? "—"}
-                  </TableCell>
-                ) : null}
-                {showVisibility ? (
-                  <TableCell>
-                    {r.visible ? (
-                      <Badge variant="outline">visible</Badge>
-                    ) : (
-                      <span className="text-muted-foreground">hidden</span>
-                    )}
                   </TableCell>
                 ) : null}
               </TableRow>
@@ -130,7 +115,6 @@ export function ActivityLogList({
             <div className="text-xs text-muted-foreground">
               {who(r)}
               {showClinic && r.clinicName ? ` · ${r.clinicName}` : ""}
-              {showVisibility && !r.visible ? " · hidden" : ""}
             </div>
           </li>
         ))}

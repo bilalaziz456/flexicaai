@@ -1,32 +1,43 @@
-import { and, asc, desc, eq, gte, lt } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { requireRole } from "@/core/auth/user";
 import { db } from "@/core/db";
-import { activityLogs, clinics } from "@/core/db/schema";
+import { activityLogs, clinics, users } from "@/core/db/schema";
 import { ActivityLogList } from "@/core/ui/activity-log";
 import { LogFilters } from "@/core/ui/log-filters";
 import { parseLogFilters } from "@/core/audit/log-filters";
+import { CLINIC_LOG_ROLES } from "@/core/audit/access";
+import type { UserRole } from "@/core/types/auth";
 
 /**
- * Super Admin: the full platform activity log — EVERY clinic, and every row
- * including the ones hidden from clinic admins (older than 5 days). Filterable
- * by date range + actor. Not clinic-scoped: this is the internal audit trail.
+ * Super Admin: the full platform activity log — every clinic, every action.
+ * Defaults to today; filterable by date range, clinic, and employee. Not
+ * clinic-scoped: this is the internal audit trail.
  */
 export default async function AdminLogsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string; actor?: string }>;
+  searchParams: Promise<{
+    from?: string;
+    to?: string;
+    actor?: string;
+    clinic?: string;
+  }>;
 }) {
   await requireRole("super_admin");
   const sp = await searchParams;
-  const { fromStr, toStr, actor, start, endExclusive } = parseLogFilters(sp);
+  const { fromStr, toStr, today, actor, clinic, start, endExclusive } =
+    parseLogFilters(sp);
 
-  const conds = [];
-  if (start) conds.push(gte(activityLogs.createdAt, start));
-  if (endExclusive) conds.push(lt(activityLogs.createdAt, endExclusive));
-  if (actor) conds.push(eq(activityLogs.actorName, actor));
-  const where = conds.length ? and(...conds) : undefined;
+  const conds = [
+    gte(activityLogs.createdAt, start),
+    lt(activityLogs.createdAt, endExclusive),
+  ];
+  if (clinic) conds.push(eq(activityLogs.clinicId, clinic));
+  // The employee filter only applies within a chosen clinic (its list is
+  // clinic-scoped), so ignore a stray actor when no clinic is selected.
+  if (clinic && actor) conds.push(eq(activityLogs.actorUserId, actor));
 
-  const [rows, actorRows] = await Promise.all([
+  const [rows, clinicRows, actorRows] = await Promise.all([
     db
       .select({
         id: activityLogs.id,
@@ -35,39 +46,55 @@ export default async function AdminLogsPage({
         actorRole: activityLogs.actorRole,
         action: activityLogs.action,
         summary: activityLogs.summary,
-        visible: activityLogs.visible,
         clinicName: clinics.name,
       })
       .from(activityLogs)
       .leftJoin(clinics, eq(activityLogs.clinicId, clinics.id))
-      .where(where)
+      .where(and(...conds))
       .orderBy(desc(activityLogs.createdAt))
       .limit(300),
     db
-      .selectDistinct({ name: activityLogs.actorName })
-      .from(activityLogs)
-      .orderBy(asc(activityLogs.actorName)),
+      .select({ id: clinics.id, name: clinics.name })
+      .from(clinics)
+      .orderBy(asc(clinics.name)),
+    // Employee options exist ONLY once a clinic is picked — that clinic's staff
+    // (from the users table, so everyone appears even without logs yet).
+    clinic
+      ? db
+          .select({ id: users.id, fullName: users.fullName, username: users.username })
+          .from(users)
+          .where(
+            and(
+              eq(users.clinicId, clinic),
+              inArray(users.role, [...CLINIC_LOG_ROLES] as UserRole[]),
+            ),
+          )
+          .orderBy(asc(users.fullName))
+      : Promise.resolve([] as { id: string; fullName: string | null; username: string }[]),
   ]);
+  const actors = actorRows.map((s) => ({ id: s.id, name: s.fullName ?? s.username }));
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold">Activity log</h1>
         <p className="text-sm text-muted-foreground">
-          {rows.length} most-recent action{rows.length === 1 ? "" : "s"} across all
-          clinics — including entries hidden from clinic admins.
+          {rows.length} action{rows.length === 1 ? "" : "s"} across all clinics for
+          the selected range.
         </p>
       </div>
       <LogFilters
         from={fromStr}
         to={toStr}
+        today={today}
         actor={actor}
-        actors={actorRows.map((a) => a.name)}
+        actors={actors}
+        clinic={clinic}
+        clinics={clinicRows}
       />
       <ActivityLogList
         rows={rows}
         showClinic
-        showVisibility
         emptyHint="No activity matches these filters."
       />
     </div>

@@ -19,7 +19,7 @@ export default async function ClinicLayout({
 }) {
   const user = await requireClinicAdmin();
   const [clinic] = await db
-    .select({ name: clinics.name })
+    .select({ name: clinics.name, logAccess: clinics.logAccess })
     .from(clinics)
     .where(eq(clinics.id, user.clinicId))
     .limit(1);
@@ -30,6 +30,7 @@ export default async function ClinicLayout({
       panel="clinic"
       identityLabel={clinic?.name ?? user.username}
       theme={theme}
+      logsEnabled={(clinic?.logAccess?.length ?? 0) > 0}
     >
       {children}
     </PanelShell>

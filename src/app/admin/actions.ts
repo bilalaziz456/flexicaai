@@ -12,6 +12,7 @@ import { clinics, sessions, users } from "@/core/db/schema";
 import { availableSpecialtyIds } from "@/config/modules";
 import { CLINIC_FEATURE_IDS } from "@/core/lib/features";
 import { logActivity } from "@/core/audit/log";
+import { sanitizeLogAccess } from "@/core/audit/access";
 import { USERNAME_REGEX } from "@/core/types/auth";
 
 export type AdminActionState = { error?: string; saved?: boolean };
@@ -122,96 +123,51 @@ export async function createClinicWithAdmin(
   redirect("/admin?created=1");
 }
 
-/**
- * Updates which specialties a clinic has enabled (the module toggles). Writes
- * the validated subset to clinics.modules_enabled.
- */
-export async function updateClinicModules(
-  clinicId: string,
-  _prevState: AdminActionState,
-  formData: FormData,
-): Promise<AdminActionState> {
-  await requireRole("super_admin");
-
-  const allowed = new Set(availableSpecialtyIds());
-  const modulesEnabled = formData
-    .getAll("modules")
-    .map(String)
-    .filter((id) => allowed.has(id));
-
-  await db
-    .update(clinics)
-    .set({ modulesEnabled, updatedAt: new Date() })
-    .where(eq(clinics.id, clinicId));
-
-  await logActivity({
-    action: "update",
-    entity: "clinic",
-    entityId: clinicId,
-    clinicId,
-    summary: `Updated clinic specialties: ${modulesEnabled.join(", ") || "none"}`,
-  });
-  revalidatePath(`/admin/clinics/${clinicId}`);
-  revalidatePath("/admin");
-  return { saved: true };
-}
-
-/**
- * Updates which optional platform features a clinic has switched on (e.g. the
- * Revenue dashboard). Only the super admin can change these; unknown ids are
- * dropped. Specialty-agnostic — see core/lib/features.ts.
- */
-export async function updateClinicFeatures(
-  clinicId: string,
-  _prevState: AdminActionState,
-  formData: FormData,
-): Promise<AdminActionState> {
-  await requireRole("super_admin");
-
-  const allowed = new Set<string>(CLINIC_FEATURE_IDS);
-  const featuresEnabled = formData
-    .getAll("features")
-    .map(String)
-    .filter((id) => allowed.has(id));
-
-  await db
-    .update(clinics)
-    .set({ featuresEnabled, updatedAt: new Date() })
-    .where(eq(clinics.id, clinicId));
-
-  await logActivity({
-    action: "update",
-    entity: "clinic",
-    entityId: clinicId,
-    clinicId,
-    summary: `Updated clinic features: ${featuresEnabled.join(", ") || "none"}`,
-  });
-  revalidatePath(`/admin/clinics/${clinicId}`);
-  // The clinic admin's dashboard shows/hides based on this — refresh it too.
-  revalidatePath("/clinic");
-  return { saved: true };
-}
-
-const renameSchema = z.object({
+const clinicSettingsSchema = z.object({
   name: z.string().trim().min(2, "Clinic name is required."),
 });
 
-/** Renames a clinic. */
-export async function updateClinicName(
+/**
+ * Saves ALL of a clinic's super-admin settings in one call — name, specialties
+ * (`modules`), optional features (`features`), and activity-log access
+ * (`actions`). Unknown ids in any group are dropped. Only the super admin can
+ * change these. Redirects back to the clinics list with a success flash.
+ */
+export async function updateClinic(
   clinicId: string,
   _prevState: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
   await requireRole("super_admin");
 
-  const parsed = renameSchema.safeParse({ name: formData.get("name") });
+  const parsed = clinicSettingsSchema.safeParse({ name: formData.get("name") });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
+  const specialtyAllowed = new Set(availableSpecialtyIds());
+  const modulesEnabled = formData
+    .getAll("modules")
+    .map(String)
+    .filter((id) => specialtyAllowed.has(id));
+
+  const featureAllowed = new Set<string>(CLINIC_FEATURE_IDS);
+  const featuresEnabled = formData
+    .getAll("features")
+    .map(String)
+    .filter((id) => featureAllowed.has(id));
+
+  const logAccess = sanitizeLogAccess(formData.getAll("actions").map(String));
+
   await db
     .update(clinics)
-    .set({ name: parsed.data.name, updatedAt: new Date() })
+    .set({
+      name: parsed.data.name,
+      modulesEnabled,
+      featuresEnabled,
+      logAccess,
+      updatedAt: new Date(),
+    })
     .where(eq(clinics.id, clinicId));
 
   await logActivity({
@@ -219,11 +175,13 @@ export async function updateClinicName(
     entity: "clinic",
     entityId: clinicId,
     clinicId,
-    summary: `Renamed clinic to “${parsed.data.name}”`,
+    summary: `Updated settings for clinic “${parsed.data.name}”`,
   });
   revalidatePath(`/admin/clinics/${clinicId}`);
   revalidatePath("/admin");
-  return { saved: true };
+  // Features + log access change what the clinic admin's own panel/nav shows.
+  revalidatePath("/clinic", "layout");
+  redirect("/admin?updated=1");
 }
 
 const updateStaffSchema = z.object({

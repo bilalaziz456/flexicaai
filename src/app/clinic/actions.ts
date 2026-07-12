@@ -318,9 +318,11 @@ const updateStaffSchema = z.object({
 });
 
 /**
- * Edits a staff member's name + username — clinic-scoped and limited to
- * doctors/receptionists, so a clinic admin can never rename another admin (or
- * themselves) through this. A userId from another clinic matches 0 rows.
+ * Edits a staff member in ONE save — name + username, plus (for doctors) their
+ * working-hours schedule, daily cap, fee and flexible-hours flag. Clinic-scoped
+ * and limited to doctors/receptionists, so a clinic admin can never edit another
+ * admin (or themselves) through this; a userId from another clinic matches 0
+ * rows. (Password reset, suspend, delete and leave stay separate actions.)
  */
 export async function updateStaffProfile(
   userId: string,
@@ -337,6 +339,40 @@ export async function updateStaffProfile(
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
+  // Fetch the (clinic-scoped, editable) member so we know whether to also save a
+  // doctor schedule from the same form.
+  const [member] = await db
+    .select({ role: users.role })
+    .from(users)
+    .where(
+      byClinic(
+        users.clinicId,
+        clinicId,
+        and(eq(users.id, userId), inArray(users.role, ["doctor", "receptionist"])),
+      ),
+    )
+    .limit(1);
+  if (!member) return { error: "Staff member not found." };
+
+  // Only doctors carry a schedule; a bad schedule blocks the whole save (same as
+  // the create form).
+  let scheduleValues: {
+    availability: DayAvailability[];
+    flexibleHours: boolean;
+    dailyAppointmentLimit: number;
+    consultationFee: number;
+  } | null = null;
+  if (member.role === "doctor") {
+    const schedule = parseDoctorSchedule(formData);
+    if ("error" in schedule) return { error: schedule.error };
+    scheduleValues = {
+      availability: schedule.availability,
+      flexibleHours: schedule.flexibleHours,
+      dailyAppointmentLimit: schedule.dailyLimit,
+      consultationFee: schedule.fee,
+    };
+  }
+
   try {
     const result = await db
       .update(users)
@@ -344,6 +380,7 @@ export async function updateStaffProfile(
         fullName: parsed.data.fullName,
         username: parsed.data.username,
         updatedAt: new Date(),
+        ...(scheduleValues ?? {}),
       })
       .where(
         byClinic(
@@ -368,55 +405,11 @@ export async function updateStaffProfile(
     action: "update",
     entity: "staff",
     entityId: userId,
-    summary: `Edited staff profile of ${parsed.data.fullName} (@${parsed.data.username})`,
-  });
-  revalidatePath("/clinic/staff");
-  // Back to the list with a success flash (matches the create flow).
-  redirect("/clinic/staff?updated=1");
-}
-
-/**
- * Edits a doctor's working-hours schedule + daily appointment limit. Clinic-
- * scoped and limited to role = doctor, so a crafted id from another clinic or a
- * non-doctor matches 0 rows.
- */
-export async function updateDoctorSchedule(
-  userId: string,
-  _prevState: ClinicActionState,
-  formData: FormData,
-): Promise<ClinicActionState> {
-  const { clinicId } = await requireClinicAdmin();
-
-  const schedule = parseDoctorSchedule(formData);
-  if ("error" in schedule) return { error: schedule.error };
-
-  const result = await db
-    .update(users)
-    .set({
-      availability: schedule.availability,
-      flexibleHours: schedule.flexibleHours,
-      dailyAppointmentLimit: schedule.dailyLimit,
-      consultationFee: schedule.fee,
-      updatedAt: new Date(),
-    })
-    .where(
-      byClinic(
-        users.clinicId,
-        clinicId,
-        and(eq(users.id, userId), eq(users.role, "doctor")),
-      ),
-    )
-    .returning({ id: users.id });
-  if (result.length === 0) return { error: "Doctor not found." };
-
-  await logActivity({
-    action: "update",
-    entity: "staff",
-    entityId: userId,
-    summary: "Updated a doctor's schedule / fee",
+    summary: `Edited staff ${parsed.data.fullName} (@${parsed.data.username})`,
   });
   revalidatePath("/clinic/staff");
   revalidatePath(`/clinic/staff/${userId}`);
+  // Back to the list with a success flash (matches the create flow).
   redirect("/clinic/staff?updated=1");
 }
 

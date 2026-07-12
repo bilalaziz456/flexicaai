@@ -13,16 +13,32 @@ import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { Toast } from "@/core/ui/toast";
+import { DoctorScheduleFields } from "@/app/clinic/doctor-schedule-fields";
+import type { DayAvailability } from "@/core/lib/availability";
 
-/** Edit a staff member's display name + login username. */
-export function EditProfileForm({
+/**
+ * Edit a staff member in ONE save — name + username, plus (for doctors) the
+ * working-hours schedule, daily cap and fee. Mirrors the create form; the other
+ * staff controls (password, suspend, delete, leave) stay as separate actions.
+ */
+export function EditStaffForm({
   userId,
   fullName,
   username,
+  role,
+  availability,
+  dailyLimit,
+  fee,
+  flexibleHours,
 }: {
   userId: string;
   fullName: string | null;
   username: string;
+  role: string;
+  availability: DayAvailability[];
+  dailyLimit: number;
+  fee: number;
+  flexibleHours: boolean;
 }) {
   const action = updateStaffProfile.bind(null, userId);
   const [state, formAction, pending] = useActionState<
@@ -35,9 +51,11 @@ export function EditProfileForm({
   useEffect(() => {
     if (state.error) setErrorNonce((n) => n + 1);
   }, [state]);
+  const isDoctor = role === "doctor";
+  const [scheduleValid, setScheduleValid] = useState(true);
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>
@@ -62,8 +80,22 @@ export function EditProfileForm({
           />
         </div>
       </div>
+
+      {isDoctor ? (
+        <div className="space-y-3 border-t pt-4">
+          <p className="text-sm font-medium">Schedule &amp; fees</p>
+          <DoctorScheduleFields
+            defaultAvailability={availability}
+            defaultLimit={dailyLimit}
+            defaultFee={fee}
+            defaultFlexible={flexibleHours}
+            onValidChange={setScheduleValid}
+          />
+        </div>
+      ) : null}
+
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || (isDoctor && !scheduleValid)}>
           {pending ? "Saving…" : "Save changes"}
         </Button>
       </div>
