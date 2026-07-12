@@ -30,6 +30,7 @@ export async function recordSaleForAppointment(
         scheduledAt: appointments.scheduledAt,
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
+        chargeConsultation: appointments.chargeConsultation,
         fee: users.consultationFee,
         doctorName: users.fullName,
         doctorUsername: users.username,
@@ -44,7 +45,7 @@ export async function recordSaleForAppointment(
     if (!row) return;
 
     const { gross, discount, net } = computeAppointmentTotal(
-      row.fee,
+      row.chargeConsultation ? row.fee : 0,
       Number(row.proceduresTotal),
       row.discountType === "percent" ? "percent" : "amount",
       row.discountValue,
@@ -108,6 +109,7 @@ export async function backfillClinicSales(clinicId: string): Promise<void> {
         scheduledAt: appointments.scheduledAt,
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
+        chargeConsultation: appointments.chargeConsultation,
         fee: users.consultationFee,
         doctorName: users.fullName,
         doctorUsername: users.username,
@@ -127,7 +129,7 @@ export async function backfillClinicSales(clinicId: string): Promise<void> {
 
     const values = rows.map((r) => {
       const { gross, discount, net } = computeAppointmentTotal(
-        r.fee,
+        r.chargeConsultation ? r.fee : 0,
         Number(r.proceduresTotal),
         r.discountType === "percent" ? "percent" : "amount",
         r.discountValue,

@@ -102,6 +102,7 @@ export default async function ClinicAppointmentsPage({
         reason: appointments.reason,
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
+        chargeConsultation: appointments.chargeConsultation,
         queueNumber: appointments.queueNumber,
         patientName: patients.fullName,
         doctorName: users.fullName,
@@ -140,7 +141,7 @@ export default async function ClinicAppointmentsPage({
   // when there's no doctor fee to charge against.
   const feeLabel = (a: (typeof rows)[number]) => {
     const { gross, discount, net } = computeAppointmentTotal(
-      a.consultationFee,
+      a.chargeConsultation ? a.consultationFee : 0,
       Number(a.proceduresTotal),
       a.discountType === "percent" ? "percent" : "amount",
       a.discountValue,

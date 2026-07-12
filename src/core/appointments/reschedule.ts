@@ -89,6 +89,7 @@ export async function handleRescheduleReply(args: {
         queueNumber: appointments.queueNumber,
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
+        chargeConsultation: appointments.chargeConsultation,
         proceduresTotal: sql<number>`coalesce((select sum(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity}) from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${appointments.id}), 0)`,
       })
       .from(appointments)
@@ -205,7 +206,7 @@ export async function handleRescheduleReply(args: {
     // Quote the full net total the patient pays: consultation fee + procedures −
     // discount (the procedures don't change on a move).
     const { gross, net } = computeAppointmentTotal(
-      fee,
+      appt.chargeConsultation ? fee : 0,
       Number(appt.proceduresTotal),
       appt.discountType === "percent" ? "percent" : "amount",
       appt.discountValue,

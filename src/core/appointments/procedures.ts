@@ -8,6 +8,23 @@ import { clinicHasFeature } from "@/core/lib/features";
 
 export type BookingProcedure = { id: string; name: string; price: number };
 
+/** One procedure line on an appointment, chosen with a quantity (≥ 1). */
+export type ProcedureSelection = { procedureId: string; quantity: number };
+
+/** A saved appointment line item (snapshotted name + price + quantity). */
+export type AppointmentProcedureItem = {
+  procedureId: string | null;
+  name: string;
+  unitPrice: number;
+  quantity: number;
+};
+
+/** Clamp a raw quantity to a sane whole number in [1, 99]. */
+function clampQty(q: number): number {
+  if (!Number.isFinite(q)) return 1;
+  return Math.max(1, Math.min(99, Math.round(q)));
+}
+
 /**
  * A clinic's ACTIVE procedures for the booking picker — but only when the
  * clinic has the `sales` feature on (otherwise appointments stay fee-only and
@@ -33,15 +50,16 @@ export async function getBookingProcedures(
 }
 
 /**
- * Replaces an appointment's procedure line items with `procedureIds`
- * (clinic-scoped). Snapshots each procedure's CURRENT name + price so later
- * catalog edits never rewrite this appointment. Deletes the existing items
- * first, so it's used for both create and edit. Unknown/foreign ids are dropped.
+ * Replaces an appointment's procedure line items with `selections`
+ * (clinic-scoped). Snapshots each procedure's CURRENT name + price + the chosen
+ * quantity so later catalog edits never rewrite this appointment. Deletes the
+ * existing items first, so it's used for both create and edit. Duplicate ids are
+ * merged (quantities summed); unknown/foreign ids are dropped.
  */
 export async function saveAppointmentProcedures(
   clinicId: string,
   appointmentId: string,
-  procedureIds: string[],
+  selections: ProcedureSelection[],
 ): Promise<void> {
   await db
     .delete(appointmentProcedures)
@@ -53,8 +71,14 @@ export async function saveAppointmentProcedures(
       ),
     );
 
-  const uniqueIds = [...new Set(procedureIds.filter(Boolean))];
-  if (uniqueIds.length === 0) return;
+  // Merge repeats and clamp quantities → one row per procedure.
+  const qtyById = new Map<string, number>();
+  for (const s of selections) {
+    if (!s.procedureId) continue;
+    qtyById.set(s.procedureId, clampQty((qtyById.get(s.procedureId) ?? 0) + s.quantity));
+  }
+  const ids = [...qtyById.keys()];
+  if (ids.length === 0) return;
 
   const rows = await db
     .select({
@@ -63,7 +87,7 @@ export async function saveAppointmentProcedures(
       price: procedures.price,
     })
     .from(procedures)
-    .where(byClinic(procedures.clinicId, clinicId, inArray(procedures.id, uniqueIds)));
+    .where(byClinic(procedures.clinicId, clinicId, inArray(procedures.id, ids)));
   if (rows.length === 0) return;
 
   await db.insert(appointmentProcedures).values(
@@ -73,18 +97,26 @@ export async function saveAppointmentProcedures(
       procedureId: r.id,
       name: r.name,
       unitPrice: r.price,
-      quantity: 1,
+      quantity: qtyById.get(r.id) ?? 1,
     })),
   );
 }
 
-/** The procedure ids currently attached to an appointment (for edit prefill). */
-export async function getAppointmentProcedureIds(
+/**
+ * An appointment's saved procedure line items (name/price/quantity snapshots),
+ * ordered by name. Drives both the edit-form prefill and the read-only bill.
+ */
+export async function getAppointmentProcedureItems(
   clinicId: string,
   appointmentId: string,
-): Promise<string[]> {
-  const rows = await db
-    .select({ procedureId: appointmentProcedures.procedureId })
+): Promise<AppointmentProcedureItem[]> {
+  return db
+    .select({
+      procedureId: appointmentProcedures.procedureId,
+      name: appointmentProcedures.name,
+      unitPrice: appointmentProcedures.unitPrice,
+      quantity: appointmentProcedures.quantity,
+    })
     .from(appointmentProcedures)
     .where(
       byClinic(
@@ -92,6 +124,6 @@ export async function getAppointmentProcedureIds(
         clinicId,
         eq(appointmentProcedures.appointmentId, appointmentId),
       ),
-    );
-  return rows.map((r) => r.procedureId).filter((id): id is string => Boolean(id));
+    )
+    .orderBy(asc(appointmentProcedures.name));
 }

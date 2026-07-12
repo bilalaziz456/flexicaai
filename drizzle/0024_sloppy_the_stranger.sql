@@ -1,0 +1,1 @@
+ALTER TABLE "appointments" ADD COLUMN "charge_consultation" boolean DEFAULT true NOT NULL;

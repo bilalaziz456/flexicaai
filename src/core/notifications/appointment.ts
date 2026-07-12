@@ -123,6 +123,7 @@ export async function notifyAppointmentBooked(
         doctorUsername: users.username,
         availability: users.availability,
         fee: users.consultationFee,
+        chargeConsultation: appointments.chargeConsultation,
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
         proceduresTotal: sql<number>`coalesce((select sum(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity}) from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${appointments.id}), 0)`,
@@ -152,7 +153,7 @@ export async function notifyAppointmentBooked(
     // Quote the net total the patient pays: consultation fee + procedures, less
     // any per-appointment discount.
     const { gross, net } = computeAppointmentTotal(
-      doctor ? r.fee : 0,
+      doctor && r.chargeConsultation ? r.fee : 0,
       Number(r.proceduresTotal),
       r.discountType === "percent" ? "percent" : "amount",
       r.discountValue,

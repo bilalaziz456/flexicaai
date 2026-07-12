@@ -24,6 +24,7 @@ export default async function ClinicLogsPage({
     from?: string;
     to?: string;
     actor?: string;
+    action?: string;
     page?: string;
     size?: string;
   }>;
@@ -32,7 +33,8 @@ export default async function ClinicLogsPage({
   const sp = await searchParams;
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
-  const { fromStr, toStr, today, actor, start, endExclusive } = parseLogFilters(sp);
+  const { fromStr, toStr, today, actor, action, start, endExclusive } =
+    parseLogFilters(sp);
 
   const [clinic] = await db
     .select({ logAccess: clinics.logAccess })
@@ -56,10 +58,17 @@ export default async function ClinicLogsPage({
     );
   }
 
+  // The action filter can only narrow WITHIN the granted categories; an
+  // out-of-scope value is ignored (never widens access).
+  const activeAction = allowedActions.includes(action) ? action : "";
+
   // Base scope: this clinic, only the granted action categories, and only the
   // clinic's OWN staff — never super-admin actions (those are super-admin-only).
   const conds = [
-    inArray(activityLogs.action, allowedActions),
+    // A specific granted action if filtered, otherwise all granted categories.
+    activeAction
+      ? eq(activityLogs.action, activeAction)
+      : inArray(activityLogs.action, allowedActions),
     inArray(activityLogs.actorRole, [...CLINIC_LOG_ROLES]),
   ];
   conds.push(gte(activityLogs.createdAt, start));
@@ -113,6 +122,11 @@ export default async function ClinicLogsPage({
         today={today}
         actor={actor}
         actors={actors}
+        action={activeAction}
+        actionOptions={allowedActions.map((id) => ({
+          value: id,
+          label: logActionLabel(id),
+        }))}
       />
       <Pagination
         page={page}

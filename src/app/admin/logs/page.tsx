@@ -6,7 +6,11 @@ import { ActivityLogList } from "@/core/ui/activity-log";
 import { LogFilters } from "@/core/ui/log-filters";
 import { Pagination } from "@/core/ui/pagination";
 import { parseLogFilters } from "@/core/audit/log-filters";
-import { CLINIC_LOG_ROLES } from "@/core/audit/access";
+import {
+  CLINIC_LOG_ROLES,
+  LOG_ACTIONS,
+  LOG_ACTION_IDS,
+} from "@/core/audit/access";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import type { UserRole } from "@/core/types/auth";
 
@@ -23,6 +27,7 @@ export default async function AdminLogsPage({
     to?: string;
     actor?: string;
     clinic?: string;
+    action?: string;
     page?: string;
     size?: string;
   }>;
@@ -31,8 +36,10 @@ export default async function AdminLogsPage({
   const sp = await searchParams;
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
-  const { fromStr, toStr, today, actor, clinic, start, endExclusive } =
+  const { fromStr, toStr, today, actor, clinic, action, start, endExclusive } =
     parseLogFilters(sp);
+  // The super admin can filter by any known action category.
+  const activeAction = LOG_ACTION_IDS.includes(action) ? action : "";
 
   const conds = [
     gte(activityLogs.createdAt, start),
@@ -42,6 +49,7 @@ export default async function AdminLogsPage({
   // The employee filter only applies within a chosen clinic (its list is
   // clinic-scoped), so ignore a stray actor when no clinic is selected.
   if (clinic && actor) conds.push(eq(activityLogs.actorUserId, actor));
+  if (activeAction) conds.push(eq(activityLogs.action, activeAction));
 
   const where = and(...conds);
   const [rows, clinicRows, actorRows, [{ total }]] = await Promise.all([
@@ -100,6 +108,8 @@ export default async function AdminLogsPage({
         actors={actors}
         clinic={clinic}
         clinics={clinicRows}
+        action={activeAction}
+        actionOptions={LOG_ACTIONS.map((a) => ({ value: a.id, label: a.label }))}
       />
       <Pagination
         page={page}

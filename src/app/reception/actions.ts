@@ -27,7 +27,10 @@ import {
   localDateStr,
 } from "@/core/appointments/availability";
 import { queueSessionKey, withQueueNumber } from "@/core/appointments/queue";
-import { saveAppointmentProcedures } from "@/core/appointments/procedures";
+import {
+  saveAppointmentProcedures,
+  type ProcedureSelection,
+} from "@/core/appointments/procedures";
 import {
   recordSaleForAppointment,
   voidSaleForAppointment,
@@ -93,6 +96,22 @@ function validateDiscount(type: "amount" | "percent", value: number): string | n
   return null;
 }
 
+/**
+ * The booking form submits one hidden `procedure` field per chosen procedure,
+ * encoded `"<procedureId>:<quantity>"`. Parse them into selections (the data
+ * layer clamps/merges + validates ids against the clinic's catalog).
+ */
+function parseProcedureSelections(formData: FormData): ProcedureSelection[] {
+  return formData
+    .getAll("procedure")
+    .map(String)
+    .map((raw) => {
+      const [procedureId, qty] = raw.split(":");
+      return { procedureId, quantity: Number(qty) || 1 };
+    })
+    .filter((s) => s.procedureId);
+}
+
 /** Schedules an appointment in the receptionist's clinic. */
 export async function createAppointment(
   _prev: ReceptionActionState,
@@ -121,6 +140,9 @@ export async function createAppointment(
 
   const when = new Date(parsed.data.scheduledAt);
   if (Number.isNaN(when.getTime())) return { error: "Invalid date & time." };
+
+  // Procedure-only visits don't charge the consultation fee (checkbox off → "0").
+  const chargeConsultation = formData.get("chargeConsultation") !== "0";
 
   // Tenant guards: patient (and doctor, if set) must belong to this clinic.
   const [patient] = await db
@@ -170,6 +192,7 @@ export async function createAppointment(
           reason: parsed.data.reason ?? null,
           discountType: parsed.data.discountType,
           discountValue: parsed.data.discountValue,
+          chargeConsultation,
           queueSession: q.queueSession,
           queueNumber: q.queueNumber,
         })
@@ -181,7 +204,7 @@ export async function createAppointment(
   await saveAppointmentProcedures(
     clinicId,
     created.id,
-    formData.getAll("procedureId").map(String),
+    parseProcedureSelections(formData),
   );
 
   // Confirm to the patient over WhatsApp (doctor, hours, fee, time).
@@ -278,6 +301,7 @@ export async function updateAppointment(
     reason: parsed.data.reason ?? null,
     discountType: parsed.data.discountType,
     discountValue: parsed.data.discountValue,
+    chargeConsultation: formData.get("chargeConsultation") !== "0",
     reminderSentAt: null, // time may have changed → re-send the reminder
     updatedAt: new Date(),
   };
@@ -318,7 +342,7 @@ export async function updateAppointment(
   await saveAppointmentProcedures(
     clinicId,
     appointmentId,
-    formData.getAll("procedureId").map(String),
+    parseProcedureSelections(formData),
   );
 
   // If this appointment is already completed, its sale is on the books — re-snapshot

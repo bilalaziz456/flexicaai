@@ -97,6 +97,8 @@ export function LogFilters({
   actors,
   clinic,
   clinics,
+  action,
+  actionOptions,
 }: {
   from: string;
   to: string;
@@ -109,6 +111,10 @@ export function LogFilters({
   clinic?: string;
   /** Clinic options (super admin only). When omitted, no clinic filter shows. */
   clinics?: { id: string; name: string }[];
+  /** Selected action category (empty = all). */
+  action: string;
+  /** Action-category options the viewer may filter by (clinic: only granted). */
+  actionOptions: Option[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -116,22 +122,26 @@ export function LogFilters({
   const [toD, setToD] = useState(to);
   const [actorV, setActorV] = useState(actor);
   const [clinicV, setClinicV] = useState(clinic ?? "");
+  const [actionV, setActionV] = useState(action);
 
   function push(next: {
     from?: string;
     to?: string;
     actor?: string;
     clinic?: string;
+    action?: string;
   }) {
     const f = next.from ?? fromD;
     const t = next.to ?? toD;
     const a = next.actor ?? actorV;
     const c = next.clinic ?? clinicV;
+    const act = next.action ?? actionV;
     const params = new URLSearchParams();
     if (f) params.set("from", f);
     if (t) params.set("to", t);
     if (a) params.set("actor", a);
     if (c) params.set("clinic", c);
+    if (act) params.set("action", act);
     const s = params.toString();
     router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
   }
@@ -215,6 +225,20 @@ export function LogFilters({
             { value: "", label: "All employees" },
             ...actors.map((a) => ({ value: a.id, label: a.name })),
           ]}
+        />
+      </div>
+
+      <div className={fieldCls}>
+        <Label className={labelCls}>Action</Label>
+        <FilterSelect
+          ariaLabel="Filter by action"
+          width="w-44"
+          value={actionV}
+          onChange={(v) => {
+            setActionV(v);
+            push({ action: v });
+          }}
+          options={[{ value: "", label: "All actions" }, ...actionOptions]}
         />
       </div>
 

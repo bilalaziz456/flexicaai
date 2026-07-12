@@ -14,9 +14,14 @@ import {
 } from "@/core/ui/card";
 import { ViewLogger } from "@/core/ui/view-logger";
 import {
-  getAppointmentProcedureIds,
+  getAppointmentProcedureItems,
   getBookingProcedures,
 } from "@/core/appointments/procedures";
+import {
+  computeAppointmentTotal,
+  formatPkr,
+  normalizeDiscountType,
+} from "@/core/appointments/fee";
 import { AppointmentActions } from "./appointment-actions";
 import { DeleteAppointmentButton } from "./edit-appointment-form";
 import { NewAppointmentForm } from "./new-appointment-form";
@@ -54,6 +59,7 @@ export async function AppointmentDetail({
       source: appointments.source,
       discountType: appointments.discountType,
       discountValue: appointments.discountValue,
+      chargeConsultation: appointments.chargeConsultation,
       patientId: patients.id,
       patientName: patients.fullName,
     })
@@ -63,7 +69,7 @@ export async function AppointmentDetail({
     .limit(1);
   if (!appt) notFound();
 
-  const [doctors, bookingProcedures, selectedProcedureIds] = await Promise.all([
+  const [doctors, bookingProcedures, procedureItems] = await Promise.all([
     db
       .select({
         id: users.id,
@@ -76,8 +82,30 @@ export async function AppointmentDetail({
       .where(byClinic(users.clinicId, clinicId, inArray(users.role, ["doctor"])))
       .orderBy(desc(users.createdAt)),
     getBookingProcedures(clinicId),
-    getAppointmentProcedureIds(clinicId, appointmentId),
+    getAppointmentProcedureItems(clinicId, appointmentId),
   ]);
+
+  // Edit-form prefill: only the items that still map to a selectable procedure.
+  const initialProcedures = procedureItems
+    .filter((i): i is typeof i & { procedureId: string } => Boolean(i.procedureId))
+    .map((i) => ({ procedureId: i.procedureId, quantity: i.quantity }));
+
+  // Read-only bill: consultation fee + line items, with the appointment's discount.
+  // A procedure-only visit doesn't charge the consultation fee (chargeConsultation).
+  const doctorFee = appt.chargeConsultation
+    ? (doctors.find((dd) => dd.id === appt.doctorId)?.consultationFee ?? 0)
+    : 0;
+  const proceduresTotal = procedureItems.reduce(
+    (sum, i) => sum + i.unitPrice * i.quantity,
+    0,
+  );
+  const discountType = normalizeDiscountType(appt.discountType);
+  const bill = computeAppointmentTotal(
+    doctorFee,
+    proceduresTotal,
+    discountType,
+    appt.discountValue,
+  );
 
   const d = appt.scheduledAt;
   const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -127,6 +155,61 @@ export async function AppointmentDetail({
         </CardContent>
       </Card>
 
+      {/* Read-only bill: what the patient pays for this visit. Shown whenever
+          there's a fee or a procedure; a discount line appears only if applied. */}
+      {bill.gross > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Bill</CardTitle>
+            <CardDescription>
+              Consultation fee, procedures and discount for this visit.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <dl className="space-y-2 text-sm">
+              {bill.consultation > 0 ? (
+                <div className="flex items-center justify-between">
+                  <dt className="text-muted-foreground">Consultation fee</dt>
+                  <dd className="tabular-nums">{formatPkr(bill.consultation)}</dd>
+                </div>
+              ) : null}
+              {procedureItems.map((i, idx) => (
+                <div key={idx} className="flex items-center justify-between gap-3">
+                  <dt className="min-w-0 truncate text-muted-foreground">
+                    {i.name}
+                    {i.quantity > 1 ? (
+                      <span> × {i.quantity} @ {formatPkr(i.unitPrice)}</span>
+                    ) : null}
+                  </dt>
+                  <dd className="tabular-nums">{formatPkr(i.unitPrice * i.quantity)}</dd>
+                </div>
+              ))}
+              {bill.discount > 0 ? (
+                <>
+                  <div className="flex items-center justify-between border-t pt-2">
+                    <dt className="text-muted-foreground">Subtotal</dt>
+                    <dd className="tabular-nums">{formatPkr(bill.gross)}</dd>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <dt className="text-muted-foreground">
+                      Discount
+                      {discountType === "percent" ? ` (${appt.discountValue}%)` : ""}
+                    </dt>
+                    <dd className="tabular-nums text-destructive">
+                      −{formatPkr(bill.discount)}
+                    </dd>
+                  </div>
+                </>
+              ) : null}
+              <div className="flex items-center justify-between border-t pt-2 text-base font-medium">
+                <dt>Total</dt>
+                <dd className="tabular-nums">{formatPkr(bill.net)}</dd>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>Edit</CardTitle>
@@ -147,9 +230,10 @@ export async function AppointmentDetail({
               time: timeStr,
               reason: appt.reason ?? "",
               durationMinutes: appt.durationMinutes,
-              discountType: appt.discountType === "percent" ? "percent" : "amount",
+              discountType: discountType,
               discountValue: appt.discountValue,
-              procedureIds: selectedProcedureIds,
+              chargeConsultation: appt.chargeConsultation,
+              procedures: initialProcedures,
             }}
           />
         </CardContent>

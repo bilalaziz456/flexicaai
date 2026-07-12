@@ -87,7 +87,9 @@ on `full_name` and `phone`.
 `duration_minutes` (default 30), `status` (enum, default scheduled), `reason`,
 `discount_type` (free-text, default 'amount'; 'amount' = flat PKR, 'percent' = % of
 the doctor's fee), `discount_value` int (default 0; the raw figure — e.g. 500, or 20
-for 20%), `source` (free-text, default 'staff'; 'whatsapp' = patient self-booked →
+for 20%), `charge_consultation` bool (default true; **false = procedure-only visit**,
+the doctor's consultation fee is not billed — the bill/sale count only procedures),
+`source` (free-text, default 'staff'; 'whatsapp' = patient self-booked →
 stays a request until staff confirm), `reminder_sent_at` (set once the day-before
 reminder is sent; NULL = not reminded), `queue_session` (text, NULL when no doctor;
 groups a doctor's appointments for one visiting WINDOW on a day —
@@ -166,11 +168,14 @@ feature (`core/lib/features.ts`). Indexes: `clinic_id`; (`clinic_id`,`is_active`
 `id`, `clinic_id` → clinics (`cascade`), `appointment_id` → appointments
 (`cascade`), `procedure_id` → procedures (`set null`), `name` + `unit_price`
 (**snapshots** — catalog edits never rewrite past appointments), `quantity`
-(default 1), `created_at`. An appointment's **total = doctor `consultation_fee` +
-Σ(unit_price×quantity)**, then the appointment's discount applies to that total
-(`core/appointments/fee.ts#computeAppointmentTotal`). Saved on create/edit via
-`core/appointments/procedures.ts#saveAppointmentProcedures` (replace-all,
-clinic-scoped). Indexes: `appointment_id`; `clinic_id`; `procedure_id`.
+(user-set in the booking form, ≥ 1), `created_at`. An appointment's **total =
+doctor `consultation_fee` + Σ(unit_price×quantity)**, then the appointment's
+discount applies to that total (`core/appointments/fee.ts#computeAppointmentTotal`).
+Saved on create/edit via `core/appointments/procedures.ts#saveAppointmentProcedures`
+(replace-all, takes `{procedureId, quantity}[]`, clinic-scoped);
+`getAppointmentProcedureItems` reads the snapshots back for the edit-form prefill
+and the read-only bill on the appointment detail page. Indexes: `appointment_id`;
+`clinic_id`; `procedure_id`.
 
 ### `sales` — realised-revenue ledger (Sales feature, phase 3)
 `id`, `clinic_id` → clinics (`cascade`), `appointment_id` → appointments
@@ -210,4 +215,5 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
   adds the `activity_logs` table; `0020` adds `clinics.log_access` and drops the
   now-unused `activity_logs.visible` — log access is permission-based, not
   time-based; `0021` adds the `procedures` table; `0022` adds `appointment_procedures`;
-  `0023` adds the `sales` ledger table.)
+  `0023` adds the `sales` ledger table; `0024` adds
+  `appointments.charge_consultation`.)

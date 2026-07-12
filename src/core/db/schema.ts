@@ -249,6 +249,10 @@ export const appointments = pgTable(
     // through. Kept as free-text/int (not an enum) to stay additive.
     discountType: text("discount_type").notNull().default("amount"),
     discountValue: integer("discount_value").notNull().default(0),
+    // Whether the doctor's consultation fee is charged for this visit. A patient
+    // who comes only for a procedure has no consultation fee → set false and the
+    // bill/sale count only the procedures. Default true (charge, as before).
+    chargeConsultation: boolean("charge_consultation").notNull().default(true),
     // How the appointment was created — free-text tag, default 'staff'. Patient
     // WhatsApp self-bookings are 'whatsapp': those stay a request until staff
     // confirm, and the patient's confirmation message fires on that confirm.

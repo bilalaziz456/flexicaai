@@ -102,6 +102,7 @@ export default async function ReceptionHome({
         reason: appointments.reason,
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
+        chargeConsultation: appointments.chargeConsultation,
         queueNumber: appointments.queueNumber,
         patientName: patients.fullName,
         patientPhone: patients.phone,
@@ -139,7 +140,7 @@ export default async function ReceptionHome({
   // Net fee (after discount) the patient pays. Null when no doctor fee applies.
   const feeLabel = (a: (typeof rows)[number]) => {
     const { gross, discount, net } = computeAppointmentTotal(
-      a.consultationFee,
+      a.chargeConsultation ? a.consultationFee : 0,
       Number(a.proceduresTotal),
       a.discountType === "percent" ? "percent" : "amount",
       a.discountValue,

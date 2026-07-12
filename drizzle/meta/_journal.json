@@ -169,6 +169,13 @@
       "when": 1783858665950,
       "tag": "0023_optimal_blob",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1783892270446,
+      "tag": "0024_sloppy_the_stranger",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { Check, Search } from "lucide-react";
+import { Check, Minus, Plus, Search } from "lucide-react";
 import { cn } from "@/core/lib/utils";
 import {
   createAppointment,
@@ -79,7 +79,8 @@ export function NewAppointmentForm({
     durationMinutes: number;
     discountType: DiscountType;
     discountValue: number;
-    procedureIds?: string[];
+    chargeConsultation?: boolean;
+    procedures?: { procedureId: string; quantity: number }[];
   };
 }) {
   const isEdit = Boolean(appointmentId);
@@ -101,19 +102,35 @@ export function NewAppointmentForm({
     initial?.discountValue ? String(initial.discountValue) : "",
   );
   const discountNumber = Math.max(0, Number(discountValue) || 0);
-  const [selectedProcs, setSelectedProcs] = useState<Set<string>>(
-    () => new Set(initial?.procedureIds ?? []),
+  // A procedure-only visit can skip the doctor's consultation fee.
+  const [chargeConsultation, setChargeConsultation] = useState(
+    initial?.chargeConsultation ?? true,
   );
+  // Selected procedures → their quantity (≥ 1). A missing key means unselected.
+  const [procQty, setProcQty] = useState<Map<string, number>>(() => {
+    const m = new Map<string, number>();
+    for (const it of initial?.procedures ?? []) {
+      m.set(it.procedureId, Math.max(1, it.quantity));
+    }
+    return m;
+  });
   const toggleProc = (id: string) =>
-    setSelectedProcs((prev) => {
-      const next = new Set(prev);
+    setProcQty((prev) => {
+      const next = new Map(prev);
       if (next.has(id)) next.delete(id);
-      else next.add(id);
+      else next.set(id, 1);
+      return next;
+    });
+  const setQty = (id: string, q: number) =>
+    setProcQty((prev) => {
+      const next = new Map(prev);
+      if (q <= 0) next.delete(id);
+      else next.set(id, Math.min(99, q));
       return next;
     });
   const proceduresTotal = procedures
-    .filter((p) => selectedProcs.has(p.id))
-    .reduce((sum, p) => sum + p.price, 0);
+    .filter((p) => procQty.has(p.id))
+    .reduce((sum, p) => sum + p.price * (procQty.get(p.id) ?? 1), 0);
   const [slots, setSlots] = useState<DoctorDaySlots | null>(null);
   const action = isEdit
     ? updateAppointment.bind(null, appointmentId!)
@@ -153,9 +170,10 @@ export function NewAppointmentForm({
   }, []);
 
   const selectedDoctor = doctors.find((d) => d.id === doctorId) ?? null;
-  // Live bill preview: consultation fee + selected procedures, minus discount.
+  const consultationFee = selectedDoctor?.consultationFee ?? 0;
+  // Live bill preview: consultation fee (if charged) + procedures, minus discount.
   const bill = computeAppointmentTotal(
-    selectedDoctor?.consultationFee ?? 0,
+    chargeConsultation ? consultationFee : 0,
     proceduresTotal,
     discountType,
     discountNumber,
@@ -373,6 +391,46 @@ export function NewAppointmentForm({
           />
         </div>
 
+        {/* Consultation fee — its OWN section, separate from procedures. It comes
+            from the doctor's set fee (staff → doctor), so it appears the moment a
+            doctor is selected. Uncheck to skip it for a procedure-only visit. The
+            hidden field always submits the decision (unchecked boxes don't post). */}
+        <input
+          type="hidden"
+          name="chargeConsultation"
+          value={chargeConsultation ? "1" : "0"}
+        />
+        {selectedDoctor ? (
+          <div className="space-y-2 rounded-lg border p-3 sm:col-span-2">
+            <div className="flex items-center justify-between gap-3">
+              <Label className="font-medium">Consultation fee</Label>
+              <span className="text-sm font-semibold">
+                {consultationFee > 0 ? formatPkr(consultationFee) : "Not set"}
+              </span>
+            </div>
+            {consultationFee > 0 ? (
+              <>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={chargeConsultation}
+                    onChange={(e) => setChargeConsultation(e.target.checked)}
+                    className="size-4 accent-[var(--color-primary)]"
+                  />
+                  Charge this consultation fee
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Uncheck if the patient is coming only for a procedure.
+                </p>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                This doctor has no consultation fee set — add it under Staff.
+              </p>
+            )}
+          </div>
+        ) : null}
+
         {/* Procedures the patient is booked for — priced line items that add to
             the appointment total. Only shown when the clinic has procedures. */}
         {procedures.length > 0 ? (
@@ -380,7 +438,7 @@ export function NewAppointmentForm({
             <Label>Procedures (optional)</Label>
             <div className="flex flex-wrap gap-2">
               {procedures.map((p) => {
-                const checked = selectedProcs.has(p.id);
+                const checked = procQty.has(p.id);
                 return (
                   <button
                     key={p.id}
@@ -407,8 +465,61 @@ export function NewAppointmentForm({
                 );
               })}
             </div>
-            {[...selectedProcs].map((id) => (
-              <input key={id} type="hidden" name="procedureId" value={id} />
+
+            {/* Per-procedure quantity + line total for the chosen ones. */}
+            {procQty.size > 0 ? (
+              <ul className="divide-y rounded-lg border">
+                {procedures
+                  .filter((p) => procQty.has(p.id))
+                  .map((p) => {
+                    const q = procQty.get(p.id) ?? 1;
+                    return (
+                      <li
+                        key={p.id}
+                        className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+                      >
+                        <span className="min-w-0 truncate">
+                          {p.name}
+                          <span className="text-muted-foreground">
+                            {" "}
+                            · {formatPkr(p.price)}
+                          </span>
+                        </span>
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              aria-label={`Decrease ${p.name} quantity`}
+                              onClick={() => setQty(p.id, q - 1)}
+                              className="inline-flex size-7 items-center justify-center rounded-md border hover:bg-accent"
+                            >
+                              <Minus className="size-3.5" aria-hidden="true" />
+                            </button>
+                            <span className="w-6 text-center tabular-nums" aria-live="polite">
+                              {q}
+                            </span>
+                            <button
+                              type="button"
+                              aria-label={`Increase ${p.name} quantity`}
+                              onClick={() => setQty(p.id, q + 1)}
+                              className="inline-flex size-7 items-center justify-center rounded-md border hover:bg-accent"
+                            >
+                              <Plus className="size-3.5" aria-hidden="true" />
+                            </button>
+                          </div>
+                          <span className="w-20 text-right font-medium tabular-nums">
+                            {formatPkr(p.price * q)}
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  })}
+              </ul>
+            ) : null}
+
+            {/* One hidden field per procedure, encoded "<id>:<qty>". */}
+            {[...procQty.entries()].map(([id, q]) => (
+              <input key={id} type="hidden" name="procedure" value={`${id}:${q}`} />
             ))}
           </div>
         ) : null}
@@ -447,18 +558,25 @@ export function NewAppointmentForm({
             />
           </div>
           {bill.gross > 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {bill.procedures > 0
-                ? `${formatPkr(bill.consultation)} fee + ${formatPkr(bill.procedures)} procedures = ${formatPkr(bill.gross)}`
-                : `Fee ${formatPkr(bill.gross)}`}
-              {bill.discount > 0 ? ` − ${formatPkr(bill.discount)} discount` : ""} ={" "}
-              <span className="font-medium text-foreground">
-                {formatPkr(bill.net)}
-              </span>
-            </p>
+            (() => {
+              const parts: string[] = [];
+              if (bill.consultation > 0) parts.push(`${formatPkr(bill.consultation)} fee`);
+              if (bill.procedures > 0) parts.push(`${formatPkr(bill.procedures)} procedures`);
+              const lhs =
+                parts.length > 1 ? `${parts.join(" + ")} = ${formatPkr(bill.gross)}` : parts[0];
+              return (
+                <p className="text-sm text-muted-foreground">
+                  {lhs}
+                  {bill.discount > 0 ? ` − ${formatPkr(bill.discount)} discount` : ""} ={" "}
+                  <span className="font-medium text-foreground">{formatPkr(bill.net)}</span>
+                </p>
+              );
+            })()
           ) : selectedDoctor ? (
             <p className="text-sm text-muted-foreground">
-              No consultation fee set and no procedures selected.
+              {consultationFee > 0
+                ? "Consultation fee not charged and no procedures selected."
+                : "No consultation fee set and no procedures selected."}
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">

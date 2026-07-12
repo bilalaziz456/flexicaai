@@ -23,12 +23,16 @@ export function parseLogFilters(sp: {
   to?: string;
   actor?: string;
   clinic?: string;
+  action?: string;
 }): {
   fromStr: string;
   toStr: string;
   today: string;
   actor: string;
   clinic: string;
+  /** Selected action category (empty = all). Callers validate against what the
+   *  viewer may see before applying it. */
+  action: string;
   start: Date;
   endExclusive: Date;
 } {
@@ -38,9 +42,10 @@ export function parseLogFilters(sp: {
   if (fromStr > toStr) [fromStr, toStr] = [toStr, fromStr];
   const actor = (sp.actor ?? "").trim();
   const clinic = (sp.clinic ?? "").trim();
+  const action = (sp.action ?? "").trim();
 
   const start = dateFromStr(fromStr);
   const endExclusive = dateFromStr(toStr);
   endExclusive.setDate(endExclusive.getDate() + 1);
-  return { fromStr, toStr, today, actor, clinic, start, endExclusive };
+  return { fromStr, toStr, today, actor, clinic, action, start, endExclusive };
 }
