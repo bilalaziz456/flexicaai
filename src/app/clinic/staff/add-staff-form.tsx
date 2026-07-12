@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { createStaff, type ClinicActionState } from "@/app/clinic/actions";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { PasswordInput } from "@/core/ui/password-input";
+import { Toast } from "@/core/ui/toast";
 import { DoctorScheduleFields } from "@/app/clinic/doctor-schedule-fields";
 
 export function AddStaffForm() {
@@ -15,6 +16,11 @@ export function AddStaffForm() {
   >(createStaff, {});
   const [role, setRole] = useState("doctor");
   const [scheduleValid, setScheduleValid] = useState(true);
+  // Re-pop the error toast on each failed submit (success redirects away).
+  const [errorNonce, setErrorNonce] = useState(0);
+  useEffect(() => {
+    if (state.error) setErrorNonce((n) => n + 1);
+  }, [state]);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -62,23 +68,14 @@ export function AddStaffForm() {
         <DoctorScheduleFields onValidChange={setScheduleValid} />
       ) : null}
 
-      {state.error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {state.error}
-        </p>
-      ) : null}
-      {state.saved ? (
-        <p className="text-sm text-emerald-600" role="status">
-          Staff member added. They&apos;ll set their own password at first login.
-        </p>
-      ) : null}
-
       <Button
         type="submit"
         disabled={pending || (role === "doctor" && !scheduleValid)}
       >
         {pending ? "Adding…" : "Add staff"}
       </Button>
+
+      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
 }

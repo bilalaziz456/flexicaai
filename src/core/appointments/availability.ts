@@ -83,7 +83,15 @@ export async function countDoctorDay(
 }
 
 export type SlotCheck =
-  | { ok: true; doctorName: string; fee: number }
+  | {
+      ok: true;
+      doctorName: string;
+      fee: number;
+      // The doctor's schedule at check time, so callers can derive the queue
+      // session without re-querying (see core/appointments/queue.ts).
+      availability: DayAvailability[];
+      flexible: boolean;
+    }
   | { ok: false; reason: string };
 
 /**
@@ -160,5 +168,11 @@ export async function checkDoctorSlot(
     }
   }
 
-  return { ok: true, doctorName: name, fee: doc.fee };
+  return {
+    ok: true,
+    doctorName: name,
+    fee: doc.fee,
+    availability,
+    flexible: doc.flexibleHours,
+  };
 }

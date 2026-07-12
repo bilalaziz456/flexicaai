@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
 import {
   deletePatient,
@@ -11,6 +11,8 @@ import { Button } from "@/core/ui/button";
 import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
+import { Toast } from "@/core/ui/toast";
+import { ageFromDob } from "@/core/lib/age";
 
 type PatientData = {
   id: string;
@@ -33,6 +35,12 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
     ClinicActionState,
     FormData
   >(action, {});
+  const age = ageFromDob(patient.dateOfBirth);
+  // Success redirects to the list (flash toast); a failed save pops an error toast.
+  const [errorNonce, setErrorNonce] = useState(0);
+  useEffect(() => {
+    if (state.error) setErrorNonce((n) => n + 1);
+  }, [state]);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -68,13 +76,17 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="dateOfBirth">Date of birth</Label>
+          <Label htmlFor="age">Age</Label>
           <Input
-            key={`d-${patient.dateOfBirth ?? ""}`}
-            id="dateOfBirth"
-            name="dateOfBirth"
-            type="date"
-            defaultValue={patient.dateOfBirth ?? ""}
+            key={`age-${age ?? ""}`}
+            id="age"
+            name="age"
+            type="number"
+            min={0}
+            max={150}
+            inputMode="numeric"
+            defaultValue={age ?? ""}
+            placeholder="e.g. 34"
           />
         </div>
         <div className="space-y-2">
@@ -117,17 +129,8 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
         <Button type="submit" disabled={pending}>
           {pending ? "Saving…" : "Save changes"}
         </Button>
-        {state.saved ? (
-          <span className="text-sm text-emerald-600" role="status">
-            Saved.
-          </span>
-        ) : null}
-        {state.error ? (
-          <span className="text-sm text-destructive" role="alert">
-            {state.error}
-          </span>
-        ) : null}
       </div>
+      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
 }

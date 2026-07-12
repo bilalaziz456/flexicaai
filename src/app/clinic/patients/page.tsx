@@ -15,17 +15,32 @@ import {
   TableHeader,
   TableRow,
 } from "@/core/ui/table";
+import { FlashToast } from "@/core/ui/toast";
+import { RowLink } from "@/core/ui/row-link";
+import { ageFromDob } from "@/core/lib/age";
 import { PatientsSearch } from "./patients-search";
 
 /** Clinic Admin: the patient list, with search + add. Mirrors the admin flow. */
 export default async function ClinicPatientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    created?: string;
+    updated?: string;
+    deleted?: string;
+  }>;
 }) {
   const { clinicId } = await requireClinicAdmin();
-  const { q } = await searchParams;
-  const query = q?.trim();
+  const sp = await searchParams;
+  const query = sp.q?.trim();
+  const toastMessage = sp.created
+    ? "Patient added."
+    : sp.updated
+      ? "Patient updated."
+      : sp.deleted
+        ? "Patient deleted."
+        : null;
 
   // Contains-search on name/phone (trigram-indexed); always clinic-scoped; capped.
   const search = query
@@ -50,6 +65,7 @@ export default async function ClinicPatientsPage({
 
   return (
     <div className="space-y-6">
+      <FlashToast message={toastMessage} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Patients</h1>
@@ -83,17 +99,17 @@ export default async function ClinicPatientsPage({
                   <TableHead>Name</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Gender</TableHead>
-                  <TableHead>Date of birth</TableHead>
+                  <TableHead>Age</TableHead>
                   <TableHead className="text-right"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((p) => (
-                  <TableRow key={p.id}>
+                  <RowLink key={p.id} href={`/clinic/patients/${p.id}`} className="border-b">
                     <TableCell className="font-medium">{p.fullName}</TableCell>
                     <TableCell>{p.phone ?? "—"}</TableCell>
                     <TableCell className="capitalize">{p.gender ?? "—"}</TableCell>
-                    <TableCell>{p.dateOfBirth ?? "—"}</TableCell>
+                    <TableCell>{ageFromDob(p.dateOfBirth) ?? "—"}</TableCell>
                     <TableCell className="text-right">
                       <Link
                         href={`/clinic/patients/${p.id}`}
@@ -105,7 +121,7 @@ export default async function ClinicPatientsPage({
                         <ChevronRight className="size-4" aria-hidden="true" />
                       </Link>
                     </TableCell>
-                  </TableRow>
+                  </RowLink>
                 ))}
               </TableBody>
             </Table>
@@ -114,12 +130,19 @@ export default async function ClinicPatientsPage({
           {/* Mobile: stacked cards — no horizontal scroll. */}
           <ul className="space-y-3 md:hidden">
             {rows.map((p) => (
-              <li key={p.id} className="space-y-2 rounded-md border p-3">
+              <RowLink
+                key={p.id}
+                as="li"
+                href={`/clinic/patients/${p.id}`}
+                className="block space-y-2 rounded-md border p-3"
+              >
                 <div className="font-medium">{p.fullName}</div>
                 <div className="text-sm text-muted-foreground">
                   {p.phone ?? "No phone"}
                   {p.gender ? ` · ${p.gender}` : ""}
-                  {p.dateOfBirth ? ` · ${p.dateOfBirth}` : ""}
+                  {ageFromDob(p.dateOfBirth) != null
+                    ? ` · ${ageFromDob(p.dateOfBirth)} yrs`
+                    : ""}
                 </div>
                 <Link
                   href={`/clinic/patients/${p.id}`}
@@ -128,7 +151,7 @@ export default async function ClinicPatientsPage({
                   Open
                   <ChevronRight className="size-4" aria-hidden="true" />
                 </Link>
-              </li>
+              </RowLink>
             ))}
           </ul>
         </>

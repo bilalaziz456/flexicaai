@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/reminders",
       "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/cron/log-visibility",
+      "schedule": "30 0 * * *"
     }
   ]
 }

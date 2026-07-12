@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
+import { ViewLogger } from "@/core/ui/view-logger";
 import { AppointmentActions } from "./appointment-actions";
 import { DeleteAppointmentButton } from "./edit-appointment-form";
 import { NewAppointmentForm } from "./new-appointment-form";
@@ -47,6 +48,8 @@ export async function AppointmentDetail({
       status: appointments.status,
       reason: appointments.reason,
       source: appointments.source,
+      discountType: appointments.discountType,
+      discountValue: appointments.discountValue,
       patientId: patients.id,
       patientName: patients.fullName,
     })
@@ -62,6 +65,7 @@ export async function AppointmentDetail({
       fullName: users.fullName,
       username: users.username,
       flexibleHours: users.flexibleHours,
+      consultationFee: users.consultationFee,
     })
     .from(users)
     .where(byClinic(users.clinicId, clinicId, inArray(users.role, ["doctor"])))
@@ -81,6 +85,11 @@ export async function AppointmentDetail({
 
   return (
     <div className="space-y-6">
+      <ViewLogger
+        entity="appointment"
+        entityId={appt.id}
+        summary={`Viewed appointment for ${appt.patientName}`}
+      />
       <div>
         <Link
           href={backHref}
@@ -129,6 +138,8 @@ export async function AppointmentDetail({
               time: timeStr,
               reason: appt.reason ?? "",
               durationMinutes: appt.durationMinutes,
+              discountType: appt.discountType === "percent" ? "percent" : "amount",
+              discountValue: appt.discountValue,
             }}
           />
         </CardContent>

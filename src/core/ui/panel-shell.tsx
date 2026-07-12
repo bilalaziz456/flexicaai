@@ -12,6 +12,7 @@ import {
   LogOut,
   Menu,
   MessageCircle,
+  ScrollText,
   Stethoscope,
   Users,
   X,
@@ -35,7 +36,10 @@ export type PanelId = "admin" | "clinic" | "doctor" | "reception";
 const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
   admin: {
     brand: "/admin",
-    items: [{ href: "/admin", label: "Clinics", Icon: Building2, exact: true }],
+    items: [
+      { href: "/admin", label: "Clinics", Icon: Building2, exact: true },
+      { href: "/admin/logs", label: "Activity log", Icon: ScrollText },
+    ],
   },
   clinic: {
     brand: "/clinic",
@@ -45,6 +49,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
       { href: "/clinic/patients", label: "Patients", Icon: Contact },
       { href: "/clinic/appointments", label: "Appointments", Icon: CalendarClock },
       { href: "/clinic/recalls", label: "Recalls", Icon: BellRing },
+      { href: "/clinic/logs", label: "Activity log", Icon: ScrollText },
     ],
   },
   doctor: {

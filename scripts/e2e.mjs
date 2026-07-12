@@ -215,14 +215,18 @@ async function run() {
   }
   {
     // Manage-appointments view: lists the seeded appt + status controls + New button.
-    const r = await req("/clinic/appointments", { cookie: S.adminA });
+    // The list defaults to TODAY, so query a wide range to include the seeded
+    // appointment (scheduled 3 days out).
+    const r = await req("/clinic/appointments?from=2000-01-01&to=2100-01-01", { cookie: S.adminA });
     const ok = r.status === 200 && r.text.includes("Ayesha Recovered") && r.text.includes('aria-label="Appointment status"') && r.text.includes("New appointment") && r.text.includes(`/clinic/appointments/${ids.apptA}`);
     record("clinic_admin GET /clinic/appointments → 200 + Open + status dropdown", ok, r.status === 200 ? "" : `status=${r.status}`);
   }
   {
     const r = await req(`/clinic/appointments/${ids.apptA}`, { cookie: S.adminA });
-    // Status dropdown offers every status (so any state can be set / undone).
-    const undoable = r.text.includes('aria-label="Appointment status"') && r.text.includes(">Scheduled<") && r.text.includes(">No-show<");
+    // Themed status dropdown (Base UI Select) renders its trigger + current
+    // value. The other options live in a portal that mounts on open, so they
+    // aren't in the SSR HTML — assert the trigger + current label instead.
+    const undoable = r.text.includes('aria-label="Appointment status"') && r.text.includes(">Scheduled<");
     record("clinic_admin GET appointment detail → 200 + edit + delete + status dropdown", r.status === 200 && r.text.includes("Danger zone") && r.text.includes(">Edit</") && undoable);
   }
   record("clinic_admin GET /clinic/appointments/new → 200 (schedule form)", (await req("/clinic/appointments/new", { cookie: S.adminA })).status === 200);

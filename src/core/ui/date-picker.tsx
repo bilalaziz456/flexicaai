@@ -29,6 +29,10 @@ function todayParts() {
 const triggerCls =
   "flex h-8 w-full items-center gap-2 rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm text-left outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[popup-open]:border-ring";
 
+// Month/year quick-nav selects in the popover header (fast jumps for e.g. DOB).
+const navSelectCls =
+  "h-7 rounded-md border border-input bg-[var(--input-bg)] px-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50";
+
 /**
  * Themed date picker — a calendar popover built from app tokens (not the native
  * <input type="date">, whose popup can't be styled). Controlled; value is
@@ -82,6 +86,13 @@ export function DatePicker({
     setView({ y: d.getFullYear(), m0: d.getMonth() });
   };
 
+  // Year options (descending, recent first): 100 years back to 10 years ahead —
+  // covers birth dates AND future appointments. Extended to include the current
+  // view/selected year if it falls outside that window.
+  const yEnd = Math.max(today.y + 10, view.y, selected?.y ?? today.y);
+  const yStart = Math.min(today.y - 100, view.y, selected?.y ?? today.y);
+  const years = Array.from({ length: yEnd - yStart + 1 }, (_, i) => yEnd - i);
+
   const pick = (c: { y: number; m0: number; d: number }) => {
     onChange(fmtYMD(c.y, c.m0, c.d));
     setOpen(false);
@@ -103,9 +114,36 @@ export function DatePicker({
       <Popover.Portal>
         <Popover.Positioner side="bottom" align="start" sideOffset={6} className="z-50">
           <Popover.Popup className="w-[17rem] rounded-xl border border-border bg-popover p-3 text-popover-foreground shadow-lg outline-none">
-            <div className="mb-2 flex items-center justify-between">
-              <div className="text-sm font-medium">
-                {MONTHS[view.m0]} {view.y}
+            <div className="mb-2 flex items-center justify-between gap-1">
+              <div className="flex items-center gap-1">
+                <select
+                  aria-label="Month"
+                  value={view.m0}
+                  onChange={(e) =>
+                    setView((v) => ({ ...v, m0: Number(e.target.value) }))
+                  }
+                  className={navSelectCls}
+                >
+                  {MONTHS.map((mn, i) => (
+                    <option key={mn} value={i}>
+                      {mn}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Year"
+                  value={view.y}
+                  onChange={(e) =>
+                    setView((v) => ({ ...v, y: Number(e.target.value) }))
+                  }
+                  className={navSelectCls}
+                >
+                  {years.map((yr) => (
+                    <option key={yr} value={yr}>
+                      {yr}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex items-center gap-1">
                 <button

@@ -7,7 +7,9 @@ import { appointments, patients } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import { checkDoctorSlot } from "@/core/appointments/availability";
+import { queueSessionKey, withQueueNumber } from "@/core/appointments/queue";
 import { parseWhen } from "@/core/appointments/parse-when";
+import type { DayAvailability } from "@/core/lib/availability";
 
 /** "Mon 13 Jul, 15:00" for the reschedule confirmation. */
 function fmtWhen(d: Date): string {
@@ -82,6 +84,8 @@ export async function handleRescheduleReply(args: {
         id: appointments.id,
         doctorId: appointments.doctorId,
         scheduledAt: appointments.scheduledAt,
+        queueSession: appointments.queueSession,
+        queueNumber: appointments.queueNumber,
       })
       .from(appointments)
       .where(
@@ -142,6 +146,8 @@ export async function handleRescheduleReply(args: {
     // Validate against the doctor's leave / hours / daily cap (excludes itself).
     let doctorName = "your doctor";
     let fee = 0;
+    let availability: DayAvailability[] = [];
+    let flexible = false;
     if (appt.doctorId) {
       const check = await checkDoctorSlot(clinicId, appt.doctorId, when, {
         excludeAppointmentId: appt.id,
@@ -157,24 +163,48 @@ export async function handleRescheduleReply(args: {
       }
       doctorName = check.doctorName;
       fee = check.fee;
+      availability = check.availability;
+      flexible = check.flexible;
     }
 
     // Move it. Reset the reminder so the day-before reminder re-sends for the new
     // day. We do NOT touch the status — a reschedule to an already-valid slot
     // stays as it was (a confirmed appointment stays confirmed; it isn't a new
-    // request needing re-approval).
-    await db
-      .update(appointments)
-      .set({ scheduledAt: when, reminderSentAt: null, updatedAt: new Date() })
-      .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appt.id)));
+    // request needing re-approval). The queue token moves with it: if the new
+    // slot is a DIFFERENT window/day, issue a fresh token there; if it's the same
+    // session, keep the existing number.
+    const where = byClinic(appointments.clinicId, clinicId, eq(appointments.id, appt.id));
+    const baseSet = { scheduledAt: when, reminderSentAt: null, updatedAt: new Date() };
+    let tokenNumber: number | null = appt.queueNumber;
+
+    if (appt.doctorId) {
+      const newSession = queueSessionKey(appt.doctorId, when, availability, flexible);
+      if (newSession === appt.queueSession) {
+        await db.update(appointments).set(baseSet).where(where);
+      } else {
+        await withQueueNumber(
+          { clinicId, doctorId: appt.doctorId, when, availability, flexible },
+          (q) => {
+            tokenNumber = q.queueNumber;
+            return db
+              .update(appointments)
+              .set({ ...baseSet, queueSession: q.queueSession, queueNumber: q.queueNumber })
+              .where(where);
+          },
+        );
+      }
+    } else {
+      await db.update(appointments).set(baseSet).where(where);
+    }
 
     // Tell the patient it's rescheduled (accurate wording — not "confirmed").
     const feeStr = fee > 0 ? ` Fee: Rs ${new Intl.NumberFormat("en-PK").format(fee)}.` : "";
+    const tokenStr = tokenNumber != null ? ` Your token number is #${tokenNumber}.` : "";
     await reply(
       clinicId,
       patientId,
       phone,
-      `Your appointment has been rescheduled to ${fmtWhen(when)} with ${doctorName}.${feeStr}`,
+      `Your appointment has been rescheduled to ${fmtWhen(when)} with ${doctorName}.${feeStr}${tokenStr}`,
     );
     return { handled: true, rescheduled: true };
   } catch {

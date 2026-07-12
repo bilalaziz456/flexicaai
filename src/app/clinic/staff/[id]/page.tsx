@@ -17,6 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
+import { ViewLogger } from "@/core/ui/view-logger";
 import { EditScheduleForm } from "./edit-schedule-form";
 import {
   DeleteStaffButton,
@@ -89,6 +90,11 @@ export default async function StaffDetailPage({
 
   return (
     <div className="space-y-6">
+      <ViewLogger
+        entity="staff"
+        entityId={member.id}
+        summary={`Viewed staff member ${label}`}
+      />
       <div>
         <Link
           href="/clinic/staff"

@@ -26,10 +26,12 @@ import {
   doctorOnLeave,
   localDateStr,
 } from "@/core/appointments/availability";
+import { queueSessionKey, withQueueNumber } from "@/core/appointments/queue";
 import {
   notifyAppointmentBooked,
   notifyAppointmentsCancelled,
 } from "@/core/notifications/appointment";
+import { logActivity } from "@/core/audit/log";
 
 export type ReceptionActionState = { error?: string; saved?: boolean };
 
@@ -72,7 +74,19 @@ const createSchema = z.object({
   scheduledAt: z.string().min(1, "Pick a date & time."),
   durationMinutes: z.coerce.number().int().min(5).max(480).default(30),
   reason: z.string().trim().optional(),
+  discountType: z.enum(["amount", "percent"]).default("amount"),
+  discountValue: z.coerce.number().int().min(0, "Discount can't be negative.").default(0),
 });
+
+/**
+ * Discounts are validated against their type: a percentage can't exceed 100
+ * (an amount is free — the fee itself clamps the net). Returns an error string
+ * or null. Shared by create + update so the rule can't drift.
+ */
+function validateDiscount(type: "amount" | "percent", value: number): string | null {
+  if (type === "percent" && value > 100) return "Percentage can't exceed 100.";
+  return null;
+}
 
 /** Schedules an appointment in the receptionist's clinic. */
 export async function createAppointment(
@@ -87,10 +101,18 @@ export async function createAppointment(
     scheduledAt: formData.get("scheduledAt"),
     durationMinutes: formData.get("durationMinutes"),
     reason: formData.get("reason"),
+    discountType: formData.get("discountType") ?? undefined,
+    discountValue: formData.get("discountValue"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
+
+  const discountError = validateDiscount(
+    parsed.data.discountType,
+    parsed.data.discountValue,
+  );
+  if (discountError) return { error: discountError };
 
   const when = new Date(parsed.data.scheduledAt);
   if (Number.isNaN(when.getTime())) return { error: "Invalid date & time." };
@@ -103,10 +125,15 @@ export async function createAppointment(
     .limit(1);
   if (!patient) return { error: "Patient not found." };
 
+  // Queue context comes from the slot check so we don't re-query the schedule.
+  let queueAvailability: DayAvailability[] = [];
+  let queueFlexible = false;
   if (parsed.data.doctorId) {
     // Single source of truth for leave / working hours / daily cap.
     const check = await checkDoctorSlot(clinicId, parsed.data.doctorId, when);
     if (!check.ok) return { error: check.reason };
+    queueAvailability = check.availability;
+    queueFlexible = check.flexible;
   }
 
   // Tag the appointment with the clinic's first enabled module (if any).
@@ -116,24 +143,46 @@ export async function createAppointment(
     .where(eq(clinics.id, clinicId))
     .limit(1);
 
-  const [created] = await db
-    .insert(appointments)
-    .values({
+  // Assign the patient's queue token within the doctor's window session.
+  const [created] = await withQueueNumber(
+    {
       clinicId,
-      patientId: parsed.data.patientId,
       doctorId: parsed.data.doctorId ?? null,
-      module: clinic?.modulesEnabled?.[0] ?? null,
-      scheduledAt: when,
-      durationMinutes: parsed.data.durationMinutes,
-      reason: parsed.data.reason ?? null,
-    })
-    .returning({ id: appointments.id });
+      when,
+      availability: queueAvailability,
+      flexible: queueFlexible,
+    },
+    (q) =>
+      db
+        .insert(appointments)
+        .values({
+          clinicId,
+          patientId: parsed.data.patientId,
+          doctorId: parsed.data.doctorId ?? null,
+          module: clinic?.modulesEnabled?.[0] ?? null,
+          scheduledAt: when,
+          durationMinutes: parsed.data.durationMinutes,
+          reason: parsed.data.reason ?? null,
+          discountType: parsed.data.discountType,
+          discountValue: parsed.data.discountValue,
+          queueSession: q.queueSession,
+          queueNumber: q.queueNumber,
+        })
+        .returning({ id: appointments.id }),
+  );
 
   // Confirm to the patient over WhatsApp (doctor, hours, fee, time).
   await notifyAppointmentBooked(clinicId, created.id);
 
+  await logActivity({
+    action: "create",
+    entity: "appointment",
+    entityId: created.id,
+    summary: `Scheduled an appointment for ${when.toLocaleString("en-GB")}`,
+  });
   revalidatePath(home);
-  redirect(home);
+  // Land on the list with a flash flag so it can show a success toast.
+  redirect(`${home}?created=1`);
 }
 
 const updateSchema = z.object({
@@ -148,9 +197,11 @@ const updateSchema = z.object({
   scheduledAt: z.string().min(1, "Pick a date & time."),
   durationMinutes: z.coerce.number().int().min(5).max(480).default(30),
   reason: z.string().trim().optional(),
+  discountType: z.enum(["amount", "percent"]).default("amount"),
+  discountValue: z.coerce.number().int().min(0, "Discount can't be negative.").default(0),
 });
 
-/** Edits an existing appointment (doctor / date-time / duration / reason). */
+/** Edits an existing appointment (doctor / date-time / duration / reason / discount). */
 export async function updateAppointment(
   appointmentId: string,
   _prev: ReceptionActionState,
@@ -163,45 +214,105 @@ export async function updateAppointment(
     scheduledAt: formData.get("scheduledAt"),
     durationMinutes: formData.get("durationMinutes"),
     reason: formData.get("reason"),
+    discountType: formData.get("discountType") ?? undefined,
+    discountValue: formData.get("discountValue"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
+  const discountError = validateDiscount(
+    parsed.data.discountType,
+    parsed.data.discountValue,
+  );
+  if (discountError) return { error: discountError };
+
   const when = new Date(parsed.data.scheduledAt);
   if (Number.isNaN(when.getTime())) return { error: "Invalid date & time." };
 
   const [appt] = await db
-    .select({ id: appointments.id })
+    .select({
+      id: appointments.id,
+      queueSession: appointments.queueSession,
+    })
     .from(appointments)
     .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
     .limit(1);
   if (!appt) return { error: "Appointment not found." };
 
+  let queueAvailability: DayAvailability[] = [];
+  let queueFlexible = false;
   if (parsed.data.doctorId) {
     // Same leave / hours / cap enforcement as booking (excludes this appt).
     const check = await checkDoctorSlot(clinicId, parsed.data.doctorId, when, {
       excludeAppointmentId: appointmentId,
     });
     if (!check.ok) return { error: check.reason };
+    queueAvailability = check.availability;
+    queueFlexible = check.flexible;
   }
 
-  await db
-    .update(appointments)
-    .set({
-      doctorId: parsed.data.doctorId ?? null,
-      scheduledAt: when,
-      durationMinutes: parsed.data.durationMinutes,
-      reason: parsed.data.reason ?? null,
-      reminderSentAt: null, // time may have changed → re-send the reminder
-      updatedAt: new Date(),
-    })
-    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)));
+  const where = byClinic(
+    appointments.clinicId,
+    clinicId,
+    eq(appointments.id, appointmentId),
+  );
+  const baseSet = {
+    doctorId: parsed.data.doctorId ?? null,
+    scheduledAt: when,
+    durationMinutes: parsed.data.durationMinutes,
+    reason: parsed.data.reason ?? null,
+    discountType: parsed.data.discountType,
+    discountValue: parsed.data.discountValue,
+    reminderSentAt: null, // time may have changed → re-send the reminder
+    updatedAt: new Date(),
+  };
 
+  // Which queue session does the appointment belong to after this edit?
+  const newSession = parsed.data.doctorId
+    ? queueSessionKey(parsed.data.doctorId, when, queueAvailability, queueFlexible)
+    : null;
+
+  if (newSession === appt.queueSession) {
+    // Same window (or still no doctor) → keep the existing token number.
+    await db.update(appointments).set(baseSet).where(where);
+  } else if (!parsed.data.doctorId) {
+    // Moved to "Any doctor" → drop the token.
+    await db
+      .update(appointments)
+      .set({ ...baseSet, queueSession: null, queueNumber: null })
+      .where(where);
+  } else {
+    // Moved to a different doctor/window → issue a fresh token there.
+    await withQueueNumber(
+      {
+        clinicId,
+        doctorId: parsed.data.doctorId,
+        when,
+        availability: queueAvailability,
+        flexible: queueFlexible,
+      },
+      (q) =>
+        db
+          .update(appointments)
+          .set({ ...baseSet, queueSession: q.queueSession, queueNumber: q.queueNumber })
+          .where(where),
+    );
+  }
+
+  await logActivity({
+    action: "update",
+    entity: "appointment",
+    entityId: appointmentId,
+    summary: `Edited an appointment (now ${when.toLocaleString("en-GB")})`,
+  });
   revalidatePath(home);
   revalidatePath(`/clinic/appointments/${appointmentId}`);
   revalidatePath(`/reception/appointments/${appointmentId}`);
-  return { saved: true };
+  // Redirect back to the list (not stay on the edit form) so React 19's
+  // post-action form reset can't blank the controlled fields, and show a
+  // success toast there via the flash flag.
+  redirect(`${home}?updated=1`);
 }
 
 /** Permanently deletes an appointment (step-up password). Clinic-scoped. */
@@ -219,6 +330,12 @@ export async function deleteAppointment(
     .delete(appointments)
     .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)));
 
+  await logActivity({
+    action: "delete",
+    entity: "appointment",
+    entityId: appointmentId,
+    summary: "Deleted an appointment",
+  });
   revalidatePath(home);
   redirect(home);
 }
@@ -257,6 +374,12 @@ export async function setAppointmentStatus(
     await notifyAppointmentBooked(clinicId, appointmentId);
   }
 
+  await logActivity({
+    action: "status",
+    entity: "appointment",
+    entityId: appointmentId,
+    summary: `Marked an appointment ${status.replace("_", " ")}`,
+  });
   revalidatePath(home);
   revalidatePath(`/clinic/appointments/${appointmentId}`);
   revalidatePath(`/reception/appointments/${appointmentId}`);
@@ -398,6 +521,12 @@ export async function setDoctorDailyLimit(
     .returning({ id: users.id });
   if (result.length === 0) return { error: "Doctor not found." };
 
+  await logActivity({
+    action: "update",
+    entity: "staff",
+    entityId: doctorId,
+    summary: `Set a doctor's daily appointment limit to ${parsed.data}`,
+  });
   revalidatePath(home);
   revalidatePath("/reception/doctors");
   revalidatePath("/clinic/staff");
@@ -494,6 +623,12 @@ export async function addDoctorLeave(
     await notifyAppointmentsCancelled(clinicId, cancelledIds);
   }
 
+  await logActivity({
+    action: "create",
+    entity: "leave",
+    entityId: doctorId,
+    summary: `Set doctor leave ${parsed.data.startDate}→${parsed.data.endDate}${cancelledIds.length ? ` (${cancelledIds.length} appt(s) cancelled)` : ""}`,
+  });
   revalidatePath(home);
   revalidatePath("/reception/doctors");
   revalidatePath("/clinic/staff", "layout");
@@ -511,6 +646,12 @@ export async function removeDoctorLeave(
     .delete(doctorLeaves)
     .where(byClinic(doctorLeaves.clinicId, clinicId, eq(doctorLeaves.id, leaveId)));
 
+  await logActivity({
+    action: "delete",
+    entity: "leave",
+    entityId: leaveId,
+    summary: "Removed a doctor leave entry",
+  });
   revalidatePath(home);
   revalidatePath("/reception/doctors");
   revalidatePath("/clinic/staff", "layout");

@@ -120,6 +120,27 @@
       "when": 1783607033808,
       "tag": "0016_special_miss_america",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1783737627617,
+      "tag": "0017_brown_zombie",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1783740013628,
+      "tag": "0018_material_loki",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1783779816298,
+      "tag": "0019_pretty_killraven",
+      "breakpoints": true
     }
   ]
 }

@@ -8,6 +8,7 @@ import {
   describeAvailability,
   type DayAvailability,
 } from "@/core/lib/availability";
+import { computeFee } from "@/core/appointments/fee";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 
@@ -99,7 +100,7 @@ export async function notifyAppointmentsCancelled(
  *
  * Template params order (map these in the AiSensy "appointment_booked" template):
  * {{1}} patient, {{2}} doctor, {{3}} date & time, {{4}} working hours,
- * {{5}} fee, {{6}} clinic.
+ * {{5}} fee, {{6}} clinic, {{7}} queue token (e.g. "#3", or "—" if none).
  */
 export async function notifyAppointmentBooked(
   clinicId: string,
@@ -116,6 +117,9 @@ export async function notifyAppointmentBooked(
         doctorUsername: users.username,
         availability: users.availability,
         fee: users.consultationFee,
+        discountType: appointments.discountType,
+        discountValue: appointments.discountValue,
+        queueNumber: appointments.queueNumber,
         clinicName: clinics.name,
       })
       .from(appointments)
@@ -138,9 +142,20 @@ export async function notifyAppointmentBooked(
     const hours = doctor
       ? describeAvailability((r.availability ?? []) as DayAvailability[])
       : "—";
-    const fee = formatFee(doctor ? r.fee : null);
+    // Quote the net fee (after any per-appointment discount) — that's what the
+    // patient actually pays.
+    const net = computeFee(
+      doctor ? r.fee : 0,
+      r.discountType === "percent" ? "percent" : "amount",
+      r.discountValue,
+    ).net;
+    const fee = formatFee(doctor ? net : null);
+    // Queue token the patient should quote at the desk (only doctor bookings
+    // carry one).
+    const token = doctor && r.queueNumber != null ? `#${r.queueNumber}` : "—";
+    const tokenStr = token !== "—" ? ` Your token number is ${token}.` : "";
     const body = doctor
-      ? `Appointment confirmed with ${doctor} on ${when}. Working hours: ${hours}. Fee: ${fee}. — ${r.clinicName}`
+      ? `Appointment confirmed with ${doctor} on ${when}. Working hours: ${hours}. Fee: ${fee}.${tokenStr} — ${r.clinicName}`
       : `Appointment confirmed on ${when}. — ${r.clinicName}`;
 
     await sendWhatsAppToPatient({
@@ -156,6 +171,7 @@ export async function notifyAppointmentBooked(
         hours,
         fee,
         r.clinicName,
+        token,
       ],
       body,
     });

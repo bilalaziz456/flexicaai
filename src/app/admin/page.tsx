@@ -7,6 +7,8 @@ import { SPECIALTY_CATALOG } from "@/config/modules";
 import { buttonVariants } from "@/core/ui/button";
 import { Badge } from "@/core/ui/badge";
 import { cn } from "@/core/lib/utils";
+import { FlashToast } from "@/core/ui/toast";
+import { RowLink } from "@/core/ui/row-link";
 import { ClinicsSearch } from "./clinics-search";
 import {
   Table,
@@ -23,10 +25,15 @@ const SPECIALTY_NAME = new Map(SPECIALTY_CATALOG.map((s) => [s.id, s.name]));
 export default async function AdminHome({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; created?: string; deleted?: string }>;
 }) {
-  const { q } = await searchParams;
-  const query = q?.trim();
+  const sp = await searchParams;
+  const query = sp.q?.trim();
+  const toastMessage = sp.created
+    ? "Clinic created."
+    : sp.deleted
+      ? "Clinic deleted."
+      : null;
 
   const allClinics = await db
     .select()
@@ -36,6 +43,7 @@ export default async function AdminHome({
 
   return (
     <div className="space-y-6">
+      <FlashToast message={toastMessage} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Clinics</h1>
@@ -73,7 +81,7 @@ export default async function AdminHome({
           </TableHeader>
           <TableBody>
             {allClinics.map((clinic) => (
-              <TableRow key={clinic.id}>
+              <RowLink key={clinic.id} href={`/admin/clinics/${clinic.id}`} className="border-b">
                 <TableCell className="font-medium">{clinic.name}</TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
@@ -99,7 +107,7 @@ export default async function AdminHome({
                     Open
                   </Link>
                 </TableCell>
-              </TableRow>
+              </RowLink>
             ))}
           </TableBody>
         </Table>

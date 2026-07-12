@@ -17,17 +17,24 @@ import {
   TableRow,
 } from "@/core/ui/table";
 import { describeAvailability } from "@/core/lib/availability";
+import { FlashToast } from "@/core/ui/toast";
+import { RowLink } from "@/core/ui/row-link";
 import { StaffSearch } from "./staff-search";
 
 /** Clinic Admin: the staff list, with search + add. Mirrors the admin flow. */
 export default async function ClinicStaffPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; created?: string; updated?: string }>;
 }) {
   const { clinicId } = await requireClinicAdmin();
-  const { q } = await searchParams;
-  const query = q?.trim();
+  const sp = await searchParams;
+  const query = sp.q?.trim();
+  const toastMessage = sp.created
+    ? "Staff member added."
+    : sp.updated
+      ? "Staff member updated."
+      : null;
 
   const roleFilter = inArray(users.role, ["doctor", "receptionist"]);
   const search = query
@@ -60,6 +67,7 @@ export default async function ClinicStaffPage({
 
   return (
     <div className="space-y-6">
+      <FlashToast message={toastMessage} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Staff</h1>
@@ -101,7 +109,7 @@ export default async function ClinicStaffPage({
               </TableHeader>
               <TableBody>
                 {staff.map((u) => (
-                  <TableRow key={u.id}>
+                  <RowLink key={u.id} href={`/clinic/staff/${u.id}`} className="border-b">
                     <TableCell className="font-medium">
                       {u.fullName ?? "—"}
                     </TableCell>
@@ -127,7 +135,7 @@ export default async function ClinicStaffPage({
                         <ChevronRight className="size-4" aria-hidden="true" />
                       </Link>
                     </TableCell>
-                  </TableRow>
+                  </RowLink>
                 ))}
               </TableBody>
             </Table>
@@ -136,7 +144,12 @@ export default async function ClinicStaffPage({
           {/* Mobile: stacked cards — no horizontal scroll; icon-only actions. */}
           <ul className="space-y-3 md:hidden">
             {staff.map((u) => (
-              <li key={u.id} className="space-y-2 rounded-md border p-3">
+              <RowLink
+                key={u.id}
+                as="li"
+                href={`/clinic/staff/${u.id}`}
+                className="block space-y-2 rounded-md border p-3"
+              >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">{u.fullName ?? "—"}</span>
                   <Badge variant="secondary">{u.role}</Badge>
@@ -162,7 +175,7 @@ export default async function ClinicStaffPage({
                   Open
                   <ChevronRight className="size-4" aria-hidden="true" />
                 </Link>
-              </li>
+              </RowLink>
             ))}
           </ul>
         </>

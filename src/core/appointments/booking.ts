@@ -7,6 +7,7 @@ import { appointments, clinics, users } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import { checkDoctorSlot } from "@/core/appointments/availability";
+import { withQueueNumber } from "@/core/appointments/queue";
 import { parseWhen } from "@/core/appointments/parse-when";
 import {
   describeAvailability,
@@ -208,24 +209,43 @@ export async function handleBookingReply(args: {
       .where(eq(clinics.id, clinicId))
       .limit(1);
 
-    await db.insert(appointments).values({
-      clinicId,
-      patientId,
-      doctorId: doctor.id,
-      module: clinic?.modulesEnabled?.[0] ?? null,
-      scheduledAt: when,
-      status: "scheduled",
-      source: "whatsapp",
-    });
+    // Assign the patient's queue token in the doctor's window session.
+    const [created] = await withQueueNumber(
+      {
+        clinicId,
+        doctorId: doctor.id,
+        when,
+        availability: check.availability,
+        flexible: check.flexible,
+      },
+      (q) =>
+        db
+          .insert(appointments)
+          .values({
+            clinicId,
+            patientId,
+            doctorId: doctor.id,
+            module: clinic?.modulesEnabled?.[0] ?? null,
+            scheduledAt: when,
+            status: "scheduled",
+            source: "whatsapp",
+            queueSession: q.queueSession,
+            queueNumber: q.queueNumber,
+          })
+          .returning({ queueNumber: appointments.queueNumber }),
+    );
 
-    // A WhatsApp booking is a REQUEST: acknowledge it as pending. The clinic
-    // confirms it in-panel, and that confirm sends the full confirmation message
-    // (slot, time, doctor, fee) — see setAppointmentStatus.
+    // A WhatsApp booking is a REQUEST: acknowledge it as pending (with the token
+    // so the patient knows their number). The clinic confirms it in-panel, and
+    // that confirm sends the full confirmation message (slot, time, doctor, fee,
+    // token) — see setAppointmentStatus.
+    const tokenStr =
+      created?.queueNumber != null ? ` Your token number is #${created.queueNumber}.` : "";
     await reply(
       clinicId,
       patientId,
       phone,
-      `Thanks! Your booking request for ${doctor.name} on ${fmtWhen(when)} has been received. The clinic will confirm it shortly and you'll get a confirmation message.`,
+      `Thanks! Your booking request for ${doctor.name} on ${fmtWhen(when)} has been received.${tokenStr} The clinic will confirm it shortly and you'll get a confirmation message.`,
     );
     return { handled: true, booked: true };
   } catch {

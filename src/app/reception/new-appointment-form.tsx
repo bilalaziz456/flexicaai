@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { Search } from "lucide-react";
 import {
   createAppointment,
   doctorDayAvailability,
@@ -14,6 +15,12 @@ import { DatePicker } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { TimeSelect } from "@/core/ui/time-select";
+import { Toast } from "@/core/ui/toast";
+import {
+  computeFee,
+  formatPkr,
+  type DiscountType,
+} from "@/core/appointments/fee";
 
 type Patient = { id: string; fullName: string; phone: string | null };
 type Doctor = {
@@ -21,6 +28,7 @@ type Doctor = {
   fullName: string | null;
   username: string;
   flexibleHours: boolean;
+  consultationFee: number;
 };
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -64,6 +72,8 @@ export function NewAppointmentForm({
     time: string;
     reason: string;
     durationMinutes: number;
+    discountType: DiscountType;
+    discountValue: number;
   };
 }) {
   const isEdit = Boolean(appointmentId);
@@ -75,6 +85,16 @@ export function NewAppointmentForm({
   const [time, setTime] = useState(initial?.time ?? "09:00");
   const [duration, setDuration] = useState(initial?.durationMinutes ?? 30);
   const [reason, setReason] = useState(initial?.reason ?? "");
+  const [discountType, setDiscountType] = useState<DiscountType>(
+    initial?.discountType ?? "amount",
+  );
+  // Kept as a string so the field can be emptied while typing (a numeric state
+  // would snap a cleared field back to 0). Parsed to a number where needed; a
+  // blank/invalid value is treated as 0 (no discount).
+  const [discountValue, setDiscountValue] = useState(
+    initial?.discountValue ? String(initial.discountValue) : "",
+  );
+  const discountNumber = Math.max(0, Number(discountValue) || 0);
   const [slots, setSlots] = useState<DoctorDaySlots | null>(null);
   const action = isEdit
     ? updateAppointment.bind(null, appointmentId!)
@@ -83,6 +103,14 @@ export function NewAppointmentForm({
     ReceptionActionState,
     FormData
   >(action, {});
+
+  // Re-trigger the error toast on every failed submit — `state` is a fresh
+  // object each time the action settles, so this bumps even for an identical
+  // error message on a second attempt.
+  const [errorNonce, setErrorNonce] = useState(0);
+  useEffect(() => {
+    if (state.error) setErrorNonce((n) => n + 1);
+  }, [state]);
 
   async function runSearch(q: string) {
     setQuery(q);
@@ -106,6 +134,13 @@ export function NewAppointmentForm({
   }, []);
 
   const selectedDoctor = doctors.find((d) => d.id === doctorId) ?? null;
+  // Live fee preview: the selected doctor's fee, the discount, and the net the
+  // patient pays. Derived on the fly so it tracks the current fee/discount.
+  const feeBreakdown = computeFee(
+    selectedDoctor?.consultationFee ?? 0,
+    discountType,
+    discountNumber,
+  );
   const freeTime = !doctorId || Boolean(selectedDoctor?.flexibleHours);
   const onLeaveBlock = Boolean(doctorId) && Boolean(date) && Boolean(slots?.onLeave);
 
@@ -166,11 +201,16 @@ export function NewAppointmentForm({
           </div>
         ) : (
           <div className="space-y-2">
-            <Input
-              placeholder="Search patients by name or phone…"
-              value={query}
-              onChange={(e) => void runSearch(e.target.value)}
-            />
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-8"
+                placeholder="Search patients by name or phone…"
+                value={query}
+                onChange={(e) => void runSearch(e.target.value)}
+                aria-label="Search patients"
+              />
+            </div>
             <ul className="max-h-48 divide-y overflow-y-auto rounded-md border">
               {results.length === 0 ? (
                 <li className="p-3 text-sm text-muted-foreground">
@@ -313,6 +353,62 @@ export function NewAppointmentForm({
             placeholder="e.g. Cleaning"
           />
         </div>
+
+        {/* Discount off the doctor's consultation fee. Default type is Amount
+            (flat PKR); switch to Percent for a % of the fee. The value is
+            submitted directly; the net is shown live below. */}
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="discountValue">Discount (optional)</Label>
+          <div className="flex gap-2">
+            <select
+              id="discountType"
+              name="discountType"
+              value={discountType}
+              onChange={(e) => setDiscountType(e.target.value as DiscountType)}
+              className={`${selectCls} w-auto`}
+              aria-label="Discount type"
+            >
+              <option value="amount">Amount (Rs)</option>
+              <option value="percent">Percent (%)</option>
+            </select>
+            <Input
+              id="discountValue"
+              name="discountValue"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={discountType === "percent" ? 100 : undefined}
+              step={discountType === "percent" ? 1 : 50}
+              value={discountValue}
+              onChange={(e) => {
+                // Digits only; allow empty so the field can be cleared.
+                const v = e.target.value.replace(/[^\d]/g, "");
+                setDiscountValue(v);
+              }}
+              placeholder={discountType === "percent" ? "e.g. 20" : "e.g. 500"}
+            />
+          </div>
+          {selectedDoctor && feeBreakdown.fee > 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Fee {formatPkr(feeBreakdown.fee)}
+              {feeBreakdown.discount > 0
+                ? ` − ${formatPkr(feeBreakdown.discount)} discount`
+                : ""}{" "}
+              ={" "}
+              <span className="font-medium text-foreground">
+                {formatPkr(feeBreakdown.net)}
+              </span>
+            </p>
+          ) : selectedDoctor ? (
+            <p className="text-sm text-muted-foreground">
+              This doctor has no consultation fee set.
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Select a doctor to apply a discount to their fee.
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Doctor's hours + remaining capacity for the chosen day. */}
@@ -339,18 +435,10 @@ export function NewAppointmentForm({
               ? "Save changes"
               : "Schedule appointment"}
         </Button>
-        {isEdit && state.saved ? (
-          <span className="text-sm text-emerald-600" role="status">
-            Saved.
-          </span>
-        ) : null}
       </div>
 
-      {state.error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {state.error}
-        </p>
-      ) : null}
+      {/* Failed create/edit → error toast (re-triggered per attempt via nonce). */}
+      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
 }

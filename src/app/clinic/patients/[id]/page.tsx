@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
+import { ViewLogger } from "@/core/ui/view-logger";
 import {
   DeletePatientButton,
   EditPatientForm,
@@ -67,6 +68,11 @@ export default async function PatientDetailPage({
 
   return (
     <div className="space-y-6">
+      <ViewLogger
+        entity="patient"
+        entityId={patient.id}
+        summary={`Viewed patient ${patient.fullName}`}
+      />
       <div>
         <Link
           href="/clinic/patients"

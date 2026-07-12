@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import type { SpecialtyCatalogEntry } from "@/core/types/module";
 import {
   createClinicWithAdmin,
@@ -9,6 +9,7 @@ import {
 } from "@/app/admin/actions";
 import { SpecialtyCheckboxes } from "@/app/admin/clinics/specialty-checkboxes";
 import { Button } from "@/core/ui/button";
+import { Toast } from "@/core/ui/toast";
 import {
   Card,
   CardContent,
@@ -29,6 +30,12 @@ export function CreateClinicForm({
     AdminActionState,
     FormData
   >(createClinicWithAdmin, {});
+  // Success redirects to the clinics list (flash toast); a failed create pops an
+  // error toast here, re-triggered per attempt.
+  const [errorNonce, setErrorNonce] = useState(0);
+  useEffect(() => {
+    if (state.error) setErrorNonce((n) => n + 1);
+  }, [state]);
 
   return (
     <form action={formAction} className="space-y-6">
@@ -85,12 +92,6 @@ export function CreateClinicForm({
         </CardContent>
       </Card>
 
-      {state.error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {state.error}
-        </p>
-      ) : null}
-
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={pending}>
           {pending ? "Creating…" : "Create clinic"}
@@ -102,6 +103,8 @@ export function CreateClinicForm({
           Cancel
         </Link>
       </div>
+
+      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
 }

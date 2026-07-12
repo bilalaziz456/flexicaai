@@ -11,6 +11,8 @@ import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { clinics, patients, sessions, users } from "@/core/db/schema";
 import { TIME_RE, timeToMinutes, type DayAvailability } from "@/core/lib/availability";
+import { dobFromAgeField } from "@/core/lib/age";
+import { logActivity } from "@/core/audit/log";
 import { USERNAME_REGEX } from "@/core/types/auth";
 
 export type ClinicActionState = { error?: string; saved?: boolean };
@@ -159,19 +161,24 @@ export async function createStaff(
   }
 
   const passwordHash = await hashPassword(parsed.data.password);
+  let createdId: string | undefined;
   try {
-    await db.insert(users).values({
-      clinicId,
-      username: parsed.data.username,
-      passwordHash,
-      role: parsed.data.role,
-      fullName: parsed.data.fullName,
-      mustChangePassword: true,
-      availability,
-      flexibleHours,
-      dailyAppointmentLimit: dailyLimit,
-      consultationFee: fee,
-    });
+    const [created] = await db
+      .insert(users)
+      .values({
+        clinicId,
+        username: parsed.data.username,
+        passwordHash,
+        role: parsed.data.role,
+        fullName: parsed.data.fullName,
+        mustChangePassword: true,
+        availability,
+        flexibleHours,
+        dailyAppointmentLimit: dailyLimit,
+        consultationFee: fee,
+      })
+      .returning({ id: users.id });
+    createdId = created.id;
   } catch (err) {
     if (isUniqueViolation(err)) {
       return { error: "That username is already in use." };
@@ -179,8 +186,15 @@ export async function createStaff(
     throw err;
   }
 
+  await logActivity({
+    action: "create",
+    entity: "staff",
+    entityId: createdId,
+    summary: `Added ${parsed.data.role} ${parsed.data.fullName} (@${parsed.data.username})`,
+  });
   revalidatePath("/clinic/staff");
-  redirect("/clinic/staff");
+  // Land on the list with a flash flag so it can show a success toast.
+  redirect("/clinic/staff?created=1");
 }
 
 /**
@@ -204,6 +218,12 @@ export async function setStaffActive(
     }
   });
 
+  await logActivity({
+    action: "update",
+    entity: "staff",
+    entityId: userId,
+    summary: isActive ? "Reactivated a staff account" : "Suspended a staff account",
+  });
   // "layout" scope refreshes both the list and the staff detail page.
   revalidatePath("/clinic/staff", "layout");
 }
@@ -235,6 +255,12 @@ export async function deleteStaff(
       ),
     );
 
+  await logActivity({
+    action: "delete",
+    entity: "staff",
+    entityId: userId,
+    summary: "Deleted a staff member",
+  });
   // Deletion happens from the staff detail page — leave it (the record is gone).
   revalidatePath("/clinic/staff");
   redirect("/clinic/staff");
@@ -268,6 +294,12 @@ export async function resetStaffPassword(
     await tx.delete(sessions).where(eq(sessions.userId, userId));
   });
 
+  await logActivity({
+    action: "update",
+    entity: "staff",
+    entityId: userId,
+    summary: "Reset a staff member's password",
+  });
   revalidatePath("/clinic/staff");
   return { saved: true };
 }
@@ -332,8 +364,15 @@ export async function updateStaffProfile(
     throw err;
   }
 
+  await logActivity({
+    action: "update",
+    entity: "staff",
+    entityId: userId,
+    summary: `Edited staff profile of ${parsed.data.fullName} (@${parsed.data.username})`,
+  });
   revalidatePath("/clinic/staff");
-  return { saved: true };
+  // Back to the list with a success flash (matches the create flow).
+  redirect("/clinic/staff?updated=1");
 }
 
 /**
@@ -370,9 +409,15 @@ export async function updateDoctorSchedule(
     .returning({ id: users.id });
   if (result.length === 0) return { error: "Doctor not found." };
 
+  await logActivity({
+    action: "update",
+    entity: "staff",
+    entityId: userId,
+    summary: "Updated a doctor's schedule / fee",
+  });
   revalidatePath("/clinic/staff");
   revalidatePath(`/clinic/staff/${userId}`);
-  return { saved: true };
+  redirect("/clinic/staff?updated=1");
 }
 
 const createPatientSchema = z.object({
@@ -393,19 +438,29 @@ export async function createPatient(
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
-  await db.insert(patients).values({
-    clinicId,
-    fullName: parsed.data.fullName,
-    phone: emptyToNull(formData.get("phone")),
-    email: emptyToNull(formData.get("email")),
-    dateOfBirth: emptyToNull(formData.get("dateOfBirth")),
-    gender: emptyToNull(formData.get("gender")),
-    address: emptyToNull(formData.get("address")),
-    dataConsent: formData.get("dataConsent") === "on",
-  });
+  const [createdPatient] = await db
+    .insert(patients)
+    .values({
+      clinicId,
+      fullName: parsed.data.fullName,
+      phone: emptyToNull(formData.get("phone")),
+      email: emptyToNull(formData.get("email")),
+      // Patients are entered by age; we store the derived birth date (see age.ts).
+      dateOfBirth: dobFromAgeField(formData.get("age")),
+      gender: emptyToNull(formData.get("gender")),
+      address: emptyToNull(formData.get("address")),
+      dataConsent: formData.get("dataConsent") === "on",
+    })
+    .returning({ id: patients.id });
 
+  await logActivity({
+    action: "create",
+    entity: "patient",
+    entityId: createdPatient.id,
+    summary: `Registered patient ${parsed.data.fullName}`,
+  });
   revalidatePath("/clinic/patients");
-  redirect("/clinic/patients");
+  redirect("/clinic/patients?created=1");
 }
 
 const updatePatientSchema = z.object({
@@ -433,7 +488,7 @@ export async function updatePatient(
       fullName: parsed.data.fullName,
       phone: emptyToNull(formData.get("phone")),
       email: emptyToNull(formData.get("email")),
-      dateOfBirth: emptyToNull(formData.get("dateOfBirth")),
+      dateOfBirth: dobFromAgeField(formData.get("age")),
       gender: emptyToNull(formData.get("gender")),
       address: emptyToNull(formData.get("address")),
       dataConsent: formData.get("dataConsent") === "on",
@@ -443,9 +498,15 @@ export async function updatePatient(
     .returning({ id: patients.id });
   if (result.length === 0) return { error: "Patient not found." };
 
+  await logActivity({
+    action: "update",
+    entity: "patient",
+    entityId: patientId,
+    summary: `Edited patient ${parsed.data.fullName}`,
+  });
   revalidatePath("/clinic/patients");
   revalidatePath(`/clinic/patients/${patientId}`);
-  return { saved: true };
+  redirect("/clinic/patients?updated=1");
 }
 
 /**
@@ -466,8 +527,14 @@ export async function deletePatient(
     .delete(patients)
     .where(byClinic(patients.clinicId, clinicId, eq(patients.id, patientId)));
 
+  await logActivity({
+    action: "delete",
+    entity: "patient",
+    entityId: patientId,
+    summary: "Deleted a patient and their records",
+  });
   revalidatePath("/clinic/patients");
-  redirect("/clinic/patients");
+  redirect("/clinic/patients?deleted=1");
 }
 
 const clinicSettingsSchema = z.object({
@@ -497,6 +564,11 @@ export async function updateClinicSettings(
     .set({ avgVisitValue: parsed.data.avgVisitValue, updatedAt: new Date() })
     .where(eq(clinics.id, clinicId));
 
+  await logActivity({
+    action: "update",
+    entity: "settings",
+    summary: `Set average visit value to Rs ${parsed.data.avgVisitValue}`,
+  });
   revalidatePath("/clinic");
   return { saved: true };
 }

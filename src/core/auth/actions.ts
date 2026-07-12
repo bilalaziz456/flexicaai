@@ -11,6 +11,7 @@ import {
 import { createSession, destroySession } from "@/core/auth/session";
 import { hashPassword, verifyPassword } from "@/core/auth/password";
 import { requireUser } from "@/core/auth/user";
+import { logActivityAs } from "@/core/audit/log";
 import { db } from "@/core/db";
 import { users } from "@/core/db/schema";
 import { ROLE_HOME_ROUTE, type UserRole } from "@/core/types/auth";
@@ -67,6 +68,18 @@ export async function signIn(
   }
 
   await createSession(user.id);
+
+  // Audit: record the sign-in (explicit actor — the session isn't readable yet
+  // on this render).
+  await logActivityAs(
+    {
+      clinicId: user.clinicId,
+      userId: user.id,
+      name: user.fullName ?? user.username,
+      role: user.role,
+    },
+    { action: "login", entity: "session", summary: `${user.username} signed in` },
+  );
 
   // Apply the account's saved theme on this browser (no flash on next render).
   const cookieStore = await cookies();

@@ -11,6 +11,7 @@ import { db } from "@/core/db";
 import { clinics, sessions, users } from "@/core/db/schema";
 import { availableSpecialtyIds } from "@/config/modules";
 import { CLINIC_FEATURE_IDS } from "@/core/lib/features";
+import { logActivity } from "@/core/audit/log";
 import { USERNAME_REGEX } from "@/core/types/auth";
 
 export type AdminActionState = { error?: string; saved?: boolean };
@@ -82,12 +83,14 @@ export async function createClinicWithAdmin(
 
   const passwordHash = await hashPassword(parsed.data.adminPassword);
 
+  let newClinicId: string | undefined;
   try {
     await db.transaction(async (tx) => {
       const [clinic] = await tx
         .insert(clinics)
         .values({ name: parsed.data.clinicName, modulesEnabled })
         .returning({ id: clinics.id });
+      newClinicId = clinic.id;
 
       await tx.insert(users).values({
         clinicId: clinic.id,
@@ -106,9 +109,17 @@ export async function createClinicWithAdmin(
     throw err;
   }
 
-  // Back to the clinics list (refreshed so the new clinic appears immediately).
+  await logActivity({
+    action: "create",
+    entity: "clinic",
+    entityId: newClinicId,
+    clinicId: newClinicId ?? null,
+    summary: `Created clinic “${parsed.data.clinicName}” with admin @${parsed.data.adminUsername}`,
+  });
+  // Back to the clinics list (refreshed so the new clinic appears immediately)
+  // with a flash flag so it can show a success toast.
   revalidatePath("/admin");
-  redirect("/admin");
+  redirect("/admin?created=1");
 }
 
 /**
@@ -133,6 +144,13 @@ export async function updateClinicModules(
     .set({ modulesEnabled, updatedAt: new Date() })
     .where(eq(clinics.id, clinicId));
 
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: `Updated clinic specialties: ${modulesEnabled.join(", ") || "none"}`,
+  });
   revalidatePath(`/admin/clinics/${clinicId}`);
   revalidatePath("/admin");
   return { saved: true };
@@ -161,6 +179,13 @@ export async function updateClinicFeatures(
     .set({ featuresEnabled, updatedAt: new Date() })
     .where(eq(clinics.id, clinicId));
 
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: `Updated clinic features: ${featuresEnabled.join(", ") || "none"}`,
+  });
   revalidatePath(`/admin/clinics/${clinicId}`);
   // The clinic admin's dashboard shows/hides based on this — refresh it too.
   revalidatePath("/clinic");
@@ -189,6 +214,13 @@ export async function updateClinicName(
     .set({ name: parsed.data.name, updatedAt: new Date() })
     .where(eq(clinics.id, clinicId));
 
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: `Renamed clinic to “${parsed.data.name}”`,
+  });
   revalidatePath(`/admin/clinics/${clinicId}`);
   revalidatePath("/admin");
   return { saved: true };
@@ -239,6 +271,12 @@ export async function updateStaffProfile(
     throw err;
   }
 
+  await logActivity({
+    action: "update",
+    entity: "staff",
+    entityId: userId,
+    summary: `Edited a staff profile (@${parsed.data.username})`,
+  });
   revalidatePath("/admin", "layout");
   return { saved: true };
 }
@@ -275,6 +313,12 @@ export async function resetUserPassword(
     await tx.delete(sessions).where(eq(sessions.userId, userId));
   });
 
+  await logActivity({
+    action: "update",
+    entity: "staff",
+    entityId: userId,
+    summary: "Reset a user's password",
+  });
   return { saved: true };
 }
 
@@ -324,6 +368,12 @@ export async function setUserActive(
     }
   });
 
+  await logActivity({
+    action: "update",
+    entity: "staff",
+    entityId: userId,
+    summary: isActive ? "Reactivated an account" : "Suspended an account",
+  });
   // We don't know the clinic id here; refresh the whole admin area.
   revalidatePath("/admin", "layout");
 }
@@ -349,6 +399,15 @@ export async function deleteClinic(
     await tx.delete(clinics).where(eq(clinics.id, clinicId));
   });
 
+  // clinicId is NULL here: the clinic (and its cascade) is gone, so the log can't
+  // reference it — this stays a super-admin-only record of the deletion.
+  await logActivity({
+    action: "delete",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId: null,
+    summary: "Deleted a clinic and all its data",
+  });
   revalidatePath("/admin");
-  redirect("/admin");
+  redirect("/admin?deleted=1");
 }

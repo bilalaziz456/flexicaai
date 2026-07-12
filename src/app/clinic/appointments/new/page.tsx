@@ -27,7 +27,7 @@ export default async function ClinicNewAppointmentPage() {
       .orderBy(desc(patients.createdAt))
       .limit(20),
     db
-      .select({ id: users.id, fullName: users.fullName, username: users.username, flexibleHours: users.flexibleHours })
+      .select({ id: users.id, fullName: users.fullName, username: users.username, flexibleHours: users.flexibleHours, consultationFee: users.consultationFee })
       .from(users)
       .where(byClinic(users.clinicId, clinicId, inArray(users.role, ["doctor"])))
       .orderBy(desc(users.createdAt)),

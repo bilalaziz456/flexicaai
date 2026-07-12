@@ -237,6 +237,14 @@ export const appointments = pgTable(
     durationMinutes: integer("duration_minutes").notNull().default(30),
     status: appointmentStatus("status").notNull().default("scheduled"),
     reason: text("reason"),
+    // Optional discount off the doctor's consultation fee for this appointment.
+    // `discountType` is 'amount' (flat PKR, the default) or 'percent' (of the
+    // fee); `discountValue` is the raw figure (e.g. 500, or 20 for 20%). The net
+    // fee is derived live from the doctor's current fee — see
+    // core/appointments/fee.ts#computeFee — never stored, so a fee change flows
+    // through. Kept as free-text/int (not an enum) to stay additive.
+    discountType: text("discount_type").notNull().default("amount"),
+    discountValue: integer("discount_value").notNull().default(0),
     // How the appointment was created — free-text tag, default 'staff'. Patient
     // WhatsApp self-bookings are 'whatsapp': those stay a request until staff
     // confirm, and the patient's confirmation message fires on that confirm.
@@ -244,6 +252,14 @@ export const appointments = pgTable(
     // Set when the day-before WhatsApp reminder has been sent, so the reminder
     // cron never messages the same appointment twice. Null = not yet reminded.
     reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
+    // Patient queue token. `queueSession` groups a doctor's appointments for a
+    // single visiting WINDOW on a day (key: `${doctorId}:${YYYY-MM-DD}:w{idx}`,
+    // or `:day` for a flexible/no-window doctor); `queueNumber` is the FCFS
+    // position within that session (assigned at booking, stable across
+    // cancellations). Both NULL when no doctor is assigned. See
+    // core/appointments/queue.ts.
+    queueSession: text("queue_session"),
+    queueNumber: integer("queue_number"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -259,6 +275,14 @@ export const appointments = pgTable(
     index("appointments_doctor_id_idx").on(t.doctorId),
     // The reminder cron scans "active, un-reminded, scheduled within a window".
     index("appointments_reminder_scan_idx").on(t.scheduledAt, t.reminderSentAt),
+    // Queue tokens are unique within a (clinic, session). NULLs are distinct in
+    // Postgres, so un-queued (no-doctor) rows never collide. Also serves as the
+    // lookup index for "max number in this session" during assignment.
+    uniqueIndex("appointments_queue_unique").on(
+      t.clinicId,
+      t.queueSession,
+      t.queueNumber,
+    ),
   ],
 );
 
@@ -467,8 +491,59 @@ export const doctorLeaves = pgTable(
   ],
 );
 
+/**
+ * Activity / audit log — CORE, platform-wide. Records staff actions (create /
+ * update / delete / login / view) so a clinic admin can audit their clinic and
+ * the super admin has the full platform trail. Actor identity is SNAPSHOTTED
+ * (`actorName`/`actorRole`) so the row survives the user being renamed/deleted.
+ *
+ * `visible` gates who sees a row: it starts true (clinic admin + super admin can
+ * see it); a daily cron flips it to false once the row is older than 5 days, and
+ * from then on ONLY the super admin sees it. Super admin always sees everything.
+ */
+export const activityLogs = pgTable(
+  "activity_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Which clinic the action belongs to (NULL for pure super-admin actions).
+    clinicId: uuid("clinic_id").references(() => clinics.id, {
+      onDelete: "cascade",
+    }),
+    // Who did it — FK for joins, plus a snapshot that outlives the user.
+    actorUserId: uuid("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    actorName: text("actor_name").notNull(),
+    actorRole: text("actor_role"),
+    action: text("action").notNull(), // create | update | delete | login | view | status
+    entity: text("entity"), // patient | appointment | staff | clinic | settings | session | …
+    entityId: uuid("entity_id"),
+    summary: text("summary").notNull(), // human-readable line
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    // Clinic-admin visibility; the daily cron flips this false after 5 days.
+    visible: boolean("visible").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    // Clinic-admin view: this clinic's still-visible rows, newest first.
+    index("activity_logs_clinic_visible_idx").on(
+      t.clinicId,
+      t.visible,
+      t.createdAt,
+    ),
+    // Super-admin per-clinic view (all rows).
+    index("activity_logs_clinic_created_idx").on(t.clinicId, t.createdAt),
+    // The daily cron scans "still visible, older than 5 days".
+    index("activity_logs_visible_scan_idx").on(t.visible, t.createdAt),
+    index("activity_logs_actor_idx").on(t.actorUserId),
+  ],
+);
+
 // Inferred row types for use across the app.
 export type Clinic = typeof clinics.$inferSelect;
+export type ActivityLog = typeof activityLogs.$inferSelect;
 export type DoctorLeave = typeof doctorLeaves.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;

@@ -3,6 +3,8 @@ import { requireRole } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { patients, visits } from "@/core/db/schema";
+import { getDayQueue } from "@/core/appointments/queue";
+import { QueueSummary } from "@/core/ui/queue-summary";
 import { Badge } from "@/core/ui/badge";
 import {
   Card,
@@ -27,7 +29,7 @@ export default async function DoctorHome() {
     );
   }
 
-  const [recentPatients, recentVisits] = await Promise.all([
+  const [recentPatients, recentVisits, queue] = await Promise.all([
     db
       .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })
       .from(patients)
@@ -46,6 +48,7 @@ export default async function DoctorHome() {
       .where(byClinic(visits.clinicId, clinicId))
       .orderBy(desc(visits.visitDate))
       .limit(10),
+    getDayQueue(clinicId, new Date(), { doctorId: user.id }),
   ]);
 
   return (
@@ -56,6 +59,12 @@ export default async function DoctorHome() {
           Record a visit; review the AI draft, then approve to save.
         </p>
       </div>
+
+      <QueueSummary
+        sessions={queue}
+        title="Your queue today"
+        emptyHint="No booked patients in your queue today."
+      />
 
       <ScribeWorkspace initialPatients={recentPatients} />
 

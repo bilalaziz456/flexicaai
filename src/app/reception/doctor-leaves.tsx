@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { CalendarOff, X } from "lucide-react";
 import {
   addDoctorLeave,
@@ -8,6 +8,7 @@ import {
   type LeaveActionState,
 } from "./actions";
 import { Button } from "@/core/ui/button";
+import { DatePicker } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 
@@ -42,6 +43,8 @@ export function DoctorLeaves({
     LeaveActionState,
     FormData
   >(action, {});
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   return (
     <div className="space-y-4">
@@ -89,13 +92,25 @@ export function DoctorLeaves({
             <Label htmlFor={`from-${doctorId}`} className="text-xs">
               From
             </Label>
-            <Input id={`from-${doctorId}`} name="startDate" type="date" required />
+            <input type="hidden" name="startDate" value={startDate} />
+            <DatePicker
+              id={`from-${doctorId}`}
+              ariaLabel="Leave start date"
+              value={startDate}
+              onChange={setStartDate}
+            />
           </div>
           <div className="space-y-1">
             <Label htmlFor={`to-${doctorId}`} className="text-xs">
               To
             </Label>
-            <Input id={`to-${doctorId}`} name="endDate" type="date" required />
+            <input type="hidden" name="endDate" value={endDate} />
+            <DatePicker
+              id={`to-${doctorId}`}
+              ariaLabel="Leave end date"
+              value={endDate}
+              onChange={setEndDate}
+            />
           </div>
         </div>
         <div className="space-y-1">
@@ -109,7 +124,11 @@ export function DoctorLeaves({
           />
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" variant="outline" disabled={pending}>
+          <Button
+            type="submit"
+            variant="outline"
+            disabled={pending || !startDate || !endDate}
+          >
             {pending ? "Saving…" : "Add leave"}
           </Button>
           {state.saved ? (

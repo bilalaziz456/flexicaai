@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
 import {
   deleteStaff,
@@ -12,6 +12,7 @@ import { Button } from "@/core/ui/button";
 import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
+import { Toast } from "@/core/ui/toast";
 
 /** Edit a staff member's display name + login username. */
 export function EditProfileForm({
@@ -28,6 +29,12 @@ export function EditProfileForm({
     ClinicActionState,
     FormData
   >(action, {});
+  // Success redirects to the staff list (with a flash toast); a failed save
+  // pops an error toast here, re-triggered per attempt.
+  const [errorNonce, setErrorNonce] = useState(0);
+  useEffect(() => {
+    if (state.error) setErrorNonce((n) => n + 1);
+  }, [state]);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -59,17 +66,8 @@ export function EditProfileForm({
         <Button type="submit" disabled={pending}>
           {pending ? "Saving…" : "Save changes"}
         </Button>
-        {state.saved ? (
-          <span className="text-sm text-emerald-600" role="status">
-            Saved.
-          </span>
-        ) : null}
-        {state.error ? (
-          <span className="text-sm text-destructive" role="alert">
-            {state.error}
-          </span>
-        ) : null}
       </div>
+      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
 }

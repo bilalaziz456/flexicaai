@@ -73,7 +73,9 @@ the opaque cookie token), `expires_at`, `created_at`. Validated per request in N
 ### `patients` — shared across specialties
 `id`, `clinic_id` → clinics (`cascade`), `full_name`, `phone` (WhatsApp number,
 primary contact), `email`, `date_of_birth`, `gender`, `address`, `notes`,
-`data_consent` (default false), timestamps.
+`data_consent` (default false), timestamps. Note: `date_of_birth` is still the
+stored source of truth, but the UI enters/shows it as **age** (derived — see
+`core/lib/age.ts`), so age never goes stale.
 Indexes: `clinic_id`; (`clinic_id`,`phone`); (`clinic_id`,`full_name`); GIN pg_trgm
 on `full_name` and `phone`.
 
@@ -81,11 +83,21 @@ on `full_name` and `phone`.
 `id`, `clinic_id` → clinics (`cascade`), `patient_id` → patients (`cascade`),
 `doctor_id` → users (`set null`), `module` (free-text tag), `scheduled_at`,
 `duration_minutes` (default 30), `status` (enum, default scheduled), `reason`,
-`source` (free-text, default 'staff'; 'whatsapp' = patient self-booked → stays a
-request until staff confirm), `reminder_sent_at` (set once the day-before reminder
-is sent; NULL = not reminded), timestamps.
+`discount_type` (free-text, default 'amount'; 'amount' = flat PKR, 'percent' = % of
+the doctor's fee), `discount_value` int (default 0; the raw figure — e.g. 500, or 20
+for 20%), `source` (free-text, default 'staff'; 'whatsapp' = patient self-booked →
+stays a request until staff confirm), `reminder_sent_at` (set once the day-before
+reminder is sent; NULL = not reminded), `queue_session` (text, NULL when no doctor;
+groups a doctor's appointments for one visiting WINDOW on a day —
+`${doctorId}:${YYYY-MM-DD}:w{idx}`, or `:day` for flexible/no-window), `queue_number`
+(int, NULL when no doctor; FCFS patient token within that session, assigned at
+booking, stable across cancellations), timestamps. The net fee (doctor's
+`consultation_fee` − discount) is derived live via `core/appointments/fee.ts`, never
+stored, so a fee change flows through. Queue logic: `core/appointments/queue.ts`.
 Indexes: `clinic_id`; `patient_id`; (`clinic_id`,`scheduled_at`); `doctor_id`;
-(`scheduled_at`,`reminder_sent_at`) for the reminder cron.
+(`scheduled_at`,`reminder_sent_at`) for the reminder cron; UNIQUE
+(`clinic_id`,`queue_session`,`queue_number`) — token uniqueness + assignment lookup
+(NULLs distinct, so un-queued rows never collide).
 
 ### `visits` — shared; stores the AI note
 `id`, `clinic_id` (`cascade`), `patient_id` (`cascade`), `appointment_id` → appts
@@ -120,6 +132,24 @@ Indexes: `clinic_id`; `patient_id`; `phone`; (`clinic_id`,`created_at`);
 the doctor's appointments in range and blocks new bookings on those days.
 Indexes: `clinic_id`; (`doctor_id`,`start_date`,`end_date`) for the booking guard.
 
+### `activity_logs` — audit / activity trail
+`id`, `clinic_id` → clinics (`cascade`, **nullable** — NULL for pure super-admin
+actions), `actor_user_id` → users (`set null`, **nullable**), `actor_name`
+(snapshot, so the row survives the user being renamed/deleted), `actor_role`
+(snapshot), `action` (free-text: create/update/delete/login/view/status),
+`entity` (patient/appointment/staff/clinic/settings/session/leave), `entity_id`
+(uuid, nullable), `summary` (human line), `metadata` jsonb, `visible` bool
+(default **true**), `created_at`. Records **all clinic-staff actions + logins +
+record views**. `visible` gates who sees a row: a daily cron
+(`/api/cron/log-visibility`, `core/audit/log.ts#hideOldLogs`) flips it **false**
+once older than **5 days** (`LOG_VISIBLE_DAYS`), after which ONLY the super admin
+sees it (`/admin/logs`); the clinic admin (`/clinic/logs`) sees only `visible=true`
+rows for their own clinic. Written via best-effort `logActivity` /`logActivityAs`
+(never throws, never blocks the action). Views are logged from a client
+`ViewLogger` (avoids prefetch phantom logs).
+Indexes: (`clinic_id`,`visible`,`created_at`) clinic view; (`clinic_id`,`created_at`)
+super-admin per-clinic; (`visible`,`created_at`) cron scan; `actor_user_id`.
+
 ---
 
 ## 4. Notes
@@ -133,4 +163,7 @@ Indexes: `clinic_id`; (`doctor_id`,`start_date`,`end_date`) for the booking guar
 - **Timezone caveat (deploy):** availability, "tomorrow" (reminder), and day
   bounds use the **server's local timezone**. For a multi-region rollout
   (Pakistan vs GCC), pin each clinic to its own timezone.
-- Migrations `0000`–`0016` applied; new tables/columns are always additive to core.
+- Migrations `0000`–`0019` applied; new tables/columns are always additive to core.
+  (`0017` adds `appointments.discount_type` / `discount_value`; `0018` adds
+  `appointments.queue_session` / `queue_number` + the queue unique index; `0019`
+  adds the `activity_logs` table.)
