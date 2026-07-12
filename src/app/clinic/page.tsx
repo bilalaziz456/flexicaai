@@ -11,6 +11,7 @@ import {
   users,
 } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
+import { getSalesSummary, resolveSalesRange } from "@/core/sales/report";
 import {
   Card,
   CardContent,
@@ -45,7 +46,14 @@ export default async function ClinicDashboard() {
     clinicRow?.featuresEnabled,
     "revenue_dashboard",
   );
+  const salesEnabled = clinicHasFeature(clinicRow?.featuresEnabled, "sales");
   const avgVisitValue = clinicRow?.avgVisitValue ?? 3000;
+
+  // Net sales over the last 30 days for the dashboard card (only when the feature
+  // is on). Runs in parallel with the other stats below.
+  const salesSummaryPromise = salesEnabled
+    ? getSalesSummary(clinicId, resolveSalesRange("30d", undefined, undefined))
+    : Promise.resolve(null);
 
   const [[staff], [patientRows], [recallsSent], [upcoming], recoveredRes] =
     await Promise.all([
@@ -110,15 +118,30 @@ export default async function ClinicDashboard() {
     (recoveredRes.rows[0] as { recovered?: number } | undefined)?.recovered ?? 0,
   );
   const revenueRecovered = recovered * avgVisitValue;
-  const money = new Intl.NumberFormat("en-PK", {
-    style: "currency",
-    currency: "PKR",
-    maximumFractionDigits: 0,
-  }).format(revenueRecovered);
+  const pkr = (n: number) =>
+    new Intl.NumberFormat("en-PK", {
+      style: "currency",
+      currency: "PKR",
+      maximumFractionDigits: 0,
+    }).format(n);
+  const money = pkr(revenueRecovered);
+
+  // Collect the parallel sales summary (already running since it was created).
+  const salesSummary = await salesSummaryPromise;
 
   // "Return visits" only means something alongside the Revenue metric, so it is
   // shown only when that feature is enabled.
   const stats = [
+    ...(salesEnabled && salesSummary
+      ? [
+          {
+            title: "Net sales (30 days)",
+            value: pkr(salesSummary.netTotal),
+            note: `${salesSummary.count} completed visit${salesSummary.count === 1 ? "" : "s"} · View report`,
+            href: "/clinic/sales",
+          },
+        ]
+      : []),
     ...(revenueEnabled
       ? [{ title: "Return visits", value: recovered, note: "From recall reminders" }]
       : []),

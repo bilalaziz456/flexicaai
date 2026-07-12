@@ -278,6 +278,31 @@ export async function getSalesReport(
   };
 }
 
+/**
+ * Lightweight net-sales summary over a range (net total + completed-visit count) —
+ * for the clinic dashboard card, without the report's buckets/breakdowns. Uses the
+ * (`clinic_id`,`occurred_at`) index. Clinic-scoped.
+ */
+export async function getSalesSummary(
+  clinicId: string,
+  range: ResolvedRange,
+): Promise<{ netTotal: number; count: number }> {
+  const [row] = await db
+    .select({
+      net: sql<number>`coalesce(sum(${sales.netAmount}), 0)::int`,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(sales)
+    .where(
+      byClinic(
+        sales.clinicId,
+        clinicId,
+        and(gte(sales.occurredAt, range.start), lt(sales.occurredAt, range.end)),
+      ),
+    );
+  return { netTotal: Number(row?.net ?? 0), count: Number(row?.count ?? 0) };
+}
+
 /** Clinic's doctors for the report's doctor filter (id + display name). */
 export async function getSalesDoctors(
   clinicId: string,
