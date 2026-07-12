@@ -51,6 +51,113 @@ export function formatPkr(n: number): string {
   return `Rs ${new Intl.NumberFormat("en-PK").format(Math.max(0, Math.round(n)))}`;
 }
 
+/** One procedure line's discount inputs. */
+export type ProcedureLineInput = {
+  unitPrice: number;
+  quantity: number;
+  discountType: DiscountType;
+  discountValue: number;
+};
+
+export type ProcedureLineTotal = {
+  gross: number; // unitPrice × quantity
+  discount: number; // clamped per-line discount
+  net: number; // gross − discount
+};
+
+/**
+ * A single procedure line's totals — its gross (unit × qty) less its own discount,
+ * clamped to the line. Pure; the per-line discount is applied BEFORE the
+ * appointment-level discount.
+ */
+export function computeProcedureLine(line: ProcedureLineInput): ProcedureLineTotal {
+  const unit = Math.max(0, Math.round(line.unitPrice || 0));
+  const qty = Math.max(0, Math.round(line.quantity || 0));
+  const gross = unit * qty;
+  const { discount, net } = computeFee(gross, line.discountType, line.discountValue);
+  return { gross, discount, net };
+}
+
+export type BillTotal = {
+  consultation: number;
+  proceduresGross: number; // Σ line gross (pre any discount)
+  proceduresDiscount: number; // Σ per-line discounts
+  proceduresNet: number; // Σ line nets
+  subtotal: number; // consultation + proceduresNet
+  appointmentDiscount: number; // discount on the subtotal
+  gross: number; // consultation + proceduresGross (true pre-discount)
+  discount: number; // proceduresDiscount + appointmentDiscount
+  net: number; // what the patient pays
+  lines: ProcedureLineTotal[];
+};
+
+/**
+ * The full appointment bill with per-line discounts AND an overall appointment
+ * discount: each line is discounted first, summed with the consultation fee into a
+ * subtotal, then the appointment discount is applied to that subtotal. Pure.
+ */
+export function computeBill(
+  consultationFee: number | null | undefined,
+  lines: ProcedureLineInput[],
+  appointmentDiscountType: DiscountType,
+  appointmentDiscountValue: number,
+): BillTotal {
+  const consultation =
+    consultationFee && consultationFee > 0 ? Math.round(consultationFee) : 0;
+  const lineTotals = lines.map(computeProcedureLine);
+  const proceduresGross = lineTotals.reduce((s, l) => s + l.gross, 0);
+  const proceduresDiscount = lineTotals.reduce((s, l) => s + l.discount, 0);
+  const proceduresNet = lineTotals.reduce((s, l) => s + l.net, 0);
+  const subtotal = consultation + proceduresNet;
+  const { discount: appointmentDiscount } = computeFee(
+    subtotal,
+    appointmentDiscountType,
+    appointmentDiscountValue,
+  );
+  return {
+    consultation,
+    proceduresGross,
+    proceduresDiscount,
+    proceduresNet,
+    subtotal,
+    appointmentDiscount,
+    gross: consultation + proceduresGross,
+    discount: proceduresDiscount + appointmentDiscount,
+    net: subtotal - appointmentDiscount,
+    lines: lineTotals,
+  };
+}
+
+/**
+ * The three snapshot amounts the sales ledger stores, from pre-summed procedure
+ * gross + net (so it stays a single aggregate query). Keeps the invariant
+ * gross − discount = net while counting BOTH line and appointment discounts. Pure.
+ */
+export function computeSaleAmounts(
+  consultationFee: number | null | undefined,
+  proceduresGross: number,
+  proceduresNet: number,
+  appointmentDiscountType: DiscountType,
+  appointmentDiscountValue: number,
+): { gross: number; discount: number; net: number } {
+  const consultation =
+    consultationFee && consultationFee > 0 ? Math.round(consultationFee) : 0;
+  const pGross = Math.max(0, Math.round(proceduresGross || 0));
+  const pNet = Math.max(0, Math.round(proceduresNet || 0));
+  const lineDiscount = Math.max(0, pGross - pNet);
+  const subtotal = consultation + pNet;
+  const { discount: appointmentDiscount } = computeFee(
+    subtotal,
+    appointmentDiscountType,
+    appointmentDiscountValue,
+  );
+  return {
+    gross: consultation + pGross,
+    discount: lineDiscount + appointmentDiscount,
+    net: subtotal - appointmentDiscount,
+  };
+}
+
 export type AppointmentTotal = {
   consultation: number;
   procedures: number;

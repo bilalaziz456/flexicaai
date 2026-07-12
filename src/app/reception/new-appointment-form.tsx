@@ -19,6 +19,7 @@ import { TimeSelect } from "@/core/ui/time-select";
 import { Toast } from "@/core/ui/toast";
 import {
   computeAppointmentTotal,
+  computeProcedureLine,
   formatPkr,
   type DiscountType,
 } from "@/core/appointments/fee";
@@ -48,6 +49,10 @@ const label12 = (hhmm: string) => {
 
 const selectCls =
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+// Native <select> variant: themed chevron with a comfortable gap from the right
+// edge (see `.select-chevron` in globals.css). Not for the discount-value input.
+const nativeSelectCls =
+  "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron";
 
 /**
  * Appointment form — create OR edit. The time picker ADAPTS to the doctor: a
@@ -80,7 +85,12 @@ export function NewAppointmentForm({
     discountType: DiscountType;
     discountValue: number;
     chargeConsultation?: boolean;
-    procedures?: { procedureId: string; quantity: number }[];
+    procedures?: {
+      procedureId: string;
+      quantity: number;
+      discountType?: DiscountType;
+      discountValue?: number;
+    }[];
   };
 }) {
   const isEdit = Boolean(appointmentId);
@@ -106,31 +116,66 @@ export function NewAppointmentForm({
   const [chargeConsultation, setChargeConsultation] = useState(
     initial?.chargeConsultation ?? true,
   );
-  // Selected procedures → their quantity (≥ 1). A missing key means unselected.
-  const [procQty, setProcQty] = useState<Map<string, number>>(() => {
-    const m = new Map<string, number>();
+  // Selected procedures → { quantity (≥1), per-line discount }. `discountValue` is
+  // a string so the field can be cleared while typing. Missing key = unselected.
+  type ProcState = {
+    quantity: number;
+    discountType: DiscountType;
+    discountValue: string;
+  };
+  const [procSel, setProcSel] = useState<Map<string, ProcState>>(() => {
+    const m = new Map<string, ProcState>();
     for (const it of initial?.procedures ?? []) {
-      m.set(it.procedureId, Math.max(1, it.quantity));
+      m.set(it.procedureId, {
+        quantity: Math.max(1, it.quantity),
+        discountType: it.discountType ?? "amount",
+        discountValue: it.discountValue ? String(it.discountValue) : "",
+      });
     }
     return m;
   });
+  const updateProc = (id: string, patch: Partial<ProcState>) =>
+    setProcSel((prev) => {
+      const cur = prev.get(id);
+      if (!cur) return prev;
+      const next = new Map(prev);
+      next.set(id, { ...cur, ...patch });
+      return next;
+    });
   const toggleProc = (id: string) =>
-    setProcQty((prev) => {
+    setProcSel((prev) => {
       const next = new Map(prev);
       if (next.has(id)) next.delete(id);
-      else next.set(id, 1);
+      else next.set(id, { quantity: 1, discountType: "amount", discountValue: "" });
       return next;
     });
   const setQty = (id: string, q: number) =>
-    setProcQty((prev) => {
+    setProcSel((prev) => {
+      if (q <= 0) {
+        const next = new Map(prev);
+        next.delete(id);
+        return next;
+      }
+      const cur = prev.get(id);
+      if (!cur) return prev;
       const next = new Map(prev);
-      if (q <= 0) next.delete(id);
-      else next.set(id, Math.min(99, q));
+      next.set(id, { ...cur, quantity: Math.min(99, q) });
       return next;
     });
+  // Per-procedure net (line gross − its own discount), and the sum across lines.
+  const procLine = (p: ProcedureOption) => {
+    const s = procSel.get(p.id);
+    if (!s) return null;
+    return computeProcedureLine({
+      unitPrice: p.price,
+      quantity: s.quantity,
+      discountType: s.discountType,
+      discountValue: Math.max(0, Number(s.discountValue) || 0),
+    });
+  };
   const proceduresTotal = procedures
-    .filter((p) => procQty.has(p.id))
-    .reduce((sum, p) => sum + p.price * (procQty.get(p.id) ?? 1), 0);
+    .filter((p) => procSel.has(p.id))
+    .reduce((sum, p) => sum + (procLine(p)?.net ?? 0), 0);
   const [slots, setSlots] = useState<DoctorDaySlots | null>(null);
   const action = isEdit
     ? updateAppointment.bind(null, appointmentId!)
@@ -283,7 +328,7 @@ export function NewAppointmentForm({
               setDoctorId(e.target.value);
               void refreshSlots(e.target.value, date);
             }}
-            className={selectCls}
+            className={nativeSelectCls}
           >
             <option value="">— Any —</option>
             {doctors.map((d) => (
@@ -438,7 +483,7 @@ export function NewAppointmentForm({
             <Label>Procedures (optional)</Label>
             <div className="flex flex-wrap gap-2">
               {procedures.map((p) => {
-                const checked = procQty.has(p.id);
+                const checked = procSel.has(p.id);
                 return (
                   <button
                     key={p.id}
@@ -466,49 +511,87 @@ export function NewAppointmentForm({
               })}
             </div>
 
-            {/* Per-procedure quantity + line total for the chosen ones. */}
-            {procQty.size > 0 ? (
+            {/* Per-procedure quantity, its own discount, and the line net. */}
+            {procSel.size > 0 ? (
               <ul className="divide-y rounded-lg border">
                 {procedures
-                  .filter((p) => procQty.has(p.id))
+                  .filter((p) => procSel.has(p.id))
                   .map((p) => {
-                    const q = procQty.get(p.id) ?? 1;
+                    const s = procSel.get(p.id)!;
+                    const line = procLine(p)!;
                     return (
                       <li
                         key={p.id}
-                        className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+                        className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2 text-sm"
                       >
-                        <span className="min-w-0 truncate">
+                        <span className="min-w-0 truncate font-medium">
                           {p.name}
-                          <span className="text-muted-foreground">
+                          <span className="font-normal text-muted-foreground">
                             {" "}
                             · {formatPkr(p.price)}
                           </span>
                         </span>
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
+                          {/* quantity */}
                           <div className="flex items-center gap-1">
                             <button
                               type="button"
                               aria-label={`Decrease ${p.name} quantity`}
-                              onClick={() => setQty(p.id, q - 1)}
+                              onClick={() => setQty(p.id, s.quantity - 1)}
                               className="inline-flex size-7 items-center justify-center rounded-md border hover:bg-accent"
                             >
                               <Minus className="size-3.5" aria-hidden="true" />
                             </button>
                             <span className="w-6 text-center tabular-nums" aria-live="polite">
-                              {q}
+                              {s.quantity}
                             </span>
                             <button
                               type="button"
                               aria-label={`Increase ${p.name} quantity`}
-                              onClick={() => setQty(p.id, q + 1)}
+                              onClick={() => setQty(p.id, s.quantity + 1)}
                               className="inline-flex size-7 items-center justify-center rounded-md border hover:bg-accent"
                             >
                               <Plus className="size-3.5" aria-hidden="true" />
                             </button>
                           </div>
-                          <span className="w-20 text-right font-medium tabular-nums">
-                            {formatPkr(p.price * q)}
+                          {/* per-line discount */}
+                          <div className="flex items-center gap-1">
+                            <select
+                              value={s.discountType}
+                              onChange={(e) =>
+                                updateProc(p.id, {
+                                  discountType: e.target.value as DiscountType,
+                                })
+                              }
+                              className={`${nativeSelectCls} h-7 w-auto`}
+                              aria-label={`${p.name} discount type`}
+                            >
+                              <option value="amount">Rs</option>
+                              <option value="percent">%</option>
+                            </select>
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              min={0}
+                              max={s.discountType === "percent" ? 100 : undefined}
+                              value={s.discountValue}
+                              onChange={(e) =>
+                                updateProc(p.id, {
+                                  discountValue: e.target.value.replace(/[^\d]/g, ""),
+                                })
+                              }
+                              placeholder="Disc."
+                              aria-label={`${p.name} discount`}
+                              className={`${selectCls} h-7 w-16`}
+                            />
+                          </div>
+                          <span className="w-24 text-right font-medium tabular-nums">
+                            {line.discount > 0 ? (
+                              <span className="mr-1 font-normal text-muted-foreground line-through">
+                                {formatPkr(line.gross)}
+                              </span>
+                            ) : null}
+                            {formatPkr(line.net)}
                           </span>
                         </div>
                       </li>
@@ -517,9 +600,14 @@ export function NewAppointmentForm({
               </ul>
             ) : null}
 
-            {/* One hidden field per procedure, encoded "<id>:<qty>". */}
-            {[...procQty.entries()].map(([id, q]) => (
-              <input key={id} type="hidden" name="procedure" value={`${id}:${q}`} />
+            {/* One hidden field per procedure: "<id>:<qty>:<type>:<discountValue>". */}
+            {[...procSel.entries()].map(([id, s]) => (
+              <input
+                key={id}
+                type="hidden"
+                name="procedure"
+                value={`${id}:${s.quantity}:${s.discountType}:${Math.max(0, Number(s.discountValue) || 0)}`}
+              />
             ))}
           </div>
         ) : null}
@@ -534,7 +622,7 @@ export function NewAppointmentForm({
               name="discountType"
               value={discountType}
               onChange={(e) => setDiscountType(e.target.value as DiscountType)}
-              className={`${selectCls} w-auto`}
+              className={`${nativeSelectCls} w-auto`}
               aria-label="Discount type"
             >
               <option value="amount">Amount (Rs)</option>

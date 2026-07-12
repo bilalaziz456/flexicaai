@@ -596,6 +596,11 @@ export const appointmentProcedures = pgTable(
     name: text("name").notNull(), // snapshot
     unitPrice: integer("unit_price").notNull().default(0), // snapshot, PKR
     quantity: integer("quantity").notNull().default(1),
+    // Optional per-line discount, applied to THIS line's gross (unit_price×qty)
+    // BEFORE the appointment-level discount. 'amount' = flat PKR, 'percent' = %
+    // of the line. Free-text/int (not enums) to stay additive.
+    discountType: text("discount_type").notNull().default("amount"),
+    discountValue: integer("discount_value").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

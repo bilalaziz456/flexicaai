@@ -1,19 +1,15 @@
 import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
-import { and, asc, count, eq, gte, ilike, lt, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, gte, ilike, lt, or } from "drizzle-orm";
 import { requireRole } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
-import {
-  appointmentProcedures,
-  appointments,
-  patients,
-  users,
-} from "@/core/db/schema";
+import { appointments, patients, users } from "@/core/db/schema";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import { computeAppointmentTotal, formatPkr } from "@/core/appointments/fee";
+import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import { getDayQueue } from "@/core/appointments/queue";
 import { parseListFilters } from "@/core/appointments/list-filters";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
@@ -109,7 +105,7 @@ export default async function ReceptionHome({
         doctorName: users.fullName,
         doctorUsername: users.username,
         consultationFee: users.consultationFee,
-        proceduresTotal: sql<number>`coalesce((select sum(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity}) from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${appointments.id}), 0)`,
+        proceduresTotal: appointmentProceduresNetSql(),
       })
       .from(appointments)
       .innerJoin(patients, eq(appointments.patientId, patients.id))

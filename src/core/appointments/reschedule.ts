@@ -1,12 +1,13 @@
 import "server-only";
 
-import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
-import { appointmentProcedures, appointments, patients } from "@/core/db/schema";
+import { appointments, patients } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import { computeAppointmentTotal } from "@/core/appointments/fee";
+import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import { checkDoctorSlot } from "@/core/appointments/availability";
 import { queueSessionKey, withQueueNumber } from "@/core/appointments/queue";
 import { parseWhen } from "@/core/appointments/parse-when";
@@ -90,7 +91,7 @@ export async function handleRescheduleReply(args: {
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
         chargeConsultation: appointments.chargeConsultation,
-        proceduresTotal: sql<number>`coalesce((select sum(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity}) from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${appointments.id}), 0)`,
+        proceduresTotal: appointmentProceduresNetSql(),
       })
       .from(appointments)
       .where(

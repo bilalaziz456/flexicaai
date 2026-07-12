@@ -168,13 +168,22 @@ feature (`core/lib/features.ts`). Indexes: `clinic_id`; (`clinic_id`,`is_active`
 `id`, `clinic_id` → clinics (`cascade`), `appointment_id` → appointments
 (`cascade`), `procedure_id` → procedures (`set null`), `name` + `unit_price`
 (**snapshots** — catalog edits never rewrite past appointments), `quantity`
-(user-set in the booking form, ≥ 1), `created_at`. An appointment's **total =
-doctor `consultation_fee` + Σ(unit_price×quantity)**, then the appointment's
-discount applies to that total (`core/appointments/fee.ts#computeAppointmentTotal`).
-Saved on create/edit via `core/appointments/procedures.ts#saveAppointmentProcedures`
-(replace-all, takes `{procedureId, quantity}[]`, clinic-scoped);
-`getAppointmentProcedureItems` reads the snapshots back for the edit-form prefill
-and the read-only bill on the appointment detail page. Indexes: `appointment_id`;
+(user-set in the booking form, ≥ 1), `discount_type` (free-text, default 'amount')
++ `discount_value` int (default 0) — an **optional per-line discount** applied to
+THIS line's gross (`unit_price×quantity`) BEFORE the appointment-level discount —
+and `created_at`. The bill is **layered**: each line is discounted first (`lineNet
+= gross − line discount`), summed with the consultation fee into a **subtotal**,
+then the appointment's own discount applies to that subtotal — all in
+`core/appointments/fee.ts` (`computeProcedureLine` / `computeBill`;
+`computeSaleAmounts` for the ledger's gross/discount/net snapshot). To keep the many
+callers a single fast aggregate (not N queries), the per-row net is expressed in SQL
+by `procedures.ts#procedureRowNetSql` (mirrors `computeProcedureLine` exactly), with
+correlated `appointmentProceduresNetSql` / `appointmentProceduresGrossSql` helpers
+used by both appointment lists, the WhatsApp confirmation + reschedule quote, the
+sales ledger, and the report's per-procedure breakdown. Saved on create/edit via
+`saveAppointmentProcedures` (replace-all, `{procedureId, quantity, discountType,
+discountValue}[]`, clinic-scoped); `getAppointmentProcedureItems` reads the snapshots
+back for the edit-form prefill and the read-only bill. Indexes: `appointment_id`;
 `clinic_id`; `procedure_id`.
 
 ### `sales` — realised-revenue ledger (Sales feature, phase 3)
@@ -209,11 +218,12 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
 - **Timezone caveat (deploy):** availability, "tomorrow" (reminder), and day
   bounds use the **server's local timezone**. For a multi-region rollout
   (Pakistan vs GCC), pin each clinic to its own timezone.
-- Migrations `0000`–`0023` applied; new tables/columns are always additive to core.
+- Migrations `0000`–`0025` applied; new tables/columns are always additive to core.
   (`0017` adds `appointments.discount_type` / `discount_value`; `0018` adds
   `appointments.queue_session` / `queue_number` + the queue unique index; `0019`
   adds the `activity_logs` table; `0020` adds `clinics.log_access` and drops the
   now-unused `activity_logs.visible` — log access is permission-based, not
   time-based; `0021` adds the `procedures` table; `0022` adds `appointment_procedures`;
   `0023` adds the `sales` ledger table; `0024` adds
-  `appointments.charge_consultation`.)
+  `appointments.charge_consultation`; `0025` adds
+  `appointment_procedures.discount_type` / `discount_value` for per-line discounts.)

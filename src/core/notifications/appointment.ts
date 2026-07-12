@@ -1,20 +1,15 @@
 import "server-only";
 
-import { and, eq, gte, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, lt } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
-import {
-  appointmentProcedures,
-  appointments,
-  clinics,
-  patients,
-  users,
-} from "@/core/db/schema";
+import { appointments, clinics, patients, users } from "@/core/db/schema";
 import {
   describeAvailability,
   type DayAvailability,
 } from "@/core/lib/availability";
 import { computeAppointmentTotal } from "@/core/appointments/fee";
+import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 
@@ -126,7 +121,7 @@ export async function notifyAppointmentBooked(
         chargeConsultation: appointments.chargeConsultation,
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
-        proceduresTotal: sql<number>`coalesce((select sum(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity}) from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${appointments.id}), 0)`,
+        proceduresTotal: appointmentProceduresNetSql(),
         queueNumber: appointments.queueNumber,
         clinicName: clinics.name,
       })

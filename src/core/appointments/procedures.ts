@@ -1,28 +1,61 @@
 import "server-only";
 
-import { asc, eq, inArray } from "drizzle-orm";
+import { asc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
-import { appointmentProcedures, clinics, procedures } from "@/core/db/schema";
+import {
+  appointmentProcedures,
+  appointments,
+  clinics,
+  procedures,
+} from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
+import type { DiscountType } from "@/core/appointments/fee";
 
 export type BookingProcedure = { id: string; name: string; price: number };
 
-/** One procedure line on an appointment, chosen with a quantity (≥ 1). */
-export type ProcedureSelection = { procedureId: string; quantity: number };
+/** One procedure line on an appointment — quantity (≥ 1) + its own discount. */
+export type ProcedureSelection = {
+  procedureId: string;
+  quantity: number;
+  discountType: DiscountType;
+  discountValue: number;
+};
 
-/** A saved appointment line item (snapshotted name + price + quantity). */
+/** A saved appointment line item (snapshotted name + price + quantity + discount). */
 export type AppointmentProcedureItem = {
   procedureId: string | null;
   name: string;
   unitPrice: number;
   quantity: number;
+  discountType: DiscountType;
+  discountValue: number;
 };
 
 /** Clamp a raw quantity to a sane whole number in [1, 99]. */
 function clampQty(q: number): number {
   if (!Number.isFinite(q)) return 1;
   return Math.max(1, Math.min(99, Math.round(q)));
+}
+
+/**
+ * SQL for a procedure row's NET (line gross − its clamped per-line discount).
+ * Mirrors `computeProcedureLine` exactly so the DB aggregates and the JS bill can
+ * never drift. Use inside a `sum(...)` (grouped) or the correlated helper below.
+ */
+export function procedureRowNetSql(): SQL<number> {
+  const gross = sql`(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity})`;
+  return sql<number>`(${gross} - least(greatest(case when ${appointmentProcedures.discountType} = 'percent' then round(${gross} * ${appointmentProcedures.discountValue} / 100.0) else ${appointmentProcedures.discountValue} end, 0), ${gross}))`;
+}
+
+/** Correlated Σ of per-row NET for the OUTER `appointments.id` (0 when none). */
+export function appointmentProceduresNetSql(): SQL<number> {
+  return sql<number>`coalesce((select sum(${procedureRowNetSql()})::int from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${appointments.id}), 0)`;
+}
+
+/** Correlated Σ of per-row GROSS (unit×qty) for the OUTER `appointments.id`. */
+export function appointmentProceduresGrossSql(): SQL<number> {
+  return sql<number>`coalesce((select sum(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity})::int from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${appointments.id}), 0)`;
 }
 
 /**
@@ -52,9 +85,9 @@ export async function getBookingProcedures(
 /**
  * Replaces an appointment's procedure line items with `selections`
  * (clinic-scoped). Snapshots each procedure's CURRENT name + price + the chosen
- * quantity so later catalog edits never rewrite this appointment. Deletes the
- * existing items first, so it's used for both create and edit. Duplicate ids are
- * merged (quantities summed); unknown/foreign ids are dropped.
+ * quantity + its per-line discount so later catalog edits never rewrite this
+ * appointment. Deletes the existing items first, so it's used for both create and
+ * edit. Duplicate ids collapse to the last selection; unknown/foreign ids drop.
  */
 export async function saveAppointmentProcedures(
   clinicId: string,
@@ -71,13 +104,13 @@ export async function saveAppointmentProcedures(
       ),
     );
 
-  // Merge repeats and clamp quantities → one row per procedure.
-  const qtyById = new Map<string, number>();
+  // One row per procedure (the form never dupes; last wins if it somehow does).
+  const byId = new Map<string, ProcedureSelection>();
   for (const s of selections) {
     if (!s.procedureId) continue;
-    qtyById.set(s.procedureId, clampQty((qtyById.get(s.procedureId) ?? 0) + s.quantity));
+    byId.set(s.procedureId, s);
   }
-  const ids = [...qtyById.keys()];
+  const ids = [...byId.keys()];
   if (ids.length === 0) return;
 
   const rows = await db
@@ -91,31 +124,38 @@ export async function saveAppointmentProcedures(
   if (rows.length === 0) return;
 
   await db.insert(appointmentProcedures).values(
-    rows.map((r) => ({
-      clinicId,
-      appointmentId,
-      procedureId: r.id,
-      name: r.name,
-      unitPrice: r.price,
-      quantity: qtyById.get(r.id) ?? 1,
-    })),
+    rows.map((r) => {
+      const s = byId.get(r.id)!;
+      return {
+        clinicId,
+        appointmentId,
+        procedureId: r.id,
+        name: r.name,
+        unitPrice: r.price,
+        quantity: clampQty(s.quantity),
+        discountType: s.discountType === "percent" ? "percent" : "amount",
+        discountValue: Math.max(0, Math.round(s.discountValue || 0)),
+      };
+    }),
   );
 }
 
 /**
- * An appointment's saved procedure line items (name/price/quantity snapshots),
- * ordered by name. Drives both the edit-form prefill and the read-only bill.
+ * An appointment's saved procedure line items (name/price/quantity/discount
+ * snapshots), ordered by name. Drives the edit-form prefill and the read-only bill.
  */
 export async function getAppointmentProcedureItems(
   clinicId: string,
   appointmentId: string,
 ): Promise<AppointmentProcedureItem[]> {
-  return db
+  const rows = await db
     .select({
       procedureId: appointmentProcedures.procedureId,
       name: appointmentProcedures.name,
       unitPrice: appointmentProcedures.unitPrice,
       quantity: appointmentProcedures.quantity,
+      discountType: appointmentProcedures.discountType,
+      discountValue: appointmentProcedures.discountValue,
     })
     .from(appointmentProcedures)
     .where(
@@ -126,4 +166,8 @@ export async function getAppointmentProcedureItems(
       ),
     )
     .orderBy(asc(appointmentProcedures.name));
+  return rows.map((r) => ({
+    ...r,
+    discountType: r.discountType === "percent" ? "percent" : "amount",
+  }));
 }

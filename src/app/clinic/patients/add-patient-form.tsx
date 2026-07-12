@@ -52,7 +52,7 @@ export function AddPatientForm() {
             id="gender"
             name="gender"
             defaultValue=""
-            className="h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron"
           >
             <option value="">—</option>
             <option value="male">Male</option>

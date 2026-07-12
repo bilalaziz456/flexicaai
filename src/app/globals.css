@@ -191,3 +191,18 @@ select:-webkit-autofill {
   -webkit-text-security: disc;
   text-security: disc;
 }
+
+/* Native <select> dropdowns: replace the OS arrow with a themed double-chevron
+   (matching the Base UI selects' lucide ChevronsUpDown) so its gap from the right
+   edge is controlled and consistent. Pair with `pl-2.5 pr-8` for text spacing. */
+.select-chevron {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23667085'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='m7%2015%205%205%205-5'/%3E%3Cpath%20d='m7%209%205-5%205%205'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.85rem center;
+  background-size: 0.9rem;
+}
+.dark .select-chevron {
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%2394a3b8'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='m7%2015%205%205%205-5'/%3E%3Cpath%20d='m7%209%205-5%205%205'/%3E%3C/svg%3E");
+}

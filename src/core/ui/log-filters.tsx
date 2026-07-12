@@ -37,7 +37,7 @@ function FilterSelect({
       <div
         aria-label={ariaLabel}
         aria-disabled="true"
-        className={`inline-flex h-8 ${width} cursor-not-allowed items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm text-muted-foreground opacity-70`}
+        className={`inline-flex h-8 ${width} cursor-not-allowed items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-3.5 text-sm text-muted-foreground opacity-70`}
       >
         <span className="truncate">{placeholder ?? "—"}</span>
         <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" aria-hidden="true" />
@@ -52,7 +52,7 @@ function FilterSelect({
     >
       <Select.Trigger
         aria-label={ariaLabel}
-        className={`inline-flex h-8 ${width} items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-ring`}
+        className={`inline-flex h-8 ${width} items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-3.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-ring`}
       >
         <Select.Value />
         <Select.Icon>

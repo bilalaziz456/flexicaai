@@ -158,7 +158,7 @@ export default async function ClinicSalesPage({
           <CardHeader>
             <CardTitle className="text-base">By procedure</CardTitle>
             <CardDescription>
-              Procedure revenue (before discount) in this period.
+              Procedure revenue (after line discounts) in this period.
             </CardDescription>
           </CardHeader>
           <CardContent>

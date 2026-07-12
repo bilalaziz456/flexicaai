@@ -18,7 +18,7 @@ import {
   getBookingProcedures,
 } from "@/core/appointments/procedures";
 import {
-  computeAppointmentTotal,
+  computeBill,
   formatPkr,
   normalizeDiscountType,
 } from "@/core/appointments/fee";
@@ -85,24 +85,32 @@ export async function AppointmentDetail({
     getAppointmentProcedureItems(clinicId, appointmentId),
   ]);
 
-  // Edit-form prefill: only the items that still map to a selectable procedure.
+  // Edit-form prefill: only the items that still map to a selectable procedure
+  // (carry each line's quantity + its own discount).
   const initialProcedures = procedureItems
     .filter((i): i is typeof i & { procedureId: string } => Boolean(i.procedureId))
-    .map((i) => ({ procedureId: i.procedureId, quantity: i.quantity }));
+    .map((i) => ({
+      procedureId: i.procedureId,
+      quantity: i.quantity,
+      discountType: i.discountType,
+      discountValue: i.discountValue,
+    }));
 
-  // Read-only bill: consultation fee + line items, with the appointment's discount.
-  // A procedure-only visit doesn't charge the consultation fee (chargeConsultation).
+  // Read-only bill: consultation fee + line items (each with its own discount),
+  // then the appointment-level discount on the subtotal. A procedure-only visit
+  // doesn't charge the consultation fee (chargeConsultation).
   const doctorFee = appt.chargeConsultation
     ? (doctors.find((dd) => dd.id === appt.doctorId)?.consultationFee ?? 0)
     : 0;
-  const proceduresTotal = procedureItems.reduce(
-    (sum, i) => sum + i.unitPrice * i.quantity,
-    0,
-  );
   const discountType = normalizeDiscountType(appt.discountType);
-  const bill = computeAppointmentTotal(
+  const bill = computeBill(
     doctorFee,
-    proceduresTotal,
+    procedureItems.map((i) => ({
+      unitPrice: i.unitPrice,
+      quantity: i.quantity,
+      discountType: i.discountType,
+      discountValue: i.discountValue,
+    })),
     discountType,
     appt.discountValue,
   );
@@ -173,30 +181,39 @@ export async function AppointmentDetail({
                   <dd className="tabular-nums">{formatPkr(bill.consultation)}</dd>
                 </div>
               ) : null}
-              {procedureItems.map((i, idx) => (
-                <div key={idx} className="flex items-center justify-between gap-3">
-                  <dt className="min-w-0 truncate text-muted-foreground">
-                    {i.name}
-                    {i.quantity > 1 ? (
-                      <span> × {i.quantity} @ {formatPkr(i.unitPrice)}</span>
-                    ) : null}
-                  </dt>
-                  <dd className="tabular-nums">{formatPkr(i.unitPrice * i.quantity)}</dd>
-                </div>
-              ))}
-              {bill.discount > 0 ? (
+              {procedureItems.map((i, idx) => {
+                const l = bill.lines[idx];
+                return (
+                  <div key={idx} className="flex items-center justify-between gap-3">
+                    <dt className="min-w-0 truncate text-muted-foreground">
+                      {i.name}
+                      {i.quantity > 1 ? (
+                        <span> × {i.quantity} @ {formatPkr(i.unitPrice)}</span>
+                      ) : null}
+                      {l.discount > 0 ? (
+                        <span className="text-destructive">
+                          {" "}· −{formatPkr(l.discount)}
+                          {i.discountType === "percent" ? ` (${i.discountValue}%)` : ""}
+                        </span>
+                      ) : null}
+                    </dt>
+                    <dd className="tabular-nums">{formatPkr(l.net)}</dd>
+                  </div>
+                );
+              })}
+              {bill.appointmentDiscount > 0 ? (
                 <>
                   <div className="flex items-center justify-between border-t pt-2">
                     <dt className="text-muted-foreground">Subtotal</dt>
-                    <dd className="tabular-nums">{formatPkr(bill.gross)}</dd>
+                    <dd className="tabular-nums">{formatPkr(bill.subtotal)}</dd>
                   </div>
                   <div className="flex items-center justify-between">
                     <dt className="text-muted-foreground">
-                      Discount
+                      Appointment discount
                       {discountType === "percent" ? ` (${appt.discountValue}%)` : ""}
                     </dt>
                     <dd className="tabular-nums text-destructive">
-                      −{formatPkr(bill.discount)}
+                      −{formatPkr(bill.appointmentDiscount)}
                     </dd>
                   </div>
                 </>

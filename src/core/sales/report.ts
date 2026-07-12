@@ -4,6 +4,7 @@ import { and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { appointmentProcedures, sales, users } from "@/core/db/schema";
+import { procedureRowNetSql } from "@/core/appointments/procedures";
 
 export type SalesGranularity = "hour" | "day" | "week" | "month";
 export type SalesPeriod = "today" | "30d" | "quarter" | "half" | "year" | "custom";
@@ -239,11 +240,13 @@ export async function getSalesReport(
 
   const byDoctor = [...doctorMap.values()].sort((a, b) => b.net - a.net);
 
-  // Procedure mix (gross line-item revenue, pre-discount) over the same window.
+  // Procedure mix — net line-item revenue (after each line's own discount, before
+  // the appointment-level discount) over the same window.
+  const netExpr = procedureRowNetSql();
   const procRows = await db
     .select({
       name: appointmentProcedures.name,
-      gross: sql<number>`sum(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity})::int`,
+      gross: sql<number>`sum(${netExpr})::int`,
       qty: sql<number>`sum(${appointmentProcedures.quantity})::int`,
     })
     .from(appointmentProcedures)
@@ -256,7 +259,7 @@ export async function getSalesReport(
       ),
     )
     .groupBy(appointmentProcedures.name)
-    .orderBy(desc(sql`sum(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity})`));
+    .orderBy(desc(sql`sum(${netExpr})`));
 
   const byProcedure: ProcedureSales[] = procRows.map((r) => ({
     name: r.name,

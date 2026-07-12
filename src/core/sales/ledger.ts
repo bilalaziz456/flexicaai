@@ -1,17 +1,14 @@
 import "server-only";
 
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
+import { appointments, sales, users } from "@/core/db/schema";
+import { computeSaleAmounts } from "@/core/appointments/fee";
 import {
-  appointmentProcedures,
-  appointments,
-  sales,
-  users,
-} from "@/core/db/schema";
-import { computeAppointmentTotal } from "@/core/appointments/fee";
-
-const procTotalSql = sql<number>`coalesce((select sum(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity}) from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${appointments.id}), 0)`;
+  appointmentProceduresGrossSql,
+  appointmentProceduresNetSql,
+} from "@/core/appointments/procedures";
 
 /**
  * Snapshots (upserts) the sale for a COMPLETED appointment: the doctor's
@@ -34,7 +31,8 @@ export async function recordSaleForAppointment(
         fee: users.consultationFee,
         doctorName: users.fullName,
         doctorUsername: users.username,
-        proceduresTotal: procTotalSql,
+        proceduresGross: appointmentProceduresGrossSql(),
+        proceduresNet: appointmentProceduresNetSql(),
       })
       .from(appointments)
       .leftJoin(users, eq(appointments.doctorId, users.id))
@@ -44,9 +42,10 @@ export async function recordSaleForAppointment(
       .limit(1);
     if (!row) return;
 
-    const { gross, discount, net } = computeAppointmentTotal(
+    const { gross, discount, net } = computeSaleAmounts(
       row.chargeConsultation ? row.fee : 0,
-      Number(row.proceduresTotal),
+      Number(row.proceduresGross),
+      Number(row.proceduresNet),
       row.discountType === "percent" ? "percent" : "amount",
       row.discountValue,
     );
@@ -113,7 +112,8 @@ export async function backfillClinicSales(clinicId: string): Promise<void> {
         fee: users.consultationFee,
         doctorName: users.fullName,
         doctorUsername: users.username,
-        proceduresTotal: procTotalSql,
+        proceduresGross: appointmentProceduresGrossSql(),
+        proceduresNet: appointmentProceduresNetSql(),
       })
       .from(appointments)
       .leftJoin(users, eq(appointments.doctorId, users.id))
@@ -128,9 +128,10 @@ export async function backfillClinicSales(clinicId: string): Promise<void> {
     if (rows.length === 0) return;
 
     const values = rows.map((r) => {
-      const { gross, discount, net } = computeAppointmentTotal(
+      const { gross, discount, net } = computeSaleAmounts(
         r.chargeConsultation ? r.fee : 0,
-        Number(r.proceduresTotal),
+        Number(r.proceduresGross),
+        Number(r.proceduresNet),
         r.discountType === "percent" ? "percent" : "amount",
         r.discountValue,
       );

@@ -176,6 +176,13 @@
       "when": 1783892270446,
       "tag": "0024_sloppy_the_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1783895491266,
+      "tag": "0025_magical_clint_barton",
+      "breakpoints": true
     }
   ]
 }
