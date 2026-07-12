@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { count, desc, ilike } from "drizzle-orm";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
@@ -130,9 +130,10 @@ export default async function AdminHome({
                 <TableCell className="text-right">
                   <Link
                     href={`/admin/clinics/${clinic.id}`}
-                    className="underline underline-offset-4"
+                    className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
                   >
                     Open
+                    <ChevronRight className="size-4" aria-hidden="true" />
                   </Link>
                 </TableCell>
               </RowLink>
