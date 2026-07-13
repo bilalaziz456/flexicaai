@@ -68,6 +68,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
     items: [
       { href: "/doctor", label: "Voice scribe", Icon: Stethoscope, exact: true, resource: "clinical" },
       { href: "/doctor/appointments", label: "Appointments", Icon: CalendarClock, resource: "appointments" },
+      { href: "/doctor/patients", label: "Patients", Icon: Contact, resource: "patients" },
     ],
   },
   reception: {

@@ -1,0 +1,25 @@
+import { redirect } from "next/navigation";
+import { requireRole } from "@/core/auth/user";
+import { can } from "@/core/auth/permissions";
+import { PatientDetail } from "@/app/clinic/patients/patient-detail";
+
+/** Doctor with the `patients` permission: open a patient. */
+export default async function DoctorPatientDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const user = await requireRole("doctor");
+  if (!user.clinicId) redirect("/login?error=no_access");
+  if (!can(user, "patients", "view")) redirect("/doctor");
+  const { id } = await params;
+  return (
+    <PatientDetail
+      clinicId={user.clinicId}
+      patientId={id}
+      backHref="/doctor/patients"
+      canEdit={can(user, "patients", "edit")}
+      canDelete={can(user, "patients", "delete")}
+    />
+  );
+}

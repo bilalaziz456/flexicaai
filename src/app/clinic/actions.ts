@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { requireClinicAdmin } from "@/core/auth/user";
+import { requireClinicAdmin, requireRole } from "@/core/auth/user";
+import { can, type PermAction } from "@/core/auth/permissions";
+import type { CurrentUser } from "@/core/types/auth";
 import { hashPassword } from "@/core/auth/password";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { db } from "@/core/db";
@@ -505,12 +507,27 @@ const createPatientSchema = z.object({
   fullName: z.string().trim().min(2, "Patient name is required."),
 });
 
-/** Registers a patient in the admin's clinic. */
+/**
+ * Patient management is shared by the clinic admin AND any clinic staff granted
+ * the `patients` permission (e.g. a doctor). Returns the user + clinic id + which
+ * panel's patients base to redirect/revalidate (a doctor lands in /doctor/patients).
+ */
+async function requirePatientAccess(
+  action: PermAction,
+): Promise<{ user: CurrentUser; clinicId: string; home: string }> {
+  const user = await requireRole(["clinic_admin", "doctor", "receptionist", "manager"]);
+  if (!user.clinicId) redirect("/login?error=no_access");
+  const home = user.role === "doctor" ? "/doctor/patients" : "/clinic/patients";
+  if (!can(user, "patients", action)) redirect(home);
+  return { user, clinicId: user.clinicId, home };
+}
+
+/** Registers a patient in the caller's clinic. */
 export async function createPatient(
   _prevState: ClinicActionState,
   formData: FormData,
 ): Promise<ClinicActionState> {
-  const { clinicId } = await requireClinicAdmin();
+  const { clinicId, home } = await requirePatientAccess("create");
 
   const parsed = createPatientSchema.safeParse({
     fullName: formData.get("fullName"),
@@ -540,8 +557,8 @@ export async function createPatient(
     entityId: createdPatient.id,
     summary: `Registered patient ${parsed.data.fullName}`,
   });
-  revalidatePath("/clinic/patients");
-  redirect("/clinic/patients?created=1");
+  revalidatePath(home);
+  redirect(`${home}?created=1`);
 }
 
 const updatePatientSchema = z.object({
@@ -554,7 +571,7 @@ export async function updatePatient(
   _prevState: ClinicActionState,
   formData: FormData,
 ): Promise<ClinicActionState> {
-  const { clinicId } = await requireClinicAdmin();
+  const { clinicId, home } = await requirePatientAccess("edit");
 
   const parsed = updatePatientSchema.safeParse({
     fullName: formData.get("fullName"),
@@ -585,9 +602,9 @@ export async function updatePatient(
     entityId: patientId,
     summary: `Edited patient ${parsed.data.fullName}`,
   });
-  revalidatePath("/clinic/patients");
-  revalidatePath(`/clinic/patients/${patientId}`);
-  redirect("/clinic/patients?updated=1");
+  revalidatePath(home);
+  revalidatePath(`${home}/${patientId}`);
+  redirect(`${home}?updated=1`);
 }
 
 /**
@@ -598,7 +615,7 @@ export async function deletePatient(
   patientId: string,
   password: string,
 ): Promise<ClinicActionState> {
-  const { clinicId } = await requireClinicAdmin();
+  const { clinicId, home } = await requirePatientAccess("delete");
 
   if (!(await verifyCurrentUserPassword(password))) {
     return { error: "Incorrect password." };
@@ -614,8 +631,8 @@ export async function deletePatient(
     entityId: patientId,
     summary: "Deleted a patient and their records",
   });
-  revalidatePath("/clinic/patients");
-  redirect("/clinic/patients?deleted=1");
+  revalidatePath(home);
+  redirect(`${home}?deleted=1`);
 }
 
 const clinicSettingsSchema = z.object({
