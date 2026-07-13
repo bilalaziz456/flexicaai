@@ -35,6 +35,14 @@ export default async function ClinicLayout({
   const logsEnabled =
     user.role === "clinic_admin" && (clinic?.logAccess?.length ?? 0) > 0;
 
+  // A doctor manages only their OWN leave, and does so from the dashboard — so we
+  // hide the "Doctors" (leave) nav item for them. Admin / manager / reception
+  // still get the full Doctors page (all doctors' caps + leave) in the nav.
+  const navResources =
+    user.role === "doctor"
+      ? accessibleResourceIds(user).filter((r) => r !== "leave")
+      : accessibleResourceIds(user);
+
   return (
     <PanelShell
       panel="clinic"
@@ -42,7 +50,7 @@ export default async function ClinicLayout({
       theme={theme}
       logsEnabled={logsEnabled}
       salesEnabled={clinicHasFeature(clinic?.featuresEnabled, "sales")}
-      accessibleResources={accessibleResourceIds(user)}
+      accessibleResources={navResources}
     >
       {children}
     </PanelShell>

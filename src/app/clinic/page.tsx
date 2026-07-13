@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { and, count, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, count, eq, gte, inArray, sql } from "drizzle-orm";
 import { requireWorkspace } from "@/core/auth/user";
+import { can } from "@/core/auth/permissions";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import {
   appointments,
   clinics,
+  doctorLeaves,
   patients,
   recalls,
   users,
@@ -20,6 +22,7 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { AvgVisitValueForm } from "./avg-visit-value-form";
+import { DoctorLeaves } from "@/app/reception/doctor-leaves";
 
 /**
  * Owner dashboard (CLAUDE.md §11 Step 12). The hero metric is "Revenue
@@ -50,6 +53,34 @@ export default async function ClinicDashboard() {
   );
   const salesEnabled = clinicHasFeature(clinicRow?.featuresEnabled, "sales");
   const avgVisitValue = clinicRow?.avgVisitValue ?? 3000;
+
+  // A doctor manages their OWN leave right here on the dashboard (no separate
+  // "Doctors" nav item). Fetch their upcoming leave; the add/remove controls are
+  // gated by leave create/delete and the server action re-checks ownership.
+  const isDoctor = user.role === "doctor";
+  const p = (n: number) => String(n).padStart(2, "0");
+  const today = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
+  const myLeave = isDoctor
+    ? await db
+        .select({
+          id: doctorLeaves.id,
+          startDate: doctorLeaves.startDate,
+          endDate: doctorLeaves.endDate,
+          reason: doctorLeaves.reason,
+        })
+        .from(doctorLeaves)
+        .where(
+          byClinic(
+            doctorLeaves.clinicId,
+            clinicId,
+            and(
+              eq(doctorLeaves.doctorId, user.id),
+              gte(doctorLeaves.endDate, today),
+            ),
+          ),
+        )
+        .orderBy(asc(doctorLeaves.startDate))
+    : [];
 
   // Net sales over the last 30 days for the dashboard card (only when the feature
   // is on). Runs in parallel with the other stats below.
@@ -161,6 +192,27 @@ export default async function ClinicDashboard() {
           Your clinic at a glance.
         </p>
       </div>
+
+      {/* Doctor: manage your own leave / vacation (no separate nav page). */}
+      {isDoctor ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>My leave</CardTitle>
+            <CardDescription>
+              Add your leave / vacation days — appointments in the range are
+              cancelled and no new bookings are allowed.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DoctorLeaves
+              doctorId={user.id}
+              leaves={myLeave}
+              canCreate={can(user, "leave", "create")}
+              canDelete={can(user, "leave", "delete")}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Hero: Revenue Recovered — only when the super admin enabled it. */}
       {revenueEnabled ? (

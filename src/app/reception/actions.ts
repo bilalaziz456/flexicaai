@@ -725,6 +725,7 @@ export async function addDoctorLeave(
   revalidatePath(home);
   revalidatePath("/reception/doctors");
   revalidatePath("/clinic/staff", "layout");
+  revalidatePath("/clinic"); // doctor manages own leave from the dashboard
   return { saved: true, cancelled: cancelledIds.length };
 }
 
@@ -758,4 +759,5 @@ export async function removeDoctorLeave(
   revalidatePath(home);
   revalidatePath("/reception/doctors");
   revalidatePath("/clinic/staff", "layout");
+  revalidatePath("/clinic"); // doctor manages own leave from the dashboard
 }
