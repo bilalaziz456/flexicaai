@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   date,
@@ -44,6 +45,28 @@ export const themePreference = pgEnum("theme_preference", [
 ]);
 
 /**
+ * Soft-delete columns — CORE. Nothing in the app is ever hard-deleted (the only
+ * exception is a super-admin LEGAL purge). A deleted row keeps `deletedAt` = when
+ * it was trashed (NULL = live); every normal read filters `deletedAt IS NULL`.
+ *
+ * - `deletedBy`  — the user who trashed it (plain uuid, no FK: users are
+ *   themselves soft-deleted, so we never lose the referent, and we avoid FK churn).
+ * - `deleteGroup` — one id shared by a parent and the child rows its deletion
+ *   cascade-hid, so **Restore reverts exactly that batch** (a row trashed on its
+ *   own has its own group and is never revived by an unrelated parent restore).
+ * - `deletedByCascade` — true for rows hidden ONLY because a parent was trashed;
+ *   the Trash list shows only the non-cascade (directly-deleted) rows.
+ *
+ * Spread `...softDeleteColumns()` into every soft-deletable table.
+ */
+const softDeleteColumns = () => ({
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedBy: uuid("deleted_by"),
+  deleteGroup: uuid("delete_group"),
+  deletedByCascade: boolean("deleted_by_cascade").notNull().default(false),
+});
+
+/**
  * Tenants. `modulesEnabled` is the array the specialty checkboxes read/write —
  * e.g. ['dental']. Core code checks this list but never hardcodes a specialty.
  */
@@ -71,6 +94,11 @@ export const clinics = pgTable(
     // Owner-set average revenue per visit (whole PKR). Drives the owner
     // dashboard's "Revenue Recovered" metric (recovered return visits × this).
     avgVisitValue: integer("avg_visit_value").notNull().default(3000),
+    // How many days a trashed record stays in this clinic's Trash before it drops
+    // out of the clinic-level view (still in the DB — only the super admin sees it
+    // past this window). Super-admin-set; default 30. Never auto-purged.
+    trashRetentionDays: integer("trash_retention_days").notNull().default(30),
+    ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -82,6 +110,10 @@ export const clinics = pgTable(
     // Fast case-insensitive contains-search (ILIKE '%q%') on name via pg_trgm.
     // A plain btree can't serve a leading-wildcard LIKE; a GIN trigram index can.
     index("clinics_name_trgm_idx").using("gin", t.name.op("gin_trgm_ops")),
+    // Trash listing (super admin): only the trashed rows.
+    index("clinics_deleted_idx")
+      .on(t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
   ],
 );
 
@@ -133,6 +165,7 @@ export const users = pgTable(
       .default(0),
     // Doctor's consultation fee in whole PKR (0 = not set). Per-doctor.
     consultationFee: integer("consultation_fee").notNull().default(0),
+    ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -142,11 +175,21 @@ export const users = pgTable(
   },
   (table) => [
     // Username is the login credential — globally unique, stored lowercased.
-    uniqueIndex("users_username_unique").on(table.username),
+    // PARTIAL: a trashed user keeps its row, so uniqueness ignores deleted rows —
+    // otherwise the username/email could never be reused after a soft delete.
+    uniqueIndex("users_username_unique")
+      .on(table.username)
+      .where(sql`${table.deletedAt} is null`),
     // Email is optional; unique when present (Postgres treats NULLs as distinct).
-    uniqueIndex("users_email_unique").on(table.email),
+    uniqueIndex("users_email_unique")
+      .on(table.email)
+      .where(sql`${table.deletedAt} is null`),
     // Multi-tenant lookups filter by clinic_id constantly — index it.
     index("users_clinic_id_idx").on(table.clinicId),
+    // Trash listing per clinic: only trashed staff.
+    index("users_deleted_idx")
+      .on(table.clinicId, table.deletedAt)
+      .where(sql`${table.deletedAt} is not null`),
   ],
 );
 
@@ -197,6 +240,7 @@ export const patients = pgTable(
     notes: text("notes"),
     // Consent for data use (CLAUDE.md §10). Photo consent added by modules that need it.
     dataConsent: boolean("data_consent").notNull().default(false),
+    ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -212,6 +256,10 @@ export const patients = pgTable(
     // Fast ILIKE '%q%' contains-search on name and phone (pg_trgm GIN).
     index("patients_name_trgm_idx").using("gin", t.fullName.op("gin_trgm_ops")),
     index("patients_phone_trgm_idx").using("gin", t.phone.op("gin_trgm_ops")),
+    // Trash listing per clinic: only trashed patients.
+    index("patients_deleted_idx")
+      .on(t.clinicId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
   ],
 );
 
@@ -274,6 +322,7 @@ export const appointments = pgTable(
     // core/appointments/queue.ts.
     queueSession: text("queue_session"),
     queueNumber: integer("queue_number"),
+    ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -287,6 +336,10 @@ export const appointments = pgTable(
     // Calendar/day views query by clinic + time window.
     index("appointments_clinic_scheduled_idx").on(t.clinicId, t.scheduledAt),
     index("appointments_doctor_id_idx").on(t.doctorId),
+    // Trash listing per clinic: only trashed appointments (directly deleted).
+    index("appointments_deleted_idx")
+      .on(t.clinicId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
     // The reminder cron scans "active, un-reminded, scheduled within a window".
     index("appointments_reminder_scan_idx").on(t.scheduledAt, t.reminderSentAt),
     // Queue tokens are unique within a (clinic, session). NULLs are distinct in
@@ -343,6 +396,7 @@ export const visits = pgTable(
     approvedBy: uuid("approved_by").references(() => users.id, {
       onDelete: "set null",
     }),
+    ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -355,6 +409,10 @@ export const visits = pgTable(
     index("visits_patient_id_idx").on(t.patientId),
     index("visits_clinic_date_idx").on(t.clinicId, t.visitDate),
     index("visits_appointment_id_idx").on(t.appointmentId),
+    // Trash listing per clinic: only trashed visits.
+    index("visits_deleted_idx")
+      .on(t.clinicId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
   ],
 );
 
@@ -391,6 +449,7 @@ export const recalls = pgTable(
     dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
     status: recallStatus("status").notNull().default("pending"),
     sentAt: timestamp("sent_at", { withTimezone: true }),
+    ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -404,6 +463,10 @@ export const recalls = pgTable(
     // The engine scans "what's due for this clinic up to date X".
     index("recalls_clinic_due_idx").on(t.clinicId, t.dueAt),
     index("recalls_status_idx").on(t.status),
+    // Trash listing per clinic: only trashed recalls.
+    index("recalls_deleted_idx")
+      .on(t.clinicId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
   ],
 );
 
@@ -490,6 +553,7 @@ export const doctorLeaves = pgTable(
     startDate: date("start_date").notNull(),
     endDate: date("end_date").notNull(),
     reason: text("reason"),
+    ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -502,6 +566,10 @@ export const doctorLeaves = pgTable(
       t.startDate,
       t.endDate,
     ),
+    // Trash listing per clinic: only trashed leave entries.
+    index("doctor_leaves_deleted_idx")
+      .on(t.clinicId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
   ],
 );
 
@@ -525,6 +593,7 @@ export const procedures = pgTable(
     module: text("module"),
     // Inactive procedures are hidden from booking but kept for history.
     isActive: boolean("is_active").notNull().default(true),
+    ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -536,6 +605,10 @@ export const procedures = pgTable(
     index("procedures_clinic_id_idx").on(t.clinicId),
     // The booking picker lists a clinic's ACTIVE procedures.
     index("procedures_clinic_active_idx").on(t.clinicId, t.isActive),
+    // Trash listing per clinic: only trashed procedures.
+    index("procedures_deleted_idx")
+      .on(t.clinicId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
   ],
 );
 

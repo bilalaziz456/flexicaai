@@ -27,6 +27,22 @@
   defense-in-depth; for now the query layer is the boundary.
 - **Timestamps:** all `created_at` / `updated_at` are `timestamptz` defaulting to
   `now()`. All ids are `uuid` default random.
+- **Soft delete (NOTHING is hard-deleted).** Every deletable table carries four
+  columns (spread from `softDeleteColumns()` in `schema.ts`): `deleted_at`
+  timestamptz (NULL = live; the source of truth), `deleted_by` uuid (who trashed
+  it; no FK — users are themselves soft-deleted), `delete_group` uuid (one id
+  shared by a parent and the children its deletion cascade-hid → Restore reverts
+  exactly that batch), `deleted_by_cascade` bool (true = hidden only because a
+  parent was trashed; the Trash list shows only the non-cascade rows). Tables with
+  soft delete: `clinics`, `users`, `patients`, `appointments`, `visits`, `recalls`,
+  `procedures`, `doctor_leaves`. **Every normal read must filter `deleted_at IS
+  NULL`.** A trashed record leaves the clinic-level Trash after
+  `clinics.trash_retention_days` (default 30, super-admin-set) but stays in the DB
+  and visible to the super admin forever; the ONLY physical delete is a super-admin
+  legal purge. `users.username` / `email` uniqueness is PARTIAL (`WHERE deleted_at
+  IS NULL`) so a name frees up after a soft delete. Each table has a partial trash
+  index on (`clinic_id`,`deleted_at`) `WHERE deleted_at IS NOT NULL`.
+  (Migration `0027`.)
 
 ---
 
@@ -221,7 +237,7 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
 - **Timezone caveat (deploy):** availability, "tomorrow" (reminder), and day
   bounds use the **server's local timezone**. For a multi-region rollout
   (Pakistan vs GCC), pin each clinic to its own timezone.
-- Migrations `0000`–`0026` applied; new tables/columns are always additive to core.
+- Migrations `0000`–`0027` applied; new tables/columns are always additive to core.
   (`0017` adds `appointments.discount_type` / `discount_value`; `0018` adds
   `appointments.queue_session` / `queue_number` + the queue unique index; `0019`
   adds the `activity_logs` table; `0020` adds `clinics.log_access` and drops the
@@ -230,4 +246,8 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
   `0023` adds the `sales` ledger table; `0024` adds
   `appointments.charge_consultation`; `0025` adds
   `appointment_procedures.discount_type` / `discount_value` for per-line discounts;
-  `0026` adds the `manager` user_role value + `users.permissions` (per-user ACL).)
+  `0026` adds the `manager` user_role value + `users.permissions` (per-user ACL);
+  `0027` adds soft-delete columns (`deleted_at`/`deleted_by`/`delete_group`/
+  `deleted_by_cascade`) to the 8 deletable tables + `clinics.trash_retention_days`,
+  makes `users` username/email uniqueness partial (`WHERE deleted_at IS NULL`), and
+  adds per-table partial trash indexes.)
