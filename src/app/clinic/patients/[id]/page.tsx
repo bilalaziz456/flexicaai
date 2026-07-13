@@ -1,21 +1,22 @@
-import { requireClinicAdmin } from "@/core/auth/user";
+import { requireWorkspace } from "@/core/auth/user";
+import { can } from "@/core/auth/permissions";
 import { PatientDetail } from "../patient-detail";
 
-/** Clinic Admin: open a patient — edit details, see appointments, delete. */
+/** Clinic workspace: open a patient — edit details, see appointments, delete. */
 export default async function PatientDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { clinicId } = await requireClinicAdmin();
+  const user = await requireWorkspace("patients");
   const { id } = await params;
   return (
     <PatientDetail
-      clinicId={clinicId}
+      clinicId={user.clinicId}
       patientId={id}
       backHref="/clinic/patients"
-      canEdit
-      canDelete
+      canEdit={can(user, "patients", "edit")}
+      canDelete={can(user, "patients", "delete")}
     />
   );
 }

@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
 import { eq } from "drizzle-orm";
-import { requireClinicAdmin } from "@/core/auth/user";
+import { requireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
 import { getThemeCookie } from "@/core/theme/server";
 import { clinicHasFeature } from "@/core/lib/features";
+import { accessibleResourceIds } from "@/core/auth/permissions";
 import { PanelShell } from "@/core/ui/panel-shell";
 
 /**
@@ -18,7 +19,7 @@ export default async function ClinicLayout({
 }: {
   children: ReactNode;
 }) {
-  const user = await requireClinicAdmin();
+  const user = await requireWorkspace();
   const [clinic] = await db
     .select({
       name: clinics.name,
@@ -29,14 +30,19 @@ export default async function ClinicLayout({
     .where(eq(clinics.id, user.clinicId))
     .limit(1);
   const theme = await getThemeCookie();
+  // A clinic admin only sees the activity log if the super admin granted it; the
+  // log nav is otherwise gated by the per-user `logs`… (kept as log_access).
+  const logsEnabled =
+    user.role === "clinic_admin" && (clinic?.logAccess?.length ?? 0) > 0;
 
   return (
     <PanelShell
       panel="clinic"
       identityLabel={clinic?.name ?? user.username}
       theme={theme}
-      logsEnabled={(clinic?.logAccess?.length ?? 0) > 0}
+      logsEnabled={logsEnabled}
       salesEnabled={clinicHasFeature(clinic?.featuresEnabled, "sales")}
+      accessibleResources={accessibleResourceIds(user)}
     >
       {children}
     </PanelShell>

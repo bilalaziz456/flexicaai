@@ -1,21 +1,22 @@
-import { requireClinicAdmin } from "@/core/auth/user";
+import { requireWorkspace } from "@/core/auth/user";
+import { can } from "@/core/auth/permissions";
 import {
   PatientsList,
   type PatientsListSearchParams,
 } from "./patients-list";
 
-/** Clinic Admin: the patient list (shared list component). */
+/** Clinic workspace: the patient list (shared component, needs `patients`). */
 export default async function ClinicPatientsPage({
   searchParams,
 }: {
   searchParams: Promise<PatientsListSearchParams>;
 }) {
-  const { clinicId } = await requireClinicAdmin();
+  const user = await requireWorkspace("patients");
   const sp = await searchParams;
   return (
     <PatientsList
-      clinicId={clinicId}
-      canCreate
+      clinicId={user.clinicId}
+      canCreate={can(user, "patients", "create")}
       listPath="/clinic/patients"
       detailBase="/clinic/patients"
       newHref="/clinic/patients/new"

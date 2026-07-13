@@ -1,8 +1,8 @@
-import { requireClinicAdmin } from "@/core/auth/user";
+import { requireWorkspace } from "@/core/auth/user";
 import { NewPatientPanel } from "../new-patient-panel";
 
-/** Clinic Admin: register a patient. Redirects back to the list on save. */
+/** Clinic workspace: register a patient (needs `patients:create`). */
 export default async function NewPatientPage() {
-  await requireClinicAdmin();
+  await requireWorkspace("patients", "create");
   return <NewPatientPanel backHref="/clinic/patients" />;
 }

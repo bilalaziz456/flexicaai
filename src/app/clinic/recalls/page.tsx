@@ -1,5 +1,5 @@
 import { asc, count, eq } from "drizzle-orm";
-import { requireClinicAdmin } from "@/core/auth/user";
+import { requireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { patients, recalls } from "@/core/db/schema";
@@ -31,7 +31,7 @@ export default async function ClinicRecallsPage({
 }: {
   searchParams: Promise<{ page?: string; size?: string }>;
 }) {
-  const { clinicId } = await requireClinicAdmin();
+  const { clinicId } = await requireWorkspace("recalls");
   const sp = await searchParams;
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);

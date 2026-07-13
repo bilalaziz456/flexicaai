@@ -50,7 +50,9 @@ export const ROLE_HOME_ROUTE: Record<UserRole, string> = {
  */
 export const ROUTE_ROLE_ACCESS: { prefix: string; roles: UserRole[] }[] = [
   { prefix: "/admin", roles: ["super_admin"] },
-  { prefix: "/clinic", roles: ["clinic_admin"] },
+  // The unified clinic workspace — every clinic staff role; each page is gated by
+  // the user's per-resource permissions (requireWorkspace).
+  { prefix: "/clinic", roles: ["clinic_admin", "manager", "doctor", "receptionist"] },
   { prefix: "/doctor", roles: ["doctor"] },
   { prefix: "/reception", roles: ["receptionist", "manager"] },
 ];

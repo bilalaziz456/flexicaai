@@ -37,6 +37,7 @@ export default async function ClinicStaffPage({
   }>;
 }) {
   const { clinicId } = await requireClinicAdmin();
+  const canCreate = true;
   const sp = await searchParams;
   const query = sp.q?.trim();
   const page = parsePage(sp.page);
@@ -92,12 +93,14 @@ export default async function ClinicStaffPage({
           </p>
         </div>
         {/* Desktop/tablet: inline button. Hidden on mobile (see FAB below). */}
-        <Link
-          href="/clinic/staff/new"
-          className={cn(buttonVariants(), "hidden sm:inline-flex")}
-        >
-          Add staff
-        </Link>
+        {canCreate ? (
+          <Link
+            href="/clinic/staff/new"
+            className={cn(buttonVariants(), "hidden sm:inline-flex")}
+          >
+            Add staff
+          </Link>
+        ) : null}
       </div>
 
       <StaffSearch initial={query ?? ""} />
@@ -206,16 +209,18 @@ export default async function ClinicStaffPage({
       )}
 
       {/* Mobile: floating "+" to add staff (replaces the header button). */}
-      <Link
-        href="/clinic/staff/new"
-        aria-label="Add staff"
-        className={cn(
-          buttonVariants({ size: "icon" }),
-          "fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg sm:hidden",
-        )}
-      >
-        <Plus className="size-6" aria-hidden="true" />
-      </Link>
+      {canCreate ? (
+        <Link
+          href="/clinic/staff/new"
+          aria-label="Add staff"
+          className={cn(
+            buttonVariants({ size: "icon" }),
+            "fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg sm:hidden",
+          )}
+        >
+          <Plus className="size-6" aria-hidden="true" />
+        </Link>
+      ) : null}
     </div>
   );
 }

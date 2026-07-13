@@ -2,11 +2,20 @@ import "server-only";
 
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/core/auth/session";
+import { can, type PermAction } from "@/core/auth/permissions";
 import {
   ROLE_HOME_ROUTE,
   type CurrentUser,
   type UserRole,
 } from "@/core/types/auth";
+
+/** The clinic-staff roles that share the unified workspace (not super_admin). */
+const WORKSPACE_ROLES: UserRole[] = [
+  "clinic_admin",
+  "manager",
+  "doctor",
+  "receptionist",
+];
 
 /**
  * Reads the authenticated user for Server Components, Server Actions, and Route
@@ -69,5 +78,22 @@ export async function requireClinicAdmin(): Promise<
   const user = await requireRole("clinic_admin");
   // A clinic_admin should always have a clinic; if not, treat as unprovisioned.
   if (!user.clinicId) redirect("/login?error=no_access");
+  return { ...user, clinicId: user.clinicId };
+}
+
+/**
+ * Guards a page in the unified clinic workspace: any clinic staff member
+ * (admin / manager / doctor / receptionist) with a clinic. When `resource` is
+ * given, the user must hold `resource:action` (default `view`) or they're sent
+ * back to /clinic. Guarantees a non-null clinicId so callers can scope queries.
+ * (super_admin isn't clinic staff and is bounced to their own home.)
+ */
+export async function requireWorkspace(
+  resource?: string,
+  action: PermAction = "view",
+): Promise<CurrentUser & { clinicId: string }> {
+  const user = await requireRole(WORKSPACE_ROLES);
+  if (!user.clinicId) redirect("/login?error=no_access");
+  if (resource && !can(user, resource, action)) redirect("/clinic");
   return { ...user, clinicId: user.clinicId };
 }

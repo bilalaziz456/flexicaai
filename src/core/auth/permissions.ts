@@ -111,8 +111,7 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     leave: [V, C, E],
     clinical: [V],
     prescriptions: [V],
-    staff: [V],
-    settings: [V],
+    // staff / settings management stays clinic-admin-only for now.
   }),
   // Clinical user — authors notes & prescriptions; sees (not edits) their
   // patients/appointments/recalls.

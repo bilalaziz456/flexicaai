@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { and, count, eq, gte, inArray, sql } from "drizzle-orm";
-import { requireClinicAdmin } from "@/core/auth/user";
+import { requireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import {
@@ -27,7 +27,9 @@ import { AvgVisitValueForm } from "./avg-visit-value-form";
  * the owner's average visit value. Everything is clinic-scoped.
  */
 export default async function ClinicDashboard() {
-  const { clinicId } = await requireClinicAdmin();
+  const user = await requireWorkspace();
+  const { clinicId } = user;
+  const isAdmin = user.role === "clinic_admin";
   const now = new Date();
 
   // The Revenue dashboard is an optional, super-admin-gated feature (works for
@@ -173,9 +175,11 @@ export default async function ClinicDashboard() {
               visit value.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <AvgVisitValueForm value={avgVisitValue} />
-          </CardContent>
+          {isAdmin ? (
+            <CardContent>
+              <AvgVisitValueForm value={avgVisitValue} />
+            </CardContent>
+          ) : null}
         </Card>
       ) : null}
 

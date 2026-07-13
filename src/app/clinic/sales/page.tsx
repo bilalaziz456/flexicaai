@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { requireClinicAdmin } from "@/core/auth/user";
+import { requireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
@@ -41,7 +41,7 @@ export default async function ClinicSalesPage({
     doctorId?: string;
   }>;
 }) {
-  const { clinicId } = await requireClinicAdmin();
+  const { clinicId } = await requireWorkspace("sales");
   const [clinic] = await db
     .select({ featuresEnabled: clinics.featuresEnabled })
     .from(clinics)
