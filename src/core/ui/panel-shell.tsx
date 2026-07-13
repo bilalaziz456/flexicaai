@@ -26,7 +26,14 @@ import { ThemeToggle } from "@/core/ui/theme-toggle";
 import type { ThemePreference } from "@/core/theme/theme";
 import { cn } from "@/core/lib/utils";
 
-type NavItem = { href: string; label: string; Icon: LucideIcon; exact?: boolean };
+type NavItem = {
+  href: string;
+  label: string;
+  Icon: LucideIcon;
+  exact?: boolean;
+  /** Permission resource this item maps to; hidden if the user can't access it. */
+  resource?: string;
+};
 export type PanelId = "admin" | "clinic" | "doctor" | "reception";
 
 /**
@@ -47,28 +54,28 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
     brand: "/clinic",
     items: [
       { href: "/clinic", label: "Dashboard", Icon: LayoutDashboard, exact: true },
-      { href: "/clinic/staff", label: "Staff", Icon: Users },
-      { href: "/clinic/patients", label: "Patients", Icon: Contact },
-      { href: "/clinic/appointments", label: "Appointments", Icon: CalendarClock },
-      { href: "/clinic/procedures", label: "Procedures", Icon: ClipboardList },
-      { href: "/clinic/sales", label: "Sales", Icon: TrendingUp },
-      { href: "/clinic/recalls", label: "Recalls", Icon: BellRing },
+      { href: "/clinic/staff", label: "Staff", Icon: Users, resource: "staff" },
+      { href: "/clinic/patients", label: "Patients", Icon: Contact, resource: "patients" },
+      { href: "/clinic/appointments", label: "Appointments", Icon: CalendarClock, resource: "appointments" },
+      { href: "/clinic/procedures", label: "Procedures", Icon: ClipboardList, resource: "procedures" },
+      { href: "/clinic/sales", label: "Sales", Icon: TrendingUp, resource: "sales" },
+      { href: "/clinic/recalls", label: "Recalls", Icon: BellRing, resource: "recalls" },
       { href: "/clinic/logs", label: "Activity log", Icon: ScrollText },
     ],
   },
   doctor: {
     brand: "/doctor",
     items: [
-      { href: "/doctor", label: "Voice scribe", Icon: Stethoscope, exact: true },
+      { href: "/doctor", label: "Voice scribe", Icon: Stethoscope, exact: true, resource: "clinical" },
     ],
   },
   reception: {
     brand: "/reception",
     items: [
-      { href: "/reception", label: "Appointments", Icon: CalendarClock, exact: true },
-      { href: "/reception/doctors", label: "Doctors", Icon: Stethoscope },
-      { href: "/reception/procedures", label: "Procedures", Icon: ClipboardList },
-      { href: "/reception/whatsapp", label: "WhatsApp", Icon: MessageCircle },
+      { href: "/reception", label: "Appointments", Icon: CalendarClock, exact: true, resource: "appointments" },
+      { href: "/reception/doctors", label: "Doctors", Icon: Stethoscope, resource: "leave" },
+      { href: "/reception/procedures", label: "Procedures", Icon: ClipboardList, resource: "procedures" },
+      { href: "/reception/whatsapp", label: "WhatsApp", Icon: MessageCircle, resource: "whatsapp" },
     ],
   },
 };
@@ -89,6 +96,7 @@ export function PanelShell({
   theme,
   logsEnabled = true,
   salesEnabled = false,
+  accessibleResources,
   children,
 }: {
   panel: PanelId;
@@ -98,14 +106,22 @@ export function PanelShell({
   logsEnabled?: boolean;
   /** Hide Procedures/Sales nav items unless the clinic has the `sales` feature. */
   salesEnabled?: boolean;
+  /**
+   * Permission resources the current user can access (any V/C/E/D). When
+   * provided, nav items tagged with a `resource` the user can't access are
+   * hidden. Omitted for the super admin (sees everything).
+   */
+  accessibleResources?: readonly string[];
   children: React.ReactNode;
 }) {
   const { brand, items: allItems } = NAV_BY_PANEL[panel];
-  // Feature-gated nav items: Activity log (super-admin-granted) and the
-  // Procedures/Sales items (the `sales` feature).
+  const canSee = accessibleResources ? new Set(accessibleResources) : null;
+  // Nav gating, in order: feature flags (Activity log / Sales feature) then
+  // per-user permissions (a resource-tagged item needs access to that resource).
   const items = allItems.filter((i) => {
     if (i.href === "/clinic/logs") return logsEnabled;
-    if (SALES_HREFS.has(i.href)) return salesEnabled;
+    if (SALES_HREFS.has(i.href) && !salesEnabled) return false;
+    if (i.resource && canSee && !canSee.has(i.resource)) return false;
     return true;
   });
   const pathname = usePathname();

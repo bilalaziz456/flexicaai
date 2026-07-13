@@ -10,6 +10,7 @@ import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import { computeAppointmentTotal, formatPkr } from "@/core/appointments/fee";
 import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
+import { can } from "@/core/auth/permissions";
 import { getDayQueue } from "@/core/appointments/queue";
 import { parseListFilters } from "@/core/appointments/list-filters";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
@@ -52,7 +53,8 @@ export default async function ReceptionHome({
     size?: string;
   }>;
 }) {
-  const user = await requireRole("receptionist");
+  const user = await requireRole(["receptionist", "manager"]);
+  const canCreate = can(user, "appointments", "create");
   const sp = await searchParams;
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
@@ -162,12 +164,14 @@ export default async function ReceptionHome({
             {total} appointment{total === 1 ? "" : "s"} · {contextLabel}.
           </p>
         </div>
-        <Link
-          href="/reception/new"
-          className={cn(buttonVariants(), "hidden sm:inline-flex")}
-        >
-          New appointment
-        </Link>
+        {canCreate ? (
+          <Link
+            href="/reception/new"
+            className={cn(buttonVariants(), "hidden sm:inline-flex")}
+          >
+            New appointment
+          </Link>
+        ) : null}
       </div>
 
       <QueueSummary
@@ -344,16 +348,18 @@ export default async function ReceptionHome({
       )}
 
       {/* Mobile FAB. */}
-      <Link
-        href="/reception/new"
-        aria-label="New appointment"
-        className={cn(
-          buttonVariants({ size: "icon" }),
-          "fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg sm:hidden",
-        )}
-      >
-        <Plus className="size-6" aria-hidden="true" />
-      </Link>
+      {canCreate ? (
+        <Link
+          href="/reception/new"
+          aria-label="New appointment"
+          className={cn(
+            buttonVariants({ size: "icon" }),
+            "fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg sm:hidden",
+          )}
+        >
+          <Plus className="size-6" aria-hidden="true" />
+        </Link>
+      ) : null}
     </div>
   );
 }

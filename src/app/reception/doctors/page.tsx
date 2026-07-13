@@ -19,7 +19,7 @@ import { DoctorLeaves, type LeaveItem } from "../doctor-leaves";
  * bookings). Working hours are set by the clinic admin. Clinic-scoped.
  */
 export default async function ReceptionDoctorsPage() {
-  const user = await requireRole("receptionist");
+  const user = await requireRole(["receptionist", "manager"]);
   if (!user.clinicId) {
     return (
       <p className="text-sm text-muted-foreground">

@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { desc, eq, inArray } from "drizzle-orm";
 import { requireRole } from "@/core/auth/user";
+import { can } from "@/core/auth/permissions";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { patients, users } from "@/core/db/schema";
@@ -16,10 +18,12 @@ import { getBookingProcedures } from "@/core/appointments/procedures";
 
 /** Receptionist: schedule a new appointment. */
 export default async function NewAppointmentPage() {
-  const user = await requireRole("receptionist");
+  const user = await requireRole(["receptionist", "manager"]);
   if (!user.clinicId) {
     return <p className="text-sm text-muted-foreground">No clinic linked.</p>;
   }
+  // Booking is a "create" — bounce users who can only view.
+  if (!can(user, "appointments", "create")) redirect("/reception");
 
   const [recentPatients, doctors, bookingProcedures] = await Promise.all([
     db

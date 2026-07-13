@@ -8,7 +8,7 @@ import { ProceduresPanel } from "../procedures-panel";
 
 /** Receptionist: manage the procedure catalog (gated by the `sales` feature). */
 export default async function ReceptionProceduresPage() {
-  const user = await requireRole("receptionist");
+  const user = await requireRole(["receptionist", "manager"]);
   if (!user.clinicId) {
     return <p className="text-sm text-muted-foreground">No clinic linked.</p>;
   }

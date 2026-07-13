@@ -22,7 +22,7 @@ export default async function ReceptionWhatsAppPage({
 }: {
   searchParams: Promise<{ page?: string; size?: string }>;
 }) {
-  const user = await requireRole("receptionist");
+  const user = await requireRole(["receptionist", "manager"]);
   if (!user.clinicId) {
     return <p className="text-sm text-muted-foreground">No clinic linked.</p>;
   }

@@ -4,6 +4,7 @@ import { requireRole } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
+import { accessibleResourceIds } from "@/core/auth/permissions";
 import { getThemeCookie } from "@/core/theme/server";
 import { PanelShell } from "@/core/ui/panel-shell";
 
@@ -35,6 +36,7 @@ export default async function ReceptionLayout({
       identityLabel={user.username}
       theme={theme}
       salesEnabled={clinicHasFeature(clinic?.featuresEnabled, "sales")}
+      accessibleResources={accessibleResourceIds(user)}
     >
       {children}
     </PanelShell>

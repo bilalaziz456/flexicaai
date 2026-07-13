@@ -13,6 +13,8 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { ViewLogger } from "@/core/ui/view-logger";
+import { getCurrentUser } from "@/core/auth/user";
+import { can } from "@/core/auth/permissions";
 import {
   getAppointmentProcedureItems,
   getBookingProcedures,
@@ -115,6 +117,12 @@ export async function AppointmentDetail({
     appt.discountValue,
   );
 
+  // Permission gates: hide the controls the current user can't use (the server
+  // actions enforce the same, so this is UX, not the security boundary).
+  const currentUser = await getCurrentUser();
+  const canEdit = currentUser ? can(currentUser, "appointments", "edit") : false;
+  const canDelete = currentUser ? can(currentUser, "appointments", "delete") : false;
+
   const d = appt.scheduledAt;
   const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const timeStr = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -153,15 +161,17 @@ export async function AppointmentDetail({
         <p className="text-sm text-muted-foreground">{whenLabel}</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Status</CardTitle>
-          <CardDescription>Confirm, complete, cancel or mark no-show.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AppointmentActions id={appt.id} status={appt.status} />
-        </CardContent>
-      </Card>
+      {canEdit ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Status</CardTitle>
+            <CardDescription>Confirm, complete, cancel or mark no-show.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AppointmentActions id={appt.id} status={appt.status} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Read-only bill: what the patient pays for this visit. Shown whenever
           there's a fee or a procedure; a discount line appears only if applied. */}
@@ -227,46 +237,50 @@ export async function AppointmentDetail({
         </Card>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Edit</CardTitle>
-          <CardDescription>
-            Change the doctor, date &amp; time, duration, procedures or reason.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <NewAppointmentForm
-            doctors={doctors}
-            initialPatients={[]}
-            procedures={bookingProcedures}
-            appointmentId={appt.id}
-            fixedPatient={{ id: appt.patientId, fullName: appt.patientName }}
-            initial={{
-              doctorId: appt.doctorId ?? "",
-              date: dateStr,
-              time: timeStr,
-              reason: appt.reason ?? "",
-              durationMinutes: appt.durationMinutes,
-              discountType: discountType,
-              discountValue: appt.discountValue,
-              chargeConsultation: appt.chargeConsultation,
-              procedures: initialProcedures,
-            }}
-          />
-        </CardContent>
-      </Card>
+      {canEdit ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Edit</CardTitle>
+            <CardDescription>
+              Change the doctor, date &amp; time, duration, procedures or reason.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <NewAppointmentForm
+              doctors={doctors}
+              initialPatients={[]}
+              procedures={bookingProcedures}
+              appointmentId={appt.id}
+              fixedPatient={{ id: appt.patientId, fullName: appt.patientName }}
+              initial={{
+                doctorId: appt.doctorId ?? "",
+                date: dateStr,
+                time: timeStr,
+                reason: appt.reason ?? "",
+                durationMinutes: appt.durationMinutes,
+                discountType: discountType,
+                discountValue: appt.discountValue,
+                chargeConsultation: appt.chargeConsultation,
+                procedures: initialProcedures,
+              }}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
-      <Card className="border-destructive/40">
-        <CardHeader>
-          <CardTitle className="text-destructive">Danger zone</CardTitle>
-          <CardDescription>
-            Permanently delete this appointment (use Cancel to just call it off).
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DeleteAppointmentButton appointmentId={appt.id} />
-        </CardContent>
-      </Card>
+      {canDelete ? (
+        <Card className="border-destructive/40">
+          <CardHeader>
+            <CardTitle className="text-destructive">Danger zone</CardTitle>
+            <CardDescription>
+              Permanently delete this appointment (use Cancel to just call it off).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DeleteAppointmentButton appointmentId={appt.id} />
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

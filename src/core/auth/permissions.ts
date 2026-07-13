@@ -175,3 +175,8 @@ export function resourcesForClinic(featuresEnabled: string[] | null | undefined)
   const features = new Set(featuresEnabled ?? []);
   return PERM_RESOURCES.filter((r) => !r.feature || features.has(r.feature));
 }
+
+/** Resource ids the user can access (any action) — drives nav visibility. */
+export function accessibleResourceIds(user: PermUser): string[] {
+  return PERM_RESOURCES.filter((r) => canAccess(user, r.id)).map((r) => r.id);
+}

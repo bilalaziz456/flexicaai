@@ -8,7 +8,7 @@ export default async function ReceptionAppointmentDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const user = await requireRole("receptionist");
+  const user = await requireRole(["receptionist", "manager"]);
   if (!user.clinicId) redirect("/login?error=no_access");
   const { id } = await params;
   return (

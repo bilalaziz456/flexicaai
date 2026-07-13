@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { and, desc, eq, gte, ilike, inArray, lt, or } from "drizzle-orm";
 import { z } from "zod";
 import { requireRole } from "@/core/auth/user";
+import { can } from "@/core/auth/permissions";
+import type { CurrentUser } from "@/core/types/auth";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
@@ -58,12 +60,14 @@ const APPT_STATUSES = [
  * admin to /reception would just bounce off the receptionist-only guard.
  */
 async function requireAppointmentsAccess(): Promise<{
+  user: CurrentUser;
   clinicId: string;
   home: string;
 }> {
   const user = await requireRole(["receptionist", "manager", "clinic_admin"]);
   if (!user.clinicId) redirect("/login?error=no_access");
   return {
+    user,
     clinicId: user.clinicId,
     home: user.role === "clinic_admin" ? "/clinic/appointments" : "/reception",
   };
@@ -123,7 +127,10 @@ export async function createAppointment(
   _prev: ReceptionActionState,
   formData: FormData,
 ): Promise<ReceptionActionState> {
-  const { clinicId, home } = await requireAppointmentsAccess();
+  const { user, clinicId, home } = await requireAppointmentsAccess();
+  if (!can(user, "appointments", "create")) {
+    return { error: "You don't have permission to create appointments." };
+  }
 
   const parsed = createSchema.safeParse({
     patientId: formData.get("patientId"),
@@ -249,7 +256,10 @@ export async function updateAppointment(
   _prev: ReceptionActionState,
   formData: FormData,
 ): Promise<ReceptionActionState> {
-  const { clinicId, home } = await requireAppointmentsAccess();
+  const { user, clinicId, home } = await requireAppointmentsAccess();
+  if (!can(user, "appointments", "edit")) {
+    return { error: "You don't have permission to edit appointments." };
+  }
 
   const parsed = updateSchema.safeParse({
     doctorId: formData.get("doctorId"),
@@ -377,7 +387,10 @@ export async function deleteAppointment(
   appointmentId: string,
   password: string,
 ): Promise<ReceptionActionState> {
-  const { clinicId, home } = await requireAppointmentsAccess();
+  const { user, clinicId, home } = await requireAppointmentsAccess();
+  if (!can(user, "appointments", "delete")) {
+    return { error: "You don't have permission to delete appointments." };
+  }
 
   if (!(await verifyCurrentUserPassword(password))) {
     return { error: "Incorrect password." };
@@ -406,7 +419,10 @@ export async function setAppointmentStatus(
   appointmentId: string,
   status: (typeof APPT_STATUSES)[number],
 ): Promise<void> {
-  const { clinicId, home } = await requireAppointmentsAccess();
+  const { user, clinicId, home } = await requireAppointmentsAccess();
+  // Changing status is an edit; silently no-op when not permitted (the UI hides
+  // the control too).
+  if (!can(user, "appointments", "edit")) return;
   if (!APPT_STATUSES.includes(status)) return;
 
   // Source + prior status decide whether/what to message the patient.
