@@ -66,16 +66,8 @@ async function requireAppointmentsAccess(): Promise<{
 }> {
   const user = await requireRole(["receptionist", "manager", "doctor", "clinic_admin"]);
   if (!user.clinicId) redirect("/login?error=no_access");
-  return {
-    user,
-    clinicId: user.clinicId,
-    home:
-      user.role === "clinic_admin"
-        ? "/clinic/appointments"
-        : user.role === "doctor"
-          ? "/doctor/appointments"
-          : "/reception",
-  };
+  // Everyone works from the unified clinic workspace now.
+  return { user, clinicId: user.clinicId, home: "/clinic/appointments" };
 }
 
 const createSchema = z.object({

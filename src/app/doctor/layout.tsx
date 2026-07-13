@@ -1,26 +1,10 @@
-import type { ReactNode } from "react";
-import { requireRole } from "@/core/auth/user";
-import { accessibleResourceIds } from "@/core/auth/permissions";
-import { getThemeCookie } from "@/core/theme/server";
-import { PanelShell } from "@/core/ui/panel-shell";
+import { redirect } from "next/navigation";
 
 /**
- * Doctor panel shell. Same responsive chrome (sidebar / hamburger) as every
- * other role, via the shared PanelShell. The voice scribe adapts to the
- * clinic's enabled module.
+ * The doctor panel has been folded into the unified clinic workspace — every
+ * clinic staff member now works from /clinic with permission-driven nav. Any old
+ * /doctor/* link lands them there. (The scribe lives at /clinic/scribe.)
  */
-export default async function DoctorLayout({ children }: { children: ReactNode }) {
-  const user = await requireRole("doctor");
-  const theme = await getThemeCookie();
-
-  return (
-    <PanelShell
-      panel="doctor"
-      identityLabel={user.username}
-      theme={theme}
-      accessibleResources={accessibleResourceIds(user)}
-    >
-      {children}
-    </PanelShell>
-  );
+export default function DoctorLayout(): never {
+  redirect("/clinic");
 }

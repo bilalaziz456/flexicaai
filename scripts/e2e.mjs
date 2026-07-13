@@ -237,23 +237,27 @@ async function run() {
   }
   record("clinic_admin GET /admin → redirect (isolation)", is3xx((await req("/admin", { cookie: S.adminA })).status));
 
-  record("doctor GET /doctor → 200", (await req("/doctor", { cookie: S.docA })).status === 200);
+  // Unified workspace: all clinic staff work from /clinic; the old /doctor and
+  // /reception panels fold in (redirect).
+  record("doctor GET /clinic → 200 (unified workspace)", (await req("/clinic", { cookie: S.docA })).status === 200);
+  record("doctor GET /doctor → redirect (folded into /clinic)", is3xx((await req("/doctor", { cookie: S.docA })).status));
   record("doctor GET /admin → redirect (isolation)", is3xx((await req("/admin", { cookie: S.docA })).status));
 
-  record("receptionist GET /reception → 200", (await req("/reception", { cookie: S.recepA })).status === 200);
-  record("receptionist GET /reception/new → 200", (await req("/reception/new", { cookie: S.recepA })).status === 200);
+  record("receptionist GET /clinic → 200 (unified workspace)", (await req("/clinic", { cookie: S.recepA })).status === 200);
+  record("receptionist GET /reception → redirect (folded)", is3xx((await req("/reception", { cookie: S.recepA })).status));
+  record("receptionist GET /clinic/appointments/new → 200", (await req("/clinic/appointments/new", { cookie: S.recepA })).status === 200);
   {
-    const r = await req("/reception/doctors", { cookie: S.recepA });
-    record("receptionist GET /reception/doctors → 200 + limit + leave controls", r.status === 200 && r.text.includes("Daily appointment limit") && r.text.includes("Leave / vacation"));
+    const r = await req("/clinic/doctors", { cookie: S.recepA });
+    record("receptionist GET /clinic/doctors → 200 + limit + leave controls", r.status === 200 && r.text.includes("Daily appointment limit") && r.text.includes("Leave / vacation"));
   }
   {
-    const r = await req("/reception/whatsapp", { cookie: S.recepA });
-    record("receptionist GET /reception/whatsapp → 200 + inbound msg", r.status === 200 && r.text.includes("I need an appointment"));
+    const r = await req("/clinic/whatsapp", { cookie: S.recepA });
+    record("receptionist GET /clinic/whatsapp → 200 + inbound msg", r.status === 200 && r.text.includes("I need an appointment"));
   }
 
   console.log("\n== SUSPENSION ENFORCEMENT ==");
   await pool.query("update users set is_active=false where id=$1", [ids.suspUserId]);
-  record("suspended user's session is rejected → redirect", is3xx((await req("/reception", { cookie: S.susp })).status));
+  record("suspended user's session is rejected → redirect", is3xx((await req("/clinic", { cookie: S.susp })).status));
   await pool.query("update users set is_active=true where id=$1", [ids.suspUserId]);
 
   console.log("\n== PRESCRIPTION PDF + TENANT ISOLATION ==");

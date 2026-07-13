@@ -35,12 +35,12 @@ export function isUserRole(value: unknown): value is UserRole {
  */
 export const ROLE_HOME_ROUTE: Record<UserRole, string> = {
   super_admin: "/admin",
+  // All clinic staff share the unified permission-driven workspace; their nav +
+  // page access come from their per-user permissions.
   clinic_admin: "/clinic",
-  // A manager runs day-to-day operations from the reception panel (gated further
-  // by their per-user permissions).
-  manager: "/reception",
-  doctor: "/doctor",
-  receptionist: "/reception",
+  manager: "/clinic",
+  doctor: "/clinic",
+  receptionist: "/clinic",
 };
 
 /**

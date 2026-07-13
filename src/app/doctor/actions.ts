@@ -67,6 +67,7 @@ export async function approveVisit(
     }
   }
 
+  revalidatePath("/clinic/scribe");
   revalidatePath("/doctor");
   return { ok: true };
 }
@@ -93,6 +94,7 @@ export async function discardDraft(
     .returning({ id: visits.id });
 
   if (result.length === 0) return { error: "Draft not found." };
+  revalidatePath("/clinic/scribe");
   revalidatePath("/doctor");
   return { ok: true };
 }
@@ -187,6 +189,7 @@ export async function sendPrescriptionToWhatsApp(
     body: `Prescription sent to ${row.patientName}`,
   });
 
+  revalidatePath("/clinic/scribe");
   revalidatePath("/doctor");
   return result.ok ? { ok: true } : { error: result.error ?? "Send failed." };
 }

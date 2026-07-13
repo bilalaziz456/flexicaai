@@ -517,7 +517,7 @@ async function requirePatientAccess(
 ): Promise<{ user: CurrentUser; clinicId: string; home: string }> {
   const user = await requireRole(["clinic_admin", "doctor", "receptionist", "manager"]);
   if (!user.clinicId) redirect("/login?error=no_access");
-  const home = user.role === "doctor" ? "/doctor/patients" : "/clinic/patients";
+  const home = "/clinic/patients";
   if (!can(user, "patients", action)) redirect(home);
   return { user, clinicId: user.clinicId, home };
 }
