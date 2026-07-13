@@ -133,6 +133,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     recalls: [V, C, E],
     procedures: [V, C, E, D],
     leave: [V, C, E, D],
+    // Front desk can view/print a prescription PDF (not author it).
+    prescriptions: [V],
   }),
 };
 

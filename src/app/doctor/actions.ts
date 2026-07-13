@@ -3,6 +3,7 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/core/auth/user";
+import { can } from "@/core/auth/permissions";
 import { db } from "@/core/db";
 import { clinics, patients, visits } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
@@ -22,6 +23,10 @@ export async function approveVisit(
 ): Promise<{ ok: true } | { error: string }> {
   const user = await requireRole("doctor");
   if (!user.clinicId) return { error: "No clinic." };
+  // Approving finalises a clinical note — an authoring action.
+  if (!can(user, "clinical", "create")) {
+    return { error: "You don't have permission to save clinical notes." };
+  }
 
   const [updated] = await db
     .update(visits)
@@ -72,6 +77,9 @@ export async function discardDraft(
 ): Promise<{ ok: true } | { error: string }> {
   const user = await requireRole("doctor");
   if (!user.clinicId) return { error: "No clinic." };
+  if (!can(user, "clinical", "create")) {
+    return { error: "You don't have permission to modify clinical drafts." };
+  }
 
   const result = await db
     .delete(visits)
@@ -133,6 +141,9 @@ export async function sendPrescriptionToWhatsApp(
 ): Promise<{ ok: true } | { error: string }> {
   const user = await requireRole("doctor");
   if (!user.clinicId) return { error: "No clinic." };
+  if (!can(user, "prescriptions", "create")) {
+    return { error: "You don't have permission to send prescriptions." };
+  }
 
   const [row] = await db
     .select({

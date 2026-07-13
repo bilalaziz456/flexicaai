@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { getCurrentUser } from "@/core/auth/user";
+import { can } from "@/core/auth/permissions";
 import { db } from "@/core/db";
 import { clinics, patients, visits } from "@/core/db/schema";
 import { getClinicWorkspace } from "@/config/modules";
@@ -19,6 +20,10 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user || user.role !== "doctor" || !user.clinicId) {
     return NextResponse.json({ error: "Not authorized." }, { status: 401 });
+  }
+  // Generating a note is a clinical authoring action.
+  if (!can(user, "clinical", "create")) {
+    return NextResponse.json({ error: "Not permitted." }, { status: 403 });
   }
   const clinicId = user.clinicId;
 
