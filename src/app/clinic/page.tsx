@@ -193,27 +193,6 @@ export default async function ClinicDashboard() {
         </p>
       </div>
 
-      {/* Doctor: manage your own leave / vacation (no separate nav page). */}
-      {isDoctor ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>My leave</CardTitle>
-            <CardDescription>
-              Add your leave / vacation days — appointments in the range are
-              cancelled and no new bookings are allowed.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DoctorLeaves
-              doctorId={user.id}
-              leaves={myLeave}
-              canCreate={can(user, "leave", "create")}
-              canDelete={can(user, "leave", "delete")}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
-
       {/* Hero: Revenue Recovered — only when the super admin enabled it. */}
       {revenueEnabled ? (
         <Card className="border-primary/40 bg-primary/5">
@@ -256,6 +235,28 @@ export default async function ClinicDashboard() {
           );
         })}
       </div>
+
+      {/* Doctor: manage your own leave / vacation (no separate nav page) — kept
+          at the end of the dashboard. */}
+      {isDoctor ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>My leave</CardTitle>
+            <CardDescription>
+              Add your leave / vacation days — appointments in the range are
+              cancelled and no new bookings are allowed.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DoctorLeaves
+              doctorId={user.id}
+              leaves={myLeave}
+              canCreate={can(user, "leave", "create")}
+              canDelete={can(user, "leave", "delete")}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }
