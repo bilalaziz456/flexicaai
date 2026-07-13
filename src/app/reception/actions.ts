@@ -578,7 +578,10 @@ export async function setDoctorDailyLimit(
   _prev: ReceptionActionState,
   formData: FormData,
 ): Promise<ReceptionActionState> {
-  const { clinicId, home } = await requireAppointmentsAccess();
+  const { user, clinicId, home } = await requireAppointmentsAccess();
+  if (!can(user, "leave", "edit")) {
+    return { error: "You don't have permission to change doctor scheduling." };
+  }
 
   const parsed = z.coerce
     .number({ message: "Enter a number." })
@@ -643,7 +646,10 @@ export async function addDoctorLeave(
   _prev: LeaveActionState,
   formData: FormData,
 ): Promise<LeaveActionState> {
-  const { clinicId, home } = await requireAppointmentsAccess();
+  const { user, clinicId, home } = await requireAppointmentsAccess();
+  if (!can(user, "leave", "create")) {
+    return { error: "You don't have permission to set doctor leave." };
+  }
 
   const parsed = leaveSchema.safeParse({
     startDate: formData.get("startDate"),
@@ -722,7 +728,8 @@ export async function removeDoctorLeave(
   leaveId: string,
   _formData: FormData,
 ): Promise<void> {
-  const { clinicId, home } = await requireAppointmentsAccess();
+  const { user, clinicId, home } = await requireAppointmentsAccess();
+  if (!can(user, "leave", "delete")) redirect(home);
 
   await db
     .delete(doctorLeaves)

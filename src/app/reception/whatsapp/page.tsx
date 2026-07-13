@@ -1,5 +1,7 @@
 import { count, desc, eq } from "drizzle-orm";
+import { redirect } from "next/navigation";
 import { requireRole } from "@/core/auth/user";
+import { can } from "@/core/auth/permissions";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { patients, whatsappMessages } from "@/core/db/schema";
@@ -26,6 +28,7 @@ export default async function ReceptionWhatsAppPage({
   if (!user.clinicId) {
     return <p className="text-sm text-muted-foreground">No clinic linked.</p>;
   }
+  if (!can(user, "whatsapp", "view")) redirect("/reception");
   const sp = await searchParams;
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);

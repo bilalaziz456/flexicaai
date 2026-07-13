@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { requireRole } from "@/core/auth/user";
+import { can, type PermAction } from "@/core/auth/permissions";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { clinics, procedures } from "@/core/db/schema";
@@ -20,7 +21,9 @@ export type ProcedureActionState = { error?: string; saved?: boolean };
  * Access also requires the clinic to have the `sales` feature switched on by the
  * super admin. Returns the clinic id + which panel to revalidate.
  */
-async function requireProcedureAccess(): Promise<{ clinicId: string }> {
+async function requireProcedureAccess(
+  action: PermAction,
+): Promise<{ clinicId: string }> {
   const user = await requireRole(["clinic_admin", "receptionist", "manager"]);
   if (!user.clinicId) redirect("/login?error=no_access");
 
@@ -31,6 +34,10 @@ async function requireProcedureAccess(): Promise<{ clinicId: string }> {
     .limit(1);
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales")) {
     redirect("/login?error=no_access");
+  }
+  // Per-user permission on top of the role + feature gate.
+  if (!can(user, "procedures", action)) {
+    redirect(user.role === "clinic_admin" ? "/clinic/procedures" : "/reception/procedures");
   }
   return { clinicId: user.clinicId };
 }
@@ -55,7 +62,7 @@ export async function createProcedure(
   _prev: ProcedureActionState,
   formData: FormData,
 ): Promise<ProcedureActionState> {
-  const { clinicId } = await requireProcedureAccess();
+  const { clinicId } = await requireProcedureAccess("create");
 
   const parsed = procedureSchema.safeParse({
     name: formData.get("name"),
@@ -97,7 +104,7 @@ export async function updateProcedure(
   _prev: ProcedureActionState,
   formData: FormData,
 ): Promise<ProcedureActionState> {
-  const { clinicId } = await requireProcedureAccess();
+  const { clinicId } = await requireProcedureAccess("edit");
 
   const parsed = procedureSchema.safeParse({
     name: formData.get("name"),
@@ -135,7 +142,7 @@ export async function updateProcedure(
  * price, so removing it here never rewrites past sales. Clinic-scoped.
  */
 export async function deleteProcedure(procedureId: string): Promise<void> {
-  const { clinicId } = await requireProcedureAccess();
+  const { clinicId } = await requireProcedureAccess("delete");
 
   await db
     .delete(procedures)
@@ -156,7 +163,7 @@ export async function deleteProcedure(procedureId: string): Promise<void> {
  * Returns how many were added.
  */
 export async function importProcedureDefaults(): Promise<ProcedureActionState> {
-  const { clinicId } = await requireProcedureAccess();
+  const { clinicId } = await requireProcedureAccess("create");
 
   const [clinic] = await db
     .select({ modulesEnabled: clinics.modulesEnabled })

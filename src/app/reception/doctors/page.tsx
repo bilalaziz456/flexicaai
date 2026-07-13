@@ -1,5 +1,7 @@
 import { and, asc, desc, gte, inArray } from "drizzle-orm";
+import { redirect } from "next/navigation";
 import { requireRole } from "@/core/auth/user";
+import { can } from "@/core/auth/permissions";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { doctorLeaves, users } from "@/core/db/schema";
@@ -20,6 +22,7 @@ import { DoctorLeaves, type LeaveItem } from "../doctor-leaves";
  */
 export default async function ReceptionDoctorsPage() {
   const user = await requireRole(["receptionist", "manager"]);
+  if (user.clinicId && !can(user, "leave", "view")) redirect("/reception");
   if (!user.clinicId) {
     return (
       <p className="text-sm text-muted-foreground">

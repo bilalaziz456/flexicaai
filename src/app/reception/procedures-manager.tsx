@@ -23,27 +23,34 @@ export type ProcedureItem = {
 
 const fmtPkr = (n: number) => `Rs ${new Intl.NumberFormat("en-PK").format(n)}`;
 
-/** Full CRUD for the clinic's procedure catalog (clinic admin + receptionist). */
+type ProcedurePerms = { create: boolean; edit: boolean; delete: boolean };
+
+/** CRUD for the clinic's procedure catalog, gated by the user's permissions. */
 export function ProceduresManager({
   procedures,
   templatesAvailable,
+  perms,
 }: {
   procedures: ProcedureItem[];
   templatesAvailable: boolean;
+  perms: ProcedurePerms;
 }) {
   return (
     <div className="space-y-6">
-      <AddProcedureForm templatesAvailable={templatesAvailable} />
+      {perms.create ? (
+        <AddProcedureForm templatesAvailable={templatesAvailable} />
+      ) : null}
 
       {procedures.length === 0 ? (
         <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          No procedures yet. Add your first one above
-          {templatesAvailable ? " or import the suggested list." : "."}
+          No procedures yet.
+          {perms.create ? " Add your first one above" : ""}
+          {perms.create && templatesAvailable ? " or import the suggested list." : "."}
         </div>
       ) : (
         <div className="space-y-2">
           {procedures.map((p) => (
-            <ProcedureRow key={p.id} procedure={p} />
+            <ProcedureRow key={p.id} procedure={p} perms={perms} />
           ))}
         </div>
       )}
@@ -109,7 +116,13 @@ function AddProcedureForm({ templatesAvailable }: { templatesAvailable: boolean 
   );
 }
 
-function ProcedureRow({ procedure }: { procedure: ProcedureItem }) {
+function ProcedureRow({
+  procedure,
+  perms,
+}: {
+  procedure: ProcedureItem;
+  perms: ProcedurePerms;
+}) {
   const action = updateProcedure.bind(null, procedure.id);
   const [state, formAction, pending] = useActionState<
     ProcedureActionState,
@@ -133,6 +146,7 @@ function ProcedureRow({ procedure }: { procedure: ProcedureItem }) {
         defaultValue={procedure.name}
         aria-label="Procedure name"
         className="min-w-40 flex-1"
+        disabled={!perms.edit}
         required
       />
       <span className="text-sm text-muted-foreground">Rs</span>
@@ -145,6 +159,7 @@ function ProcedureRow({ procedure }: { procedure: ProcedureItem }) {
         defaultValue={procedure.price}
         aria-label="Price"
         className="w-28"
+        disabled={!perms.edit}
         required
       />
       <label className="flex items-center gap-2 text-sm">
@@ -153,34 +168,39 @@ function ProcedureRow({ procedure }: { procedure: ProcedureItem }) {
           type="checkbox"
           name="isActive"
           defaultChecked={procedure.isActive}
+          disabled={!perms.edit}
           className="size-4 accent-[var(--primary)]"
         />
         Active
       </label>
-      <Button type="submit" variant="outline" size="sm" disabled={pending}>
-        {pending ? "Saving…" : "Save"}
-      </Button>
-      {confirming ? (
-        <Button
-          type="button"
-          variant="destructive"
-          size="sm"
-          disabled={deleting}
-          onClick={() => startDelete(() => void deleteProcedure(procedure.id))}
-        >
-          {deleting ? "Deleting…" : "Confirm delete"}
+      {perms.edit ? (
+        <Button type="submit" variant="outline" size="sm" disabled={pending}>
+          {pending ? "Saving…" : "Save"}
         </Button>
-      ) : (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-label="Delete procedure"
-          onClick={() => setConfirming(true)}
-        >
-          <Trash2 className="size-4" aria-hidden="true" />
-        </Button>
-      )}
+      ) : null}
+      {perms.delete ? (
+        confirming ? (
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            disabled={deleting}
+            onClick={() => startDelete(() => void deleteProcedure(procedure.id))}
+          >
+            {deleting ? "Deleting…" : "Confirm delete"}
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label="Delete procedure"
+            onClick={() => setConfirming(true)}
+          >
+            <Trash2 className="size-4" aria-hidden="true" />
+          </Button>
+        )
+      ) : null}
       <span className="sr-only">{fmtPkr(procedure.price)}</span>
       <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
