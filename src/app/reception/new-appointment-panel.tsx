@@ -1,0 +1,76 @@
+import Link from "next/link";
+import { desc, inArray } from "drizzle-orm";
+import { db } from "@/core/db";
+import { byClinic } from "@/core/db/tenant";
+import { patients, users } from "@/core/db/schema";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/core/ui/card";
+import { NewAppointmentForm } from "./new-appointment-form";
+import { getBookingProcedures } from "@/core/appointments/procedures";
+
+/**
+ * The "schedule a new appointment" panel — shared by any panel that can create
+ * appointments (reception + a doctor granted `appointments:create`). The caller
+ * does the permission gate; `backHref` is where the ← link + post-save land.
+ */
+export async function NewAppointmentPanel({
+  clinicId,
+  backHref,
+}: {
+  clinicId: string;
+  backHref: string;
+}) {
+  const [recentPatients, doctors, bookingProcedures] = await Promise.all([
+    db
+      .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })
+      .from(patients)
+      .where(byClinic(patients.clinicId, clinicId))
+      .orderBy(desc(patients.createdAt))
+      .limit(20),
+    db
+      .select({
+        id: users.id,
+        fullName: users.fullName,
+        username: users.username,
+        flexibleHours: users.flexibleHours,
+        consultationFee: users.consultationFee,
+      })
+      .from(users)
+      .where(byClinic(users.clinicId, clinicId, inArray(users.role, ["doctor"])))
+      .orderBy(desc(users.createdAt)),
+    getBookingProcedures(clinicId),
+  ]);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <Link
+          href={backHref}
+          className="text-sm text-muted-foreground underline underline-offset-4"
+        >
+          ← Back to appointments
+        </Link>
+        <h1 className="mt-2 text-xl font-semibold">New appointment</h1>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Schedule</CardTitle>
+          <CardDescription>Pick a patient and a date &amp; time.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <NewAppointmentForm
+            initialPatients={recentPatients}
+            doctors={doctors}
+            procedures={bookingProcedures}
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
