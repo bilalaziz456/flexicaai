@@ -15,6 +15,7 @@ export default async function ClinicDoctorsPage() {
       clinicId={user.clinicId}
       selfDoctorId={selfDoctorId}
       canCreate={can(user, "leave", "create")}
+      canEdit={can(user, "leave", "edit")}
       canDelete={can(user, "leave", "delete")}
     />
   );

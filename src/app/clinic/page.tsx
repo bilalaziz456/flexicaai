@@ -252,6 +252,7 @@ export default async function ClinicDashboard() {
               doctorId={user.id}
               leaves={myLeave}
               canCreate={can(user, "leave", "create")}
+              canEdit={can(user, "leave", "edit")}
               canDelete={can(user, "leave", "delete")}
             />
           </CardContent>

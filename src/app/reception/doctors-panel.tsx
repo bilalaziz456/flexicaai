@@ -25,12 +25,15 @@ export async function DoctorsPanel({
   clinicId,
   selfDoctorId = null,
   canCreate = true,
+  canEdit = true,
   canDelete = true,
 }: {
   clinicId: string;
   selfDoctorId?: string | null;
   /** Show the add-leave form (leave:create). */
   canCreate?: boolean;
+  /** Show the edit control on each leave entry (leave:edit). */
+  canEdit?: boolean;
   /** Show the remove-leave button (leave:delete). */
   canDelete?: boolean;
 }) {
@@ -118,6 +121,7 @@ export async function DoctorsPanel({
                     doctorId={d.id}
                     leaves={leavesByDoctor.get(d.id) ?? []}
                     canCreate={canCreate}
+                    canEdit={canEdit}
                     canDelete={canDelete}
                   />
                 </div>

@@ -729,6 +729,95 @@ export async function addDoctorLeave(
   return { saved: true, cancelled: cancelledIds.length };
 }
 
+/**
+ * Edits an existing leave entry's dates / reason. Same rules as adding: clinic-
+ * scoped, a doctor may only edit their OWN leave, and any active appointments that
+ * now fall inside the (possibly widened) range are cancelled. Appointments freed
+ * by narrowing the range are NOT auto-restored (mirrors removeDoctorLeave).
+ */
+export async function updateDoctorLeave(
+  leaveId: string,
+  _prev: LeaveActionState,
+  formData: FormData,
+): Promise<LeaveActionState> {
+  const { user, clinicId } = await requireAppointmentsAccess();
+  if (!can(user, "leave", "edit")) {
+    return { error: "You don't have permission to edit doctor leave." };
+  }
+
+  const parsed = leaveSchema.safeParse({
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
+    reason: (formData.get("reason") as string) || undefined,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid dates." };
+  }
+
+  // Load the entry (clinic-scoped) so we know whose leave it is.
+  const [lv] = await db
+    .select({ doctorId: doctorLeaves.doctorId })
+    .from(doctorLeaves)
+    .where(byClinic(doctorLeaves.clinicId, clinicId, eq(doctorLeaves.id, leaveId)))
+    .limit(1);
+  if (!lv) return { error: "Leave not found." };
+  // A doctor may only edit their OWN leave.
+  if (user.role === "doctor" && lv.doctorId !== user.id) {
+    return { error: "You can only edit your own leave." };
+  }
+
+  const doctorId = lv.doctorId;
+  let cancelledIds: string[] = [];
+  await db.transaction(async (tx) => {
+    await tx
+      .update(doctorLeaves)
+      .set({
+        startDate: parsed.data.startDate,
+        endDate: parsed.data.endDate,
+        reason: parsed.data.reason ?? null,
+      })
+      .where(byClinic(doctorLeaves.clinicId, clinicId, eq(doctorLeaves.id, leaveId)));
+
+    // Cancel active appointments within the new [start, end] range.
+    const start = dateFromStr(parsed.data.startDate);
+    const end = dateFromStr(parsed.data.endDate);
+    end.setDate(end.getDate() + 1); // exclusive upper bound
+    const cancelledRows = await tx
+      .update(appointments)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(
+        byClinic(
+          appointments.clinicId,
+          clinicId,
+          and(
+            eq(appointments.doctorId, doctorId),
+            inArray(appointments.status, ["scheduled", "confirmed"]),
+            gte(appointments.scheduledAt, start),
+            lt(appointments.scheduledAt, end),
+          ),
+        ),
+      )
+      .returning({ id: appointments.id });
+    cancelledIds = cancelledRows.map((r) => r.id);
+  });
+
+  if (cancelledIds.length > 0) {
+    await notifyAppointmentsCancelled(clinicId, cancelledIds);
+  }
+
+  await logActivity({
+    action: "update",
+    entity: "leave",
+    entityId: leaveId,
+    summary: `Edited doctor leave to ${parsed.data.startDate}→${parsed.data.endDate}${cancelledIds.length ? ` (${cancelledIds.length} appt(s) cancelled)` : ""}`,
+  });
+  revalidatePath("/clinic/appointments");
+  revalidatePath("/reception/doctors");
+  revalidatePath("/clinic/staff", "layout");
+  revalidatePath("/clinic"); // doctor manages own leave from the dashboard
+  return { saved: true, cancelled: cancelledIds.length };
+}
+
 /** Removes a leave entry (does not restore already-cancelled appointments). */
 export async function removeDoctorLeave(
   leaveId: string,
