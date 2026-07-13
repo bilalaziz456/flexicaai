@@ -1,5 +1,9 @@
 import Link from "next/link";
+import { eq } from "drizzle-orm";
 import { requireClinicAdmin } from "@/core/auth/user";
+import { db } from "@/core/db";
+import { clinics } from "@/core/db/schema";
+import { resourcesForClinic } from "@/core/auth/permissions";
 import {
   Card,
   CardContent,
@@ -9,9 +13,15 @@ import {
 } from "@/core/ui/card";
 import { AddStaffForm } from "../add-staff-form";
 
-/** Clinic Admin: add a doctor or receptionist. Redirects back to the list on save. */
+/** Clinic Admin: add a doctor, receptionist or manager (with permissions). */
 export default async function NewStaffPage() {
-  await requireClinicAdmin();
+  const { clinicId } = await requireClinicAdmin();
+  const [clinic] = await db
+    .select({ featuresEnabled: clinics.featuresEnabled })
+    .from(clinics)
+    .where(eq(clinics.id, clinicId))
+    .limit(1);
+  const permResources = resourcesForClinic(clinic?.featuresEnabled);
   return (
     <div className="space-y-6">
       <div>
@@ -28,12 +38,12 @@ export default async function NewStaffPage() {
         <CardHeader>
           <CardTitle>New staff member</CardTitle>
           <CardDescription>
-            Create a doctor or receptionist. They log in with the username and
-            temporary password you set, then choose their own.
+            Create a doctor, receptionist or manager. They log in with the
+            username and temporary password you set, then choose their own.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <AddStaffForm />
+          <AddStaffForm resources={permResources} />
         </CardContent>
       </Card>
     </div>

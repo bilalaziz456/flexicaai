@@ -1,13 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, asc, eq, gte } from "drizzle-orm";
-import { Ban, CalendarClock, CalendarOff, RotateCcw } from "lucide-react";
+import { Ban, CalendarClock, CalendarOff, RotateCcw, ShieldCheck } from "lucide-react";
 import { requireClinicAdmin } from "@/core/auth/user";
 import { setStaffActive } from "@/app/clinic/actions";
 import { DoctorLeaves } from "@/app/reception/doctor-leaves";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
-import { doctorLeaves, users } from "@/core/db/schema";
+import { clinics, doctorLeaves, users } from "@/core/db/schema";
+import { CLINIC_STAFF_ROLES } from "@/core/types/auth";
+import {
+  defaultPermissionsForRole,
+  resourcesForClinic,
+} from "@/core/auth/permissions";
+import { PermissionsGrid } from "./permissions-grid";
 import { Badge } from "@/core/ui/badge";
 import { Button } from "@/core/ui/button";
 import {
@@ -48,17 +54,29 @@ export default async function StaffDetailPage({
       flexibleHours: users.flexibleHours,
       dailyLimit: users.dailyAppointmentLimit,
       fee: users.consultationFee,
+      permissions: users.permissions,
     })
     .from(users)
     .where(byClinic(users.clinicId, clinicId, eq(users.id, id)))
     .limit(1);
 
-  // Clinic-scoped and only doctors/receptionists are manageable here.
-  if (!member || (member.role !== "doctor" && member.role !== "receptionist")) {
+  // Clinic-scoped and only manageable staff (manager/doctor/receptionist) here.
+  if (!member || !(CLINIC_STAFF_ROLES as readonly string[]).includes(member.role)) {
     notFound();
   }
 
   const label = member.fullName ?? member.username;
+
+  // Permission grid inputs: the resources this clinic can use, and the member's
+  // effective permissions (their overrides, or the role defaults when unset).
+  const [clinic] = await db
+    .select({ featuresEnabled: clinics.featuresEnabled })
+    .from(clinics)
+    .where(eq(clinics.id, clinicId))
+    .limit(1);
+  const permResources = resourcesForClinic(clinic?.featuresEnabled);
+  const roleDefaults = defaultPermissionsForRole(member.role);
+  const effectivePermissions = member.permissions ?? roleDefaults;
 
   // Current + upcoming leave for doctors.
   const now = new Date();
@@ -160,6 +178,28 @@ export default async function StaffDetailPage({
           </CardContent>
         </Card>
       ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShieldCheck className="size-5 text-muted-foreground" aria-hidden="true" />
+            Permissions
+          </CardTitle>
+          <CardDescription>
+            What this {member.role} can do. Tick View / Create / Edit / Delete per
+            module — View is required for the others. Starts from the role&apos;s
+            defaults until you change it.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <PermissionsGrid
+            userId={member.id}
+            resources={permResources}
+            initial={effectivePermissions}
+            roleDefaults={roleDefaults}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

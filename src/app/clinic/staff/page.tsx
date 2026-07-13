@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@/core/ui/table";
 import { describeAvailability } from "@/core/lib/availability";
+import { CLINIC_STAFF_ROLES } from "@/core/types/auth";
 import { FlashToast } from "@/core/ui/toast";
 import { RowLink } from "@/core/ui/row-link";
 import { StaffSearch } from "./staff-search";
@@ -46,7 +47,7 @@ export default async function ClinicStaffPage({
       ? "Staff member updated."
       : null;
 
-  const roleFilter = inArray(users.role, ["doctor", "receptionist"]);
+  const roleFilter = inArray(users.role, [...CLINIC_STAFF_ROLES]);
   const search = query
     ? or(
         ilike(users.fullName, `%${query}%`),

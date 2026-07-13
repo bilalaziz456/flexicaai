@@ -31,6 +31,7 @@ import type { DayAvailability } from "@/core/lib/availability";
 export const userRole = pgEnum("user_role", [
   "super_admin",
   "clinic_admin",
+  "manager",
   "doctor",
   "receptionist",
 ]);
@@ -108,6 +109,11 @@ export const users = pgTable(
     // Set true when an admin creates the account with a temporary password;
     // cleared once the user sets their own (forced on first login).
     mustChangePassword: boolean("must_change_password").notNull().default(false),
+    // Per-user permission slugs ("resource:action"). NULL = fall back to the
+    // role's defaults (see core/auth/permissions.ts); a non-null array is an
+    // admin override that fully replaces those defaults. Free-text (not enums)
+    // so the catalog can grow without a schema change.
+    permissions: text("permissions").array(),
     // UI theme preference; "system" follows the OS.
     theme: themePreference("theme").notNull().default("system"),
     // Doctor scheduling (specialty-agnostic, core/lib/availability.ts). Empty for

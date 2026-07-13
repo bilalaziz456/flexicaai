@@ -25,6 +25,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     role: user.role as UserRole,
     clinicId: user.clinicId,
     mustChangePassword: user.mustChangePassword,
+    permissions: user.permissions ?? null,
   };
 }
 

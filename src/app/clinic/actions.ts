@@ -13,9 +13,13 @@ import { clinics, patients, sessions, users } from "@/core/db/schema";
 import { TIME_RE, timeToMinutes, type DayAvailability } from "@/core/lib/availability";
 import { dobFromAgeField } from "@/core/lib/age";
 import { logActivity } from "@/core/audit/log";
-import { USERNAME_REGEX } from "@/core/types/auth";
+import { CLINIC_STAFF_ROLES, USERNAME_REGEX } from "@/core/types/auth";
+import { sanitizePermissions } from "@/core/auth/permissions";
 
 export type ClinicActionState = { error?: string; saved?: boolean };
+
+/** Drizzle-friendly mutable copy of the manageable-staff role list. */
+const STAFF_ROLES = [...CLINIC_STAFF_ROLES];
 
 /** Validates the doctor schedule JSON emitted by DoctorScheduleFields. */
 const availabilitySchema = z
@@ -125,7 +129,7 @@ const createStaffSchema = z.object({
       message: "Username may use lowercase letters, digits, and . _ - only.",
     }),
   // A clinic admin can only create clinical/front-desk staff — never admins.
-  role: z.enum(["doctor", "receptionist"]),
+  role: z.enum(CLINIC_STAFF_ROLES),
   password: z.string().min(8, "Password must be at least 8 characters."),
 });
 
@@ -172,6 +176,8 @@ export async function createStaff(
         role: parsed.data.role,
         fullName: parsed.data.fullName,
         mustChangePassword: true,
+        // Permissions chosen on the create form (prefilled from role defaults).
+        permissions: sanitizePermissions(formData.getAll("perm").map(String)),
         availability,
         flexibleHours,
         dailyAppointmentLimit: dailyLimit,
@@ -251,7 +257,7 @@ export async function deleteStaff(
       byClinic(
         users.clinicId,
         clinicId,
-        and(eq(users.id, userId), inArray(users.role, ["doctor", "receptionist"])),
+        and(eq(users.id, userId), inArray(users.role, STAFF_ROLES)),
       ),
     );
 
@@ -348,7 +354,7 @@ export async function updateStaffProfile(
       byClinic(
         users.clinicId,
         clinicId,
-        and(eq(users.id, userId), inArray(users.role, ["doctor", "receptionist"])),
+        and(eq(users.id, userId), inArray(users.role, STAFF_ROLES)),
       ),
     )
     .limit(1);
@@ -388,7 +394,7 @@ export async function updateStaffProfile(
           clinicId,
           and(
             eq(users.id, userId),
-            inArray(users.role, ["doctor", "receptionist"]),
+            inArray(users.role, STAFF_ROLES),
           ),
         ),
       )
@@ -411,6 +417,55 @@ export async function updateStaffProfile(
   revalidatePath(`/clinic/staff/${userId}`);
   // Back to the list with a success flash (matches the create flow).
   redirect("/clinic/staff?updated=1");
+}
+
+/**
+ * Saves a staff member's per-user permissions (the V/C/E/D grid). Clinic-scoped
+ * and limited to manageable staff, so an admin can never touch another clinic's
+ * users or themselves. Unknown slugs are dropped; the stored (possibly empty)
+ * array replaces the role defaults for that user. Stays on the page (toast).
+ */
+export async function updateStaffPermissions(
+  userId: string,
+  _prevState: ClinicActionState,
+  formData: FormData,
+): Promise<ClinicActionState> {
+  const { clinicId } = await requireClinicAdmin();
+
+  const permissions = sanitizePermissions(formData.getAll("perm").map(String));
+
+  const [member] = await db
+    .select({ role: users.role, fullName: users.fullName, username: users.username })
+    .from(users)
+    .where(
+      byClinic(
+        users.clinicId,
+        clinicId,
+        and(eq(users.id, userId), inArray(users.role, STAFF_ROLES)),
+      ),
+    )
+    .limit(1);
+  if (!member) return { error: "Staff member not found." };
+
+  await db
+    .update(users)
+    .set({ permissions, updatedAt: new Date() })
+    .where(
+      byClinic(
+        users.clinicId,
+        clinicId,
+        and(eq(users.id, userId), inArray(users.role, STAFF_ROLES)),
+      ),
+    );
+
+  await logActivity({
+    action: "update",
+    entity: "staff",
+    entityId: userId,
+    summary: `Updated permissions for ${member.fullName ?? member.username}`,
+  });
+  revalidatePath(`/clinic/staff/${userId}`);
+  return { saved: true };
 }
 
 const createPatientSchema = z.object({

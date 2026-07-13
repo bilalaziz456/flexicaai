@@ -9,14 +9,16 @@ import { PanelShell } from "@/core/ui/panel-shell";
 
 /**
  * Receptionist panel shell. Same responsive chrome (sidebar / hamburger) as
- * every other role, via the shared PanelShell. Guards to receptionist.
+ * every other role, via the shared PanelShell. Shared by the receptionist and
+ * the (broader) operations manager; per-feature nav/action access is gated by
+ * each user's permissions.
  */
 export default async function ReceptionLayout({
   children,
 }: {
   children: ReactNode;
 }) {
-  const user = await requireRole("receptionist");
+  const user = await requireRole(["receptionist", "manager"]);
   const theme = await getThemeCookie();
 
   const [clinic] = user.clinicId

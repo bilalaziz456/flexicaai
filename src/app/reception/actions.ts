@@ -61,7 +61,7 @@ async function requireAppointmentsAccess(): Promise<{
   clinicId: string;
   home: string;
 }> {
-  const user = await requireRole(["receptionist", "clinic_admin"]);
+  const user = await requireRole(["receptionist", "manager", "clinic_admin"]);
   if (!user.clinicId) redirect("/login?error=no_access");
   return {
     clinicId: user.clinicId,

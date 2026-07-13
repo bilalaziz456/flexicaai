@@ -8,14 +8,25 @@ import { Label } from "@/core/ui/label";
 import { PasswordInput } from "@/core/ui/password-input";
 import { Toast } from "@/core/ui/toast";
 import { DoctorScheduleFields } from "@/app/clinic/doctor-schedule-fields";
+import {
+  defaultPermissionsForRole,
+  type PermResource,
+} from "@/core/auth/permissions";
+import type { UserRole } from "@/core/types/auth";
+import { PermissionMatrix } from "./[id]/permission-matrix";
 
-export function AddStaffForm() {
+export function AddStaffForm({ resources }: { resources: PermResource[] }) {
   const [state, formAction, pending] = useActionState<
     ClinicActionState,
     FormData
   >(createStaff, {});
-  const [role, setRole] = useState("doctor");
+  const [role, setRole] = useState<UserRole>("doctor");
   const [scheduleValid, setScheduleValid] = useState(true);
+  // Permissions start from the selected role's defaults and reset when the role
+  // changes; the admin can tweak them before creating the account.
+  const [granted, setGranted] = useState<Set<string>>(
+    () => new Set(defaultPermissionsForRole("doctor")),
+  );
   // Re-pop the error toast on each failed submit (success redirects away).
   const [errorNonce, setErrorNonce] = useState(0);
   useEffect(() => {
@@ -35,11 +46,16 @@ export function AddStaffForm() {
             id="role"
             name="role"
             value={role}
-            onChange={(e) => setRole(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value as UserRole;
+              setRole(next);
+              setGranted(new Set(defaultPermissionsForRole(next)));
+            }}
             className="h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron"
           >
             <option value="doctor">Doctor</option>
             <option value="receptionist">Receptionist</option>
+            <option value="manager">Manager</option>
           </select>
         </div>
         <div className="space-y-2">
@@ -67,6 +83,16 @@ export function AddStaffForm() {
       {role === "doctor" ? (
         <DoctorScheduleFields onValidChange={setScheduleValid} />
       ) : null}
+
+      {/* Permissions — prefilled from the role's defaults, adjustable now. */}
+      <div className="space-y-2">
+        <Label>Permissions</Label>
+        <p className="text-xs text-muted-foreground">
+          Starts from the {role} defaults — tick View / Create / Edit / Delete to
+          adjust. View is required for the others.
+        </p>
+        <PermissionMatrix resources={resources} granted={granted} onChange={setGranted} />
+      </div>
 
       <Button
         type="submit"

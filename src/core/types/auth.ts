@@ -10,11 +10,19 @@
 export const USER_ROLES = [
   "super_admin", // Klenic company staff — manages clinics & modules
   "clinic_admin", // Clinic owner — manages their staff & settings
+  "manager", // Clinic operations manager — runs the front desk + oversight
   "doctor", // Clinical user — voice scribe, records, prescriptions
   "receptionist", // Front desk — appointments, WhatsApp, payments
 ] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
+
+/**
+ * Roles a clinic admin creates and manages within their clinic — everyone but
+ * themselves (clinic_admin) and platform staff (super_admin). Single source of
+ * truth for the staff list, staff-management guards, and staff counts.
+ */
+export const CLINIC_STAFF_ROLES = ["manager", "doctor", "receptionist"] as const;
 
 export function isUserRole(value: unknown): value is UserRole {
   return typeof value === "string" && USER_ROLES.includes(value as UserRole);
@@ -28,6 +36,9 @@ export function isUserRole(value: unknown): value is UserRole {
 export const ROLE_HOME_ROUTE: Record<UserRole, string> = {
   super_admin: "/admin",
   clinic_admin: "/clinic",
+  // A manager runs day-to-day operations from the reception panel (gated further
+  // by their per-user permissions).
+  manager: "/reception",
   doctor: "/doctor",
   receptionist: "/reception",
 };
@@ -41,7 +52,7 @@ export const ROUTE_ROLE_ACCESS: { prefix: string; roles: UserRole[] }[] = [
   { prefix: "/admin", roles: ["super_admin"] },
   { prefix: "/clinic", roles: ["clinic_admin"] },
   { prefix: "/doctor", roles: ["doctor"] },
-  { prefix: "/reception", roles: ["receptionist"] },
+  { prefix: "/reception", roles: ["receptionist", "manager"] },
 ];
 
 export function matchProtectedPrefix(pathname: string) {
@@ -65,6 +76,12 @@ export interface CurrentUser {
   clinicId: string | null;
   /** True while the user still has an admin-issued temporary password. */
   mustChangePassword: boolean;
+  /**
+   * Per-user permission slugs (`resource:action`). NULL means "use the role's
+   * defaults" — see `core/auth/permissions.ts`. An explicit (possibly empty)
+   * array is an admin override that replaces the defaults entirely.
+   */
+  permissions: string[] | null;
 }
 
 /**

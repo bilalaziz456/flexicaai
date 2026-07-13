@@ -21,7 +21,7 @@ export type ProcedureActionState = { error?: string; saved?: boolean };
  * super admin. Returns the clinic id + which panel to revalidate.
  */
 async function requireProcedureAccess(): Promise<{ clinicId: string }> {
-  const user = await requireRole(["clinic_admin", "receptionist"]);
+  const user = await requireRole(["clinic_admin", "receptionist", "manager"]);
   if (!user.clinicId) redirect("/login?error=no_access");
 
   const [clinic] = await db

@@ -34,7 +34,7 @@
 
 | Enum | Values |
 |---|---|
-| `user_role` | super_admin, clinic_admin, doctor, receptionist |
+| `user_role` | super_admin, clinic_admin, manager, doctor, receptionist |
 | `theme_preference` | system, light, dark |
 | `appointment_status` | scheduled, confirmed, completed, cancelled, no_show |
 | `visit_status` | draft, approved |
@@ -64,7 +64,10 @@ null`), `username` (**unique**, lowercased), `email` (**unique when present**),
 may appear multiple times for split shifts, e.g. Mon 09:00–12:00 AND 16:00–19:00), 
 `flexible_hours` bool (default false; true = bookable any time, hours not enforced —
 leave + cap still apply), `daily_appointment_limit` int (0 = unlimited),
-`consultation_fee` int (PKR, 0 = not set). Timestamps.
+`consultation_fee` int (PKR, 0 = not set). **`permissions`** text[] (nullable) —
+per-user `resource:action` grant slugs; NULL = fall back to the role's defaults,
+a non-null array fully replaces them (see `core/auth/permissions.ts`; two-tier
+access = clinic capability ∩ this). Timestamps.
 Indexes: unique `username`, unique `email`, `clinic_id`.
 
 ### `sessions` — server-side sessions
@@ -218,7 +221,7 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
 - **Timezone caveat (deploy):** availability, "tomorrow" (reminder), and day
   bounds use the **server's local timezone**. For a multi-region rollout
   (Pakistan vs GCC), pin each clinic to its own timezone.
-- Migrations `0000`–`0025` applied; new tables/columns are always additive to core.
+- Migrations `0000`–`0026` applied; new tables/columns are always additive to core.
   (`0017` adds `appointments.discount_type` / `discount_value`; `0018` adds
   `appointments.queue_session` / `queue_number` + the queue unique index; `0019`
   adds the `activity_logs` table; `0020` adds `clinics.log_access` and drops the
@@ -226,4 +229,5 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
   time-based; `0021` adds the `procedures` table; `0022` adds `appointment_procedures`;
   `0023` adds the `sales` ledger table; `0024` adds
   `appointments.charge_consultation`; `0025` adds
-  `appointment_procedures.discount_type` / `discount_value` for per-line discounts.)
+  `appointment_procedures.discount_type` / `discount_value` for per-line discounts;
+  `0026` adds the `manager` user_role value + `users.permissions` (per-user ACL).)
