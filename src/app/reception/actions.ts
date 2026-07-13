@@ -576,6 +576,10 @@ export async function setDoctorDailyLimit(
   formData: FormData,
 ): Promise<ReceptionActionState> {
   const { user, clinicId, home } = await requireAppointmentsAccess();
+  // Daily caps are a capacity/admin function — doctors manage only their leave.
+  if (user.role === "doctor") {
+    return { error: "Doctors can't set daily appointment limits." };
+  }
   if (!can(user, "leave", "edit")) {
     return { error: "You don't have permission to change doctor scheduling." };
   }
@@ -646,6 +650,10 @@ export async function addDoctorLeave(
   const { user, clinicId, home } = await requireAppointmentsAccess();
   if (!can(user, "leave", "create")) {
     return { error: "You don't have permission to set doctor leave." };
+  }
+  // A doctor may only add their OWN leave, never another doctor's.
+  if (user.role === "doctor" && doctorId !== user.id) {
+    return { error: "You can only add your own leave." };
   }
 
   const parsed = leaveSchema.safeParse({
@@ -727,6 +735,15 @@ export async function removeDoctorLeave(
 ): Promise<void> {
   const { user, clinicId, home } = await requireAppointmentsAccess();
   if (!can(user, "leave", "delete")) redirect(home);
+  // A doctor may only remove their OWN leave.
+  if (user.role === "doctor") {
+    const [lv] = await db
+      .select({ doctorId: doctorLeaves.doctorId })
+      .from(doctorLeaves)
+      .where(byClinic(doctorLeaves.clinicId, clinicId, eq(doctorLeaves.id, leaveId)))
+      .limit(1);
+    if (!lv || lv.doctorId !== user.id) redirect(home);
+  }
 
   await db
     .delete(doctorLeaves)

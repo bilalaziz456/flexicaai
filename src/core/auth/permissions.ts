@@ -108,7 +108,7 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     whatsapp: [V, C],
     procedures: [V, C, E],
     sales: [V],
-    leave: [V, C, E],
+    leave: [V, C, E, D],
     clinical: [V],
     prescriptions: [V],
     // staff / settings management stays clinic-admin-only for now.
@@ -121,7 +121,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     patients: [V],
     appointments: [V],
     recalls: [V],
-    leave: [V],
+    // A doctor manages their OWN leave only (self-scoped in the page + actions).
+    leave: [V, C, E, D],
   }),
   // Front desk — books/edits appointments & patients, WhatsApp, recalls,
   // procedures catalog and doctor leave (matches current receptionist scope).

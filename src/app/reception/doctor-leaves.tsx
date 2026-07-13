@@ -34,9 +34,15 @@ const fmt = (d: string) =>
 export function DoctorLeaves({
   doctorId,
   leaves,
+  canCreate = true,
+  canDelete = true,
 }: {
   doctorId: string;
   leaves: LeaveItem[];
+  /** Show the "add leave" form (leave:create). */
+  canCreate?: boolean;
+  /** Show the remove (×) button on each entry (leave:delete). */
+  canDelete?: boolean;
 }) {
   const action = addDoctorLeave.bind(null, doctorId);
   const [state, formAction, pending] = useActionState<
@@ -69,16 +75,18 @@ export function DoctorLeaves({
                   ) : null}
                 </span>
               </span>
-              <form action={removeDoctorLeave.bind(null, l.id)}>
-                <Button
-                  type="submit"
-                  variant="ghost"
-                  size="sm"
-                  aria-label="Remove leave"
-                >
-                  <X className="size-4" aria-hidden="true" />
-                </Button>
-              </form>
+              {canDelete ? (
+                <form action={removeDoctorLeave.bind(null, l.id)}>
+                  <Button
+                    type="submit"
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Remove leave"
+                  >
+                    <X className="size-4" aria-hidden="true" />
+                  </Button>
+                </form>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -86,6 +94,7 @@ export function DoctorLeaves({
         <p className="text-sm text-muted-foreground">No leave scheduled.</p>
       )}
 
+      {canCreate ? (
       <form action={formAction} className="space-y-3 rounded-md border p-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
@@ -147,10 +156,13 @@ export function DoctorLeaves({
           ) : null}
         </div>
       </form>
-      <p className="text-xs text-muted-foreground">
-        For a single day, set the same From and To date. Existing appointments in
-        the range are cancelled.
-      </p>
+      ) : null}
+      {canCreate ? (
+        <p className="text-xs text-muted-foreground">
+          For a single day, set the same From and To date. Existing appointments in
+          the range are cancelled.
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { and, asc, desc, gte, inArray } from "drizzle-orm";
+import { asc, desc, eq, gte, inArray } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { doctorLeaves, users } from "@/core/db/schema";
@@ -14,10 +14,26 @@ import { DoctorLeaves, type LeaveItem } from "./doctor-leaves";
 
 /**
  * Doctors panel — per-doctor daily appointment cap + leave / vacation days.
- * Shared by the reception panel and the unified clinic workspace. The caller
- * gates on `leave:view`; the forms enforce leave create/edit/delete.
+ * Shared by the unified clinic workspace. The caller gates on `leave:view`; the
+ * forms enforce leave create/edit/delete.
+ *
+ * `selfDoctorId` (set when the viewer is a doctor) restricts the panel to that
+ * one doctor and drops the daily-cap control — a doctor manages ONLY their own
+ * leave. Admin / manager / receptionist see every doctor + the cap.
  */
-export async function DoctorsPanel({ clinicId }: { clinicId: string }) {
+export async function DoctorsPanel({
+  clinicId,
+  selfDoctorId = null,
+  canCreate = true,
+  canDelete = true,
+}: {
+  clinicId: string;
+  selfDoctorId?: string | null;
+  /** Show the add-leave form (leave:create). */
+  canCreate?: boolean;
+  /** Show the remove-leave button (leave:delete). */
+  canDelete?: boolean;
+}) {
   const now = new Date();
   const p = (n: number) => String(n).padStart(2, "0");
   const today = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
@@ -32,7 +48,15 @@ export async function DoctorsPanel({ clinicId }: { clinicId: string }) {
         dailyLimit: users.dailyAppointmentLimit,
       })
       .from(users)
-      .where(byClinic(users.clinicId, clinicId, inArray(users.role, ["doctor"])))
+      .where(
+        byClinic(
+          users.clinicId,
+          clinicId,
+          selfDoctorId
+            ? eq(users.id, selfDoctorId)
+            : inArray(users.role, ["doctor"]),
+        ),
+      )
       .orderBy(desc(users.createdAt)),
     db
       .select({
@@ -57,9 +81,13 @@ export async function DoctorsPanel({ clinicId }: { clinicId: string }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Doctors</h1>
+        <h1 className="text-xl font-semibold">
+          {selfDoctorId ? "My leave" : "Doctors"}
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Set daily appointment limits and leave / vacation days.
+          {selfDoctorId
+            ? "Add your leave / vacation days — appointments in the range are cancelled and no new bookings are allowed."
+            : "Set daily appointment limits and leave / vacation days."}
         </p>
       </div>
 
@@ -78,13 +106,20 @@ export async function DoctorsPanel({ clinicId }: { clinicId: string }) {
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">Daily appointment limit</div>
-                  <DailyLimitForm doctorId={d.id} limit={d.dailyLimit} />
-                </div>
+                {!selfDoctorId ? (
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium">Daily appointment limit</div>
+                    <DailyLimitForm doctorId={d.id} limit={d.dailyLimit} />
+                  </div>
+                ) : null}
                 <div className="space-y-1">
                   <div className="text-sm font-medium">Leave / vacation</div>
-                  <DoctorLeaves doctorId={d.id} leaves={leavesByDoctor.get(d.id) ?? []} />
+                  <DoctorLeaves
+                    doctorId={d.id}
+                    leaves={leavesByDoctor.get(d.id) ?? []}
+                    canCreate={canCreate}
+                    canDelete={canDelete}
+                  />
                 </div>
               </CardContent>
             </Card>
