@@ -50,6 +50,7 @@ function LeaveEntry({
   );
   const [startDate, setStartDate] = useState(leave.startDate);
   const [endDate, setEndDate] = useState(leave.endDate);
+  const [reason, setReason] = useState(leave.reason ?? "");
 
   // Close the editor once a save succeeds (the list re-renders from the server).
   useEffect(() => {
@@ -93,7 +94,8 @@ function LeaveEntry({
             <Input
               id={`edit-reason-${leave.id}`}
               name="reason"
-              defaultValue={leave.reason ?? ""}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
               placeholder="e.g. Vacation"
             />
           </div>
@@ -107,6 +109,7 @@ function LeaveEntry({
               onClick={() => {
                 setStartDate(leave.startDate);
                 setEndDate(leave.endDate);
+                setReason(leave.reason ?? "");
                 setEditing(false);
               }}
             >
