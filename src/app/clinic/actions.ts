@@ -468,6 +468,39 @@ export async function updateStaffPermissions(
   return { saved: true };
 }
 
+/**
+ * Resets a staff member's permissions to their role defaults by clearing the
+ * override (`permissions` = NULL) — so they follow the role's defaults going
+ * forward. Clinic-scoped + manageable staff only. Persists immediately.
+ */
+export async function resetStaffPermissions(
+  userId: string,
+): Promise<ClinicActionState> {
+  const { clinicId } = await requireClinicAdmin();
+
+  const [member] = await db
+    .update(users)
+    .set({ permissions: null, updatedAt: new Date() })
+    .where(
+      byClinic(
+        users.clinicId,
+        clinicId,
+        and(eq(users.id, userId), inArray(users.role, STAFF_ROLES)),
+      ),
+    )
+    .returning({ fullName: users.fullName, username: users.username });
+  if (!member) return { error: "Staff member not found." };
+
+  await logActivity({
+    action: "update",
+    entity: "staff",
+    entityId: userId,
+    summary: `Reset permissions to role defaults for ${member.fullName ?? member.username}`,
+  });
+  revalidatePath(`/clinic/staff/${userId}`);
+  return { saved: true };
+}
+
 const createPatientSchema = z.object({
   fullName: z.string().trim().min(2, "Patient name is required."),
 });

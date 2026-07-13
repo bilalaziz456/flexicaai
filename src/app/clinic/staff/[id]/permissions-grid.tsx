@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import {
+  resetStaffPermissions,
   updateStaffPermissions,
   type ClinicActionState,
 } from "@/app/clinic/actions";
@@ -12,7 +13,8 @@ import { PermissionMatrix } from "./permission-matrix";
 
 /**
  * Edit an existing staff member's permissions — wraps the shared matrix in a form
- * with the save action, a "reset to role defaults" shortcut, and toasts.
+ * with the save action, a "reset to role defaults" shortcut (which clears the
+ * override server-side and re-syncs the grid), and toasts.
  */
 export function PermissionsGrid({
   userId,
@@ -33,37 +35,58 @@ export function PermissionsGrid({
     action,
     {},
   );
+  const [resetting, startReset] = useTransition();
 
-  const [savedNonce, setSavedNonce] = useState(0);
+  // One success toast, re-triggered for both save and reset via a bumping nonce.
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [successNonce, setSuccessNonce] = useState(0);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [errorNonce, setErrorNonce] = useState(0);
   useEffect(() => {
-    if (state.saved) setSavedNonce((n) => n + 1);
-    if (state.error) setErrorNonce((n) => n + 1);
+    if (state.saved) {
+      setSuccessMsg("Permissions saved.");
+      setSuccessNonce((n) => n + 1);
+    }
+    if (state.error) {
+      setErrorMsg(state.error);
+      setErrorNonce((n) => n + 1);
+    }
   }, [state]);
+
+  const onReset = () =>
+    startReset(async () => {
+      const res = await resetStaffPermissions(userId);
+      if (res.saved) {
+        // Follow the role defaults now that the override is cleared.
+        setGranted(new Set(roleDefaults));
+        setSuccessMsg("Reset to role defaults.");
+        setSuccessNonce((n) => n + 1);
+      } else if (res.error) {
+        setErrorMsg(res.error);
+        setErrorNonce((n) => n + 1);
+      }
+    });
 
   return (
     <form action={formAction} className="space-y-4">
       <PermissionMatrix resources={resources} granted={granted} onChange={setGranted} />
 
       <div className="flex flex-wrap items-center gap-4">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || resetting}>
           {pending ? "Saving…" : "Save permissions"}
         </Button>
         <button
           type="button"
-          onClick={() => setGranted(new Set(roleDefaults))}
-          className="text-sm text-muted-foreground underline underline-offset-4"
+          onClick={onReset}
+          disabled={resetting || pending}
+          className="text-sm text-muted-foreground underline underline-offset-4 disabled:opacity-50"
         >
-          Reset to role defaults
+          {resetting ? "Resetting…" : "Reset to role defaults"}
         </button>
       </div>
 
-      <Toast
-        message={state.saved ? "Permissions saved." : null}
-        variant="success"
-        token={savedNonce}
-      />
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
+      <Toast message={successMsg} variant="success" token={successNonce} />
+      <Toast message={errorMsg} variant="error" token={errorNonce} />
     </form>
   );
 }
