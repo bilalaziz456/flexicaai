@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
 import { and, count, desc, ilike, inArray, or } from "drizzle-orm";
-import { requireClinicAdmin } from "@/core/auth/user";
+import { requireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { users } from "@/core/db/schema";
@@ -36,8 +36,10 @@ export default async function ClinicStaffPage({
     updated?: string;
   }>;
 }) {
-  const { clinicId } = await requireClinicAdmin();
-  const canCreate = true;
+  const user = await requireWorkspace("staff");
+  const { clinicId } = user;
+  // Viewing staff needs `staff:view`; creating/managing stays clinic-admin-only.
+  const canCreate = user.role === "clinic_admin";
   const sp = await searchParams;
   const query = sp.q?.trim();
   const page = parsePage(sp.page);

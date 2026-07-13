@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, asc, eq, gte } from "drizzle-orm";
 import { Ban, CalendarClock, CalendarOff, RotateCcw, ShieldCheck } from "lucide-react";
-import { requireClinicAdmin } from "@/core/auth/user";
+import { requireWorkspace } from "@/core/auth/user";
 import { setStaffActive } from "@/app/clinic/actions";
 import { DoctorLeaves } from "@/app/reception/doctor-leaves";
 import { db } from "@/core/db";
@@ -40,7 +40,11 @@ export default async function StaffDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { clinicId } = await requireClinicAdmin();
+  const viewer = await requireWorkspace("staff");
+  const { clinicId } = viewer;
+  // Viewing is `staff:view`; managing (edit / permissions / password / suspend /
+  // delete) is clinic-admin-only — a manager can't escalate their own access.
+  const isAdmin = viewer.role === "clinic_admin";
   const { id } = await params;
 
   const [member] = await db
@@ -130,38 +134,73 @@ export default async function StaffDetailPage({
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            {member.role === "doctor" ? (
-              <CalendarClock
-                className="size-5 text-muted-foreground"
-                aria-hidden="true"
-              />
-            ) : null}
-            Details
-          </CardTitle>
-          <CardDescription>
-            {member.role === "doctor"
-              ? "Name, login, working hours, daily cap and fee — saved together."
-              : "Edit the name and login username."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <EditStaffForm
-            userId={member.id}
-            fullName={member.fullName}
-            username={member.username}
-            role={member.role}
-            availability={member.availability}
-            dailyLimit={member.dailyLimit}
-            fee={member.fee}
-            flexibleHours={member.flexibleHours}
-          />
-        </CardContent>
-      </Card>
+      {!isAdmin ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Details</CardTitle>
+            <CardDescription>
+              Read-only — ask a clinic admin to make changes.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <dl className="grid gap-2 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-muted-foreground">Username</dt>
+                <dd>@{member.username}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Role</dt>
+                <dd className="capitalize">{member.role}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Status</dt>
+                <dd>{member.isActive ? "Active" : "Suspended"}</dd>
+              </div>
+              {member.role === "doctor" && member.fee > 0 ? (
+                <div>
+                  <dt className="text-muted-foreground">Consultation fee</dt>
+                  <dd>Rs {new Intl.NumberFormat("en-PK").format(member.fee)}</dd>
+                </div>
+              ) : null}
+            </dl>
+          </CardContent>
+        </Card>
+      ) : null}
 
-      {member.role === "doctor" ? (
+      {isAdmin ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {member.role === "doctor" ? (
+                <CalendarClock
+                  className="size-5 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              ) : null}
+              Details
+            </CardTitle>
+            <CardDescription>
+              {member.role === "doctor"
+                ? "Name, login, working hours, daily cap and fee — saved together."
+                : "Edit the name and login username."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <EditStaffForm
+              userId={member.id}
+              fullName={member.fullName}
+              username={member.username}
+              role={member.role}
+              availability={member.availability}
+              dailyLimit={member.dailyLimit}
+              fee={member.fee}
+              flexibleHours={member.flexibleHours}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {isAdmin && member.role === "doctor" ? (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -179,6 +218,8 @@ export default async function StaffDetailPage({
         </Card>
       ) : null}
 
+      {isAdmin ? (
+        <>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -251,6 +292,8 @@ export default async function StaffDetailPage({
           <DeleteStaffButton userId={member.id} label={label} />
         </CardContent>
       </Card>
+        </>
+      ) : null}
     </div>
   );
 }
