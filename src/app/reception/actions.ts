@@ -818,11 +818,15 @@ export async function updateDoctorLeave(
   return { saved: true, cancelled: cancelledIds.length };
 }
 
-/** Removes a leave entry (does not restore already-cancelled appointments). */
+/**
+ * Removes a leave entry (does not restore already-cancelled appointments).
+ * Step-up: the signed-in user must re-enter their own password (like every other
+ * delete in the app). Returns an error to keep the confirm dialog open.
+ */
 export async function removeDoctorLeave(
   leaveId: string,
-  _formData: FormData,
-): Promise<void> {
+  password: string,
+): Promise<{ error?: string } | void> {
   const { user, clinicId, home } = await requireAppointmentsAccess();
   if (!can(user, "leave", "delete")) redirect(home);
   // A doctor may only remove their OWN leave.
@@ -833,6 +837,10 @@ export async function removeDoctorLeave(
       .where(byClinic(doctorLeaves.clinicId, clinicId, eq(doctorLeaves.id, leaveId)))
       .limit(1);
     if (!lv || lv.doctorId !== user.id) redirect(home);
+  }
+
+  if (!(await verifyCurrentUserPassword(password))) {
+    return { error: "Incorrect password." };
   }
 
   await db

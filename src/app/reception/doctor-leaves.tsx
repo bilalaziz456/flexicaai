@@ -9,6 +9,7 @@ import {
   type LeaveActionState,
 } from "./actions";
 import { Button } from "@/core/ui/button";
+import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
 import { DatePicker } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
@@ -155,16 +156,18 @@ function LeaveEntry({
           </Button>
         ) : null}
         {canDelete ? (
-          <form action={removeDoctorLeave.bind(null, leave.id)}>
-            <Button
-              type="submit"
-              variant="ghost"
-              size="sm"
-              aria-label="Remove leave"
-            >
-              <X className="size-4" aria-hidden="true" />
-            </Button>
-          </form>
+          <ConfirmDeleteDialog
+            triggerLabel="Remove leave"
+            triggerIcon={<X className="size-4" aria-hidden="true" />}
+            title="Remove leave"
+            description={`Remove the leave on ${
+              leave.startDate === leave.endDate
+                ? fmt(leave.startDate)
+                : `${fmt(leave.startDate)} – ${fmt(leave.endDate)}`
+            }. Appointments already cancelled for this leave are not restored.`}
+            confirmLabel="Remove"
+            onConfirm={(password) => removeDoctorLeave(leave.id, password)}
+          />
         ) : null}
       </span>
     </li>
