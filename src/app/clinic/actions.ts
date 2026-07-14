@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { requireClinicAdmin, requireRole } from "@/core/auth/user";
+import { requireClinicAdmin, requireRole, requireWorkspace } from "@/core/auth/user";
 import { can, type PermAction } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
 import { hashPassword } from "@/core/auth/password";
@@ -128,6 +128,47 @@ const emptyToNull = (v: FormDataEntryValue | null): string | null => {
   const s = typeof v === "string" ? v.trim() : "";
   return s.length ? s : null;
 };
+
+/**
+ * Saves the clinic's WhatsApp message PERSONALIZATION — the signature/footer and
+ * the per-event custom notes (booking / reminder / recall) that feed the Cloud API
+ * templates' {{signature}} / {{note}} vars. Clinic-scoped; needs `settings:edit`.
+ * The sending NUMBER itself is provisioned by the super admin, not here.
+ */
+export async function updateWhatsappSettings(
+  _prev: ClinicActionState,
+  formData: FormData,
+): Promise<ClinicActionState> {
+  const user = await requireWorkspace("settings", "edit");
+
+  const noteOf = (k: string) => {
+    const s = emptyToNull(formData.get(k));
+    return s ? s.slice(0, 300) : undefined; // keep notes short (template var)
+  };
+  const notes = {
+    booking: noteOf("noteBooking"),
+    reminder: noteOf("noteReminder"),
+    recall: noteOf("noteRecall"),
+  };
+  const hasNote = Object.values(notes).some(Boolean);
+
+  await db
+    .update(clinics)
+    .set({
+      whatsappSignature: emptyToNull(formData.get("signature"))?.slice(0, 200) ?? null,
+      whatsappNotes: hasNote ? notes : null,
+      updatedAt: new Date(),
+    })
+    .where(eq(clinics.id, user.clinicId));
+
+  await logActivity({
+    action: "update",
+    entity: "settings",
+    summary: "Updated WhatsApp message personalization",
+  });
+  revalidatePath("/clinic/whatsapp");
+  return { saved: true };
+}
 
 const createStaffSchema = z.object({
   fullName: z.string().trim().min(2, "Name is required."),

@@ -145,6 +145,10 @@ const clinicSettingsSchema = z.object({
     .int("Whole days only.")
     .min(1, "At least 1 day.")
     .max(3650, "That's too long (max 3650 days)."),
+  // Per-clinic WhatsApp SENDER (Meta Cloud API) — provisioned by the super admin.
+  whatsappPhoneNumberId: z.string().trim().max(64).optional(),
+  whatsappDisplayNumber: z.string().trim().max(32).optional(),
+  whatsappSenderName: z.string().trim().max(120).optional(),
 });
 
 /**
@@ -163,6 +167,9 @@ export async function updateClinic(
   const parsed = clinicSettingsSchema.safeParse({
     name: formData.get("name"),
     trashRetentionDays: formData.get("trashRetentionDays") ?? 30,
+    whatsappPhoneNumberId: formData.get("whatsappPhoneNumberId") ?? undefined,
+    whatsappDisplayNumber: formData.get("whatsappDisplayNumber") ?? undefined,
+    whatsappSenderName: formData.get("whatsappSenderName") ?? undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
@@ -193,17 +200,31 @@ export async function updateClinic(
     featuresEnabled.includes("sales") &&
     !(before?.featuresEnabled ?? []).includes("sales");
 
-  await db
-    .update(clinics)
-    .set({
-      name: parsed.data.name,
-      modulesEnabled,
-      featuresEnabled,
-      logAccess,
-      trashRetentionDays: parsed.data.trashRetentionDays,
-      updatedAt: new Date(),
-    })
-    .where(eq(clinics.id, clinicId));
+  try {
+    await db
+      .update(clinics)
+      .set({
+        name: parsed.data.name,
+        modulesEnabled,
+        featuresEnabled,
+        logAccess,
+        trashRetentionDays: parsed.data.trashRetentionDays,
+        // Per-clinic WhatsApp sender (empty → cleared). phone_number_id is unique
+        // across clinics (the inbound routing key) — a duplicate is rejected below.
+        whatsappPhoneNumberId: parsed.data.whatsappPhoneNumberId || null,
+        whatsappDisplayNumber: parsed.data.whatsappDisplayNumber || null,
+        whatsappSenderName: parsed.data.whatsappSenderName || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(clinics.id, clinicId));
+  } catch (err) {
+    const code = (err as { cause?: { code?: string }; code?: string })?.cause?.code ??
+      (err as { code?: string })?.code;
+    if (code === "23505") {
+      return { error: "That WhatsApp number id is already assigned to another clinic." };
+    }
+    throw err;
+  }
 
   // Snapshot sales for the clinic's already-completed appointments (idempotent).
   if (salesNewlyEnabled) {

@@ -27,6 +27,9 @@ export function ClinicSettingsForm({
   featuresEnabled,
   logAccess,
   trashRetentionDays,
+  whatsappPhoneNumberId,
+  whatsappDisplayNumber,
+  whatsappSenderName,
 }: {
   clinicId: string;
   name: string;
@@ -36,6 +39,9 @@ export function ClinicSettingsForm({
   featuresEnabled: string[];
   logAccess: string[];
   trashRetentionDays: number;
+  whatsappPhoneNumberId: string | null;
+  whatsappDisplayNumber: string | null;
+  whatsappSenderName: string | null;
 }) {
   const action = updateClinic.bind(null, clinicId);
   const [state, formAction, pending] = useActionState<
@@ -185,6 +191,49 @@ export function ClinicSettingsForm({
             required
           />
           <span className="text-sm text-muted-foreground">days</span>
+        </div>
+      </section>
+
+      <section className="space-y-3 border-t pt-4">
+        <div>
+          <p className="text-sm font-medium">WhatsApp sender (Cloud API)</p>
+          <p className="text-xs text-muted-foreground">
+            The clinic sends WhatsApp from its own number. Add the number to the
+            WABA in Meta, verify it, then paste its phone-number id here. The clinic
+            sets its own signature/notes in their WhatsApp page.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-2">
+            <Label htmlFor="whatsappPhoneNumberId">Phone-number id</Label>
+            <Input
+              key={`wp-${whatsappPhoneNumberId ?? ""}`}
+              id="whatsappPhoneNumberId"
+              name="whatsappPhoneNumberId"
+              defaultValue={whatsappPhoneNumberId ?? ""}
+              placeholder="Meta phone_number_id"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="whatsappDisplayNumber">Display number</Label>
+            <Input
+              key={`wd-${whatsappDisplayNumber ?? ""}`}
+              id="whatsappDisplayNumber"
+              name="whatsappDisplayNumber"
+              defaultValue={whatsappDisplayNumber ?? ""}
+              placeholder="+9203…"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="whatsappSenderName">Sender name</Label>
+            <Input
+              key={`ws-${whatsappSenderName ?? ""}`}
+              id="whatsappSenderName"
+              name="whatsappSenderName"
+              defaultValue={whatsappSenderName ?? ""}
+              placeholder="e.g. Smile Dental"
+            />
+          </div>
         </div>
       </section>
 

@@ -84,6 +84,9 @@ export default async function ClinicDetailPage({
             featuresEnabled={clinic.featuresEnabled}
             logAccess={clinic.logAccess}
             trashRetentionDays={clinic.trashRetentionDays}
+            whatsappPhoneNumberId={clinic.whatsappPhoneNumberId}
+            whatsappDisplayNumber={clinic.whatsappDisplayNumber}
+            whatsappSenderName={clinic.whatsappSenderName}
           />
         </CardContent>
       </Card>
