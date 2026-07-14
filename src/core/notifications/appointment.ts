@@ -4,10 +4,6 @@ import { and, eq, gte, inArray, isNotNull, isNull, lt } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, clinics, patients, users } from "@/core/db/schema";
-import {
-  describeAvailability,
-  type DayAvailability,
-} from "@/core/lib/availability";
 import { computeAppointmentTotal } from "@/core/appointments/fee";
 import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import { serverEnv } from "@/core/lib/env";
@@ -99,9 +95,10 @@ export async function notifyAppointmentsCancelled(
  * date & time. CORE, clinic-scoped, only messages a patient with a phone, and
  * never throws (a notify failure must not block the booking).
  *
- * Template params order (map these in the AiSensy "appointment_booked" template):
- * {{1}} patient, {{2}} doctor, {{3}} date & time, {{4}} working hours,
- * {{5}} fee, {{6}} clinic, {{7}} queue token (e.g. "#3", or "—" if none).
+ * Template params order (map these in the "appointment_booked" template):
+ * {{1}} patient, {{2}} doctor, {{3}} date & time, {{4}} fee, {{5}} clinic,
+ * {{6}} queue token (e.g. "#3", empty if none). The message states only the
+ * appointment's own day/date/time — NOT the doctor's full weekly hours.
  */
 export async function notifyAppointmentBooked(
   clinicId: string,
@@ -116,7 +113,6 @@ export async function notifyAppointmentBooked(
         scheduledAt: appointments.scheduledAt,
         doctorName: users.fullName,
         doctorUsername: users.username,
-        availability: users.availability,
         fee: users.consultationFee,
         chargeConsultation: appointments.chargeConsultation,
         discountType: appointments.discountType,
@@ -142,9 +138,6 @@ export async function notifyAppointmentBooked(
 
     const doctor = r.doctorName ?? r.doctorUsername ?? null;
     const when = formatWhen(r.scheduledAt);
-    const hours = doctor
-      ? describeAvailability((r.availability ?? []) as DayAvailability[])
-      : "—";
     // Quote the net total the patient pays: consultation fee + procedures, less
     // any per-appointment discount.
     const { gross, net } = computeAppointmentTotal(
@@ -156,11 +149,12 @@ export async function notifyAppointmentBooked(
     const fee = formatFee(gross > 0 ? net : null);
     // Queue token the patient should quote at the desk (only doctor bookings
     // carry one).
-    const token = doctor && r.queueNumber != null ? `#${r.queueNumber}` : "—";
-    const tokenStr = token !== "—" ? ` Your token number is ${token}.` : "";
+    const token = doctor && r.queueNumber != null ? `#${r.queueNumber}` : null;
+    const tokenStr = token ? ` Your token number is ${token}.` : "";
+    // Only the appointment's own day/date/time — never the doctor's weekly hours.
     const body = doctor
-      ? `Appointment confirmed with ${doctor} on ${when}. Working hours: ${hours}. Fee: ${fee}.${tokenStr} — ${r.clinicName}`
-      : `Appointment confirmed on ${when}. — ${r.clinicName}`;
+      ? `Appointment confirmed with ${doctor} on ${when}. Fee: ${fee}.${tokenStr}\n${r.clinicName}`
+      : `Appointment confirmed on ${when}.\n${r.clinicName}`;
 
     await sendWhatsAppToPatient({
       clinicId,
@@ -173,10 +167,9 @@ export async function notifyAppointmentBooked(
         r.patientName,
         doctor ?? "the clinic",
         when,
-        hours,
         fee,
         r.clinicName,
-        token,
+        token ?? "",
       ],
       body,
     });
@@ -245,7 +238,7 @@ export async function sendDueAppointmentReminders(
       event: "reminder",
       userName: r.patientName,
       templateParams: [r.patientName, doctor, when, r.clinicName],
-      body: `Reminder: your appointment with ${doctor} is on ${when}. — ${r.clinicName}`,
+      body: `Reminder: your appointment with ${doctor} is on ${when}.\n${r.clinicName}`,
     });
 
     if (result.ok) {

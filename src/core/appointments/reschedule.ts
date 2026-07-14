@@ -125,7 +125,7 @@ export async function handleRescheduleReply(args: {
         clinicId,
         patientId,
         phone,
-        "To reschedule, reply with the new date & time — e.g. \"reschedule next Monday 3pm\" or \"reschedule 12 Jul 3:00pm\".",
+        "To reschedule, reply with the new date & time, e.g. \"reschedule next Monday 3pm\" or \"reschedule 12 Jul 3:00pm\".",
       );
       return { handled: true, rescheduled: false };
     }

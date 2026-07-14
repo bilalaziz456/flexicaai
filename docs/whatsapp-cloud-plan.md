@@ -154,7 +154,7 @@ adapter appends the clinic's `{{note}}` (booking/reminder/recall only) then
 
 | Event · template (env) | Header | Body variables in order |
 |---|---|---|
-| Booking · `AISENSY_BOOKING_CAMPAIGN` (`appointment_booked`) | — | `{{1}}` patient · `{{2}}` doctor · `{{3}}` date & time · `{{4}}` working hours · `{{5}}` fee · `{{6}}` clinic · `{{7}}` queue token · `{{8}}` **note** · `{{9}}` **signature** |
+| Booking · `AISENSY_BOOKING_CAMPAIGN` (`appointment_booked`) | — | `{{1}}` patient · `{{2}}` doctor · `{{3}}` date & time · `{{4}}` fee · `{{5}}` clinic · `{{6}}` queue token · `{{7}}` **note** · `{{8}}` **signature** (the message states the appointment's own day/date/time only, NOT the doctor's weekly hours) |
 | Cancellation · `AISENSY_CANCEL_CAMPAIGN` (`appointment_cancelled`) | — | `{{1}}` patient · `{{2}}` doctor · `{{3}}` date & time · `{{4}}` clinic · `{{5}}` **signature** |
 | Reminder · `AISENSY_REMINDER_CAMPAIGN` (`appointment_reminder`) | — | `{{1}}` patient · `{{2}}` doctor · `{{3}}` date & time · `{{4}}` clinic · `{{5}}` **note** · `{{6}}` **signature** |
 | Recall · `AISENSY_RECALL_CAMPAIGN` (`recall_reminder`) | — | `{{1}}` patient · `{{2}}` reason · `{{3}}` clinic · `{{4}}` **note** · `{{5}}` **signature** |
