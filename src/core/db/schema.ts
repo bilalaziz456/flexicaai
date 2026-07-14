@@ -153,6 +153,9 @@ export const users = pgTable(
     email: text("email"),
     passwordHash: text("password_hash").notNull(),
     role: userRole("role").notNull(),
+    // Optional name prefix/title (e.g. Dr, Mr, Miss) — shown as "Dr. Bilal Aziz"
+    // in the UI and patient messages. Free text from a fixed dropdown.
+    prefix: text("prefix"),
     fullName: text("full_name"),
     isActive: boolean("is_active").notNull().default(true),
     // Set true when an admin creates the account with a temporary password;

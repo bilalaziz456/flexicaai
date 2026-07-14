@@ -25,7 +25,7 @@ import {
 import { TIME_RE, timeToMinutes, type DayAvailability } from "@/core/lib/availability";
 import { dobFromAgeField } from "@/core/lib/age";
 import { logActivity } from "@/core/audit/log";
-import { CLINIC_STAFF_ROLES, USERNAME_REGEX } from "@/core/types/auth";
+import { CLINIC_STAFF_ROLES, STAFF_PREFIXES, USERNAME_REGEX } from "@/core/types/auth";
 import { sanitizePermissions } from "@/core/auth/permissions";
 
 export type ClinicActionState = { error?: string; saved?: boolean };
@@ -159,6 +159,8 @@ export async function updateWhatsappSettings(
 
 const createStaffSchema = z.object({
   fullName: z.string().trim().min(2, "Name is required."),
+  // Optional title/prefix; an unrecognised value is dropped, not rejected.
+  prefix: z.enum(STAFF_PREFIXES).optional().catch(undefined),
   username: z
     .string()
     .trim()
@@ -182,6 +184,7 @@ export async function createStaff(
 
   const parsed = createStaffSchema.safeParse({
     fullName: formData.get("fullName"),
+    prefix: formData.get("prefix") || undefined,
     username: formData.get("username"),
     role: formData.get("role"),
     password: formData.get("password"),
@@ -214,6 +217,7 @@ export async function createStaff(
         username: parsed.data.username,
         passwordHash,
         role: parsed.data.role,
+        prefix: parsed.data.prefix ?? null,
         fullName: parsed.data.fullName,
         mustChangePassword: true,
         // Permissions chosen on the create form (prefilled from role defaults).
@@ -359,6 +363,7 @@ export async function resetStaffPassword(
 
 const updateStaffSchema = z.object({
   fullName: z.string().trim().min(2, "Name is required."),
+  prefix: z.enum(STAFF_PREFIXES).optional().catch(undefined),
   username: z
     .string()
     .trim()
@@ -386,6 +391,7 @@ export async function updateStaffProfile(
 
   const parsed = updateStaffSchema.safeParse({
     fullName: formData.get("fullName"),
+    prefix: formData.get("prefix") || undefined,
     username: formData.get("username"),
   });
   if (!parsed.success) {
@@ -432,6 +438,7 @@ export async function updateStaffProfile(
       .update(users)
       .set({
         fullName: parsed.data.fullName,
+        prefix: parsed.data.prefix ?? null,
         username: parsed.data.username,
         updatedAt: new Date(),
         ...(scheduleValues ?? {}),

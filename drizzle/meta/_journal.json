@@ -218,6 +218,13 @@
       "when": 1784056148974,
       "tag": "0030_rare_sugar_man",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1784056892240,
+      "tag": "0031_illegal_night_thrasher",
+      "breakpoints": true
     }
   ]
 }

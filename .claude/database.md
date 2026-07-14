@@ -245,7 +245,7 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
 - **Timezone caveat (deploy):** availability, "tomorrow" (reminder), and day
   bounds use the **server's local timezone**. For a multi-region rollout
   (Pakistan vs GCC), pin each clinic to its own timezone.
-- Migrations `0000`–`0030` applied; new tables/columns are always additive to core.
+- Migrations `0000`–`0031` applied; new tables/columns are always additive to core.
   (`0017` adds `appointments.discount_type` / `discount_value`; `0018` adds
   `appointments.queue_session` / `queue_number` + the queue unique index; `0019`
   adds the `activity_logs` table; `0020` adds `clinics.log_access` and drops the
@@ -261,4 +261,5 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
   adds per-table partial trash indexes; `0028` adds `patients.reference`; `0029`
   adds the per-clinic WhatsApp sender columns (`whatsapp_phone_number_id` [partial
   unique] / `whatsapp_display_number` / `whatsapp_sender_name` / `whatsapp_signature`);
-  `0030` drops the unused `whatsapp_notes` (per-event notes feature removed).)
+  `0030` drops the unused `whatsapp_notes` (per-event notes feature removed);
+  `0031` adds `users.prefix` (name title — Dr/Mr/Miss…, shown as "Dr. Bilal Aziz").)

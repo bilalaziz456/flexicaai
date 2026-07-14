@@ -15,6 +15,7 @@ import { Label } from "@/core/ui/label";
 import { Toast } from "@/core/ui/toast";
 import { DoctorScheduleFields } from "@/app/clinic/doctor-schedule-fields";
 import type { DayAvailability } from "@/core/lib/availability";
+import { STAFF_PREFIXES } from "@/core/types/auth";
 
 /**
  * Edit a staff member in ONE save — name + username, plus (for doctors) the
@@ -23,6 +24,7 @@ import type { DayAvailability } from "@/core/lib/availability";
  */
 export function EditStaffForm({
   userId,
+  prefix,
   fullName,
   username,
   role,
@@ -32,6 +34,7 @@ export function EditStaffForm({
   flexibleHours,
 }: {
   userId: string;
+  prefix: string | null;
   fullName: string | null;
   username: string;
   role: string;
@@ -59,13 +62,30 @@ export function EditStaffForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>
-          <Input
-            key={`name-${fullName ?? ""}`}
-            id="fullName"
-            name="fullName"
-            defaultValue={fullName ?? ""}
-            required
-          />
+          <div className="flex gap-2">
+            <select
+              key={`prefix-${prefix ?? ""}`}
+              name="prefix"
+              aria-label="Title"
+              defaultValue={prefix ?? ""}
+              className="h-8 w-24 shrink-0 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron"
+            >
+              <option value="">Title</option>
+              {STAFF_PREFIXES.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+            <Input
+              key={`name-${fullName ?? ""}`}
+              id="fullName"
+              name="fullName"
+              defaultValue={fullName ?? ""}
+              className="flex-1"
+              required
+            />
+          </div>
         </div>
         <div className="space-y-2">
           <Label htmlFor="username">Username</Label>

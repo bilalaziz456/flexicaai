@@ -50,6 +50,7 @@ export default async function StaffDetailPage({
   const [member] = await db
     .select({
       id: users.id,
+      prefix: users.prefix,
       fullName: users.fullName,
       username: users.username,
       role: users.role,
@@ -196,6 +197,7 @@ export default async function StaffDetailPage({
           <CardContent>
             <EditStaffForm
               userId={member.id}
+              prefix={member.prefix}
               fullName={member.fullName}
               username={member.username}
               role={member.role}

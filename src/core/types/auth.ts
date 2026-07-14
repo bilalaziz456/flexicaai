@@ -46,6 +46,26 @@ export function isUserRole(value: unknown): value is UserRole {
   return typeof value === "string" && USER_ROLES.includes(value as UserRole);
 }
 
+/** Selectable name prefixes/titles for staff (e.g. a doctor is "Dr. Bilal Aziz"). */
+export const STAFF_PREFIXES = ["Dr", "Prof", "Mr", "Mrs", "Ms", "Miss"] as const;
+export type StaffPrefix = (typeof STAFF_PREFIXES)[number];
+
+/**
+ * Display a staff member's name with their prefix — "Dr. Bilal Aziz". Falls back to
+ * the plain name when there's no prefix, and to `fallback` (e.g. username) when
+ * there's no full name. Used in the UI and in patient WhatsApp messages.
+ */
+export function displayStaffName(
+  prefix: string | null | undefined,
+  fullName: string | null | undefined,
+  fallback = "",
+): string {
+  const name = (fullName ?? "").trim() || fallback;
+  const p = (prefix ?? "").trim();
+  if (!p) return name;
+  return name ? `${p}. ${name}` : `${p}.`;
+}
+
 /**
  * The panel each role lands in after login. These map to the route groups in
  * /src/app. Keep this the single source of truth for role→home routing so

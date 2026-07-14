@@ -12,8 +12,11 @@ import {
   defaultPermissionsForRole,
   type PermResource,
 } from "@/core/auth/permissions";
-import type { UserRole } from "@/core/types/auth";
+import { STAFF_PREFIXES, type UserRole } from "@/core/types/auth";
 import { PermissionMatrix } from "./[id]/permission-matrix";
+
+const selectCls =
+  "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron";
 
 export function AddStaffForm({ resources }: { resources: PermResource[] }) {
   const [state, formAction, pending] = useActionState<
@@ -38,7 +41,22 @@ export function AddStaffForm({ resources }: { resources: PermResource[] }) {
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>
-          <Input id="fullName" name="fullName" required />
+          <div className="flex gap-2">
+            <select
+              name="prefix"
+              aria-label="Title"
+              defaultValue=""
+              className={`${selectCls} w-24 shrink-0`}
+            >
+              <option value="">Title</option>
+              {STAFF_PREFIXES.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+            <Input id="fullName" name="fullName" required className="flex-1" />
+          </div>
         </div>
         <div className="space-y-2">
           <Label htmlFor="role">Role</Label>

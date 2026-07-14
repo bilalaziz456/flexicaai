@@ -4,6 +4,7 @@ import { and, eq, gte, inArray, isNotNull, isNull, lt } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, clinics, patients, users } from "@/core/db/schema";
+import { displayStaffName } from "@/core/types/auth";
 import { computeAppointmentTotal } from "@/core/appointments/fee";
 import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import { serverEnv } from "@/core/lib/env";
@@ -53,6 +54,7 @@ export async function notifyAppointmentsCancelled(
         scheduledAt: appointments.scheduledAt,
         doctorName: users.fullName,
         doctorUsername: users.username,
+        doctorPrefix: users.prefix,
         clinicName: clinics.name,
       })
       .from(appointments)
@@ -72,7 +74,11 @@ export async function notifyAppointmentsCancelled(
 
     for (const r of rows) {
       if (!r.patientPhone) continue;
-      const doctor = r.doctorName ?? r.doctorUsername ?? "your doctor";
+      const doctor = displayStaffName(
+        r.doctorPrefix,
+        r.doctorName,
+        r.doctorUsername ?? "your doctor",
+      );
       const when = formatWhen(r.scheduledAt);
       await sendWhatsAppToPatient({
         clinicId,
@@ -113,6 +119,7 @@ export async function notifyAppointmentBooked(
         scheduledAt: appointments.scheduledAt,
         doctorName: users.fullName,
         doctorUsername: users.username,
+        doctorPrefix: users.prefix,
         fee: users.consultationFee,
         chargeConsultation: appointments.chargeConsultation,
         discountType: appointments.discountType,
@@ -136,7 +143,10 @@ export async function notifyAppointmentBooked(
 
     if (!r || !r.patientPhone) return;
 
-    const doctor = r.doctorName ?? r.doctorUsername ?? null;
+    const doctor =
+      r.doctorName || r.doctorUsername
+        ? displayStaffName(r.doctorPrefix, r.doctorName, r.doctorUsername ?? "")
+        : null;
     const when = formatWhen(r.scheduledAt);
     // Quote the net total the patient pays: consultation fee + procedures, less
     // any per-appointment discount.
@@ -203,6 +213,7 @@ export async function sendDueAppointmentReminders(
       patientPhone: patients.phone,
       doctorName: users.fullName,
       doctorUsername: users.username,
+      doctorPrefix: users.prefix,
       clinicName: clinics.name,
     })
     .from(appointments)
@@ -227,7 +238,11 @@ export async function sendDueAppointmentReminders(
       skipped++;
       continue;
     }
-    const doctor = r.doctorName ?? r.doctorUsername ?? "your doctor";
+    const doctor = displayStaffName(
+      r.doctorPrefix,
+      r.doctorName,
+      r.doctorUsername ?? "your doctor",
+    );
     const when = formatWhen(r.scheduledAt);
     const result = await sendWhatsAppToPatient({
       clinicId: r.clinicId,
