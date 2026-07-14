@@ -103,6 +103,11 @@ export async function PatientDetail({
         </Link>
         <h1 className="mt-2 text-xl font-semibold">{patient.fullName}</h1>
         <p className="text-sm text-muted-foreground">{patient.phone ?? "No phone"}</p>
+        {patient.reference ? (
+          <p className="text-sm text-muted-foreground">
+            Reference: {patient.reference}
+          </p>
+        ) : null}
       </div>
 
       <Card>
