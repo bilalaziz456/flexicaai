@@ -225,6 +225,13 @@
       "when": 1784056892240,
       "tag": "0031_illegal_night_thrasher",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1784057825610,
+      "tag": "0032_massive_princess_powerful",
+      "breakpoints": true
     }
   ]
 }

@@ -157,6 +157,9 @@ export const users = pgTable(
     // in the UI and patient messages. Free text from a fixed dropdown.
     prefix: text("prefix"),
     fullName: text("full_name"),
+    // Storage key of the user's profile picture (core/integrations/storage), or
+    // NULL. Served (self-only) via GET /api/me/avatar.
+    avatarKey: text("avatar_key"),
     isActive: boolean("is_active").notNull().default(true),
     // Set true when an admin creates the account with a temporary password;
     // cleared once the user sets their own (forced on first login).

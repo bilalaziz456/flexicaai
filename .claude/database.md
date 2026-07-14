@@ -81,7 +81,9 @@ Indexes: GIN pg_trgm on `name` (fast ILIKE search); partial unique on
 ### `users` — staff accounts
 `id`, `clinic_id` → clinics (**nullable**; NULL for super_admin; `on delete set
 null`), `username` (**unique**, lowercased), `email` (**unique when present**),
-`password_hash` (bcrypt), `role` (enum), `full_name`, `is_active` (default true),
+`password_hash` (bcrypt), `role` (enum), `prefix` (name title — Dr/Mr/Miss…, shown
+as "Dr. Bilal Aziz"), `full_name`, `avatar_key` (profile-picture storage key, served
+self-only via `GET /api/me/avatar`), `is_active` (default true),
 `must_change_password` (default false), `theme` (enum). **Doctor-only fields:**
 `availability` jsonb `DayAvailability[]` (per-weekday working windows — a weekday
 may appear multiple times for split shifts, e.g. Mon 09:00–12:00 AND 16:00–19:00), 
@@ -245,7 +247,7 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
 - **Timezone caveat (deploy):** availability, "tomorrow" (reminder), and day
   bounds use the **server's local timezone**. For a multi-region rollout
   (Pakistan vs GCC), pin each clinic to its own timezone.
-- Migrations `0000`–`0031` applied; new tables/columns are always additive to core.
+- Migrations `0000`–`0032` applied; new tables/columns are always additive to core.
   (`0017` adds `appointments.discount_type` / `discount_value`; `0018` adds
   `appointments.queue_session` / `queue_number` + the queue unique index; `0019`
   adds the `activity_logs` table; `0020` adds `clinics.log_access` and drops the
@@ -262,4 +264,6 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
   adds the per-clinic WhatsApp sender columns (`whatsapp_phone_number_id` [partial
   unique] / `whatsapp_display_number` / `whatsapp_sender_name` / `whatsapp_signature`);
   `0030` drops the unused `whatsapp_notes` (per-event notes feature removed);
-  `0031` adds `users.prefix` (name title — Dr/Mr/Miss…, shown as "Dr. Bilal Aziz").)
+  `0031` adds `users.prefix` (name title — Dr/Mr/Miss…, shown as "Dr. Bilal Aziz");
+  `0032` adds `users.avatar_key` (profile picture, served self-only via
+  GET /api/me/avatar; the `/account` self-service settings page).)

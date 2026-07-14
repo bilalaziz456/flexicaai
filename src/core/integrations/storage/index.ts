@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { serverEnv } from "@/core/lib/env";
 
@@ -46,4 +46,36 @@ export async function saveClinicFile(
 /** Read a previously stored file by its key. */
 export async function readClinicFile(key: string): Promise<Buffer> {
   return readFile(resolveKey(key));
+}
+
+/**
+ * Persist a file for a USER (e.g. their avatar) and return its opaque key. Users
+ * can be super_admin (no clinic), so avatars are namespaced by user id, not clinic.
+ */
+export async function saveUserFile(
+  userId: string,
+  subdir: string,
+  data: Buffer,
+  ext: string,
+): Promise<string> {
+  const safeExt = ext.replace(/[^a-z0-9]/gi, "").slice(0, 8) || "bin";
+  const key = path.posix.join("users", userId, subdir, `${randomUUID()}.${safeExt}`);
+  const full = resolveKey(key);
+  await mkdir(path.dirname(full), { recursive: true });
+  await writeFile(full, data);
+  return key;
+}
+
+/** Read any stored file by its key (same base + escape guard as clinic files). */
+export async function readFileByKey(key: string): Promise<Buffer> {
+  return readFile(resolveKey(key));
+}
+
+/** Best-effort delete of a stored file (e.g. replacing an avatar). Never throws. */
+export async function deleteFileByKey(key: string): Promise<void> {
+  try {
+    await rm(resolveKey(key), { force: true });
+  } catch {
+    // best-effort
+  }
 }

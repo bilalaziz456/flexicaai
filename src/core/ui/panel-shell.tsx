@@ -19,6 +19,7 @@ import {
   Trash2,
   TrendingUp,
   UserCog,
+  UserRound,
   Users,
   X,
   type LucideIcon,
@@ -37,6 +38,28 @@ type NavItem = {
   /** Permission resource this item maps to; hidden if the user can't access it. */
   resource?: string;
 };
+
+/** The signed-in user's own avatar (from /api/me/avatar); falls back to an icon. */
+function SelfAvatar({ className }: { className?: string }) {
+  const [ok, setOk] = useState(true);
+  if (ok) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src="/api/me/avatar"
+        alt=""
+        onError={() => setOk(false)}
+        className={cn("size-6 shrink-0 rounded-full object-cover", className)}
+      />
+    );
+  }
+  return (
+    <UserRound
+      className={cn("size-6 shrink-0 rounded-full bg-accent p-1 text-accent-foreground", className)}
+      aria-hidden="true"
+    />
+  );
+}
 export type PanelId = "admin" | "clinic" | "doctor" | "reception";
 
 /**
@@ -170,9 +193,16 @@ export function PanelShell({
         <nav className="flex-1 space-y-1 px-3">{items.map((i) => navLink(i))}</nav>
         <div className="space-y-3 border-t p-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="max-w-[9rem] truncate rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground">
-              {identityLabel}
-            </span>
+            <Link
+              href="/account"
+              aria-label="Account settings"
+              className="flex min-w-0 items-center gap-2 rounded-full pr-2 transition-colors hover:bg-accent"
+            >
+              <SelfAvatar />
+              <span className="max-w-[7rem] truncate text-xs font-medium text-muted-foreground">
+                {identityLabel}
+              </span>
+            </Link>
             <ThemeToggle initial={theme} />
           </div>
           <form action={signOut}>
@@ -248,9 +278,16 @@ export function PanelShell({
             </button>
           </div>
           <div className="mb-4">
-            <span className="inline-block max-w-full truncate rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground">
-              {identityLabel}
-            </span>
+            <Link
+              href="/account"
+              onClick={() => setOpen(false)}
+              className="inline-flex max-w-full items-center gap-2 rounded-full pr-3 transition-colors hover:bg-accent"
+            >
+              <SelfAvatar />
+              <span className="truncate text-xs font-medium text-muted-foreground">
+                {identityLabel}
+              </span>
+            </Link>
           </div>
           <nav className="space-y-1">
             {items.map((i) => navLink(i, () => setOpen(false)))}
