@@ -130,10 +130,9 @@ const emptyToNull = (v: FormDataEntryValue | null): string | null => {
 };
 
 /**
- * Saves the clinic's WhatsApp message PERSONALIZATION — the signature/footer and
- * the per-event custom notes (booking / reminder / recall) that feed the Cloud API
- * templates' {{signature}} / {{note}} vars. Clinic-scoped; needs `settings:edit`.
- * The sending NUMBER itself is provisioned by the super admin, not here.
+ * Saves the clinic's WhatsApp SIGNATURE (footer) that feeds the Cloud API
+ * templates' {{signature}} var, appended to every message. Clinic-scoped; needs
+ * `settings:edit`. The sending NUMBER itself is provisioned by the super admin.
  */
 export async function updateWhatsappSettings(
   _prev: ClinicActionState,
@@ -141,22 +140,10 @@ export async function updateWhatsappSettings(
 ): Promise<ClinicActionState> {
   const user = await requireWorkspace("settings", "edit");
 
-  const noteOf = (k: string) => {
-    const s = emptyToNull(formData.get(k));
-    return s ? s.slice(0, 300) : undefined; // keep notes short (template var)
-  };
-  const notes = {
-    booking: noteOf("noteBooking"),
-    reminder: noteOf("noteReminder"),
-    recall: noteOf("noteRecall"),
-  };
-  const hasNote = Object.values(notes).some(Boolean);
-
   await db
     .update(clinics)
     .set({
       whatsappSignature: emptyToNull(formData.get("signature"))?.slice(0, 200) ?? null,
-      whatsappNotes: hasNote ? notes : null,
       updatedAt: new Date(),
     })
     .where(eq(clinics.id, user.clinicId));
@@ -164,7 +151,7 @@ export async function updateWhatsappSettings(
   await logActivity({
     action: "update",
     entity: "settings",
-    summary: "Updated WhatsApp message personalization",
+    summary: "Updated WhatsApp signature",
   });
   revalidatePath("/clinic/whatsapp");
   return { saved: true };

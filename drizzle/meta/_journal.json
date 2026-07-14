@@ -211,6 +211,13 @@
       "when": 1784033352812,
       "tag": "0029_whole_raider",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1784056148974,
+      "tag": "0030_rare_sugar_man",
+      "breakpoints": true
     }
   ]
 }

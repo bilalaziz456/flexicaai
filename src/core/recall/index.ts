@@ -107,7 +107,6 @@ export async function processDueRecalls(
       patientId: rc.patientId,
       phone: patient.phone,
       campaignName: serverEnv.AISENSY_RECALL_CAMPAIGN,
-      event: "recall",
       userName: patient.name,
       // Map these to your approved recall template's body params.
       templateParams: [patient.name, reason, clinic?.name ?? ""],

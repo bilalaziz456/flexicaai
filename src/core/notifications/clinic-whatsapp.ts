@@ -2,13 +2,13 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 import { db } from "@/core/db";
-import { clinics, type WhatsappNotes } from "@/core/db/schema";
+import { clinics } from "@/core/db/schema";
 
 /**
  * A clinic's WhatsApp sender config (Meta Cloud API). `phoneNumberId` selects the
- * number a message is sent FROM; `signature` / `notes` are the clinic-customisable
- * text fed into the templates' {{signature}} / {{note}} vars. NULL phoneNumberId =
- * the clinic hasn't been provisioned → the send fails gracefully (logged, not sent).
+ * number a message is sent FROM; `signature` is the clinic-customisable footer fed
+ * into the template's {{signature}} var. NULL phoneNumberId = the clinic hasn't been
+ * provisioned → the send fails gracefully (logged, not sent).
  * See docs/whatsapp-cloud-plan.md.
  */
 export type ClinicWhatsappSender = {
@@ -16,7 +16,6 @@ export type ClinicWhatsappSender = {
   displayNumber: string | null;
   senderName: string | null;
   signature: string | null;
-  notes: WhatsappNotes | null;
 };
 
 /** Resolve a clinic's WhatsApp sender config by clinic id. */
@@ -29,7 +28,6 @@ export async function getClinicSender(
       displayNumber: clinics.whatsappDisplayNumber,
       senderName: clinics.whatsappSenderName,
       signature: clinics.whatsappSignature,
-      notes: clinics.whatsappNotes,
     })
     .from(clinics)
     .where(eq(clinics.id, clinicId))

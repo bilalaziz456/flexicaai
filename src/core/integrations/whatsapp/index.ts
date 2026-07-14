@@ -58,12 +58,9 @@ export type SendTemplateArgs = {
   /** CLOUD ONLY — the template's language code (default "en"). */
   languageCode?: string;
   /**
-   * CLOUD ONLY — clinic-customisable personalization appended to the template's
-   * trailing variables: `note` (per-event, → `{{note}}`) then `signature`
-   * (→ `{{signature}}`). The cloud templates are designed with these as their last
-   * body params (docs/whatsapp-cloud-plan.md). AiSensy ignores both.
+   * CLOUD ONLY — the clinic's signature appended to the template's trailing
+   * `{{signature}}` variable (docs/whatsapp-cloud-plan.md). AiSensy ignores it.
    */
-  note?: string | null;
   signature?: string | null;
 };
 

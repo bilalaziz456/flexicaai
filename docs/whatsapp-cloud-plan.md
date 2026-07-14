@@ -18,6 +18,11 @@ numbers" possible.
 
 ## ⭐ Core design recommendation (personalization without per-clinic approvals)
 
+> **Update (2026-07-15):** the per-event `{{note}}` feature was removed — it drove no
+> real behaviour and confused users. Personalization is now the **signature only**
+> (one trailing `{{signature}}` var on every template). Ignore `{{note}}` mentions
+> below; column `whatsapp_notes` was dropped (migration 0030).
+
 **Design each template with a configurable signature/footer variable (and optionally
 a per-event custom note) so clinics get real personalization inside approved
 templates — without needing their own approvals.**
@@ -154,10 +159,10 @@ adapter appends the clinic's `{{note}}` (booking/reminder/recall only) then
 
 | Event · template (env) | Header | Body variables in order |
 |---|---|---|
-| Booking · `AISENSY_BOOKING_CAMPAIGN` (`appointment_booked`) | — | `{{1}}` patient · `{{2}}` doctor · `{{3}}` date & time · `{{4}}` fee · `{{5}}` clinic · `{{6}}` queue token · `{{7}}` **note** · `{{8}}` **signature** (the message states the appointment's own day/date/time only, NOT the doctor's weekly hours) |
+| Booking · `AISENSY_BOOKING_CAMPAIGN` (`appointment_booked`) | — | `{{1}}` patient · `{{2}}` doctor · `{{3}}` date & time · `{{4}}` fee · `{{5}}` clinic · `{{6}}` queue token · `{{7}}` **signature** (the message states the appointment's own day/date/time only, NOT the doctor's weekly hours) |
 | Cancellation · `AISENSY_CANCEL_CAMPAIGN` (`appointment_cancelled`) | — | `{{1}}` patient · `{{2}}` doctor · `{{3}}` date & time · `{{4}}` clinic · `{{5}}` **signature** |
-| Reminder · `AISENSY_REMINDER_CAMPAIGN` (`appointment_reminder`) | — | `{{1}}` patient · `{{2}}` doctor · `{{3}}` date & time · `{{4}}` clinic · `{{5}}` **note** · `{{6}}` **signature** |
-| Recall · `AISENSY_RECALL_CAMPAIGN` (`recall_reminder`) | — | `{{1}}` patient · `{{2}}` reason · `{{3}}` clinic · `{{4}}` **note** · `{{5}}` **signature** |
+| Reminder · `AISENSY_REMINDER_CAMPAIGN` (`appointment_reminder`) | — | `{{1}}` patient · `{{2}}` doctor · `{{3}}` date & time · `{{4}}` clinic · `{{5}}` **signature** |
+| Recall · `AISENSY_RECALL_CAMPAIGN` (`recall_reminder`) | — | `{{1}}` patient · `{{2}}` reason · `{{3}}` clinic · `{{4}}` **signature** |
 | Reschedule reply · `AISENSY_RESCHEDULE_CAMPAIGN` (`reschedule_reply`) | — | `{{1}}` reply text · `{{2}}` **signature** |
 | Booking reply · `AISENSY_BOOKING_REPLY_CAMPAIGN` (`booking_reply`) | — | `{{1}}` reply text · `{{2}}` **signature** |
 | Prescription · `AISENSY_RX_CAMPAIGN` (`prescription`) | **document** (the PDF link) | `{{1}}` patient · `{{2}}` clinic · `{{3}}` **signature** |

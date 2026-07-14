@@ -66,15 +66,6 @@ const softDeleteColumns = () => ({
   deletedByCascade: boolean("deleted_by_cascade").notNull().default(false),
 });
 
-/**
- * Per-clinic, clinic-customisable WhatsApp note appended to a template's `{{note}}`
- * variable, keyed by event. See docs/whatsapp-cloud-plan.md (⭐ recommendation).
- */
-export type WhatsappNotes = {
-  booking?: string;
-  reminder?: string;
-  recall?: string;
-};
 
 /**
  * Tenants. `modulesEnabled` is the array the specialty checkboxes read/write —
@@ -112,14 +103,13 @@ export const clinics = pgTable(
     // which WABA number a message is sent FROM (so patients see the clinic's own
     // number); `whatsappDisplayNumber` (E.164) is for display + inbound routing.
     // NULL = not configured → falls back to the platform sender / graceful no-send.
-    // `whatsappSignature` + `whatsappNotes` are the clinic-customisable text fed
-    // into the templates' {{signature}} / {{note}} variables (no per-clinic Meta
-    // approval needed). See docs/whatsapp-cloud-plan.md.
+    // `whatsappSignature` is the clinic-customisable footer fed into the template's
+    // {{signature}} variable (no per-clinic Meta approval needed).
+    // See docs/whatsapp-cloud-plan.md.
     whatsappPhoneNumberId: text("whatsapp_phone_number_id"),
     whatsappDisplayNumber: text("whatsapp_display_number"),
     whatsappSenderName: text("whatsapp_sender_name"),
     whatsappSignature: text("whatsapp_signature"),
-    whatsappNotes: jsonb("whatsapp_notes").$type<WhatsappNotes>(),
     ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

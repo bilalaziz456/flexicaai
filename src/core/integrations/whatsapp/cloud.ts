@@ -44,12 +44,11 @@ export async function sendViaCloud(args: SendTemplateArgs): Promise<SendResult> 
       ],
     });
   }
-  // Body params = the event's params, then the clinic's per-event note and its
-  // signature (the templates' trailing {{note}} / {{signature}} vars). Only the
-  // ones that are set are appended — the cloud templates are designed to match.
+  // Body params = the event's params, then the clinic's signature (the template's
+  // trailing {{signature}} var). Appended only when set — the cloud template must
+  // be designed to match.
   const bodyParams = [
     ...(args.templateParams ?? []),
-    ...(args.note ? [args.note] : []),
     ...(args.signature ? [args.signature] : []),
   ];
   if (bodyParams.length > 0) {

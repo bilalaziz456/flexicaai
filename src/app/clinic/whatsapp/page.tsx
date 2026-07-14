@@ -31,7 +31,6 @@ export default async function ClinicWhatsAppPage({
         .select({
           displayNumber: clinics.whatsappDisplayNumber,
           signature: clinics.whatsappSignature,
-          notes: clinics.whatsappNotes,
         })
         .from(clinics)
         .where(eq(clinics.id, user.clinicId))
@@ -49,7 +48,6 @@ export default async function ClinicWhatsAppPage({
             <WhatsappSettingsForm
               displayNumber={clinic.displayNumber}
               signature={clinic.signature}
-              notes={clinic.notes}
             />
           </CardContent>
         </Card>
