@@ -266,4 +266,9 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
   `0030` drops the unused `whatsapp_notes` (per-event notes feature removed);
   `0031` adds `users.prefix` (name title — Dr/Mr/Miss…, shown as "Dr. Bilal Aziz");
   `0032` adds `users.avatar_key` (profile picture, served self-only via
-  GET /api/me/avatar; the `/account` self-service settings page).)
+  GET /api/me/avatar; the `/account` self-service settings page); `0033` adds the
+  doctor revenue-share foundation — `users.consultation_share_pct` /
+  `procedure_share_pct`, `appointments.discount_borne_by`,
+  `appointment_procedures.doctor_id` (performing doctor), and the
+  `doctor_procedure_shares` table (per-doctor per-procedure % overrides). See
+  `docs/doctor-shares-plan.md`; split math in `core/appointments/shares.ts`.)

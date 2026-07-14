@@ -188,6 +188,12 @@ export const users = pgTable(
       .default(0),
     // Doctor's consultation fee in whole PKR (0 = not set). Per-doctor.
     consultationFee: integer("consultation_fee").notNull().default(0),
+    // Doctor revenue share (percent 0-100) the clinic pays the doctor. `consultation`
+    // = cut of the consultation fee; `procedure` = DEFAULT cut of procedures (a
+    // per-procedure override in `doctor_procedure_shares` wins). See
+    // docs/doctor-shares-plan.md.
+    consultationSharePct: integer("consultation_share_pct").notNull().default(0),
+    procedureSharePct: integer("procedure_share_pct").notNull().default(0),
     ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -329,6 +335,10 @@ export const appointments = pgTable(
     // through. Kept as free-text/int (not an enum) to stay additive.
     discountType: text("discount_type").notNull().default("amount"),
     discountValue: integer("discount_value").notNull().default(0),
+    // Who absorbs the discount in the doctor/clinic revenue split: 'clinic'
+    // (default), 'doctor', or 'split'. Drives core/appointments/shares.ts and the
+    // approval workflow. Free-text (not an enum) to stay additive.
+    discountBorneBy: text("discount_borne_by").notNull().default("clinic"),
     // Whether the doctor's consultation fee is charged for this visit. A patient
     // who comes only for a procedure has no consultation fee → set false and the
     // bill/sale count only the procedures. Default true (charge, as before).
@@ -639,6 +649,40 @@ export const procedures = pgTable(
 );
 
 /**
+ * Per-(doctor, procedure) revenue-share OVERRIDE (percent 0-100). A row = a
+ * specific rate for that doctor on that procedure (a stored `0` means "0% — all to
+ * the clinic", which is DIFFERENT from having no row → fall back to the doctor's
+ * `procedure_share_pct` default). See docs/doctor-shares-plan.md.
+ */
+export const doctorProcedureShares = pgTable(
+  "doctor_procedure_shares",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    doctorId: uuid("doctor_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    procedureId: uuid("procedure_id")
+      .notNull()
+      .references(() => procedures.id, { onDelete: "cascade" }),
+    sharePct: integer("share_pct").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    // One override per doctor+procedure; also the lookup key for the resolver.
+    uniqueIndex("doctor_procedure_shares_unique").on(t.doctorId, t.procedureId),
+    index("doctor_procedure_shares_clinic_idx").on(t.clinicId),
+  ],
+);
+
+/**
  * Sales ledger — one row per COMPLETED appointment (the `sales` feature). The
  * amounts are SNAPSHOTTED when the appointment is marked completed (doctor's
  * consultation fee + Σ procedures, minus discount), so a later fee/discount/
@@ -698,6 +742,9 @@ export const appointmentProcedures = pgTable(
     procedureId: uuid("procedure_id").references(() => procedures.id, {
       onDelete: "set null",
     }),
+    // The PERFORMING doctor for this line (revenue share goes to them). NULL =
+    // falls back to the appointment's consulting doctor. See docs/doctor-shares-plan.md.
+    doctorId: uuid("doctor_id").references(() => users.id, { onDelete: "set null" }),
     name: text("name").notNull(), // snapshot
     unitPrice: integer("unit_price").notNull().default(0), // snapshot, PKR
     quantity: integer("quantity").notNull().default(1),
@@ -764,6 +811,7 @@ export const activityLogs = pgTable(
 export type Clinic = typeof clinics.$inferSelect;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type Procedure = typeof procedures.$inferSelect;
+export type DoctorProcedureShare = typeof doctorProcedureShares.$inferSelect;
 export type AppointmentProcedure = typeof appointmentProcedures.$inferSelect;
 export type Sale = typeof sales.$inferSelect;
 export type DoctorLeave = typeof doctorLeaves.$inferSelect;
