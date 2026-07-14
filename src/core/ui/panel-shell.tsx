@@ -16,6 +16,7 @@ import {
   Mic,
   ScrollText,
   Stethoscope,
+  Trash2,
   TrendingUp,
   UserCog,
   Users,
@@ -50,6 +51,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
     items: [
       { href: "/admin", label: "Clinics", Icon: Building2, exact: true },
       { href: "/admin/logs", label: "Activity log", Icon: ScrollText },
+      { href: "/admin/trash", label: "Trash", Icon: Trash2 },
     ],
   },
   clinic: {
@@ -65,6 +67,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
       { href: "/clinic/recalls", label: "Recalls", Icon: BellRing, resource: "recalls" },
       { href: "/clinic/sales", label: "Sales", Icon: TrendingUp, resource: "sales" },
       { href: "/clinic/staff", label: "Staff", Icon: Users, resource: "staff" },
+      { href: "/clinic/trash", label: "Trash", Icon: Trash2, resource: "trash" },
       { href: "/clinic/logs", label: "Activity log", Icon: ScrollText },
     ],
   },

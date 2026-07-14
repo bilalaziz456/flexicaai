@@ -139,6 +139,12 @@ export async function createClinicWithAdmin(
 
 const clinicSettingsSchema = z.object({
   name: z.string().trim().min(2, "Clinic name is required."),
+  // How long trashed records stay in the clinic-level Trash (super-admin-set).
+  trashRetentionDays: z.coerce
+    .number({ message: "Enter a number of days." })
+    .int("Whole days only.")
+    .min(1, "At least 1 day.")
+    .max(3650, "That's too long (max 3650 days)."),
 });
 
 /**
@@ -154,7 +160,10 @@ export async function updateClinic(
 ): Promise<AdminActionState> {
   await requireRole("super_admin");
 
-  const parsed = clinicSettingsSchema.safeParse({ name: formData.get("name") });
+  const parsed = clinicSettingsSchema.safeParse({
+    name: formData.get("name"),
+    trashRetentionDays: formData.get("trashRetentionDays") ?? 30,
+  });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
@@ -191,6 +200,7 @@ export async function updateClinic(
       modulesEnabled,
       featuresEnabled,
       logAccess,
+      trashRetentionDays: parsed.data.trashRetentionDays,
       updatedAt: new Date(),
     })
     .where(eq(clinics.id, clinicId));

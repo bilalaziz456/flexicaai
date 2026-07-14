@@ -83,6 +83,7 @@ export default async function ClinicDetailPage({
             modulesEnabled={clinic.modulesEnabled}
             featuresEnabled={clinic.featuresEnabled}
             logAccess={clinic.logAccess}
+            trashRetentionDays={clinic.trashRetentionDays}
           />
         </CardContent>
       </Card>

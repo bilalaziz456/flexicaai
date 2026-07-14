@@ -48,6 +48,11 @@ export const PERM_RESOURCES: PermResource[] = [
   { id: "leave", label: "Doctor leave", actions: ["view", "create", "edit", "delete"] },
   { id: "staff", label: "Staff", actions: ["view", "create", "edit", "delete"] },
   { id: "settings", label: "Settings", actions: ["view", "edit"] },
+  // Trash: `view` = see the clinic's Trash; `create` = RESTORE a trashed item
+  // (reusing the create column, relabelled "Restore"). Permanent purge is NOT an
+  // ACL action — it is super-admin-only. Clinic admin holds this by default (ALL);
+  // other roles only if the admin grants it.
+  { id: "trash", label: "Trash", actions: ["view", "create"], createLabel: "Restore" },
 ];
 
 const RESOURCE_BY_ID = new Map(PERM_RESOURCES.map((r) => [r.id, r]));

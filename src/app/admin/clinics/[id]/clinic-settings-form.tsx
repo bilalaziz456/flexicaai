@@ -26,6 +26,7 @@ export function ClinicSettingsForm({
   modulesEnabled,
   featuresEnabled,
   logAccess,
+  trashRetentionDays,
 }: {
   clinicId: string;
   name: string;
@@ -34,6 +35,7 @@ export function ClinicSettingsForm({
   modulesEnabled: string[];
   featuresEnabled: string[];
   logAccess: string[];
+  trashRetentionDays: number;
 }) {
   const action = updateClinic.bind(null, clinicId);
   const [state, formAction, pending] = useActionState<
@@ -158,6 +160,32 @@ export function ClinicSettingsForm({
         {[...logs].map((id) => (
           <input key={id} type="hidden" name="actions" value={id} />
         ))}
+      </section>
+
+      <section className="space-y-2 border-t pt-4">
+        <div>
+          <p className="text-sm font-medium">Trash retention</p>
+          <p className="text-xs text-muted-foreground">
+            How many days a deleted record stays in this clinic&apos;s Trash before
+            it drops out of their view. It is never removed from the database — only
+            you (super admin) can see it after this window or purge it.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Input
+            key={`ret-${trashRetentionDays}`}
+            id="trashRetentionDays"
+            name="trashRetentionDays"
+            type="number"
+            min={1}
+            max={3650}
+            inputMode="numeric"
+            defaultValue={trashRetentionDays}
+            className="w-28"
+            required
+          />
+          <span className="text-sm text-muted-foreground">days</span>
+        </div>
       </section>
 
       <div className="flex items-center gap-3">
