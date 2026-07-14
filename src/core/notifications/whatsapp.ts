@@ -49,7 +49,7 @@ export async function sendWhatsAppToPatient(args: {
       .update(whatsappMessages)
       .set({
         status: "failed",
-        error: "WhatsApp is not configured (AISENSY_API_KEY missing).",
+        error: "WhatsApp is not configured for this platform.",
         updatedAt: new Date(),
       })
       .where(eq(whatsappMessages.id, messageId));

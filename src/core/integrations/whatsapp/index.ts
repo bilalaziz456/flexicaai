@@ -1,30 +1,39 @@
 import "server-only";
 
 import { serverEnv } from "@/core/lib/env";
+import { sendViaCloud, isCloudConfigured } from "./cloud";
 
 /**
- * WhatsApp integration — CORE, specialty-agnostic (CLAUDE.md §2). Wraps AiSensy
- * (our WhatsApp Business API provider). Business-initiated messages go out as
- * approved TEMPLATE campaigns; AiSensy's v2 Campaign API takes the campaign name
- * (which maps to a template) plus the destination and any params/media.
+ * WhatsApp integration — CORE, specialty-agnostic (CLAUDE.md §2). The whole app
+ * sends through `sendWhatsAppTemplate`, so which PROVIDER actually delivers is an
+ * implementation detail here:
  *
- * The whole app sends through here, so swapping providers later touches only
- * this file. Sends are gated on config: without AISENSY_API_KEY the caller gets
- * a clear error and the message is still logged upstream (queued), so nothing is
- * silently dropped.
+ *   - "aisensy" (default): one platform account/number (a `campaignName` maps to
+ *     an approved template). This file.
+ *   - "cloud": Meta WhatsApp Cloud API — one WABA token, and the message is sent
+ *     FROM a per-clinic `phoneNumberId` (so patients see the clinic's own number).
+ *     See ./cloud.ts and docs/whatsapp-cloud-plan.md.
+ *
+ * `WHATSAPP_PROVIDER` selects between them; the callers (notifications, recall,
+ * booking, reschedule) never change. Sends are gated on config — without it the
+ * caller gets a clear error and the message is still logged (queued) upstream, so
+ * nothing is silently dropped.
  */
 
 export class WhatsAppNotConfiguredError extends Error {
-  constructor() {
-    super("AISENSY_API_KEY is not set — WhatsApp sending is disabled.");
+  constructor(message?: string) {
+    super(message ?? "WhatsApp sending is disabled (provider not configured).");
   }
 }
 
+/** True if the ACTIVE provider is configured to send at all (platform-level). */
 export function isWhatsAppConfigured(): boolean {
-  return Boolean(serverEnv.AISENSY_API_KEY);
+  return serverEnv.WHATSAPP_PROVIDER === "cloud"
+    ? isCloudConfigured()
+    : Boolean(serverEnv.AISENSY_API_KEY);
 }
 
-/** Normalise a phone number to digits only (AiSensy wants country code, no +). */
+/** Normalise a phone number to digits only (country code, no +). */
 export function normalisePhone(phone: string): string {
   return phone.replace(/[^0-9]/g, "");
 }
@@ -32,25 +41,45 @@ export function normalisePhone(phone: string): string {
 export type SendTemplateArgs = {
   /** Destination phone, digits with country code (e.g. 923001234567). */
   to: string;
-  /** AiSensy campaign name (maps to an approved template). */
+  /** Approved template name — AiSensy campaign name OR Cloud API template name. */
   campaignName: string;
-  /** Recipient display name AiSensy stores against the contact. */
+  /** Recipient display name AiSensy stores against the contact (Cloud ignores). */
   userName?: string;
   /** Ordered template body params ({{1}}, {{2}}, …). */
   templateParams?: string[];
   /** Header document/image, if the template has a media header. */
   media?: { url: string; filename: string };
+  /**
+   * CLOUD ONLY — the WABA phone-number id to send FROM (the clinic's own number).
+   * Resolved per clinic by the notification layer (Phase 3). AiSensy ignores it
+   * (single account); Cloud requires it.
+   */
+  phoneNumberId?: string | null;
+  /** CLOUD ONLY — the template's language code (default "en"). */
+  languageCode?: string;
 };
 
 export type SendResult =
   | { ok: true; externalId?: string }
   | { ok: false; error: string };
 
-/** Send a WhatsApp template campaign via AiSensy. Throws if unconfigured. */
+/** Send a WhatsApp template via the active provider. Throws if unconfigured. */
 export async function sendWhatsAppTemplate(
   args: SendTemplateArgs,
 ): Promise<SendResult> {
-  if (!serverEnv.AISENSY_API_KEY) throw new WhatsAppNotConfiguredError();
+  if (serverEnv.WHATSAPP_PROVIDER === "cloud") {
+    return sendViaCloud(args);
+  }
+  return sendViaAisensy(args);
+}
+
+/** AiSensy v2 Campaign API sender (the default, single-account provider). */
+async function sendViaAisensy(args: SendTemplateArgs): Promise<SendResult> {
+  if (!serverEnv.AISENSY_API_KEY) {
+    throw new WhatsAppNotConfiguredError(
+      "AISENSY_API_KEY is not set — WhatsApp sending is disabled.",
+    );
+  }
 
   const body: Record<string, unknown> = {
     apiKey: serverEnv.AISENSY_API_KEY,
