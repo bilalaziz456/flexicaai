@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, gte, inArray, isNotNull, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, lt, sql, type SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/core/db";
 import {
@@ -69,21 +69,55 @@ type Scope =
   | { kind: "all" };
 
 /**
+ * Optional Trash filters (all combine with AND). `q` is a free-text match on the
+ * built label/detail (applied after the queries, since labels span columns);
+ * `type` narrows to one record kind; `deletedBy` to one actor; `from`/`toExclusive`
+ * to a deletion-date window; `clinicId` (super admin only) to one clinic.
+ */
+export type TrashFilters = {
+  q?: string;
+  type?: TrashEntity | "";
+  deletedBy?: string;
+  from?: Date;
+  toExclusive?: Date;
+  clinicId?: string;
+};
+
+/**
  * Collects the trashed ENTRIES for a scope. For a clinic it is that clinic's rows
  * within its retention window; for the super admin it is every trashed row across
- * all clinics (no window), including trashed clinics themselves.
+ * all clinics (no window), including trashed clinics themselves. `filters` narrow
+ * the set (type / actor / date range / clinic / text search).
  */
-async function collect(scope: Scope): Promise<TrashItem[]> {
-  const clinicWindow = (clinicCol: PgColumn, deletedCol: PgColumn): SQL | undefined =>
-    scope.kind === "clinic"
-      ? and(eq(clinicCol, scope.clinicId), gte(deletedCol, scope.cutoff))
-      : undefined;
+async function collect(scope: Scope, filters: TrashFilters = {}): Promise<TrashItem[]> {
+  const wantType = (e: TrashEntity) => !filters.type || filters.type === e;
 
-  const base = (cascadeCol: PgColumn, deletedCol: PgColumn): SQL | undefined =>
-    and(isNotNull(deletedCol), eq(cascadeCol, false));
+  // Per-entity WHERE: directly-deleted rows, plus scope (clinic + retention window,
+  // or the super admin's optional clinic filter) and the shared filters. A
+  // type-excluded entity gets `false` so it returns nothing but keeps its result
+  // shape (simpler than skipping the query).
+  const cond = (
+    entity: TrashEntity,
+    clinicCol: PgColumn,
+    deletedCol: PgColumn,
+    cascadeCol: PgColumn,
+    byCol: PgColumn,
+  ): SQL | undefined => {
+    if (!wantType(entity)) return sql`false`;
+    const parts: (SQL | undefined)[] = [isNotNull(deletedCol), eq(cascadeCol, false)];
+    if (scope.kind === "clinic") {
+      parts.push(eq(clinicCol, scope.clinicId));
+      parts.push(gte(deletedCol, scope.cutoff));
+    } else if (filters.clinicId) {
+      parts.push(eq(clinicCol, filters.clinicId));
+    }
+    if (filters.deletedBy) parts.push(eq(byCol, filters.deletedBy));
+    if (filters.from) parts.push(gte(deletedCol, filters.from));
+    if (filters.toExclusive) parts.push(lt(deletedCol, filters.toExclusive));
+    return and(...parts);
+  };
 
-  // Each entity is queried separately (label/detail differ). All filter to
-  // directly-deleted rows; the clinic scope also filters clinic + retention window.
+  // Each entity is queried separately (label/detail differ).
   const [pats, appts, vis, recs, procs, leaves, staff, clins] = await Promise.all([
     db
       .select({
@@ -95,7 +129,7 @@ async function collect(scope: Scope): Promise<TrashItem[]> {
         name: patients.fullName,
       })
       .from(patients)
-      .where(and(base(patients.deletedByCascade, patients.deletedAt), clinicWindow(patients.clinicId, patients.deletedAt)))
+      .where(cond("patient", patients.clinicId, patients.deletedAt, patients.deletedByCascade, patients.deletedBy))
       .orderBy(desc(patients.deletedAt)),
     db
       .select({
@@ -109,7 +143,7 @@ async function collect(scope: Scope): Promise<TrashItem[]> {
       })
       .from(appointments)
       .leftJoin(patients, eq(appointments.patientId, patients.id))
-      .where(and(base(appointments.deletedByCascade, appointments.deletedAt), clinicWindow(appointments.clinicId, appointments.deletedAt)))
+      .where(cond("appointment", appointments.clinicId, appointments.deletedAt, appointments.deletedByCascade, appointments.deletedBy))
       .orderBy(desc(appointments.deletedAt)),
     db
       .select({
@@ -123,7 +157,7 @@ async function collect(scope: Scope): Promise<TrashItem[]> {
       })
       .from(visits)
       .leftJoin(patients, eq(visits.patientId, patients.id))
-      .where(and(base(visits.deletedByCascade, visits.deletedAt), clinicWindow(visits.clinicId, visits.deletedAt)))
+      .where(cond("visit", visits.clinicId, visits.deletedAt, visits.deletedByCascade, visits.deletedBy))
       .orderBy(desc(visits.deletedAt)),
     db
       .select({
@@ -137,7 +171,7 @@ async function collect(scope: Scope): Promise<TrashItem[]> {
       })
       .from(recalls)
       .leftJoin(patients, eq(recalls.patientId, patients.id))
-      .where(and(base(recalls.deletedByCascade, recalls.deletedAt), clinicWindow(recalls.clinicId, recalls.deletedAt)))
+      .where(cond("recall", recalls.clinicId, recalls.deletedAt, recalls.deletedByCascade, recalls.deletedBy))
       .orderBy(desc(recalls.deletedAt)),
     db
       .select({
@@ -150,7 +184,7 @@ async function collect(scope: Scope): Promise<TrashItem[]> {
         price: procedures.price,
       })
       .from(procedures)
-      .where(and(base(procedures.deletedByCascade, procedures.deletedAt), clinicWindow(procedures.clinicId, procedures.deletedAt)))
+      .where(cond("procedure", procedures.clinicId, procedures.deletedAt, procedures.deletedByCascade, procedures.deletedBy))
       .orderBy(desc(procedures.deletedAt)),
     db
       .select({
@@ -166,7 +200,7 @@ async function collect(scope: Scope): Promise<TrashItem[]> {
       })
       .from(doctorLeaves)
       .leftJoin(users, eq(doctorLeaves.doctorId, users.id))
-      .where(and(base(doctorLeaves.deletedByCascade, doctorLeaves.deletedAt), clinicWindow(doctorLeaves.clinicId, doctorLeaves.deletedAt)))
+      .where(cond("leave", doctorLeaves.clinicId, doctorLeaves.deletedAt, doctorLeaves.deletedByCascade, doctorLeaves.deletedBy))
       .orderBy(desc(doctorLeaves.deletedAt)),
     db
       .select({
@@ -180,9 +214,10 @@ async function collect(scope: Scope): Promise<TrashItem[]> {
         role: users.role,
       })
       .from(users)
-      .where(and(base(users.deletedByCascade, users.deletedAt), clinicWindow(users.clinicId, users.deletedAt)))
+      .where(cond("staff", users.clinicId, users.deletedAt, users.deletedByCascade, users.deletedBy))
       .orderBy(desc(users.deletedAt)),
-    // Clinics only appear in the super-admin (all) scope.
+    // Clinics only appear in the super-admin (all) scope. Its own id is the
+    // "clinic" column for the clinic filter.
     scope.kind === "all"
       ? db
           .select({
@@ -193,7 +228,7 @@ async function collect(scope: Scope): Promise<TrashItem[]> {
             name: clinics.name,
           })
           .from(clinics)
-          .where(base(clinics.deletedByCascade, clinics.deletedAt))
+          .where(cond("clinic", clinics.id, clinics.deletedAt, clinics.deletedByCascade, clinics.deletedBy))
           .orderBy(desc(clinics.deletedAt))
       : Promise.resolve([] as { id: string; group: string | null; deletedAt: Date | null; deletedBy: string | null; name: string }[]),
   ]);
@@ -243,21 +278,97 @@ async function collect(scope: Scope): Promise<TrashItem[]> {
     }
   }
 
-  return items.sort((a, b) => b.deletedAt.getTime() - a.deletedAt.getTime());
+  // Free-text search runs last (labels/details span columns, so it can't be one
+  // SQL predicate) — match label, detail, deleter, or clinic name.
+  const q = filters.q?.trim().toLowerCase();
+  const filtered = q
+    ? items.filter((it) =>
+        [it.label, it.detail, it.deletedByName, it.clinicName]
+          .some((s) => s?.toLowerCase().includes(q)),
+      )
+    : items;
+
+  return filtered.sort((a, b) => b.deletedAt.getTime() - a.deletedAt.getTime());
 }
 
 /** A clinic admin's Trash: this clinic's entries within its retention window. */
 export async function listClinicTrash(
   clinicId: string,
   retentionDays: number,
+  filters: TrashFilters = {},
 ): Promise<TrashItem[]> {
   const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-  return collect({ kind: "clinic", clinicId, cutoff });
+  return collect({ kind: "clinic", clinicId, cutoff }, filters);
 }
 
 /** The super admin's Trash: every trashed entry across all clinics, no window. */
-export async function listAllTrash(): Promise<TrashItem[]> {
-  return collect({ kind: "all" });
+export async function listAllTrash(filters: TrashFilters = {}): Promise<TrashItem[]> {
+  return collect({ kind: "all" }, filters);
+}
+
+const YMD = /^\d{4}-\d{2}-\d{2}$/;
+const TRASH_ENTITIES: readonly TrashEntity[] = [
+  "patient",
+  "appointment",
+  "visit",
+  "recall",
+  "procedure",
+  "leave",
+  "staff",
+  "clinic",
+];
+
+function localMidnight(s: string): Date {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/**
+ * Parses the Trash URL filters. Unlike the activity log, the date range does NOT
+ * default to today (that would hide older trash) — an empty range means "no date
+ * filter". Returns both the `TrashFilters` for the query and the raw strings the
+ * filter bar renders.
+ */
+export function parseTrashFilters(sp: {
+  q?: string;
+  type?: string;
+  by?: string;
+  from?: string;
+  to?: string;
+  clinic?: string;
+}): {
+  filters: TrashFilters;
+  ui: { q: string; type: string; by: string; from: string; to: string; clinic: string };
+} {
+  const q = (sp.q ?? "").trim();
+  const by = (sp.by ?? "").trim();
+  const clinic = (sp.clinic ?? "").trim();
+  const typeRaw = (sp.type ?? "").trim();
+  const type = (TRASH_ENTITIES as readonly string[]).includes(typeRaw)
+    ? (typeRaw as TrashEntity)
+    : "";
+  let fromStr = sp.from && YMD.test(sp.from) ? sp.from : "";
+  let toStr = sp.to && YMD.test(sp.to) ? sp.to : "";
+  if (fromStr && toStr && fromStr > toStr) [fromStr, toStr] = [toStr, fromStr];
+
+  const from = fromStr ? localMidnight(fromStr) : undefined;
+  let toExclusive: Date | undefined;
+  if (toStr) {
+    toExclusive = localMidnight(toStr);
+    toExclusive.setDate(toExclusive.getDate() + 1); // inclusive of the "to" day
+  }
+
+  return {
+    filters: {
+      q,
+      type,
+      deletedBy: by || undefined,
+      from,
+      toExclusive,
+      clinicId: clinic || undefined,
+    },
+    ui: { q, type, by, from: fromStr, to: toStr, clinic },
+  };
 }
 
 // ---- Restore --------------------------------------------------------------
