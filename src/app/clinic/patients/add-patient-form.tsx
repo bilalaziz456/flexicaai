@@ -64,6 +64,14 @@ export function AddPatientForm() {
           <Label htmlFor="address">Address</Label>
           <Input id="address" name="address" />
         </div>
+        <div className="space-y-2">
+          <Label htmlFor="reference">Reference</Label>
+          <Input
+            id="reference"
+            name="reference"
+            placeholder="Referred by (doctor, patient, ad…)"
+          />
+        </div>
       </div>
 
       <label className="flex items-center gap-2 text-sm text-muted-foreground">

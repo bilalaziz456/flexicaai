@@ -197,6 +197,13 @@
       "when": 1783986373924,
       "tag": "0027_mysterious_wonder_man",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1784029938441,
+      "tag": "0028_wise_the_order",
+      "breakpoints": true
     }
   ]
 }

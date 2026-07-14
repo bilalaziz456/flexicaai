@@ -238,6 +238,9 @@ export const patients = pgTable(
     gender: text("gender"),
     address: text("address"),
     notes: text("notes"),
+    // How the patient was referred (free text) — e.g. "Dr. Khan", "Instagram",
+    // another patient's name. Optional; for referral tracking.
+    reference: text("reference"),
     // Consent for data use (CLAUDE.md §10). Photo consent added by modules that need it.
     dataConsent: boolean("data_consent").notNull().default(false),
     ...softDeleteColumns(),

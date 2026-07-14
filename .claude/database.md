@@ -94,6 +94,7 @@ the opaque cookie token), `expires_at`, `created_at`. Validated per request in N
 ### `patients` — shared across specialties
 `id`, `clinic_id` → clinics (`cascade`), `full_name`, `phone` (WhatsApp number,
 primary contact), `email`, `date_of_birth`, `gender`, `address`, `notes`,
+`reference` (free text — how the patient was referred, e.g. a doctor/patient/ad),
 `data_consent` (default false), timestamps. Note: `date_of_birth` is still the
 stored source of truth, but the UI enters/shows it as **age** (derived — see
 `core/lib/age.ts`), so age never goes stale.
@@ -237,7 +238,7 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
 - **Timezone caveat (deploy):** availability, "tomorrow" (reminder), and day
   bounds use the **server's local timezone**. For a multi-region rollout
   (Pakistan vs GCC), pin each clinic to its own timezone.
-- Migrations `0000`–`0027` applied; new tables/columns are always additive to core.
+- Migrations `0000`–`0028` applied; new tables/columns are always additive to core.
   (`0017` adds `appointments.discount_type` / `discount_value`; `0018` adds
   `appointments.queue_session` / `queue_number` + the queue unique index; `0019`
   adds the `activity_logs` table; `0020` adds `clinics.log_access` and drops the
@@ -250,4 +251,4 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
   `0027` adds soft-delete columns (`deleted_at`/`deleted_by`/`delete_group`/
   `deleted_by_cascade`) to the 8 deletable tables + `clinics.trash_retention_days`,
   makes `users` username/email uniqueness partial (`WHERE deleted_at IS NULL`), and
-  adds per-table partial trash indexes.)
+  adds per-table partial trash indexes; `0028` adds `patients.reference`.)

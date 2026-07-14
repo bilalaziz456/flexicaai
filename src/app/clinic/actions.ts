@@ -568,6 +568,7 @@ export async function createPatient(
       dateOfBirth: dobFromAgeField(formData.get("age")),
       gender: emptyToNull(formData.get("gender")),
       address: emptyToNull(formData.get("address")),
+      reference: emptyToNull(formData.get("reference")),
       dataConsent: formData.get("dataConsent") === "on",
     })
     .returning({ id: patients.id });
@@ -610,6 +611,7 @@ export async function updatePatient(
       dateOfBirth: dobFromAgeField(formData.get("age")),
       gender: emptyToNull(formData.get("gender")),
       address: emptyToNull(formData.get("address")),
+      reference: emptyToNull(formData.get("reference")),
       dataConsent: formData.get("dataConsent") === "on",
       updatedAt: new Date(),
     })

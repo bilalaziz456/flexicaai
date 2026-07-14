@@ -123,6 +123,7 @@ export async function PatientDetail({
                 dateOfBirth: patient.dateOfBirth,
                 gender: patient.gender,
                 address: patient.address,
+                reference: patient.reference,
                 dataConsent: patient.dataConsent,
               }}
             />
@@ -147,6 +148,10 @@ export async function PatientDetail({
               <div className="sm:col-span-2">
                 <dt className="text-muted-foreground">Address</dt>
                 <dd>{patient.address ?? "—"}</dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-muted-foreground">Reference</dt>
+                <dd>{patient.reference ?? "—"}</dd>
               </div>
             </dl>
           )}

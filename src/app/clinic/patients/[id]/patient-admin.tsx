@@ -22,6 +22,7 @@ type PatientData = {
   dateOfBirth: string | null;
   gender: string | null;
   address: string | null;
+  reference: string | null;
   dataConsent: boolean;
 };
 
@@ -111,6 +112,16 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
             id="address"
             name="address"
             defaultValue={patient.address ?? ""}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="reference">Reference</Label>
+          <Input
+            key={`r-${patient.reference ?? ""}`}
+            id="reference"
+            name="reference"
+            defaultValue={patient.reference ?? ""}
+            placeholder="Referred by (doctor, patient, ad…)"
           />
         </div>
       </div>
