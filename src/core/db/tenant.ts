@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, type SQL } from "drizzle-orm";
+import { and, eq, isNull, type SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 
 /**
@@ -27,4 +27,18 @@ export function byClinic(
   const scope = eq(clinicIdColumn, clinicId);
   const conditions = extra.filter((c): c is SQL => c !== undefined);
   return conditions.length ? (and(scope, ...conditions) as SQL) : scope;
+}
+
+/**
+ * Soft-delete filter — the row is LIVE (not trashed). Pass a table's `deletedAt`
+ * column. Nothing is hard-deleted (see schema `softDeleteColumns()`), so EVERY
+ * normal read of a soft-deletable table must include this — usually as an extra
+ * condition to `byClinic()`:
+ *
+ *   .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt)))
+ *
+ * Omit it only where you deliberately want trashed rows (the Trash pages).
+ */
+export function notDeleted(deletedAtColumn: PgColumn): SQL {
+  return isNull(deletedAtColumn);
 }

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, patients, users } from "@/core/db/schema";
 import { Badge } from "@/core/ui/badge";
 import {
@@ -46,7 +46,14 @@ export async function PatientDetail({
   const [patient] = await db
     .select()
     .from(patients)
-    .where(byClinic(patients.clinicId, clinicId, eq(patients.id, patientId)))
+    .where(
+      byClinic(
+        patients.clinicId,
+        clinicId,
+        notDeleted(patients.deletedAt),
+        eq(patients.id, patientId),
+      ),
+    )
     .limit(1);
   if (!patient) notFound();
 
@@ -60,7 +67,14 @@ export async function PatientDetail({
     })
     .from(appointments)
     .leftJoin(users, eq(appointments.doctorId, users.id))
-    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.patientId, patientId)))
+    .where(
+      byClinic(
+        appointments.clinicId,
+        clinicId,
+        notDeleted(appointments.deletedAt),
+        eq(appointments.patientId, patientId),
+      ),
+    )
     .orderBy(desc(appointments.scheduledAt))
     .limit(20);
 

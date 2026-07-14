@@ -1,6 +1,6 @@
 import { desc } from "drizzle-orm";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { procedures } from "@/core/db/schema";
 import { procedureTemplatesFor } from "@/config/modules";
 import { getCurrentUser } from "@/core/auth/user";
@@ -42,7 +42,7 @@ export async function ProceduresPanel({
       isActive: procedures.isActive,
     })
     .from(procedures)
-    .where(byClinic(procedures.clinicId, clinicId))
+    .where(byClinic(procedures.clinicId, clinicId, notDeleted(procedures.deletedAt)))
     .orderBy(desc(procedures.createdAt));
 
   const templatesAvailable = procedureTemplatesFor(modulesEnabled).length > 0;

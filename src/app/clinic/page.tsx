@@ -3,7 +3,7 @@ import { and, asc, count, eq, gte, inArray, sql } from "drizzle-orm";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import {
   appointments,
   clinics,
@@ -73,6 +73,7 @@ export default async function ClinicDashboard() {
           byClinic(
             doctorLeaves.clinicId,
             clinicId,
+            notDeleted(doctorLeaves.deletedAt),
             and(
               eq(doctorLeaves.doctorId, user.id),
               gte(doctorLeaves.endDate, today),
@@ -96,13 +97,14 @@ export default async function ClinicDashboard() {
         .where(
           and(
             eq(users.clinicId, clinicId),
+            notDeleted(users.deletedAt),
             inArray(users.role, ["doctor", "receptionist"]),
           ),
         ),
       db
         .select({ value: count() })
         .from(patients)
-        .where(byClinic(patients.clinicId, clinicId)),
+        .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt))),
       db
         .select({ value: count() })
         .from(recalls)
@@ -110,6 +112,7 @@ export default async function ClinicDashboard() {
           byClinic(
             recalls.clinicId,
             clinicId,
+            notDeleted(recalls.deletedAt),
             inArray(recalls.status, ["sent", "booked", "completed"]),
           ),
         ),
@@ -120,6 +123,7 @@ export default async function ClinicDashboard() {
           byClinic(
             appointments.clinicId,
             clinicId,
+            notDeleted(appointments.deletedAt),
             and(
               inArray(appointments.status, ["scheduled", "confirmed"]),
               gte(appointments.scheduledAt, now),
@@ -135,11 +139,13 @@ export default async function ClinicDashboard() {
             SELECT count(DISTINCT r.id)::int AS recovered
             FROM recalls r
             WHERE r.clinic_id = ${clinicId}
+              AND r.deleted_at IS NULL
               AND r.status IN ('sent', 'booked', 'completed')
               AND EXISTS (
                 SELECT 1 FROM appointments a
                 WHERE a.patient_id = r.patient_id
                   AND a.clinic_id = r.clinic_id
+                  AND a.deleted_at IS NULL
                   AND a.status = 'completed'
                   AND a.scheduled_at >= COALESCE(r.sent_at, r.due_at)
               )

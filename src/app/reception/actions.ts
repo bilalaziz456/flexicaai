@@ -9,7 +9,7 @@ import { can } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import {
   appointments,
   clinics,
@@ -158,7 +158,13 @@ export async function createAppointment(
   const [patient] = await db
     .select({ id: patients.id })
     .from(patients)
-    .where(and(eq(patients.id, parsed.data.patientId), eq(patients.clinicId, clinicId)))
+    .where(
+      and(
+        eq(patients.id, parsed.data.patientId),
+        eq(patients.clinicId, clinicId),
+        notDeleted(patients.deletedAt),
+      ),
+    )
     .limit(1);
   if (!patient) return { error: "Patient not found." };
 
@@ -286,7 +292,14 @@ export async function updateAppointment(
       status: appointments.status,
     })
     .from(appointments)
-    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
+    .where(
+      byClinic(
+        appointments.clinicId,
+        clinicId,
+        notDeleted(appointments.deletedAt),
+        eq(appointments.id, appointmentId),
+      ),
+    )
     .limit(1);
   if (!appt) return { error: "Appointment not found." };
 
@@ -426,7 +439,14 @@ export async function setAppointmentStatus(
   const [prior] = await db
     .select({ source: appointments.source, status: appointments.status })
     .from(appointments)
-    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
+    .where(
+      byClinic(
+        appointments.clinicId,
+        clinicId,
+        notDeleted(appointments.deletedAt),
+        eq(appointments.id, appointmentId),
+      ),
+    )
     .limit(1);
   if (!prior || prior.status === status) return; // nothing to change
 
@@ -478,9 +498,10 @@ export async function searchClinicPatients(
       q
         ? and(
             eq(patients.clinicId, clinicId),
+            notDeleted(patients.deletedAt),
             or(ilike(patients.fullName, `%${q}%`), ilike(patients.phone, `%${q}%`)),
           )
-        : eq(patients.clinicId, clinicId),
+        : and(eq(patients.clinicId, clinicId), notDeleted(patients.deletedAt)),
     )
     .orderBy(desc(patients.createdAt))
     .limit(20);
@@ -521,6 +542,7 @@ export async function doctorDayAvailability(
       byClinic(
         users.clinicId,
         clinicId,
+        notDeleted(users.deletedAt),
         and(eq(users.id, doctorId), eq(users.role, "doctor")),
       ),
     )
@@ -601,6 +623,7 @@ export async function setDoctorDailyLimit(
       byClinic(
         users.clinicId,
         clinicId,
+        notDeleted(users.deletedAt),
         and(eq(users.id, doctorId), eq(users.role, "doctor")),
       ),
     )
@@ -672,6 +695,7 @@ export async function addDoctorLeave(
       byClinic(
         users.clinicId,
         clinicId,
+        notDeleted(users.deletedAt),
         and(eq(users.id, doctorId), eq(users.role, "doctor")),
       ),
     )
@@ -758,7 +782,14 @@ export async function updateDoctorLeave(
   const [lv] = await db
     .select({ doctorId: doctorLeaves.doctorId })
     .from(doctorLeaves)
-    .where(byClinic(doctorLeaves.clinicId, clinicId, eq(doctorLeaves.id, leaveId)))
+    .where(
+      byClinic(
+        doctorLeaves.clinicId,
+        clinicId,
+        notDeleted(doctorLeaves.deletedAt),
+        eq(doctorLeaves.id, leaveId),
+      ),
+    )
     .limit(1);
   if (!lv) return { error: "Leave not found." };
   // A doctor may only edit their OWN leave.
@@ -834,7 +865,14 @@ export async function removeDoctorLeave(
     const [lv] = await db
       .select({ doctorId: doctorLeaves.doctorId })
       .from(doctorLeaves)
-      .where(byClinic(doctorLeaves.clinicId, clinicId, eq(doctorLeaves.id, leaveId)))
+      .where(
+        byClinic(
+          doctorLeaves.clinicId,
+          clinicId,
+          notDeleted(doctorLeaves.deletedAt),
+          eq(doctorLeaves.id, leaveId),
+        ),
+      )
       .limit(1);
     if (!lv || lv.doctorId !== user.id) redirect(home);
   }

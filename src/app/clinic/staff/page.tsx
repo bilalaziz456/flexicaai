@@ -3,7 +3,7 @@ import { ChevronRight, Plus } from "lucide-react";
 import { and, count, desc, ilike, inArray, or } from "drizzle-orm";
 import { requireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { users } from "@/core/db/schema";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
@@ -61,6 +61,7 @@ export default async function ClinicStaffPage({
   const where = byClinic(
     users.clinicId,
     clinicId,
+    notDeleted(users.deletedAt),
     search ? and(roleFilter, search) : roleFilter,
   );
   const [staff, [{ total }]] = await Promise.all([

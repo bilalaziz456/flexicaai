@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, count, eq, gte, inArray, lt, lte, ne } from "drizzle-orm";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, doctorLeaves, users } from "@/core/db/schema";
 import {
   ACTIVE_APPT_STATUSES,
@@ -38,6 +38,7 @@ export async function doctorOnLeave(
       byClinic(
         doctorLeaves.clinicId,
         clinicId,
+        notDeleted(doctorLeaves.deletedAt),
         and(
           eq(doctorLeaves.doctorId, doctorId),
           lte(doctorLeaves.startDate, dateStr),
@@ -68,6 +69,7 @@ export async function countDoctorDay(
       byClinic(
         appointments.clinicId,
         clinicId,
+        notDeleted(appointments.deletedAt),
         and(
           eq(appointments.doctorId, doctorId),
           gte(appointments.scheduledAt, start),
@@ -120,6 +122,7 @@ export async function checkDoctorSlot(
       byClinic(
         users.clinicId,
         clinicId,
+        notDeleted(users.deletedAt),
         and(eq(users.id, doctorId), eq(users.role, "doctor")),
       ),
     )

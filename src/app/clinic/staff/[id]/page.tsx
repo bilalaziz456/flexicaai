@@ -6,7 +6,7 @@ import { requireWorkspace } from "@/core/auth/user";
 import { setStaffActive } from "@/app/clinic/actions";
 import { DoctorLeaves } from "@/app/reception/doctor-leaves";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, doctorLeaves, users } from "@/core/db/schema";
 import { CLINIC_STAFF_ROLES } from "@/core/types/auth";
 import {
@@ -61,7 +61,14 @@ export default async function StaffDetailPage({
       permissions: users.permissions,
     })
     .from(users)
-    .where(byClinic(users.clinicId, clinicId, eq(users.id, id)))
+    .where(
+      byClinic(
+        users.clinicId,
+        clinicId,
+        notDeleted(users.deletedAt),
+        eq(users.id, id),
+      ),
+    )
     .limit(1);
 
   // Clinic-scoped and only manageable staff (manager/doctor/receptionist) here.
@@ -100,6 +107,7 @@ export default async function StaffDetailPage({
             byClinic(
               doctorLeaves.clinicId,
               clinicId,
+              notDeleted(doctorLeaves.deletedAt),
               and(
                 eq(doctorLeaves.doctorId, member.id),
                 gte(doctorLeaves.endDate, today),

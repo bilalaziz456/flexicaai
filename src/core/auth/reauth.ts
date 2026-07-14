@@ -1,9 +1,10 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getCurrentUser } from "@/core/auth/user";
 import { verifyPassword } from "@/core/auth/password";
 import { db } from "@/core/db";
+import { notDeleted } from "@/core/db/tenant";
 import { users } from "@/core/db/schema";
 
 /**
@@ -22,7 +23,7 @@ export async function verifyCurrentUserPassword(
   const [row] = await db
     .select({ hash: users.passwordHash })
     .from(users)
-    .where(eq(users.id, current.id))
+    .where(and(eq(users.id, current.id), notDeleted(users.deletedAt)))
     .limit(1);
   if (!row) return false;
 

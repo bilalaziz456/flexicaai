@@ -10,7 +10,7 @@ import type { CurrentUser } from "@/core/types/auth";
 import { hashPassword } from "@/core/auth/password";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, patients, sessions, users } from "@/core/db/schema";
 import { TIME_RE, timeToMinutes, type DayAvailability } from "@/core/lib/availability";
 import { dobFromAgeField } from "@/core/lib/age";
@@ -259,6 +259,7 @@ export async function deleteStaff(
       byClinic(
         users.clinicId,
         clinicId,
+        notDeleted(users.deletedAt),
         and(eq(users.id, userId), inArray(users.role, STAFF_ROLES)),
       ),
     );
@@ -356,6 +357,7 @@ export async function updateStaffProfile(
       byClinic(
         users.clinicId,
         clinicId,
+        notDeleted(users.deletedAt),
         and(eq(users.id, userId), inArray(users.role, STAFF_ROLES)),
       ),
     )
@@ -443,6 +445,7 @@ export async function updateStaffPermissions(
       byClinic(
         users.clinicId,
         clinicId,
+        notDeleted(users.deletedAt),
         and(eq(users.id, userId), inArray(users.role, STAFF_ROLES)),
       ),
     )
@@ -456,6 +459,7 @@ export async function updateStaffPermissions(
       byClinic(
         users.clinicId,
         clinicId,
+        notDeleted(users.deletedAt),
         and(eq(users.id, userId), inArray(users.role, STAFF_ROLES)),
       ),
     );
@@ -487,6 +491,7 @@ export async function resetStaffPermissions(
       byClinic(
         users.clinicId,
         clinicId,
+        notDeleted(users.deletedAt),
         and(eq(users.id, userId), inArray(users.role, STAFF_ROLES)),
       ),
     )

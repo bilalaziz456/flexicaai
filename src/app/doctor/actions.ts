@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireRole } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { db } from "@/core/db";
+import { notDeleted } from "@/core/db/tenant";
 import { clinics, patients, visits } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import { isPublicLinkingEnabled, signToken } from "@/core/lib/signed-link";
@@ -42,6 +43,7 @@ export async function approveVisit(
         eq(visits.id, visitId),
         eq(visits.clinicId, user.clinicId),
         eq(visits.status, "draft"),
+        notDeleted(visits.deletedAt),
       ),
     )
     .returning({ id: visits.id, patientId: visits.patientId, module: visits.module });
@@ -121,12 +123,16 @@ export async function searchPatients(
       q
         ? and2(
             eq(patients.clinicId, user.clinicId),
+            notDeleted(patients.deletedAt),
             or(
               ilike(patients.fullName, `%${q}%`),
               ilike(patients.phone, `%${q}%`),
             ),
           )
-        : eq(patients.clinicId, user.clinicId),
+        : and2(
+            eq(patients.clinicId, user.clinicId),
+            notDeleted(patients.deletedAt),
+          ),
     )
     .orderBy(desc(patients.createdAt))
     .limit(20);
@@ -159,7 +165,13 @@ export async function sendPrescriptionToWhatsApp(
     .from(visits)
     .innerJoin(patients, eq(visits.patientId, patients.id))
     .innerJoin(clinics, eq(visits.clinicId, clinics.id))
-    .where(and(eq(visits.id, visitId), eq(visits.clinicId, user.clinicId)))
+    .where(
+      and(
+        eq(visits.id, visitId),
+        eq(visits.clinicId, user.clinicId),
+        notDeleted(visits.deletedAt),
+      ),
+    )
     .limit(1);
 
   if (!row) return { error: "Visit not found." };

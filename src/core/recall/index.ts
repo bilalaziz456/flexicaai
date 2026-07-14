@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
 import { db } from "@/core/db";
+import { notDeleted } from "@/core/db/tenant";
 import { clinics, patients, recalls } from "@/core/db/schema";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import { serverEnv } from "@/core/lib/env";
@@ -64,7 +65,13 @@ export async function processDueRecalls(
       reason: recalls.reason,
     })
     .from(recalls)
-    .where(and(inArray(recalls.status, ["pending"]), lte(recalls.dueAt, now)))
+    .where(
+      and(
+        notDeleted(recalls.deletedAt),
+        inArray(recalls.status, ["pending"]),
+        lte(recalls.dueAt, now),
+      ),
+    )
     .limit(200);
 
   let sent = 0;
@@ -74,7 +81,13 @@ export async function processDueRecalls(
     const [patient] = await db
       .select({ phone: patients.phone, name: patients.fullName })
       .from(patients)
-      .where(and(eq(patients.id, rc.patientId), isNotNull(patients.phone)))
+      .where(
+        and(
+          notDeleted(patients.deletedAt),
+          eq(patients.id, rc.patientId),
+          isNotNull(patients.phone),
+        ),
+      )
       .limit(1);
 
     if (!patient?.phone) {

@@ -1,7 +1,8 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/core/db";
+import { notDeleted } from "@/core/db/tenant";
 import { clinics, patients, users, visits } from "@/core/db/schema";
 import {
   generatePrescriptionPdf,
@@ -35,7 +36,7 @@ export async function buildPrescriptionPdf(
     .innerJoin(patients, eq(visits.patientId, patients.id))
     .innerJoin(clinics, eq(visits.clinicId, clinics.id))
     .leftJoin(users, eq(visits.doctorId, users.id))
-    .where(eq(visits.id, visitId))
+    .where(and(eq(visits.id, visitId), notDeleted(visits.deletedAt)))
     .limit(1);
 
   if (!row) return { ok: false, status: 404, error: "Not found." };

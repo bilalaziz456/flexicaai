@@ -2,7 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { can } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { patients, visits } from "@/core/db/schema";
 import { getDayQueue } from "@/core/appointments/queue";
 import { QueueSummary } from "@/core/ui/queue-summary";
@@ -38,7 +38,7 @@ export async function ScribePanel({
     db
       .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })
       .from(patients)
-      .where(byClinic(patients.clinicId, clinicId))
+      .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt)))
       .orderBy(desc(patients.createdAt))
       .limit(20),
     db
@@ -50,7 +50,7 @@ export async function ScribePanel({
       })
       .from(visits)
       .innerJoin(patients, eq(visits.patientId, patients.id))
-      .where(byClinic(visits.clinicId, clinicId))
+      .where(byClinic(visits.clinicId, clinicId, notDeleted(visits.deletedAt)))
       .orderBy(desc(visits.visitDate))
       .limit(10),
     getDayQueue(clinicId, new Date(), { doctorId: user.id }),

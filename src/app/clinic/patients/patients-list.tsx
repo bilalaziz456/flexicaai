@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
 import { count, desc, ilike, or } from "drizzle-orm";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { patients } from "@/core/db/schema";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
@@ -66,7 +66,12 @@ export async function PatientsList({
     ? or(ilike(patients.fullName, `%${query}%`), ilike(patients.phone, `%${query}%`))
     : undefined;
 
-  const where = byClinic(patients.clinicId, clinicId, search);
+  const where = byClinic(
+    patients.clinicId,
+    clinicId,
+    notDeleted(patients.deletedAt),
+    search,
+  );
   const [rows, [{ total }]] = await Promise.all([
     db
       .select({

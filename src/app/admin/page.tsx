@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
-import { count, desc, ilike } from "drizzle-orm";
+import { and, count, desc, ilike } from "drizzle-orm";
 import { db } from "@/core/db";
+import { notDeleted } from "@/core/db/tenant";
 import { clinics } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
 import { buttonVariants } from "@/core/ui/button";
@@ -48,7 +49,11 @@ export default async function AdminHome({
         ? "Clinic deleted."
         : null;
 
-  const where = query ? ilike(clinics.name, `%${query}%`) : undefined;
+  // Super-admin clinic list excludes trashed clinics (they live in the admin Trash).
+  const where = and(
+    notDeleted(clinics.deletedAt),
+    query ? ilike(clinics.name, `%${query}%`) : undefined,
+  );
   const [allClinics, [{ total }]] = await Promise.all([
     db
       .select()

@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointmentProcedures, sales, users } from "@/core/db/schema";
 import { procedureRowNetSql } from "@/core/appointments/procedures";
 
@@ -313,7 +313,14 @@ export async function getSalesDoctors(
   const rows = await db
     .select({ id: users.id, fullName: users.fullName, username: users.username })
     .from(users)
-    .where(byClinic(users.clinicId, clinicId, eq(users.role, "doctor")))
+    .where(
+      byClinic(
+        users.clinicId,
+        clinicId,
+        notDeleted(users.deletedAt),
+        eq(users.role, "doctor"),
+      ),
+    )
     .orderBy(asc(users.fullName));
   return rows.map((r) => ({ id: r.id, name: r.fullName ?? r.username }));
 }

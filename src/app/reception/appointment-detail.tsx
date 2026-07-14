@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, patients, users } from "@/core/db/schema";
 import { Badge } from "@/core/ui/badge";
 import {
@@ -67,7 +67,14 @@ export async function AppointmentDetail({
     })
     .from(appointments)
     .innerJoin(patients, eq(appointments.patientId, patients.id))
-    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
+    .where(
+      byClinic(
+        appointments.clinicId,
+        clinicId,
+        notDeleted(appointments.deletedAt),
+        eq(appointments.id, appointmentId),
+      ),
+    )
     .limit(1);
   if (!appt) notFound();
 
@@ -81,7 +88,14 @@ export async function AppointmentDetail({
         consultationFee: users.consultationFee,
       })
       .from(users)
-      .where(byClinic(users.clinicId, clinicId, inArray(users.role, ["doctor"])))
+      .where(
+        byClinic(
+          users.clinicId,
+          clinicId,
+          notDeleted(users.deletedAt),
+          inArray(users.role, ["doctor"]),
+        ),
+      )
       .orderBy(desc(users.createdAt)),
     getBookingProcedures(clinicId),
     getAppointmentProcedureItems(clinicId, appointmentId),

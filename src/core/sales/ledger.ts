@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, sales, users } from "@/core/db/schema";
 import { computeSaleAmounts } from "@/core/appointments/fee";
 import {
@@ -37,7 +37,12 @@ export async function recordSaleForAppointment(
       .from(appointments)
       .leftJoin(users, eq(appointments.doctorId, users.id))
       .where(
-        byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)),
+        byClinic(
+          appointments.clinicId,
+          clinicId,
+          notDeleted(appointments.deletedAt),
+          eq(appointments.id, appointmentId),
+        ),
       )
       .limit(1);
     if (!row) return;
@@ -122,6 +127,7 @@ export async function backfillClinicSales(clinicId: string): Promise<void> {
         byClinic(
           appointments.clinicId,
           clinicId,
+          notDeleted(appointments.deletedAt),
           and(eq(appointments.status, "completed"), isNull(sales.id)),
         ),
       );

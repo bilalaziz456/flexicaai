@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq, ilike, isNotNull } from "drizzle-orm";
 import { db } from "@/core/db";
+import { notDeleted } from "@/core/db/tenant";
 import { patients, whatsappMessages } from "@/core/db/schema";
 import { normalisePhone } from "@/core/integrations/whatsapp";
 import { handleRescheduleReply } from "@/core/appointments/reschedule";
@@ -93,7 +94,13 @@ export async function POST(request: Request) {
     ? await db
         .select({ id: patients.id, clinicId: patients.clinicId, phone: patients.phone })
         .from(patients)
-        .where(and(isNotNull(patients.phone), ilike(patients.phone, `%${last9}%`)))
+        .where(
+          and(
+            notDeleted(patients.deletedAt),
+            isNotNull(patients.phone),
+            ilike(patients.phone, `%${last9}%`),
+          ),
+        )
         .limit(5)
     : [];
   const exact = candidates.filter((c) => normalisePhone(c.phone ?? "") === phone);

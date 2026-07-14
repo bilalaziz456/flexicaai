@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { desc, inArray } from "drizzle-orm";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { patients, users } from "@/core/db/schema";
 import {
   Card,
@@ -29,7 +29,7 @@ export async function NewAppointmentPanel({
     db
       .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })
       .from(patients)
-      .where(byClinic(patients.clinicId, clinicId))
+      .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt)))
       .orderBy(desc(patients.createdAt))
       .limit(20),
     db
@@ -41,7 +41,14 @@ export async function NewAppointmentPanel({
         consultationFee: users.consultationFee,
       })
       .from(users)
-      .where(byClinic(users.clinicId, clinicId, inArray(users.role, ["doctor"])))
+      .where(
+        byClinic(
+          users.clinicId,
+          clinicId,
+          notDeleted(users.deletedAt),
+          inArray(users.role, ["doctor"]),
+        ),
+      )
       .orderBy(desc(users.createdAt)),
     getBookingProcedures(clinicId),
   ]);

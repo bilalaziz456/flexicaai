@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, users } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
 import { CLINIC_FEATURES } from "@/core/lib/features";
@@ -52,7 +52,7 @@ export default async function ClinicDetailPage({
       isActive: users.isActive,
     })
     .from(users)
-    .where(byClinic(users.clinicId, id));
+    .where(byClinic(users.clinicId, id, notDeleted(users.deletedAt)));
 
   return (
     <div className="space-y-6">

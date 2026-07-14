@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { getCurrentUser } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { db } from "@/core/db";
+import { notDeleted } from "@/core/db/tenant";
 import { clinics, patients, visits } from "@/core/db/schema";
 import { getClinicWorkspace } from "@/config/modules";
 import { saveClinicFile } from "@/core/integrations/storage";
@@ -41,7 +42,13 @@ export async function POST(request: Request) {
   const [patient] = await db
     .select({ id: patients.id })
     .from(patients)
-    .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
+    .where(
+      and(
+        eq(patients.id, patientId),
+        eq(patients.clinicId, clinicId),
+        notDeleted(patients.deletedAt),
+      ),
+    )
     .limit(1);
   if (!patient) {
     return NextResponse.json({ error: "Patient not found." }, { status: 404 });

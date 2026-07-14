@@ -2,7 +2,7 @@ import "server-only";
 
 import { asc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import {
   appointmentProcedures,
   appointments,
@@ -77,7 +77,12 @@ export async function getBookingProcedures(
     .select({ id: procedures.id, name: procedures.name, price: procedures.price })
     .from(procedures)
     .where(
-      byClinic(procedures.clinicId, clinicId, eq(procedures.isActive, true)),
+      byClinic(
+        procedures.clinicId,
+        clinicId,
+        notDeleted(procedures.deletedAt),
+        eq(procedures.isActive, true),
+      ),
     )
     .orderBy(asc(procedures.name));
 }
@@ -120,7 +125,14 @@ export async function saveAppointmentProcedures(
       price: procedures.price,
     })
     .from(procedures)
-    .where(byClinic(procedures.clinicId, clinicId, inArray(procedures.id, ids)));
+    .where(
+      byClinic(
+        procedures.clinicId,
+        clinicId,
+        notDeleted(procedures.deletedAt),
+        inArray(procedures.id, ids),
+      ),
+    );
   if (rows.length === 0) return;
 
   await db.insert(appointmentProcedures).values(

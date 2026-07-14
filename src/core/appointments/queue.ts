@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, patients, users } from "@/core/db/schema";
 import {
   dayBounds,
@@ -186,6 +186,7 @@ export async function getDayQueue(
       byClinic(
         appointments.clinicId,
         clinicId,
+        notDeleted(appointments.deletedAt),
         and(
           gte(appointments.scheduledAt, start),
           lt(appointments.scheduledAt, end),

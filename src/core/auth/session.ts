@@ -68,7 +68,9 @@ export async function getSessionUser(): Promise<User | null> {
     )
     .limit(1);
 
-  if (!row || !row.user.isActive) return null;
+  // A suspended (inactive) OR soft-deleted (trashed) user has no valid session.
+  // Their sessions are hard-revoked on suspend/delete; this is defense-in-depth.
+  if (!row || !row.user.isActive || row.user.deletedAt) return null;
   return row.user;
 }
 

@@ -1,6 +1,6 @@
 import { asc, desc, eq, gte, inArray } from "drizzle-orm";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { doctorLeaves, users } from "@/core/db/schema";
 import { describeAvailability } from "@/core/lib/availability";
 import {
@@ -55,6 +55,7 @@ export async function DoctorsPanel({
         byClinic(
           users.clinicId,
           clinicId,
+          notDeleted(users.deletedAt),
           selfDoctorId
             ? eq(users.id, selfDoctorId)
             : inArray(users.role, ["doctor"]),
@@ -70,7 +71,14 @@ export async function DoctorsPanel({
         reason: doctorLeaves.reason,
       })
       .from(doctorLeaves)
-      .where(byClinic(doctorLeaves.clinicId, clinicId, gte(doctorLeaves.endDate, today)))
+      .where(
+        byClinic(
+          doctorLeaves.clinicId,
+          clinicId,
+          notDeleted(doctorLeaves.deletedAt),
+          gte(doctorLeaves.endDate, today),
+        ),
+      )
       .orderBy(asc(doctorLeaves.startDate)),
   ]);
 

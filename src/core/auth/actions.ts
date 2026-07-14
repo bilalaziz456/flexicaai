@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import {
   THEME_COOKIE_MAX_AGE,
@@ -13,6 +13,7 @@ import { hashPassword, verifyPassword } from "@/core/auth/password";
 import { requireUser } from "@/core/auth/user";
 import { logActivityAs } from "@/core/audit/log";
 import { db } from "@/core/db";
+import { notDeleted } from "@/core/db/tenant";
 import { users } from "@/core/db/schema";
 import { ROLE_HOME_ROUTE, type UserRole } from "@/core/types/auth";
 
@@ -46,7 +47,7 @@ export async function signIn(
   const [user] = await db
     .select()
     .from(users)
-    .where(eq(users.username, username))
+    .where(and(eq(users.username, username), notDeleted(users.deletedAt)))
     .limit(1);
 
   // Generic message for an unknown username OR a wrong password — never reveal

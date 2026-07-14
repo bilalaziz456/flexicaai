@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, eq, gte, inArray, isNotNull, isNull, lt } from "drizzle-orm";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, clinics, patients, users } from "@/core/db/schema";
 import {
   describeAvailability,
@@ -218,6 +218,7 @@ export async function sendDueAppointmentReminders(
     .leftJoin(users, eq(appointments.doctorId, users.id))
     .where(
       and(
+        notDeleted(appointments.deletedAt),
         inArray(appointments.status, ["scheduled", "confirmed"]),
         gte(appointments.scheduledAt, start),
         lt(appointments.scheduledAt, end),

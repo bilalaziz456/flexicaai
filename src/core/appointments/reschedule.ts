@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, asc, eq, gt, inArray } from "drizzle-orm";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, patients } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
@@ -98,6 +98,7 @@ export async function handleRescheduleReply(args: {
         byClinic(
           appointments.clinicId,
           clinicId,
+          notDeleted(appointments.deletedAt),
           and(
             eq(appointments.patientId, patientId),
             inArray(appointments.status, ["scheduled", "confirmed"]),

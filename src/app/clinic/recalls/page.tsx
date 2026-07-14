@@ -1,7 +1,7 @@
 import { asc, count, eq } from "drizzle-orm";
 import { requireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { patients, recalls } from "@/core/db/schema";
 import { Badge } from "@/core/ui/badge";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
@@ -36,7 +36,7 @@ export default async function ClinicRecallsPage({
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
 
-  const where = byClinic(recalls.clinicId, clinicId);
+  const where = byClinic(recalls.clinicId, clinicId, notDeleted(recalls.deletedAt));
   const [rows, [{ total }]] = await Promise.all([
     db
       .select({

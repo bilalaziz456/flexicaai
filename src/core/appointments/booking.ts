@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, eq } from "drizzle-orm";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, clinics, users } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
@@ -45,6 +45,7 @@ async function clinicDoctors(clinicId: string): Promise<DocRow[]> {
       byClinic(
         users.clinicId,
         clinicId,
+        notDeleted(users.deletedAt),
         and(eq(users.role, "doctor"), eq(users.isActive, true)),
       ),
     );

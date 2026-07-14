@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
 import { and, asc, count, eq, gte, ilike, lt, or } from "drizzle-orm";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, patients, users } from "@/core/db/schema";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
@@ -97,7 +97,12 @@ export async function AppointmentsList({
   }
   if (!session && status) conds.push(eq(appointments.status, status));
 
-  const whereClause = byClinic(appointments.clinicId, clinicId, and(...conds));
+  const whereClause = byClinic(
+    appointments.clinicId,
+    clinicId,
+    notDeleted(appointments.deletedAt),
+    and(...conds),
+  );
   const [rows, queue, [{ total }]] = await Promise.all([
     db
       .select({

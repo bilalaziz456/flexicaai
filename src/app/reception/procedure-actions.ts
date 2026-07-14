@@ -7,7 +7,7 @@ import { z } from "zod";
 import { requireRole } from "@/core/auth/user";
 import { can, type PermAction } from "@/core/auth/permissions";
 import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, procedures } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { procedureTemplatesFor } from "@/config/modules";
@@ -177,7 +177,7 @@ export async function importProcedureDefaults(): Promise<ProcedureActionState> {
   const existing = await db
     .select({ name: procedures.name })
     .from(procedures)
-    .where(byClinic(procedures.clinicId, clinicId));
+    .where(byClinic(procedures.clinicId, clinicId, notDeleted(procedures.deletedAt)));
   const have = new Set(existing.map((p) => p.name.toLowerCase()));
 
   const toAdd = templates.filter((t) => !have.has(t.name.toLowerCase()));
