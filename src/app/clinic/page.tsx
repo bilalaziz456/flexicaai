@@ -23,6 +23,7 @@ import {
 } from "@/core/ui/card";
 import { AvgVisitValueForm } from "./avg-visit-value-form";
 import { DoctorLeaves } from "@/app/reception/doctor-leaves";
+import { CLINIC_STAFF_ROLES, CLINIC_STAFF_SUMMARY } from "@/core/types/auth";
 
 /**
  * Owner dashboard (CLAUDE.md §11 Step 12). The hero metric is "Revenue
@@ -98,7 +99,7 @@ export default async function ClinicDashboard() {
           and(
             eq(users.clinicId, clinicId),
             notDeleted(users.deletedAt),
-            inArray(users.role, ["doctor", "receptionist"]),
+            inArray(users.role, [...CLINIC_STAFF_ROLES]),
           ),
         ),
       db
@@ -187,7 +188,7 @@ export default async function ClinicDashboard() {
     { title: "Recalls sent", value: recallsSent.value, note: "Reminders delivered", href: "/clinic/recalls" },
     { title: "Upcoming appts", value: upcoming.value, note: "Scheduled ahead", href: "/clinic/appointments" },
     { title: "Patients", value: patientRows.value, note: "Registered", href: "/clinic/patients" },
-    { title: "Staff", value: staff.value, note: "Doctors & reception", href: "/clinic/staff" },
+    { title: "Staff", value: staff.value, note: CLINIC_STAFF_SUMMARY, href: "/clinic/staff" },
   ];
 
   return (

@@ -24,6 +24,24 @@ export type UserRole = (typeof USER_ROLES)[number];
  */
 export const CLINIC_STAFF_ROLES = ["manager", "doctor", "receptionist"] as const;
 
+/** Human display names for each role — the single source for UI role labels. */
+export const ROLE_LABELS: Record<UserRole, string> = {
+  super_admin: "Super admin",
+  clinic_admin: "Clinic admin",
+  manager: "Manager",
+  doctor: "Doctor",
+  receptionist: "Receptionist",
+};
+
+/**
+ * Plural, comma-joined labels for the clinic-staff roles — e.g. "Managers,
+ * doctors, receptionists". Derived from CLINIC_STAFF_ROLES so a role added/removed
+ * updates the staff count AND its label together (no hardcoded prose to drift).
+ */
+export const CLINIC_STAFF_SUMMARY = CLINIC_STAFF_ROLES.map((r, i) =>
+  i === 0 ? `${ROLE_LABELS[r]}s` : `${ROLE_LABELS[r].toLowerCase()}s`,
+).join(", ");
+
 export function isUserRole(value: unknown): value is UserRole {
   return typeof value === "string" && USER_ROLES.includes(value as UserRole);
 }
