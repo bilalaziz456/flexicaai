@@ -31,7 +31,7 @@ export async function NewAppointmentPanel({
       .from(patients)
       .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt)))
       .orderBy(desc(patients.createdAt))
-      .limit(20),
+      .limit(10),
     db
       .select({
         id: users.id,
