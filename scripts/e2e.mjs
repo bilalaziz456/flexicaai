@@ -113,6 +113,9 @@ async function seed() {
   // docA has no working hours; make it flexible so any future slot books
   // (booking/reschedule checks rely on this).
   await pool.query("update users set flexible_hours = true where id = $1", [docA.id]);
+  // Clinic A gets a WhatsApp Cloud sender number (for the Cloud webhook routing test).
+  ids.waPnid = `E2E_PNID_${uniq}`;
+  await pool.query("update clinics set whatsapp_phone_number_id = $1 where id = $2", [ids.waPnid, cA.id]);
 
   const patA1 = await q("insert into patients (clinic_id, full_name, phone) values ($1,'Ayesha Recovered','+923009990001') returning id", [cA.id]);
   const patA2 = await q("insert into patients (clinic_id, full_name, phone) values ($1,'Bilal NoPhone', null) returning id", [cA.id]);
@@ -328,6 +331,29 @@ async function run() {
       const has3pm = rows.some((row) => new Date(row.scheduled_at).getHours() === 15);
       record("webhook 'book …' creates a new appointment", r.status === 200 && j.booked === true && has3pm, `booked=${j.booked}`);
     }
+  }
+
+  console.log("\n== WHATSAPP CLOUD WEBHOOK (per-clinic routing) ==");
+  {
+    const hdr = { "content-type": "application/json" };
+    // GET verification with a wrong/absent token → 403.
+    const g = await req("/api/whatsapp/cloud?hub.mode=subscribe&hub.verify_token=nope&hub.challenge=xyz");
+    record("cloud webhook GET verify (bad token) → 403", g.status === 403);
+
+    // POST inbound routed by the RECEIVING number → clinic A + patient matched within it.
+    const inId = `wamid.E2E_IN_${Date.now()}`;
+    const body = JSON.stringify({
+      entry: [{ changes: [{ value: {
+        metadata: { phone_number_id: ids.waPnid },
+        messages: [{ from: "923009990001", id: inId, type: "text", text: { body: "hello" } }],
+      } }] }],
+    });
+    const r = await req("/api/whatsapp/cloud", { method: "POST", body, headers: hdr });
+    let j = null;
+    try { j = JSON.parse(r.text); } catch { /* ignore */ }
+    record("cloud webhook POST inbound → 200 {inbound:1}", r.status === 200 && j && j.inbound === 1, `status=${r.status}`);
+    const row = (await pool.query("select clinic_id, patient_id from whatsapp_messages where external_id=$1", [inId])).rows[0];
+    record("cloud inbound routed by number → clinic A + matched patient", Boolean(row) && row.clinic_id === ids.clinics[0] && row.patient_id === ids.patients[0]);
   }
 
   console.log("\n== RECALL ENGINE (cron) ==");

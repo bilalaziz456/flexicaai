@@ -36,3 +36,21 @@ export async function getClinicSender(
     .limit(1);
   return row ?? null;
 }
+
+/**
+ * Inbound routing: which clinic OWNS a WABA number. The Cloud API webhook maps the
+ * receiving `phone_number_id` to a clinic, then matches the patient WITHIN it.
+ * `whatsapp_phone_number_id` is unique when set, so this yields at most one clinic
+ * (NULL/empty → no clinic).
+ */
+export async function getClinicIdByPhoneNumberId(
+  phoneNumberId: string,
+): Promise<string | null> {
+  if (!phoneNumberId) return null;
+  const [row] = await db
+    .select({ id: clinics.id })
+    .from(clinics)
+    .where(eq(clinics.whatsappPhoneNumberId, phoneNumberId))
+    .limit(1);
+  return row?.id ?? null;
+}

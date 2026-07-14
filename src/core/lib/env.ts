@@ -66,6 +66,9 @@ const serverSchema = z.object({
   WHATSAPP_API_VERSION: z.string().default("v21.0"),
   // Token echoed back on the Cloud API webhook verification (GET hub.challenge).
   WHATSAPP_VERIFY_TOKEN: z.string().optional(),
+  // Meta App Secret — verifies the X-Hub-Signature-256 on inbound Cloud webhooks.
+  // When set, a bad/missing signature is rejected; unset = accept (dev only).
+  WHATSAPP_APP_SECRET: z.string().optional(),
 
   // Secret protecting the cron endpoint that runs the recall engine. Vercel
   // sends it as `Authorization: Bearer <CRON_SECRET>` automatically.
@@ -99,6 +102,7 @@ export const serverEnv = serverSchema.parse({
   WHATSAPP_WABA_ID: process.env.WHATSAPP_WABA_ID,
   WHATSAPP_API_VERSION: process.env.WHATSAPP_API_VERSION,
   WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN,
+  WHATSAPP_APP_SECRET: process.env.WHATSAPP_APP_SECRET,
   CRON_SECRET: process.env.CRON_SECRET,
   WHATSAPP_WEBHOOK_TOKEN: process.env.WHATSAPP_WEBHOOK_TOKEN,
   LINK_SIGNING_SECRET: process.env.LINK_SIGNING_SECRET,

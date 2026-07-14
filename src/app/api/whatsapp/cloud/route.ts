@@ -1,0 +1,172 @@
+import { NextResponse } from "next/server";
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { db } from "@/core/db";
+import { notDeleted } from "@/core/db/tenant";
+import { patients, whatsappMessages } from "@/core/db/schema";
+import { normalisePhone } from "@/core/integrations/whatsapp";
+import { getClinicIdByPhoneNumberId } from "@/core/notifications/clinic-whatsapp";
+import { handleRescheduleReply } from "@/core/appointments/reschedule";
+import { handleBookingReply } from "@/core/appointments/booking";
+import { serverEnv } from "@/core/lib/env";
+
+/**
+ * Meta WhatsApp Cloud API webhook (per-clinic numbers). Unlike the AiSensy webhook,
+ * this routes by the RECEIVING number: `metadata.phone_number_id` → clinic (a
+ * clinic OWNS its number), then the patient is matched WITHIN that clinic. See
+ * docs/whatsapp-cloud-plan.md.
+ *
+ *  - GET  → Meta's verification handshake (echo hub.challenge if the verify token
+ *           matches).
+ *  - POST → messages (inbound patient texts) + statuses (delivery/read receipts).
+ *           Authenticity is checked via X-Hub-Signature-256 when WHATSAPP_APP_SECRET
+ *           is configured.
+ *
+ * Always answers 200 on POST so Meta doesn't retry a payload we've already stored.
+ */
+
+const STATUS_MAP: Record<string, "sent" | "delivered" | "read" | "failed"> = {
+  sent: "sent",
+  delivered: "delivered",
+  read: "read",
+  failed: "failed",
+};
+
+/** Meta webhook verification (GET ?hub.mode=subscribe&hub.verify_token=…&hub.challenge=…). */
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const mode = url.searchParams.get("hub.mode");
+  const token = url.searchParams.get("hub.verify_token");
+  const challenge = url.searchParams.get("hub.challenge");
+  if (
+    mode === "subscribe" &&
+    serverEnv.WHATSAPP_VERIFY_TOKEN &&
+    token === serverEnv.WHATSAPP_VERIFY_TOKEN
+  ) {
+    // Meta expects the raw challenge string back, 200.
+    return new Response(challenge ?? "", { status: 200 });
+  }
+  return new Response("Forbidden", { status: 403 });
+}
+
+/** Constant-time check of Meta's X-Hub-Signature-256 (sha256=<hmac of raw body>). */
+function signatureOk(raw: string, header: string | null): boolean {
+  const secret = serverEnv.WHATSAPP_APP_SECRET;
+  if (!secret) return true; // not configured (dev) → accept
+  if (!header?.startsWith("sha256=")) return false;
+  const expected = createHmac("sha256", secret).update(raw).digest("hex");
+  const got = header.slice("sha256=".length);
+  const a = Buffer.from(expected, "hex");
+  const b = Buffer.from(got, "hex");
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+type CloudValue = {
+  metadata?: { phone_number_id?: string; display_phone_number?: string };
+  messages?: {
+    from?: string;
+    id?: string;
+    type?: string;
+    text?: { body?: string };
+  }[];
+  statuses?: { id?: string; status?: string }[];
+};
+
+export async function POST(request: Request) {
+  const raw = await request.text();
+  if (!signatureOk(raw, request.headers.get("x-hub-signature-256"))) {
+    return NextResponse.json({ error: "Bad signature." }, { status: 401 });
+  }
+
+  let payload: { entry?: { changes?: { value?: CloudValue }[] }[] };
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON." }, { status: 400 });
+  }
+
+  let inbound = 0;
+  let statuses = 0;
+
+  for (const entry of payload.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      const value = change.value;
+      if (!value) continue;
+      const phoneNumberId = value.metadata?.phone_number_id;
+      // Route by the receiving number → clinic. Unknown number = ignore safely.
+      const clinicId = phoneNumberId
+        ? await getClinicIdByPhoneNumberId(phoneNumberId)
+        : null;
+
+      // ---- Delivery/read receipts: advance the outbound row by its wamid ----
+      for (const s of value.statuses ?? []) {
+        const mapped = s.status ? STATUS_MAP[s.status.toLowerCase()] : undefined;
+        if (mapped && s.id) {
+          await db
+            .update(whatsappMessages)
+            .set({ status: mapped, updatedAt: new Date() })
+            .where(eq(whatsappMessages.externalId, s.id));
+          statuses++;
+        }
+      }
+
+      // ---- Inbound messages: log + match a patient WITHIN the routed clinic ----
+      for (const m of value.messages ?? []) {
+        if (!m.from) continue;
+        const phone = normalisePhone(m.from);
+        const text = m.text?.body ?? null;
+
+        const matched = clinicId
+          ? await matchPatientInClinic(clinicId, phone)
+          : null;
+
+        await db.insert(whatsappMessages).values({
+          clinicId,
+          patientId: matched,
+          direction: "inbound",
+          phone,
+          status: "received",
+          body: text,
+          externalId: m.id ?? null,
+          payload: value as Record<string, unknown>,
+        });
+        inbound++;
+
+        // Self-service for a matched patient: reschedule, else book.
+        if (clinicId && matched && text) {
+          const resched = await handleRescheduleReply({ clinicId, patientId: matched, phone, text });
+          if (!resched.handled) {
+            await handleBookingReply({ clinicId, patientId: matched, phone, text });
+          }
+        }
+      }
+    }
+  }
+
+  return NextResponse.json({ ok: true, inbound, statuses });
+}
+
+/**
+ * Exact phone match within one clinic (clinic already known from the number).
+ * Compares on DIGITS ONLY (Postgres `regexp_replace`) so stored formatting —
+ * spaces, +, dashes — never breaks the match. Clinic-scoped, so the scan is small.
+ */
+async function matchPatientInClinic(
+  clinicId: string,
+  phone: string,
+): Promise<string | null> {
+  if (!phone) return null;
+  const [row] = await db
+    .select({ id: patients.id })
+    .from(patients)
+    .where(
+      and(
+        eq(patients.clinicId, clinicId),
+        notDeleted(patients.deletedAt),
+        isNotNull(patients.phone),
+        sql`regexp_replace(${patients.phone}, '[^0-9]', '', 'g') = ${phone}`,
+      ),
+    )
+    .limit(1);
+  return row?.id ?? null;
+}
