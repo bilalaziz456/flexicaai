@@ -125,7 +125,14 @@ export async function updateProcedure(
       isActive,
       updatedAt: new Date(),
     })
-    .where(byClinic(procedures.clinicId, clinicId, eq(procedures.id, procedureId)))
+    .where(
+      byClinic(
+        procedures.clinicId,
+        clinicId,
+        notDeleted(procedures.deletedAt),
+        eq(procedures.id, procedureId),
+      ),
+    )
     .returning({ id: procedures.id });
   if (result.length === 0) return { error: "Procedure not found." };
 

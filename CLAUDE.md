@@ -309,6 +309,22 @@ are in `.env.example`.
   over inbound replies — **reschedule** (`core/appointments/reschedule.ts`) and
   **new booking** (`core/appointments/booking.ts`), both parsing dates via
   `parse-when.ts` and validating via `checkDoctorSlot`. Wired in the inbound webhook.
+- **Per-user ACL (permissions)** — two-tier: super admin → clinic capabilities, and
+  clinic admin → per-user `resource:action` grants (`users.permissions`; catalog +
+  role defaults in `core/auth/permissions.ts`). A `manager` role was added. Unified
+  `/clinic` workspace: all clinic staff share it, nav + pages gate on permissions
+  (`requireWorkspace`). Staff/settings management stays clinic-admin-only.
+- **Sales** — priced `procedures`, per-appointment `appointment_procedures` line
+  items (+ per-line & appointment discounts), and a realised-revenue `sales` ledger
+  → the `/clinic/sales` report + dashboard card. Gated by the `sales` feature.
+  Bill math is centralised in `core/appointments/fee.ts`.
+- **Soft delete + Trash** — NOTHING is hard-deleted. Every deletable table carries
+  `deleted_at`/`deleted_by`/`delete_group`/`deleted_by_cascade` (`softDeleteColumns()`);
+  every read filters `notDeleted()`; deletes UPDATE those columns and cascade-hide
+  children under one group. `/clinic/trash` (within `clinics.trash_retention_days`,
+  default 30) and `/admin/trash` (all clinics, no window) list + **Restore**
+  (`core/trash`), gated by the `trash` permission. The ONLY physical delete is a
+  super-admin legal **purge**. Search + type/actor/date/clinic filters on both.
 
 Still NOT to build without instruction (§11/§12 unchanged): derma, hair, mobile apps,
 advanced analytics.
@@ -323,6 +339,9 @@ advanced analytics.
 - Do NOT auto-finalize AI-generated medical content. Always doctor-approved.
 - Do NOT put specialty columns on core tables. Use related specialty tables.
 - Do NOT skip `clinic_id` filtering on any query.
+- Do NOT hard-delete records. Everything soft-deletes to Trash (`softDeleteColumns()`);
+  a delete UPDATEs `deleted_at` and every read must include `notDeleted()`. The only
+  `db.delete()` on a soft-deletable table is the super-admin legal purge (`core/trash`).
 - Do NOT add features outside the current MVP scope, even if they seem quick.
 - Do NOT introduce new major dependencies without justification.
 - Do NOT build a separate backend. Next.js API routes are the backend for now.

@@ -613,7 +613,14 @@ export async function updatePatient(
       dataConsent: formData.get("dataConsent") === "on",
       updatedAt: new Date(),
     })
-    .where(byClinic(patients.clinicId, clinicId, eq(patients.id, patientId)))
+    .where(
+      byClinic(
+        patients.clinicId,
+        clinicId,
+        notDeleted(patients.deletedAt),
+        eq(patients.id, patientId),
+      ),
+    )
     .returning({ id: patients.id });
   if (result.length === 0) return { error: "Patient not found." };
 

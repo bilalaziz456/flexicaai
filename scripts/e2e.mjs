@@ -374,6 +374,45 @@ async function run() {
       record("seeded super-admin bcrypt check", true, "skipped (no seed creds)");
     }
   }
+
+  console.log("\n== SOFT DELETE / TRASH ==");
+  {
+    const cA = ids.clinics[0];
+    const adminAId = ids.users[1];
+    const grp = crypto.randomUUID();
+    // A directly-trashed patient (mimics the deletePatient soft delete).
+    await pool.query(
+      "insert into patients (clinic_id, full_name, deleted_at, deleted_by, delete_group) values ($1,'ZZE2ETrashed', now(), $2, $3)",
+      [cA, adminAId, grp],
+    );
+
+    {
+      const r = await req("/clinic/patients", { cookie: S.adminA });
+      record("trash: soft-deleted patient hidden from the patients list", r.status === 200 && !r.text.includes("ZZE2ETrashed"));
+    }
+    {
+      const r = await req("/clinic/trash", { cookie: S.adminA });
+      record("trash: clinic admin sees it in Trash with Restore", r.status === 200 && r.text.includes("ZZE2ETrashed") && r.text.includes("Restore"));
+    }
+    {
+      const r = await req("/clinic/trash?type=procedure", { cookie: S.adminA });
+      record("trash: type filter narrows it out", r.status === 200 && !r.text.includes("ZZE2ETrashed"));
+    }
+    {
+      const r = await req("/clinic/trash", { cookie: S.recepA });
+      record("trash: receptionist without trash permission can't view Trash", r.status === 200 && !r.text.includes("ZZE2ETrashed"));
+    }
+    {
+      const r = await req("/admin/trash", { cookie: S.sadmin });
+      record("trash: super admin sees it across clinics with Purge", r.status === 200 && r.text.includes("ZZE2ETrashed") && r.text.includes("Purge"));
+    }
+    // Restore round-trip (revert the delete group) → back in the live list.
+    await pool.query("update patients set deleted_at=null, delete_group=null, deleted_by=null, deleted_by_cascade=false where delete_group=$1", [grp]);
+    {
+      const r = await req("/clinic/patients", { cookie: S.adminA });
+      record("trash: after restore, patient returns to the list", r.status === 200 && r.text.includes("ZZE2ETrashed"));
+    }
+  }
 }
 
 async function cleanup() {
