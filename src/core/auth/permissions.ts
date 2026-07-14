@@ -116,6 +116,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     leave: [V, C, E, D],
     clinical: [V],
     prescriptions: [V],
+    // Trash: view + restore on by default (C = "Restore"); purge stays super-admin.
+    trash: [V, C],
     // staff / settings management stays clinic-admin-only for now.
   }),
   // Clinical user — authors notes & prescriptions; sees (not edits) their
@@ -128,6 +130,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     recalls: [V],
     // A doctor manages their OWN leave only (self-scoped in the page + actions).
     leave: [V, C, E, D],
+    // Trash: view + restore on by default (C = "Restore"); purge stays super-admin.
+    trash: [V, C],
   }),
   // Front desk — books/edits appointments & patients, WhatsApp, recalls,
   // procedures catalog and doctor leave (matches current receptionist scope).
@@ -140,6 +144,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     leave: [V, C, E, D],
     // Front desk can view/print a prescription PDF (not author it).
     prescriptions: [V],
+    // Trash: view + restore on by default (C = "Restore"); purge stays super-admin.
+    trash: [V, C],
   }),
 };
 

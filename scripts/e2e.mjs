@@ -400,7 +400,7 @@ async function run() {
     }
     {
       const r = await req("/clinic/trash", { cookie: S.recepA });
-      record("trash: receptionist without trash permission can't view Trash", r.status === 200 && !r.text.includes("ZZE2ETrashed"));
+      record("trash: receptionist has Trash by default (view + Restore)", r.status === 200 && r.text.includes("ZZE2ETrashed") && r.text.includes("Restore"));
     }
     {
       const r = await req("/admin/trash", { cookie: S.sadmin });
