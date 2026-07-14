@@ -44,10 +44,18 @@ export async function sendViaCloud(args: SendTemplateArgs): Promise<SendResult> 
       ],
     });
   }
-  if (args.templateParams && args.templateParams.length > 0) {
+  // Body params = the event's params, then the clinic's per-event note and its
+  // signature (the templates' trailing {{note}} / {{signature}} vars). Only the
+  // ones that are set are appended — the cloud templates are designed to match.
+  const bodyParams = [
+    ...(args.templateParams ?? []),
+    ...(args.note ? [args.note] : []),
+    ...(args.signature ? [args.signature] : []),
+  ];
+  if (bodyParams.length > 0) {
     components.push({
       type: "body",
-      parameters: args.templateParams.map((t) => ({ type: "text" as const, text: t })),
+      parameters: bodyParams.map((t) => ({ type: "text" as const, text: t })),
     });
   }
 

@@ -2,13 +2,15 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 import { db } from "@/core/db";
-import { whatsappMessages } from "@/core/db/schema";
+import { whatsappMessages, type WhatsappNotes } from "@/core/db/schema";
+import { serverEnv } from "@/core/lib/env";
 import {
   isWhatsAppConfigured,
   normalisePhone,
   sendWhatsAppTemplate,
   type SendTemplateArgs,
 } from "@/core/integrations/whatsapp";
+import { getClinicSender } from "@/core/notifications/clinic-whatsapp";
 
 /**
  * WhatsApp notification channel — CORE. Records the outbound message FIRST
@@ -26,6 +28,12 @@ export async function sendWhatsAppToPatient(args: {
   media?: { url: string; filename: string };
   /** Human-readable preview stored on the message row. */
   body?: string;
+  /**
+   * The event kind — selects the clinic's per-event custom note ({{note}}) on the
+   * Cloud API provider. Omit for events without a note slot (cancel / prescription /
+   * reschedule / booking-reply); the signature is still applied.
+   */
+  event?: keyof WhatsappNotes;
 }): Promise<{ messageId: string; ok: boolean; error?: string }> {
   const phone = normalisePhone(args.phone);
 
@@ -56,12 +64,25 @@ export async function sendWhatsAppToPatient(args: {
     return { messageId, ok: false, error: "WhatsApp is not configured." };
   }
 
+  // On the Cloud API, resolve THIS clinic's sender number + personalization so the
+  // message is sent FROM the clinic's own number with its signature/note. AiSensy
+  // (default) ignores these fields, so we skip the lookup entirely there.
+  const cloud =
+    serverEnv.WHATSAPP_PROVIDER === "cloud"
+      ? await getClinicSender(args.clinicId)
+      : null;
+  const note =
+    args.event && cloud?.notes ? (cloud.notes[args.event] ?? null) : null;
+
   const send: SendTemplateArgs = {
     to: phone,
     campaignName: args.campaignName,
     userName: args.userName,
     templateParams: args.templateParams,
     media: args.media,
+    phoneNumberId: cloud?.phoneNumberId ?? null,
+    note,
+    signature: cloud?.signature ?? null,
   };
   const result = await sendWhatsAppTemplate(send);
 

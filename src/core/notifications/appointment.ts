@@ -167,6 +167,7 @@ export async function notifyAppointmentBooked(
       patientId: r.patientId,
       phone: r.patientPhone,
       campaignName: serverEnv.AISENSY_BOOKING_CAMPAIGN,
+      event: "booking",
       userName: r.patientName,
       templateParams: [
         r.patientName,
@@ -241,6 +242,7 @@ export async function sendDueAppointmentReminders(
       patientId: r.patientId,
       phone: r.patientPhone,
       campaignName: serverEnv.AISENSY_REMINDER_CAMPAIGN,
+      event: "reminder",
       userName: r.patientName,
       templateParams: [r.patientName, doctor, when, r.clinicName],
       body: `Reminder: your appointment with ${doctor} is on ${when}. — ${r.clinicName}`,
