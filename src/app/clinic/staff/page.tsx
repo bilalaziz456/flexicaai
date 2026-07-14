@@ -19,7 +19,7 @@ import {
   TableRow,
 } from "@/core/ui/table";
 import { describeAvailability } from "@/core/lib/availability";
-import { CLINIC_STAFF_ROLES } from "@/core/types/auth";
+import { CLINIC_STAFF_ROLES, displayStaffName } from "@/core/types/auth";
 import { FlashToast } from "@/core/ui/toast";
 import { RowLink } from "@/core/ui/row-link";
 import { StaffSearch } from "./staff-search";
@@ -69,6 +69,7 @@ export default async function ClinicStaffPage({
       .select({
         id: users.id,
         username: users.username,
+        prefix: users.prefix,
         fullName: users.fullName,
         role: users.role,
         isActive: users.isActive,
@@ -141,7 +142,7 @@ export default async function ClinicStaffPage({
                 {staff.map((u) => (
                   <RowLink key={u.id} href={`/clinic/staff/${u.id}`} className="border-b">
                     <TableCell className="font-medium">
-                      {u.fullName ?? "—"}
+                      {displayStaffName(u.prefix, u.fullName, u.username)}
                     </TableCell>
                     <TableCell>{u.username}</TableCell>
                     <TableCell>
@@ -181,7 +182,9 @@ export default async function ClinicStaffPage({
                 className="block space-y-2 rounded-md border p-3"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">{u.fullName ?? "—"}</span>
+                  <span className="font-medium">
+                    {displayStaffName(u.prefix, u.fullName, u.username)}
+                  </span>
                   <Badge variant="secondary">{u.role}</Badge>
                 </div>
                 <div className="text-sm text-muted-foreground">

@@ -4,6 +4,7 @@ import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, patients, users } from "@/core/db/schema";
+import { displayStaffName } from "@/core/types/auth";
 import {
   dayBounds,
   timeToMinutes,
@@ -176,6 +177,7 @@ export async function getDayQueue(
       doctorId: appointments.doctorId,
       doctorName: users.fullName,
       doctorUsername: users.username,
+      doctorPrefix: users.prefix,
       availability: users.availability,
       patientName: patients.fullName,
     })
@@ -210,7 +212,7 @@ export async function getDayQueue(
       s = {
         key: r.session,
         doctorId: r.doctorId,
-        doctorName: r.doctorName ?? r.doctorUsername ?? "Doctor",
+        doctorName: displayStaffName(r.doctorPrefix, r.doctorName, r.doctorUsername ?? "Doctor"),
         windowLabel: label,
         windowStart: wStart,
         nowServing: null,

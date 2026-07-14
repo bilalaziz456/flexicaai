@@ -15,6 +15,7 @@ import {
   MessageCircle,
   Mic,
   ScrollText,
+  Settings,
   Stethoscope,
   Trash2,
   TrendingUp,
@@ -39,14 +40,16 @@ type NavItem = {
   resource?: string;
 };
 
-/** The signed-in user's own avatar (from /api/me/avatar); falls back to an icon. */
-function SelfAvatar({ className }: { className?: string }) {
+/** The signed-in user's own avatar (from /api/me/avatar); falls back to an icon.
+ * `version` (the avatar key) busts the cache so a new upload shows immediately —
+ * keyed by it at the call site so the component remounts on change. */
+function SelfAvatar({ className, version }: { className?: string; version?: string }) {
   const [ok, setOk] = useState(true);
   if (ok) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src="/api/me/avatar"
+        src={`/api/me/avatar?v=${encodeURIComponent(version ?? "")}`}
         alt=""
         onError={() => setOk(false)}
         className={cn("size-6 shrink-0 rounded-full object-cover", className)}
@@ -90,6 +93,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
       { href: "/clinic/recalls", label: "Recalls", Icon: BellRing, resource: "recalls" },
       { href: "/clinic/sales", label: "Sales", Icon: TrendingUp, resource: "sales" },
       { href: "/clinic/staff", label: "Staff", Icon: Users, resource: "staff" },
+      { href: "/clinic/settings", label: "Settings", Icon: Settings },
       { href: "/clinic/trash", label: "Trash", Icon: Trash2, resource: "trash" },
       { href: "/clinic/logs", label: "Activity log", Icon: ScrollText },
     ],
@@ -126,6 +130,9 @@ const SALES_HREFS = new Set(["/clinic/procedures", "/reception/procedures", "/cl
 export function PanelShell({
   panel,
   identityLabel,
+  userName,
+  accountHref = "/account",
+  avatarVersion = "none",
   theme,
   logsEnabled = true,
   salesEnabled = false,
@@ -134,6 +141,12 @@ export function PanelShell({
 }: {
   panel: PanelId;
   identityLabel: string;
+  /** The signed-in user's display name (with prefix, e.g. "Dr. Bilal Aziz"). */
+  userName: string;
+  /** Where the profile/avatar links go (in-panel Settings for a clinic user). */
+  accountHref?: string;
+  /** The user's avatar key (or "none") — busts the top-bar avatar cache on change. */
+  avatarVersion?: string;
   theme: ThemePreference;
   /** Clinic panel: hide the Activity-log nav item when the clinic has no log access. */
   logsEnabled?: boolean;
@@ -191,20 +204,7 @@ export function PanelShell({
           </Link>
         </div>
         <nav className="flex-1 space-y-1 px-3">{items.map((i) => navLink(i))}</nav>
-        <div className="space-y-3 border-t p-3">
-          <div className="flex items-center justify-between gap-2">
-            <Link
-              href="/account"
-              aria-label="Account settings"
-              className="flex min-w-0 items-center gap-2 rounded-full pr-2 transition-colors hover:bg-accent"
-            >
-              <SelfAvatar />
-              <span className="max-w-[7rem] truncate text-xs font-medium text-muted-foreground">
-                {identityLabel}
-              </span>
-            </Link>
-            <ThemeToggle initial={theme} />
-          </div>
+        <div className="border-t p-3">
           <form action={signOut}>
             <button
               type="submit"
@@ -216,6 +216,24 @@ export function PanelShell({
           </form>
         </div>
       </aside>
+
+      {/* ---- Desktop top bar (clinic name left; theme + profile top-right) ---- */}
+      <header className="sticky top-0 z-20 hidden items-center justify-between gap-3 border-b bg-card px-6 py-2 md:flex">
+        <span className="max-w-xs truncate text-sm font-medium text-muted-foreground">
+          {identityLabel}
+        </span>
+        <div className="flex items-center gap-3">
+          <ThemeToggle initial={theme} />
+          <Link
+            href={accountHref}
+            aria-label="Account settings"
+            className="flex items-center gap-2 rounded-full py-0.5 pl-0.5 pr-3 transition-colors hover:bg-accent"
+          >
+            <SelfAvatar key={avatarVersion} version={avatarVersion} className="size-7" />
+            <span className="max-w-[12rem] truncate text-sm font-medium">{userName}</span>
+          </Link>
+        </div>
+      </header>
 
       {/* ---- Mobile top bar ---- */}
       <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-card px-4 py-3 md:hidden">
@@ -231,6 +249,9 @@ export function PanelShell({
           <Logo className="h-8" />
         </Link>
         <div className="flex items-center gap-1">
+          <Link href={accountHref} aria-label="Account settings" className="rounded-full p-0.5">
+            <SelfAvatar key={avatarVersion} version={avatarVersion} className="size-7" />
+          </Link>
           <ThemeToggle initial={theme} />
           <form action={signOut}>
             <button
@@ -279,11 +300,11 @@ export function PanelShell({
           </div>
           <div className="mb-4">
             <Link
-              href="/account"
+              href={accountHref}
               onClick={() => setOpen(false)}
               className="inline-flex max-w-full items-center gap-2 rounded-full pr-3 transition-colors hover:bg-accent"
             >
-              <SelfAvatar />
+              <SelfAvatar key={avatarVersion} version={avatarVersion} />
               <span className="truncate text-xs font-medium text-muted-foreground">
                 {identityLabel}
               </span>

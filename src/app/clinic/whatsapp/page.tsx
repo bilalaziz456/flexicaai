@@ -12,9 +12,11 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 
-/** Clinic workspace: the WhatsApp queue (needs `whatsapp:view`), plus — on the
- * Cloud API provider and for users with `settings:edit` — a message
- * personalization card (signature + per-event notes). */
+/**
+ * Clinic workspace: the WhatsApp queue (needs `whatsapp:view`), plus — for users
+ * who can edit settings — a card to set the clinic's WhatsApp message signature.
+ * (Per-user profile lives on /clinic/settings.)
+ */
 export default async function ClinicWhatsAppPage({
   searchParams,
 }: {
@@ -23,10 +25,8 @@ export default async function ClinicWhatsAppPage({
   const user = await requireWorkspace("whatsapp");
   const sp = await searchParams;
 
-  // Shown to users who can edit settings. The values only take effect once the
-  // clinic is sending via the Cloud API (a provisioned number); the card says so.
-  const showSettings = can(user, "settings", "edit");
-  const [clinic] = showSettings
+  const canEditSignature = can(user, "settings", "edit");
+  const [clinic] = canEditSignature
     ? await db
         .select({
           displayNumber: clinics.whatsappDisplayNumber,
@@ -39,10 +39,10 @@ export default async function ClinicWhatsAppPage({
 
   return (
     <div className="space-y-6">
-      {showSettings && clinic ? (
+      {canEditSignature && clinic ? (
         <Card>
           <CardHeader>
-            <CardTitle>WhatsApp message personalization</CardTitle>
+            <CardTitle>WhatsApp signature</CardTitle>
           </CardHeader>
           <CardContent>
             <WhatsappSettingsForm

@@ -12,6 +12,7 @@ import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import { getDayQueue } from "@/core/appointments/queue";
 import { parseListFilters } from "@/core/appointments/list-filters";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
+import { displayStaffName } from "@/core/types/auth";
 import { QueueSummary } from "@/core/ui/queue-summary";
 import { Pagination } from "@/core/ui/pagination";
 import { RowLink } from "@/core/ui/row-link";
@@ -118,6 +119,7 @@ export async function AppointmentsList({
         patientPhone: patients.phone,
         doctorName: users.fullName,
         doctorUsername: users.username,
+        doctorPrefix: users.prefix,
         consultationFee: users.consultationFee,
         proceduresTotal: appointmentProceduresNetSql(),
       })
@@ -145,8 +147,10 @@ export async function AppointmentsList({
       hour: "2-digit",
       minute: "2-digit",
     });
-  const doctorLabel = (name: string | null, username: string | null) =>
-    name ?? username ?? "Any doctor";
+  const doctorLabel = (a: (typeof rows)[number]) =>
+    a.doctorName || a.doctorUsername
+      ? displayStaffName(a.doctorPrefix, a.doctorName, a.doctorUsername ?? "")
+      : "Any doctor";
   const feeLabel = (a: (typeof rows)[number]) => {
     const { gross, discount, net } = computeAppointmentTotal(
       a.chargeConsultation ? a.consultationFee : 0,
@@ -246,7 +250,7 @@ export async function AppointmentsList({
                     </TableCell>
                     <TableCell className="font-medium">{fmt(a.scheduledAt)}</TableCell>
                     <TableCell>{a.patientName}</TableCell>
-                    <TableCell>{doctorLabel(a.doctorName, a.doctorUsername)}</TableCell>
+                    <TableCell>{doctorLabel(a)}</TableCell>
                     <TableCell>
                       {(() => {
                         const f = feeLabel(a);
@@ -308,7 +312,7 @@ export async function AppointmentsList({
                   </Badge>
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {fmt(a.scheduledAt)} · {doctorLabel(a.doctorName, a.doctorUsername)}
+                  {fmt(a.scheduledAt)} · {doctorLabel(a)}
                   {a.reason ? ` · ${a.reason}` : ""}
                 </div>
                 {(() => {

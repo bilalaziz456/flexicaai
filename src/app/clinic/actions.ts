@@ -192,6 +192,8 @@ export async function createStaff(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
+  // Title is mandatory when creating staff (so names always show as "Dr. …").
+  if (!parsed.data.prefix) return { error: "Select a title." };
 
   // Doctors carry a working-hours schedule + daily cap + fee; receptionists don't.
   let availability: DayAvailability[] = [];

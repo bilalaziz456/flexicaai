@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { requireRole } from "@/core/auth/user";
 import { getThemeCookie } from "@/core/theme/server";
+import { displayStaffName } from "@/core/types/auth";
 import { PanelShell } from "@/core/ui/panel-shell";
 
 /**
@@ -18,7 +19,13 @@ export default async function AdminLayout({
   const theme = await getThemeCookie();
 
   return (
-    <PanelShell panel="admin" identityLabel={user.username} theme={theme}>
+    <PanelShell
+      panel="admin"
+      identityLabel="Super admin"
+      userName={displayStaffName(user.prefix, user.fullName, user.username)}
+      avatarVersion={user.avatarKey ?? "none"}
+      theme={theme}
+    >
       {children}
     </PanelShell>
   );

@@ -46,9 +46,12 @@ export function AddStaffForm({ resources }: { resources: PermResource[] }) {
               name="prefix"
               aria-label="Title"
               defaultValue=""
+              required
               className={`${selectCls} w-24 shrink-0`}
             >
-              <option value="">Title</option>
+              <option value="" disabled>
+                Title
+              </option>
               {STAFF_PREFIXES.map((p) => (
                 <option key={p} value={p}>
                   {p}

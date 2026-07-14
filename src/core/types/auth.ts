@@ -112,6 +112,11 @@ export interface CurrentUser {
   username: string;
   /** Optional contact email (not used for login). */
   email: string | null;
+  /** Name title (Dr/Mr/Miss…) and full name — for "Dr. Bilal Aziz" displays. */
+  prefix: string | null;
+  fullName: string | null;
+  /** Storage key of the profile picture, or null (served via /api/me/avatar). */
+  avatarKey: string | null;
   role: UserRole;
   clinicId: string | null;
   /** True while the user still has an admin-issued temporary password. */

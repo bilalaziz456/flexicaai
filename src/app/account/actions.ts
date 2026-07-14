@@ -116,7 +116,7 @@ export async function changeMyPassword(
   return { saved: true };
 }
 
-const MAX_AVATAR_BYTES = 4 * 1024 * 1024; // 4 MB
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2 MB
 const AVATAR_EXT: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -136,7 +136,7 @@ export async function uploadMyAvatar(
   }
   const ext = AVATAR_EXT[file.type];
   if (!ext) return { error: "Use a JPG, PNG or WebP image." };
-  if (file.size > MAX_AVATAR_BYTES) return { error: "Image must be under 4 MB." };
+  if (file.size > MAX_AVATAR_BYTES) return { error: "Image must be under 2 MB." };
 
   const data = Buffer.from(await file.arrayBuffer());
   const key = await saveUserFile(user.id, "avatar", data, ext);

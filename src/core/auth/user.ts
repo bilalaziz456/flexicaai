@@ -30,6 +30,9 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     id: user.id,
     username: user.username,
     email: user.email,
+    prefix: user.prefix,
+    fullName: user.fullName,
+    avatarKey: user.avatarKey,
     // role is a NOT NULL enum column, so it is always a valid UserRole here.
     role: user.role as UserRole,
     clinicId: user.clinicId,
