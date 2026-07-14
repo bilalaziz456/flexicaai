@@ -46,7 +46,11 @@ export function WhatsappSettingsForm({
             Sending from <span className="font-medium">{displayNumber}</span>.
           </>
         ) : (
-          <> Your clinic&apos;s WhatsApp number isn&apos;t set up yet.</>
+          <>
+            {" "}
+            You can set these now — they take effect once your clinic&apos;s own
+            WhatsApp number is activated.
+          </>
         )}
       </p>
 

@@ -3,7 +3,6 @@ import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
-import { serverEnv } from "@/core/lib/env";
 import { WhatsappQueue } from "@/app/reception/whatsapp-queue";
 import { WhatsappSettingsForm } from "./whatsapp-settings-form";
 import {
@@ -24,10 +23,9 @@ export default async function ClinicWhatsAppPage({
   const user = await requireWorkspace("whatsapp");
   const sp = await searchParams;
 
-  // The personalization card is only meaningful on the Cloud API provider (it feeds
-  // per-clinic templates) and only for users who can edit settings.
-  const showSettings =
-    serverEnv.WHATSAPP_PROVIDER === "cloud" && can(user, "settings", "edit");
+  // Shown to users who can edit settings. The values only take effect once the
+  // clinic is sending via the Cloud API (a provisioned number); the card says so.
+  const showSettings = can(user, "settings", "edit");
   const [clinic] = showSettings
     ? await db
         .select({
