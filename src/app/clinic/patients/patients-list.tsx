@@ -80,6 +80,7 @@ export async function PatientsList({
         phone: patients.phone,
         gender: patients.gender,
         dateOfBirth: patients.dateOfBirth,
+        reference: patients.reference,
       })
       .from(patients)
       .where(where)
@@ -132,6 +133,7 @@ export async function PatientsList({
                   <TableHead>Phone</TableHead>
                   <TableHead>Gender</TableHead>
                   <TableHead>Age</TableHead>
+                  <TableHead>Reference</TableHead>
                   <TableHead className="text-right"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -142,6 +144,7 @@ export async function PatientsList({
                     <TableCell>{p.phone ?? "—"}</TableCell>
                     <TableCell className="capitalize">{p.gender ?? "—"}</TableCell>
                     <TableCell>{ageFromDob(p.dateOfBirth) ?? "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{p.reference ?? "—"}</TableCell>
                     <TableCell className="text-right">
                       <Link
                         href={`${detailBase}/${p.id}`}
@@ -173,6 +176,11 @@ export async function PatientsList({
                     ? ` · ${ageFromDob(p.dateOfBirth)} yrs`
                     : ""}
                 </div>
+                {p.reference ? (
+                  <div className="text-sm text-muted-foreground">
+                    Ref: {p.reference}
+                  </div>
+                ) : null}
                 <Link
                   href={`${detailBase}/${p.id}`}
                   className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
