@@ -8,7 +8,20 @@ import { requireRole } from "@/core/auth/user";
 import { hashPassword } from "@/core/auth/password";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { db } from "@/core/db";
-import { clinics, sessions, users } from "@/core/db/schema";
+import { notDeleted } from "@/core/db/tenant";
+import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
+import {
+  appointments,
+  clinics,
+  doctorLeaves,
+  patients,
+  procedures,
+  recalls,
+  sales,
+  sessions,
+  users,
+  visits,
+} from "@/core/db/schema";
 import { availableSpecialtyIds } from "@/config/modules";
 import { CLINIC_FEATURE_IDS } from "@/core/lib/features";
 import { backfillClinicSales } from "@/core/sales/ledger";
@@ -354,34 +367,64 @@ export async function setUserActive(
 }
 
 /**
- * Deletes a clinic and everything under it. Users are removed explicitly first
- * (their sessions cascade); deleting the clinic then cascades patients,
- * appointments, visits and recalls. Destructive — the UI confirms by name.
+ * Trashes a clinic and everything under it. SOFT delete: the clinic + all its
+ * live users, patients, appointments, visits, recalls, procedures and doctor
+ * leave are marked deleted under one group (children flagged cascade), so Restore
+ * reverts exactly this set. All the clinic's sessions are hard-revoked (staff are
+ * locked out) and its sale rows voided. Nothing is physically removed — only a
+ * super-admin legal purge (Phase 3) can do that. The UI confirms by name.
  */
 export async function deleteClinic(
   clinicId: string,
   password: string,
 ): Promise<AdminActionState> {
-  await requireRole("super_admin");
+  const admin = await requireRole("super_admin");
 
   // Step-up auth: re-verify the super admin's own password before wiping a clinic.
   if (!(await verifyCurrentUserPassword(password))) {
     return { error: "Incorrect password." };
   }
 
-  await db.transaction(async (tx) => {
-    await tx.delete(users).where(eq(users.clinicId, clinicId));
-    await tx.delete(clinics).where(eq(clinics.id, clinicId));
-  });
+  const group = newDeleteGroup();
+  const parent = softDeleteValues(admin.id, group);
+  const child = softDeleteValues(admin.id, group, true);
 
-  // clinicId is NULL here: the clinic (and its cascade) is gone, so the log can't
-  // reference it — this stays a super-admin-only record of the deletion.
+  let notFound = false;
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(clinics)
+      .set(parent)
+      .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
+      .returning({ id: clinics.id });
+    if (!row) {
+      notFound = true;
+      return;
+    }
+
+    // Cascade-hide every live child row of this clinic.
+    await tx.update(users).set(child).where(and(eq(users.clinicId, clinicId), notDeleted(users.deletedAt)));
+    await tx.update(patients).set(child).where(and(eq(patients.clinicId, clinicId), notDeleted(patients.deletedAt)));
+    await tx.update(appointments).set(child).where(and(eq(appointments.clinicId, clinicId), notDeleted(appointments.deletedAt)));
+    await tx.update(visits).set(child).where(and(eq(visits.clinicId, clinicId), notDeleted(visits.deletedAt)));
+    await tx.update(recalls).set(child).where(and(eq(recalls.clinicId, clinicId), notDeleted(recalls.deletedAt)));
+    await tx.update(procedures).set(child).where(and(eq(procedures.clinicId, clinicId), notDeleted(procedures.deletedAt)));
+    await tx.update(doctorLeaves).set(child).where(and(eq(doctorLeaves.clinicId, clinicId), notDeleted(doctorLeaves.deletedAt)));
+
+    // Lock the clinic's staff out (sessions are ephemeral, not trashed) and void
+    // its realised-revenue rows (re-backfilled on restore).
+    const staff = await tx.select({ id: users.id }).from(users).where(eq(users.clinicId, clinicId));
+    const staffIds = staff.map((s) => s.id);
+    if (staffIds.length) await tx.delete(sessions).where(inArray(sessions.userId, staffIds));
+    await tx.delete(sales).where(eq(sales.clinicId, clinicId));
+  });
+  if (notFound) return { error: "Clinic not found." };
+
   await logActivity({
     action: "delete",
     entity: "clinic",
     entityId: clinicId,
     clinicId: null,
-    summary: "Deleted a clinic and all its data",
+    summary: "Moved a clinic and all its data to Trash",
   });
   revalidatePath("/admin");
   redirect("/admin?deleted=1");

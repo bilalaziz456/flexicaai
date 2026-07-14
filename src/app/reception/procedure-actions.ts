@@ -6,8 +6,10 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { requireRole } from "@/core/auth/user";
 import { can, type PermAction } from "@/core/auth/permissions";
+import type { CurrentUser } from "@/core/types/auth";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
+import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import { clinics, procedures } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { procedureTemplatesFor } from "@/config/modules";
@@ -23,7 +25,7 @@ export type ProcedureActionState = { error?: string; saved?: boolean };
  */
 async function requireProcedureAccess(
   action: PermAction,
-): Promise<{ clinicId: string }> {
+): Promise<{ user: CurrentUser; clinicId: string }> {
   const user = await requireRole(["clinic_admin", "receptionist", "manager"]);
   if (!user.clinicId) redirect("/login?error=no_access");
 
@@ -39,7 +41,7 @@ async function requireProcedureAccess(
   if (!can(user, "procedures", action)) {
     redirect(user.role === "clinic_admin" ? "/clinic/procedures" : "/reception/procedures");
   }
-  return { clinicId: user.clinicId };
+  return { user, clinicId: user.clinicId };
 }
 
 /** Both panels host the catalog — keep them both fresh after a change. */
@@ -142,17 +144,25 @@ export async function updateProcedure(
  * price, so removing it here never rewrites past sales. Clinic-scoped.
  */
 export async function deleteProcedure(procedureId: string): Promise<void> {
-  const { clinicId } = await requireProcedureAccess("delete");
+  const { user, clinicId } = await requireProcedureAccess("delete");
 
   await db
-    .delete(procedures)
-    .where(byClinic(procedures.clinicId, clinicId, eq(procedures.id, procedureId)));
+    .update(procedures)
+    .set(softDeleteValues(user.id, newDeleteGroup()))
+    .where(
+      byClinic(
+        procedures.clinicId,
+        clinicId,
+        notDeleted(procedures.deletedAt),
+        eq(procedures.id, procedureId),
+      ),
+    );
 
   await logActivity({
     action: "delete",
     entity: "procedure",
     entityId: procedureId,
-    summary: "Deleted a procedure",
+    summary: "Moved a procedure to Trash",
   });
   revalidateProcedures();
 }

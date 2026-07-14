@@ -6,6 +6,7 @@ import { requireRole } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
+import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import { clinics, patients, visits } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import { isPublicLinkingEnabled, signToken } from "@/core/lib/signed-link";
@@ -85,12 +86,14 @@ export async function discardDraft(
   }
 
   const result = await db
-    .delete(visits)
+    .update(visits)
+    .set(softDeleteValues(user.id, newDeleteGroup()))
     .where(
       and(
         eq(visits.id, visitId),
         eq(visits.clinicId, user.clinicId),
         eq(visits.status, "draft"),
+        notDeleted(visits.deletedAt),
       ),
     )
     .returning({ id: visits.id });

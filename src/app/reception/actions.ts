@@ -10,6 +10,7 @@ import type { CurrentUser } from "@/core/types/auth";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
+import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import {
   appointments,
   clinics,
@@ -392,7 +393,8 @@ export async function updateAppointment(
   redirect(`${home}?updated=1`);
 }
 
-/** Permanently deletes an appointment (step-up password). Clinic-scoped. */
+/** Trashes an appointment (step-up password). SOFT delete + voids its sale row;
+ * recoverable from Trash. Clinic-scoped. */
 export async function deleteAppointment(
   appointmentId: string,
   password: string,
@@ -406,15 +408,26 @@ export async function deleteAppointment(
     return { error: "Incorrect password." };
   }
 
-  await db
-    .delete(appointments)
-    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)));
+  const [row] = await db
+    .update(appointments)
+    .set(softDeleteValues(user.id, newDeleteGroup()))
+    .where(
+      byClinic(
+        appointments.clinicId,
+        clinicId,
+        notDeleted(appointments.deletedAt),
+        eq(appointments.id, appointmentId),
+      ),
+    )
+    .returning({ id: appointments.id });
+  // A trashed appointment must not count as realised revenue.
+  if (row) await voidSaleForAppointment(clinicId, appointmentId);
 
   await logActivity({
     action: "delete",
     entity: "appointment",
     entityId: appointmentId,
-    summary: "Deleted an appointment",
+    summary: "Moved an appointment to Trash",
   });
   revalidatePath(home);
   redirect(home);
@@ -882,14 +895,22 @@ export async function removeDoctorLeave(
   }
 
   await db
-    .delete(doctorLeaves)
-    .where(byClinic(doctorLeaves.clinicId, clinicId, eq(doctorLeaves.id, leaveId)));
+    .update(doctorLeaves)
+    .set(softDeleteValues(user.id, newDeleteGroup()))
+    .where(
+      byClinic(
+        doctorLeaves.clinicId,
+        clinicId,
+        notDeleted(doctorLeaves.deletedAt),
+        eq(doctorLeaves.id, leaveId),
+      ),
+    );
 
   await logActivity({
     action: "delete",
     entity: "leave",
     entityId: leaveId,
-    summary: "Removed a doctor leave entry",
+    summary: "Moved a doctor leave entry to Trash",
   });
   revalidatePath(home);
   revalidatePath("/reception/doctors");

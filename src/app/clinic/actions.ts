@@ -11,7 +11,17 @@ import { hashPassword } from "@/core/auth/password";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { clinics, patients, sessions, users } from "@/core/db/schema";
+import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
+import {
+  appointments,
+  clinics,
+  patients,
+  recalls,
+  sales,
+  sessions,
+  users,
+  visits,
+} from "@/core/db/schema";
 import { TIME_RE, timeToMinutes, type DayAvailability } from "@/core/lib/availability";
 import { dobFromAgeField } from "@/core/lib/age";
 import { logActivity } from "@/core/audit/log";
@@ -237,24 +247,28 @@ export async function setStaffActive(
 }
 
 /**
- * Permanently deletes a staff member — clinic-scoped and limited to doctors/
- * receptionists (a clinic admin can never delete another admin or themselves).
- * Their sessions cascade away; their appointments/visits are kept but their
- * doctor reference is set null, so clinical history is preserved.
+ * Trashes a staff member — clinic-scoped and limited to doctors/receptionists/
+ * managers (a clinic admin can never delete another admin or themselves). SOFT
+ * delete: the row is marked deleted (recoverable from Trash) and their sessions
+ * are hard-revoked so they can't stay logged in. Appointments/visits keep the
+ * (now-trashed) doctor reference, so history and names are preserved; the doctor
+ * no longer appears in pickers (those filter out trashed rows).
  */
 export async function deleteStaff(
   userId: string,
   password: string,
 ): Promise<ClinicActionState> {
-  const { clinicId } = await requireClinicAdmin();
+  const admin = await requireClinicAdmin();
+  const { clinicId } = admin;
 
   // Step-up auth: re-verify the admin's own password before deleting.
   if (!(await verifyCurrentUserPassword(password))) {
     return { error: "Incorrect password." };
   }
 
-  await db
-    .delete(users)
+  const [row] = await db
+    .update(users)
+    .set(softDeleteValues(admin.id, newDeleteGroup()))
     .where(
       byClinic(
         users.clinicId,
@@ -262,15 +276,17 @@ export async function deleteStaff(
         notDeleted(users.deletedAt),
         and(eq(users.id, userId), inArray(users.role, STAFF_ROLES)),
       ),
-    );
+    )
+    .returning({ id: users.id });
+  // Revoke their login immediately (sessions are ephemeral, not trashed).
+  if (row) await db.delete(sessions).where(eq(sessions.userId, userId));
 
   await logActivity({
     action: "delete",
     entity: "staff",
     entityId: userId,
-    summary: "Deleted a staff member",
+    summary: "Moved a staff member to Trash",
   });
-  // Deletion happens from the staff detail page — leave it (the record is gone).
   revalidatePath("/clinic/staff");
   redirect("/clinic/staff");
 }
@@ -613,28 +629,103 @@ export async function updatePatient(
 }
 
 /**
- * Deletes a patient and everything under them (appointments, visits, recalls,
- * whatsapp logs cascade). Clinic-scoped + step-up password. Destructive.
+ * Trashes a patient and everything under them. SOFT delete (CLAUDE.md soft-delete
+ * policy): the patient + their live appointments, visits and recalls are marked
+ * deleted under one delete group (children flagged as cascade) so Restore reverts
+ * exactly this set; their sale rows are voided (the ledger is derived, not
+ * soft-deletable). Clinic-scoped + step-up password. Recoverable from Trash.
  */
 export async function deletePatient(
   patientId: string,
   password: string,
 ): Promise<ClinicActionState> {
-  const { clinicId, home } = await requirePatientAccess("delete");
+  const { user, clinicId, home } = await requirePatientAccess("delete");
 
   if (!(await verifyCurrentUserPassword(password))) {
     return { error: "Incorrect password." };
   }
 
-  await db
-    .delete(patients)
-    .where(byClinic(patients.clinicId, clinicId, eq(patients.id, patientId)));
+  const group = newDeleteGroup();
+  const parent = softDeleteValues(user.id, group);
+  const child = softDeleteValues(user.id, group, true);
+
+  let notFound = false;
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(patients)
+      .set(parent)
+      .where(
+        byClinic(
+          patients.clinicId,
+          clinicId,
+          notDeleted(patients.deletedAt),
+          eq(patients.id, patientId),
+        ),
+      )
+      .returning({ id: patients.id });
+    if (!row) {
+      notFound = true;
+      return;
+    }
+
+    // Cascade-hide only rows that are still live (so an independently-trashed
+    // child keeps its own group and isn't revived by restoring this patient).
+    await tx
+      .update(appointments)
+      .set(child)
+      .where(
+        byClinic(
+          appointments.clinicId,
+          clinicId,
+          notDeleted(appointments.deletedAt),
+          eq(appointments.patientId, patientId),
+        ),
+      );
+    await tx
+      .update(visits)
+      .set(child)
+      .where(
+        byClinic(
+          visits.clinicId,
+          clinicId,
+          notDeleted(visits.deletedAt),
+          eq(visits.patientId, patientId),
+        ),
+      );
+    await tx
+      .update(recalls)
+      .set(child)
+      .where(
+        byClinic(
+          recalls.clinicId,
+          clinicId,
+          notDeleted(recalls.deletedAt),
+          eq(recalls.patientId, patientId),
+        ),
+      );
+
+    // Void the patient's realised-revenue rows (sales are derived, kept only for
+    // live completed appointments; re-snapshotted on restore).
+    await tx.delete(sales).where(
+      and(
+        eq(sales.clinicId, clinicId),
+        inArray(
+          sales.appointmentId,
+          tx
+            .select({ id: appointments.id })
+            .from(appointments)
+            .where(byClinic(appointments.clinicId, clinicId, eq(appointments.patientId, patientId))),
+        ),
+      ),
+    );
+  });
+  if (notFound) return { error: "Patient not found." };
 
   await logActivity({
     action: "delete",
     entity: "patient",
     entityId: patientId,
-    summary: "Deleted a patient and their records",
+    summary: "Moved a patient and their records to Trash",
   });
   revalidatePath(home);
   redirect(`${home}?deleted=1`);
