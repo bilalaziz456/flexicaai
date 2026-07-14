@@ -67,6 +67,16 @@ const softDeleteColumns = () => ({
 });
 
 /**
+ * Per-clinic, clinic-customisable WhatsApp note appended to a template's `{{note}}`
+ * variable, keyed by event. See docs/whatsapp-cloud-plan.md (⭐ recommendation).
+ */
+export type WhatsappNotes = {
+  booking?: string;
+  reminder?: string;
+  recall?: string;
+};
+
+/**
  * Tenants. `modulesEnabled` is the array the specialty checkboxes read/write —
  * e.g. ['dental']. Core code checks this list but never hardcodes a specialty.
  */
@@ -98,6 +108,18 @@ export const clinics = pgTable(
     // out of the clinic-level view (still in the DB — only the super admin sees it
     // past this window). Super-admin-set; default 30. Never auto-purged.
     trashRetentionDays: integer("trash_retention_days").notNull().default(30),
+    // Per-clinic WhatsApp SENDER (Meta Cloud API). `whatsappPhoneNumberId` selects
+    // which WABA number a message is sent FROM (so patients see the clinic's own
+    // number); `whatsappDisplayNumber` (E.164) is for display + inbound routing.
+    // NULL = not configured → falls back to the platform sender / graceful no-send.
+    // `whatsappSignature` + `whatsappNotes` are the clinic-customisable text fed
+    // into the templates' {{signature}} / {{note}} variables (no per-clinic Meta
+    // approval needed). See docs/whatsapp-cloud-plan.md.
+    whatsappPhoneNumberId: text("whatsapp_phone_number_id"),
+    whatsappDisplayNumber: text("whatsapp_display_number"),
+    whatsappSenderName: text("whatsapp_sender_name"),
+    whatsappSignature: text("whatsapp_signature"),
+    whatsappNotes: jsonb("whatsapp_notes").$type<WhatsappNotes>(),
     ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -114,6 +136,11 @@ export const clinics = pgTable(
     index("clinics_deleted_idx")
       .on(t.deletedAt)
       .where(sql`${t.deletedAt} is not null`),
+    // Inbound WhatsApp routes by the receiving number → clinic. A phone_number_id
+    // maps to exactly one clinic (unique when set); it's the routing lookup key.
+    uniqueIndex("clinics_wa_phone_id_idx")
+      .on(t.whatsappPhoneNumberId)
+      .where(sql`${t.whatsappPhoneNumberId} is not null`),
   ],
 );
 

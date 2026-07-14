@@ -52,6 +52,21 @@ const serverSchema = z.object({
   AISENSY_RESCHEDULE_CAMPAIGN: z.string().default("reschedule_reply"),
   // AiSensy campaign for replies to a patient's WhatsApp booking request.
   AISENSY_BOOKING_REPLY_CAMPAIGN: z.string().default("booking_reply"),
+  // ---- WhatsApp via Meta Cloud API (multi-number; per-clinic sender) ----
+  // Provider switch: "aisensy" (default, current single-number account) or
+  // "cloud" (Meta Cloud API — one WABA token, a per-clinic phone_number_id chooses
+  // the sending number). See docs/whatsapp-cloud-plan.md. OPTIONAL — unset = the
+  // app boots and behaves exactly as before.
+  WHATSAPP_PROVIDER: z.enum(["aisensy", "cloud"]).default("aisensy"),
+  // System-user access token for the WABA (controls every clinic number). Optional.
+  WHATSAPP_CLOUD_TOKEN: z.string().optional(),
+  // The WhatsApp Business Account id that holds the clinic numbers + templates.
+  WHATSAPP_WABA_ID: z.string().optional(),
+  // Graph API version used for the Cloud API calls, e.g. "v21.0".
+  WHATSAPP_API_VERSION: z.string().default("v21.0"),
+  // Token echoed back on the Cloud API webhook verification (GET hub.challenge).
+  WHATSAPP_VERIFY_TOKEN: z.string().optional(),
+
   // Secret protecting the cron endpoint that runs the recall engine. Vercel
   // sends it as `Authorization: Bearer <CRON_SECRET>` automatically.
   CRON_SECRET: z.string().optional(),
@@ -79,6 +94,11 @@ export const serverEnv = serverSchema.parse({
   AISENSY_REMINDER_CAMPAIGN: process.env.AISENSY_REMINDER_CAMPAIGN,
   AISENSY_RESCHEDULE_CAMPAIGN: process.env.AISENSY_RESCHEDULE_CAMPAIGN,
   AISENSY_BOOKING_REPLY_CAMPAIGN: process.env.AISENSY_BOOKING_REPLY_CAMPAIGN,
+  WHATSAPP_PROVIDER: process.env.WHATSAPP_PROVIDER,
+  WHATSAPP_CLOUD_TOKEN: process.env.WHATSAPP_CLOUD_TOKEN,
+  WHATSAPP_WABA_ID: process.env.WHATSAPP_WABA_ID,
+  WHATSAPP_API_VERSION: process.env.WHATSAPP_API_VERSION,
+  WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN,
   CRON_SECRET: process.env.CRON_SECRET,
   WHATSAPP_WEBHOOK_TOKEN: process.env.WHATSAPP_WEBHOOK_TOKEN,
   LINK_SIGNING_SECRET: process.env.LINK_SIGNING_SECRET,

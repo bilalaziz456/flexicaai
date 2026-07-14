@@ -68,8 +68,16 @@ read/write this), `features_enabled` text[] (super-admin-toggled optional featur
 e.g. `{revenue_dashboard}` — see `core/lib/features.ts`), `log_access` text[]
 (activity-log action categories the clinic admin may see, e.g. `{login,update}`;
 empty = no log access — see `core/audit/access.ts`), `avg_visit_value` int
-(PKR, default 3000; drives "Revenue Recovered"), timestamps.
-Index: GIN pg_trgm on `name` (fast ILIKE search).
+(PKR, default 3000; drives "Revenue Recovered"), `trash_retention_days` int
+(default 30; §1 soft-delete). **Per-clinic WhatsApp sender (Meta Cloud API — see
+`docs/whatsapp-cloud-plan.md`):** `whatsapp_phone_number_id` (selects the sending
+number; **unique when set** — the inbound routing key), `whatsapp_display_number`
+(E.164), `whatsapp_sender_name`, `whatsapp_signature` + `whatsapp_notes` jsonb
+(`WhatsappNotes` — clinic-customisable text for the templates' {{signature}} /
+{{note}} vars). All NULL = not configured → platform sender / graceful no-send.
+Timestamps + soft-delete columns.
+Indexes: GIN pg_trgm on `name` (fast ILIKE search); partial unique on
+`whatsapp_phone_number_id`; partial trash index on `deleted_at`.
 
 ### `users` — staff accounts
 `id`, `clinic_id` → clinics (**nullable**; NULL for super_admin; `on delete set
@@ -238,7 +246,7 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
 - **Timezone caveat (deploy):** availability, "tomorrow" (reminder), and day
   bounds use the **server's local timezone**. For a multi-region rollout
   (Pakistan vs GCC), pin each clinic to its own timezone.
-- Migrations `0000`–`0028` applied; new tables/columns are always additive to core.
+- Migrations `0000`–`0029` applied; new tables/columns are always additive to core.
   (`0017` adds `appointments.discount_type` / `discount_value`; `0018` adds
   `appointments.queue_session` / `queue_number` + the queue unique index; `0019`
   adds the `activity_logs` table; `0020` adds `clinics.log_access` and drops the
@@ -251,4 +259,7 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
   `0027` adds soft-delete columns (`deleted_at`/`deleted_by`/`delete_group`/
   `deleted_by_cascade`) to the 8 deletable tables + `clinics.trash_retention_days`,
   makes `users` username/email uniqueness partial (`WHERE deleted_at IS NULL`), and
-  adds per-table partial trash indexes; `0028` adds `patients.reference`.)
+  adds per-table partial trash indexes; `0028` adds `patients.reference`; `0029`
+  adds the per-clinic WhatsApp sender columns (`whatsapp_phone_number_id` [partial
+  unique] / `whatsapp_display_number` / `whatsapp_sender_name` / `whatsapp_signature`
+  / `whatsapp_notes`).)

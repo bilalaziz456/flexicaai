@@ -204,6 +204,13 @@
       "when": 1784029938441,
       "tag": "0028_wise_the_order",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1784033352812,
+      "tag": "0029_whole_raider",
+      "breakpoints": true
     }
   ]
 }
