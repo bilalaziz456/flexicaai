@@ -17,8 +17,8 @@ import { Toast } from "@/core/ui/toast";
  */
 export function WhatsappSettingsForm({
   displayNumber,
-  signature,
-  notes,
+  signature: initialSignature,
+  notes: initialNotes,
 }: {
   displayNumber: string | null;
   signature: string | null;
@@ -32,6 +32,13 @@ export function WhatsappSettingsForm({
   useEffect(() => {
     if (state.saved || state.error) setNonce((n) => n + 1);
   }, [state]);
+
+  // Controlled so a post-save revalidation (which changes the props) doesn't trip
+  // Base UI's "changing uncontrolled default" warning.
+  const [signature, setSignature] = useState(initialSignature ?? "");
+  const [booking, setBooking] = useState(initialNotes?.booking ?? "");
+  const [reminder, setReminder] = useState(initialNotes?.reminder ?? "");
+  const [recall, setRecall] = useState(initialNotes?.recall ?? "");
 
   return (
     <form action={formAction} className="space-y-4">
@@ -59,7 +66,8 @@ export function WhatsappSettingsForm({
         <Input
           id="signature"
           name="signature"
-          defaultValue={signature ?? ""}
+          value={signature}
+          onChange={(e) => setSignature(e.target.value)}
           maxLength={200}
           placeholder="e.g. — Smile Dental, Gulberg. Call 042-000000"
         />
@@ -71,7 +79,8 @@ export function WhatsappSettingsForm({
           <Input
             id="noteBooking"
             name="noteBooking"
-            defaultValue={notes?.booking ?? ""}
+            value={booking}
+            onChange={(e) => setBooking(e.target.value)}
             maxLength={300}
             placeholder="Added to booking confirmations"
           />
@@ -81,7 +90,8 @@ export function WhatsappSettingsForm({
           <Input
             id="noteReminder"
             name="noteReminder"
-            defaultValue={notes?.reminder ?? ""}
+            value={reminder}
+            onChange={(e) => setReminder(e.target.value)}
             maxLength={300}
             placeholder="Added to day-before reminders"
           />
@@ -91,7 +101,8 @@ export function WhatsappSettingsForm({
           <Input
             id="noteRecall"
             name="noteRecall"
-            defaultValue={notes?.recall ?? ""}
+            value={recall}
+            onChange={(e) => setRecall(e.target.value)}
             maxLength={300}
             placeholder="Added to recall reminders"
           />
