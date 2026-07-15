@@ -45,6 +45,10 @@ export const PERM_RESOURCES: PermResource[] = [
   { id: "whatsapp", label: "WhatsApp", actions: ["view", "create"], createLabel: "Send" },
   { id: "procedures", label: "Procedures", actions: ["view", "create", "edit", "delete"], feature: "sales" },
   { id: "sales", label: "Sales report", actions: ["view"], feature: "sales" },
+  // Patient billing: `view` = see bills/balances/invoices; `create` = Collect a
+  // payment / issue an invoice; `edit` = apply advance / edit a note; `delete` =
+  // Refund / Void (stricter — front-desk collects, a manager/admin reverses).
+  { id: "billing", label: "Billing & payments", actions: ["view", "create", "edit", "delete"], feature: "sales", createLabel: "Collect" },
   // Revenue-share earnings report. A DOCTOR holds this by default but only ever
   // sees their OWN earnings (self-scoped at the page); a clinic admin / granted
   // manager sees every doctor + the clinic's cut. Not feature-gated (shares can
@@ -124,6 +128,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     whatsapp: [V, C],
     procedures: [V, C, E],
     sales: [V],
+    // Full billing incl. refund/void (manager oversees the money).
+    billing: [V, C, E, D],
     leave: [V, C, E, D],
     clinical: [V],
     prescriptions: [V],
@@ -154,6 +160,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     whatsapp: [V, C],
     recalls: [V, C, E],
     procedures: [V, C, E, D],
+    // Front desk collects payments + applies advances, but not refund/void (no D).
+    billing: [V, C, E],
     leave: [V, C, E, D],
     // Front desk can view/print a prescription PDF (not author it).
     prescriptions: [V],

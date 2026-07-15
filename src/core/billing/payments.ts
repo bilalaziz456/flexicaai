@@ -72,6 +72,45 @@ export async function getPatientCredit(
   return Math.max(0, Number(row?.credit ?? 0));
 }
 
+export type LedgerEntry = {
+  id: string;
+  kind: string;
+  amount: number;
+  method: string | null;
+  reference: string | null;
+  note: string | null;
+  createdByName: string | null;
+  occurredAt: Date;
+};
+
+/** An appointment's live payment ledger rows, newest first (for the detail panel). */
+export async function listAppointmentPayments(
+  clinicId: string,
+  appointmentId: string,
+): Promise<LedgerEntry[]> {
+  return db
+    .select({
+      id: patientPayments.id,
+      kind: patientPayments.kind,
+      amount: patientPayments.amount,
+      method: patientPayments.method,
+      reference: patientPayments.reference,
+      note: patientPayments.note,
+      createdByName: patientPayments.createdByName,
+      occurredAt: patientPayments.occurredAt,
+    })
+    .from(patientPayments)
+    .where(
+      byClinic(
+        patientPayments.clinicId,
+        clinicId,
+        notDeleted(patientPayments.deletedAt),
+        eq(patientPayments.appointmentId, appointmentId),
+      ),
+    )
+    .orderBy(sql`${patientPayments.occurredAt} desc`);
+}
+
 async function patientInClinic(clinicId: string, patientId: string): Promise<boolean> {
   const [p] = await db
     .select({ id: patients.id })

@@ -3,7 +3,12 @@ import { notFound } from "next/navigation";
 import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, patients, users } from "@/core/db/schema";
+import { appointments, clinics, patients, users } from "@/core/db/schema";
+import { clinicHasFeature } from "@/core/lib/features";
+import { getAppointmentBill } from "@/core/billing/bill";
+import { getPatientCredit, listAppointmentPayments } from "@/core/billing/payments";
+import { getInvoiceForAppointment } from "@/core/billing/invoice";
+import { PaymentPanel } from "./payment-panel";
 import { Badge } from "@/core/ui/badge";
 import {
   Card,
@@ -144,6 +149,26 @@ export async function AppointmentDetail({
   const canEdit = currentUser ? can(currentUser, "appointments", "edit") : false;
   const canDelete = currentUser ? can(currentUser, "appointments", "delete") : false;
 
+  // Billing (Finance) — shown when the clinic has the sales feature and the user can
+  // view billing. Bill = the approval-gated net; collected + status come from the
+  // ledger. The panel handles collect / apply-advance / void / invoice per ACL.
+  const [clinicRow] = await db
+    .select({ featuresEnabled: clinics.featuresEnabled })
+    .from(clinics)
+    .where(eq(clinics.id, clinicId))
+    .limit(1);
+  const billingOn =
+    clinicHasFeature(clinicRow?.featuresEnabled, "sales") &&
+    Boolean(currentUser && can(currentUser, "billing", "view"));
+  const [aBill, credit, ledger, invoice] = billingOn
+    ? await Promise.all([
+        getAppointmentBill(clinicId, appointmentId),
+        getPatientCredit(clinicId, appt.patientId),
+        listAppointmentPayments(clinicId, appointmentId),
+        getInvoiceForAppointment(clinicId, appointmentId),
+      ])
+    : [null, 0, [], null];
+
   const d = appt.scheduledAt;
   const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const timeStr = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -184,6 +209,15 @@ export async function AppointmentDetail({
             <Badge variant="destructive">Discount rejected</Badge>
           ) : appt.discountValue > 0 && appt.discountStatus === "approved" ? (
             <Badge variant="outline">Discount approved</Badge>
+          ) : null}
+          {billingOn && aBill && aBill.status === "completed" && aBill.billTotal > 0 ? (
+            aBill.paymentStatus === "paid" ? (
+              <Badge variant="outline">Paid</Badge>
+            ) : aBill.paymentStatus === "partial" ? (
+              <Badge variant="secondary">Partial · Rs {aBill.outstanding.toLocaleString("en-PK")} left</Badge>
+            ) : (
+              <Badge variant="destructive">Unpaid</Badge>
+            )
           ) : null}
         </div>
         <p className="text-sm text-muted-foreground">{whenLabel}</p>
@@ -268,6 +302,47 @@ export async function AppointmentDetail({
                 </div>
               ) : null}
             </dl>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Payment — collect / apply advance / void / invoice (Finance). */}
+      {billingOn && aBill ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Payment</CardTitle>
+            <CardDescription>
+              What the patient owes for this visit, and what&apos;s been collected.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PaymentPanel
+              appointmentId={appt.id}
+              billTotal={aBill.billTotal}
+              collected={aBill.collected}
+              outstanding={aBill.outstanding}
+              paymentStatus={aBill.paymentStatus}
+              credit={credit}
+              ledger={ledger.map((e) => ({
+                id: e.id,
+                kind: e.kind,
+                amount: e.amount,
+                method: e.method,
+                reference: e.reference,
+                note: e.note,
+                createdByName: e.createdByName,
+                occurredAt: e.occurredAt.toLocaleDateString("en-GB", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                }),
+              }))}
+              canCollect={Boolean(currentUser && can(currentUser, "billing", "create"))}
+              canVoidRefund={Boolean(currentUser && can(currentUser, "billing", "delete"))}
+              canInvoice={Boolean(currentUser && can(currentUser, "billing", "create"))}
+              invoiceLabel={invoice?.label ?? null}
+              invoiceHref={`${backHref}/${appt.id}/invoice`}
+            />
           </CardContent>
         </Card>
       ) : null}
