@@ -243,8 +243,8 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
 `id`, `clinic_id` → clinics (`cascade`), `appointment_id` → appointments
 (`cascade`), `doctor_id` → users (`set null`), `doctor_name` (**snapshot**),
 `share_amount` int (PKR), `occurred_at` (= the appointment's `scheduled_at`),
-`payout_id` uuid (nullable, **no FK yet** — the `doctor_payouts` table lands in
-phase 6; NULL = unpaid), `created_at`. One row per DOCTOR who earned a positive
+`payout_id` → doctor_payouts (`set null`; NULL = unpaid — deleting a payout returns
+its shares to outstanding), `created_at`. One row per DOCTOR who earned a positive
 share on a **completed** appointment — the CLINIC's cut is derived (sale net − Σ
 these rows), so there is no clinic row. Snapshotted at completion via
 `core/appointments/shares.ts#computeShare` on the **approval-gated** net, so later
@@ -254,6 +254,19 @@ folded into `recordSaleForAppointment` / `voidSaleForAppointment` /
 REPLACES all rows for the appointment; a multi-doctor visit yields several).
 **Inert** when no doctor has a share % (no rows). Indexes: (`appointment_id`);
 (`clinic_id`,`occurred_at`); (`doctor_id`,`payout_id`).
+
+### `doctor_payouts` — share settlements (revenue-share, phase 6)
+`id`, `clinic_id` → clinics (`cascade`), `doctor_id` → users (`set null`),
+`doctor_name` (**snapshot**), `amount` int (PKR — Σ of the batched shares),
+`period_start` / `period_end` date (the settled range, inclusive), `note`,
+`created_by` uuid (no FK) + `created_by_name` snapshot, `created_at`. One row per
+settlement: `core/sales/payouts.ts#recordPayout` batches a doctor's UNPAID
+`sale_shares` in a range, sums them into `amount`, and stamps each share's
+`payout_id` (atomic) — so Paid/Outstanding in the report is just `payout_id`
+null-ness. `voidPayout` deletes the row → the FK set-null returns its shares to
+outstanding. Clinic admin records/reverses from `/clinic/shares` (scoped to a
+doctor); a doctor sees their own history read-only. Indexes:
+(`clinic_id`,`doctor_id`); (`clinic_id`,`created_at`).
 
 ### `appointment_discount_approvals` — discount sign-off (revenue-share, phase 3)
 `id`, `clinic_id` → clinics (`cascade`), `appointment_id` → appointments
@@ -286,7 +299,7 @@ unchanged). Indexes: (`appointment_id`); (`clinic_id`,`status`);
 - **Timezone caveat (deploy):** availability, "tomorrow" (reminder), and day
   bounds use the **server's local timezone**. For a multi-region rollout
   (Pakistan vs GCC), pin each clinic to its own timezone.
-- Migrations `0000`–`0036` applied; new tables/columns are always additive to core.
+- Migrations `0000`–`0037` applied; new tables/columns are always additive to core.
   (`0017` adds `appointments.discount_type` / `discount_value`; `0018` adds
   `appointments.queue_session` / `queue_number` + the queue unique index; `0019`
   adds the `activity_logs` table; `0020` adds `clinics.log_access` and drops the
@@ -316,4 +329,6 @@ unchanged). Indexes: (`appointment_id`); (`clinic_id`,`status`);
   (per clinic). `0035` adds `appointments.discount_status` + the
   `appointment_discount_approvals` table (the discount approval workflow —
   `core/appointments/approvals.ts`). `0036` adds the `sale_shares` per-doctor share
-  ledger (`core/sales/share-ledger.ts`).)
+  ledger (`core/sales/share-ledger.ts`). `0037` adds the `doctor_payouts` table +
+  the `sale_shares.payout_id` FK (`core/sales/payouts.ts`) — completing the doctor
+  revenue-share v1.)

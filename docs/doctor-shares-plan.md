@@ -1,8 +1,10 @@
 # Doctor–Clinic Revenue Share + Discount Approval
 
-> Status: **building** — Phases 1 (schema + `computeShare`), 2 (config UI),
-> 3 (discount borne-by + approval), 4 (`sale_shares` ledger), and 5 (`/clinic/shares`
-> report) all ✅; Phase 6 (payouts) next. v1 scope = gap points 1–6.
+> Status: **v1 COMPLETE** ✅ — all six phases shipped: 1 (schema + `computeShare`),
+> 2 (config UI), 3 (discount borne-by + approval), 4 (`sale_shares` ledger),
+> 5 (`/clinic/shares` report), 6 (payouts). v1 scope = gap points 1–6.
+> Not in v1 (unchanged): tax, material/lab cost, future-dated rates, manual per-visit
+> override, refunds.
 > Not in v1: tax, material/lab cost, future-dated rates, manual per-visit override,
 > refunds (need the payments layer).
 
@@ -139,4 +141,11 @@ snapshots, so later rate edits never rewrite history.
    default but is self-scoped (own earnings only, no clinic totals); a clinic admin /
    granted manager sees everyone. Reuses `SalesChart` / `SalesFilters`. Not
    feature-gated. Verified against the DB (full + scoped).
-6. **Payouts** — record/settle, Earned/Paid/Outstanding.
+6. **Payouts** — record/settle, Earned/Paid/Outstanding. ✅ `doctor_payouts` table +
+   `sale_shares.payout_id` FK (set null on delete). `core/sales/payouts.ts`:
+   `recordPayout` (batches a doctor's unpaid shares in range → stamps them + writes
+   the settlement, atomic), `voidPayout` (reverses — un-stamps via FK), `listPayouts`.
+   The report gained Paid/Outstanding (from `payout_id` null-ness in range); a
+   clinic admin records a payout from `/clinic/shares` when scoped to a doctor, and
+   sees payout history with a Reverse control. Verified against the DB (record →
+   paid/outstanding → double-guard → void → reversal).

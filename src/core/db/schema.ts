@@ -796,9 +796,45 @@ export const sales = pgTable(
  * approval-gated net) so later rate/discount edits never rewrite history. The
  * CLINIC's cut is derived (sale net − Σ these rows), so there is no clinic row here.
  * A multi-doctor visit produces several rows; recording replaces all rows for the
- * appointment. `payout_id` (nullable, no FK yet — the doctor_payouts table lands in
- * Phase 6) batches settled shares. See docs/doctor-shares-plan.md §7.
+ * appointment. `payout_id` → doctor_payouts (set null on delete) batches settled
+ * shares (NULL = unpaid). See docs/doctor-shares-plan.md §7-8.
  */
+
+/**
+ * Doctor payouts — one row per settlement of a doctor's accrued shares for a period
+ * (revenue-share feature, Phase 6). Recording a payout batches that doctor's unpaid
+ * `sale_shares` in the range, sums them into `amount`, and stamps each row's
+ * `payout_id`. Deleting a payout (a correction) un-stamps its shares (FK set null),
+ * returning them to "outstanding". `amount` + the period + who recorded it are
+ * snapshots. See core/sales/payouts.ts.
+ */
+export const doctorPayouts = pgTable(
+  "doctor_payouts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    doctorId: uuid("doctor_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    doctorName: text("doctor_name"), // snapshot
+    amount: integer("amount").notNull().default(0),
+    periodStart: date("period_start"), // inclusive; the settled range (nullable)
+    periodEnd: date("period_end"),
+    note: text("note"),
+    createdBy: uuid("created_by"), // no FK — users are soft-deleted
+    createdByName: text("created_by_name"), // snapshot
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("doctor_payouts_clinic_doctor_idx").on(t.clinicId, t.doctorId),
+    index("doctor_payouts_clinic_created_idx").on(t.clinicId, t.createdAt),
+  ],
+);
+
 export const saleShares = pgTable(
   "sale_shares",
   {
@@ -815,8 +851,11 @@ export const saleShares = pgTable(
     doctorName: text("doctor_name"), // snapshot (survives rename / soft-delete)
     shareAmount: integer("share_amount").notNull().default(0),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
-    // Set once this share is included in a doctor payout (Phase 6). NULL = unpaid.
-    payoutId: uuid("payout_id"),
+    // Set once this share is included in a doctor payout. NULL = unpaid. Deleting
+    // the payout un-stamps it (set null) → back to outstanding.
+    payoutId: uuid("payout_id").references(() => doctorPayouts.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -927,6 +966,7 @@ export type AppointmentDiscountApproval =
 export type AppointmentProcedure = typeof appointmentProcedures.$inferSelect;
 export type Sale = typeof sales.$inferSelect;
 export type SaleShare = typeof saleShares.$inferSelect;
+export type DoctorPayout = typeof doctorPayouts.$inferSelect;
 export type DoctorLeave = typeof doctorLeaves.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
