@@ -21,6 +21,7 @@ import {
 } from "@/core/appointments/procedures";
 import {
   computeBill,
+  effectiveDiscountValue,
   formatPkr,
   normalizeDiscountType,
 } from "@/core/appointments/fee";
@@ -61,6 +62,8 @@ export async function AppointmentDetail({
       source: appointments.source,
       discountType: appointments.discountType,
       discountValue: appointments.discountValue,
+      discountBorneBy: appointments.discountBorneBy,
+      discountStatus: appointments.discountStatus,
       chargeConsultation: appointments.chargeConsultation,
       patientId: patients.id,
       patientName: patients.fullName,
@@ -120,6 +123,10 @@ export async function AppointmentDetail({
     ? (doctors.find((dd) => dd.id === appt.doctorId)?.consultationFee ?? 0)
     : 0;
   const discountType = normalizeDiscountType(appt.discountType);
+  // A discount awaiting approval (or rejected) doesn't apply yet — show the bill at
+  // full price with a status note. `discountBlocked` drives that note/badge.
+  const discountBlocked =
+    appt.discountStatus === "pending" || appt.discountStatus === "rejected";
   const bill = computeBill(
     doctorFee,
     procedureItems.map((i) => ({
@@ -129,7 +136,7 @@ export async function AppointmentDetail({
       discountValue: i.discountValue,
     })),
     discountType,
-    appt.discountValue,
+    effectiveDiscountValue(appt.discountStatus, appt.discountValue),
   );
 
   // Permission gates: hide the controls the current user can't use (the server
@@ -171,6 +178,13 @@ export async function AppointmentDetail({
           </Badge>
           {appt.source === "whatsapp" ? (
             <Badge variant="outline">via WhatsApp</Badge>
+          ) : null}
+          {appt.discountValue > 0 && appt.discountStatus === "pending" ? (
+            <Badge variant="secondary">Discount pending approval</Badge>
+          ) : appt.discountValue > 0 && appt.discountStatus === "rejected" ? (
+            <Badge variant="destructive">Discount rejected</Badge>
+          ) : appt.discountValue > 0 && appt.discountStatus === "approved" ? (
+            <Badge variant="outline">Discount approved</Badge>
           ) : null}
         </div>
         <p className="text-sm text-muted-foreground">{whenLabel}</p>
@@ -247,6 +261,13 @@ export async function AppointmentDetail({
                 <dt>Total</dt>
                 <dd className="tabular-nums">{formatPkr(bill.net)}</dd>
               </div>
+              {discountBlocked && appt.discountValue > 0 ? (
+                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                  {appt.discountStatus === "rejected"
+                    ? "A discount was entered but was rejected — it is not applied. Edit the appointment to re-submit."
+                    : "A discount is awaiting approval and is not applied yet. It will apply once approved."}
+                </div>
+              ) : null}
             </dl>
           </CardContent>
         </Card>
@@ -275,6 +296,7 @@ export async function AppointmentDetail({
                 durationMinutes: appt.durationMinutes,
                 discountType: discountType,
                 discountValue: appt.discountValue,
+                discountBorneBy: appt.discountBorneBy,
                 chargeConsultation: appt.chargeConsultation,
                 procedures: initialProcedures,
               }}

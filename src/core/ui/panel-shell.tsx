@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BadgeCheck,
   BellRing,
   Building2,
   CalendarClock,
@@ -92,6 +93,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
       { href: "/clinic/whatsapp", label: "WhatsApp", Icon: MessageCircle, resource: "whatsapp" },
       { href: "/clinic/recalls", label: "Recalls", Icon: BellRing, resource: "recalls" },
       { href: "/clinic/sales", label: "Sales", Icon: TrendingUp, resource: "sales" },
+      { href: "/clinic/approvals", label: "Discount approvals", Icon: BadgeCheck },
       { href: "/clinic/staff", label: "Staff", Icon: Users, resource: "staff" },
       { href: "/clinic/settings", label: "Settings", Icon: Settings },
       { href: "/clinic/trash", label: "Trash", Icon: Trash2, resource: "trash" },
@@ -136,6 +138,7 @@ export function PanelShell({
   theme,
   logsEnabled = true,
   salesEnabled = false,
+  approvalsEnabled = false,
   accessibleResources,
   children,
 }: {
@@ -152,6 +155,9 @@ export function PanelShell({
   logsEnabled?: boolean;
   /** Hide Procedures/Sales nav items unless the clinic has the `sales` feature. */
   salesEnabled?: boolean;
+  /** Show the Discount-approvals nav only for potential approvers (a doctor, or a
+   * user holding the discount-approval capability). */
+  approvalsEnabled?: boolean;
   /**
    * Permission resources the current user can access (any V/C/E/D). When
    * provided, nav items tagged with a `resource` the user can't access are
@@ -166,6 +172,7 @@ export function PanelShell({
   // per-user permissions (a resource-tagged item needs access to that resource).
   const items = allItems.filter((i) => {
     if (i.href === "/clinic/logs") return logsEnabled;
+    if (i.href === "/clinic/approvals") return approvalsEnabled;
     if (SALES_HREFS.has(i.href) && !salesEnabled) return false;
     if (i.resource && canSee && !canSee.has(i.resource)) return false;
     return true;

@@ -16,6 +16,21 @@ export function normalizeDiscountType(v: string | null | undefined): DiscountTyp
   return v === "percent" ? "percent" : "amount";
 }
 
+/**
+ * The discount that ACTUALLY applies given its approval status. A discount awaiting
+ * approval ('pending') or declined ('rejected') is treated as 0 everywhere the bill
+ * is computed — the bill/sale/split behave as if there were no discount until it's
+ * approved. 'none' (the default) and 'approved' apply the discount in full. Pure.
+ */
+export function effectiveDiscountValue(
+  discountStatus: string | null | undefined,
+  discountValue: number,
+): number {
+  return discountStatus === "pending" || discountStatus === "rejected"
+    ? 0
+    : discountValue;
+}
+
 export type FeeBreakdown = {
   /** The doctor's consultation fee (0 = not set). */
   fee: number;

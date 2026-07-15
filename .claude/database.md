@@ -116,7 +116,12 @@ on `full_name` and `phone`.
 `duration_minutes` (default 30), `status` (enum, default scheduled), `reason`,
 `discount_type` (free-text, default 'amount'; 'amount' = flat PKR, 'percent' = % of
 the doctor's fee), `discount_value` int (default 0; the raw figure — e.g. 500, or 20
-for 20%), `charge_consultation` bool (default true; **false = procedure-only visit**,
+for 20%), `discount_borne_by` (free-text, default 'clinic'; 'clinic'|'doctor'|'split'
+— who absorbs the discount in the doctor/clinic split), `discount_status` (free-text,
+default 'none'; 'none'|'pending'|'approved'|'rejected' — a 'pending'/'rejected'
+discount is treated as 0 in the bill/sale/split until approved, derived from
+`appointment_discount_approvals`, see `core/appointments/approvals.ts`),
+`charge_consultation` bool (default true; **false = procedure-only visit**,
 the doctor's consultation fee is not billed — the bill/sale count only procedures),
 `source` (free-text, default 'staff'; 'whatsapp' = patient self-booked →
 stays a request until staff confirm), `reminder_sent_at` (set once the day-before
@@ -234,6 +239,24 @@ and a bucketed net-sales-over-time chart, filterable by period / custom range /
 doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
 `appointment_id`; (`clinic_id`,`occurred_at`) for the range scan; `doctor_id`.
 
+### `appointment_discount_approvals` — discount sign-off (revenue-share, phase 3)
+`id`, `clinic_id` → clinics (`cascade`), `appointment_id` → appointments
+(`cascade`), `approver_kind` ('clinic' | 'doctor'), `approver_doctor_id` → users (`cascade`; the
+affected doctor for a 'doctor' row, NULL for a 'clinic' row),
+`status` ('pending'|'approved'|'rejected', default pending),
+`decided_by` uuid (no FK — users are soft-deleted) + `decided_by_name` snapshot +
+`decided_at`, `note`, timestamps. One row per party (the clinic and/or each affected
+doctor) that must sign off before an appointment's discount applies. Rows are
+(re)generated on every discount/borne-by/procedures change by
+`core/appointments/approvals.ts#syncDiscountApprovals`, which reads
+`clinics.discount_needs_approval` (clinic side) and `users.discount_needs_approval`
+(each affected doctor) to decide who is required; the appointment's
+`discount_status` is derived from the rows. A doctor decides only their own row; a
+'clinic' row needs the `discount_approval` permission. With all switches off + borne
+= clinic, no rows are made → status 'none' → the discount just applies (behaviour
+unchanged). Indexes: (`appointment_id`); (`clinic_id`,`status`);
+(`approver_doctor_id`,`status`).
+
 ---
 
 ## 4. Notes
@@ -247,7 +270,7 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
 - **Timezone caveat (deploy):** availability, "tomorrow" (reminder), and day
   bounds use the **server's local timezone**. For a multi-region rollout
   (Pakistan vs GCC), pin each clinic to its own timezone.
-- Migrations `0000`–`0034` applied; new tables/columns are always additive to core.
+- Migrations `0000`–`0035` applied; new tables/columns are always additive to core.
   (`0017` adds `appointments.discount_type` / `discount_value`; `0018` adds
   `appointments.queue_session` / `queue_number` + the queue unique index; `0019`
   adds the `activity_logs` table; `0020` adds `clinics.log_access` and drops the
@@ -274,4 +297,6 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
   `docs/doctor-shares-plan.md`; split math in `core/appointments/shares.ts`, rate
   config in `core/appointments/share-config.ts`. `0034` adds the discount-approval
   switches `users.discount_needs_approval` (per doctor) + `clinics.discount_needs_approval`
-  (per clinic) — enforced in Phase 3.)
+  (per clinic). `0035` adds `appointments.discount_status` + the
+  `appointment_discount_approvals` table (the discount approval workflow —
+  `core/appointments/approvals.ts`).)

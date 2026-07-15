@@ -1,8 +1,8 @@
 # Doctor–Clinic Revenue Share + Discount Approval
 
-> Status: **building** — Phase 1 (schema + `computeShare`) ✅ and Phase 2 (config UI:
-> doctor share rates + approval switches + per-line performing doctor) ✅ done; Phase 3
-> next. v1 scope = gap points 1–6.
+> Status: **building** — Phase 1 (schema + `computeShare`) ✅, Phase 2 (config UI) ✅,
+> and Phase 3 (discount borne-by + approval workflow) ✅ done; Phase 4 (ledger) next.
+> v1 scope = gap points 1–6.
 > Not in v1: tax, material/lab cost, future-dated rates, manual per-visit override,
 > refunds (need the payments layer).
 
@@ -115,7 +115,15 @@ snapshots, so later rate edits never rewrite history.
    `getDoctorShareRatesMany` for the split; `replaceDoctorProcedureShares` to save).
    The clinic-level approval switch + borne-by selector land in Phase 3.
 3. **Discount borne-by + approval module** — settings, approval queue,
-   pending-blocks-discount, badges.
+   pending-blocks-discount, badges. ✅ `appointments.discount_status` +
+   `appointment_discount_approvals` table + `discount_approval` permission;
+   `core/appointments/share-context.ts` (assembles the split input) and
+   `approvals.ts` (`syncDiscountApprovals` on create/edit, `decideDiscountApproval`);
+   pure `fee.ts#effectiveDiscountValue` gates the bill/sale/quote everywhere; a
+   borne-by selector on the appointment form, the clinic switch + queue at
+   `/clinic/approvals`, and Pending/Approved/Rejected badges. **Default (borne =
+   clinic, all switches off) → status 'none' → the discount applies exactly as
+   before**, so the workflow is inert until a party opts in.
 4. **`sale_shares` ledger** — snapshot on completion; re-snapshot on edit; void on
    un-complete.
 5. **`/clinic/shares` report** + `shares` permission (doctor self-view).

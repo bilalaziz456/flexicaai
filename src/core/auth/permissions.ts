@@ -48,6 +48,12 @@ export const PERM_RESOURCES: PermResource[] = [
   { id: "leave", label: "Doctor leave", actions: ["view", "create", "edit", "delete"] },
   { id: "staff", label: "Staff", actions: ["view", "create", "edit", "delete"] },
   { id: "settings", label: "Settings", actions: ["view", "edit"] },
+  // Discount approvals: `view` = review & decide CLINIC-borne discount requests in
+  // the approval queue (createLabel "Approve" is just the column's label). A doctor
+  // always decides discounts off their OWN share regardless of this — it is only
+  // for the clinic-borne side. Clinic admin holds it by default; grantable to a
+  // manager. Not feature-gated (discounts exist without the sales feature).
+  { id: "discount_approval", label: "Discount approvals", actions: ["view"] },
   // Trash: `view` = see the clinic's Trash; `create` = RESTORE a trashed item
   // (reusing the create column, relabelled "Restore"). Permanent purge is NOT an
   // ACL action — it is super-admin-only. Clinic admin holds this by default (ALL);

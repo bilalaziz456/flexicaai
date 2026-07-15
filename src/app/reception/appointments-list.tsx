@@ -7,7 +7,11 @@ import { appointments, patients, users } from "@/core/db/schema";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
-import { computeAppointmentTotal, formatPkr } from "@/core/appointments/fee";
+import {
+  computeAppointmentTotal,
+  effectiveDiscountValue,
+  formatPkr,
+} from "@/core/appointments/fee";
 import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import { getDayQueue } from "@/core/appointments/queue";
 import { parseListFilters } from "@/core/appointments/list-filters";
@@ -113,6 +117,7 @@ export async function AppointmentsList({
         reason: appointments.reason,
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
+        discountStatus: appointments.discountStatus,
         chargeConsultation: appointments.chargeConsultation,
         queueNumber: appointments.queueNumber,
         patientName: patients.fullName,
@@ -156,7 +161,7 @@ export async function AppointmentsList({
       a.chargeConsultation ? a.consultationFee : 0,
       Number(a.proceduresTotal),
       a.discountType === "percent" ? "percent" : "amount",
-      a.discountValue,
+      effectiveDiscountValue(a.discountStatus, a.discountValue),
     );
     if (gross === 0) return null;
     return { net: formatPkr(net), discounted: discount > 0, full: formatPkr(gross) };

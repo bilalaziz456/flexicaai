@@ -84,6 +84,7 @@ export function NewAppointmentForm({
     durationMinutes: number;
     discountType: DiscountType;
     discountValue: number;
+    discountBorneBy?: string;
     chargeConsultation?: boolean;
     procedures?: {
       procedureId: string;
@@ -113,6 +114,13 @@ export function NewAppointmentForm({
     initial?.discountValue ? String(initial.discountValue) : "",
   );
   const discountNumber = Math.max(0, Number(discountValue) || 0);
+  // Who absorbs the discount in the doctor/clinic split (only matters when there's
+  // a discount and a doctor earning a share).
+  const [borneBy, setBorneBy] = useState<"clinic" | "doctor" | "split">(
+    initial?.discountBorneBy === "doctor" || initial?.discountBorneBy === "split"
+      ? initial.discountBorneBy
+      : "clinic",
+  );
   // A procedure-only visit can skip the doctor's consultation fee.
   const [chargeConsultation, setChargeConsultation] = useState(
     initial?.chargeConsultation ?? true,
@@ -703,6 +711,46 @@ export function NewAppointmentForm({
               Pick a doctor or procedures to see the total.
             </p>
           )}
+
+          {/* Who absorbs the discount in the doctor/clinic revenue split. Only
+              relevant once a discount is entered. Submitted always so an edit that
+              clears the discount still records a sane value. */}
+          <input type="hidden" name="discountBorneBy" value={borneBy} />
+          {discountNumber > 0 ? (
+            <div className="space-y-1.5 pt-1">
+              <Label className="text-xs text-muted-foreground">Discount borne by</Label>
+              <div role="radiogroup" aria-label="Discount borne by" className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ["clinic", "Clinic"],
+                    ["doctor", "Doctor"],
+                    ["split", "Split"],
+                  ] as const
+                ).map(([val, label]) => {
+                  const checked = borneBy === val;
+                  return (
+                    <button
+                      key={val}
+                      type="button"
+                      role="radio"
+                      aria-checked={checked}
+                      onClick={() => setBorneBy(val)}
+                      className={cn(
+                        "rounded-lg border px-3 py-1.5 text-sm transition-colors",
+                        checked ? "border-primary bg-primary/10" : "hover:bg-accent",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Clinic absorbs it, the doctor(s) do, or it&apos;s split. If the bearer
+                requires it, the discount waits for approval before it applies.
+              </p>
+            </div>
+          ) : null}
         </div>
       </div>
 

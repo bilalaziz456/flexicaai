@@ -5,7 +5,7 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, clinics, patients, users } from "@/core/db/schema";
 import { displayStaffName } from "@/core/types/auth";
-import { computeAppointmentTotal } from "@/core/appointments/fee";
+import { computeAppointmentTotal, effectiveDiscountValue } from "@/core/appointments/fee";
 import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
@@ -124,6 +124,7 @@ export async function notifyAppointmentBooked(
         chargeConsultation: appointments.chargeConsultation,
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
+        discountStatus: appointments.discountStatus,
         proceduresTotal: appointmentProceduresNetSql(),
         queueNumber: appointments.queueNumber,
         clinicName: clinics.name,
@@ -154,7 +155,7 @@ export async function notifyAppointmentBooked(
       doctor && r.chargeConsultation ? r.fee : 0,
       Number(r.proceduresTotal),
       r.discountType === "percent" ? "percent" : "amount",
-      r.discountValue,
+      effectiveDiscountValue(r.discountStatus, r.discountValue),
     );
     const fee = formatFee(gross > 0 ? net : null);
     // Queue token the patient should quote at the desk (only doctor bookings

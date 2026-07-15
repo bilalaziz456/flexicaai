@@ -4,7 +4,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, sales, users } from "@/core/db/schema";
-import { computeSaleAmounts } from "@/core/appointments/fee";
+import { computeSaleAmounts, effectiveDiscountValue } from "@/core/appointments/fee";
 import {
   appointmentProceduresGrossSql,
   appointmentProceduresNetSql,
@@ -27,6 +27,7 @@ export async function recordSaleForAppointment(
         scheduledAt: appointments.scheduledAt,
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
+        discountStatus: appointments.discountStatus,
         chargeConsultation: appointments.chargeConsultation,
         fee: users.consultationFee,
         doctorName: users.fullName,
@@ -47,12 +48,13 @@ export async function recordSaleForAppointment(
       .limit(1);
     if (!row) return;
 
+    // A pending/rejected discount doesn't count until approved.
     const { gross, discount, net } = computeSaleAmounts(
       row.chargeConsultation ? row.fee : 0,
       Number(row.proceduresGross),
       Number(row.proceduresNet),
       row.discountType === "percent" ? "percent" : "amount",
-      row.discountValue,
+      effectiveDiscountValue(row.discountStatus, row.discountValue),
     );
     const doctorName = row.doctorName ?? row.doctorUsername ?? null;
 
@@ -113,6 +115,7 @@ export async function backfillClinicSales(clinicId: string): Promise<void> {
         scheduledAt: appointments.scheduledAt,
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
+        discountStatus: appointments.discountStatus,
         chargeConsultation: appointments.chargeConsultation,
         fee: users.consultationFee,
         doctorName: users.fullName,
@@ -139,7 +142,7 @@ export async function backfillClinicSales(clinicId: string): Promise<void> {
         Number(r.proceduresGross),
         Number(r.proceduresNet),
         r.discountType === "percent" ? "percent" : "amount",
-        r.discountValue,
+        effectiveDiscountValue(r.discountStatus, r.discountValue),
       );
       return {
         clinicId,

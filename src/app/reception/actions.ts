@@ -34,6 +34,7 @@ import {
   saveAppointmentProcedures,
   type ProcedureSelection,
 } from "@/core/appointments/procedures";
+import { syncDiscountApprovals } from "@/core/appointments/approvals";
 import {
   recordSaleForAppointment,
   voidSaleForAppointment,
@@ -86,6 +87,7 @@ const createSchema = z.object({
   reason: z.string().trim().optional(),
   discountType: z.enum(["amount", "percent"]).default("amount"),
   discountValue: z.coerce.number().int().min(0, "Discount can't be negative.").default(0),
+  discountBorneBy: z.enum(["clinic", "doctor", "split"]).default("clinic"),
 });
 
 /**
@@ -140,6 +142,7 @@ export async function createAppointment(
     reason: formData.get("reason"),
     discountType: formData.get("discountType") ?? undefined,
     discountValue: formData.get("discountValue"),
+    discountBorneBy: formData.get("discountBorneBy") ?? undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
@@ -211,6 +214,7 @@ export async function createAppointment(
           reason: parsed.data.reason ?? null,
           discountType: parsed.data.discountType,
           discountValue: parsed.data.discountValue,
+          discountBorneBy: parsed.data.discountBorneBy,
           chargeConsultation,
           queueSession: q.queueSession,
           queueNumber: q.queueNumber,
@@ -225,6 +229,10 @@ export async function createAppointment(
     created.id,
     parseProcedureSelections(formData),
   );
+
+  // Work out whether this discount needs anyone's approval (no-op unless a party
+  // opted in) and set the appointment's discount status accordingly.
+  await syncDiscountApprovals(clinicId, created.id);
 
   // Confirm to the patient over WhatsApp (doctor, hours, fee, time).
   await notifyAppointmentBooked(clinicId, created.id);
@@ -254,6 +262,7 @@ const updateSchema = z.object({
   reason: z.string().trim().optional(),
   discountType: z.enum(["amount", "percent"]).default("amount"),
   discountValue: z.coerce.number().int().min(0, "Discount can't be negative.").default(0),
+  discountBorneBy: z.enum(["clinic", "doctor", "split"]).default("clinic"),
 });
 
 /** Edits an existing appointment (doctor / date-time / duration / reason / discount). */
@@ -330,6 +339,7 @@ export async function updateAppointment(
     reason: parsed.data.reason ?? null,
     discountType: parsed.data.discountType,
     discountValue: parsed.data.discountValue,
+    discountBorneBy: parsed.data.discountBorneBy,
     chargeConsultation: formData.get("chargeConsultation") !== "0",
     reminderSentAt: null, // time may have changed → re-send the reminder
     updatedAt: new Date(),
@@ -373,6 +383,11 @@ export async function updateAppointment(
     appointmentId,
     parseProcedureSelections(formData),
   );
+
+  // Recompute approvals AFTER the procedures/discount are saved (editing a discount
+  // re-opens approval if it was decided), then re-snapshot the sale so the ledger
+  // reflects the now-effective (possibly gated) discount.
+  await syncDiscountApprovals(clinicId, appointmentId);
 
   // If this appointment is already completed, its sale is on the books — re-snapshot
   // it so the edit (doctor/fee, procedures, discount) flows through to the report.

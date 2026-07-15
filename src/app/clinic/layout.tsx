@@ -5,7 +5,7 @@ import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
 import { getThemeCookie } from "@/core/theme/server";
 import { clinicHasFeature } from "@/core/lib/features";
-import { accessibleResourceIds } from "@/core/auth/permissions";
+import { accessibleResourceIds, can } from "@/core/auth/permissions";
 import { displayStaffName } from "@/core/types/auth";
 import { PanelShell } from "@/core/ui/panel-shell";
 
@@ -44,6 +44,11 @@ export default async function ClinicLayout({
       ? accessibleResourceIds(user).filter((r) => r !== "leave")
       : accessibleResourceIds(user);
 
+  // Discount approvals nav shows for potential approvers: a doctor (decides
+  // discounts off their own share) or anyone with the clinic approval capability.
+  const approvalsEnabled =
+    user.role === "doctor" || can(user, "discount_approval", "view");
+
   return (
     <PanelShell
       panel="clinic"
@@ -54,6 +59,7 @@ export default async function ClinicLayout({
       theme={theme}
       logsEnabled={logsEnabled}
       salesEnabled={clinicHasFeature(clinic?.featuresEnabled, "sales")}
+      approvalsEnabled={approvalsEnabled}
       accessibleResources={navResources}
     >
       {children}

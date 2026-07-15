@@ -6,7 +6,7 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, patients } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
-import { computeAppointmentTotal } from "@/core/appointments/fee";
+import { computeAppointmentTotal, effectiveDiscountValue } from "@/core/appointments/fee";
 import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import { checkDoctorSlot } from "@/core/appointments/availability";
 import { queueSessionKey, withQueueNumber } from "@/core/appointments/queue";
@@ -90,6 +90,7 @@ export async function handleRescheduleReply(args: {
         queueNumber: appointments.queueNumber,
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
+        discountStatus: appointments.discountStatus,
         chargeConsultation: appointments.chargeConsultation,
         proceduresTotal: appointmentProceduresNetSql(),
       })
@@ -211,7 +212,7 @@ export async function handleRescheduleReply(args: {
       appt.chargeConsultation ? fee : 0,
       Number(appt.proceduresTotal),
       appt.discountType === "percent" ? "percent" : "amount",
-      appt.discountValue,
+      effectiveDiscountValue(appt.discountStatus, appt.discountValue),
     );
     const feeStr =
       gross > 0 ? ` Total: Rs ${new Intl.NumberFormat("en-PK").format(net)}.` : "";

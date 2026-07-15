@@ -346,6 +346,18 @@ export const appointments = pgTable(
     // (default), 'doctor', or 'split'. Drives core/appointments/shares.ts and the
     // approval workflow. Free-text (not an enum) to stay additive.
     discountBorneBy: text("discount_borne_by").notNull().default("clinic"),
+    // Approval state of THIS appointment's discount (free-text, not an enum):
+    //   'none'     — no discount, or none of the reduced parties require approval
+    //                → the discount applies (this is the default, so behaviour is
+    //                unchanged for clinics that don't opt in);
+    //   'pending'  — required approver(s) haven't all signed off → discount is
+    //                treated as 0 in the bill/sale/split until they do;
+    //   'approved' — every required approver granted it → discount applies;
+    //   'rejected' — a required approver declined → discount treated as 0 (staff
+    //                re-submit by editing, which recomputes fresh pending rows).
+    // Rows live in `appointment_discount_approvals`. See
+    // core/appointments/approvals.ts and docs/doctor-shares-plan.md §6.
+    discountStatus: text("discount_status").notNull().default("none"),
     // Whether the doctor's consultation fee is charged for this visit. A patient
     // who comes only for a procedure has no consultation fee → set false and the
     // bill/sale count only the procedures. Default true (charge, as before).
@@ -690,6 +702,55 @@ export const doctorProcedureShares = pgTable(
 );
 
 /**
+ * Discount approvals — one row per party (the clinic, and/or each affected doctor)
+ * that must sign off on an appointment's discount before it applies. Rows are
+ * (re)generated whenever the discount/borne-by changes (see
+ * core/appointments/approvals.ts#syncDiscountApprovals); the appointment's overall
+ * `discount_status` is derived from them. `approverKind` = 'clinic' | 'doctor';
+ * a 'doctor' row names the affected doctor in `approverDoctorId` (they alone decide
+ * it), while a 'clinic' row is decided by anyone holding the clinic's
+ * discount-approval capability. `decidedBy`/`decidedByName` snapshot who acted.
+ */
+export const appointmentDiscountApprovals = pgTable(
+  "appointment_discount_approvals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    appointmentId: uuid("appointment_id")
+      .notNull()
+      .references(() => appointments.id, { onDelete: "cascade" }),
+    approverKind: text("approver_kind").notNull(), // 'clinic' | 'doctor'
+    approverDoctorId: uuid("approver_doctor_id").references(() => users.id, {
+      onDelete: "cascade",
+    }),
+    status: text("status").notNull().default("pending"), // pending|approved|rejected
+    // Who decided + a name snapshot (no FK on the id: users are soft-deleted).
+    decidedBy: uuid("decided_by"),
+    decidedByName: text("decided_by_name"),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("appt_discount_approvals_appt_idx").on(t.appointmentId),
+    // The clinic-approver queue scans "this clinic's pending clinic-borne rows".
+    index("appt_discount_approvals_clinic_status_idx").on(t.clinicId, t.status),
+    // The doctor queue scans "my pending rows".
+    index("appt_discount_approvals_doctor_status_idx").on(
+      t.approverDoctorId,
+      t.status,
+    ),
+  ],
+);
+
+/**
  * Sales ledger — one row per COMPLETED appointment (the `sales` feature). The
  * amounts are SNAPSHOTTED when the appointment is marked completed (doctor's
  * consultation fee + Σ procedures, minus discount), so a later fee/discount/
@@ -819,6 +880,8 @@ export type Clinic = typeof clinics.$inferSelect;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type Procedure = typeof procedures.$inferSelect;
 export type DoctorProcedureShare = typeof doctorProcedureShares.$inferSelect;
+export type AppointmentDiscountApproval =
+  typeof appointmentDiscountApprovals.$inferSelect;
 export type AppointmentProcedure = typeof appointmentProcedures.$inferSelect;
 export type Sale = typeof sales.$inferSelect;
 export type DoctorLeave = typeof doctorLeaves.$inferSelect;
