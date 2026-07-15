@@ -132,24 +132,26 @@ export default async function ClinicSalesPage({
             {report.byDoctor.length === 0 ? (
               <p className="text-sm text-muted-foreground">No sales yet.</p>
             ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="pb-2 font-normal">Doctor</th>
-                    <th className="pb-2 text-right font-normal">Visits</th>
-                    <th className="pb-2 text-right font-normal">Net</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.byDoctor.map((d) => (
-                    <tr key={d.doctorId ?? "none"} className="border-b last:border-0">
-                      <td className="py-2">{d.name}</td>
-                      <td className="py-2 text-right tabular-nums">{d.count}</td>
-                      <td className="py-2 text-right tabular-nums">{money.format(d.net)}</td>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[18rem] text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-xs text-muted-foreground">
+                      <th className="pb-2 font-normal">Doctor</th>
+                      <th className="pb-2 text-right font-normal">Visits</th>
+                      <th className="pb-2 text-right font-normal">Net</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {report.byDoctor.map((d) => (
+                      <tr key={d.doctorId ?? "none"} className="border-b last:border-0">
+                        <td className="py-2">{d.name}</td>
+                        <td className="py-2 text-right tabular-nums">{d.count}</td>
+                        <td className="py-2 text-right tabular-nums">{money.format(d.net)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -167,24 +169,26 @@ export default async function ClinicSalesPage({
                 No procedures on completed appointments yet.
               </p>
             ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="pb-2 font-normal">Procedure</th>
-                    <th className="pb-2 text-right font-normal">Qty</th>
-                    <th className="pb-2 text-right font-normal">Revenue</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.byProcedure.map((p) => (
-                    <tr key={p.name} className="border-b last:border-0">
-                      <td className="py-2">{p.name}</td>
-                      <td className="py-2 text-right tabular-nums">{p.qty}</td>
-                      <td className="py-2 text-right tabular-nums">{money.format(p.gross)}</td>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[18rem] text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-xs text-muted-foreground">
+                      <th className="pb-2 font-normal">Procedure</th>
+                      <th className="pb-2 text-right font-normal">Qty</th>
+                      <th className="pb-2 text-right font-normal">Revenue</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {report.byProcedure.map((p) => (
+                      <tr key={p.name} className="border-b last:border-0">
+                        <td className="py-2">{p.name}</td>
+                        <td className="py-2 text-right tabular-nums">{p.qty}</td>
+                        <td className="py-2 text-right tabular-nums">{money.format(p.gross)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </CardContent>
         </Card>

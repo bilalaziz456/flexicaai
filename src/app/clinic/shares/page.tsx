@@ -130,35 +130,65 @@ export default async function ClinicSharesPage({
             {balances.length === 0 ? (
               <p className="text-sm text-muted-foreground">No doctor shares yet.</p>
             ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="pb-2 font-normal">Doctor</th>
-                    <th className="pb-2 text-right font-normal">Earned</th>
-                    <th className="pb-2 text-right font-normal">Paid</th>
-                    <th className="pb-2 text-right font-normal">Outstanding</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {balances.map((b) => (
-                    <tr key={b.doctorId} className="border-b last:border-0">
-                      <td className="py-2">
-                        <Link
-                          href={`/clinic/shares?doctorId=${b.doctorId}`}
-                          className="underline underline-offset-4 hover:text-foreground"
-                        >
-                          {b.name}
-                        </Link>
-                      </td>
-                      <td className="py-2 text-right tabular-nums">{money.format(b.earned)}</td>
-                      <td className="py-2 text-right tabular-nums">{money.format(b.paid)}</td>
-                      <td className="py-2 text-right font-medium tabular-nums">
-                        {money.format(b.outstanding)}
-                      </td>
+              <>
+                {/* Desktop: table */}
+                <table className="hidden w-full text-sm md:table">
+                  <thead>
+                    <tr className="border-b text-left text-xs text-muted-foreground">
+                      <th className="pb-2 font-normal">Doctor</th>
+                      <th className="pb-2 text-right font-normal">Earned</th>
+                      <th className="pb-2 text-right font-normal">Paid</th>
+                      <th className="pb-2 text-right font-normal">Outstanding</th>
                     </tr>
+                  </thead>
+                  <tbody>
+                    {balances.map((b) => (
+                      <tr key={b.doctorId} className="border-b last:border-0">
+                        <td className="py-2">
+                          <Link
+                            href={`/clinic/shares?doctorId=${b.doctorId}`}
+                            className="underline underline-offset-4 hover:text-foreground"
+                          >
+                            {b.name}
+                          </Link>
+                        </td>
+                        <td className="py-2 text-right tabular-nums">{money.format(b.earned)}</td>
+                        <td className="py-2 text-right tabular-nums">{money.format(b.paid)}</td>
+                        <td className="py-2 text-right font-medium tabular-nums">
+                          {money.format(b.outstanding)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {/* Mobile: cards */}
+                <ul className="space-y-2 md:hidden">
+                  {balances.map((b) => (
+                    <li key={b.doctorId} className="rounded-md border p-3">
+                      <Link
+                        href={`/clinic/shares?doctorId=${b.doctorId}`}
+                        className="font-medium underline underline-offset-4"
+                      >
+                        {b.name}
+                      </Link>
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+                        <div>
+                          <div className="text-xs text-muted-foreground">Earned</div>
+                          <div className="tabular-nums">{money.format(b.earned)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">Paid</div>
+                          <div className="tabular-nums">{money.format(b.paid)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">Outstanding</div>
+                          <div className="font-medium tabular-nums">{money.format(b.outstanding)}</div>
+                        </div>
+                      </div>
+                    </li>
                   ))}
-                </tbody>
-              </table>
+                </ul>
+              </>
             )}
           </CardContent>
         </Card>
@@ -218,8 +248,9 @@ export default async function ClinicSharesPage({
           {payouts.length === 0 ? (
             <p className="text-sm text-muted-foreground">No payments recorded yet.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[32rem] text-sm">
+            <>
+              {/* Desktop: table */}
+              <table className="hidden w-full text-sm md:table">
                 <thead>
                   <tr className="border-b text-left text-xs text-muted-foreground">
                     <th className="pb-2 font-normal">Date</th>
@@ -262,7 +293,38 @@ export default async function ClinicSharesPage({
                   ))}
                 </tbody>
               </table>
-            </div>
+              {/* Mobile: cards */}
+              <ul className="space-y-2 md:hidden">
+                {payouts.map((p) => (
+                  <li key={p.id} className="rounded-md border p-3 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium tabular-nums">{money.format(p.amount)}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {p.createdAt.toLocaleDateString("en-GB", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </span>
+                    </div>
+                    {!singleDoctor ? <div className="mt-0.5">{p.doctorName ?? "—"}</div> : null}
+                    <div className="capitalize text-muted-foreground">
+                      {p.method ?? "—"}
+                      {p.reference ? ` · ${p.reference}` : ""}
+                    </div>
+                    {p.note ? <div className="text-xs">{p.note}</div> : null}
+                    {p.createdByName ? (
+                      <div className="text-xs text-muted-foreground">by {p.createdByName}</div>
+                    ) : null}
+                    {isAdmin ? (
+                      <div className="mt-1">
+                        <VoidPayoutButton payoutId={p.id} />
+                      </div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </CardContent>
       </Card>

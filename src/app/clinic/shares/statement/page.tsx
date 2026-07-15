@@ -107,30 +107,32 @@ export default async function ShareStatementPage({
         {earnings.length === 0 ? (
           <p className="text-sm text-muted-foreground">No earnings yet.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-xs text-muted-foreground">
-                <th className="pb-2 font-normal">Date</th>
-                <th className="pb-2 font-normal">Patient</th>
-                <th className="pb-2 text-right font-normal">Share</th>
-              </tr>
-            </thead>
-            <tbody>
-              {earnings.map((e, i) => (
-                <tr key={i} className="border-b last:border-0">
-                  <td className="py-1.5">{fmtDate(e.occurredAt)}</td>
-                  <td className="py-1.5">{e.patientName ?? "—"}</td>
-                  <td className="py-1.5 text-right tabular-nums">{money.format(e.amount)}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[20rem] text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-muted-foreground">
+                  <th className="pb-2 font-normal">Date</th>
+                  <th className="pb-2 font-normal">Patient</th>
+                  <th className="pb-2 text-right font-normal">Share</th>
                 </tr>
-              ))}
-              <tr className="border-t font-medium">
-                <td className="py-2" colSpan={2}>
-                  Total earned
-                </td>
-                <td className="py-2 text-right tabular-nums">{money.format(balance.earned)}</td>
-              </tr>
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {earnings.map((e, i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    <td className="py-1.5">{fmtDate(e.occurredAt)}</td>
+                    <td className="py-1.5">{e.patientName ?? "—"}</td>
+                    <td className="py-1.5 text-right tabular-nums">{money.format(e.amount)}</td>
+                  </tr>
+                ))}
+                <tr className="border-t font-medium">
+                  <td className="py-2" colSpan={2}>
+                    Total earned
+                  </td>
+                  <td className="py-2 text-right tabular-nums">{money.format(balance.earned)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -140,32 +142,34 @@ export default async function ShareStatementPage({
         {payments.length === 0 ? (
           <p className="text-sm text-muted-foreground">No payments yet.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-xs text-muted-foreground">
-                <th className="pb-2 font-normal">Date</th>
-                <th className="pb-2 font-normal">Method</th>
-                <th className="pb-2 font-normal">Reference</th>
-                <th className="pb-2 text-right font-normal">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payments.map((p) => (
-                <tr key={p.id} className="border-b last:border-0">
-                  <td className="py-1.5">{fmtDate(p.createdAt)}</td>
-                  <td className="py-1.5 capitalize">{p.method ?? "—"}</td>
-                  <td className="py-1.5">{p.reference ?? p.note ?? "—"}</td>
-                  <td className="py-1.5 text-right tabular-nums">{money.format(p.amount)}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[24rem] text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-muted-foreground">
+                  <th className="pb-2 font-normal">Date</th>
+                  <th className="pb-2 font-normal">Method</th>
+                  <th className="pb-2 font-normal">Reference</th>
+                  <th className="pb-2 text-right font-normal">Amount</th>
                 </tr>
-              ))}
-              <tr className="border-t font-medium">
-                <td className="py-2" colSpan={3}>
-                  Total paid
-                </td>
-                <td className="py-2 text-right tabular-nums">{money.format(balance.paid)}</td>
-              </tr>
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {payments.map((p) => (
+                  <tr key={p.id} className="border-b last:border-0">
+                    <td className="py-1.5">{fmtDate(p.createdAt)}</td>
+                    <td className="py-1.5 capitalize">{p.method ?? "—"}</td>
+                    <td className="py-1.5">{p.reference ?? p.note ?? "—"}</td>
+                    <td className="py-1.5 text-right tabular-nums">{money.format(p.amount)}</td>
+                  </tr>
+                ))}
+                <tr className="border-t font-medium">
+                  <td className="py-2" colSpan={3}>
+                    Total paid
+                  </td>
+                  <td className="py-2 text-right tabular-nums">{money.format(balance.paid)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

@@ -291,6 +291,7 @@ export async function updateAppointment(
     reason: formData.get("reason"),
     discountType: formData.get("discountType") ?? undefined,
     discountValue: formData.get("discountValue"),
+    discountBorneBy: formData.get("discountBorneBy") ?? undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
