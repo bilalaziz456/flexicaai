@@ -193,3 +193,22 @@ links), an amount-input payment form (method/reference/note), payment history wi
 method + Reverse, and a **printable statement** at `/clinic/shares/statement`.
 Verified against the DB (12/12): partial pay → outstanding drops, overpay blocked,
 full settle, void restores balance, clinic-wide list.
+
+## 12. One-doctor-per-appointment simplification (post-Phase 7)
+
+At the owner's direction, the recommended workflow is **one doctor per appointment**
+(e.g. a consultation with Dr A and a procedure with Dr B are two appointments —
+the second a procedure-only visit via the "Charge consultation" toggle). This makes
+discounts unambiguous. The appointment form was simplified accordingly:
+- The **per-line performing-doctor** picker is removed — every procedure line's
+  performing doctor is the **appointment's** doctor, set server-side
+  (`actions.ts#withApptDoctor`).
+- The **per-procedure discount field is removed** — there is now ONE discount, the
+  appointment-level one. (The `appointment_procedures.discount_*` columns + the
+  per-line fee math remain for legacy rows and stay 0 for new ones.)
+- **"Discount borne by" keeps Clinic / Doctor / Split** — a discount can still be
+  split between the doctor and the clinic.
+The core (`shares.ts` / `share-context.ts`) is unchanged (still supports per-line
+doctors + split). Verified end-to-end against the DB (4/4): the procedure inherits
+the appointment's doctor, and Dr Bilal's example (2000 consult @15% + 4000 extraction
+@15%) resolves to 900 (no discount) / 900 (clinic-borne) / 300 (doctor-borne).

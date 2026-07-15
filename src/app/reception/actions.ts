@@ -102,26 +102,33 @@ function validateDiscount(type: "amount" | "percent", value: number): string | n
 
 /**
  * The booking form submits one hidden `procedure` field per chosen procedure,
- * encoded `"<procedureId>:<quantity>:<amount|percent>:<discountValue>:<doctorId>"`
- * (the last field is the performing doctor — empty = clinic; older shorter values
- * still parse). Parsed into selections — the data layer clamps + validates ids
- * (procedure and doctor) against the clinic's own records.
+ * encoded `"<procedureId>:<quantity>:<amount|percent>:<discountValue>"`. The
+ * PERFORMING doctor is the appointment's own doctor (one doctor per appointment),
+ * set by the caller via `withApptDoctor` — not encoded per line. The data layer
+ * clamps + validates ids against the clinic's own records.
  */
 function parseProcedureSelections(formData: FormData): ProcedureSelection[] {
   return formData
     .getAll("procedure")
     .map(String)
     .map((raw) => {
-      const [procedureId, qty, dtype, dval, doctorId] = raw.split(":");
+      const [procedureId, qty, dtype, dval] = raw.split(":");
       return {
         procedureId,
         quantity: Number(qty) || 1,
         discountType: dtype === "percent" ? ("percent" as const) : ("amount" as const),
         discountValue: Math.max(0, Number(dval) || 0),
-        doctorId: doctorId || null,
       };
     })
     .filter((s) => s.procedureId);
+}
+
+/** Stamp every procedure line with the appointment's doctor (its performing doctor). */
+function withApptDoctor(
+  selections: ProcedureSelection[],
+  doctorId: string | null,
+): ProcedureSelection[] {
+  return selections.map((s) => ({ ...s, doctorId }));
 }
 
 /** Schedules an appointment in the receptionist's clinic. */
@@ -223,11 +230,12 @@ export async function createAppointment(
   );
 
   // Attach the selected procedures (snapshotted prices) before notifying, so the
-  // confirmation quotes the full total.
+  // confirmation quotes the full total. Each line's performing doctor = the
+  // appointment's doctor.
   await saveAppointmentProcedures(
     clinicId,
     created.id,
-    parseProcedureSelections(formData),
+    withApptDoctor(parseProcedureSelections(formData), parsed.data.doctorId ?? null),
   );
 
   // Work out whether this discount needs anyone's approval (no-op unless a party
@@ -377,11 +385,12 @@ export async function updateAppointment(
     );
   }
 
-  // Replace the appointment's procedure line items with the current selection.
+  // Replace the appointment's procedure line items with the current selection;
+  // each line's performing doctor = the appointment's doctor.
   await saveAppointmentProcedures(
     clinicId,
     appointmentId,
-    parseProcedureSelections(formData),
+    withApptDoctor(parseProcedureSelections(formData), parsed.data.doctorId ?? null),
   );
 
   // Recompute approvals AFTER the procedures/discount are saved (editing a discount

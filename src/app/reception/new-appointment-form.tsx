@@ -19,7 +19,6 @@ import { TimeSelect } from "@/core/ui/time-select";
 import { Toast } from "@/core/ui/toast";
 import {
   computeAppointmentTotal,
-  computeProcedureLine,
   formatPkr,
   type DiscountType,
 } from "@/core/appointments/fee";
@@ -47,10 +46,8 @@ const label12 = (hhmm: string) => {
   return `${h12}:${pad(m)} ${mer}`;
 };
 
-const selectCls =
-  "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 // Native <select> variant: themed chevron with a comfortable gap from the right
-// edge (see `.select-chevron` in globals.css). Not for the discount-value input.
+// edge (see `.select-chevron` in globals.css).
 const nativeSelectCls =
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron";
 
@@ -91,7 +88,6 @@ export function NewAppointmentForm({
       quantity: number;
       discountType?: DiscountType;
       discountValue?: number;
-      doctorId?: string | null;
     }[];
   };
 }) {
@@ -114,8 +110,8 @@ export function NewAppointmentForm({
     initial?.discountValue ? String(initial.discountValue) : "",
   );
   const discountNumber = Math.max(0, Number(discountValue) || 0);
-  // Who absorbs the discount in the doctor/clinic split (only matters when there's
-  // a discount and a doctor earning a share).
+  // Who absorbs the discount: the clinic, the appointment's doctor, or split between
+  // them (only matters once a discount is entered).
   const [borneBy, setBorneBy] = useState<"clinic" | "doctor" | "split">(
     initial?.discountBorneBy === "doctor" || initial?.discountBorneBy === "split"
       ? initial.discountBorneBy
@@ -125,48 +121,21 @@ export function NewAppointmentForm({
   const [chargeConsultation, setChargeConsultation] = useState(
     initial?.chargeConsultation ?? true,
   );
-  // Selected procedures → { quantity (≥1), per-line discount }. `discountValue` is
-  // a string so the field can be cleared while typing. Missing key = unselected.
-  type ProcState = {
-    quantity: number;
-    discountType: DiscountType;
-    discountValue: string;
-    // Performing doctor for this line ("" = clinic / none). Defaults to the
-    // consulting doctor when a line is freshly added.
-    doctorId: string;
-  };
+  // Selected procedures → { quantity (≥1) }. There is NO per-procedure discount —
+  // the only discount is the appointment-level one below. Missing key = unselected.
+  type ProcState = { quantity: number };
   const [procSel, setProcSel] = useState<Map<string, ProcState>>(() => {
     const m = new Map<string, ProcState>();
     for (const it of initial?.procedures ?? []) {
-      m.set(it.procedureId, {
-        quantity: Math.max(1, it.quantity),
-        discountType: it.discountType ?? "amount",
-        discountValue: it.discountValue ? String(it.discountValue) : "",
-        doctorId: it.doctorId ?? "",
-      });
+      m.set(it.procedureId, { quantity: Math.max(1, it.quantity) });
     }
     return m;
   });
-  const updateProc = (id: string, patch: Partial<ProcState>) =>
-    setProcSel((prev) => {
-      const cur = prev.get(id);
-      if (!cur) return prev;
-      const next = new Map(prev);
-      next.set(id, { ...cur, ...patch });
-      return next;
-    });
   const toggleProc = (id: string) =>
     setProcSel((prev) => {
       const next = new Map(prev);
       if (next.has(id)) next.delete(id);
-      // A new line defaults to the currently-selected consulting doctor.
-      else
-        next.set(id, {
-          quantity: 1,
-          discountType: "amount",
-          discountValue: "",
-          doctorId,
-        });
+      else next.set(id, { quantity: 1 });
       return next;
     });
   const setQty = (id: string, q: number) =>
@@ -179,19 +148,14 @@ export function NewAppointmentForm({
       const cur = prev.get(id);
       if (!cur) return prev;
       const next = new Map(prev);
-      next.set(id, { ...cur, quantity: Math.min(99, q) });
+      next.set(id, { quantity: Math.min(99, q) });
       return next;
     });
-  // Per-procedure net (line gross − its own discount), and the sum across lines.
+  // A procedure line's total is simply its price × quantity (no per-line discount).
   const procLine = (p: ProcedureOption) => {
     const s = procSel.get(p.id);
     if (!s) return null;
-    return computeProcedureLine({
-      unitPrice: p.price,
-      quantity: s.quantity,
-      discountType: s.discountType,
-      discountValue: Math.max(0, Number(s.discountValue) || 0),
-    });
+    return { gross: p.price * s.quantity, net: p.price * s.quantity };
   };
   const proceduresTotal = procedures
     .filter((p) => procSel.has(p.id))
@@ -531,7 +495,8 @@ export function NewAppointmentForm({
               })}
             </div>
 
-            {/* Per-procedure quantity, its own discount, and the line net. */}
+            {/* Per-procedure quantity + the line total (no per-line discount — the
+                discount is applied once to the whole appointment below). */}
             {procSel.size > 0 ? (
               <ul className="divide-y rounded-lg border">
                 {procedures
@@ -574,62 +539,7 @@ export function NewAppointmentForm({
                               <Plus className="size-3.5" aria-hidden="true" />
                             </button>
                           </div>
-                          {/* performing doctor (earns this line's share) */}
-                          {doctors.length > 0 ? (
-                            <select
-                              value={s.doctorId}
-                              onChange={(e) =>
-                                updateProc(p.id, { doctorId: e.target.value })
-                              }
-                              className={`${nativeSelectCls} h-7 w-auto max-w-[9rem]`}
-                              aria-label={`${p.name} performing doctor`}
-                              title="Performing doctor"
-                            >
-                              <option value="">— Clinic —</option>
-                              {doctors.map((d) => (
-                                <option key={d.id} value={d.id}>
-                                  {d.fullName ?? d.username}
-                                </option>
-                              ))}
-                            </select>
-                          ) : null}
-                          {/* per-line discount */}
-                          <div className="flex items-center gap-1">
-                            <select
-                              value={s.discountType}
-                              onChange={(e) =>
-                                updateProc(p.id, {
-                                  discountType: e.target.value as DiscountType,
-                                })
-                              }
-                              className={`${nativeSelectCls} h-7 w-auto`}
-                              aria-label={`${p.name} discount type`}
-                            >
-                              <option value="amount">Rs</option>
-                              <option value="percent">%</option>
-                            </select>
-                            <input
-                              type="number"
-                              inputMode="numeric"
-                              min={0}
-                              max={s.discountType === "percent" ? 100 : undefined}
-                              value={s.discountValue}
-                              onChange={(e) =>
-                                updateProc(p.id, {
-                                  discountValue: e.target.value.replace(/[^\d]/g, ""),
-                                })
-                              }
-                              placeholder="Disc."
-                              aria-label={`${p.name} discount`}
-                              className={`${selectCls} h-7 w-16`}
-                            />
-                          </div>
                           <span className="w-24 text-right font-medium tabular-nums">
-                            {line.discount > 0 ? (
-                              <span className="mr-1 font-normal text-muted-foreground line-through">
-                                {formatPkr(line.gross)}
-                              </span>
-                            ) : null}
                             {formatPkr(line.net)}
                           </span>
                         </div>
@@ -639,14 +549,14 @@ export function NewAppointmentForm({
               </ul>
             ) : null}
 
-            {/* One hidden field per procedure:
-                "<id>:<qty>:<type>:<discountValue>:<doctorId>". */}
+            {/* One hidden field per procedure: "<id>:<qty>". No per-line discount;
+                the performing doctor is the appointment's doctor (set server-side). */}
             {[...procSel.entries()].map(([id, s]) => (
               <input
                 key={id}
                 type="hidden"
                 name="procedure"
-                value={`${id}:${s.quantity}:${s.discountType}:${Math.max(0, Number(s.discountValue) || 0)}:${s.doctorId}`}
+                value={`${id}:${s.quantity}`}
               />
             ))}
           </div>
@@ -746,8 +656,9 @@ export function NewAppointmentForm({
                 })}
               </div>
               <p className="text-xs text-muted-foreground">
-                Clinic absorbs it, the doctor(s) do, or it&apos;s split. If the bearer
-                requires it, the discount waits for approval before it applies.
+                Whether the clinic absorbs the discount, it comes off the doctor&apos;s
+                share, or it&apos;s split between them. If the bearer requires it, the
+                discount waits for approval before it applies.
               </p>
             </div>
           ) : null}

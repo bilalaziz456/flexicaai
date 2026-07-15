@@ -113,7 +113,6 @@ export async function AppointmentDetail({
       quantity: i.quantity,
       discountType: i.discountType,
       discountValue: i.discountValue,
-      doctorId: i.doctorId,
     }));
 
   // Read-only bill: consultation fee + line items (each with its own discount),
