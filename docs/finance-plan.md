@@ -149,9 +149,13 @@ dual render** (see §10). Recurring expenses → `api/cron/*` + `CRON_SECRET`. N
    procedures − gated discount) vs `amount_collected`; the Collect-payment action is
    already on the appointment detail (Phase 1b). Completed + Unpaid = the receivables
    view. Verified against the seed (3/3). *(WhatsApp payment reminder = later.)*
-4. **Discounts report** (`/clinic/discounts`). Every discount: patient, appointment,
-   amount (Rs/%), borne-by, affected doctor, **approval status + approver**, date.
-   Pure read (appointments + approvals + patients). Filters per §5. `discounts` ACL.
+4. **Discounts report** (`/clinic/discounts`). ✅ Every discounted visit: patient,
+   doctor, amount (Rs, incl. the % note), **borne-by**, **approval status**, date;
+   summary of Applied / Pending-approval / Count. `core/sales/discounts-report.ts`
+   (pure read; the Rs amount = `computeFee` on the visit subtotal so it matches the
+   bill). Filters: period/custom range · doctor · borne-by · status (reuses the sales
+   report's `resolveSalesRange` + an exported `FilterSelect`). Dual-render mobile.
+   `discounts` permission (feature `sales`); nav under Finance. Verified (8/8).
 5. **Expenses** (`/clinic/expenses`). `expenses` + `expense_categories` CRUD,
    recurring via cron, `finance` feature + `expenses` permission, soft-delete → Trash,
    audit-logged. Filters per §5.

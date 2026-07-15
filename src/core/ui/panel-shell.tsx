@@ -19,6 +19,7 @@ import {
   ScrollText,
   Settings,
   Stethoscope,
+  TicketPercent,
   Trash2,
   TrendingUp,
   UserCog,
@@ -94,6 +95,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
       { href: "/clinic/whatsapp", label: "WhatsApp", Icon: MessageCircle, resource: "whatsapp" },
       { href: "/clinic/recalls", label: "Recalls", Icon: BellRing, resource: "recalls" },
       { href: "/clinic/sales", label: "Sales", Icon: TrendingUp, resource: "sales" },
+      { href: "/clinic/discounts", label: "Discounts", Icon: TicketPercent, resource: "discounts" },
       { href: "/clinic/shares", label: "Revenue shares", Icon: PieChart, resource: "shares" },
       { href: "/clinic/approvals", label: "Discount approvals", Icon: BadgeCheck },
       { href: "/clinic/staff", label: "Staff", Icon: Users, resource: "staff" },
@@ -122,7 +124,12 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
 };
 
 /** Nav hrefs gated by the `sales` feature (hidden until the super admin enables it). */
-const SALES_HREFS = new Set(["/clinic/procedures", "/reception/procedures", "/clinic/sales"]);
+const SALES_HREFS = new Set([
+  "/clinic/procedures",
+  "/reception/procedures",
+  "/clinic/sales",
+  "/clinic/discounts",
+]);
 
 /**
  * Shared panel chrome for every role — desktop left sidebar (logo + icon/text

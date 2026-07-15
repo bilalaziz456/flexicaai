@@ -7,7 +7,7 @@ import { Check, ChevronsUpDown } from "lucide-react";
 import { DatePicker } from "@/core/ui/date-picker";
 import { Label } from "@/core/ui/label";
 
-const PERIOD_OPTIONS: { value: string; label: string }[] = [
+export const PERIOD_OPTIONS: { value: string; label: string }[] = [
   { value: "today", label: "Today" },
   { value: "30d", label: "Last 30 days" },
   { value: "quarter", label: "Last quarter" },
@@ -15,17 +15,19 @@ const PERIOD_OPTIONS: { value: string; label: string }[] = [
   { value: "year", label: "Last year" },
   { value: "custom", label: "Custom range" },
 ];
-const PERIOD_LABELS: Record<string, string> = Object.fromEntries(
+export const PERIOD_LABELS: Record<string, string> = Object.fromEntries(
   PERIOD_OPTIONS.map((o) => [o.value, o.label]),
 );
 
-const fieldCls = "flex flex-col gap-1.5";
-const labelCls = "text-xs font-normal text-muted-foreground";
+export const filterFieldCls = "flex flex-col gap-1.5";
+export const filterLabelCls = "text-xs font-normal text-muted-foreground";
+const fieldCls = filterFieldCls;
+const labelCls = filterLabelCls;
 const triggerCls =
   "inline-flex h-8 items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-3.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-ring";
 
 /** A themed Base UI select matching the appointment/log filter bars. */
-function FilterSelect({
+export function FilterSelect({
   label,
   ariaLabel,
   value,

@@ -45,6 +45,8 @@ export const PERM_RESOURCES: PermResource[] = [
   { id: "whatsapp", label: "WhatsApp", actions: ["view", "create"], createLabel: "Send" },
   { id: "procedures", label: "Procedures", actions: ["view", "create", "edit", "delete"], feature: "sales" },
   { id: "sales", label: "Sales report", actions: ["view"], feature: "sales" },
+  // Discounts report — who got what discount, borne by whom, approval state.
+  { id: "discounts", label: "Discounts report", actions: ["view"], feature: "sales" },
   // Patient billing: `view` = see bills/balances/invoices; `create` = Collect a
   // payment / issue an invoice; `edit` = apply advance / edit a note; `delete` =
   // Refund / Void (stricter — front-desk collects, a manager/admin reverses).
@@ -128,6 +130,7 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     whatsapp: [V, C],
     procedures: [V, C, E],
     sales: [V],
+    discounts: [V],
     // Full billing incl. refund/void (manager oversees the money).
     billing: [V, C, E, D],
     leave: [V, C, E, D],
