@@ -253,6 +253,13 @@
       "when": 1784074480801,
       "tag": "0035_giant_doctor_strange",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1784076210691,
+      "tag": "0036_windy_the_professor",
+      "breakpoints": true
     }
   ]
 }

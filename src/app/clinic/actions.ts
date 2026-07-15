@@ -18,6 +18,7 @@ import {
   patients,
   recalls,
   sales,
+  saleShares,
   sessions,
   users,
   visits,
@@ -827,20 +828,18 @@ export async function deletePatient(
         ),
       );
 
-    // Void the patient's realised-revenue rows (sales are derived, kept only for
-    // live completed appointments; re-snapshotted on restore).
-    await tx.delete(sales).where(
-      and(
-        eq(sales.clinicId, clinicId),
-        inArray(
-          sales.appointmentId,
-          tx
-            .select({ id: appointments.id })
-            .from(appointments)
-            .where(byClinic(appointments.clinicId, clinicId, eq(appointments.patientId, patientId))),
-        ),
-      ),
-    );
+    // Void the patient's realised-revenue rows (sales + per-doctor shares are
+    // derived, kept only for live completed appointments; re-snapshotted on restore).
+    const patientApptIds = tx
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(byClinic(appointments.clinicId, clinicId, eq(appointments.patientId, patientId)));
+    await tx
+      .delete(sales)
+      .where(and(eq(sales.clinicId, clinicId), inArray(sales.appointmentId, patientApptIds)));
+    await tx
+      .delete(saleShares)
+      .where(and(eq(saleShares.clinicId, clinicId), inArray(saleShares.appointmentId, patientApptIds)));
   });
   if (notFound) return { error: "Patient not found." };
 

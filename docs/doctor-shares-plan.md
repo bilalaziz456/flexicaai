@@ -1,8 +1,8 @@
 # Doctor–Clinic Revenue Share + Discount Approval
 
 > Status: **building** — Phase 1 (schema + `computeShare`) ✅, Phase 2 (config UI) ✅,
-> and Phase 3 (discount borne-by + approval workflow) ✅ done; Phase 4 (ledger) next.
-> v1 scope = gap points 1–6.
+> Phase 3 (discount borne-by + approval workflow) ✅, and Phase 4 (`sale_shares`
+> ledger) ✅ done; Phase 5 (report) next. v1 scope = gap points 1–6.
 > Not in v1: tax, material/lab cost, future-dated rates, manual per-visit override,
 > refunds (need the payments layer).
 
@@ -125,6 +125,12 @@ snapshots, so later rate edits never rewrite history.
    clinic, all switches off) → status 'none' → the discount applies exactly as
    before**, so the workflow is inert until a party opts in.
 4. **`sale_shares` ledger** — snapshot on completion; re-snapshot on edit; void on
-   un-complete.
+   un-complete. ✅ `sale_shares` table (per-DOCTOR rows; clinic cut derived);
+   `core/sales/share-ledger.ts` folded INTO `recordSaleForAppointment` /
+   `voidSaleForAppointment` / `backfillClinicSales`, so every existing sales hook
+   (completion, edit-if-completed, approval decision, trash void/restore) keeps the
+   share ledger in lockstep, on the approval-gated net. Inert when no doctor has a
+   share %. Verified against the DB (multi-doctor split, all borne-by modes, pending
+   gating, void).
 5. **`/clinic/shares` report** + `shares` permission (doctor self-view).
 6. **Payouts** — record/settle, Earned/Paid/Outstanding.

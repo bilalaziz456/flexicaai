@@ -27,6 +27,8 @@ import { getDoctorShareRatesMany } from "@/core/appointments/share-config";
  */
 export type AppointmentShareContext = {
   found: boolean;
+  /** The appointment's scheduled time — the ledger's `occurred_at`. */
+  occurredAt: Date | null;
   borneBy: ShareBorneBy;
   discountType: DiscountType;
   discountValue: number;
@@ -52,6 +54,7 @@ export async function getAppointmentShareContext(
 ): Promise<AppointmentShareContext> {
   const empty: AppointmentShareContext = {
     found: false,
+    occurredAt: null,
     borneBy: "clinic",
     discountType: "amount",
     discountValue: 0,
@@ -67,6 +70,7 @@ export async function getAppointmentShareContext(
   const [appt] = await db
     .select({
       doctorId: appointments.doctorId,
+      scheduledAt: appointments.scheduledAt,
       chargeConsultation: appointments.chargeConsultation,
       discountType: appointments.discountType,
       discountValue: appointments.discountValue,
@@ -180,6 +184,7 @@ export async function getAppointmentShareContext(
 
   return {
     found: true,
+    occurredAt: appt.scheduledAt,
     borneBy: toBorneBy(appt.discountBorneBy),
     discountType,
     discountValue: appt.discountValue,

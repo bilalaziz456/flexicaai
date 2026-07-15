@@ -790,6 +790,48 @@ export const sales = pgTable(
 );
 
 /**
+ * Per-doctor share ledger (doctor revenue-share feature). One row per DOCTOR who
+ * earned a positive share on a COMPLETED appointment — a snapshot of what they're
+ * owed, frozen at completion (via core/appointments/shares.ts#computeShare on the
+ * approval-gated net) so later rate/discount edits never rewrite history. The
+ * CLINIC's cut is derived (sale net − Σ these rows), so there is no clinic row here.
+ * A multi-doctor visit produces several rows; recording replaces all rows for the
+ * appointment. `payout_id` (nullable, no FK yet — the doctor_payouts table lands in
+ * Phase 6) batches settled shares. See docs/doctor-shares-plan.md §7.
+ */
+export const saleShares = pgTable(
+  "sale_shares",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    appointmentId: uuid("appointment_id")
+      .notNull()
+      .references(() => appointments.id, { onDelete: "cascade" }),
+    doctorId: uuid("doctor_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    doctorName: text("doctor_name"), // snapshot (survives rename / soft-delete)
+    shareAmount: integer("share_amount").notNull().default(0),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    // Set once this share is included in a doctor payout (Phase 6). NULL = unpaid.
+    payoutId: uuid("payout_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    // Replace-all-for-an-appointment + cascade cleanup.
+    index("sale_shares_appointment_idx").on(t.appointmentId),
+    // The report aggregates by clinic + date window.
+    index("sale_shares_clinic_occurred_idx").on(t.clinicId, t.occurredAt),
+    // "This doctor's shares", and the unpaid-in-range scan for payouts.
+    index("sale_shares_doctor_payout_idx").on(t.doctorId, t.payoutId),
+  ],
+);
+
+/**
  * Line items linking an appointment to the priced procedures it's booked for /
  * had done (the `sales` feature). Name + unit price are SNAPSHOTTED so editing
  * or deleting the catalog procedure never rewrites past appointments/sales.
@@ -884,6 +926,7 @@ export type AppointmentDiscountApproval =
   typeof appointmentDiscountApprovals.$inferSelect;
 export type AppointmentProcedure = typeof appointmentProcedures.$inferSelect;
 export type Sale = typeof sales.$inferSelect;
+export type SaleShare = typeof saleShares.$inferSelect;
 export type DoctorLeave = typeof doctorLeaves.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;

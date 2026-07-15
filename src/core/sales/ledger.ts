@@ -9,6 +9,10 @@ import {
   appointmentProceduresGrossSql,
   appointmentProceduresNetSql,
 } from "@/core/appointments/procedures";
+import {
+  recordSaleSharesForAppointment,
+  voidSaleSharesForAppointment,
+} from "@/core/sales/share-ledger";
 
 /**
  * Snapshots (upserts) the sale for a COMPLETED appointment: the doctor's
@@ -84,6 +88,8 @@ export async function recordSaleForAppointment(
   } catch {
     // best-effort
   }
+  // The per-doctor share ledger is snapshotted in lockstep with the sale.
+  await recordSaleSharesForAppointment(clinicId, appointmentId);
 }
 
 /** Removes an appointment's sale (when it leaves "completed"). Best-effort. */
@@ -98,6 +104,7 @@ export async function voidSaleForAppointment(
   } catch {
     // best-effort
   }
+  await voidSaleSharesForAppointment(clinicId, appointmentId);
 }
 
 /**
@@ -158,6 +165,9 @@ export async function backfillClinicSales(clinicId: string): Promise<void> {
     await db.insert(sales).values(values).onConflictDoNothing({
       target: sales.appointmentId,
     });
+    // Snapshot each backfilled appointment's per-doctor shares too (idempotent —
+    // recording replaces any existing rows for the appointment).
+    for (const r of rows) await recordSaleSharesForAppointment(clinicId, r.id);
   } catch {
     // best-effort
   }

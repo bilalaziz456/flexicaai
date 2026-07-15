@@ -18,6 +18,7 @@ import {
   procedures,
   recalls,
   sales,
+  saleShares,
   sessions,
   users,
   visits,
@@ -447,6 +448,7 @@ export async function deleteClinic(
     const staffIds = staff.map((s) => s.id);
     if (staffIds.length) await tx.delete(sessions).where(inArray(sessions.userId, staffIds));
     await tx.delete(sales).where(eq(sales.clinicId, clinicId));
+    await tx.delete(saleShares).where(eq(saleShares.clinicId, clinicId));
   });
   if (notFound) return { error: "Clinic not found." };
 

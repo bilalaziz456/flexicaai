@@ -239,6 +239,22 @@ and a bucketed net-sales-over-time chart, filterable by period / custom range /
 doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
 `appointment_id`; (`clinic_id`,`occurred_at`) for the range scan; `doctor_id`.
 
+### `sale_shares` — per-doctor share ledger (revenue-share, phase 4)
+`id`, `clinic_id` → clinics (`cascade`), `appointment_id` → appointments
+(`cascade`), `doctor_id` → users (`set null`), `doctor_name` (**snapshot**),
+`share_amount` int (PKR), `occurred_at` (= the appointment's `scheduled_at`),
+`payout_id` uuid (nullable, **no FK yet** — the `doctor_payouts` table lands in
+phase 6; NULL = unpaid), `created_at`. One row per DOCTOR who earned a positive
+share on a **completed** appointment — the CLINIC's cut is derived (sale net − Σ
+these rows), so there is no clinic row. Snapshotted at completion via
+`core/appointments/shares.ts#computeShare` on the **approval-gated** net, so later
+rate/discount edits never rewrite history. Written by `core/sales/share-ledger.ts`,
+folded into `recordSaleForAppointment` / `voidSaleForAppointment` /
+`backfillClinicSales` so it stays in lockstep with the `sales` ledger (recording
+REPLACES all rows for the appointment; a multi-doctor visit yields several).
+**Inert** when no doctor has a share % (no rows). Indexes: (`appointment_id`);
+(`clinic_id`,`occurred_at`); (`doctor_id`,`payout_id`).
+
 ### `appointment_discount_approvals` — discount sign-off (revenue-share, phase 3)
 `id`, `clinic_id` → clinics (`cascade`), `appointment_id` → appointments
 (`cascade`), `approver_kind` ('clinic' | 'doctor'), `approver_doctor_id` → users (`cascade`; the
@@ -270,7 +286,7 @@ unchanged). Indexes: (`appointment_id`); (`clinic_id`,`status`);
 - **Timezone caveat (deploy):** availability, "tomorrow" (reminder), and day
   bounds use the **server's local timezone**. For a multi-region rollout
   (Pakistan vs GCC), pin each clinic to its own timezone.
-- Migrations `0000`–`0035` applied; new tables/columns are always additive to core.
+- Migrations `0000`–`0036` applied; new tables/columns are always additive to core.
   (`0017` adds `appointments.discount_type` / `discount_value`; `0018` adds
   `appointments.queue_session` / `queue_number` + the queue unique index; `0019`
   adds the `activity_logs` table; `0020` adds `clinics.log_access` and drops the
@@ -299,4 +315,5 @@ unchanged). Indexes: (`appointment_id`); (`clinic_id`,`status`);
   switches `users.discount_needs_approval` (per doctor) + `clinics.discount_needs_approval`
   (per clinic). `0035` adds `appointments.discount_status` + the
   `appointment_discount_approvals` table (the discount approval workflow —
-  `core/appointments/approvals.ts`).)
+  `core/appointments/approvals.ts`). `0036` adds the `sale_shares` per-doctor share
+  ledger (`core/sales/share-ledger.ts`).)
