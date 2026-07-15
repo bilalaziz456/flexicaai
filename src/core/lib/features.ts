@@ -30,6 +30,12 @@ export const CLINIC_FEATURES = [
     description:
       "Priced procedures the clinic manages, procedure selection on appointments, and the Sales report (revenue from completed visits).",
   },
+  {
+    id: "finance",
+    name: "Finance (expenses & P&L)",
+    description:
+      "Clinic expenses, the Profit & Loss report, and the unified finance reports/dashboard KPIs. Owner-level; needs the sales feature for full revenue figures.",
+  },
 ] as const satisfies readonly ClinicFeature[];
 
 export type ClinicFeatureId = (typeof CLINIC_FEATURES)[number]["id"];

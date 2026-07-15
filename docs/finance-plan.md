@@ -156,9 +156,13 @@ dual render** (see §10). Recurring expenses → `api/cron/*` + `CRON_SECRET`. N
    bill). Filters: period/custom range · doctor · borne-by · status (reuses the sales
    report's `resolveSalesRange` + an exported `FilterSelect`). Dual-render mobile.
    `discounts` permission (feature `sales`); nav under Finance. Verified (8/8).
-5. **Expenses** (`/clinic/expenses`). `expenses` + `expense_categories` CRUD,
-   recurring via cron, `finance` feature + `expenses` permission, soft-delete → Trash,
-   audit-logged. Filters per §5.
+5. **Expenses** (`/clinic/expenses`). ✅ `expenses` (soft-deletable, with an in-module
+   Deleted/Restore view) + `expense_categories` (deactivate, seeded defaults). Add
+   form, filters (period/range · category · method · search), a period total,
+   category management, and a `recurring` tag. New **`finance`** feature +
+   **`expenses`** permission (clinic-admin default; grantable). Audit-logged;
+   dual-render mobile. Verified against the DB (13/13). *(Global-Trash-page wiring +
+   inline edit + recurring cron = follow-ups; delete is already soft/recoverable.)*
 6. **P&L** (`/clinic/pl`). Collected revenue − doctor shares − expenses = net profit,
    by period/category/doctor, with a revenue-vs-expenses-vs-profit chart + compare-to-
    previous. Tax slot unused. `finance` ACL.

@@ -16,6 +16,7 @@ import {
   MessageCircle,
   Mic,
   PieChart,
+  Receipt,
   ScrollText,
   Settings,
   Stethoscope,
@@ -97,6 +98,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
       { href: "/clinic/sales", label: "Sales", Icon: TrendingUp, resource: "sales" },
       { href: "/clinic/discounts", label: "Discounts", Icon: TicketPercent, resource: "discounts" },
       { href: "/clinic/shares", label: "Revenue shares", Icon: PieChart, resource: "shares" },
+      { href: "/clinic/expenses", label: "Expenses", Icon: Receipt, resource: "expenses" },
       { href: "/clinic/approvals", label: "Discount approvals", Icon: BadgeCheck },
       { href: "/clinic/staff", label: "Staff", Icon: Users, resource: "staff" },
       { href: "/clinic/settings", label: "Settings", Icon: Settings },
@@ -147,6 +149,7 @@ export function PanelShell({
   theme,
   logsEnabled = true,
   salesEnabled = false,
+  financeEnabled = false,
   approvalsEnabled = false,
   accessibleResources,
   children,
@@ -164,6 +167,8 @@ export function PanelShell({
   logsEnabled?: boolean;
   /** Hide Procedures/Sales nav items unless the clinic has the `sales` feature. */
   salesEnabled?: boolean;
+  /** Hide Expenses/P&L nav items unless the clinic has the `finance` feature. */
+  financeEnabled?: boolean;
   /** Show the Discount-approvals nav only for potential approvers (a doctor, or a
    * user holding the discount-approval capability). */
   approvalsEnabled?: boolean;
@@ -182,6 +187,7 @@ export function PanelShell({
   const items = allItems.filter((i) => {
     if (i.href === "/clinic/logs") return logsEnabled;
     if (i.href === "/clinic/approvals") return approvalsEnabled;
+    if (i.href === "/clinic/expenses") return financeEnabled && (!canSee || canSee.has("expenses"));
     if (SALES_HREFS.has(i.href) && !salesEnabled) return false;
     if (i.resource && canSee && !canSee.has(i.resource)) return false;
     return true;

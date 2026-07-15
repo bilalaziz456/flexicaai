@@ -59,6 +59,9 @@ export const PERM_RESOURCES: PermResource[] = [
   { id: "leave", label: "Doctor leave", actions: ["view", "create", "edit", "delete"] },
   { id: "staff", label: "Staff", actions: ["view", "create", "edit", "delete"] },
   { id: "settings", label: "Settings", actions: ["view", "edit"] },
+  // Expenses (Finance feature) — owner-level; clinic admin holds it by default,
+  // grantable to a manager. `delete` soft-deletes (recoverable).
+  { id: "expenses", label: "Expenses", actions: ["view", "create", "edit", "delete"], feature: "finance" },
   // Discount approvals: `view` = review & decide CLINIC-borne discount requests in
   // the approval queue (createLabel "Approve" is just the column's label). A doctor
   // always decides discounts off their OWN share regardless of this — it is only

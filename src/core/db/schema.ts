@@ -975,6 +975,62 @@ export const invoices = pgTable(
 );
 
 /**
+ * Expense categories (Finance) — a clinic's editable list (Rent, Salaries, …). Not
+ * soft-deleted; deactivate with `is_active` (kept for history on past expenses).
+ */
+export const expenseCategories = pgTable(
+  "expense_categories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("expense_categories_clinic_idx").on(t.clinicId, t.isActive)],
+);
+
+/**
+ * Expenses (Finance) — the clinic's costs (rent, salaries, supplies, lab, …). Feeds
+ * the P&L (net profit = collected revenue − doctor shares − expenses). Soft-
+ * deletable (recoverable). `recurring` tags a repeating cost (drives "duplicate" and
+ * a future cron). See core/expenses. Gated by the `finance` feature.
+ */
+export const expenses = pgTable(
+  "expenses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    categoryId: uuid("category_id").references(() => expenseCategories.id, {
+      onDelete: "set null",
+    }),
+    amount: integer("amount").notNull().default(0),
+    incurredOn: date("incurred_on").notNull(),
+    vendor: text("vendor"),
+    method: text("method"), // cash | bank | cheque | other
+    reference: text("reference"),
+    note: text("note"),
+    recurring: boolean("recurring").notNull().default(false),
+    createdBy: uuid("created_by"),
+    createdByName: text("created_by_name"),
+    ...softDeleteColumns(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("expenses_clinic_incurred_idx").on(t.clinicId, t.incurredOn),
+    index("expenses_clinic_category_idx").on(t.clinicId, t.categoryId),
+    index("expenses_deleted_idx")
+      .on(t.clinicId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
+  ],
+);
+
+/**
  * Line items linking an appointment to the priced procedures it's booked for /
  * had done (the `sales` feature). Name + unit price are SNAPSHOTTED so editing
  * or deleting the catalog procedure never rewrites past appointments/sales.
@@ -1073,6 +1129,8 @@ export type SaleShare = typeof saleShares.$inferSelect;
 export type DoctorPayout = typeof doctorPayouts.$inferSelect;
 export type PatientPayment = typeof patientPayments.$inferSelect;
 export type Invoice = typeof invoices.$inferSelect;
+export type ExpenseCategory = typeof expenseCategories.$inferSelect;
+export type Expense = typeof expenses.$inferSelect;
 export type DoctorLeave = typeof doctorLeaves.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;

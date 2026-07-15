@@ -59,6 +59,7 @@ export default async function ClinicLayout({
       theme={theme}
       logsEnabled={logsEnabled}
       salesEnabled={clinicHasFeature(clinic?.featuresEnabled, "sales")}
+      financeEnabled={clinicHasFeature(clinic?.featuresEnabled, "finance")}
       approvalsEnabled={approvalsEnabled}
       accessibleResources={navResources}
     >
