@@ -142,11 +142,13 @@ dual render** (see §10). Recurring expenses → `api/cron/*` + `CRON_SECRET`. N
    is neutral. **The Sales report + doctor earnings now reflect COLLECTED money.**
    Verified against the DB (8/8): unpaid → 0; 50% paid → net 3000 & doctor 450; 100%
    → 6000 & 900; refund → back to 450.
-3. **Appointment-list payments.** Separate **Payment filter** (Paid/Partial/Unpaid)
-   beside Status, per-row **badge** with amount left, **Collect-payment** action
-   (incl. applying an advance). Reads `amount_collected`. Completed+Unpaid =
-   receivables view. Optional: **WhatsApp payment reminder** for outstanding balances
-   (reuse the notification path).
+3. **Appointment-list payments. ✅** A separate **Payment filter**
+   (Paid/Partial/Unpaid, shown only when the clinic bills) beside Status, and a
+   per-row **badge** (Paid / Partial · Rs X left / Unpaid) on both the desktop table
+   and mobile cards. The filter is a SQL derivation of the bill (consultation +
+   procedures − gated discount) vs `amount_collected`; the Collect-payment action is
+   already on the appointment detail (Phase 1b). Completed + Unpaid = the receivables
+   view. Verified against the seed (3/3). *(WhatsApp payment reminder = later.)*
 4. **Discounts report** (`/clinic/discounts`). Every discount: patient, appointment,
    amount (Rs/%), borne-by, affected doctor, **approval status + approver**, date.
    Pure read (appointments + approvals + patients). Filters per §5. `discounts` ACL.

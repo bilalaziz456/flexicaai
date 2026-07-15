@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
-import { and, asc, count, eq, gte, ilike, lt, or } from "drizzle-orm";
+import { and, asc, count, eq, gte, ilike, lt, or, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, patients, users } from "@/core/db/schema";
+import { appointments, clinics, patients, users } from "@/core/db/schema";
+import { clinicHasFeature } from "@/core/lib/features";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
@@ -47,6 +48,7 @@ export type AppointmentsListSearchParams = {
   to?: string;
   q?: string;
   status?: string;
+  payment?: string;
   session?: string;
   page?: string;
   size?: string;
@@ -92,6 +94,22 @@ export async function AppointmentsList({
 
   const session = typeof sp.session === "string" ? sp.session : "";
 
+  // Payment status (Paid/Partial/Unpaid) only applies when the clinic bills (sales
+  // feature). It's derived from the bill vs amount_collected.
+  const [clinicRow] = await db
+    .select({ featuresEnabled: clinics.featuresEnabled })
+    .from(clinics)
+    .where(eq(clinics.id, clinicId))
+    .limit(1);
+  const billingOn = clinicHasFeature(clinicRow?.featuresEnabled, "sales");
+  const payment = billingOn && typeof sp.payment === "string" ? sp.payment : "";
+
+  // SQL for the visit's net bill: (consultation if charged) + procedures − the
+  // approval-gated appointment discount. Mirrors computeAppointmentTotal.
+  const effDiscount = sql`(case when ${appointments.discountStatus} in ('pending','rejected') then 0 else ${appointments.discountValue} end)`;
+  const subtotalSql = sql`((case when ${appointments.chargeConsultation} then coalesce(${users.consultationFee}, 0) else 0 end) + ${appointmentProceduresNetSql()})`;
+  const netSql = sql`(${subtotalSql} - least(greatest(case when ${appointments.discountType} = 'percent' then round(${subtotalSql} * ${effDiscount} / 100.0) else ${effDiscount} end, 0), ${subtotalSql}))`;
+
   const conds = session
     ? [eq(appointments.queueSession, session)]
     : [gte(appointments.scheduledAt, start), lt(appointments.scheduledAt, endExclusive)];
@@ -101,6 +119,15 @@ export async function AppointmentsList({
     );
   }
   if (!session && status) conds.push(eq(appointments.status, status));
+  if (!session && payment) {
+    if (payment === "paid") {
+      conds.push(sql`${appointments.status} = 'completed' and (${netSql} <= 0 or ${appointments.amountCollected} >= ${netSql})`);
+    } else if (payment === "partial") {
+      conds.push(sql`${appointments.status} = 'completed' and ${netSql} > 0 and ${appointments.amountCollected} > 0 and ${appointments.amountCollected} < ${netSql}`);
+    } else if (payment === "unpaid") {
+      conds.push(sql`${appointments.status} = 'completed' and ${netSql} > 0 and ${appointments.amountCollected} = 0`);
+    }
+  }
 
   const whereClause = byClinic(
     appointments.clinicId,
@@ -119,6 +146,7 @@ export async function AppointmentsList({
         discountValue: appointments.discountValue,
         discountStatus: appointments.discountStatus,
         chargeConsultation: appointments.chargeConsultation,
+        amountCollected: appointments.amountCollected,
         queueNumber: appointments.queueNumber,
         patientName: patients.fullName,
         patientPhone: patients.phone,
@@ -166,6 +194,24 @@ export async function AppointmentsList({
     if (gross === 0) return null;
     return { net: formatPkr(net), discounted: discount > 0, full: formatPkr(gross) };
   };
+  // Payment status of a completed visit (bill vs collected). Null when billing is
+  // off or the visit isn't completed / has no bill.
+  const payLabel = (
+    a: (typeof rows)[number],
+  ): { label: string; variant: "outline" | "secondary" | "destructive" } | null => {
+    if (!billingOn || a.status !== "completed") return null;
+    const bill = computeAppointmentTotal(
+      a.chargeConsultation ? a.consultationFee : 0,
+      Number(a.proceduresTotal),
+      a.discountType === "percent" ? "percent" : "amount",
+      effectiveDiscountValue(a.discountStatus, a.discountValue),
+    ).net;
+    if (bill <= 0) return null;
+    const left = bill - a.amountCollected;
+    if (left <= 0) return { label: "Paid", variant: "outline" };
+    if (a.amountCollected > 0) return { label: `Partial · ${formatPkr(left)} left`, variant: "secondary" };
+    return { label: "Unpaid", variant: "destructive" };
+  };
 
   const rangeLabel =
     fromStr === toStr ? (fromStr === today ? "today" : fromStr) : `${fromStr} → ${toStr}`;
@@ -212,7 +258,15 @@ export async function AppointmentsList({
           </Link>
         </div>
       ) : (
-        <AppointmentFilters from={fromStr} to={toStr} q={q} status={status} today={today} />
+        <AppointmentFilters
+          from={fromStr}
+          to={toStr}
+          q={q}
+          status={status}
+          payment={payment}
+          showPayment={billingOn}
+          today={today}
+        />
       )}
 
       <Pagination
@@ -273,9 +327,15 @@ export async function AppointmentsList({
                       })()}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"}>
-                        {a.status.replace("_", " ")}
-                      </Badge>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"}>
+                          {a.status.replace("_", " ")}
+                        </Badge>
+                        {(() => {
+                          const p = payLabel(a);
+                          return p ? <Badge variant={p.variant}>{p.label}</Badge> : null;
+                        })()}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -312,9 +372,15 @@ export async function AppointmentsList({
                     ) : null}
                     {a.patientName}
                   </span>
-                  <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"}>
-                    {a.status.replace("_", " ")}
-                  </Badge>
+                  <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"}>
+                      {a.status.replace("_", " ")}
+                    </Badge>
+                    {(() => {
+                      const p = payLabel(a);
+                      return p ? <Badge variant={p.variant}>{p.label}</Badge> : null;
+                    })()}
+                  </div>
                 </div>
                 <div className="text-sm text-muted-foreground">
                   {fmt(a.scheduledAt)} · {doctorLabel(a)}
