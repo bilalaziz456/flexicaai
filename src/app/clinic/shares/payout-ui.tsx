@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { Undo2 } from "lucide-react";
+import { Printer, Undo2 } from "lucide-react";
 import {
   recordDoctorPayout,
   voidDoctorPayout,
@@ -16,23 +16,20 @@ const money = new Intl.NumberFormat("en-PK", {
   maximumFractionDigits: 0,
 });
 
+const inputCls =
+  "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+
 /**
- * Record a payout settling a doctor's outstanding shares for the CURRENT filter
- * period. Shown to a clinic admin when the report is scoped to one doctor with a
- * positive outstanding balance. The hidden period fields mirror the report filter.
+ * Record a payment of an ARBITRARY amount against a doctor's outstanding balance
+ * (partial allowed). Shown to a clinic admin when scoped to one doctor with a
+ * positive balance. The amount defaults to the full outstanding but can be reduced.
  */
 export function RecordPayoutForm({
   doctorId,
   outstanding,
-  period,
-  from,
-  to,
 }: {
   doctorId: string;
   outstanding: number;
-  period: string;
-  from: string;
-  to: string;
 }) {
   const [state, formAction, pending] = useActionState<PayoutActionState, FormData>(
     recordDoctorPayout,
@@ -42,24 +39,60 @@ export function RecordPayoutForm({
   useEffect(() => {
     if (state.saved || state.error) setNonce((n) => n + 1);
   }, [state]);
+  const [amount, setAmount] = useState(String(outstanding));
 
   return (
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="doctorId" value={doctorId} />
-      <input type="hidden" name="period" value={period} />
-      <input type="hidden" name="from" value={from} />
-      <input type="hidden" name="to" value={to} />
-      <input
-        type="text"
-        name="note"
-        placeholder="Reference / note (optional)"
-        className="h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-      />
-      <Button type="submit" disabled={pending || outstanding <= 0}>
-        {pending ? "Recording…" : `Record payout of ${money.format(outstanding)}`}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground" htmlFor="pay-amount">
+            Amount (Rs) — outstanding {money.format(outstanding)}
+          </label>
+          <input
+            id="pay-amount"
+            name="amount"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={outstanding}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))}
+            className={inputCls}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground" htmlFor="pay-method">
+            Method
+          </label>
+          <select
+            id="pay-method"
+            name="method"
+            defaultValue="cash"
+            className={`${inputCls} select-chevron pr-8`}
+          >
+            <option value="cash">Cash</option>
+            <option value="bank">Bank transfer</option>
+            <option value="cheque">Cheque</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground" htmlFor="pay-ref">
+            Reference (optional)
+          </label>
+          <input id="pay-ref" name="reference" type="text" placeholder="Txn / cheque no." className={inputCls} />
+        </div>
+      </div>
+      <input type="text" name="note" placeholder="Note (optional)" className={inputCls} />
+      <Button
+        type="submit"
+        disabled={pending || outstanding <= 0 || Number(amount) <= 0}
+      >
+        {pending ? "Recording…" : "Record payment"}
       </Button>
       <Toast
-        message={state.saved ? "Payout recorded." : state.error ?? null}
+        message={state.saved ? "Payment recorded." : state.error ?? null}
         variant={state.error ? "error" : "success"}
         token={nonce}
       />
@@ -92,5 +125,14 @@ export function VoidPayoutButton({ payoutId }: { payoutId: string }) {
       </button>
       <Toast message={err} variant="error" token={nonce} />
     </>
+  );
+}
+
+/** Triggers the browser's print dialog (hidden itself when printing). */
+export function PrintButton() {
+  return (
+    <Button type="button" variant="outline" size="sm" onClick={() => window.print()}>
+      <Printer className="size-4" aria-hidden="true" /> Print / Save PDF
+    </Button>
   );
 }

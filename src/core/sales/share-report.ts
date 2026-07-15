@@ -1,9 +1,9 @@
 import "server-only";
 
-import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
-import { sales, saleShares } from "@/core/db/schema";
+import { appointments, patients, sales, saleShares } from "@/core/db/schema";
 import {
   bucketLabel,
   nextBucket,
@@ -16,21 +16,15 @@ import {
 export type DoctorShareRow = {
   doctorId: string | null;
   name: string;
-  earned: number;
-  paid: number; // of `earned`, already settled in a payout
-  outstanding: number; // earned − paid
-  count: number; // earning visits
+  earned: number; // earned in the filtered period
+  count: number; // earning visits in the period
 };
 
 export type SharesReport = {
   granularity: SalesGranularity;
-  /** Σ doctor shares matching the current filter. */
+  /** Σ doctor shares earned in the filtered period. */
   shareTotal: number;
-  /** Of shareTotal, how much is already settled (rows with a payout). */
-  paidTotal: number;
-  /** shareTotal − paidTotal (unpaid, in range). */
-  outstandingTotal: number;
-  /** # earning share rows matching the filter. */
+  /** # earning share rows in the period. */
   count: number;
   avgShare: number;
   /** Clinic's own cut (net − all doctor shares) — only in the full, unfiltered
@@ -65,7 +59,6 @@ export async function getSharesReport(
       doctorName: saleShares.doctorName,
       shareAmount: saleShares.shareAmount,
       occurredAt: saleShares.occurredAt,
-      payoutId: saleShares.payoutId,
     })
     .from(saleShares)
     .where(
@@ -90,12 +83,9 @@ export async function getSharesReport(
   }
 
   let shareTotal = 0;
-  let paidTotal = 0;
   const doctorMap = new Map<string, DoctorShareRow>();
   for (const r of rows) {
     shareTotal += r.shareAmount;
-    const paid = r.payoutId ? r.shareAmount : 0;
-    paidTotal += paid;
     const bi = bucketIndex.get(startOfBucket(r.occurredAt, granularity).getTime());
     if (bi !== undefined) buckets[bi].value += r.shareAmount;
 
@@ -103,16 +93,12 @@ export async function getSharesReport(
     const existing = doctorMap.get(key);
     if (existing) {
       existing.earned += r.shareAmount;
-      existing.paid += paid;
-      existing.outstanding += r.shareAmount - paid;
       existing.count += 1;
     } else {
       doctorMap.set(key, {
         doctorId: r.doctorId,
         name: r.doctorName ?? "Unknown",
         earned: r.shareAmount,
-        paid,
-        outstanding: r.shareAmount - paid,
         count: 1,
       });
     }
@@ -141,8 +127,6 @@ export async function getSharesReport(
   return {
     granularity,
     shareTotal,
-    paidTotal,
-    outstandingTotal: shareTotal - paidTotal,
     count,
     avgShare: count > 0 ? Math.round(shareTotal / count) : 0,
     clinicTotal,
@@ -150,4 +134,39 @@ export async function getSharesReport(
     buckets: buckets.map((b) => ({ label: b.label, value: b.value })),
     byDoctor,
   };
+}
+
+/** One earning line on a doctor's statement — the visit and their share of it. */
+export type ShareLine = {
+  occurredAt: Date;
+  patientName: string | null;
+  amount: number;
+};
+
+/**
+ * A doctor's earning lines (one per completed visit they shared in), newest first,
+ * for the printable statement. Clinic-scoped; capped so a statement stays bounded.
+ */
+export async function listDoctorEarnings(
+  clinicId: string,
+  doctorId: string,
+  limit = 1000,
+): Promise<ShareLine[]> {
+  const rows = await db
+    .select({
+      occurredAt: saleShares.occurredAt,
+      amount: saleShares.shareAmount,
+      patientName: patients.fullName,
+    })
+    .from(saleShares)
+    .leftJoin(appointments, eq(appointments.id, saleShares.appointmentId))
+    .leftJoin(patients, eq(patients.id, appointments.patientId))
+    .where(byClinic(saleShares.clinicId, clinicId, eq(saleShares.doctorId, doctorId)))
+    .orderBy(desc(saleShares.occurredAt))
+    .limit(limit);
+  return rows.map((r) => ({
+    occurredAt: r.occurredAt,
+    patientName: r.patientName,
+    amount: r.amount,
+  }));
 }

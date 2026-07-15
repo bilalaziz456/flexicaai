@@ -149,3 +149,47 @@ snapshots, so later rate edits never rewrite history.
    clinic admin records a payout from `/clinic/shares` when scoped to a doctor, and
    sees payout history with a Reverse control. Verified against the DB (record →
    paid/outstanding → double-guard → void → reversal).
+
+## 11. Phase 7 — partial payments + running balance + statement (post-v1)
+
+**Why:** v1 payouts settled *whole visits in a date range* (amount computed from the
+batched shares). Real clinics pay **arbitrary amounts on account** ("earned 10,000,
+paid 5,000, 5,000 left"). Phase 7 switches to an **amount-based lifetime running
+balance**: pay any amount, partial allowed, balance reduces.
+
+**Model change (amount-based, not per-share stamping):**
+- `Earned` = Σ `sale_shares.share_amount` (all completed, ALL TIME).
+- `Paid` = Σ `doctor_payouts.amount` (ALL TIME).
+- `Outstanding` = Earned − Paid. Balances are lifetime, not period-scoped.
+- `sale_shares.payout_id` is **dropped** (superseded — no per-visit paid flag).
+- `recordPayout(doctorId, amount, method, reference, note)` takes an ARBITRARY amount
+  (validated `0 < amount ≤ outstanding`); no share stamping. `voidPayout` just
+  deletes the row → the balance rises again.
+- `doctor_payouts` gains `method` (cash/bank/…) + `reference`.
+
+**UI (`/clinic/shares`):**
+- A **Balance** section (all-time, unaffected by the period filter): Earned / Paid /
+  Outstanding cards; per-doctor table with those three columns.
+- The **period filter** now scopes only the earnings-over-time chart + "earned this
+  period" (analysis), not the balance.
+- **Record payment** (clinic admin, scoped to a doctor): an amount input (default =
+  outstanding, max = outstanding) + method + reference + note.
+- Payment history shows method/reference; Reverse stays.
+- A **printable statement** (`/clinic/shares/statement?doctorId=…`): the doctor's
+  earning visits + payments + running balance, print-to-PDF friendly.
+
+**Sub-phases:** 7a schema + amount-based `payouts.ts`/balances + report split (DB
+tested); 7b UI (balance section, amount-input payment form, history); 7c printable
+statement.
+
+**Status: DONE ✅** (migration 0038). `sale_shares.payout_id` dropped;
+`doctor_payouts` gained `method`/`reference` and now holds arbitrary-amount payments.
+`core/sales/payouts.ts` rewritten: `getDoctorBalances`/`getDoctorBalance` (lifetime
+Earned/Paid/Outstanding), `recordPayout(amount, method, reference, note)` (partial;
+validated `0 < amount ≤ outstanding`), `voidPayout`, `listPayouts`. `share-report.ts`
+now only does period earnings/chart (+ `listDoctorEarnings` for the statement).
+`/clinic/shares`: lifetime balance cards, a per-doctor balances table (drill-in
+links), an amount-input payment form (method/reference/note), payment history with
+method + Reverse, and a **printable statement** at `/clinic/shares/statement`.
+Verified against the DB (12/12): partial pay → outstanding drops, overpay blocked,
+full settle, void restores balance, clinic-wide list.

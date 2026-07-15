@@ -796,17 +796,19 @@ export const sales = pgTable(
  * approval-gated net) so later rate/discount edits never rewrite history. The
  * CLINIC's cut is derived (sale net − Σ these rows), so there is no clinic row here.
  * A multi-doctor visit produces several rows; recording replaces all rows for the
- * appointment. `payout_id` → doctor_payouts (set null on delete) batches settled
- * shares (NULL = unpaid). See docs/doctor-shares-plan.md §7-8.
+ * appointment. Payment is tracked as an amount-based running balance (Phase 7):
+ * Earned = Σ share_amount, Paid = Σ doctor_payouts.amount, Outstanding = the
+ * difference — there is no per-share paid flag. See docs/doctor-shares-plan.md §7-8,11.
  */
 
 /**
- * Doctor payouts — one row per settlement of a doctor's accrued shares for a period
- * (revenue-share feature, Phase 6). Recording a payout batches that doctor's unpaid
- * `sale_shares` in the range, sums them into `amount`, and stamps each row's
- * `payout_id`. Deleting a payout (a correction) un-stamps its shares (FK set null),
- * returning them to "outstanding". `amount` + the period + who recorded it are
- * snapshots. See core/sales/payouts.ts.
+ * Doctor payouts — one row per PAYMENT to a doctor against their accrued shares
+ * (revenue-share, Phase 6-7). Amount-based running balance: a payment is an
+ * ARBITRARY amount (partial allowed), validated ≤ the doctor's outstanding. The
+ * balance is Σ sale_shares − Σ these amounts; deleting a payout (a correction)
+ * simply raises the balance again. `amount`, who recorded it, and the (optional)
+ * covered period are snapshots. `method`/`reference` record how it was paid. See
+ * core/sales/payouts.ts.
  */
 export const doctorPayouts = pgTable(
   "doctor_payouts",
@@ -820,7 +822,9 @@ export const doctorPayouts = pgTable(
     }),
     doctorName: text("doctor_name"), // snapshot
     amount: integer("amount").notNull().default(0),
-    periodStart: date("period_start"), // inclusive; the settled range (nullable)
+    method: text("method"), // e.g. 'cash' | 'bank' | 'other' (free-text)
+    reference: text("reference"), // cheque/transaction no. etc.
+    periodStart: date("period_start"), // optional; a period the payment covers
     periodEnd: date("period_end"),
     note: text("note"),
     createdBy: uuid("created_by"), // no FK — users are soft-deleted
@@ -851,11 +855,6 @@ export const saleShares = pgTable(
     doctorName: text("doctor_name"), // snapshot (survives rename / soft-delete)
     shareAmount: integer("share_amount").notNull().default(0),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
-    // Set once this share is included in a doctor payout. NULL = unpaid. Deleting
-    // the payout un-stamps it (set null) → back to outstanding.
-    payoutId: uuid("payout_id").references(() => doctorPayouts.id, {
-      onDelete: "set null",
-    }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -865,8 +864,8 @@ export const saleShares = pgTable(
     index("sale_shares_appointment_idx").on(t.appointmentId),
     // The report aggregates by clinic + date window.
     index("sale_shares_clinic_occurred_idx").on(t.clinicId, t.occurredAt),
-    // "This doctor's shares", and the unpaid-in-range scan for payouts.
-    index("sale_shares_doctor_payout_idx").on(t.doctorId, t.payoutId),
+    // "This doctor's earnings" (report + balance).
+    index("sale_shares_clinic_doctor_idx").on(t.clinicId, t.doctorId),
   ],
 );
 
