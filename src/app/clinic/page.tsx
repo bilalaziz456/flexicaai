@@ -56,11 +56,13 @@ export default async function ClinicDashboard() {
   const salesEnabled = clinicHasFeature(clinicRow?.featuresEnabled, "sales");
   const avgVisitValue = clinicRow?.avgVisitValue ?? 3000;
 
-  // Owner finance KPIs (feature + permission gated; perf-first — skip otherwise).
-  const financeKpis =
-    clinicHasFeature(clinicRow?.featuresEnabled, "finance") && can(user, "finance", "view")
-      ? await getFinanceKpis(clinicId)
-      : null;
+  // KPIs split by concern: Collected + Outstanding are BILLING (any billing clinic
+  // sees them); Net profit + Payable-to-doctors need the finance feature. Compute
+  // once when either applies (perf-first — skip entirely otherwise).
+  const billingKpiOn = salesEnabled && can(user, "billing", "view");
+  const financeKpiOn =
+    clinicHasFeature(clinicRow?.featuresEnabled, "finance") && can(user, "finance", "view");
+  const financeKpis = billingKpiOn || financeKpiOn ? await getFinanceKpis(clinicId) : null;
 
   // A doctor manages their OWN leave right here on the dashboard (no separate
   // "Doctors" nav item). Fetch their upcoming leave; the add/remove controls are
@@ -207,7 +209,8 @@ export default async function ClinicDashboard() {
         </p>
       </div>
 
-      {/* Owner finance KPIs (finance feature + permission). */}
+      {/* Finance KPIs — Collected + Outstanding for billing clinics; Net profit +
+          Payable when the finance feature is on. */}
       {financeKpis ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {(() => {
@@ -215,11 +218,11 @@ export default async function ClinicDashboard() {
               new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 }).format(n);
             const loss = financeKpis.netProfit30d < 0;
             const kpis = [
-              { title: "Collected (30d)", value: fmt(financeKpis.collected30d), note: "Revenue received", href: "/clinic/pl" },
-              { title: loss ? "Net loss (30d)" : "Net profit (30d)", value: fmt(Math.abs(financeKpis.netProfit30d)), note: "After shares + expenses", href: "/clinic/pl", tone: loss ? "text-destructive" : "text-emerald-600 dark:text-emerald-400" },
-              { title: "Outstanding", value: fmt(financeKpis.outstandingReceivable), note: "Patients owe us", href: "/clinic/appointments?payment=unpaid" },
-              { title: "Payable to doctors", value: fmt(financeKpis.payableToDoctors), note: "Unpaid shares", href: "/clinic/shares" },
-            ];
+              { show: billingKpiOn || financeKpiOn, title: "Collected (30d)", value: fmt(financeKpis.collected30d), note: "Revenue received", href: financeKpiOn ? "/clinic/pl" : "/clinic/sales" },
+              { show: billingKpiOn, title: "Outstanding", value: fmt(financeKpis.outstandingReceivable), note: "Patients owe us", href: "/clinic/appointments?status=completed&payment=unpaid" },
+              { show: financeKpiOn, title: loss ? "Net loss (30d)" : "Net profit (30d)", value: fmt(Math.abs(financeKpis.netProfit30d)), note: "After shares + expenses", href: "/clinic/pl", tone: loss ? "text-destructive" : "text-emerald-600 dark:text-emerald-400" },
+              { show: financeKpiOn, title: "Payable to doctors", value: fmt(financeKpis.payableToDoctors), note: "Unpaid shares", href: "/clinic/shares" },
+            ].filter((k) => k.show);
             return kpis.map((k) => (
               <Link key={k.title} href={k.href}>
                 <Card className="transition-colors hover:border-primary/50">
