@@ -171,11 +171,14 @@ dual render** (see §10). Recurring expenses → `api/cron/*` + `CRON_SECRET`. N
    clinic-admin default); nav gated by the feature. Verified against the seed (8/8) —
    totals + bucket sums reconcile. *(Multi-series trend chart + compare-to-previous +
    tax line = follow-ups.)*
-7. **Nav refactor.** PanelShell → parent tabs with `>` expandable subtabs:
-   **Finance ›** (Sales · Discounts · Revenue shares · Payouts · Expenses · P&L) ·
-   **Clinical ›** · **People ›** · **System ›**; top-level Dashboard · Appointments ·
-   WhatsApp · Approvals. Mobile drawer too; auto-expand the active group; remember
-   expanded state.
+7. **Nav refactor. ✅** PanelShell → collapsible parent tabs with a `>` disclosure.
+   Top-level: Dashboard · Appointments · Patients · Voice scribe. Groups:
+   **Finance ›** (Sales · Discounts · Revenue shares · Expenses · Profit & Loss ·
+   Discount approvals) · **Operations ›** (Procedures · Doctors · WhatsApp · Recalls) ·
+   **Admin ›** (Staff · Settings · Trash · Activity log). Same in the mobile drawer;
+   a group **auto-expands when it holds the active page**, empty groups are hidden,
+   and explicit toggles persist (localStorage). All the per-item feature/permission
+   gating is preserved.
 8. **Unified reports + export + day book.** `/clinic/reports` hub tying Sales,
    Discounts, Shares, Expenses, P&L with shared filters + **PDF (`pdf-lib`) / CSV**
    export + month-over-month. **Day book** (daily cash collected by method — for

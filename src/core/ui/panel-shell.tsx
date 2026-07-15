@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -8,6 +8,7 @@ import {
   BellRing,
   Building2,
   CalendarClock,
+  ChevronRight,
   ClipboardList,
   Contact,
   LayoutDashboard,
@@ -45,6 +46,11 @@ type NavItem = {
   resource?: string;
 };
 
+/** A collapsible parent tab that groups related items under a ">" disclosure. */
+type NavGroup = { group: string; Icon: LucideIcon; items: NavItem[] };
+type NavNode = NavItem | NavGroup;
+const isGroup = (n: NavNode): n is NavGroup => "group" in n;
+
 /** The signed-in user's own avatar (from /api/me/avatar); falls back to an icon.
  * `version` (the avatar key) busts the cache so a new upload shows immediately —
  * keyed by it at the call site so the component remounts on change. */
@@ -76,10 +82,10 @@ export type PanelId = "admin" | "clinic" | "doctor" | "reception";
  * server/client boundary. Every role gets the same chrome; only the items and
  * the brand link differ.
  */
-const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
+const NAV_BY_PANEL: Record<PanelId, { brand: string; nodes: NavNode[] }> = {
   admin: {
     brand: "/admin",
-    items: [
+    nodes: [
       { href: "/admin", label: "Clinics", Icon: Building2, exact: true },
       { href: "/admin/logs", label: "Activity log", Icon: ScrollText },
       { href: "/admin/trash", label: "Trash", Icon: Trash2 },
@@ -87,30 +93,49 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
   },
   clinic: {
     brand: "/clinic",
-    items: [
+    // Top-level items stay flat; the rest are grouped under collapsible parents.
+    nodes: [
       { href: "/clinic", label: "Dashboard", Icon: LayoutDashboard, exact: true },
-      { href: "/clinic/scribe", label: "Voice scribe", Icon: Mic, resource: "clinical" },
       { href: "/clinic/appointments", label: "Appointments", Icon: CalendarClock, resource: "appointments" },
       { href: "/clinic/patients", label: "Patients", Icon: Contact, resource: "patients" },
-      { href: "/clinic/procedures", label: "Procedures", Icon: ClipboardList, resource: "procedures" },
-      { href: "/clinic/doctors", label: "Doctors", Icon: UserCog, resource: "leave" },
-      { href: "/clinic/whatsapp", label: "WhatsApp", Icon: MessageCircle, resource: "whatsapp" },
-      { href: "/clinic/recalls", label: "Recalls", Icon: BellRing, resource: "recalls" },
-      { href: "/clinic/sales", label: "Sales", Icon: TrendingUp, resource: "sales" },
-      { href: "/clinic/discounts", label: "Discounts", Icon: TicketPercent, resource: "discounts" },
-      { href: "/clinic/shares", label: "Revenue shares", Icon: PieChart, resource: "shares" },
-      { href: "/clinic/expenses", label: "Expenses", Icon: Receipt, resource: "expenses" },
-      { href: "/clinic/pl", label: "Profit & Loss", Icon: Wallet, resource: "finance" },
-      { href: "/clinic/approvals", label: "Discount approvals", Icon: BadgeCheck },
-      { href: "/clinic/staff", label: "Staff", Icon: Users, resource: "staff" },
-      { href: "/clinic/settings", label: "Settings", Icon: Settings },
-      { href: "/clinic/trash", label: "Trash", Icon: Trash2, resource: "trash" },
-      { href: "/clinic/logs", label: "Activity log", Icon: ScrollText },
+      { href: "/clinic/scribe", label: "Voice scribe", Icon: Mic, resource: "clinical" },
+      {
+        group: "Finance",
+        Icon: Wallet,
+        items: [
+          { href: "/clinic/sales", label: "Sales", Icon: TrendingUp, resource: "sales" },
+          { href: "/clinic/discounts", label: "Discounts", Icon: TicketPercent, resource: "discounts" },
+          { href: "/clinic/shares", label: "Revenue shares", Icon: PieChart, resource: "shares" },
+          { href: "/clinic/expenses", label: "Expenses", Icon: Receipt, resource: "expenses" },
+          { href: "/clinic/pl", label: "Profit & Loss", Icon: Wallet, resource: "finance" },
+          { href: "/clinic/approvals", label: "Discount approvals", Icon: BadgeCheck },
+        ],
+      },
+      {
+        group: "Operations",
+        Icon: ClipboardList,
+        items: [
+          { href: "/clinic/procedures", label: "Procedures", Icon: ClipboardList, resource: "procedures" },
+          { href: "/clinic/doctors", label: "Doctors", Icon: UserCog, resource: "leave" },
+          { href: "/clinic/whatsapp", label: "WhatsApp", Icon: MessageCircle, resource: "whatsapp" },
+          { href: "/clinic/recalls", label: "Recalls", Icon: BellRing, resource: "recalls" },
+        ],
+      },
+      {
+        group: "Admin",
+        Icon: Users,
+        items: [
+          { href: "/clinic/staff", label: "Staff", Icon: Users, resource: "staff" },
+          { href: "/clinic/settings", label: "Settings", Icon: Settings },
+          { href: "/clinic/trash", label: "Trash", Icon: Trash2, resource: "trash" },
+          { href: "/clinic/logs", label: "Activity log", Icon: ScrollText },
+        ],
+      },
     ],
   },
   doctor: {
     brand: "/doctor",
-    items: [
+    nodes: [
       { href: "/doctor", label: "Voice scribe", Icon: Stethoscope, exact: true, resource: "clinical" },
       { href: "/doctor/appointments", label: "Appointments", Icon: CalendarClock, resource: "appointments" },
       { href: "/doctor/patients", label: "Patients", Icon: Contact, resource: "patients" },
@@ -118,7 +143,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
   },
   reception: {
     brand: "/reception",
-    items: [
+    nodes: [
       { href: "/reception", label: "Appointments", Icon: CalendarClock, exact: true, resource: "appointments" },
       { href: "/reception/doctors", label: "Doctors", Icon: Stethoscope, resource: "leave" },
       { href: "/reception/procedures", label: "Procedures", Icon: ClipboardList, resource: "procedures" },
@@ -182,11 +207,14 @@ export function PanelShell({
   accessibleResources?: readonly string[];
   children: React.ReactNode;
 }) {
-  const { brand, items: allItems } = NAV_BY_PANEL[panel];
+  const { brand, nodes } = NAV_BY_PANEL[panel];
   const canSee = accessibleResources ? new Set(accessibleResources) : null;
-  // Nav gating, in order: feature flags (Activity log / Sales feature) then
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+
+  // Per-item gating, in order: feature flags (Activity log / Sales / Finance) then
   // per-user permissions (a resource-tagged item needs access to that resource).
-  const items = allItems.filter((i) => {
+  const visible = (i: NavItem): boolean => {
     if (i.href === "/clinic/logs") return logsEnabled;
     if (i.href === "/clinic/approvals") return approvalsEnabled;
     if (i.href === "/clinic/expenses") return financeEnabled && (!canSee || canSee.has("expenses"));
@@ -194,12 +222,38 @@ export function PanelShell({
     if (SALES_HREFS.has(i.href) && !salesEnabled) return false;
     if (i.resource && canSee && !canSee.has(i.resource)) return false;
     return true;
-  });
-  const pathname = usePathname();
-  const [open, setOpen] = useState(false);
+  };
+  // Filter items inside each group; drop a group that ends up empty.
+  const visibleNodes: NavNode[] = nodes
+    .map((n) => (isGroup(n) ? { ...n, items: n.items.filter(visible) } : n))
+    .filter((n) => (isGroup(n) ? n.items.length > 0 : visible(n)));
 
   const isActive = (item: NavItem) =>
     item.exact ? pathname === item.href : pathname.startsWith(item.href);
+  const groupHasActive = (g: NavGroup) => g.items.some(isActive);
+
+  // A group is open if the user toggled it, else auto-open when it holds the active
+  // page. Explicit toggles persist across navigations.
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("klenic:nav-groups");
+      if (raw) setExpandedGroups(JSON.parse(raw));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const setGroupOpen = (name: string, next: boolean) =>
+    setExpandedGroups((prev) => {
+      const merged = { ...prev, [name]: next };
+      try {
+        localStorage.setItem("klenic:nav-groups", JSON.stringify(merged));
+      } catch {
+        /* ignore */
+      }
+      return merged;
+    });
+  const isGroupOpen = (g: NavGroup) => expandedGroups[g.group] ?? groupHasActive(g);
 
   const navLink = (item: NavItem, onClick?: () => void) => (
     <Link
@@ -219,6 +273,37 @@ export function PanelShell({
     </Link>
   );
 
+  /** Render the nav tree (top-level items + collapsible groups). */
+  const renderNodes = (onNavClick?: () => void) =>
+    visibleNodes.map((n) => {
+      if (!isGroup(n)) return navLink(n, onNavClick);
+      const openGroup = isGroupOpen(n);
+      return (
+        <div key={n.group}>
+          <button
+            type="button"
+            onClick={() => setGroupOpen(n.group, !openGroup)}
+            aria-expanded={openGroup}
+            className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          >
+            <span className="flex items-center gap-3">
+              <n.Icon className="size-4 shrink-0" aria-hidden="true" />
+              {n.group}
+            </span>
+            <ChevronRight
+              className={cn("size-4 shrink-0 transition-transform", openGroup && "rotate-90")}
+              aria-hidden="true"
+            />
+          </button>
+          {openGroup ? (
+            <div className="ml-4 mt-0.5 space-y-0.5 border-l pl-2">
+              {n.items.map((i) => navLink(i, onNavClick))}
+            </div>
+          ) : null}
+        </div>
+      );
+    });
+
   return (
     <div className="min-h-screen md:pl-60">
       {/* ---- Desktop sidebar ---- */}
@@ -228,7 +313,7 @@ export function PanelShell({
             <Logo className="h-7" />
           </Link>
         </div>
-        <nav className="flex-1 space-y-1 px-3">{items.map((i) => navLink(i))}</nav>
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-3">{renderNodes()}</nav>
         <div className="border-t p-3">
           <form action={signOut}>
             <button
@@ -335,9 +420,7 @@ export function PanelShell({
               </span>
             </Link>
           </div>
-          <nav className="space-y-1">
-            {items.map((i) => navLink(i, () => setOpen(false)))}
-          </nav>
+          <nav className="space-y-1 overflow-y-auto">{renderNodes(() => setOpen(false))}</nav>
         </div>
       </div>
 
