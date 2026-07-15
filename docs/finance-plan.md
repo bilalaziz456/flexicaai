@@ -115,9 +115,11 @@ One renderer, three formats, two output paths:
 ## 7. Reuse map
 
 Reports → `resolveSalesRange` + bucket helpers + `SalesChart`/`SalesFilters`. Filters
-→ `AppointmentFilters`/`SalesFilters` primitives + `searchClinicPatients`. Recurring
-expenses → `api/cron/*` + `CRON_SECRET`. New tables → `softDeleteColumns()` + Trash.
-PDF → `pdf-lib`; CSV hand-rolled. Audit → `logActivity`.
+→ `AppointmentFilters`/`SalesFilters` primitives + `searchClinicPatients`. Lists →
+the shared `Table` + **`Pagination`** components + the **desktop-table / mobile-card
+dual render** (see §10). Recurring expenses → `api/cron/*` + `CRON_SECRET`. New tables
+→ `softDeleteColumns()` + Trash. PDF → `pdf-lib`; CSV hand-rolled. Audit →
+`logActivity`. Every growable ledger (payments, invoices, expenses) is **paginated**.
 
 ## 8. Build phases
 
@@ -173,7 +175,33 @@ lands once Finance is full; unified reporting + export + day book (8) is the cap
 Each phase is DB-tested (the `server-only`-stub + dotenv-preload tsx harness) and
 finishes `tsc` clean + `e2e` green, mirroring the revenue-share work.
 
-## 10. Not in scope (yet)
+## 10. Mobile & responsive (every screen — non-negotiable)
+
+The app already has a **gold-standard responsive pattern** (see
+`reception/appointments-list.tsx`); every finance screen follows it:
+
+- **Lists = dual render.** A `<Table>` inside `hidden md:block` for desktop **and** a
+  stacked **card list** (`md:hidden`, `RowLink as="li"`) for mobile — never a wide
+  table that forces the page to scroll sideways. Applies to payments, invoices,
+  discounts, expenses, P&L breakdowns, day book.
+- **Retrofit:** the tables shipped in the revenue-share work (`/clinic/shares` by-
+  doctor + payments, the doctor statement, `/clinic/sales`) are still desktop-only
+  `<table>`s — bring them to the dual pattern as a small pre-step so "everything is
+  mobile" is actually true.
+- **Filter bars** already `flex-wrap`; on mobile a many-filter bar gets tall, so wrap
+  it in a collapsible **"Filters"** disclosure (expanded on desktop, collapsed on
+  mobile) to keep the screen usable.
+- **Summary/KPI cards**: `grid sm:grid-cols-2 lg:grid-cols-4` (stack on mobile).
+  **Forms** (collect payment, expense): `grid sm:grid-cols-N` (stack on mobile).
+- **Charts** are already width-responsive (`SalesChart` uses `ResizeObserver`).
+- **Primary actions** (New expense / Collect / Export): follow the existing pattern —
+  a full-width or reachable control on mobile, not a desktop-only button.
+- **Invoice / receipt / statement previews** are readable on a phone; the print CSS
+  (thermal/A5/A4) is independent of screen size.
+- **Nav refactor** (§8 Phase 7): parent/subtabs work in the **mobile drawer** too
+  (auto-expand the active group).
+
+## 11. Not in scope (yet)
 
 Tax/VAT computation (slot left in P&L), multi-currency, insurance/third-party claims,
 credit notes for post-issue invoice changes, payroll beyond doctor payouts, accrual on
