@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { requireWorkspace } from "@/core/auth/user";
@@ -59,10 +60,10 @@ export default async function ClinicSalesPage({
   ]);
 
   const summary = [
-    { title: "Net sales", value: money.format(report.netTotal), note: "Collected after discounts" },
-    { title: "Completed visits", value: String(report.count), note: "Sales in this period" },
-    { title: "Discounts given", value: money.format(report.discountTotal), note: "Off the gross total" },
-    { title: "Avg per visit", value: money.format(report.avgNet), note: "Net ÷ completed visits" },
+    { title: "Collected", value: money.format(report.netTotal), note: "Money received (after discounts)" },
+    { title: "Paying visits", value: String(report.count), note: "Completed visits with a payment" },
+    { title: "Discounts realized", value: money.format(report.discountTotal), note: "On collected revenue" },
+    { title: "Avg per visit", value: money.format(report.avgNet), note: "Collected ÷ paying visits" },
   ];
 
   return (
@@ -70,8 +71,17 @@ export default async function ClinicSalesPage({
       <div>
         <h1 className="text-xl font-semibold">Sales</h1>
         <p className="text-sm text-muted-foreground">
-          Revenue from completed appointments — consultation fees plus procedures,
-          after discounts.
+          Revenue <strong>collected</strong> from completed visits — consultation +
+          procedures, after discounts. A visit appears here once it&apos;s paid; what
+          patients still owe is in{" "}
+          <Link href="/clinic/appointments?status=completed&payment=unpaid" className="underline underline-offset-4">
+            receivables
+          </Link>
+          , and the full discounts granted are in{" "}
+          <Link href="/clinic/discounts" className="underline underline-offset-4">
+            Discounts
+          </Link>
+          .
         </p>
       </div>
 
@@ -99,7 +109,7 @@ export default async function ClinicSalesPage({
       {/* Sales over time */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Net sales over time</CardTitle>
+          <CardTitle className="text-base">Collected revenue over time</CardTitle>
           <CardDescription>
             {report.granularity === "hour"
               ? "By hour"
@@ -113,7 +123,7 @@ export default async function ClinicSalesPage({
         <CardContent>
           {report.count === 0 ? (
             <p className="py-12 text-center text-sm text-muted-foreground">
-              No completed appointments in this period.
+              No paid visits in this period.
             </p>
           ) : (
             <SalesChart points={report.buckets} />
@@ -126,7 +136,7 @@ export default async function ClinicSalesPage({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">By doctor</CardTitle>
-            <CardDescription>Net sales attributed to each doctor.</CardDescription>
+            <CardDescription>Collected revenue by the visit&apos;s doctor.</CardDescription>
           </CardHeader>
           <CardContent>
             {report.byDoctor.length === 0 ? (
@@ -138,7 +148,7 @@ export default async function ClinicSalesPage({
                     <tr className="border-b text-left text-xs text-muted-foreground">
                       <th className="pb-2 font-normal">Doctor</th>
                       <th className="pb-2 text-right font-normal">Visits</th>
-                      <th className="pb-2 text-right font-normal">Net</th>
+                      <th className="pb-2 text-right font-normal">Collected</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -160,7 +170,7 @@ export default async function ClinicSalesPage({
           <CardHeader>
             <CardTitle className="text-base">By procedure</CardTitle>
             <CardDescription>
-              Procedure revenue (after line discounts) in this period.
+              Billed value of procedures performed on paying visits (before collection).
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -175,7 +185,7 @@ export default async function ClinicSalesPage({
                     <tr className="border-b text-left text-xs text-muted-foreground">
                       <th className="pb-2 font-normal">Procedure</th>
                       <th className="pb-2 text-right font-normal">Qty</th>
-                      <th className="pb-2 text-right font-normal">Revenue</th>
+                      <th className="pb-2 text-right font-normal">Billed</th>
                     </tr>
                   </thead>
                   <tbody>

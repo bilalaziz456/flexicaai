@@ -71,6 +71,13 @@ export async function recordSaleForAppointment(
       effectiveDiscountValue(row.discountStatus, row.discountValue),
     );
     const collected = Math.max(0, Math.min(row.amountCollected, billed.net));
+    // Nothing collected yet → no realised sale. It appears once the patient pays
+    // (a full refund back to 0 removes it again). Keeps the report's counts/averages
+    // about PAYING visits; the money owed lives in receivables, not Sales.
+    if (collected <= 0) {
+      await voidSaleForAppointment(clinicId, appointmentId);
+      return;
+    }
     const fraction = billed.net > 0 ? collected / billed.net : 0;
     const net = collected;
     const gross = Math.round(billed.gross * fraction);
