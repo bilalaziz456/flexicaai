@@ -99,6 +99,13 @@ export const clinics = pgTable(
     // out of the clinic-level view (still in the DB — only the super admin sees it
     // past this window). Super-admin-set; default 30. Never auto-purged.
     trashRetentionDays: integer("trash_retention_days").notNull().default(30),
+    // Billing/invoice settings (Finance). `invoicePaper` is the default print size
+    // (a4|a5|thermal); `invoicePrefix` prefixes the human invoice label (e.g.
+    // "INV-"); `nextInvoiceNo` is the per-clinic counter atomically bumped when an
+    // invoice is issued (so concurrent receptionists never collide). See core/billing.
+    invoicePaper: text("invoice_paper").notNull().default("a4"),
+    invoicePrefix: text("invoice_prefix").notNull().default("INV-"),
+    nextInvoiceNo: integer("next_invoice_no").notNull().default(1),
     // When true, a CLINIC-borne discount needs approval (from a `discount_approval`
     // grantee) before it applies. Per-doctor discounts use users.discountNeedsApproval.
     // See docs/doctor-shares-plan.md §6.
@@ -362,6 +369,12 @@ export const appointments = pgTable(
     // who comes only for a procedure has no consultation fee → set false and the
     // bill/sale count only the procedures. Default true (charge, as before).
     chargeConsultation: boolean("charge_consultation").notNull().default(true),
+    // Denormalized cache of Σ collected against this appointment's bill (from
+    // patient_payments; updated on every payment). Drives the appointment-list
+    // Payment filter/badge without aggregating the ledger. Payment status is derived
+    // vs the bill (computeBill): collected ≥ bill Paid · 0<collected<bill Partial ·
+    // 0 Unpaid. See core/billing.
+    amountCollected: integer("amount_collected").notNull().default(0),
     // How the appointment was created — free-text tag, default 'staff'. Patient
     // WhatsApp self-bookings are 'whatsapp': those stay a request until staff
     // confirm, and the patient's confirmation message fires on that confirm.
@@ -870,6 +883,98 @@ export const saleShares = pgTable(
 );
 
 /**
+ * Patient payments ledger (Finance — patient billing). Every money movement on a
+ * patient's account: a `payment` against a visit's bill, an `advance` (prepaid
+ * credit — `appointment_id` NULL), an `advance_applied` (credit consumed by a
+ * bill), or a `refund`. Amounts are positive PKR; the sign/meaning comes from
+ * `kind`. Collected on a visit = Σ(payment + advance_applied) for that
+ * appointment; patient credit = Σadvance − Σadvance_applied − Σrefund. Soft-
+ * deletable (a void is a soft delete, linked via `reverses_id`). See core/billing.
+ */
+export const patientPayments = pgTable(
+  "patient_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    patientId: uuid("patient_id")
+      .notNull()
+      .references(() => patients.id, { onDelete: "cascade" }),
+    // NULL = an unallocated advance (patient-level credit, not tied to a visit).
+    appointmentId: uuid("appointment_id").references(() => appointments.id, {
+      onDelete: "set null",
+    }),
+    kind: text("kind").notNull(), // payment | advance | advance_applied | refund
+    amount: integer("amount").notNull().default(0),
+    method: text("method"), // cash | bank | cheque | other
+    reference: text("reference"),
+    note: text("note"),
+    // The entry a refund/void reverses (traceability); no FK (self-ref, soft-del).
+    reversesId: uuid("reverses_id"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdBy: uuid("created_by"),
+    createdByName: text("created_by_name"),
+    ...softDeleteColumns(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("patient_payments_clinic_patient_idx").on(t.clinicId, t.patientId),
+    index("patient_payments_appointment_idx").on(t.appointmentId),
+    index("patient_payments_clinic_occurred_idx").on(t.clinicId, t.occurredAt),
+    index("patient_payments_deleted_idx")
+      .on(t.clinicId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
+  ],
+);
+
+/**
+ * Invoices (Finance — patient billing). One per completed appointment. The bill
+ * amount is derived live from `computeBill` (not stored), so a later edit flows
+ * through; the invoice just records that a numbered document was issued.
+ * `invoiceNo` is a per-clinic sequential integer (allocated by atomically bumping
+ * `clinics.next_invoice_no`), shown with `clinics.invoice_prefix`. Soft-deletable
+ * (a void keeps the number). See core/billing.
+ */
+export const invoices = pgTable(
+  "invoices",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    appointmentId: uuid("appointment_id")
+      .notNull()
+      .references(() => appointments.id, { onDelete: "cascade" }),
+    patientId: uuid("patient_id")
+      .notNull()
+      .references(() => patients.id, { onDelete: "cascade" }),
+    invoiceNo: integer("invoice_no").notNull(),
+    issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
+    issuedBy: uuid("issued_by"),
+    issuedByName: text("issued_by_name"),
+    note: text("note"),
+    ...softDeleteColumns(),
+  },
+  (t) => [
+    // One live invoice per appointment (soft-deleted ones don't block a re-issue).
+    uniqueIndex("invoices_appointment_unique")
+      .on(t.appointmentId)
+      .where(sql`${t.deletedAt} is null`),
+    uniqueIndex("invoices_clinic_no_unique").on(t.clinicId, t.invoiceNo),
+    index("invoices_clinic_issued_idx").on(t.clinicId, t.issuedAt),
+    index("invoices_patient_idx").on(t.patientId),
+  ],
+);
+
+/**
  * Line items linking an appointment to the priced procedures it's booked for /
  * had done (the `sales` feature). Name + unit price are SNAPSHOTTED so editing
  * or deleting the catalog procedure never rewrites past appointments/sales.
@@ -966,6 +1071,8 @@ export type AppointmentProcedure = typeof appointmentProcedures.$inferSelect;
 export type Sale = typeof sales.$inferSelect;
 export type SaleShare = typeof saleShares.$inferSelect;
 export type DoctorPayout = typeof doctorPayouts.$inferSelect;
+export type PatientPayment = typeof patientPayments.$inferSelect;
+export type Invoice = typeof invoices.$inferSelect;
 export type DoctorLeave = typeof doctorLeaves.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
