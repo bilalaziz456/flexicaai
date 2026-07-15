@@ -37,7 +37,13 @@ function topRoundedRect(x: number, y: number, w: number, h: number, r: number): 
  * recessive gridlines + a teal (`--chart-1`) bar per bucket with a 2px gap, and
  * shows a per-bar hover tooltip. Theme-aware through the design tokens.
  */
-export function SalesChart({ points }: { points: ChartPoint[] }) {
+export function SalesChart({
+  points,
+  ariaLabel = "Net sales over time",
+}: {
+  points: ChartPoint[];
+  ariaLabel?: string;
+}) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [hover, setHover] = useState<number | null>(null);
@@ -78,7 +84,7 @@ export function SalesChart({ points }: { points: ChartPoint[] }) {
           width={width}
           height={HEIGHT}
           role="img"
-          aria-label="Net sales over time"
+          aria-label={ariaLabel}
           onMouseLeave={() => setHover(null)}
         >
           {/* Recessive gridlines + y labels */}

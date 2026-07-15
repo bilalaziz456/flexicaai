@@ -131,7 +131,7 @@ export function resolveSalesRange(
   }
 }
 
-function startOfBucket(d: Date, g: SalesGranularity): Date {
+export function startOfBucket(d: Date, g: SalesGranularity): Date {
   const x = new Date(d);
   x.setMilliseconds(0);
   x.setSeconds(0);
@@ -149,7 +149,7 @@ function startOfBucket(d: Date, g: SalesGranularity): Date {
   return x;
 }
 
-function nextBucket(d: Date, g: SalesGranularity): Date {
+export function nextBucket(d: Date, g: SalesGranularity): Date {
   const x = new Date(d);
   if (g === "hour") x.setHours(x.getHours() + 1);
   else if (g === "day") x.setDate(x.getDate() + 1);
@@ -158,7 +158,7 @@ function nextBucket(d: Date, g: SalesGranularity): Date {
   return x;
 }
 
-function bucketLabel(d: Date, g: SalesGranularity): string {
+export function bucketLabel(d: Date, g: SalesGranularity): string {
   if (g === "hour")
     return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   if (g === "month")

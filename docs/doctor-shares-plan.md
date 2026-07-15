@@ -1,8 +1,8 @@
 # Doctor–Clinic Revenue Share + Discount Approval
 
-> Status: **building** — Phase 1 (schema + `computeShare`) ✅, Phase 2 (config UI) ✅,
-> Phase 3 (discount borne-by + approval workflow) ✅, and Phase 4 (`sale_shares`
-> ledger) ✅ done; Phase 5 (report) next. v1 scope = gap points 1–6.
+> Status: **building** — Phases 1 (schema + `computeShare`), 2 (config UI),
+> 3 (discount borne-by + approval), 4 (`sale_shares` ledger), and 5 (`/clinic/shares`
+> report) all ✅; Phase 6 (payouts) next. v1 scope = gap points 1–6.
 > Not in v1: tax, material/lab cost, future-dated rates, manual per-visit override,
 > refunds (need the payments layer).
 
@@ -132,5 +132,11 @@ snapshots, so later rate edits never rewrite history.
    share ledger in lockstep, on the approval-gated net. Inert when no doctor has a
    share %. Verified against the DB (multi-doctor split, all borne-by modes, pending
    gating, void).
-5. **`/clinic/shares` report** + `shares` permission (doctor self-view).
+5. **`/clinic/shares` report** + `shares` permission (doctor self-view). ✅
+   `core/sales/share-report.ts` (reuses the Sales report's range/bucket helpers):
+   per-doctor earned + the clinic's derived cut (net − Σ shares) + a
+   share-over-time chart, filter by period/doctor. A doctor holds `shares:view` by
+   default but is self-scoped (own earnings only, no clinic totals); a clinic admin /
+   granted manager sees everyone. Reuses `SalesChart` / `SalesFilters`. Not
+   feature-gated. Verified against the DB (full + scoped).
 6. **Payouts** — record/settle, Earned/Paid/Outstanding.

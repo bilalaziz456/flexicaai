@@ -93,12 +93,15 @@ export function SalesFilters({
   to,
   doctorId,
   doctors,
+  showDoctor = true,
 }: {
   period: string;
   from: string;
   to: string;
   doctorId: string;
   doctors: { id: string; name: string }[];
+  /** Hide the doctor filter (e.g. a doctor's self-scoped shares view). */
+  showDoctor?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -146,17 +149,19 @@ export function SalesFilters({
           push({ period: v });
         }}
       />
-      <FilterSelect
-        label="Doctor"
-        ariaLabel="Filter by doctor"
-        value={doctorV}
-        items={doctorItems}
-        options={doctorOptions}
-        onChange={(v) => {
-          setDoctorV(v);
-          push({ doctorId: v });
-        }}
-      />
+      {showDoctor ? (
+        <FilterSelect
+          label="Doctor"
+          ariaLabel="Filter by doctor"
+          value={doctorV}
+          items={doctorItems}
+          options={doctorOptions}
+          onChange={(v) => {
+            setDoctorV(v);
+            push({ doctorId: v });
+          }}
+        />
+      ) : null}
       <div className={fieldCls}>
         <Label htmlFor="from" className={labelCls}>
           From

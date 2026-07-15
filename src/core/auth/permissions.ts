@@ -45,6 +45,11 @@ export const PERM_RESOURCES: PermResource[] = [
   { id: "whatsapp", label: "WhatsApp", actions: ["view", "create"], createLabel: "Send" },
   { id: "procedures", label: "Procedures", actions: ["view", "create", "edit", "delete"], feature: "sales" },
   { id: "sales", label: "Sales report", actions: ["view"], feature: "sales" },
+  // Revenue-share earnings report. A DOCTOR holds this by default but only ever
+  // sees their OWN earnings (self-scoped at the page); a clinic admin / granted
+  // manager sees every doctor + the clinic's cut. Not feature-gated (shares can
+  // accrue from consultation fees without the sales feature).
+  { id: "shares", label: "Revenue shares", actions: ["view"] },
   { id: "leave", label: "Doctor leave", actions: ["view", "create", "edit", "delete"] },
   { id: "staff", label: "Staff", actions: ["view", "create", "edit", "delete"] },
   { id: "settings", label: "Settings", actions: ["view", "edit"] },
@@ -134,6 +139,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     patients: [V],
     appointments: [V],
     recalls: [V],
+    // A doctor sees their OWN revenue-share earnings (self-scoped in the page).
+    shares: [V],
     // A doctor manages their OWN leave only (self-scoped in the page + actions).
     leave: [V, C, E, D],
     // Trash: view + restore on by default (C = "Restore"); purge stays super-admin.
