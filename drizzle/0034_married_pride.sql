@@ -1,0 +1,2 @@
+ALTER TABLE "clinics" ADD COLUMN "discount_needs_approval" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "users" ADD COLUMN "discount_needs_approval" boolean DEFAULT false NOT NULL;

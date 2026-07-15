@@ -5,6 +5,7 @@ import { Trash2 } from "lucide-react";
 import {
   deleteStaff,
   resetStaffPassword,
+  updateDoctorShares,
   updateStaffProfile,
   type ClinicActionState,
 } from "@/app/clinic/actions";
@@ -119,6 +120,169 @@ export function EditStaffForm({
           {pending ? "Saving…" : "Save changes"}
         </Button>
       </div>
+      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
+    </form>
+  );
+}
+
+/**
+ * A doctor's REVENUE-SHARE config — the cut they earn of the consultation fee and
+ * of procedures, plus per-procedure rate overrides and their discount-approval
+ * switch. Empty override = "use the default rate"; a typed 0 is an explicit 0%
+ * (distinct from empty). Saved in one action; stays on the page with a toast.
+ */
+export function DoctorSharesForm({
+  userId,
+  consultationSharePct,
+  procedureSharePct,
+  discountNeedsApproval,
+  procedures,
+  initialOverrides,
+}: {
+  userId: string;
+  consultationSharePct: number;
+  procedureSharePct: number;
+  discountNeedsApproval: boolean;
+  procedures: { id: string; name: string; price: number }[];
+  initialOverrides: Record<string, number>;
+}) {
+  const action = updateDoctorShares.bind(null, userId);
+  const [state, formAction, pending] = useActionState<
+    ClinicActionState,
+    FormData
+  >(action, {});
+  const [savedNonce, setSavedNonce] = useState(0);
+  const [errorNonce, setErrorNonce] = useState(0);
+  useEffect(() => {
+    if (state.saved) setSavedNonce((n) => n + 1);
+    if (state.error) setErrorNonce((n) => n + 1);
+  }, [state]);
+
+  const [consult, setConsult] = useState(String(consultationSharePct));
+  const [defaultProc, setDefaultProc] = useState(String(procedureSharePct));
+  const [needsApproval, setNeedsApproval] = useState(discountNeedsApproval);
+  // Per-procedure override as a STRING so empty ("inherit default") stays distinct
+  // from "0" (explicit 0%). Only non-empty entries submit an `override` field.
+  const [overrides, setOverrides] = useState<Map<string, string>>(() => {
+    const m = new Map<string, string>();
+    for (const [id, pct] of Object.entries(initialOverrides)) m.set(id, String(pct));
+    return m;
+  });
+  const setOverride = (id: string, v: string) =>
+    setOverrides((prev) => {
+      const next = new Map(prev);
+      const clean = v.replace(/[^\d]/g, "");
+      if (clean === "") next.delete(id);
+      else next.set(id, String(Math.min(100, Number(clean))));
+      return next;
+    });
+
+  const pctField =
+    "h-8 w-20 rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+
+  return (
+    <form action={formAction} className="space-y-5">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="consultationSharePct">Consultation share (%)</Label>
+          <input
+            id="consultationSharePct"
+            name="consultationSharePct"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={100}
+            value={consult}
+            onChange={(e) => setConsult(e.target.value.replace(/[^\d]/g, ""))}
+            className={pctField}
+          />
+          <p className="text-xs text-muted-foreground">
+            The doctor&apos;s cut of their consultation fee.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="procedureSharePct">Default procedure share (%)</Label>
+          <input
+            id="procedureSharePct"
+            name="procedureSharePct"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={100}
+            value={defaultProc}
+            onChange={(e) => setDefaultProc(e.target.value.replace(/[^\d]/g, ""))}
+            className={pctField}
+          />
+          <p className="text-xs text-muted-foreground">
+            Applied to any procedure without a specific rate below.
+          </p>
+        </div>
+      </div>
+
+      {procedures.length > 0 ? (
+        <div className="space-y-2 border-t pt-4">
+          <p className="text-sm font-medium">Per-procedure rates</p>
+          <p className="text-xs text-muted-foreground">
+            Leave blank to use the default ({defaultProc || 0}%). Enter 0 for an
+            explicit 0% (all to the clinic).
+          </p>
+          <ul className="divide-y rounded-lg border">
+            {procedures.map((p) => {
+              const v = overrides.get(p.id) ?? "";
+              return (
+                <li
+                  key={p.id}
+                  className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+                >
+                  <span className="min-w-0 truncate font-medium">{p.name}</span>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={100}
+                      value={v}
+                      onChange={(e) => setOverride(p.id, e.target.value)}
+                      placeholder={`${defaultProc || 0}`}
+                      aria-label={`${p.name} share percent`}
+                      className={pctField}
+                    />
+                    <span className="text-muted-foreground">%</span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {/* Only non-empty overrides submit (empty = inherit the default). */}
+          {[...overrides.entries()].map(([id, pct]) => (
+            <input key={id} type="hidden" name="override" value={`${id}:${pct}`} />
+          ))}
+        </div>
+      ) : null}
+
+      <div className="space-y-2 border-t pt-4">
+        <input type="hidden" name="discountNeedsApproval" value={needsApproval ? "on" : ""} />
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={needsApproval}
+            onChange={(e) => setNeedsApproval(e.target.checked)}
+            className="size-4 accent-[var(--color-primary)]"
+          />
+          Discounts taken from this doctor&apos;s share need their approval
+        </label>
+        <p className="text-xs text-muted-foreground">
+          When on, a discount that reduces this doctor&apos;s earnings waits for their
+          approval before it applies. The doctor can also change this themselves.
+        </p>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Button type="submit" disabled={pending}>
+          {pending ? "Saving…" : "Save revenue share"}
+        </Button>
+      </div>
+      <Toast message="Revenue share saved." variant="success" token={savedNonce} />
       <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );

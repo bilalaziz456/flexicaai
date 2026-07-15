@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, asc, eq, gte } from "drizzle-orm";
-import { Ban, CalendarClock, CalendarOff, RotateCcw, ShieldCheck } from "lucide-react";
+import { Ban, CalendarClock, CalendarOff, Percent, RotateCcw, ShieldCheck } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { setStaffActive } from "@/app/clinic/actions";
 import { DoctorLeaves } from "@/app/reception/doctor-leaves";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, doctorLeaves, users } from "@/core/db/schema";
+import { getBookingProcedures } from "@/core/appointments/procedures";
+import { getDoctorProcedureOverrides } from "@/core/appointments/share-config";
 import { CLINIC_STAFF_ROLES } from "@/core/types/auth";
 import {
   defaultPermissionsForRole,
@@ -26,6 +28,7 @@ import {
 import { ViewLogger } from "@/core/ui/view-logger";
 import {
   DeleteStaffButton,
+  DoctorSharesForm,
   EditStaffForm,
   ResetPasswordForm,
 } from "./staff-admin";
@@ -60,6 +63,9 @@ export default async function StaffDetailPage({
       dailyLimit: users.dailyAppointmentLimit,
       fee: users.consultationFee,
       permissions: users.permissions,
+      consultationSharePct: users.consultationSharePct,
+      procedureSharePct: users.procedureSharePct,
+      discountNeedsApproval: users.discountNeedsApproval,
     })
     .from(users)
     .where(
@@ -117,6 +123,20 @@ export default async function StaffDetailPage({
           )
           .orderBy(asc(doctorLeaves.startDate))
       : [];
+
+  // Revenue-share config inputs (doctors only): the clinic's priced procedures for
+  // per-procedure rate overrides (empty unless the `sales` feature is on) and this
+  // doctor's existing overrides.
+  const shareProcedures =
+    isAdmin && member.role === "doctor"
+      ? await getBookingProcedures(clinicId)
+      : [];
+  const shareOverrides =
+    isAdmin && member.role === "doctor"
+      ? await getDoctorProcedureOverrides(clinicId, member.id)
+      : [];
+  const overrideMap: Record<string, number> = {};
+  for (const o of shareOverrides) overrideMap[o.procedureId] = o.sharePct;
 
   return (
     <div className="space-y-6">
@@ -224,6 +244,32 @@ export default async function StaffDetailPage({
           </CardHeader>
           <CardContent>
             <DoctorLeaves doctorId={member.id} leaves={leaves} />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {isAdmin && member.role === "doctor" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Percent className="size-5 text-muted-foreground" aria-hidden="true" />
+              Revenue share
+            </CardTitle>
+            <CardDescription>
+              The doctor&apos;s cut of the consultation fee and of procedures, with
+              optional per-procedure rates. Used to split each completed visit
+              between the doctor and the clinic.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DoctorSharesForm
+              userId={member.id}
+              consultationSharePct={member.consultationSharePct}
+              procedureSharePct={member.procedureSharePct}
+              discountNeedsApproval={member.discountNeedsApproval}
+              procedures={shareProcedures}
+              initialOverrides={overrideMap}
+            />
           </CardContent>
         </Card>
       ) : null}

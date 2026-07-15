@@ -1,6 +1,8 @@
 # Doctor–Clinic Revenue Share + Discount Approval
 
-> Status: **building** (Phase 1 = schema + `computeShare`). v1 scope = gap points 1–6.
+> Status: **building** — Phase 1 (schema + `computeShare`) ✅ and Phase 2 (config UI:
+> doctor share rates + approval switches + per-line performing doctor) ✅ done; Phase 3
+> next. v1 scope = gap points 1–6.
 > Not in v1: tax, material/lab cost, future-dated rates, manual per-visit override,
 > refunds (need the payments layer).
 
@@ -105,10 +107,13 @@ snapshots, so later rate edits never rewrite history.
 - New permissions: `shares` (view; doctor self-view), `discount_approval` (approve).
 
 ## 10. Build phases
-1. **Schema + `computeShare`** (per-doctor map; fallback, spill/clamp, rate-0) + tests.
+1. **Schema + `computeShare`** (per-doctor map; fallback, spill/clamp, rate-0) + tests. ✅
 2. **Config UI** — doctor Revenue-share section (shares + rates + approval switch) on
    the staff page **and** the doctor's account switch; **per-line performing-doctor**
-   picker on the appointment form.
+   picker on the appointment form. ✅ Rates read via
+   `core/appointments/share-config.ts` (`getDoctorShareRates` /
+   `getDoctorShareRatesMany` for the split; `replaceDoctorProcedureShares` to save).
+   The clinic-level approval switch + borne-by selector land in Phase 3.
 3. **Discount borne-by + approval module** — settings, approval queue,
    pending-blocks-discount, badges.
 4. **`sale_shares` ledger** — snapshot on completion; re-snapshot on edit; void on

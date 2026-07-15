@@ -1,6 +1,6 @@
 import "server-only";
 
-import { asc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import {
@@ -8,18 +8,25 @@ import {
   appointments,
   clinics,
   procedures,
+  users,
 } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import type { DiscountType } from "@/core/appointments/fee";
 
 export type BookingProcedure = { id: string; name: string; price: number };
 
-/** One procedure line on an appointment — quantity (≥ 1) + its own discount. */
+/**
+ * One procedure line on an appointment — quantity (≥ 1) + its own discount, plus
+ * the PERFORMING doctor (who earns that line's revenue share). `doctorId` null =
+ * no doctor (the clinic keeps it); the booking form defaults it to the consulting
+ * doctor.
+ */
 export type ProcedureSelection = {
   procedureId: string;
   quantity: number;
   discountType: DiscountType;
   discountValue: number;
+  doctorId?: string | null;
 };
 
 /** A saved appointment line item (snapshotted name + price + quantity + discount). */
@@ -30,6 +37,7 @@ export type AppointmentProcedureItem = {
   quantity: number;
   discountType: DiscountType;
   discountValue: number;
+  doctorId: string | null;
 };
 
 /** Clamp a raw quantity to a sane whole number in [1, 99]. */
@@ -135,13 +143,36 @@ export async function saveAppointmentProcedures(
     );
   if (rows.length === 0) return;
 
+  // Validate performing-doctor ids against THIS clinic's doctors (tenant isolation);
+  // an unknown/foreign id is dropped to null (the clinic keeps that line's share).
+  const wantDoctorIds = [
+    ...new Set(rows.map((r) => byId.get(r.id)?.doctorId).filter((v): v is string => Boolean(v))),
+  ];
+  const validDoctors = new Set<string>();
+  if (wantDoctorIds.length > 0) {
+    const drs = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        byClinic(
+          users.clinicId,
+          clinicId,
+          notDeleted(users.deletedAt),
+          and(eq(users.role, "doctor"), inArray(users.id, wantDoctorIds)),
+        ),
+      );
+    for (const d of drs) validDoctors.add(d.id);
+  }
+
   await db.insert(appointmentProcedures).values(
     rows.map((r) => {
       const s = byId.get(r.id)!;
+      const doctorId = s.doctorId && validDoctors.has(s.doctorId) ? s.doctorId : null;
       return {
         clinicId,
         appointmentId,
         procedureId: r.id,
+        doctorId,
         name: r.name,
         unitPrice: r.price,
         quantity: clampQty(s.quantity),
@@ -168,6 +199,7 @@ export async function getAppointmentProcedureItems(
       quantity: appointmentProcedures.quantity,
       discountType: appointmentProcedures.discountType,
       discountValue: appointmentProcedures.discountValue,
+      doctorId: appointmentProcedures.doctorId,
     })
     .from(appointmentProcedures)
     .where(

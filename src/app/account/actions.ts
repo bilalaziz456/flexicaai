@@ -71,6 +71,35 @@ export async function updateMyProfile(
   return { saved: true };
 }
 
+/**
+ * A DOCTOR toggles their OWN "discounts need approval" policy (choice B — editable
+ * by both the doctor here and the clinic admin on the staff page). No-op for non-
+ * doctors. When on, a discount that reduces this doctor's share waits for their OK.
+ */
+export async function updateMyDiscountApproval(
+  _prev: AccountActionState,
+  formData: FormData,
+): Promise<AccountActionState> {
+  const user = await requireUser();
+  if (user.role !== "doctor") return { error: "Only doctors have this setting." };
+
+  const needsApproval = formData.get("discountNeedsApproval") === "on";
+  await db
+    .update(users)
+    .set({ discountNeedsApproval: needsApproval, updatedAt: new Date() })
+    .where(eq(users.id, user.id));
+
+  await logActivity({
+    action: "update",
+    entity: "settings",
+    summary: needsApproval
+      ? "Turned on approval for discounts off their share"
+      : "Turned off approval for discounts off their share",
+  });
+  revalidatePath("/account");
+  return { saved: true };
+}
+
 const passwordSchema = z
   .object({
     currentPassword: z.string().min(1, "Enter your current password."),

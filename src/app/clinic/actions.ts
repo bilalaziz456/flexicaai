@@ -22,6 +22,7 @@ import {
   users,
   visits,
 } from "@/core/db/schema";
+import { replaceDoctorProcedureShares } from "@/core/appointments/share-config";
 import { TIME_RE, timeToMinutes, type DayAvailability } from "@/core/lib/availability";
 import { dobFromAgeField } from "@/core/lib/age";
 import { logActivity } from "@/core/audit/log";
@@ -558,6 +559,82 @@ export async function resetStaffPermissions(
     summary: `Reset permissions to role defaults for ${member.fullName ?? member.username}`,
   });
   revalidatePath(`/clinic/staff/${userId}`);
+  return { saved: true };
+}
+
+const sharePctSchema = z.coerce
+  .number({ message: "Enter a percentage." })
+  .int("Whole percent only.")
+  .min(0, "Cannot be negative.")
+  .max(100, "Cannot exceed 100.");
+
+/**
+ * Saves a doctor's REVENUE-SHARE config — consultation %, default procedure %,
+ * their "discounts need approval" switch, and the per-procedure rate overrides.
+ * Clinic-scoped and doctor-only (a foreign or non-doctor id matches 0 rows). The
+ * overrides arrive as hidden `override` fields encoded "<procedureId>:<pct>"; an
+ * empty rate means "no override" (use the default) and is simply not submitted, so
+ * a stored 0 stays distinct from unset. Stays on the page (toast).
+ */
+export async function updateDoctorShares(
+  doctorId: string,
+  _prev: ClinicActionState,
+  formData: FormData,
+): Promise<ClinicActionState> {
+  const { clinicId } = await requireClinicAdmin();
+
+  const consult = sharePctSchema.safeParse(formData.get("consultationSharePct") ?? 0);
+  if (!consult.success) {
+    return { error: consult.error.issues[0]?.message ?? "Invalid consultation share." };
+  }
+  const proc = sharePctSchema.safeParse(formData.get("procedureSharePct") ?? 0);
+  if (!proc.success) {
+    return { error: proc.error.issues[0]?.message ?? "Invalid procedure share." };
+  }
+  const needsApproval = formData.get("discountNeedsApproval") === "on";
+
+  // Confirm the target is a doctor in this clinic before writing anything.
+  const [member] = await db
+    .select({ role: users.role, fullName: users.fullName, username: users.username })
+    .from(users)
+    .where(
+      byClinic(
+        users.clinicId,
+        clinicId,
+        notDeleted(users.deletedAt),
+        and(eq(users.id, doctorId), eq(users.role, "doctor")),
+      ),
+    )
+    .limit(1);
+  if (!member) return { error: "Doctor not found." };
+
+  const overrides = formData
+    .getAll("override")
+    .map(String)
+    .map((raw) => {
+      const [procedureId, pct] = raw.split(":");
+      return { procedureId, sharePct: Math.max(0, Math.min(100, Number(pct) || 0)) };
+    })
+    .filter((o) => o.procedureId);
+
+  await db
+    .update(users)
+    .set({
+      consultationSharePct: consult.data,
+      procedureSharePct: proc.data,
+      discountNeedsApproval: needsApproval,
+      updatedAt: new Date(),
+    })
+    .where(byClinic(users.clinicId, clinicId, eq(users.id, doctorId)));
+  await replaceDoctorProcedureShares(clinicId, doctorId, overrides);
+
+  await logActivity({
+    action: "update",
+    entity: "staff",
+    entityId: doctorId,
+    summary: `Updated revenue share for ${member.fullName ?? member.username}`,
+  });
+  revalidatePath(`/clinic/staff/${doctorId}`);
   return { saved: true };
 }
 

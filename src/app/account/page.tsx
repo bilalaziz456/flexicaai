@@ -11,7 +11,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { AvatarForm, ProfileForm, PasswordForm } from "./account-forms";
+import {
+  AvatarForm,
+  DiscountApprovalForm,
+  ProfileForm,
+  PasswordForm,
+} from "./account-forms";
 
 function initialsOf(name: string): string {
   return name
@@ -34,6 +39,7 @@ export default async function AccountPage() {
       username: users.username,
       role: users.role,
       avatarKey: users.avatarKey,
+      discountNeedsApproval: users.discountNeedsApproval,
     })
     .from(users)
     .where(eq(users.id, current.id))
@@ -85,6 +91,20 @@ export default async function AccountPage() {
           />
         </CardContent>
       </Card>
+
+      {u.role === "doctor" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Discount approval</CardTitle>
+            <CardDescription>
+              Whether discounts off your revenue share need your sign-off.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DiscountApprovalForm discountNeedsApproval={u.discountNeedsApproval} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

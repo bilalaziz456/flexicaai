@@ -247,7 +247,7 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
 - **Timezone caveat (deploy):** availability, "tomorrow" (reminder), and day
   bounds use the **server's local timezone**. For a multi-region rollout
   (Pakistan vs GCC), pin each clinic to its own timezone.
-- Migrations `0000`–`0032` applied; new tables/columns are always additive to core.
+- Migrations `0000`–`0034` applied; new tables/columns are always additive to core.
   (`0017` adds `appointments.discount_type` / `discount_value`; `0018` adds
   `appointments.queue_session` / `queue_number` + the queue unique index; `0019`
   adds the `activity_logs` table; `0020` adds `clinics.log_access` and drops the
@@ -271,4 +271,7 @@ doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE
   `procedure_share_pct`, `appointments.discount_borne_by`,
   `appointment_procedures.doctor_id` (performing doctor), and the
   `doctor_procedure_shares` table (per-doctor per-procedure % overrides). See
-  `docs/doctor-shares-plan.md`; split math in `core/appointments/shares.ts`.)
+  `docs/doctor-shares-plan.md`; split math in `core/appointments/shares.ts`, rate
+  config in `core/appointments/share-config.ts`. `0034` adds the discount-approval
+  switches `users.discount_needs_approval` (per doctor) + `clinics.discount_needs_approval`
+  (per clinic) — enforced in Phase 3.)

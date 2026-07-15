@@ -99,6 +99,10 @@ export const clinics = pgTable(
     // out of the clinic-level view (still in the DB — only the super admin sees it
     // past this window). Super-admin-set; default 30. Never auto-purged.
     trashRetentionDays: integer("trash_retention_days").notNull().default(30),
+    // When true, a CLINIC-borne discount needs approval (from a `discount_approval`
+    // grantee) before it applies. Per-doctor discounts use users.discountNeedsApproval.
+    // See docs/doctor-shares-plan.md §6.
+    discountNeedsApproval: boolean("discount_needs_approval").notNull().default(false),
     // Per-clinic WhatsApp SENDER (Meta Cloud API). `whatsappPhoneNumberId` selects
     // which WABA number a message is sent FROM (so patients see the clinic's own
     // number); `whatsappDisplayNumber` (E.164) is for display + inbound routing.
@@ -194,6 +198,9 @@ export const users = pgTable(
     // docs/doctor-shares-plan.md.
     consultationSharePct: integer("consultation_share_pct").notNull().default(0),
     procedureSharePct: integer("procedure_share_pct").notNull().default(0),
+    // When true, a discount taken from THIS doctor's share needs their approval
+    // before it applies (the doctor's own policy; editable by them and the admin).
+    discountNeedsApproval: boolean("discount_needs_approval").notNull().default(false),
     ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

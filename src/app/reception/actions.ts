@@ -100,21 +100,23 @@ function validateDiscount(type: "amount" | "percent", value: number): string | n
 
 /**
  * The booking form submits one hidden `procedure` field per chosen procedure,
- * encoded `"<procedureId>:<quantity>:<amount|percent>:<discountValue>"` (the last
- * two are the per-line discount; older 2-part values still parse). Parsed into
- * selections — the data layer clamps + validates ids against the clinic's catalog.
+ * encoded `"<procedureId>:<quantity>:<amount|percent>:<discountValue>:<doctorId>"`
+ * (the last field is the performing doctor — empty = clinic; older shorter values
+ * still parse). Parsed into selections — the data layer clamps + validates ids
+ * (procedure and doctor) against the clinic's own records.
  */
 function parseProcedureSelections(formData: FormData): ProcedureSelection[] {
   return formData
     .getAll("procedure")
     .map(String)
     .map((raw) => {
-      const [procedureId, qty, dtype, dval] = raw.split(":");
+      const [procedureId, qty, dtype, dval, doctorId] = raw.split(":");
       return {
         procedureId,
         quantity: Number(qty) || 1,
         discountType: dtype === "percent" ? ("percent" as const) : ("amount" as const),
         discountValue: Math.max(0, Number(dval) || 0),
+        doctorId: doctorId || null,
       };
     })
     .filter((s) => s.procedureId);

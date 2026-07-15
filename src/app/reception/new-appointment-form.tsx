@@ -90,6 +90,7 @@ export function NewAppointmentForm({
       quantity: number;
       discountType?: DiscountType;
       discountValue?: number;
+      doctorId?: string | null;
     }[];
   };
 }) {
@@ -122,6 +123,9 @@ export function NewAppointmentForm({
     quantity: number;
     discountType: DiscountType;
     discountValue: string;
+    // Performing doctor for this line ("" = clinic / none). Defaults to the
+    // consulting doctor when a line is freshly added.
+    doctorId: string;
   };
   const [procSel, setProcSel] = useState<Map<string, ProcState>>(() => {
     const m = new Map<string, ProcState>();
@@ -130,6 +134,7 @@ export function NewAppointmentForm({
         quantity: Math.max(1, it.quantity),
         discountType: it.discountType ?? "amount",
         discountValue: it.discountValue ? String(it.discountValue) : "",
+        doctorId: it.doctorId ?? "",
       });
     }
     return m;
@@ -146,7 +151,14 @@ export function NewAppointmentForm({
     setProcSel((prev) => {
       const next = new Map(prev);
       if (next.has(id)) next.delete(id);
-      else next.set(id, { quantity: 1, discountType: "amount", discountValue: "" });
+      // A new line defaults to the currently-selected consulting doctor.
+      else
+        next.set(id, {
+          quantity: 1,
+          discountType: "amount",
+          discountValue: "",
+          doctorId,
+        });
       return next;
     });
   const setQty = (id: string, q: number) =>
@@ -554,6 +566,25 @@ export function NewAppointmentForm({
                               <Plus className="size-3.5" aria-hidden="true" />
                             </button>
                           </div>
+                          {/* performing doctor (earns this line's share) */}
+                          {doctors.length > 0 ? (
+                            <select
+                              value={s.doctorId}
+                              onChange={(e) =>
+                                updateProc(p.id, { doctorId: e.target.value })
+                              }
+                              className={`${nativeSelectCls} h-7 w-auto max-w-[9rem]`}
+                              aria-label={`${p.name} performing doctor`}
+                              title="Performing doctor"
+                            >
+                              <option value="">— Clinic —</option>
+                              {doctors.map((d) => (
+                                <option key={d.id} value={d.id}>
+                                  {d.fullName ?? d.username}
+                                </option>
+                              ))}
+                            </select>
+                          ) : null}
                           {/* per-line discount */}
                           <div className="flex items-center gap-1">
                             <select
@@ -600,13 +631,14 @@ export function NewAppointmentForm({
               </ul>
             ) : null}
 
-            {/* One hidden field per procedure: "<id>:<qty>:<type>:<discountValue>". */}
+            {/* One hidden field per procedure:
+                "<id>:<qty>:<type>:<discountValue>:<doctorId>". */}
             {[...procSel.entries()].map(([id, s]) => (
               <input
                 key={id}
                 type="hidden"
                 name="procedure"
-                value={`${id}:${s.quantity}:${s.discountType}:${Math.max(0, Number(s.discountValue) || 0)}`}
+                value={`${id}:${s.quantity}:${s.discountType}:${Math.max(0, Number(s.discountValue) || 0)}:${s.doctorId}`}
               />
             ))}
           </div>

@@ -13,6 +13,7 @@ import {
   changeMyPassword,
   uploadMyAvatar,
   removeMyAvatar,
+  updateMyDiscountApproval,
   type AccountActionState,
 } from "./actions";
 import { Button } from "@/core/ui/button";
@@ -353,6 +354,50 @@ export function ProfileForm({
       </Button>
       <Toast
         message={state.saved ? "Profile saved." : state.error ?? null}
+        variant={state.error ? "error" : "success"}
+        token={nonce}
+      />
+    </form>
+  );
+}
+
+/**
+ * A doctor's own "discounts need approval" switch (mirrors the clinic-admin control
+ * on the staff page; either can change it). Saves on toggle.
+ */
+export function DiscountApprovalForm({
+  discountNeedsApproval,
+}: {
+  discountNeedsApproval: boolean;
+}) {
+  const [state, formAction, pending] = useActionState<AccountActionState, FormData>(
+    updateMyDiscountApproval,
+    {},
+  );
+  const nonce = useToast(state);
+  const [needsApproval, setNeedsApproval] = useState(discountNeedsApproval);
+
+  return (
+    <form action={formAction} className="space-y-3">
+      <input type="hidden" name="discountNeedsApproval" value={needsApproval ? "on" : ""} />
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={needsApproval}
+          onChange={(e) => setNeedsApproval(e.target.checked)}
+          className="size-4 accent-[var(--color-primary)]"
+        />
+        Discounts taken from my share need my approval
+      </label>
+      <p className="text-xs text-muted-foreground">
+        When on, a discount that reduces your earnings waits for your approval before
+        it applies.
+      </p>
+      <Button type="submit" size="sm" disabled={pending}>
+        {pending ? "Saving…" : "Save"}
+      </Button>
+      <Toast
+        message={state.saved ? "Setting saved." : state.error ?? null}
         variant={state.error ? "error" : "success"}
         token={nonce}
       />
