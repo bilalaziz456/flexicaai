@@ -26,6 +26,7 @@ import {
   UserCog,
   UserRound,
   Users,
+  Wallet,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -99,6 +100,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; items: NavItem[] }> = {
       { href: "/clinic/discounts", label: "Discounts", Icon: TicketPercent, resource: "discounts" },
       { href: "/clinic/shares", label: "Revenue shares", Icon: PieChart, resource: "shares" },
       { href: "/clinic/expenses", label: "Expenses", Icon: Receipt, resource: "expenses" },
+      { href: "/clinic/pl", label: "Profit & Loss", Icon: Wallet, resource: "finance" },
       { href: "/clinic/approvals", label: "Discount approvals", Icon: BadgeCheck },
       { href: "/clinic/staff", label: "Staff", Icon: Users, resource: "staff" },
       { href: "/clinic/settings", label: "Settings", Icon: Settings },
@@ -188,6 +190,7 @@ export function PanelShell({
     if (i.href === "/clinic/logs") return logsEnabled;
     if (i.href === "/clinic/approvals") return approvalsEnabled;
     if (i.href === "/clinic/expenses") return financeEnabled && (!canSee || canSee.has("expenses"));
+    if (i.href === "/clinic/pl") return financeEnabled && (!canSee || canSee.has("finance"));
     if (SALES_HREFS.has(i.href) && !salesEnabled) return false;
     if (i.resource && canSee && !canSee.has(i.resource)) return false;
     return true;

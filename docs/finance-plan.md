@@ -163,9 +163,14 @@ dual render** (see §10). Recurring expenses → `api/cron/*` + `CRON_SECRET`. N
    **`expenses`** permission (clinic-admin default; grantable). Audit-logged;
    dual-render mobile. Verified against the DB (13/13). *(Global-Trash-page wiring +
    inline edit + recurring cron = follow-ups; delete is already soft/recoverable.)*
-6. **P&L** (`/clinic/pl`). Collected revenue − doctor shares − expenses = net profit,
-   by period/category/doctor, with a revenue-vs-expenses-vs-profit chart + compare-to-
-   previous. Tax slot unused. `finance` ACL.
+6. **P&L** (`/clinic/pl`). ✅ Collected revenue − doctor shares − expenses = net
+   profit (net-loss shown in red), over a period, with a revenue-over-time chart, a
+   per-period Revenue/Costs/Profit table, and expenses-by-category + shares-by-doctor
+   breakdowns. `core/finance/pl.ts` reuses the sales report's range/bucket helpers so
+   periods line up. New **`finance`** view permission (feature `finance`;
+   clinic-admin default); nav gated by the feature. Verified against the seed (8/8) —
+   totals + bucket sums reconcile. *(Multi-series trend chart + compare-to-previous +
+   tax line = follow-ups.)*
 7. **Nav refactor.** PanelShell → parent tabs with `>` expandable subtabs:
    **Finance ›** (Sales · Discounts · Revenue shares · Payouts · Expenses · P&L) ·
    **Clinical ›** · **People ›** · **System ›**; top-level Dashboard · Appointments ·
