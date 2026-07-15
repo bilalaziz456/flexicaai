@@ -14,6 +14,7 @@ import {
 } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { getSalesSummary, resolveSalesRange } from "@/core/sales/report";
+import { getFinanceKpis } from "@/core/finance/kpis";
 import {
   Card,
   CardContent,
@@ -54,6 +55,12 @@ export default async function ClinicDashboard() {
   );
   const salesEnabled = clinicHasFeature(clinicRow?.featuresEnabled, "sales");
   const avgVisitValue = clinicRow?.avgVisitValue ?? 3000;
+
+  // Owner finance KPIs (feature + permission gated; perf-first — skip otherwise).
+  const financeKpis =
+    clinicHasFeature(clinicRow?.featuresEnabled, "finance") && can(user, "finance", "view")
+      ? await getFinanceKpis(clinicId)
+      : null;
 
   // A doctor manages their OWN leave right here on the dashboard (no separate
   // "Doctors" nav item). Fetch their upcoming leave; the add/remove controls are
@@ -199,6 +206,34 @@ export default async function ClinicDashboard() {
           Your clinic at a glance.
         </p>
       </div>
+
+      {/* Owner finance KPIs (finance feature + permission). */}
+      {financeKpis ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {(() => {
+            const fmt = (n: number) =>
+              new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 }).format(n);
+            const loss = financeKpis.netProfit30d < 0;
+            const kpis = [
+              { title: "Collected (30d)", value: fmt(financeKpis.collected30d), note: "Revenue received", href: "/clinic/pl" },
+              { title: loss ? "Net loss (30d)" : "Net profit (30d)", value: fmt(Math.abs(financeKpis.netProfit30d)), note: "After shares + expenses", href: "/clinic/pl", tone: loss ? "text-destructive" : "text-emerald-600 dark:text-emerald-400" },
+              { title: "Outstanding", value: fmt(financeKpis.outstandingReceivable), note: "Patients owe us", href: "/clinic/appointments?payment=unpaid" },
+              { title: "Payable to doctors", value: fmt(financeKpis.payableToDoctors), note: "Unpaid shares", href: "/clinic/shares" },
+            ];
+            return kpis.map((k) => (
+              <Link key={k.title} href={k.href}>
+                <Card className="transition-colors hover:border-primary/50">
+                  <CardHeader>
+                    <CardDescription>{k.title}</CardDescription>
+                    <CardTitle className={`text-3xl ${k.tone ?? ""}`}>{k.value}</CardTitle>
+                    <CardDescription>{k.note}</CardDescription>
+                  </CardHeader>
+                </Card>
+              </Link>
+            ));
+          })()}
+        </div>
+      ) : null}
 
       {/* Hero: Revenue Recovered — only when the super admin enabled it. */}
       {revenueEnabled ? (

@@ -1,6 +1,8 @@
 # Finance — Billing, Payments, Expenses & P&L
 
-> Status: **planning**. Builds on the completed doctor revenue-share feature
+> Status: **v1 COMPLETE ✅** — all 8 phases shipped (billing & payments → collected-
+> basis → payment filter → discounts report → expenses → P&L → nav refactor → reports
+> hub + day book + KPIs). Builds on the completed doctor revenue-share feature
 > (`docs/doctor-shares-plan.md`). Reuses existing engines wherever possible (sales
 > report range/bucket helpers, `SalesChart`/`SalesFilters`/`AppointmentFilters`,
 > `searchClinicPatients`, `pdf-lib`, the cron pattern, soft-delete + Trash).
@@ -179,11 +181,16 @@ dual render** (see §10). Recurring expenses → `api/cron/*` + `CRON_SECRET`. N
    a group **auto-expands when it holds the active page**, empty groups are hidden,
    and explicit toggles persist (localStorage). All the per-item feature/permission
    gating is preserved.
-8. **Unified reports + export + day book.** `/clinic/reports` hub tying Sales,
-   Discounts, Shares, Expenses, P&L with shared filters + **PDF (`pdf-lib`) / CSV**
-   export + month-over-month. **Day book** (daily cash collected by method — for
-   end-of-day reconciliation). Owner **dashboard KPIs** (feature-gated, parallel
-   queries): Collected · Outstanding · Payable to doctors · Net profit.
+8. **Unified reports + export + day book. ✅** `/clinic/reports` hub gathering the
+   finance reports the user can access, each with a **CSV** download where useful
+   (`/api/finance/export?type=daybook|expenses|discounts`, auth + per-report gated;
+   `core/lib/csv.ts`). **Day book** (`/clinic/reports/daybook`) — a day's cash in/out
+   by method (collections − refunds − expenses = net), with a date picker + CSV.
+   Owner **dashboard KPIs** (finance-gated, parallel): Collected (30d) · Net profit
+   (30d) · Outstanding receivable · Payable to doctors — `core/finance/kpis.ts`.
+   Filter-aware CSV on the Expenses page. Nav: a **Reports** item in the Finance
+   group. Verified against the DB (9/9). *(PDF export + month-over-month = follow-ups;
+   Print→Save-PDF already covers invoices/statements.)*
 
 ## 9. Sequence & rationale
 

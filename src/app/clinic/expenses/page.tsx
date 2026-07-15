@@ -94,12 +94,30 @@ export default async function ExpensesPage({
           <h1 className="text-xl font-semibold">Expenses</h1>
           <p className="text-sm text-muted-foreground">The clinic&apos;s costs — feeds the P&amp;L.</p>
         </div>
-        <Link
-          href={deleted ? "/clinic/expenses" : "/clinic/expenses?deleted=1"}
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
-          {deleted ? "← Back to expenses" : "View deleted"}
-        </Link>
+        <div className="flex items-center gap-4">
+          {!deleted ? (
+            <a
+              href={`/api/finance/export?${new URLSearchParams({
+                type: "expenses",
+                ...(sp.period ? { period: sp.period } : {}),
+                ...(sp.from ? { from: sp.from } : {}),
+                ...(sp.to ? { to: sp.to } : {}),
+                ...(sp.categoryId ? { categoryId: sp.categoryId } : {}),
+                ...(sp.method ? { method: sp.method } : {}),
+                ...(sp.q ? { q: sp.q } : {}),
+              }).toString()}`}
+              className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            >
+              Export CSV
+            </a>
+          ) : null}
+          <Link
+            href={deleted ? "/clinic/expenses" : "/clinic/expenses?deleted=1"}
+            className="text-sm text-muted-foreground underline underline-offset-4"
+          >
+            {deleted ? "← Back to expenses" : "View deleted"}
+          </Link>
+        </div>
       </div>
 
       {deleted ? (

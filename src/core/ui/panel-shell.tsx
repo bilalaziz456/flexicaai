@@ -11,6 +11,7 @@ import {
   ChevronRight,
   ClipboardList,
   Contact,
+  FileSpreadsheet,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -108,6 +109,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; nodes: NavNode[] }> = {
           { href: "/clinic/shares", label: "Revenue shares", Icon: PieChart, resource: "shares" },
           { href: "/clinic/expenses", label: "Expenses", Icon: Receipt, resource: "expenses" },
           { href: "/clinic/pl", label: "Profit & Loss", Icon: Wallet, resource: "finance" },
+          { href: "/clinic/reports", label: "Reports", Icon: FileSpreadsheet },
           { href: "/clinic/approvals", label: "Discount approvals", Icon: BadgeCheck },
         ],
       },
@@ -219,6 +221,7 @@ export function PanelShell({
     if (i.href === "/clinic/approvals") return approvalsEnabled;
     if (i.href === "/clinic/expenses") return financeEnabled && (!canSee || canSee.has("expenses"));
     if (i.href === "/clinic/pl") return financeEnabled && (!canSee || canSee.has("finance"));
+    if (i.href === "/clinic/reports") return salesEnabled; // the hub gates each card itself
     if (SALES_HREFS.has(i.href) && !salesEnabled) return false;
     if (i.resource && canSee && !canSee.has(i.resource)) return false;
     return true;
