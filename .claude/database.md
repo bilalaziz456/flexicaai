@@ -269,6 +269,30 @@ rises again. Clinic admin records/reverses from `/clinic/shares` (scoped to a
 doctor) + prints a statement (`/clinic/shares/statement`); a doctor sees their own
 read-only. Indexes: (`clinic_id`,`doctor_id`); (`clinic_id`,`created_at`).
 
+### `patient_payments` — money in/out subledger (Finance, phase 1)
+`id`, `clinic_id` → clinics (`cascade`), `patient_id` → patients (`cascade`),
+`appointment_id` → appointments (`set null`; NULL = an unallocated **advance**),
+`kind` (`payment` | `advance` | `advance_applied` | `refund`), `amount` int (PKR,
+positive; sign from `kind`), `method` (cash/bank/cheque/other), `reference`, `note`,
+`reverses_id` (nullable, self-ref for a void/refund), `occurred_at`, `created_by(+name)`
+snapshot, soft-delete, timestamps. Collected on a visit = Σ(payment +
+advance_applied) for that appointment; patient **credit** = Σadvance −
+Σadvance_applied − Σrefund(unallocated). A void is a soft-delete; the
+`appointments.amount_collected` cache is recomputed from the live ledger after every
+change (no drift). See `core/billing/*`. Indexes: (`clinic_id`,`patient_id`);
+(`appointment_id`); (`clinic_id`,`occurred_at`); partial trash index.
+
+### `invoices` — numbered visit invoices (Finance, phase 1)
+`id`, `clinic_id` → clinics (`cascade`), `appointment_id` → appointments (`cascade`),
+`patient_id` → patients (`cascade`), `invoice_no` int (per-clinic sequence),
+`issued_at`, `issued_by(+name)` snapshot, `note`, soft-delete. One LIVE invoice per
+appointment (partial unique on `appointment_id WHERE deleted_at IS NULL`); the number
+is allocated by locking the clinic row (`FOR UPDATE`) and bumping
+`clinics.next_invoice_no`, shown with `clinics.invoice_prefix`. The bill amount is
+NOT stored — derived from `computeBill` at render (thermal/A5/A4 print). See
+`core/billing/invoice.ts`. Indexes: unique(`clinic_id`,`invoice_no`);
+(`clinic_id`,`issued_at`); (`patient_id`).
+
 ### `appointment_discount_approvals` — discount sign-off (revenue-share, phase 3)
 `id`, `clinic_id` → clinics (`cascade`), `appointment_id` → appointments
 (`cascade`), `approver_kind` ('clinic' | 'doctor'), `approver_doctor_id` → users (`cascade`; the
@@ -300,8 +324,11 @@ unchanged). Indexes: (`appointment_id`); (`clinic_id`,`status`);
 - **Timezone caveat (deploy):** availability, "tomorrow" (reminder), and day
   bounds use the **server's local timezone**. For a multi-region rollout
   (Pakistan vs GCC), pin each clinic to its own timezone.
-- Migrations `0000`–`0038` applied; almost always additive (the one drop:
+- Migrations `0000`–`0039` applied; almost always additive (the one drop:
   `0038` removes `sale_shares.payout_id`, superseded by amount-based payouts).
+  `0039` adds the Finance billing foundation — `patient_payments` + `invoices`
+  tables, `appointments.amount_collected`, and clinic invoice settings
+  (`invoice_paper` / `invoice_prefix` / `next_invoice_no`). See docs/finance-plan.md.
   (`0017` adds `appointments.discount_type` / `discount_value`; `0018` adds
   `appointments.queue_session` / `queue_number` + the queue unique index; `0019`
   adds the `activity_logs` table; `0020` adds `clinics.log_access` and drops the

@@ -341,7 +341,7 @@ export async function AppointmentDetail({
               canVoidRefund={Boolean(currentUser && can(currentUser, "billing", "delete"))}
               canInvoice={Boolean(currentUser && can(currentUser, "billing", "create"))}
               invoiceLabel={invoice?.label ?? null}
-              invoiceHref={`${backHref}/${appt.id}/invoice`}
+              invoiceHref={`/clinic/appointments/${appt.id}/invoice`}
             />
           </CardContent>
         </Card>

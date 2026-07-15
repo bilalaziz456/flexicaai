@@ -14,6 +14,7 @@ import {
 } from "@/core/ui/card";
 import { ViewLogger } from "@/core/ui/view-logger";
 import { ageFromDob } from "@/core/lib/age";
+import { getPatientAccount } from "@/core/billing/account";
 import { DeletePatientButton, EditPatientForm } from "./[id]/patient-admin";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive"> = {
@@ -36,12 +37,15 @@ export async function PatientDetail({
   backHref,
   canEdit,
   canDelete,
+  showFinancials = false,
 }: {
   clinicId: string;
   patientId: string;
   backHref: string;
   canEdit: boolean;
   canDelete: boolean;
+  /** Show the Finance account card (sales feature + billing:view). */
+  showFinancials?: boolean;
 }) {
   const [patient] = await db
     .select()
@@ -78,6 +82,22 @@ export async function PatientDetail({
     .orderBy(desc(appointments.scheduledAt))
     .limit(20);
 
+  const account = showFinancials ? await getPatientAccount(clinicId, patientId) : null;
+  const money = (n: number) =>
+    new Intl.NumberFormat("en-PK", {
+      style: "currency",
+      currency: "PKR",
+      maximumFractionDigits: 0,
+    }).format(n);
+  const dayFmt = (d: Date) =>
+    d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const KIND_LABEL: Record<string, string> = {
+    payment: "Payment",
+    advance: "Advance",
+    advance_applied: "Advance applied",
+    refund: "Refund",
+  };
+
   const fmt = (d: Date) =>
     d.toLocaleString("en-GB", {
       weekday: "short",
@@ -109,6 +129,81 @@ export async function PatientDetail({
           </p>
         ) : null}
       </div>
+
+      {account ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Account</CardTitle>
+            <CardDescription>
+              Billed, collected and outstanding across completed visits.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { label: "Billed", value: money(account.totals.billed) },
+                { label: "Collected", value: money(account.totals.collected) },
+                { label: "Outstanding", value: money(account.totals.outstanding) },
+                { label: "Advance credit", value: money(account.credit) },
+              ].map((s) => (
+                <div key={s.label} className="rounded-lg border p-3">
+                  <div className="text-xs text-muted-foreground">{s.label}</div>
+                  <div className="text-lg font-semibold tabular-nums">{s.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {account.visits.some((v) => v.outstanding > 0) ? (
+              <div>
+                <p className="mb-1 text-sm font-medium">Outstanding visits</p>
+                <ul className="divide-y rounded-lg border text-sm">
+                  {account.visits
+                    .filter((v) => v.outstanding > 0)
+                    .map((v) => (
+                      <li key={v.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                        <Link
+                          href={`/clinic/appointments/${v.id}`}
+                          className="underline underline-offset-4"
+                        >
+                          {dayFmt(v.scheduledAt)}
+                        </Link>
+                        <span className="text-muted-foreground">
+                          {money(v.collected)} / {money(v.bill)} ·{" "}
+                          <span className="font-medium text-foreground">
+                            {money(v.outstanding)} left
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {account.payments.length > 0 ? (
+              <div>
+                <p className="mb-1 text-sm font-medium">Recent payments</p>
+                <ul className="divide-y rounded-lg border text-sm">
+                  {account.payments.slice(0, 10).map((p) => (
+                    <li key={p.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                      <span>
+                        {KIND_LABEL[p.kind] ?? p.kind}
+                        {p.method ? <span className="text-muted-foreground"> · {p.method}</span> : null}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {dayFmt(p.occurredAt)} ·{" "}
+                        <span className="font-medium tabular-nums text-foreground">
+                          {p.kind === "refund" ? "−" : ""}
+                          {money(p.amount)}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

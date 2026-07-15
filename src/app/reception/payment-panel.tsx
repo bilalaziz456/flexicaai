@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { Undo2 } from "lucide-react";
+import Link from "next/link";
+import { Printer, Undo2 } from "lucide-react";
 import {
   collectPayment,
   applyAppointmentAdvance,
@@ -56,6 +57,7 @@ export function PaymentPanel({
   canVoidRefund,
   canInvoice,
   invoiceLabel,
+  invoiceHref,
 }: {
   appointmentId: string;
   billTotal: number;
@@ -192,16 +194,24 @@ export function PaymentPanel({
         </p>
       ) : null}
 
-      {/* Invoice (the printable invoice/receipt pages land in the next step). */}
+      {/* Invoice: issue a number (assigns INV-N) and/or print (thermal/A5/A4). */}
       <div className="flex flex-wrap items-center gap-3 text-sm">
         {invoiceLabel ? (
           <span className="text-muted-foreground">
-            Invoice <span className="font-medium text-foreground">{invoiceLabel}</span> issued
+            Invoice <span className="font-medium text-foreground">{invoiceLabel}</span>
           </span>
         ) : canInvoice ? (
           <Button type="button" size="sm" variant="outline" disabled={busy} onClick={doInvoice}>
             Issue invoice
           </Button>
+        ) : null}
+        {invoiceHref ? (
+          <Link
+            href={invoiceHref}
+            className="inline-flex items-center gap-1 font-medium underline underline-offset-4"
+          >
+            <Printer className="size-3.5" aria-hidden="true" /> Print invoice
+          </Link>
         ) : null}
       </div>
 
