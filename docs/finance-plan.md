@@ -132,15 +132,16 @@ dual render** (see §10). Recurring expenses → `api/cron/*` + `CRON_SECRET`. N
    row + bump cache). **Invoice + receipt** in thermal/A5/A4 (browser print +
    `pdf-lib`). **Printable patient statement** (charges + payments + balance). Per-
    patient **financial tab** on patient detail. `billing` ACL. DB-tested.
-2. **Collected-basis rewiring.** Move Sales + doctor-share recognition from "billed
-   at completion" → "as collected." `sales/ledger.ts` + `share-ledger.ts` trigger on
-   a payment, share scaled by `collected ÷ bill`; `computeShare` unchanged. **Refund
-   handling:** refund of an unallocated advance = P&L-neutral; refund of a *collected*
-   payment reverses recognized revenue **and** claws back that doctor's collected
-   share. Bill edits after a payment adjust the charge without rewriting collected.
-   *(Note: the Sales report's numbers shift from billed → collected.)* DB-tested
-   (Σ shares exact under partial collection; largest-remainder rounding, clinic
-   absorbs the remainder).
+2. **Collected-basis rewiring. ✅** Sales + doctor-share recognition moved from
+   "billed at completion" → "as collected." `recordSaleForAppointment` self-gates on
+   completed and scales gross/net by `collected ÷ bill`; `share-ledger` scales each
+   doctor's (full `computeShare`) share by the same fraction; both re-run on every
+   payment/refund/void (hooked in `core/billing/payments.ts`) as well as completion/
+   edit/approval/restore. `backfillClinicSales` is collected-basis too. Refund of a
+   collected payment scales revenue + shares back down; an unallocated-advance refund
+   is neutral. **The Sales report + doctor earnings now reflect COLLECTED money.**
+   Verified against the DB (8/8): unpaid → 0; 50% paid → net 3000 & doctor 450; 100%
+   → 6000 & 900; refund → back to 450.
 3. **Appointment-list payments.** Separate **Payment filter** (Paid/Partial/Unpaid)
    beside Status, per-row **badge** with amount left, **Collect-payment** action
    (incl. applying an advance). Reads `amount_collected`. Completed+Unpaid =

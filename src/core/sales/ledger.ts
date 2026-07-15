@@ -15,10 +15,12 @@ import {
 } from "@/core/sales/share-ledger";
 
 /**
- * Snapshots (upserts) the sale for a COMPLETED appointment: the doctor's
- * consultation fee + procedures, minus the discount, frozen so later edits /
- * price changes don't rewrite it. `occurred_at` = the visit date. Best-effort —
- * a ledger hiccup must never block the status change that triggered it.
+ * Snapshots (upserts) the sale for a COMPLETED appointment on a **collected** basis
+ * (Finance Phase 2): realised revenue = what the patient has actually PAID, not the
+ * billed amount. Gross/discount are scaled by `collected ÷ bill`, so a half-paid
+ * visit books half the revenue; the per-doctor shares scale the same way (in the
+ * share ledger). Re-run on completion, edit, approval, restore AND every payment.
+ * Best-effort — a ledger hiccup must never block whatever triggered it.
  */
 export async function recordSaleForAppointment(
   clinicId: string,
@@ -27,12 +29,14 @@ export async function recordSaleForAppointment(
   try {
     const [row] = await db
       .select({
+        status: appointments.status,
         doctorId: appointments.doctorId,
         scheduledAt: appointments.scheduledAt,
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
         discountStatus: appointments.discountStatus,
         chargeConsultation: appointments.chargeConsultation,
+        amountCollected: appointments.amountCollected,
         fee: users.consultationFee,
         doctorName: users.fullName,
         doctorUsername: users.username,
@@ -51,15 +55,26 @@ export async function recordSaleForAppointment(
       )
       .limit(1);
     if (!row) return;
+    // Only a completed visit has realisable revenue; anything else → no sale.
+    if (row.status !== "completed") {
+      await voidSaleForAppointment(clinicId, appointmentId);
+      return;
+    }
 
-    // A pending/rejected discount doesn't count until approved.
-    const { gross, discount, net } = computeSaleAmounts(
+    // Billed amounts (a pending/rejected discount doesn't count until approved),
+    // then scale to the fraction the patient has actually paid.
+    const billed = computeSaleAmounts(
       row.chargeConsultation ? row.fee : 0,
       Number(row.proceduresGross),
       Number(row.proceduresNet),
       row.discountType === "percent" ? "percent" : "amount",
       effectiveDiscountValue(row.discountStatus, row.discountValue),
     );
+    const collected = Math.max(0, Math.min(row.amountCollected, billed.net));
+    const fraction = billed.net > 0 ? collected / billed.net : 0;
+    const net = collected;
+    const gross = Math.round(billed.gross * fraction);
+    const discount = Math.max(0, gross - net);
     const doctorName = row.doctorName ?? row.doctorUsername ?? null;
 
     await db
@@ -124,6 +139,7 @@ export async function backfillClinicSales(clinicId: string): Promise<void> {
         discountValue: appointments.discountValue,
         discountStatus: appointments.discountStatus,
         chargeConsultation: appointments.chargeConsultation,
+        amountCollected: appointments.amountCollected,
         fee: users.consultationFee,
         doctorName: users.fullName,
         doctorUsername: users.username,
@@ -144,20 +160,25 @@ export async function backfillClinicSales(clinicId: string): Promise<void> {
     if (rows.length === 0) return;
 
     const values = rows.map((r) => {
-      const { gross, discount, net } = computeSaleAmounts(
+      const billed = computeSaleAmounts(
         r.chargeConsultation ? r.fee : 0,
         Number(r.proceduresGross),
         Number(r.proceduresNet),
         r.discountType === "percent" ? "percent" : "amount",
         effectiveDiscountValue(r.discountStatus, r.discountValue),
       );
+      // Collected basis (Finance Phase 2): realise only what's been paid.
+      const collected = Math.max(0, Math.min(r.amountCollected, billed.net));
+      const fraction = billed.net > 0 ? collected / billed.net : 0;
+      const net = collected;
+      const gross = Math.round(billed.gross * fraction);
       return {
         clinicId,
         appointmentId: r.id,
         doctorId: r.doctorId ?? null,
         doctorName: r.doctorName ?? r.doctorUsername ?? null,
         grossAmount: gross,
-        discountAmount: discount,
+        discountAmount: Math.max(0, gross - net),
         netAmount: net,
         occurredAt: r.scheduledAt,
       };

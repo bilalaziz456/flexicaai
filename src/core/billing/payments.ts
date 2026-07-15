@@ -6,6 +6,7 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import { appointments, patientPayments, patients } from "@/core/db/schema";
 import { getAppointmentBill } from "@/core/billing/bill";
+import { recordSaleForAppointment } from "@/core/sales/ledger";
 
 /**
  * Patient payments — CORE (Finance). An amount-based subledger on the patient's
@@ -174,6 +175,8 @@ export async function recordPayment(
     }
     await recomputeCollected(tx, clinicId, input.appointmentId!);
   });
+  // Re-recognise revenue/shares on the new collected amount (collected basis).
+  await recordSaleForAppointment(clinicId, input.appointmentId);
   return { ok: true, paid: toBill, credited: excess };
 }
 
@@ -204,6 +207,7 @@ export async function applyAdvance(
     });
     await recomputeCollected(tx, clinicId, input.appointmentId);
   });
+  await recordSaleForAppointment(clinicId, input.appointmentId);
   return { ok: true, paid: applyAmt, credited: 0 };
 }
 
@@ -251,6 +255,7 @@ export async function refund(
     });
     if (input.appointmentId) await recomputeCollected(tx, clinicId, input.appointmentId);
   });
+  if (input.appointmentId) await recordSaleForAppointment(clinicId, input.appointmentId);
   return { ok: true, paid: 0, credited: 0 };
 }
 
@@ -281,5 +286,6 @@ export async function voidPayment(
       .where(byClinic(patientPayments.clinicId, clinicId, eq(patientPayments.id, paymentId)));
     if (row.appointmentId) await recomputeCollected(tx, clinicId, row.appointmentId);
   });
+  if (row.appointmentId) await recordSaleForAppointment(clinicId, row.appointmentId);
   return { ok: true };
 }
