@@ -19,6 +19,7 @@ import {
   updateExpense,
 } from "@/core/expenses";
 import { logActivity } from "@/core/audit/log";
+import { revalidateFinance } from "@/app/clinic/finance-revalidate";
 
 export type ExpenseActionState = { error?: string; saved?: boolean };
 
@@ -93,6 +94,7 @@ export async function saveExpense(
     await logActivity({ action: "create", entity: "settings", entityId: id, summary: `Added an expense (Rs ${input.amount})` });
   }
   revalidatePath("/clinic/expenses");
+  revalidateFinance(); // P&L + dashboard net profit
   return { saved: true };
 }
 
@@ -103,6 +105,7 @@ export async function deleteExpenseAction(expenseId: string): Promise<ExpenseAct
   if (!ok) return { error: "Expense not found." };
   await logActivity({ action: "delete", entity: "settings", entityId: expenseId, summary: "Moved an expense to Trash" });
   revalidatePath("/clinic/expenses");
+  revalidateFinance();
   return { saved: true };
 }
 
@@ -113,6 +116,7 @@ export async function restoreExpenseAction(expenseId: string): Promise<ExpenseAc
   if (!ok) return { error: "Expense not found." };
   await logActivity({ action: "update", entity: "settings", entityId: expenseId, summary: "Restored an expense" });
   revalidatePath("/clinic/expenses");
+  revalidateFinance();
   return { saved: true };
 }
 

@@ -6,6 +6,7 @@ import { requireClinicAdmin } from "@/core/auth/user";
 import { recordPayout, voidPayout } from "@/core/sales/payouts";
 import { displayStaffName } from "@/core/types/auth";
 import { logActivity } from "@/core/audit/log";
+import { revalidateFinance } from "@/app/clinic/finance-revalidate";
 
 export type PayoutActionState = { error?: string; saved?: boolean };
 
@@ -61,6 +62,7 @@ export async function recordDoctorPayout(
     summary: `Recorded a payment of Rs ${result.amount} to a doctor`,
   });
   revalidatePath("/clinic/shares");
+  revalidateFinance(); // "Payable to doctors" on the dashboard
   return { saved: true };
 }
 
@@ -77,5 +79,6 @@ export async function voidDoctorPayout(payoutId: string): Promise<PayoutActionSt
     summary: "Reversed a doctor payout",
   });
   revalidatePath("/clinic/shares");
+  revalidateFinance(); // "Payable to doctors" on the dashboard
   return { saved: true };
 }

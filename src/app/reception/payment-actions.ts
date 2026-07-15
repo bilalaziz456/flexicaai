@@ -17,6 +17,7 @@ import {
   voidPayment,
 } from "@/core/billing/payments";
 import { issueInvoice } from "@/core/billing/invoice";
+import { revalidateFinance } from "@/app/clinic/finance-revalidate";
 import { logActivity } from "@/core/audit/log";
 
 export type BillingActionState = { error?: string; saved?: boolean };
@@ -58,6 +59,8 @@ function revalidateAppt(appointmentId: string, patientId: string | null) {
   revalidatePath(`/reception/appointments/${appointmentId}`);
   revalidatePath("/clinic/appointments");
   if (patientId) revalidatePath(`/clinic/patients/${patientId}`);
+  // A payment changes collected revenue → refresh the dashboard KPIs + reports.
+  revalidateFinance();
 }
 
 const amountSchema = z.coerce.number().int().positive("Enter an amount greater than zero.");

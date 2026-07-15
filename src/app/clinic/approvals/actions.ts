@@ -14,6 +14,7 @@ import {
   type ApprovalDecision,
 } from "@/core/appointments/approvals";
 import { recordSaleForAppointment } from "@/core/sales/ledger";
+import { revalidateFinance } from "@/app/clinic/finance-revalidate";
 import { displayStaffName } from "@/core/types/auth";
 import { logActivity } from "@/core/audit/log";
 
@@ -95,6 +96,7 @@ export async function decideApproval(
   });
   revalidatePath("/clinic/approvals");
   revalidatePath(`/clinic/appointments/${result.appointmentId}`);
+  revalidateFinance(); // approving/rejecting a discount changes the bill → revenue
   return { saved: true };
 }
 

@@ -35,6 +35,7 @@ import {
   type ProcedureSelection,
 } from "@/core/appointments/procedures";
 import { syncDiscountApprovals } from "@/core/appointments/approvals";
+import { revalidateFinance } from "@/app/clinic/finance-revalidate";
 import {
   recordSaleForAppointment,
   voidSaleForAppointment,
@@ -414,6 +415,7 @@ export async function updateAppointment(
   revalidatePath(home);
   revalidatePath(`/clinic/appointments/${appointmentId}`);
   revalidatePath(`/reception/appointments/${appointmentId}`);
+  revalidateFinance(); // an edit can change the bill/discount → revenue/shares
   // Redirect back to the list (not stay on the edit form) so React 19's
   // post-action form reset can't blank the controlled fields, and show a
   // success toast there via the flash flag.
@@ -522,6 +524,7 @@ export async function setAppointmentStatus(
   revalidatePath(home);
   revalidatePath(`/clinic/appointments/${appointmentId}`);
   revalidatePath(`/reception/appointments/${appointmentId}`);
+  revalidateFinance(); // completing/uncompleting changes realised revenue + shares
 }
 
 /** Patient typeahead for the new-appointment picker (clinic-scoped). */
