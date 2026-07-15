@@ -4,9 +4,9 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, doctorPayouts, saleShares, users } from "@/core/db/schema";
-import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import { resolveSalesRange } from "@/core/sales/report";
 import { getProfitAndLoss } from "@/core/finance/pl";
+import { appointmentBillNetSql } from "@/core/finance/receivables";
 
 /**
  * Owner finance KPIs for the dashboard — collected + net profit over the last 30
@@ -24,11 +24,9 @@ export type FinanceKpis = {
 export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
   const range30 = resolveSalesRange("30d", undefined, undefined);
 
-  // Outstanding receivable = Σ(bill − collected) over completed visits. The bill net
-  // mirrors computeAppointmentTotal (consultation + procedures − gated discount).
-  const effDiscount = sql`(case when ${appointments.discountStatus} in ('pending','rejected') then 0 else ${appointments.discountValue} end)`;
-  const subtotal = sql`((case when ${appointments.chargeConsultation} then coalesce(${users.consultationFee}, 0) else 0 end) + ${appointmentProceduresNetSql()})`;
-  const netSql = sql`(${subtotal} - least(greatest(case when ${appointments.discountType} = 'percent' then round(${subtotal} * ${effDiscount} / 100.0) else ${effDiscount} end, 0), ${subtotal}))`;
+  // Outstanding receivable = Σ(bill − collected) over completed visits. Shared bill
+  // expression with the Receivables report, so the two always reconcile.
+  const netSql = appointmentBillNetSql();
 
   const [pl, [rec], [earned], [paid]] = await Promise.all([
     getProfitAndLoss(clinicId, range30),

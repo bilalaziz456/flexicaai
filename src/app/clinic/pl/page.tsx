@@ -4,8 +4,10 @@ import { requireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
+import Link from "next/link";
 import { resolveSalesRange } from "@/core/sales/report";
 import { getProfitAndLoss } from "@/core/finance/pl";
+import { getOutstandingTotal } from "@/core/finance/receivables";
 import {
   Card,
   CardContent,
@@ -44,7 +46,11 @@ export default async function ProfitLossPage({
 
   const sp = await searchParams;
   const range = resolveSalesRange(sp.period, sp.from, sp.to);
-  const pl = await getProfitAndLoss(clinicId, range);
+  const [pl, outstanding] = await Promise.all([
+    getProfitAndLoss(clinicId, range),
+    // All-time (point-in-time) receivable — a memo, deliberately NOT in the P&L math.
+    getOutstandingTotal(clinicId),
+  ]);
 
   const loss = pl.netProfit < 0;
   const cards = [
@@ -88,6 +94,17 @@ export default async function ProfitLossPage({
           </Card>
         ))}
       </div>
+
+      {outstanding > 0 ? (
+        <p className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">
+          Memo: <span className="font-medium text-foreground">{money.format(outstanding)}</span>{" "}
+          outstanding from patients is <strong>not</strong> in this profit — it counts only
+          when collected.{" "}
+          <Link href="/clinic/receivables" className="underline underline-offset-4">
+            View receivables
+          </Link>
+        </p>
+      ) : null}
 
       <Card>
         <CardHeader>

@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Contact,
   FileSpreadsheet,
+  HandCoins,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -105,6 +106,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; nodes: NavNode[] }> = {
         Icon: Wallet,
         items: [
           { href: "/clinic/sales", label: "Sales", Icon: TrendingUp, resource: "sales" },
+          { href: "/clinic/receivables", label: "Receivables", Icon: HandCoins, resource: "billing" },
           { href: "/clinic/discounts", label: "Discounts", Icon: TicketPercent, resource: "discounts" },
           { href: "/clinic/shares", label: "Revenue shares", Icon: PieChart, resource: "shares" },
           { href: "/clinic/expenses", label: "Expenses", Icon: Receipt, resource: "expenses" },
@@ -221,6 +223,8 @@ export function PanelShell({
     if (i.href === "/clinic/approvals") return approvalsEnabled;
     if (i.href === "/clinic/expenses") return financeEnabled && (!canSee || canSee.has("expenses"));
     if (i.href === "/clinic/pl") return financeEnabled && (!canSee || canSee.has("finance"));
+    if (i.href === "/clinic/receivables")
+      return salesEnabled && (!canSee || canSee.has("billing"));
     if (i.href === "/clinic/reports") return salesEnabled; // the hub gates each card itself
     if (SALES_HREFS.has(i.href) && !salesEnabled) return false;
     if (i.resource && canSee && !canSee.has(i.resource)) return false;

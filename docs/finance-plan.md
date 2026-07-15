@@ -192,6 +192,23 @@ dual render** (see §10). Recurring expenses → `api/cron/*` + `CRON_SECRET`. N
    group. Verified against the DB (9/9). *(PDF export + month-over-month = follow-ups;
    Print→Save-PDF already covers invoices/statements.)*
 
+### Post-plan addition — Receivables report ✅
+
+Dedicated **Receivables report** (`/clinic/receivables`) — the consolidated "who owes
+us" view (was a deferred follow-up). Grouped **by patient, highest balance first**,
+with a native `<details>` **drill-in to the unpaid visits** (date · doctor · bill ·
+collected · outstanding, each linking to the appointment). Summary: total outstanding
++ patients owing. Filters: **period (defaults to All time**, since a receivable is a
+point-in-time balance) · doctor · patient search. **CSV** export
+(`/api/finance/export?type=receivables`, visit-level). `core/finance/receivables.ts`
+(`getReceivablesReport` + `getOutstandingTotal`); its bill expression
+`appointmentBillNetSql()` is now the **single source** the dashboard KPI
+(`getFinanceKpis`) reuses, so the report total and the dashboard "Outstanding" always
+reconcile (DB-verified across all clinics). Gated by the `sales` feature + `billing`
+permission (front-desk work — no `finance` feature); nav under Finance, plus a card in
+the Reports hub. P&L shows outstanding only as a **memo** ("not in profit — counts when
+collected → View receivables"), never in the profit math. tsc clean; e2e 61/61.
+
 ## 9. Sequence & rationale
 
 **1 → 8 in order.** Billing (1) redefines "revenue = collected," so everything reads

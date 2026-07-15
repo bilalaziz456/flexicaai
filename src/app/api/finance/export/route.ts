@@ -9,6 +9,7 @@ import { resolveSalesRange } from "@/core/sales/report";
 import { getDiscountsReport } from "@/core/sales/discounts-report";
 import { listExpenses } from "@/core/expenses";
 import { getDayBookLines } from "@/core/finance/daybook";
+import { getReceivablesReport } from "@/core/finance/receivables";
 
 /**
  * GET /api/finance/export?type=daybook|expenses|discounts&… — a CSV download of a
@@ -71,6 +72,24 @@ export async function GET(req: Request) {
     csv = toCsv(
       ["Date", "Patient", "Doctor", "Type", "Value", "Amount", "Borne by", "Status"],
       report.rows.map((r) => [ymd(r.scheduledAt), r.patientName ?? "", r.doctorName ?? "", r.type, r.value, r.amount, r.borneBy, r.status]),
+    );
+  } else if (type === "receivables") {
+    if (!hasSales || !can(user, "billing", "view")) return new Response("Forbidden", { status: 403 });
+    // Receivables defaults to all-time (no date bound); a period narrows by visit date.
+    const period = url.searchParams.get("period") ?? "";
+    const range = period && period !== "all" ? resolveSalesRange(period, url.searchParams.get("from") ?? undefined, url.searchParams.get("to") ?? undefined) : null;
+    const report = await getReceivablesReport(clinicId, {
+      doctorId: url.searchParams.get("doctorId") || undefined,
+      q: url.searchParams.get("q") || undefined,
+      from: range?.start,
+      toExclusive: range?.end,
+    });
+    name = range ? `receivables-${range.from}_to_${range.to}` : "receivables-all";
+    csv = toCsv(
+      ["Patient", "Phone", "Visit date", "Doctor", "Bill", "Collected", "Outstanding"],
+      report.patients.flatMap((p) =>
+        p.visits.map((v) => [p.name, p.phone ?? "", ymd(v.scheduledAt), v.doctorName ?? "", v.bill, v.collected, v.outstanding]),
+      ),
     );
   } else {
     return new Response("Unknown report", { status: 400 });
