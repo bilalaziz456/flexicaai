@@ -1,156 +1,180 @@
 # Finance — Billing, Payments, Expenses & P&L
 
 > Status: **planning**. Builds on the completed doctor revenue-share feature
-> (`docs/doctor-shares-plan.md`). Confirmed decisions below; sequence in §8.
-> Reuses existing engines wherever possible (sales report range/bucket helpers,
-> `SalesChart`/`SalesFilters`, `pdf-lib`, the cron pattern, soft-delete + Trash).
+> (`docs/doctor-shares-plan.md`). Reuses existing engines wherever possible (sales
+> report range/bucket helpers, `SalesChart`/`SalesFilters`/`AppointmentFilters`,
+> `searchClinicPatients`, `pdf-lib`, the cron pattern, soft-delete + Trash).
 
 ## 1. What it does
 
 Turns Klenic from "record completed visits" into a real **clinic finance** system:
 patients can **owe money**, **pay in parts**, and **pay in advance**; the clinic gets
-**invoices/receipts**, a **collected-revenue** truth, **expenses**, and a **P&L**.
+**invoices/receipts** (thermal/A5/A4), a **collected-revenue** truth, **expenses**,
+and a **P&L** — each screen with the **filters** its users need and its own **ACL**.
 
 ## 2. The model (confirmed)
 
-- **Revenue = money COLLECTED** from patients. Each completed visit has a **bill**
-  (consultation + procedures − discount, via existing `computeBill`) and a
-  **collected** amount; the gap is that patient's **outstanding**.
-- **Advance payments**: money paid ahead, held as patient **credit**, applied to
-  bills later. Unused credit is **refundable** (P&L-neutral until applied).
+- **Revenue = money COLLECTED.** Each completed visit has a **bill** (consultation +
+  procedures − discount, via existing `computeBill`) and a **collected** amount; the
+  gap is that patient's **outstanding**.
+- **Advance payments**: paid ahead, held as patient **credit**, applied to bills
+  later. Unused credit is **refundable** (P&L-neutral until applied).
 - **Doctor share = his % of what's COLLECTED** (grows as the patient pays), not of
-  what's billed. `computeShare` (pure) is unchanged; only the *trigger* + the base
-  amount change (see §7 Phase 2).
-- **P&L** = collected revenue − doctor shares (earned, **accrual**) − expenses.
-  **Tax/VAT deferred** but the P&L leaves a slot for a tax line (GCC later).
-- Two balances tracked separately: patients owe **us** (receivables), we owe
-  **doctors** (payables — already built in `core/sales/payouts.ts`).
+  what's billed. `computeShare` (pure) is unchanged; only the *trigger* + base amount.
+- **Net profit** = collected revenue − doctor shares (earned, **accrual**) − expenses.
+  **Tax/VAT deferred**; P&L leaves a slot.
+- Two balances tracked separately: patients owe **us** (receivables); we owe
+  **doctors** (payables — already built).
 
 ## 3. Schema (new)
 
-All tenant-scoped (`clinic_id` + `byClinic`), soft-deletable
-(`softDeleteColumns()` → registered in the Trash engine), audit-logged.
+Tenant-scoped (`clinic_id` + `byClinic`), soft-deletable (→ Trash), audit-logged.
 
-- **`patient_payments`** — the money in/out ledger. `id`, `clinic_id`, `patient_id`,
-  `appointment_id` (nullable — NULL = unallocated **advance**), `kind`
-  (`payment` | `advance` | `advance_applied` | `refund`), `amount` int (PKR),
-  `method` (cash/bank/cheque/other — same vocab as payouts), `reference`, `note`,
-  `occurred_at`, `created_by` + `created_by_name` (snapshot), soft-delete.
-  - Collected on appointment X = Σ `amount` where `appointment_id = X` and
-    `kind ∈ (payment, advance_applied)`.
-  - Patient **credit** = Σ`advance` − Σ`advance_applied` − Σ`refund`.
-- **`invoices`** — one per completed appointment (auto or on demand — §5). `id`,
-  `clinic_id`, `appointment_id` (**unique**), `patient_id`, `invoice_no`
-  (per-clinic sequence), `issued_at`, `issued_by` + `issued_by_name`, `note`,
-  soft-delete. Bill amount is derived live from `computeBill` (snapshotable if a
-  bill edit after issue must not move the invoice).
-- **`expenses`** — `id`, `clinic_id`, `category_id` → expense_categories
-  (`set null`), `amount` int, `incurred_on` date, `vendor`, `method`, `reference`,
-  `note`, `recurring` bool + `recurrence` (e.g. monthly), `created_by` +
-  `created_by_name`, soft-delete.
-- **`expense_categories`** — `id`, `clinic_id`, `name`, `is_active`. Seeded with
-  sensible defaults (Rent, Salaries, Supplies, Lab, Utilities, Marketing, Other);
-  clinic-editable.
+- **`patient_payments`** — money in/out ledger. `patient_id`, `appointment_id`
+  (NULL = unallocated **advance**), `kind` (`payment` | `advance` | `advance_applied`
+  | `refund`), `amount`, `method` (cash/bank/cheque/other — same vocab as payouts),
+  `reference`, `note`, `reverses_id` (nullable — the entry a refund/void reverses,
+  for traceability), `occurred_at`, `created_by(+name)`, soft-delete.
+  - Collected on appt X = Σ where `appointment_id=X` and kind ∈ (payment,
+    advance_applied). Patient **credit** = Σadvance − Σadvance_applied − Σrefund.
+  - Overpayment → the excess becomes an **advance** (credit).
+- **`invoices`** — one per completed appointment. `appointment_id` (**unique**),
+  `patient_id`, `invoice_no` (per-clinic sequence — allocated in a txn / counter row
+  so concurrent receptionists never collide), `issued_at`, `issued_by(+name)`,
+  soft-delete. Bill derived from `computeBill` (snapshotable on issue).
+- **`expenses`** — `category_id` → expense_categories (`set null`), `amount`,
+  `incurred_on` date, `vendor`, `method`, `reference`, `note`, `recurring` bool +
+  `recurrence`, `created_by(+name)`, soft-delete.
+- **`expense_categories`** — `name`, `is_active`. Seeded: Rent, Salaries, Supplies,
+  Lab, Utilities, Marketing, Other. Clinic-editable.
 - **`appointments.amount_collected`** int default 0 — **denormalized cache** of Σ
-  collected for that appointment, updated on every payment (perf-first: the
-  appointment-list Payment filter/badge reads this indexed column, not an
-  aggregate). Payment status is derived: `collected ≥ bill` → Paid,
-  `0 < collected < bill` → Partial, `= 0` → Unpaid.
-- **`clinics`** finance settings: `invoice_paper` (`a4` | `a5` | `thermal`, default
-  a4 — the default print format), `invoice_prefix` (e.g. "INV-"), and the
-  invoice-number counter (per-clinic; `max(invoice_no)+1` in a txn, or a counter
-  column). Optional `currency` left as PKR for now.
+  collected, updated on every payment (the appointment-list Payment filter/badge
+  reads this indexed column, not an aggregate). Status: `collected ≥ bill` Paid ·
+  `0<collected<bill` Partial · `=0` Unpaid.
+- **`clinics`** finance settings: `invoice_paper` (`a4`|`a5`|`thermal`, default a4),
+  `invoice_prefix` (e.g. "INV-"), invoice-number counter.
 
-## 4. Permissions & gating
+## 4. Access control (ACL) — every module gated
 
-- **Billing / payments / invoices / receipts / discounts report** ride on the
-  existing **`sales`** feature (they need priced bills) — available to reception
-  (collecting money is front-desk work). New **`payments`** permission (collect /
-  refund) + reuse `sales`/`shares` view perms for the discounts report.
-- **Expenses + P&L + the unified Reports hub** ride on a **new `finance` feature**
-  (super-admin, added to `core/lib/features.ts`) + a grantable **`finance`**
-  permission (clinic-admin default; sensitive owner data).
+Two gates, as everywhere in Klenic: a **feature** (super-admin, per clinic) + a
+per-user **permission** (`resource:action`, clinic-admin grants). New resources go in
+`core/auth/permissions.ts`; pages guard with `requireWorkspace(resource, action)` and
+actions re-check `can(user, …)`.
 
-## 5. Invoices & receipts — printing (thermal / A5 / A4)
+| Area | Feature | Permission · actions | Default roles |
+|---|---|---|---|
+| Payments · invoices · receipts · patient balance/statement | `sales` | **`billing`** — view · create=Collect · edit · delete=Refund/Void | reception + manager: view+create; **refund/void: clinic_admin + manager** |
+| Discounts report | `sales` | **`discounts`** — view | clinic_admin, manager |
+| Sales report | `sales` | `sales` — view *(existing)* | clinic_admin, manager |
+| Revenue shares · payouts | — | `shares` *(existing; doctor self-view)* | doctor (own), clinic_admin, manager |
+| Expenses | **`finance`** *(new)* | **`expenses`** — view/create/edit/delete | clinic_admin (grantable to manager) |
+| P&L · unified Reports · finance dashboard KPIs | `finance` | **`finance`** — view | clinic_admin |
 
-One renderer, three paper formats, two output paths:
+- **Self-scoping** stays: a doctor sees only their own shares/earnings; patient
+  financials are staff-only.
+- **Refund/void is stricter than collect** (delete vs create) — front-desk takes
+  money, but a manager/admin reverses it.
 
-- **Formats:** **Thermal** (80 mm default, 58 mm option — narrow, compact, no fixed
-  height), **A5** (148×210 mm), **A4** (210×297 mm). The clinic's default is
-  `clinics.invoice_paper`; overridable at print time.
-- **Browser print** (fastest): a print route with `@media print` + `@page { size: … }`
-  per format — thermal = `80mm auto`, A5/A4 = the named size. The panel chrome is
-  hidden on print (same technique as the share statement). The browser sends it to
-  whatever printer is selected (incl. a thermal/receipt printer).
-- **PDF** (download / WhatsApp): generated with **`pdf-lib`** (already bundled, used
-  by `prescription-pdf.ts`, Turbopack-safe) at the chosen page size — 80 mm×auto,
-  A5, or A4. Reused for both the **invoice** (visit bill: line items − discount +
-  total) and the **receipt** (a payment/advance with running balance).
-- **Delivery:** print, download PDF, or send over WhatsApp (existing send path).
-- **Generation:** on-demand from the appointment ("Invoice" / "Receipt" buttons);
-  auto-numbering per clinic. (Auto-issue on completion can be a clinic toggle later.)
+## 5. Filters — every list & report
 
-## 6. Reuse map (so we don't rebuild)
+Each screen ships the filters its users actually need, from one composable
+**FilterBar** reusing existing primitives (`DatePicker`, Base UI `Select`, the
+debounced `searchClinicPatients`, and the `resolveSalesRange` period presets).
+Standard set = **period preset + custom From/To + Today**; module-specific on top:
 
-- **Reports** (Discounts, Expenses, P&L, unified) reuse `sales/report.ts`'s
-  `resolveSalesRange` + exported bucket/granularity helpers, and
-  `SalesChart` / `SalesFilters`.
-- **Recurring expenses** reuse the `api/cron/*` + `CRON_SECRET` pattern.
-- **Soft-delete + Trash**: new tables use `softDeleteColumns()` and register in the
-  Trash restore/purge lists.
-- **PDF**: `pdf-lib` (§5). **CSV**: hand-rolled (no new dependency).
-- **Audit**: `logActivity` on every payment/expense/invoice.
+| Screen | Filters |
+|---|---|
+| Appointment list | date range · status · **payment status (Paid/Partial/Unpaid) — new** · doctor · patient search |
+| Payments ledger | date range · patient (search) · method · kind (payment/advance/refund) · doctor |
+| Invoices | date range · patient · paid/unpaid · doctor |
+| Patient statement | the patient (+ optional date range) |
+| Discounts report | period/range · doctor · patient · borne-by (clinic/doctor/split) · approval status |
+| Expenses | period/range · category · vendor · method · recurring |
+| P&L | period/custom range · doctor · expense category · compare-to-previous |
+| Sales report | period · doctor · **patient** · **collected-by method** (extend existing) |
+| Revenue shares / Payouts | period · doctor · (payouts) method |
+| Day book (daily cash) | single day · method |
+| Reports hub | global period + entity filters, carried into export |
 
-## 7. Build phases
+All filters push query params (server reads them; perf-first, indexed columns), and
+every filtered view can **export** exactly what's on screen (PDF/CSV).
+
+## 6. Invoices & receipts — printing (thermal / A5 / A4)
+
+One renderer, three formats, two output paths:
+- **Formats:** **Thermal** (80 mm default, 58 mm option), **A5** (148×210), **A4**
+  (210×297). Clinic default in `clinics.invoice_paper`; overridable at print time.
+- **Browser print:** `@media print` + `@page { size: … }` per format (thermal =
+  `80mm auto`); panel chrome hidden (same trick as the share statement). Prints to any
+  selected printer, incl. a thermal/receipt printer.
+- **PDF:** `pdf-lib` (already bundled, Turbopack-safe) at the chosen page size — used
+  for the **invoice** (line items − discount + total) and the **receipt** (a
+  payment/advance + running balance).
+- **Delivery:** print · download PDF · WhatsApp. On-demand buttons, auto-numbered.
+
+## 7. Reuse map
+
+Reports → `resolveSalesRange` + bucket helpers + `SalesChart`/`SalesFilters`. Filters
+→ `AppointmentFilters`/`SalesFilters` primitives + `searchClinicPatients`. Recurring
+expenses → `api/cron/*` + `CRON_SECRET`. New tables → `softDeleteColumns()` + Trash.
+PDF → `pdf-lib`; CSV hand-rolled. Audit → `logActivity`.
+
+## 8. Build phases
 
 1. **Patient billing & payments (foundation).** Schema (`patient_payments`,
-   `invoices`, `appointments.amount_collected`, clinic invoice settings +
-   categories seed). Core `core/billing/*`: record payment / advance / refund,
-   apply advance to a bill, patient balance, invoice-number allocation. Capture
-   payment at completion (extend `setAppointmentStatus`: prompt full/partial/none →
-   write a `patient_payments` row + bump `amount_collected`). **Invoice + receipt**
-   rendering in thermal/A5/A4 (browser print + `pdf-lib`). Per-patient financial
-   tab on patient detail. DB-tested.
-2. **Collected-basis rewiring.** Move Sales + doctor-share recognition from
-   "billed at completion" → "as collected." `sales/ledger.ts` + `share-ledger.ts`
-   trigger on a payment (and on completion for the collected-so-far), scaling the
-   share by `collected ÷ bill`; `computeShare` unchanged. Bill edits after a
-   payment adjust the charge without rewriting collected. DB-tested (Σ shares stays
-   exact under partial collection; rounding via the existing largest-remainder).
-3. **Appointment-list payments.** A **separate Payment filter** (Paid / Partial /
-   Unpaid) beside Status, a per-row **badge** with amount left, and a
-   **Collect-payment** action (incl. applying an advance). Reads
-   `amount_collected`. The Completed + Unpaid combo = the receivables view.
+   `invoices`, `appointments.amount_collected`, clinic invoice settings + category
+   seed). Core `core/billing/*`: record payment / advance / refund, **apply advance**
+   to a bill, **void/reverse** a payment (like `voidPayout` — decrements
+   `amount_collected`), patient balance, **safe invoice-number allocation**. Capture
+   payment at completion (extend `setAppointmentStatus`: full/partial/none → payment
+   row + bump cache). **Invoice + receipt** in thermal/A5/A4 (browser print +
+   `pdf-lib`). **Printable patient statement** (charges + payments + balance). Per-
+   patient **financial tab** on patient detail. `billing` ACL. DB-tested.
+2. **Collected-basis rewiring.** Move Sales + doctor-share recognition from "billed
+   at completion" → "as collected." `sales/ledger.ts` + `share-ledger.ts` trigger on
+   a payment, share scaled by `collected ÷ bill`; `computeShare` unchanged. **Refund
+   handling:** refund of an unallocated advance = P&L-neutral; refund of a *collected*
+   payment reverses recognized revenue **and** claws back that doctor's collected
+   share. Bill edits after a payment adjust the charge without rewriting collected.
+   *(Note: the Sales report's numbers shift from billed → collected.)* DB-tested
+   (Σ shares exact under partial collection; largest-remainder rounding, clinic
+   absorbs the remainder).
+3. **Appointment-list payments.** Separate **Payment filter** (Paid/Partial/Unpaid)
+   beside Status, per-row **badge** with amount left, **Collect-payment** action
+   (incl. applying an advance). Reads `amount_collected`. Completed+Unpaid =
+   receivables view. Optional: **WhatsApp payment reminder** for outstanding balances
+   (reuse the notification path).
 4. **Discounts report** (`/clinic/discounts`). Every discount: patient, appointment,
-   amount (Rs/%), borne-by, affected doctor, approval + approver, date. Pure read
-   (appointments + approvals + patients); reuse the report filters.
-5. **Expenses module** (`/clinic/expenses`). `expenses` + `expense_categories` CRUD,
-   recurring via cron, `finance` feature + permission, soft-delete → Trash,
-   audit-logged.
-6. **P&L report** (`/clinic/pl`). Collected revenue − doctor shares − expenses = net
-   profit, by period / category / doctor, with a revenue-vs-expenses-vs-profit
-   chart. Tax slot left unused.
+   amount (Rs/%), borne-by, affected doctor, **approval status + approver**, date.
+   Pure read (appointments + approvals + patients). Filters per §5. `discounts` ACL.
+5. **Expenses** (`/clinic/expenses`). `expenses` + `expense_categories` CRUD,
+   recurring via cron, `finance` feature + `expenses` permission, soft-delete → Trash,
+   audit-logged. Filters per §5.
+6. **P&L** (`/clinic/pl`). Collected revenue − doctor shares − expenses = net profit,
+   by period/category/doctor, with a revenue-vs-expenses-vs-profit chart + compare-to-
+   previous. Tax slot unused. `finance` ACL.
 7. **Nav refactor.** PanelShell → parent tabs with `>` expandable subtabs:
    **Finance ›** (Sales · Discounts · Revenue shares · Payouts · Expenses · P&L) ·
    **Clinical ›** · **People ›** · **System ›**; top-level Dashboard · Appointments ·
    WhatsApp · Approvals. Mobile drawer too; auto-expand the active group; remember
    expanded state.
-8. **Unified reports + export.** `/clinic/reports` hub tying Sales, Discounts,
-   Shares, Expenses, P&L with shared filters + **PDF (`pdf-lib`) / CSV** export +
-   month-over-month. Owner **dashboard KPIs** (feature-gated, parallel queries):
-   Collected · Outstanding · Payable to doctors · Net profit.
+8. **Unified reports + export + day book.** `/clinic/reports` hub tying Sales,
+   Discounts, Shares, Expenses, P&L with shared filters + **PDF (`pdf-lib`) / CSV**
+   export + month-over-month. **Day book** (daily cash collected by method — for
+   end-of-day reconciliation). Owner **dashboard KPIs** (feature-gated, parallel
+   queries): Collected · Outstanding · Payable to doctors · Net profit.
 
-## 8. Sequence & rationale
+## 9. Sequence & rationale
 
 **1 → 8 in order.** Billing (1) redefines "revenue = collected," so everything reads
-from it; the collected-basis rewire (2) and payment UI (3) come straight after;
-discounts (4) is a low-risk read; expenses (5) → P&L (6) build the owner picture; the
-nav refactor (7) lands once Finance is full; unified reporting + export (8) is the
-capstone. Each phase is DB-tested (the `server-only`-stub + dotenv-preload tsx
-harness) and finishes with `tsc` clean + `e2e` green, mirroring the revenue-share work.
+from it; the collected-basis rewire (2) and payment UI (3) follow; discounts (4) is a
+low-risk read; expenses (5) → P&L (6) build the owner picture; the nav refactor (7)
+lands once Finance is full; unified reporting + export + day book (8) is the capstone.
+Each phase is DB-tested (the `server-only`-stub + dotenv-preload tsx harness) and
+finishes `tsc` clean + `e2e` green, mirroring the revenue-share work.
 
-## 9. Not in scope (yet)
+## 10. Not in scope (yet)
 
-Tax/VAT computation (slot left in P&L), multi-currency, insurance/third-party
-claims, payroll beyond doctor payouts, accrual on the *patient* side (patient
-revenue stays cash/collected), bank reconciliation.
+Tax/VAT computation (slot left in P&L), multi-currency, insurance/third-party claims,
+credit notes for post-issue invoice changes, payroll beyond doctor payouts, accrual on
+the *patient* side (patient revenue stays cash/collected), bank reconciliation.
