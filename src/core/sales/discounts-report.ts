@@ -105,6 +105,7 @@ export async function getDiscountsReport(
     const approvals = await db
       .select({
         appointmentId: appointmentDiscountApprovals.appointmentId,
+        kind: appointmentDiscountApprovals.approverKind,
         name: appointmentDiscountApprovals.decidedByName,
       })
       .from(appointmentDiscountApprovals)
@@ -118,12 +119,19 @@ export async function getDiscountsReport(
           ),
         ),
       );
+    // Label each sign-off by its side so a SPLIT discount that needed both a clinic
+    // and a doctor approval reads clearly, e.g. "Clinic: Sara · Dr: Bilal". Clinic
+    // rows come first. (De-dup identical side+name.)
     const approverMap = new Map<string, string[]>();
     for (const a of approvals) {
       if (!a.name) continue;
+      const label = `${a.kind === "doctor" ? "Dr" : "Clinic"}: ${a.name}`;
       const arr = approverMap.get(a.appointmentId) ?? [];
-      if (!arr.includes(a.name)) arr.push(a.name);
+      if (!arr.includes(label)) arr.push(label);
       approverMap.set(a.appointmentId, arr);
+    }
+    for (const [, arr] of approverMap) {
+      arr.sort((x, y) => (x.startsWith("Clinic") ? 0 : 1) - (y.startsWith("Clinic") ? 0 : 1));
     }
 
     // Split each discount between clinic and doctor(s). Clinic-borne is a shortcut
@@ -132,7 +140,7 @@ export async function getDiscountsReport(
     // the doctor payouts. Only the non-clinic rows pay the extra lookup.
     await Promise.all(
       out.map(async (row) => {
-        row.approvedBy = approverMap.get(row.appointmentId)?.join(", ") ?? null;
+        row.approvedBy = approverMap.get(row.appointmentId)?.join(" · ") ?? null;
         if (row.amount <= 0 || row.borneBy === "clinic") {
           row.clinicBears = row.amount;
           row.doctorBears = 0;
