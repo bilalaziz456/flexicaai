@@ -160,10 +160,12 @@ collected, earnings rise (+50 dr / +450 clinic) → doctor **−300**, clinic **
 
 ## 9. Phasing
 
-1. Schema + migration + `computeBearing` (pure) + unit tests (the §3 table).
+1. Schema + migration + the **`share_waive` ACL slug** + `computeBearing` (pure) +
+   unit tests (the §3 table). *(Permission added now as the foundation; its actions
+   are enforced in Phase 4.)*
 2. `sale_shares` gross-% switch + `discount_settlements` write on completion hook.
 3. Balances allow negative + `recordRepayment` / `writeOff`.
-4. Waives (both directions) + `share_waive` permission + reversal.
+4. Waives (both directions) — enforcing `share_waive` — + reversal.
 5. Reports/statement/P&L wiring + discounts-report final split & waive display.
 6. Consent/approval regeneration for bearing parties.
 

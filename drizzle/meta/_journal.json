@@ -288,6 +288,13 @@
       "when": 1784141784518,
       "tag": "0040_clean_ted_forrester",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1784230950197,
+      "tag": "0041_sticky_wind_dancer",
+      "breakpoints": true
     }
   ]
 }

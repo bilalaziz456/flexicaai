@@ -269,6 +269,35 @@ rises again. Clinic admin records/reverses from `/clinic/shares` (scoped to a
 doctor) + prints a statement (`/clinic/shares/statement`); a doctor sees their own
 read-only. Indexes: (`clinic_id`,`doctor_id`); (`clinic_id`,`created_at`).
 
+### `discount_settlements` — doctor↔clinic discount bearing (discount-bearing, phase 1)
+`id`, `clinic_id` → clinics (`cascade`), `appointment_id` → appointments (`cascade`),
+`party` ('clinic' | 'doctor'), `doctor_id` → users (`set null`; NULL for the clinic
+row), `doctor_name` (**snapshot**), `gross_share` int (party's pre-discount cut,
+reference), `settlement_amount` int (**signed** balance adjustment; − = the party
+bears a loss / a doctor may go into deficit), `occurred_at` (= scheduled_at),
+`created_at`. One snapshot row per PARTY per completed appointment carrying an
+effective discount. Captures the approved policy — whoever bears a discount absorbs it
+fully (no spillover), computed as a **zero-sum transfer** on the NET bill + gross
+shares (collection-independent), so Σ settlement = 0 and totals converge to make-whole
+as the patient pays. Pure math in `core/appointments/discount-bearing.ts#computeBearing`;
+written replace-all-per-appointment on the completion/edit/approval hooks (like
+`sale_shares`). See `docs/discount-bearing-plan.md` §3. Indexes: (`appointment_id`);
+(`clinic_id`,`occurred_at`); (`clinic_id`,`doctor_id`).
+
+### `doctor_settlement_actions` — waives / repayments / write-offs (discount-bearing, phase 1)
+`id`, `clinic_id` → clinics (`cascade`), `doctor_id` → users (`set null`),
+`doctor_name` (**snapshot**), `appointment_id` → appointments (`set null`; NULL for a
+standalone repayment/write-off), `line_ref` (procedure id | 'consultation' | NULL =
+whole visit), `kind` ('doctor_waive' | 'clinic_waive' | 'repayment' | 'write_off' |
+'reversal'), `amount` int (positive PKR; effect from `kind`), `reverses_id` (self-ref,
+no FK — the row a reversal undoes), `note`, `created_by(+name)` snapshot, `occurred_at`,
+`created_at`. The manual money moves on a doctor's share balance: a doctor forgoes his
+own share (`doctor_waive`, by self-identity), the clinic forgives a deficit
+(`clinic_waive`, a clinic cost) / records a doctor→clinic `repayment` / `write_off`, or
+reverses any (`reversal`). Clinic-side kinds need the **`share_waive`** permission.
+Enforcement lands in phase 4. Indexes: (`clinic_id`,`doctor_id`);
+(`clinic_id`,`occurred_at`); (`appointment_id`).
+
 ### `patient_payments` — money in/out subledger (Finance, phase 1)
 `id`, `clinic_id` → clinics (`cascade`), `patient_id` → patients (`cascade`),
 `appointment_id` → appointments (`set null`; NULL = an unallocated **advance**),
@@ -324,12 +353,15 @@ unchanged). Indexes: (`appointment_id`); (`clinic_id`,`status`);
 - **Timezone caveat (deploy):** availability, "tomorrow" (reminder), and day
   bounds use the **server's local timezone**. For a multi-region rollout
   (Pakistan vs GCC), pin each clinic to its own timezone.
-- Migrations `0000`–`0040` applied; almost always additive (the one drop:
+- Migrations `0000`–`0041` applied; almost always additive (the one drop:
   `0038` removes `sale_shares.payout_id`, superseded by amount-based payouts).
   `0039` adds the Finance billing foundation — `patient_payments` + `invoices`
   tables, `appointments.amount_collected`, and clinic invoice settings
   (`invoice_paper` / `invoice_prefix` / `next_invoice_no`). `0040` adds `expenses`
-  (soft-deletable) + `expense_categories`. See docs/finance-plan.md.
+  (soft-deletable) + `expense_categories`. See docs/finance-plan.md. `0041`
+  (discount-bearing phase 1) adds the `discount_settlements` + `doctor_settlement_actions`
+  tables and `appointments.discount_split_type` / `discount_split_value` /
+  `discount_split_stale`. See docs/discount-bearing-plan.md.
   (`0017` adds `appointments.discount_type` / `discount_value`; `0018` adds
   `appointments.queue_session` / `queue_number` + the queue unique index; `0019`
   adds the `activity_logs` table; `0020` adds `clinics.log_access` and drops the

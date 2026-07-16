@@ -365,6 +365,14 @@ export const appointments = pgTable(
     // Rows live in `appointment_discount_approvals`. See
     // core/appointments/approvals.ts and docs/doctor-shares-plan.md §6.
     discountStatus: text("discount_status").notNull().default("none"),
+    // For a borne='split' discount, how much of it the DOCTOR side bears: 'percent'
+    // = a % of the discount, 'amount' = a fixed PKR figure (shown as its equivalent
+    // %). A fixed amount does NOT scale — `discount_split_stale` is set when the
+    // discount later changes so staff re-enter it. Only meaningful when
+    // discount_borne_by = 'split'. See docs/discount-bearing-plan.md.
+    discountSplitType: text("discount_split_type").notNull().default("percent"),
+    discountSplitValue: integer("discount_split_value").notNull().default(0),
+    discountSplitStale: boolean("discount_split_stale").notNull().default(false),
     // Whether the doctor's consultation fee is charged for this visit. A patient
     // who comes only for a procedure has no consultation fee → set false and the
     // bill/sale count only the procedures. Default true (charge, as before).
@@ -883,6 +891,92 @@ export const saleShares = pgTable(
 );
 
 /**
+ * Discount settlements (doctor↔clinic bearing) — one snapshot row per PARTY per
+ * completed appointment that carries an (effective) discount. Captures how the
+ * discount is borne: the bearing party's balance moves by `settlement_amount`
+ * (signed; negative = they bear a loss / a doctor may go into deficit), the
+ * protected party is untouched. Accrual, computed at completion on the NET bill +
+ * gross shares (NOT scaled by collection) — see docs/discount-bearing-plan.md §3.
+ * Rewritten (replace-all-for-appointment) on the completion/edit/approval hooks,
+ * exactly like `sale_shares`; a clinic row has `doctor_id` NULL.
+ */
+export const discountSettlements = pgTable(
+  "discount_settlements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    appointmentId: uuid("appointment_id")
+      .notNull()
+      .references(() => appointments.id, { onDelete: "cascade" }),
+    party: text("party").notNull(), // 'clinic' | 'doctor'
+    doctorId: uuid("doctor_id").references(() => users.id, {
+      onDelete: "set null",
+    }), // NULL for the clinic row
+    doctorName: text("doctor_name"), // snapshot
+    grossShare: integer("gross_share").notNull().default(0), // this party's pre-discount gross cut (reference)
+    settlementAmount: integer("settlement_amount").notNull().default(0), // signed balance adjustment
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("discount_settlements_appointment_idx").on(t.appointmentId),
+    index("discount_settlements_clinic_occurred_idx").on(t.clinicId, t.occurredAt),
+    index("discount_settlements_clinic_doctor_idx").on(t.clinicId, t.doctorId),
+  ],
+);
+
+/**
+ * Doctor settlement actions — the manual money moves on a doctor's share balance:
+ * a `doctor_waive` (doctor forgoes his own share, relieving the clinic), a
+ * `clinic_waive` (clinic forgives a doctor's deficit — a clinic cost), a
+ * `repayment` (doctor→clinic, settling a deficit from pocket), a `write_off`
+ * (clinic writes a departed doctor's debt off), or a `reversal` (undo one of the
+ * above, `reverses_id` → the reversed row). Amounts are positive PKR; the effect on
+ * the balance comes from `kind`. `line_ref` scopes a waive to one earning line (a
+ * procedure id, or 'consultation'); NULL = the whole visit. Audit-logged; clinic-
+ * side kinds need the `share_waive` permission (a doctor waives his own by identity).
+ */
+export const doctorSettlementActions = pgTable(
+  "doctor_settlement_actions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    doctorId: uuid("doctor_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    doctorName: text("doctor_name"), // snapshot
+    // The visit the action relates to (NULL for a standalone repayment/write-off).
+    appointmentId: uuid("appointment_id").references(() => appointments.id, {
+      onDelete: "set null",
+    }),
+    lineRef: text("line_ref"), // procedure id | 'consultation' | NULL (whole visit)
+    kind: text("kind").notNull(), // doctor_waive | clinic_waive | repayment | write_off | reversal
+    amount: integer("amount").notNull().default(0), // positive PKR; meaning by kind
+    reversesId: uuid("reverses_id"), // self-ref (no FK); the row a reversal undoes
+    note: text("note"),
+    createdBy: uuid("created_by"),
+    createdByName: text("created_by_name"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("doctor_settlement_actions_clinic_doctor_idx").on(t.clinicId, t.doctorId),
+    index("doctor_settlement_actions_clinic_occurred_idx").on(t.clinicId, t.occurredAt),
+    index("doctor_settlement_actions_appointment_idx").on(t.appointmentId),
+  ],
+);
+
+/**
  * Patient payments ledger (Finance — patient billing). Every money movement on a
  * patient's account: a `payment` against a visit's bill, an `advance` (prepaid
  * credit — `appointment_id` NULL), an `advance_applied` (credit consumed by a
@@ -1126,6 +1220,8 @@ export type AppointmentDiscountApproval =
 export type AppointmentProcedure = typeof appointmentProcedures.$inferSelect;
 export type Sale = typeof sales.$inferSelect;
 export type SaleShare = typeof saleShares.$inferSelect;
+export type DiscountSettlement = typeof discountSettlements.$inferSelect;
+export type DoctorSettlementAction = typeof doctorSettlementActions.$inferSelect;
 export type DoctorPayout = typeof doctorPayouts.$inferSelect;
 export type PatientPayment = typeof patientPayments.$inferSelect;
 export type Invoice = typeof invoices.$inferSelect;

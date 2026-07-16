@@ -74,6 +74,12 @@ export const PERM_RESOURCES: PermResource[] = [
   // for the clinic-borne side. Clinic admin holds it by default; grantable to a
   // manager. Not feature-gated (discounts exist without the sales feature).
   { id: "discount_approval", label: "Discount approvals", actions: ["view"] },
+  // Doctor↔clinic discount SETTLEMENT actions — `view` = perform them: waive a
+  // doctor's deficit, record a doctor→clinic repayment, write off a balance, and
+  // reverse any of these (see docs/discount-bearing-plan.md). A doctor waiving their
+  // OWN share needs no permission (self-identity). Clinic admin holds it by default;
+  // grantable to a manager. Not feature-gated (shares accrue without sales/finance).
+  { id: "share_waive", label: "Doctor share settlement", actions: ["view"] },
   // Trash: `view` = see the clinic's Trash; `create` = RESTORE a trashed item
   // (reusing the create column, relabelled "Restore"). Permanent purge is NOT an
   // ACL action — it is super-admin-only. Clinic admin holds this by default (ALL);
