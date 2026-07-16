@@ -11,15 +11,18 @@ import {
   users,
 } from "@/core/db/schema";
 import { getAppointmentShareContext } from "@/core/appointments/share-context";
+import { discountBorneSplit } from "@/core/appointments/discount-bearing";
 
 /** The overall discount status derived from an appointment's approval rows. */
 export type DiscountStatus = "none" | "pending" | "approved" | "rejected";
 
 /**
  * (Re)compute an appointment's discount approvals. Called after the discount /
- * borne-by / procedures change. It works out who actually loses share to the
- * discount and, of those, who has switched approval ON; it then replaces the
- * appointment's approval rows and sets `appointments.discount_status`.
+ * borne-by / split / procedures change. Only the party that actually BEARS the
+ * discount signs off (no spillover — the discount-bearing rule): clinic-borne → the
+ * clinic; doctor-borne → the earning doctors; split → whichever side has a positive
+ * portion. Of those bearers, the ones whose `discount_needs_approval` switch is ON
+ * are required; it then replaces the approval rows and sets `discount_status`.
  *
  * With every default (borne-by = clinic, clinic switch off, doctor switches off)
  * nobody requires approval → status stays 'none' and the discount applies exactly
@@ -38,11 +41,13 @@ export async function syncDiscountApprovals(
     return clearApprovals(clinicId, appointmentId);
   }
 
-  // Which parties' share does the discount reduce?  clinic-borne → the clinic;
-  // doctor-borne → the earning doctors; split → both.
-  const clinicAffected = ctx.borneBy === "clinic" || ctx.borneBy === "split";
-  const doctorsAffected =
-    ctx.borneBy === "doctor" || ctx.borneBy === "split" ? ctx.earnerDoctorIds : [];
+  // Who actually BEARS the discount (positive portion), per the no-spill split.
+  const { clinicBorne, doctorBorne } = discountBorneSplit(discount, ctx.borneBy, {
+    type: ctx.discountSplitType === "amount" ? "amount" : "percent",
+    value: ctx.discountSplitValue,
+  });
+  const clinicAffected = clinicBorne > 0;
+  const doctorsAffected = doctorBorne > 0 ? ctx.earnerDoctorIds : [];
 
   // Of the affected parties, who requires approval?
   const [clinic] = await db

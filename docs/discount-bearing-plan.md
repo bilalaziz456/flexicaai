@@ -182,6 +182,14 @@ collected, earnings rise (+50 dr / +450 clinic) → doctor **−300**, clinic **
    with per-visit **Discount borne** and **Waives & settlements** sections. (P&L/KPI
    wiring landed in Phases 3–4.) *(Per-LINE waives from the appointment detail remain a
    follow-up; `line_ref` stays NULL.)*
-6. Consent/approval regeneration for bearing parties.
+6. Consent/approval regeneration for bearing parties (done): `syncDiscountApprovals`
+   now uses `discountBorneSplit` to require sign-off only from parties with a POSITIVE
+   borne portion (split 0%→one side only), each gated by its `discount_needs_approval`
+   switch. No spillover means clinic-borne never drags doctors into approval.
+
+**All phases complete.** Remaining follow-ups (non-blocking): per-LINE waives from the
+appointment detail (`line_ref` currently NULL), and a form to set the split
+percent/amount on the appointment (today `discount_split_value` defaults to 0, so a
+'split' discount is all-clinic until set — settable via the data model, no UI yet).
 
 Each phase: DB-tested, `tsc` clean, `e2e` green — same bar as the rest of the app.
