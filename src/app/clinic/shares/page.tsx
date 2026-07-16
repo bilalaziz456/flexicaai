@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { requireWorkspace } from "@/core/auth/user";
+import { can } from "@/core/auth/permissions";
 import { getSalesDoctors, resolveSalesRange } from "@/core/sales/report";
 import { getSharesReport } from "@/core/sales/share-report";
 import { getDoctorBalances, listPayouts } from "@/core/sales/payouts";
+import { listSettlementActions } from "@/core/sales/settlement-actions";
 import {
   Card,
   CardContent,
@@ -14,6 +16,7 @@ import { MultiBarChart } from "@/app/clinic/sales/multi-bar-chart";
 import { LineChart } from "@/app/clinic/sales/line-chart";
 import { SalesFilters } from "@/app/clinic/sales/sales-filters";
 import { RecordPayoutForm, VoidPayoutButton } from "./payout-ui";
+import { SettlementForm, VoidSettlementButton, SETTLEMENT_LABEL } from "./settlement-ui";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -42,26 +45,46 @@ export default async function ClinicSharesPage({
   const doctorId = selfOnly ? user.id : sp.doctorId?.trim() || null;
   const singleDoctor = selfOnly || Boolean(doctorId);
 
-  const [balances, report, payouts, doctors] = await Promise.all([
+  const canWaive = can(user, "share_waive", "view");
+  const [balances, report, payouts, doctors, settlementActions] = await Promise.all([
     getDoctorBalances(clinicId, doctorId),
     getSharesReport(clinicId, range, doctorId),
     listPayouts(clinicId, doctorId),
     selfOnly ? Promise.resolve([]) : getSalesDoctors(clinicId),
+    singleDoctor && doctorId ? listSettlementActions(clinicId, doctorId) : Promise.resolve([]),
   ]);
 
   // Balance figures: one doctor when scoped, else clinic-wide totals.
   const scoped = singleDoctor
-    ? (balances[0] ?? { earned: 0, paid: 0, outstanding: 0 })
+    ? (balances[0] ?? { earned: 0, borne: 0, adjustments: 0, paid: 0, outstanding: 0 })
     : {
         earned: balances.reduce((s, b) => s + b.earned, 0),
+        borne: balances.reduce((s, b) => s + b.borne, 0),
+        adjustments: balances.reduce((s, b) => s + b.adjustments, 0),
         paid: balances.reduce((s, b) => s + b.paid, 0),
         outstanding: balances.reduce((s, b) => s + b.outstanding, 0),
       };
 
+  // Discount bearing + waives net (so Earned + this − Paid = Outstanding).
+  const netAdjust = scoped.borne + scoped.adjustments;
+  const owes = scoped.outstanding < 0;
   const summary = [
-    { title: "Earned", value: money.format(scoped.earned), note: selfOnly ? "Your lifetime share" : "Doctor shares, all time" },
-    { title: "Paid", value: money.format(scoped.paid), note: "Settled to date" },
-    { title: "Outstanding", value: money.format(scoped.outstanding), note: "Still owed" },
+    { title: "Earned", value: money.format(scoped.earned), note: selfOnly ? "Your lifetime share" : "Doctor shares, all time", tone: "" },
+    ...(netAdjust !== 0
+      ? [{
+          title: "Discount borne",
+          value: money.format(netAdjust),
+          note: "Bearing + waives",
+          tone: netAdjust < 0 ? "text-destructive" : "text-emerald-600 dark:text-emerald-400",
+        }]
+      : []),
+    { title: "Paid", value: money.format(scoped.paid), note: "Settled to date", tone: "" },
+    {
+      title: owes ? "Owes clinic" : "Outstanding",
+      value: money.format(Math.abs(scoped.outstanding)),
+      note: owes ? "Doctor owes the clinic" : "Still owed",
+      tone: owes ? "text-destructive" : "",
+    },
   ];
 
   return (
@@ -86,12 +109,12 @@ export default async function ClinicSharesPage({
       </div>
 
       {/* Balance (lifetime) */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {summary.map((s) => (
           <Card key={s.title}>
             <CardHeader>
               <CardDescription>{s.title}</CardDescription>
-              <CardTitle className="text-3xl">{s.value}</CardTitle>
+              <CardTitle className={`text-3xl ${s.tone}`}>{s.value}</CardTitle>
               <CardDescription>{s.note}</CardDescription>
             </CardHeader>
           </Card>
@@ -116,6 +139,49 @@ export default async function ClinicSharesPage({
                 Nothing outstanding for this doctor.
               </p>
             )}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Settle balance — waive / write-off / repayment (share_waive), or a doctor
+          waiving his own owed share (self). */}
+      {singleDoctor && doctorId && (canWaive || (selfOnly && scoped.outstanding > 0)) ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Settle balance</CardTitle>
+            <CardDescription>
+              {owes
+                ? "Forgive the debt, write it off, or record the doctor's repayment."
+                : "Waive part of what's owed to this doctor."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <SettlementForm
+              key={scoped.outstanding}
+              doctorId={doctorId}
+              outstanding={scoped.outstanding}
+              canClinic={canWaive}
+              canDoctorWaive={canWaive || selfOnly}
+            />
+            {settlementActions.length > 0 ? (
+              <ul className="divide-y rounded-lg border text-sm">
+                {settlementActions.map((a) => (
+                  <li key={a.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <div className="min-w-0">
+                      <span className="font-medium">
+                        {SETTLEMENT_LABEL[a.kind] ?? a.kind} · {money.format(a.amount)}
+                      </span>
+                      <span className="block text-xs text-muted-foreground">
+                        {a.createdAt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                        {a.createdByName ? ` · by ${a.createdByName}` : ""}
+                        {a.note ? ` · ${a.note}` : ""}
+                      </span>
+                    </div>
+                    {canWaive ? <VoidSettlementButton actionId={a.id} /> : null}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

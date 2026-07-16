@@ -170,8 +170,12 @@ collected, earnings rise (+50 dr / +450 clinic) → doctor **−300**, clinic **
 3. **Reader cutover (atomic):** `sale_shares` → gross-% basis **and** balances/shares
    report/P&L/dashboard-KPI fold in the settlements, together; `getDoctorBalances`
    gains a signed `borne` and allows **negative** outstanding (a doctor may owe).
-4. Settlement ACTIONS: waives (both directions, enforcing `share_waive`) +
-   `recordRepayment` (doctor→clinic) + `writeOff` + reversal, folded into the balance.
+4. Settlement ACTIONS (done): `doctor_waive` / `clinic_waive` / `repayment` /
+   `write_off` — **amount-based** on `/clinic/shares` (mirroring payouts), enforcing
+   `share_waive` (a doctor waives his OWN by identity); void = delete. Folded into
+   `getDoctorBalances` (`adjustments`) and P&L (`plActionEffect`: waive/write-off = clinic
+   cost, doctor-waive = saving, repayment = cash-only). *(Per-LINE waives from the
+   appointment detail are a Phase-5 refinement; `line_ref` is stored NULL for now.)*
 5. Reports/statement/P&L wiring + discounts-report final split & waive display.
 6. Consent/approval regeneration for bearing parties.
 

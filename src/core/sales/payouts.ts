@@ -3,7 +3,13 @@ import "server-only";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
-import { discountSettlements, doctorPayouts, saleShares, users } from "@/core/db/schema";
+import {
+  discountSettlements,
+  doctorPayouts,
+  doctorSettlementActions,
+  saleShares,
+  users,
+} from "@/core/db/schema";
 
 /**
  * Doctor payouts — an AMOUNT-BASED running balance. A doctor's lifetime balance is
@@ -21,9 +27,18 @@ export type DoctorBalance = {
   earned: number;
   /** Σ discount settlements (signed; − = the doctor bears a discount / may owe). */
   borne: number;
+  /** Σ settlement ACTIONS (signed): doctor_waive −; clinic_waive/repayment/write_off +. */
+  adjustments: number;
   paid: number;
   outstanding: number;
 };
+
+/** Signed balance effect of a settlement action: a doctor waiving his own share
+ *  lowers what he's owed; a clinic waive / doctor repayment / write-off relieves his
+ *  debt (raises the balance toward zero). */
+function settlementAdjustmentSql() {
+  return sql<number>`coalesce(sum(case ${doctorSettlementActions.kind} when 'doctor_waive' then -${doctorSettlementActions.amount} else ${doctorSettlementActions.amount} end), 0)::int`;
+}
 
 export type PayoutRow = {
   id: string;
@@ -84,6 +99,23 @@ export async function getDoctorBalances(
     )
     .groupBy(discountSettlements.doctorId);
 
+  // Settlement actions (waives / repayments / write-offs) per doctor.
+  const adjRows = await db
+    .select({
+      doctorId: doctorSettlementActions.doctorId,
+      name: sql<string | null>`max(${doctorSettlementActions.doctorName})`,
+      adjustments: settlementAdjustmentSql(),
+    })
+    .from(doctorSettlementActions)
+    .where(
+      byClinic(
+        doctorSettlementActions.clinicId,
+        clinicId,
+        doctorId ? eq(doctorSettlementActions.doctorId, doctorId) : undefined,
+      ),
+    )
+    .groupBy(doctorSettlementActions.doctorId);
+
   const paidRows = await db
     .select({
       doctorId: doctorPayouts.doctorId,
@@ -104,7 +136,7 @@ export async function getDoctorBalances(
   const ensure = (id: string, name: string | null) => {
     let b = map.get(id);
     if (!b) {
-      b = { doctorId: id, name: name ?? "Unknown", earned: 0, borne: 0, paid: 0, outstanding: 0 };
+      b = { doctorId: id, name: name ?? "Unknown", earned: 0, borne: 0, adjustments: 0, paid: 0, outstanding: 0 };
       map.set(id, b);
     } else if (b.name === "Unknown" && name) {
       b.name = name;
@@ -117,11 +149,14 @@ export async function getDoctorBalances(
   for (const r of borneRows) {
     if (r.doctorId) ensure(r.doctorId, r.name).borne = Number(r.borne);
   }
+  for (const r of adjRows) {
+    if (r.doctorId) ensure(r.doctorId, r.name).adjustments = Number(r.adjustments);
+  }
   for (const r of paidRows) {
     if (r.doctorId) ensure(r.doctorId, r.name).paid = Number(r.paid);
   }
   // Outstanding may be negative — the doctor owes the clinic (discount-bearing).
-  for (const b of map.values()) b.outstanding = b.earned + b.borne - b.paid;
+  for (const b of map.values()) b.outstanding = b.earned + b.borne + b.adjustments - b.paid;
   return [...map.values()].sort((a, b) => b.outstanding - a.outstanding);
 }
 
@@ -132,7 +167,7 @@ export async function getDoctorBalance(
 ): Promise<DoctorBalance> {
   const [row] = await getDoctorBalances(clinicId, doctorId);
   return (
-    row ?? { doctorId, name: "Unknown", earned: 0, borne: 0, paid: 0, outstanding: 0 }
+    row ?? { doctorId, name: "Unknown", earned: 0, borne: 0, adjustments: 0, paid: 0, outstanding: 0 }
   );
 }
 

@@ -3,7 +3,14 @@ import "server-only";
 import { and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { discountSettlements, expenseCategories, expenses, sales, saleShares } from "@/core/db/schema";
+import {
+  discountSettlements,
+  doctorSettlementActions,
+  expenseCategories,
+  expenses,
+  sales,
+  saleShares,
+} from "@/core/db/schema";
 import { expensesTotal } from "@/core/expenses";
 import {
   bucketLabel,
@@ -38,13 +45,24 @@ const isoDate = (d: Date): string => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 };
 
+/**
+ * P&L cost of a settlement action. A clinic waive / write-off is a clinic COST (it
+ * gives back the doctor's borne amount); a doctor waive is a SAVING; a repayment is
+ * cash-only (the bearing it settles was already accrued via `discount_settlements`).
+ */
+function plActionEffect(kind: string, amount: number): number {
+  if (kind === "doctor_waive") return -amount;
+  if (kind === "clinic_waive" || kind === "write_off") return amount;
+  return 0; // repayment
+}
+
 export async function getProfitAndLoss(
   clinicId: string,
   range: ResolvedRange,
 ): Promise<ProfitAndLoss> {
   const { start, end, granularity } = range;
 
-  const [saleRows, shareRows, settleRows, expRows, expByCat, sharesByDoctor, settleByDoctor] = await Promise.all([
+  const [saleRows, shareRows, settleRows, expRows, expByCat, sharesByDoctor, settleByDoctor, actionRows] = await Promise.all([
     db
       .select({ net: sales.netAmount, occurredAt: sales.occurredAt })
       .from(sales)
@@ -95,11 +113,22 @@ export async function getProfitAndLoss(
       .from(discountSettlements)
       .where(byClinic(discountSettlements.clinicId, clinicId, and(eq(discountSettlements.party, "doctor"), gte(discountSettlements.occurredAt, start), lt(discountSettlements.occurredAt, end))))
       .groupBy(discountSettlements.doctorName),
+    // Settlement actions in the range — their P&L cost (see plActionEffect).
+    db
+      .select({ kind: doctorSettlementActions.kind, amount: doctorSettlementActions.amount, occurredAt: doctorSettlementActions.occurredAt, name: doctorSettlementActions.doctorName })
+      .from(doctorSettlementActions)
+      .where(byClinic(doctorSettlementActions.clinicId, clinicId, and(gte(doctorSettlementActions.occurredAt, start), lt(doctorSettlementActions.occurredAt, end)))),
   ]);
 
   const revenue = saleRows.reduce((s, r) => s + r.net, 0);
+  // Doctor shares (the clinic's cost to doctors) = gross earnings + settlements (the
+  // accrual bearing) + settlement ACTIONS (a clinic waive/write-off is a cost, a doctor
+  // waive a saving; a repayment is cash-only — the bearing was already accrued).
+  const actionShares = actionRows.reduce((s, r) => s + plActionEffect(r.kind, r.amount), 0);
   const doctorShares =
-    shareRows.reduce((s, r) => s + r.amount, 0) + settleRows.reduce((s, r) => s + r.amount, 0);
+    shareRows.reduce((s, r) => s + r.amount, 0) +
+    settleRows.reduce((s, r) => s + r.amount, 0) +
+    actionShares;
   const expensesSum = await expensesTotal(clinicId, start, end);
   const netProfit = revenue - doctorShares - expensesSum;
 
@@ -123,6 +152,10 @@ export async function getProfitAndLoss(
     const b = idx.get(startOfBucket(r.occurredAt, granularity).getTime());
     if (b !== undefined) buckets[b].share += r.amount;
   }
+  for (const r of actionRows) {
+    const b = idx.get(startOfBucket(r.occurredAt, granularity).getTime());
+    if (b !== undefined) buckets[b].share += plActionEffect(r.kind, r.amount);
+  }
   for (const r of expRows) {
     const d = new Date(`${r.incurredOn}T12:00:00`);
     const b = idx.get(startOfBucket(d, granularity).getTime());
@@ -143,20 +176,24 @@ export async function getProfitAndLoss(
       profit: b.revenue - b.share - b.expense,
     })),
     byExpenseCategory: expByCat.map((r) => ({ name: r.name ?? "Uncategorized", amount: Number(r.amount) })),
-    byDoctor: mergeByName(sharesByDoctor, settleByDoctor),
+    byDoctor: mergeByName(
+      sharesByDoctor,
+      settleByDoctor,
+      actionRows.map((r) => ({ name: r.name, amount: plActionEffect(r.kind, r.amount) })),
+    ),
   };
 }
 
-/** Merge two name→amount lists (shares + settlements) into one, summed, desc by amount. */
+/** Merge name→amount lists (shares + settlements + actions) into one, summed, desc. */
 function mergeByName(
-  a: { name: string | null; amount: number }[],
-  b: { name: string | null; amount: number }[],
+  ...lists: { name: string | null; amount: number }[][]
 ): { name: string; amount: number }[] {
   const m = new Map<string, number>();
-  for (const r of [...a, ...b]) {
-    const name = r.name ?? "Unknown";
-    m.set(name, (m.get(name) ?? 0) + Number(r.amount));
-  }
+  for (const list of lists)
+    for (const r of list) {
+      const name = r.name ?? "Unknown";
+      m.set(name, (m.get(name) ?? 0) + Number(r.amount));
+    }
   return [...m.entries()]
     .map(([name, amount]) => ({ name, amount }))
     .sort((x, y) => y.amount - x.amount);
