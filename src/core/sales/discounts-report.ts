@@ -1,11 +1,13 @@
 import "server-only";
 
-import { and, desc, eq, gt, gte, lt } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, lt } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, patients, users } from "@/core/db/schema";
+import { appointmentDiscountApprovals, appointments, patients, users } from "@/core/db/schema";
 import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import { computeFee, normalizeDiscountType } from "@/core/appointments/fee";
+import { computeShare } from "@/core/appointments/shares";
+import { getAppointmentShareContext } from "@/core/appointments/share-context";
 import { displayStaffName } from "@/core/types/auth";
 import type { ResolvedRange } from "@/core/sales/report";
 
@@ -19,6 +21,9 @@ export type DiscountRow = {
   amount: number; // the discount in Rs (applied / would-be)
   borneBy: string; // clinic | doctor | split
   status: string; // none | pending | approved | rejected
+  clinicBears: number; // how much of `amount` the clinic absorbs
+  doctorBears: number; // how much of `amount` the doctor(s) absorb (clinicBears+doctorBears = amount)
+  approvedBy: string | null; // who signed the discount off (null when no approval was required)
 };
 
 export type DiscountsReport = {
@@ -88,8 +93,73 @@ export async function getDiscountsReport(
       amount,
       borneBy: r.discountBorneBy,
       status: r.discountStatus,
+      clinicBears: amount, // provisional; refined below
+      doctorBears: 0,
+      approvedBy: null as string | null,
     };
   });
+
+  // Who signed each discount off — the approved approval rows (one query for all).
+  const apptIds = out.map((r) => r.appointmentId);
+  if (apptIds.length > 0) {
+    const approvals = await db
+      .select({
+        appointmentId: appointmentDiscountApprovals.appointmentId,
+        name: appointmentDiscountApprovals.decidedByName,
+      })
+      .from(appointmentDiscountApprovals)
+      .where(
+        byClinic(
+          appointmentDiscountApprovals.clinicId,
+          clinicId,
+          and(
+            inArray(appointmentDiscountApprovals.appointmentId, apptIds),
+            eq(appointmentDiscountApprovals.status, "approved"),
+          ),
+        ),
+      );
+    const approverMap = new Map<string, string[]>();
+    for (const a of approvals) {
+      if (!a.name) continue;
+      const arr = approverMap.get(a.appointmentId) ?? [];
+      if (!arr.includes(a.name)) arr.push(a.name);
+      approverMap.set(a.appointmentId, arr);
+    }
+
+    // Split each discount between clinic and doctor(s). Clinic-borne is a shortcut
+    // (clinic absorbs all); doctor/split need the share context to weight by each
+    // party's gross cut — mirroring computeShare's bucket order so the numbers match
+    // the doctor payouts. Only the non-clinic rows pay the extra lookup.
+    await Promise.all(
+      out.map(async (row) => {
+        row.approvedBy = approverMap.get(row.appointmentId)?.join(", ") ?? null;
+        if (row.amount <= 0 || row.borneBy === "clinic") {
+          row.clinicBears = row.amount;
+          row.doctorBears = 0;
+          return;
+        }
+        const ctx = await getAppointmentShareContext(clinicId, row.appointmentId);
+        if (!ctx.found || ctx.grossTotal <= 0) {
+          row.clinicBears = row.amount;
+          row.doctorBears = 0;
+          return;
+        }
+        const gross = computeShare({
+          consultation: ctx.consultation,
+          lines: ctx.lines,
+          netTotal: ctx.grossTotal, // no discount → each party's full gross cut
+          borneBy: "clinic",
+        });
+        const doctorGross = Object.values(gross.doctors).reduce((s, v) => s + v, 0);
+        const doctorBears =
+          row.borneBy === "doctor"
+            ? Math.min(row.amount, doctorGross) // doctors first, spill to clinic
+            : Math.round((row.amount * doctorGross) / (gross.clinic + doctorGross || 1)); // split: proportional
+        row.doctorBears = doctorBears;
+        row.clinicBears = row.amount - doctorBears;
+      }),
+    );
+  }
 
   const applied = (s: string) => s === "none" || s === "approved";
   return {

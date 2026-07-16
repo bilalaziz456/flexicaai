@@ -138,11 +138,21 @@ export default async function DiscountsPage({
                       </td>
                       <td className="py-2">{r.patientName ?? "—"}</td>
                       <td className="py-2">{r.doctorName ?? "—"}</td>
-                      <td className="py-2">{BORNE[r.borneBy] ?? "Clinic"}</td>
+                      <td className="py-2">
+                        {BORNE[r.borneBy] ?? "Clinic"}
+                        {r.borneBy !== "clinic" ? (
+                          <span className="block text-xs text-muted-foreground">
+                            Clinic {money.format(r.clinicBears)} · Dr {money.format(r.doctorBears)}
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="py-2">
                         <Badge variant={STATUS[r.status]?.variant ?? "outline"}>
                           {STATUS[r.status]?.label ?? r.status}
                         </Badge>
+                        {r.approvedBy ? (
+                          <span className="block text-xs text-muted-foreground">by {r.approvedBy}</span>
+                        ) : null}
                       </td>
                       <td className="py-2 text-right font-medium tabular-nums">{discLabel(r)}</td>
                     </tr>
@@ -163,9 +173,13 @@ export default async function DiscountsPage({
                       <span>{dayFmt(r.scheduledAt)}</span>
                       {r.doctorName ? <span>· {r.doctorName}</span> : null}
                       <span>· borne by {BORNE[r.borneBy] ?? "Clinic"}</span>
+                      {r.borneBy !== "clinic" ? (
+                        <span>· Clinic {money.format(r.clinicBears)} / Dr {money.format(r.doctorBears)}</span>
+                      ) : null}
                       <Badge variant={STATUS[r.status]?.variant ?? "outline"}>
                         {STATUS[r.status]?.label ?? r.status}
                       </Badge>
+                      {r.approvedBy ? <span>· by {r.approvedBy}</span> : null}
                     </div>
                   </li>
                 ))}

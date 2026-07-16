@@ -71,8 +71,8 @@ export async function GET(req: Request) {
     });
     name = `discounts-${range.from}_to_${range.to}`;
     csv = toCsv(
-      ["Date", "Patient", "Doctor", "Type", "Value", "Amount", "Borne by", "Status"],
-      report.rows.map((r) => [ymd(r.scheduledAt), r.patientName ?? "", r.doctorName ?? "", r.type, r.value, r.amount, r.borneBy, r.status]),
+      ["Date", "Patient", "Doctor", "Type", "Value", "Amount", "Borne by", "Clinic bears", "Doctor bears", "Status", "Approved by"],
+      report.rows.map((r) => [ymd(r.scheduledAt), r.patientName ?? "", r.doctorName ?? "", r.type, r.value, r.amount, r.borneBy, r.clinicBears, r.doctorBears, r.status, r.approvedBy ?? ""]),
     );
   } else if (type === "receivables") {
     if (!hasSales || !can(user, "receivables", "view")) return new Response("Forbidden", { status: 403 });
