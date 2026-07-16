@@ -74,7 +74,7 @@ export async function GET(req: Request) {
       report.rows.map((r) => [ymd(r.scheduledAt), r.patientName ?? "", r.doctorName ?? "", r.type, r.value, r.amount, r.borneBy, r.status]),
     );
   } else if (type === "receivables") {
-    if (!hasSales || !can(user, "billing", "view")) return new Response("Forbidden", { status: 403 });
+    if (!hasSales || !can(user, "receivables", "view")) return new Response("Forbidden", { status: 403 });
     // Receivables defaults to all-time (no date bound); a period narrows by visit date.
     const period = url.searchParams.get("period") ?? "";
     const range = period && period !== "all" ? resolveSalesRange(period, url.searchParams.get("from") ?? undefined, url.searchParams.get("to") ?? undefined) : null;

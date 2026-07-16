@@ -29,14 +29,14 @@ const dayFmt = (d: Date) =>
  * Receivables report (Finance) — what patients OWE on completed visits, grouped by
  * patient with a per-visit drill-in. Reconciles with the dashboard "Outstanding" KPI
  * (same rule: completed visits, bill − collected). Gated by the `sales` feature +
- * the `billing` permission (front-desk work — no `finance` feature required).
+ * the `receivables` permission (front-desk work — no `finance` feature required).
  */
 export default async function ReceivablesPage({
   searchParams,
 }: {
   searchParams: Promise<{ period?: string; from?: string; to?: string; doctorId?: string; q?: string }>;
 }) {
-  const user = await requireWorkspace("billing");
+  const user = await requireWorkspace("receivables");
   const { clinicId } = user;
 
   const [clinic] = await db
@@ -139,7 +139,6 @@ export default async function ReceivablesPage({
                         <Link
                           href={`/clinic/patients/${p.patientId}`}
                           className="font-medium underline underline-offset-4"
-                          onClick={(e) => e.stopPropagation()}
                         >
                           {p.name}
                         </Link>

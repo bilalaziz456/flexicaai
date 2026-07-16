@@ -51,6 +51,10 @@ export const PERM_RESOURCES: PermResource[] = [
   // payment / issue an invoice; `edit` = apply advance / edit a note; `delete` =
   // Refund / Void (stricter — front-desk collects, a manager/admin reverses).
   { id: "billing", label: "Billing & payments", actions: ["view", "create", "edit", "delete"], feature: "sales", createLabel: "Collect" },
+  // Receivables report — what patients owe on completed visits (view-only). Its own
+  // ACL slug so a clinic can expose the "who owes us" report independently of who may
+  // collect a payment (billing).
+  { id: "receivables", label: "Receivables report", actions: ["view"], feature: "sales" },
   // Revenue-share earnings report. A DOCTOR holds this by default but only ever
   // sees their OWN earnings (self-scoped at the page); a clinic admin / granted
   // manager sees every doctor + the clinic's cut. Not feature-gated (shares can
@@ -136,6 +140,7 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     procedures: [V, C, E],
     sales: [V],
     discounts: [V],
+    receivables: [V],
     // Full billing incl. refund/void (manager oversees the money).
     billing: [V, C, E, D],
     leave: [V, C, E, D],
@@ -170,6 +175,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     procedures: [V, C, E, D],
     // Front desk collects payments + applies advances, but not refund/void (no D).
     billing: [V, C, E],
+    // Front desk chases balances → sees the receivables report.
+    receivables: [V],
     leave: [V, C, E, D],
     // Front desk can view/print a prescription PDF (not author it).
     prescriptions: [V],

@@ -204,9 +204,10 @@ point-in-time balance) · doctor · patient search. **CSV** export
 (`getReceivablesReport` + `getOutstandingTotal`); its bill expression
 `appointmentBillNetSql()` is now the **single source** the dashboard KPI
 (`getFinanceKpis`) reuses, so the report total and the dashboard "Outstanding" always
-reconcile (DB-verified across all clinics). Gated by the `sales` feature + `billing`
-permission (front-desk work — no `finance` feature); nav under Finance, plus a card in
-the Reports hub. P&L shows outstanding only as a **memo** ("not in profit — counts when
+reconcile (DB-verified across all clinics). Gated by the `sales` feature + a dedicated
+**`receivables`** view permission (its own ACL slug — clinic admin/manager/receptionist
+by default, grantable per-user in the permission grid; independent of who may `billing`
+collect a payment). Nav under Finance, plus a card in the Reports hub. P&L shows outstanding only as a **memo** ("not in profit — counts when
 collected → View receivables"), never in the profit math. tsc clean; e2e 61/61.
 
 ## 9. Sequence & rationale
