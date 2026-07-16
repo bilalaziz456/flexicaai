@@ -53,24 +53,31 @@ export default async function ReportsHubPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {reports.map((r) => (
-            <Card key={r.title}>
+            // The whole card opens the report: the title link is "stretched" over the
+            // card via an ::after overlay. The CSV link sits above it (relative z-10)
+            // so it stays independently clickable.
+            <Card key={r.title} className="relative transition-colors hover:border-primary/50">
               <CardHeader>
-                <CardTitle className="text-base">{r.title}</CardTitle>
+                <CardTitle className="text-base">
+                  <Link
+                    href={r.href}
+                    className="after:absolute after:inset-0 after:rounded-[inherit]"
+                  >
+                    {r.title}
+                  </Link>
+                </CardTitle>
                 <CardDescription>{r.desc}</CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-wrap items-center gap-3 text-sm">
-                <Link href={r.href} className="font-medium underline underline-offset-4">
-                  Open
-                </Link>
-                {r.csv ? (
+              {r.csv ? (
+                <CardContent className="text-sm">
                   <a
                     href={`/api/finance/export?type=${r.csv}`}
-                    className="text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                    className="relative z-10 inline-flex text-muted-foreground underline underline-offset-4 hover:text-foreground"
                   >
                     Download CSV
                   </a>
-                ) : null}
-              </CardContent>
+                </CardContent>
+              ) : null}
             </Card>
           ))}
         </div>
