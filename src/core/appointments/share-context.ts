@@ -33,6 +33,9 @@ export type AppointmentShareContext = {
   discountType: DiscountType;
   discountValue: number;
   discountStatus: string;
+  /** For borneBy='split': the doctor side's portion of the discount. */
+  discountSplitType: string;
+  discountSplitValue: number;
   consultation: { doctorId: string; fee: number; pct: number } | null;
   lines: { doctorId: string | null; gross: number; pct: number }[];
   grossTotal: number;
@@ -59,6 +62,8 @@ export async function getAppointmentShareContext(
     discountType: "amount",
     discountValue: 0,
     discountStatus: "none",
+    discountSplitType: "percent",
+    discountSplitValue: 0,
     consultation: null,
     lines: [],
     grossTotal: 0,
@@ -76,6 +81,8 @@ export async function getAppointmentShareContext(
       discountValue: appointments.discountValue,
       discountBorneBy: appointments.discountBorneBy,
       discountStatus: appointments.discountStatus,
+      discountSplitType: appointments.discountSplitType,
+      discountSplitValue: appointments.discountSplitValue,
     })
     .from(appointments)
     .where(
@@ -189,6 +196,8 @@ export async function getAppointmentShareContext(
     discountType,
     discountValue: appt.discountValue,
     discountStatus: appt.discountStatus,
+    discountSplitType: appt.discountSplitType,
+    discountSplitValue: appt.discountSplitValue,
     consultation,
     lines,
     grossTotal,

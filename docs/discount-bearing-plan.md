@@ -163,8 +163,13 @@ collected, earnings rise (+50 dr / +450 clinic) → doctor **−300**, clinic **
 1. Schema + migration + the **`share_waive` ACL slug** + `computeBearing` (pure) +
    unit tests (the §3 table). *(Permission added now as the foundation; its actions
    are enforced in Phase 4.)*
-2. `sale_shares` gross-% switch + `discount_settlements` write on completion hook.
-3. Balances allow negative + `recordRepayment` / `writeOff`.
+2. **`discount_settlements` written on the completion/edit/approval hooks as a SHADOW
+   ledger** — populated + DB-verified (matches `computeBearing`, zero-sum), but nothing
+   reads it yet, so **zero behaviour change**. *(The `sale_shares` gross-% switch is
+   deferred to the reader cutover so numbers never go transiently wrong — see below.)*
+3. **Reader cutover (atomic):** `sale_shares` → gross-% basis **and** balances/reports/
+   P&L/KPIs fold in the settlements, together — plus balances allow negative +
+   `recordRepayment` / `writeOff`.
 4. Waives (both directions) — enforcing `share_waive` — + reversal.
 5. Reports/statement/P&L wiring + discounts-report final split & waive display.
 6. Consent/approval regeneration for bearing parties.

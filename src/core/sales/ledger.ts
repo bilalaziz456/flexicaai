@@ -13,6 +13,10 @@ import {
   recordSaleSharesForAppointment,
   voidSaleSharesForAppointment,
 } from "@/core/sales/share-ledger";
+import {
+  recordDiscountSettlementForAppointment,
+  voidDiscountSettlementForAppointment,
+} from "@/core/sales/settlement-ledger";
 
 /**
  * Snapshots (upserts) the sale for a COMPLETED appointment on a **collected** basis
@@ -110,8 +114,11 @@ export async function recordSaleForAppointment(
   } catch {
     // best-effort
   }
-  // The per-doctor share ledger is snapshotted in lockstep with the sale.
+  // The per-doctor share ledger + the discount-settlement ledger are snapshotted in
+  // lockstep with the sale. (Settlement is a shadow ledger in phase 2 — written, not
+  // yet read.)
   await recordSaleSharesForAppointment(clinicId, appointmentId);
+  await recordDiscountSettlementForAppointment(clinicId, appointmentId);
 }
 
 /** Removes an appointment's sale (when it leaves "completed"). Best-effort. */
@@ -127,6 +134,7 @@ export async function voidSaleForAppointment(
     // best-effort
   }
   await voidSaleSharesForAppointment(clinicId, appointmentId);
+  await voidDiscountSettlementForAppointment(clinicId, appointmentId);
 }
 
 /**
@@ -193,9 +201,12 @@ export async function backfillClinicSales(clinicId: string): Promise<void> {
     await db.insert(sales).values(values).onConflictDoNothing({
       target: sales.appointmentId,
     });
-    // Snapshot each backfilled appointment's per-doctor shares too (idempotent —
-    // recording replaces any existing rows for the appointment).
-    for (const r of rows) await recordSaleSharesForAppointment(clinicId, r.id);
+    // Snapshot each backfilled appointment's per-doctor shares + discount settlement
+    // too (idempotent — recording replaces any existing rows for the appointment).
+    for (const r of rows) {
+      await recordSaleSharesForAppointment(clinicId, r.id);
+      await recordDiscountSettlementForAppointment(clinicId, r.id);
+    }
   } catch {
     // best-effort
   }
