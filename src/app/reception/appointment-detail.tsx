@@ -68,6 +68,8 @@ export async function AppointmentDetail({
       discountType: appointments.discountType,
       discountValue: appointments.discountValue,
       discountBorneBy: appointments.discountBorneBy,
+      discountSplitType: appointments.discountSplitType,
+      discountSplitValue: appointments.discountSplitValue,
       discountStatus: appointments.discountStatus,
       chargeConsultation: appointments.chargeConsultation,
       patientId: patients.id,
@@ -371,6 +373,8 @@ export async function AppointmentDetail({
                 discountType: discountType,
                 discountValue: appt.discountValue,
                 discountBorneBy: appt.discountBorneBy,
+                discountSplitType: appt.discountSplitType,
+                discountSplitValue: appt.discountSplitValue,
                 chargeConsultation: appt.chargeConsultation,
                 procedures: initialProcedures,
               }}

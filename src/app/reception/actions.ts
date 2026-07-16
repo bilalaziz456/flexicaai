@@ -89,6 +89,8 @@ const createSchema = z.object({
   discountType: z.enum(["amount", "percent"]).default("amount"),
   discountValue: z.coerce.number().int().min(0, "Discount can't be negative.").default(0),
   discountBorneBy: z.enum(["clinic", "doctor", "split"]).default("clinic"),
+  discountSplitType: z.enum(["amount", "percent"]).default("percent"),
+  discountSplitValue: z.coerce.number().int().min(0).default(0),
 });
 
 /**
@@ -151,6 +153,8 @@ export async function createAppointment(
     discountType: formData.get("discountType") ?? undefined,
     discountValue: formData.get("discountValue"),
     discountBorneBy: formData.get("discountBorneBy") ?? undefined,
+    discountSplitType: formData.get("discountSplitType") ?? undefined,
+    discountSplitValue: formData.get("discountSplitValue") ?? undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
@@ -223,6 +227,8 @@ export async function createAppointment(
           discountType: parsed.data.discountType,
           discountValue: parsed.data.discountValue,
           discountBorneBy: parsed.data.discountBorneBy,
+    discountSplitType: parsed.data.discountSplitType,
+    discountSplitValue: parsed.data.discountSplitValue,
           chargeConsultation,
           queueSession: q.queueSession,
           queueNumber: q.queueNumber,
@@ -272,6 +278,8 @@ const updateSchema = z.object({
   discountType: z.enum(["amount", "percent"]).default("amount"),
   discountValue: z.coerce.number().int().min(0, "Discount can't be negative.").default(0),
   discountBorneBy: z.enum(["clinic", "doctor", "split"]).default("clinic"),
+  discountSplitType: z.enum(["amount", "percent"]).default("percent"),
+  discountSplitValue: z.coerce.number().int().min(0).default(0),
 });
 
 /** Edits an existing appointment (doctor / date-time / duration / reason / discount). */
@@ -293,6 +301,8 @@ export async function updateAppointment(
     discountType: formData.get("discountType") ?? undefined,
     discountValue: formData.get("discountValue"),
     discountBorneBy: formData.get("discountBorneBy") ?? undefined,
+    discountSplitType: formData.get("discountSplitType") ?? undefined,
+    discountSplitValue: formData.get("discountSplitValue") ?? undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
@@ -350,6 +360,8 @@ export async function updateAppointment(
     discountType: parsed.data.discountType,
     discountValue: parsed.data.discountValue,
     discountBorneBy: parsed.data.discountBorneBy,
+    discountSplitType: parsed.data.discountSplitType,
+    discountSplitValue: parsed.data.discountSplitValue,
     chargeConsultation: formData.get("chargeConsultation") !== "0",
     reminderSentAt: null, // time may have changed → re-send the reminder
     updatedAt: new Date(),

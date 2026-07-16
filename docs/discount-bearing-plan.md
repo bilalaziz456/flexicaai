@@ -187,9 +187,10 @@ collected, earnings rise (+50 dr / +450 clinic) → doctor **−300**, clinic **
    borne portion (split 0%→one side only), each gated by its `discount_needs_approval`
    switch. No spillover means clinic-borne never drags doctors into approval.
 
-**All phases complete.** Remaining follow-ups (non-blocking): per-LINE waives from the
-appointment detail (`line_ref` currently NULL), and a form to set the split
-percent/amount on the appointment (today `discount_split_value` defaults to 0, so a
-'split' discount is all-clinic until set — settable via the data model, no UI yet).
+**All phases complete + split UI shipped.** The appointment form now reveals a
+"Doctor bears %/Rs" control when borne-by = Split, with a live "clinic bears X / doctor
+bears Y" preview (`discount_split_type/value` saved on create + edit, prefilled on
+edit, flowing into approvals + the settlement ledger). Remaining follow-up
+(non-blocking): per-LINE waives from the appointment detail (`line_ref` currently NULL).
 
 Each phase: DB-tested, `tsc` clean, `e2e` green — same bar as the rest of the app.

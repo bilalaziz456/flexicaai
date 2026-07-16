@@ -82,6 +82,8 @@ export function NewAppointmentForm({
     discountType: DiscountType;
     discountValue: number;
     discountBorneBy?: string;
+    discountSplitType?: string;
+    discountSplitValue?: number;
     chargeConsultation?: boolean;
     procedures?: {
       procedureId: string;
@@ -117,6 +119,14 @@ export function NewAppointmentForm({
       ? initial.discountBorneBy
       : "clinic",
   );
+  // For borne-by = "split": how much of the discount the DOCTOR side bears.
+  const [splitType, setSplitType] = useState<DiscountType>(
+    initial?.discountSplitType === "amount" ? "amount" : "percent",
+  );
+  const [splitValue, setSplitValue] = useState(
+    initial?.discountSplitValue ? String(initial.discountSplitValue) : "",
+  );
+  const splitNumber = Math.max(0, Number(splitValue) || 0);
   // A procedure-only visit can skip the doctor's consultation fee.
   const [chargeConsultation, setChargeConsultation] = useState(
     initial?.chargeConsultation ?? true,
@@ -626,6 +636,8 @@ export function NewAppointmentForm({
               relevant once a discount is entered. Submitted always so an edit that
               clears the discount still records a sane value. */}
           <input type="hidden" name="discountBorneBy" value={borneBy} />
+          <input type="hidden" name="discountSplitType" value={splitType} />
+          <input type="hidden" name="discountSplitValue" value={borneBy === "split" ? String(splitNumber) : "0"} />
           {discountNumber > 0 ? (
             <div className="space-y-1.5 pt-1">
               <Label className="text-xs text-muted-foreground">Discount borne by</Label>
@@ -660,6 +672,51 @@ export function NewAppointmentForm({
                 share, or it&apos;s split between them. If the bearer requires it, the
                 discount waits for approval before it applies.
               </p>
+
+              {/* Split → how much the DOCTOR side bears, with a live preview. */}
+              {borneBy === "split" ? (
+                (() => {
+                  const doctorBorne =
+                    splitType === "amount"
+                      ? Math.min(splitNumber, bill.discount)
+                      : Math.round((bill.discount * splitNumber) / 100);
+                  const clinicBorne = Math.max(0, bill.discount - doctorBorne);
+                  return (
+                    <div className="space-y-1.5 rounded-lg border border-dashed p-2.5">
+                      <Label className="text-xs text-muted-foreground">Doctor bears</Label>
+                      <div className="flex gap-2">
+                        <select
+                          value={splitType}
+                          onChange={(e) => setSplitType(e.target.value as DiscountType)}
+                          className={`${nativeSelectCls} w-auto`}
+                          aria-label="Doctor's share type"
+                        >
+                          <option value="percent">Percent (%)</option>
+                          <option value="amount">Amount (Rs)</option>
+                        </select>
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          max={splitType === "percent" ? 100 : bill.discount || undefined}
+                          step={splitType === "percent" ? 5 : 50}
+                          value={splitValue}
+                          onChange={(e) => setSplitValue(e.target.value.replace(/[^\d]/g, ""))}
+                          placeholder={splitType === "percent" ? "e.g. 50" : "e.g. 250"}
+                          aria-label="Doctor's share of the discount"
+                        />
+                      </div>
+                      {bill.discount > 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          Of the {formatPkr(bill.discount)} discount: clinic bears{" "}
+                          <span className="font-medium text-foreground">{formatPkr(clinicBorne)}</span>, doctor bears{" "}
+                          <span className="font-medium text-foreground">{formatPkr(doctorBorne)}</span>.
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                })()
+              ) : null}
             </div>
           ) : null}
         </div>
