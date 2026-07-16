@@ -312,7 +312,12 @@ export function PanelShell({
     });
 
   return (
-    <div className="min-h-screen md:pl-60">
+    // overflow-x-clip: a page-level guard so no descendant (a non-shrinking grid/flex
+    // item, a long unbroken string, a wide chart) can force the whole page to scroll
+    // sideways. `clip` (not `hidden`) doesn't create a scroll container, so the sticky
+    // headers below keep working; content that needs to scroll uses its own
+    // overflow-x-auto box.
+    <div className="min-h-screen overflow-x-clip md:pl-60">
       {/* ---- Desktop sidebar ---- */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r bg-card md:flex">
         <div className="p-4">
