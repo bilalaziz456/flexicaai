@@ -209,6 +209,27 @@ export default async function ClinicDashboard() {
         </p>
       </div>
 
+      {/* Hero: Revenue Recovered — the top metric when the super admin enabled it. */}
+      {revenueEnabled ? (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardHeader>
+            <CardDescription>Revenue recovered</CardDescription>
+            <CardTitle className="text-4xl text-primary">{money}</CardTitle>
+            <CardDescription>
+              {recovered} return visit{recovered === 1 ? "" : "s"} driven by
+              recall reminders ×{" "}
+              {new Intl.NumberFormat("en-PK").format(avgVisitValue)} PKR average
+              visit value.
+            </CardDescription>
+          </CardHeader>
+          {isAdmin ? (
+            <CardContent>
+              <AvgVisitValueForm value={avgVisitValue} />
+            </CardContent>
+          ) : null}
+        </Card>
+      ) : null}
+
       {/* Finance KPIs — Collected + Outstanding for billing clinics; Net profit +
           Payable when the finance feature is on. */}
       {financeKpis ? (
@@ -236,27 +257,6 @@ export default async function ClinicDashboard() {
             ));
           })()}
         </div>
-      ) : null}
-
-      {/* Hero: Revenue Recovered — only when the super admin enabled it. */}
-      {revenueEnabled ? (
-        <Card className="border-primary/40 bg-primary/5">
-          <CardHeader>
-            <CardDescription>Revenue recovered</CardDescription>
-            <CardTitle className="text-4xl text-primary">{money}</CardTitle>
-            <CardDescription>
-              {recovered} return visit{recovered === 1 ? "" : "s"} driven by
-              recall reminders ×{" "}
-              {new Intl.NumberFormat("en-PK").format(avgVisitValue)} PKR average
-              visit value.
-            </CardDescription>
-          </CardHeader>
-          {isAdmin ? (
-            <CardContent>
-              <AvgVisitValueForm value={avgVisitValue} />
-            </CardContent>
-          ) : null}
-        </Card>
       ) : null}
 
       {/* Supporting stats */}
