@@ -1,9 +1,10 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, lt, or, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, clinics, invoices } from "@/core/db/schema";
+import { appointments, clinics, invoices, patients, users } from "@/core/db/schema";
+import { appointmentBillNetSql } from "@/core/finance/receivables";
 
 /**
  * Invoices — CORE (Finance). One live invoice per appointment. The number is a
@@ -51,6 +52,90 @@ export async function getInvoiceForAppointment(
     invoiceNo: row.invoiceNo,
     label: `${row.prefix ?? ""}${row.invoiceNo}`,
     issuedAt: row.issuedAt,
+  };
+}
+
+export type InvoiceListRow = {
+  id: string;
+  label: string; // prefix + number, e.g. "INV-42"
+  invoiceNo: number;
+  issuedAt: Date;
+  issuedByName: string | null;
+  patientId: string;
+  patientName: string;
+  patientPhone: string | null;
+  appointmentId: string;
+  amount: number; // derived bill (computeBill mirror), never stored
+};
+export type InvoiceList = { rows: InvoiceListRow[]; count: number; totalBilled: number };
+export type InvoiceListFilters = { from?: Date; toExclusive?: Date; q?: string };
+
+/**
+ * The invoice register — every live invoice, newest number first, with the derived
+ * bill amount (the shared `appointmentBillNetSql`, so it matches the printed invoice
+ * and every other money view). Search matches invoice number OR patient name/phone;
+ * an optional issued-date range narrows it. Clinic-scoped; for lookup + reprint.
+ */
+export async function getInvoicesList(
+  clinicId: string,
+  filters: InvoiceListFilters = {},
+): Promise<InvoiceList> {
+  const [clinic] = await db
+    .select({ prefix: clinics.invoicePrefix })
+    .from(clinics)
+    .where(eq(clinics.id, clinicId))
+    .limit(1);
+  const prefix = clinic?.prefix ?? "";
+
+  const conds = [notDeleted(invoices.deletedAt)];
+  if (filters.from) conds.push(gte(invoices.issuedAt, filters.from));
+  if (filters.toExclusive) conds.push(lt(invoices.issuedAt, filters.toExclusive));
+  if (filters.q) {
+    const like = `%${filters.q}%`;
+    conds.push(
+      or(
+        ilike(patients.fullName, like),
+        ilike(patients.phone, like),
+        sql`${invoices.invoiceNo}::text ilike ${like}`,
+      )!,
+    );
+  }
+
+  const rows = await db
+    .select({
+      id: invoices.id,
+      invoiceNo: invoices.invoiceNo,
+      issuedAt: invoices.issuedAt,
+      issuedByName: invoices.issuedByName,
+      patientId: patients.id,
+      patientName: patients.fullName,
+      patientPhone: patients.phone,
+      appointmentId: appointments.id,
+      amount: appointmentBillNetSql(),
+    })
+    .from(invoices)
+    .innerJoin(appointments, eq(appointments.id, invoices.appointmentId))
+    .innerJoin(patients, eq(patients.id, invoices.patientId))
+    .leftJoin(users, eq(users.id, appointments.doctorId))
+    .where(byClinic(invoices.clinicId, clinicId, and(...conds)))
+    .orderBy(desc(invoices.invoiceNo));
+
+  const list = rows.map((r) => ({
+    id: r.id,
+    label: `${prefix}${r.invoiceNo}`,
+    invoiceNo: r.invoiceNo,
+    issuedAt: r.issuedAt,
+    issuedByName: r.issuedByName,
+    patientId: r.patientId,
+    patientName: r.patientName,
+    patientPhone: r.patientPhone,
+    appointmentId: r.appointmentId,
+    amount: Number(r.amount),
+  }));
+  return {
+    rows: list,
+    count: list.length,
+    totalBilled: list.reduce((s, r) => s + r.amount, 0),
   };
 }
 

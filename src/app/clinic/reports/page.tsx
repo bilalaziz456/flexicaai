@@ -36,6 +36,7 @@ export default async function ReportsHubPage() {
     { show: can(user, "discounts", "view"), title: "Discounts", desc: "Every discount, who bears it, approval state.", href: "/clinic/discounts", csv: "discounts" },
     { show: can(user, "shares", "view"), title: "Revenue shares", desc: "Per-doctor earnings, paid and outstanding.", href: "/clinic/shares" },
     { show: can(user, "receivables", "view"), title: "Receivables", desc: "What patients owe on completed visits.", href: "/clinic/receivables", csv: "receivables" },
+    { show: can(user, "billing", "view"), title: "Invoices", desc: "The numbered invoice register — look up & reprint.", href: "/clinic/invoices", csv: "invoices" },
     { show: can(user, "billing", "view"), title: "Day book", desc: "A day's cash in and out, by method.", href: "/clinic/reports/daybook", csv: "daybook" },
     { show: finance && can(user, "expenses", "view"), title: "Expenses", desc: "The clinic's costs.", href: "/clinic/expenses", csv: "expenses" },
     { show: finance && can(user, "finance", "view"), title: "Profit & Loss", desc: "Revenue − shares − expenses.", href: "/clinic/pl" },

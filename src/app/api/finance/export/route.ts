@@ -10,6 +10,7 @@ import { getDiscountsReport } from "@/core/sales/discounts-report";
 import { listExpenses } from "@/core/expenses";
 import { getDayBookLines } from "@/core/finance/daybook";
 import { getReceivablesReport } from "@/core/finance/receivables";
+import { getInvoicesList } from "@/core/billing/invoice";
 
 /**
  * GET /api/finance/export?type=daybook|expenses|discounts&… — a CSV download of a
@@ -90,6 +91,20 @@ export async function GET(req: Request) {
       report.patients.flatMap((p) =>
         p.visits.map((v) => [p.name, p.phone ?? "", ymd(v.scheduledAt), v.doctorName ?? "", v.bill, v.collected, v.outstanding]),
       ),
+    );
+  } else if (type === "invoices") {
+    if (!hasSales || !can(user, "billing", "view")) return new Response("Forbidden", { status: 403 });
+    const period = url.searchParams.get("period") ?? "";
+    const range = period && period !== "all" ? resolveSalesRange(period, url.searchParams.get("from") ?? undefined, url.searchParams.get("to") ?? undefined) : null;
+    const list = await getInvoicesList(clinicId, {
+      from: range?.start,
+      toExclusive: range?.end,
+      q: url.searchParams.get("q") || undefined,
+    });
+    name = range ? `invoices-${range.from}_to_${range.to}` : "invoices-all";
+    csv = toCsv(
+      ["Invoice", "Date", "Patient", "Phone", "Issued by", "Amount"],
+      list.rows.map((r) => [r.label, ymd(r.issuedAt), r.patientName, r.patientPhone ?? "", r.issuedByName ?? "", r.amount]),
     );
   } else {
     return new Response("Unknown report", { status: 400 });
