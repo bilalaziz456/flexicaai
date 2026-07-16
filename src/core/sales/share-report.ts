@@ -3,7 +3,7 @@ import "server-only";
 import { and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
-import { appointments, patients, sales, saleShares } from "@/core/db/schema";
+import { appointments, doctorPayouts, patients, sales, saleShares } from "@/core/db/schema";
 import {
   bucketLabel,
   nextBucket,
@@ -20,10 +20,15 @@ export type DoctorShareRow = {
   count: number; // earning visits in the period
 };
 
+/** Earned + Paid in one time bucket (for the Earned-vs-Paid charts). */
+export type ShareTimePoint = { label: string; earned: number; paid: number };
+
 export type SharesReport = {
   granularity: SalesGranularity;
   /** Σ doctor shares earned in the filtered period. */
   shareTotal: number;
+  /** Σ payouts recorded in the filtered period (by payment date). */
+  paidTotal: number;
   /** # earning share rows in the period. */
   count: number;
   avgShare: number;
@@ -32,7 +37,12 @@ export type SharesReport = {
   clinicTotal: number | null;
   /** Σ realised net over the range (full, unfiltered view only). */
   netTotal: number | null;
-  buckets: SalesBucket[];
+  buckets: SalesBucket[]; // earned-only (kept for back-compat)
+  /** Earned + Paid per bucket (grouped bars). Paid is dated by payment date. */
+  activityBuckets: ShareTimePoint[];
+  /** Running cumulative Earned + Paid, seeded with balances before the range, so
+   *  the vertical gap at any point = the true outstanding at that time. */
+  cumulativeBuckets: ShareTimePoint[];
   byDoctor: DoctorShareRow[];
 };
 
@@ -74,12 +84,39 @@ export async function getSharesReport(
     )
     .orderBy(asc(saleShares.occurredAt));
 
+  // Payouts in the range (by payment date) + opening balances before the range,
+  // so the cumulative lines start from the true outstanding, not zero.
+  const [payoutRows, [openEarnedRow], [openPaidRow]] = await Promise.all([
+    db
+      .select({ amount: doctorPayouts.amount, createdAt: doctorPayouts.createdAt })
+      .from(doctorPayouts)
+      .where(
+        byClinic(
+          doctorPayouts.clinicId,
+          clinicId,
+          and(
+            gte(doctorPayouts.createdAt, start),
+            lt(doctorPayouts.createdAt, end),
+            doctorId ? eq(doctorPayouts.doctorId, doctorId) : undefined,
+          ),
+        ),
+      ),
+    db
+      .select({ v: sql<number>`coalesce(sum(${saleShares.shareAmount}), 0)::int` })
+      .from(saleShares)
+      .where(byClinic(saleShares.clinicId, clinicId, and(lt(saleShares.occurredAt, start), doctorId ? eq(saleShares.doctorId, doctorId) : undefined))),
+    db
+      .select({ v: sql<number>`coalesce(sum(${doctorPayouts.amount}), 0)::int` })
+      .from(doctorPayouts)
+      .where(byClinic(doctorPayouts.clinicId, clinicId, and(lt(doctorPayouts.createdAt, start), doctorId ? eq(doctorPayouts.doctorId, doctorId) : undefined))),
+  ]);
+
   // Pre-build every bucket so the chart shows empty periods too.
-  const buckets: { t: number; label: string; value: number }[] = [];
+  const buckets: { t: number; label: string; earned: number; paid: number }[] = [];
   const bucketIndex = new Map<number, number>();
   for (let cur = startOfBucket(start, granularity); cur < end; cur = nextBucket(cur, granularity)) {
     bucketIndex.set(cur.getTime(), buckets.length);
-    buckets.push({ t: cur.getTime(), label: bucketLabel(cur, granularity), value: 0 });
+    buckets.push({ t: cur.getTime(), label: bucketLabel(cur, granularity), earned: 0, paid: 0 });
   }
 
   let shareTotal = 0;
@@ -87,7 +124,7 @@ export async function getSharesReport(
   for (const r of rows) {
     shareTotal += r.shareAmount;
     const bi = bucketIndex.get(startOfBucket(r.occurredAt, granularity).getTime());
-    if (bi !== undefined) buckets[bi].value += r.shareAmount;
+    if (bi !== undefined) buckets[bi].earned += r.shareAmount;
 
     const key = r.doctorId ?? "__none__";
     const existing = doctorMap.get(key);
@@ -123,15 +160,35 @@ export async function getSharesReport(
     clinicTotal = Math.max(0, netTotal - shareTotal);
   }
 
+  // Paid per bucket (by payment date).
+  let paidTotal = 0;
+  for (const p of payoutRows) {
+    paidTotal += p.amount;
+    const bi = bucketIndex.get(startOfBucket(p.createdAt, granularity).getTime());
+    if (bi !== undefined) buckets[bi].paid += p.amount;
+  }
+
+  // Cumulative lines seeded with the balances before the range → gap = outstanding.
+  let cumE = Number(openEarnedRow?.v ?? 0);
+  let cumP = Number(openPaidRow?.v ?? 0);
+  const cumulativeBuckets: ShareTimePoint[] = buckets.map((b) => {
+    cumE += b.earned;
+    cumP += b.paid;
+    return { label: b.label, earned: cumE, paid: cumP };
+  });
+
   const count = rows.length;
   return {
     granularity,
     shareTotal,
+    paidTotal,
     count,
     avgShare: count > 0 ? Math.round(shareTotal / count) : 0,
     clinicTotal,
     netTotal,
-    buckets: buckets.map((b) => ({ label: b.label, value: b.value })),
+    buckets: buckets.map((b) => ({ label: b.label, value: b.earned })),
+    activityBuckets: buckets.map((b) => ({ label: b.label, earned: b.earned, paid: b.paid })),
+    cumulativeBuckets,
     byDoctor,
   };
 }

@@ -20,7 +20,7 @@ import {
  * doctor shares − expenses. Clinic-scoped. Reuses the sales report's range/bucket
  * helpers so periods line up with the Sales & Shares reports.
  */
-export type PLBucket = { label: string; revenue: number; expense: number; profit: number };
+export type PLBucket = { label: string; revenue: number; share: number; expense: number; profit: number };
 
 export type ProfitAndLoss = {
   revenue: number;
@@ -123,7 +123,8 @@ export async function getProfitAndLoss(
     plBuckets: buckets.map((b) => ({
       label: b.label,
       revenue: b.revenue,
-      expense: b.share + b.expense,
+      share: b.share,
+      expense: b.expense,
       profit: b.revenue - b.share - b.expense,
     })),
     byExpenseCategory: expByCat.map((r) => ({ name: r.name ?? "Uncategorized", amount: Number(r.amount) })),

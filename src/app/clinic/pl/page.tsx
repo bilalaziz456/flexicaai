@@ -15,7 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { SalesChart } from "@/app/clinic/sales/sales-chart";
+import { MultiBarChart } from "@/app/clinic/sales/multi-bar-chart";
 import { SalesFilters } from "@/app/clinic/sales/sales-filters";
 
 const money = new Intl.NumberFormat("en-PK", {
@@ -108,7 +108,10 @@ export default async function ProfitLossPage({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Collected revenue over time</CardTitle>
+          <CardTitle className="text-base">Revenue, costs &amp; profit over time</CardTitle>
+          <CardDescription>
+            Collected revenue split into doctor share, expense and net profit (red on a loss).
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {pl.revenue === 0 && pl.expenses === 0 ? (
@@ -116,7 +119,19 @@ export default async function ProfitLossPage({
               No activity in this period.
             </p>
           ) : (
-            <SalesChart points={pl.revenueBuckets} ariaLabel="Collected revenue over time" />
+            <MultiBarChart
+              ariaLabel="Revenue, doctor share, expense and net profit over time"
+              points={pl.plBuckets.map((b) => ({
+                label: b.label,
+                values: { revenue: b.revenue, share: b.share, expense: b.expense, profit: b.profit },
+              }))}
+              series={[
+                { key: "revenue", label: "Collected revenue", color: "var(--color-chart-1)" },
+                { key: "share", label: "Doctor share", color: "var(--color-chart-2)" },
+                { key: "expense", label: "Expense", color: "var(--color-chart-4)" },
+                { key: "profit", label: "Net profit", color: "var(--color-chart-1)", status: true },
+              ]}
+            />
           )}
         </CardContent>
       </Card>
@@ -143,7 +158,7 @@ export default async function ProfitLossPage({
                   <tr key={i} className="border-b last:border-0">
                     <td className="py-1.5">{b.label}</td>
                     <td className="py-1.5 text-right tabular-nums">{money.format(b.revenue)}</td>
-                    <td className="py-1.5 text-right tabular-nums">{money.format(b.expense)}</td>
+                    <td className="py-1.5 text-right tabular-nums">{money.format(b.share + b.expense)}</td>
                     <td className={`py-1.5 text-right font-medium tabular-nums ${b.profit < 0 ? "text-destructive" : ""}`}>
                       {money.format(b.profit)}
                     </td>

@@ -10,7 +10,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { SalesChart } from "@/app/clinic/sales/sales-chart";
+import { MultiBarChart } from "@/app/clinic/sales/multi-bar-chart";
+import { LineChart } from "@/app/clinic/sales/line-chart";
 import { SalesFilters } from "@/app/clinic/sales/sales-filters";
 import { RecordPayoutForm, VoidPayoutButton } from "./payout-ui";
 
@@ -199,9 +200,10 @@ export default async function ClinicSharesPage({
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <CardTitle className="text-base">Earnings over time</CardTitle>
+              <CardTitle className="text-base">Earned vs paid over time</CardTitle>
               <CardDescription>
-                {money.format(report.shareTotal)} earned in the selected period.
+                {money.format(report.shareTotal)} earned · {money.format(report.paidTotal)} paid
+                in the selected period.
                 {doctorId ? (
                   <>
                     {" "}
@@ -223,15 +225,41 @@ export default async function ClinicSharesPage({
             doctors={doctors}
             showDoctor={!selfOnly}
           />
-          {report.count === 0 ? (
+          {report.count === 0 && report.paidTotal === 0 ? (
             <p className="py-12 text-center text-sm text-muted-foreground">
-              No earnings in this period.
+              No earnings or payments in this period.
             </p>
           ) : (
-            <SalesChart
-              points={report.buckets}
-              ariaLabel={selfOnly ? "Your earnings over time" : "Doctor shares over time"}
-            />
+            <div className="space-y-8">
+              <MultiBarChart
+                ariaLabel={selfOnly ? "Your earned vs paid per period" : "Doctor shares earned vs paid per period"}
+                points={report.activityBuckets.map((b) => ({
+                  label: b.label,
+                  values: { earned: b.earned, paid: b.paid },
+                }))}
+                series={[
+                  { key: "earned", label: "Earned", color: "var(--color-chart-1)" },
+                  { key: "paid", label: "Paid", color: "var(--color-chart-2)" },
+                ]}
+              />
+              <div>
+                <div className="text-sm font-medium">Cumulative earned vs paid</div>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  The gap between the lines is the outstanding balance over time.
+                </p>
+                <LineChart
+                  ariaLabel="Cumulative earned versus paid"
+                  points={report.cumulativeBuckets.map((b) => ({
+                    label: b.label,
+                    values: { earned: b.earned, paid: b.paid },
+                  }))}
+                  series={[
+                    { key: "earned", label: "Cumulative earned", color: "var(--color-chart-1)" },
+                    { key: "paid", label: "Cumulative paid", color: "var(--color-chart-2)" },
+                  ]}
+                />
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
