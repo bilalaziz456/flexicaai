@@ -5,18 +5,16 @@ import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { appointments, saleShares, users } from "@/core/db/schema";
 import { computeShare } from "@/core/appointments/shares";
-import {
-  getAppointmentShareContext,
-  shareInputFromContext,
-} from "@/core/appointments/share-context";
+import { getAppointmentShareContext } from "@/core/appointments/share-context";
 
 /**
- * Per-doctor share ledger — each doctor's earned share of a COMPLETED appointment,
- * on a **collected** basis (Finance Phase 2): a doctor earns his % of what the
- * patient has actually PAID, so his share scales by `collected ÷ bill`. The clinic's
- * cut is derived (sale net − Σ doctor shares), so only doctor rows are stored.
- * Recording REPLACES all rows for the appointment. Inert by default (no share % →
- * no rows). All best-effort — a hiccup here must never block whatever triggered it.
+ * Per-doctor EARNINGS ledger — each doctor's share of a COMPLETED appointment on a
+ * **collected, GROSS** basis (discount-bearing phase 3): a doctor earns his full
+ * pre-discount cut scaled by `collected ÷ gross`. The discount itself is NOT taken
+ * out here — it's handled entirely by the settlement ledger (`discount_settlements`),
+ * so a doctor's true net = these earnings + his settlement. The clinic's cut is
+ * derived (sale net − Σ doctor net). Only doctor rows are stored; recording REPLACES
+ * all rows for the appointment. Inert by default (no share % → no rows). Best-effort.
  */
 export async function recordSaleSharesForAppointment(
   clinicId: string,
@@ -33,18 +31,24 @@ export async function recordSaleSharesForAppointment(
 
     if (!ctx.found || !ctx.occurredAt) return;
 
-    // Scale each doctor's FULL (billed) share by the fraction the patient has paid.
-    const billNet = ctx.netEffective;
+    // Each doctor earns his GROSS cut scaled by collected ÷ gross (the discount is
+    // borne separately in the settlement ledger). `collected` is capped at the net
+    // bill — the patient never pays more than they owe.
     const [appt] = await db
       .select({ collected: appointments.amountCollected })
       .from(appointments)
       .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
       .limit(1);
-    const collected = Math.max(0, Math.min(appt?.collected ?? 0, billNet));
-    const fraction = billNet > 0 ? collected / billNet : 0;
+    const collected = Math.max(0, Math.min(appt?.collected ?? 0, ctx.netEffective));
+    const fraction = ctx.grossTotal > 0 ? collected / ctx.grossTotal : 0;
 
-    const split = computeShare(shareInputFromContext(ctx));
-    const earning = Object.entries(split.doctors)
+    const gross = computeShare({
+      consultation: ctx.consultation,
+      lines: ctx.lines,
+      netTotal: ctx.grossTotal, // no discount → each doctor's full gross cut
+      borneBy: "clinic",
+    });
+    const earning = Object.entries(gross.doctors)
       .map(([id, amt]) => [id, Math.round(amt * fraction)] as const)
       .filter(([, amt]) => amt > 0);
     if (earning.length === 0) return;

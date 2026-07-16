@@ -15,6 +15,7 @@ import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import {
   appointments,
   clinics,
+  discountSettlements,
   patients,
   recalls,
   sales,
@@ -840,6 +841,9 @@ export async function deletePatient(
     await tx
       .delete(saleShares)
       .where(and(eq(saleShares.clinicId, clinicId), inArray(saleShares.appointmentId, patientApptIds)));
+    await tx
+      .delete(discountSettlements)
+      .where(and(eq(discountSettlements.clinicId, clinicId), inArray(discountSettlements.appointmentId, patientApptIds)));
   });
   if (notFound) return { error: "Patient not found." };
 

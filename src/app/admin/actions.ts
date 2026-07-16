@@ -15,6 +15,7 @@ import {
   clinics,
   doctorLeaves,
   patients,
+  discountSettlements,
   procedures,
   recalls,
   sales,
@@ -449,6 +450,7 @@ export async function deleteClinic(
     if (staffIds.length) await tx.delete(sessions).where(inArray(sessions.userId, staffIds));
     await tx.delete(sales).where(eq(sales.clinicId, clinicId));
     await tx.delete(saleShares).where(eq(saleShares.clinicId, clinicId));
+    await tx.delete(discountSettlements).where(eq(discountSettlements.clinicId, clinicId));
   });
   if (notFound) return { error: "Clinic not found." };
 

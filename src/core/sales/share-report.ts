@@ -3,7 +3,7 @@ import "server-only";
 import { and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
-import { appointments, doctorPayouts, patients, sales, saleShares } from "@/core/db/schema";
+import { appointments, discountSettlements, doctorPayouts, patients, sales, saleShares } from "@/core/db/schema";
 import {
   bucketLabel,
   nextBucket,
@@ -84,9 +84,32 @@ export async function getSharesReport(
     )
     .orderBy(asc(saleShares.occurredAt));
 
+  // Discount settlements (doctor rows) in the range — folded into "earned" so a
+  // doctor's earnings reflect what they bear (a doctor-borne discount lowers it).
+  const settleRows = await db
+    .select({
+      doctorId: discountSettlements.doctorId,
+      doctorName: discountSettlements.doctorName,
+      shareAmount: discountSettlements.settlementAmount,
+      occurredAt: discountSettlements.occurredAt,
+    })
+    .from(discountSettlements)
+    .where(
+      byClinic(
+        discountSettlements.clinicId,
+        clinicId,
+        and(
+          eq(discountSettlements.party, "doctor"),
+          gte(discountSettlements.occurredAt, start),
+          lt(discountSettlements.occurredAt, end),
+          doctorId ? eq(discountSettlements.doctorId, doctorId) : undefined,
+        ),
+      ),
+    );
+
   // Payouts in the range (by payment date) + opening balances before the range,
   // so the cumulative lines start from the true outstanding, not zero.
-  const [payoutRows, [openEarnedRow], [openPaidRow]] = await Promise.all([
+  const [payoutRows, [openEarnedRow], [openBorneRow], [openPaidRow]] = await Promise.all([
     db
       .select({ amount: doctorPayouts.amount, createdAt: doctorPayouts.createdAt })
       .from(doctorPayouts)
@@ -105,6 +128,10 @@ export async function getSharesReport(
       .select({ v: sql<number>`coalesce(sum(${saleShares.shareAmount}), 0)::int` })
       .from(saleShares)
       .where(byClinic(saleShares.clinicId, clinicId, and(lt(saleShares.occurredAt, start), doctorId ? eq(saleShares.doctorId, doctorId) : undefined))),
+    db
+      .select({ v: sql<number>`coalesce(sum(${discountSettlements.settlementAmount}), 0)::int` })
+      .from(discountSettlements)
+      .where(byClinic(discountSettlements.clinicId, clinicId, and(eq(discountSettlements.party, "doctor"), lt(discountSettlements.occurredAt, start), doctorId ? eq(discountSettlements.doctorId, doctorId) : undefined))),
     db
       .select({ v: sql<number>`coalesce(sum(${doctorPayouts.amount}), 0)::int` })
       .from(doctorPayouts)
@@ -140,6 +167,18 @@ export async function getSharesReport(
       });
     }
   }
+  // Fold the discount settlements into "earned" (same occurredAt bucketing as shares;
+  // a settlement-only visit — doctor-borne with nothing collected — still shows up).
+  for (const r of settleRows) {
+    shareTotal += r.shareAmount;
+    const bi = bucketIndex.get(startOfBucket(r.occurredAt, granularity).getTime());
+    if (bi !== undefined) buckets[bi].earned += r.shareAmount;
+    const key = r.doctorId ?? "__none__";
+    const existing = doctorMap.get(key);
+    if (existing) existing.earned += r.shareAmount;
+    else doctorMap.set(key, { doctorId: r.doctorId, name: r.doctorName ?? "Unknown", earned: r.shareAmount, count: 0 });
+  }
+
   const byDoctor = [...doctorMap.values()].sort((a, b) => b.earned - a.earned);
 
   // The clinic's cut = realised net − all doctor shares (whole-clinic view only).
@@ -157,7 +196,9 @@ export async function getSharesReport(
         ),
       );
     netTotal = Number(net?.net ?? 0);
-    clinicTotal = Math.max(0, netTotal - shareTotal);
+    // Clinic cut = realised net − doctor NET earnings (shares + settlements). May be
+    // negative when the clinic bears discounts (it pays doctors from its cut).
+    clinicTotal = netTotal - shareTotal;
   }
 
   // Paid per bucket (by payment date).
@@ -169,7 +210,8 @@ export async function getSharesReport(
   }
 
   // Cumulative lines seeded with the balances before the range → gap = outstanding.
-  let cumE = Number(openEarnedRow?.v ?? 0);
+  // Opening "earned" includes prior settlements so the gap reflects the true balance.
+  let cumE = Number(openEarnedRow?.v ?? 0) + Number(openBorneRow?.v ?? 0);
   let cumP = Number(openPaidRow?.v ?? 0);
   const cumulativeBuckets: ShareTimePoint[] = buckets.map((b) => {
     cumE += b.earned;
@@ -177,7 +219,7 @@ export async function getSharesReport(
     return { label: b.label, earned: cumE, paid: cumP };
   });
 
-  const count = rows.length;
+  const count = rows.length + settleRows.length;
   return {
     granularity,
     shareTotal,

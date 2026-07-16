@@ -3,7 +3,7 @@ import "server-only";
 import { and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { expenseCategories, expenses, sales, saleShares } from "@/core/db/schema";
+import { discountSettlements, expenseCategories, expenses, sales, saleShares } from "@/core/db/schema";
 import { expensesTotal } from "@/core/expenses";
 import {
   bucketLabel,
@@ -44,7 +44,7 @@ export async function getProfitAndLoss(
 ): Promise<ProfitAndLoss> {
   const { start, end, granularity } = range;
 
-  const [saleRows, shareRows, expRows, expByCat, sharesByDoctor] = await Promise.all([
+  const [saleRows, shareRows, settleRows, expRows, expByCat, sharesByDoctor, settleByDoctor] = await Promise.all([
     db
       .select({ net: sales.netAmount, occurredAt: sales.occurredAt })
       .from(sales)
@@ -54,6 +54,11 @@ export async function getProfitAndLoss(
       .select({ amount: saleShares.shareAmount, occurredAt: saleShares.occurredAt })
       .from(saleShares)
       .where(byClinic(saleShares.clinicId, clinicId, and(gte(saleShares.occurredAt, start), lt(saleShares.occurredAt, end)))),
+    // Discount settlements (doctor rows) — the accrual bearing folds into "doctor share".
+    db
+      .select({ amount: discountSettlements.settlementAmount, occurredAt: discountSettlements.occurredAt })
+      .from(discountSettlements)
+      .where(byClinic(discountSettlements.clinicId, clinicId, and(eq(discountSettlements.party, "doctor"), gte(discountSettlements.occurredAt, start), lt(discountSettlements.occurredAt, end)))),
     db
       .select({ amount: expenses.amount, incurredOn: expenses.incurredOn })
       .from(expenses)
@@ -85,10 +90,16 @@ export async function getProfitAndLoss(
       .where(byClinic(saleShares.clinicId, clinicId, and(gte(saleShares.occurredAt, start), lt(saleShares.occurredAt, end))))
       .groupBy(saleShares.doctorName)
       .orderBy(desc(sql`sum(${saleShares.shareAmount})`)),
+    db
+      .select({ name: discountSettlements.doctorName, amount: sql<number>`sum(${discountSettlements.settlementAmount})::int` })
+      .from(discountSettlements)
+      .where(byClinic(discountSettlements.clinicId, clinicId, and(eq(discountSettlements.party, "doctor"), gte(discountSettlements.occurredAt, start), lt(discountSettlements.occurredAt, end))))
+      .groupBy(discountSettlements.doctorName),
   ]);
 
   const revenue = saleRows.reduce((s, r) => s + r.net, 0);
-  const doctorShares = shareRows.reduce((s, r) => s + r.amount, 0);
+  const doctorShares =
+    shareRows.reduce((s, r) => s + r.amount, 0) + settleRows.reduce((s, r) => s + r.amount, 0);
   const expensesSum = await expensesTotal(clinicId, start, end);
   const netProfit = revenue - doctorShares - expensesSum;
 
@@ -105,6 +116,10 @@ export async function getProfitAndLoss(
     if (b !== undefined) buckets[b].revenue += r.net;
   }
   for (const r of shareRows) {
+    const b = idx.get(startOfBucket(r.occurredAt, granularity).getTime());
+    if (b !== undefined) buckets[b].share += r.amount;
+  }
+  for (const r of settleRows) {
     const b = idx.get(startOfBucket(r.occurredAt, granularity).getTime());
     if (b !== undefined) buckets[b].share += r.amount;
   }
@@ -128,6 +143,21 @@ export async function getProfitAndLoss(
       profit: b.revenue - b.share - b.expense,
     })),
     byExpenseCategory: expByCat.map((r) => ({ name: r.name ?? "Uncategorized", amount: Number(r.amount) })),
-    byDoctor: sharesByDoctor.map((r) => ({ name: r.name ?? "Unknown", amount: Number(r.amount) })),
+    byDoctor: mergeByName(sharesByDoctor, settleByDoctor),
   };
+}
+
+/** Merge two name→amount lists (shares + settlements) into one, summed, desc by amount. */
+function mergeByName(
+  a: { name: string | null; amount: number }[],
+  b: { name: string | null; amount: number }[],
+): { name: string; amount: number }[] {
+  const m = new Map<string, number>();
+  for (const r of [...a, ...b]) {
+    const name = r.name ?? "Unknown";
+    m.set(name, (m.get(name) ?? 0) + Number(r.amount));
+  }
+  return [...m.entries()]
+    .map(([name, amount]) => ({ name, amount }))
+    .sort((x, y) => y.amount - x.amount);
 }

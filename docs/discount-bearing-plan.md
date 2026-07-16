@@ -167,10 +167,11 @@ collected, earnings rise (+50 dr / +450 clinic) → doctor **−300**, clinic **
    ledger** — populated + DB-verified (matches `computeBearing`, zero-sum), but nothing
    reads it yet, so **zero behaviour change**. *(The `sale_shares` gross-% switch is
    deferred to the reader cutover so numbers never go transiently wrong — see below.)*
-3. **Reader cutover (atomic):** `sale_shares` → gross-% basis **and** balances/reports/
-   P&L/KPIs fold in the settlements, together — plus balances allow negative +
-   `recordRepayment` / `writeOff`.
-4. Waives (both directions) — enforcing `share_waive` — + reversal.
+3. **Reader cutover (atomic):** `sale_shares` → gross-% basis **and** balances/shares
+   report/P&L/dashboard-KPI fold in the settlements, together; `getDoctorBalances`
+   gains a signed `borne` and allows **negative** outstanding (a doctor may owe).
+4. Settlement ACTIONS: waives (both directions, enforcing `share_waive`) +
+   `recordRepayment` (doctor→clinic) + `writeOff` + reversal, folded into the balance.
 5. Reports/statement/P&L wiring + discounts-report final split & waive display.
 6. Consent/approval regeneration for bearing parties.
 

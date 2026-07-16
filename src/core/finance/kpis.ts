@@ -3,9 +3,10 @@ import "server-only";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, doctorPayouts, saleShares, users } from "@/core/db/schema";
+import { appointments, users } from "@/core/db/schema";
 import { resolveSalesRange } from "@/core/sales/report";
 import { getProfitAndLoss } from "@/core/finance/pl";
+import { getDoctorBalances } from "@/core/sales/payouts";
 import { appointmentBillNetSql } from "@/core/finance/receivables";
 
 /**
@@ -28,7 +29,7 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
   // expression with the Receivables report, so the two always reconcile.
   const netSql = appointmentBillNetSql();
 
-  const [pl, [rec], [earned], [paid]] = await Promise.all([
+  const [pl, [rec], balances] = await Promise.all([
     getProfitAndLoss(clinicId, range30),
     db
       .select({
@@ -44,20 +45,17 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
           eq(appointments.status, "completed"),
         ),
       ),
-    db
-      .select({ v: sql<number>`coalesce(sum(${saleShares.shareAmount}), 0)::int` })
-      .from(saleShares)
-      .where(eq(saleShares.clinicId, clinicId)),
-    db
-      .select({ v: sql<number>`coalesce(sum(${doctorPayouts.amount}), 0)::int` })
-      .from(doctorPayouts)
-      .where(eq(doctorPayouts.clinicId, clinicId)),
+    getDoctorBalances(clinicId),
   ]);
+
+  // Payable = Σ of each doctor's POSITIVE balance (owed to us doctors); a doctor who
+  // owes the clinic (negative, from discount-bearing) doesn't reduce what we owe others.
+  const payableToDoctors = balances.reduce((s, b) => s + Math.max(0, b.outstanding), 0);
 
   return {
     collected30d: pl.revenue,
     netProfit30d: pl.netProfit,
     outstandingReceivable: Number(rec?.v ?? 0),
-    payableToDoctors: Math.max(0, Number(earned?.v ?? 0) - Number(paid?.v ?? 0)),
+    payableToDoctors,
   };
 }
