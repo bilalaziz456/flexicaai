@@ -176,7 +176,12 @@ collected, earnings rise (+50 dr / +450 clinic) → doctor **−300**, clinic **
    `getDoctorBalances` (`adjustments`) and P&L (`plActionEffect`: waive/write-off = clinic
    cost, doctor-waive = saving, repayment = cash-only). *(Per-LINE waives from the
    appointment detail are a Phase-5 refinement; `line_ref` is stored NULL for now.)*
-5. Reports/statement/P&L wiring + discounts-report final split & waive display.
+5. Reports/statement wiring (done): **discounts report** uses `discountBorneSplit`
+   (no spill) for Clinic-bears/Doctor-bears — dropping the per-row context fetch; the
+   **doctor statement** shows Earned / Discount borne / Paid / Outstanding (owes-aware)
+   with per-visit **Discount borne** and **Waives & settlements** sections. (P&L/KPI
+   wiring landed in Phases 3–4.) *(Per-LINE waives from the appointment detail remain a
+   follow-up; `line_ref` stays NULL.)*
 6. Consent/approval regeneration for bearing parties.
 
 Each phase: DB-tested, `tsc` clean, `e2e` green — same bar as the rest of the app.

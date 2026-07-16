@@ -6,9 +6,11 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, users } from "@/core/db/schema";
 import { getDoctorBalance, listPayouts } from "@/core/sales/payouts";
-import { listDoctorEarnings } from "@/core/sales/share-report";
+import { listDoctorEarnings, listDoctorSettlements } from "@/core/sales/share-report";
+import { listSettlementActions } from "@/core/sales/settlement-actions";
 import { displayStaffName } from "@/core/types/auth";
 import { PrintButton } from "../payout-ui";
+import { SETTLEMENT_LABEL } from "../settlement-ui";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -55,14 +57,18 @@ export default async function ShareStatementPage({
     .where(eq(clinics.id, clinicId))
     .limit(1);
 
-  const [balance, earnings, payments] = await Promise.all([
+  const [balance, earnings, settlements, actions, payments] = await Promise.all([
     getDoctorBalance(clinicId, doctorId),
     listDoctorEarnings(clinicId, doctorId),
+    listDoctorSettlements(clinicId, doctorId),
+    listSettlementActions(clinicId, doctorId),
     listPayouts(clinicId, doctorId),
   ]);
 
   const doctorName = displayStaffName(doctor.prefix, doctor.fullName, doctor.username);
   const backHref = user.role === "doctor" ? "/clinic/shares" : `/clinic/shares?doctorId=${doctorId}`;
+  const borneTotal = balance.borne + balance.adjustments; // discount bearing + waives
+  const owes = balance.outstanding < 0;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -88,17 +94,20 @@ export default async function ShareStatementPage({
       </div>
 
       {/* Balance */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className={`grid gap-4 ${borneTotal !== 0 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
         {[
-          { label: "Earned", value: balance.earned },
-          { label: "Paid", value: balance.paid },
-          { label: "Outstanding", value: balance.outstanding },
-        ].map((b) => (
-          <div key={b.label} className="rounded-lg border p-3">
-            <p className="text-xs text-muted-foreground">{b.label}</p>
-            <p className="text-lg font-semibold tabular-nums">{money.format(b.value)}</p>
-          </div>
-        ))}
+          { label: "Earned", value: balance.earned, show: true, tone: "" },
+          { label: "Discount borne", value: borneTotal, show: borneTotal !== 0, tone: borneTotal < 0 ? "text-destructive" : "text-emerald-600" },
+          { label: "Paid", value: balance.paid, show: true, tone: "" },
+          { label: owes ? "Owes clinic" : "Outstanding", value: Math.abs(balance.outstanding), show: true, tone: owes ? "text-destructive" : "" },
+        ]
+          .filter((b) => b.show)
+          .map((b) => (
+            <div key={b.label} className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">{b.label}</p>
+              <p className={`text-lg font-semibold tabular-nums ${b.tone}`}>{money.format(b.value)}</p>
+            </div>
+          ))}
       </div>
 
       {/* Earning visits */}
@@ -135,6 +144,71 @@ export default async function ShareStatementPage({
           </div>
         )}
       </div>
+
+      {/* Discount borne (settlements) */}
+      {settlements.length > 0 ? (
+        <div>
+          <h2 className="mb-2 text-sm font-semibold">Discount borne</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[20rem] text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-muted-foreground">
+                  <th className="pb-2 font-normal">Date</th>
+                  <th className="pb-2 font-normal">Patient</th>
+                  <th className="pb-2 text-right font-normal">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {settlements.map((s, i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    <td className="py-1.5">{fmtDate(s.occurredAt)}</td>
+                    <td className="py-1.5">{s.patientName ?? "—"}</td>
+                    <td className={`py-1.5 text-right tabular-nums ${s.amount < 0 ? "text-destructive" : ""}`}>
+                      {money.format(s.amount)}
+                    </td>
+                  </tr>
+                ))}
+                <tr className="border-t font-medium">
+                  <td className="py-2" colSpan={2}>Total borne</td>
+                  <td className="py-2 text-right tabular-nums">{money.format(balance.borne)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Waives & settlements (actions) */}
+      {actions.length > 0 ? (
+        <div>
+          <h2 className="mb-2 text-sm font-semibold">Waives &amp; settlements</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[24rem] text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-muted-foreground">
+                  <th className="pb-2 font-normal">Date</th>
+                  <th className="pb-2 font-normal">Action</th>
+                  <th className="pb-2 font-normal">Note</th>
+                  <th className="pb-2 text-right font-normal">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {actions.map((a) => (
+                  <tr key={a.id} className="border-b last:border-0">
+                    <td className="py-1.5">{fmtDate(a.createdAt)}</td>
+                    <td className="py-1.5">{SETTLEMENT_LABEL[a.kind] ?? a.kind}</td>
+                    <td className="py-1.5">{a.note ?? "—"}</td>
+                    <td className="py-1.5 text-right tabular-nums">
+                      {a.kind === "doctor_waive" ? "−" : "+"}
+                      {money.format(a.amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
 
       {/* Payments */}
       <div>
@@ -175,8 +249,10 @@ export default async function ShareStatementPage({
 
       {/* Outstanding */}
       <div className="flex items-center justify-between border-t pt-4 text-base font-semibold">
-        <span>Outstanding balance</span>
-        <span className="tabular-nums">{money.format(balance.outstanding)}</span>
+        <span>{owes ? "Owed by doctor to the clinic" : "Outstanding balance"}</span>
+        <span className={`tabular-nums ${owes ? "text-destructive" : ""}`}>
+          {money.format(Math.abs(balance.outstanding))}
+        </span>
       </div>
     </div>
   );

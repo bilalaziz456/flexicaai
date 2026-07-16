@@ -49,6 +49,28 @@ const CLINIC = "__clinic__";
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 /**
+ * How a discount is split between clinic and doctor by borne-by (no spillover — the
+ * new rule): clinic-borne → clinic bears all; doctor-borne → doctors bear all; split →
+ * the doctor side bears its configured portion, the clinic the rest. Depends only on
+ * the amount + borne-by + split (not gross shares), so the discounts report can call
+ * it directly. `clinicBorne + doctorBorne = amount`.
+ */
+export function discountBorneSplit(
+  amount: number,
+  borneBy: BearBorneBy,
+  split?: BearSplit,
+): { clinicBorne: number; doctorBorne: number } {
+  const K = Math.max(0, Math.round(amount));
+  let doctorBorne: number;
+  if (borneBy === "doctor") doctorBorne = K;
+  else if (borneBy === "split") {
+    const s = split ?? { type: "percent", value: 0 };
+    doctorBorne = s.type === "amount" ? clamp(Math.round(s.value), 0, K) : clamp(Math.round((K * s.value) / 100), 0, K);
+  } else doctorBorne = 0; // clinic
+  return { clinicBorne: K - doctorBorne, doctorBorne };
+}
+
+/**
  * Integer proportional split of `total` across `ids` by `weight` (largest-remainder,
  * summing to exactly `total`). Falls back to an equal split when every weight is 0.
  */
@@ -87,19 +109,12 @@ export function computeBearing(input: BearingInput): BearingResult {
   const netTotal = grossTotal - K;
 
   // How much of the discount the DOCTOR side bears (the rest is the clinic's).
-  let doctorBorne: number;
-  if (input.borneBy === "doctor") doctorBorne = K;
-  else if (input.borneBy === "clinic") doctorBorne = 0;
-  else {
-    const s = input.split ?? { type: "percent", value: 0 };
-    doctorBorne =
-      s.type === "amount"
-        ? clamp(Math.round(s.value), 0, K)
-        : clamp(Math.round((K * s.value) / 100), 0, K);
-  }
+  let { clinicBorne, doctorBorne } = discountBorneSplit(K, input.borneBy, input.split);
   // No doctor to bear it → the clinic takes it (degenerate doctor/split visit).
-  if (doctorIds.length === 0) doctorBorne = 0;
-  const clinicBorne = K - doctorBorne;
+  if (doctorIds.length === 0) {
+    doctorBorne = 0;
+    clinicBorne = K;
+  }
 
   // Make-whole targets (Σ = net) and each party's gross share of the net (Σ = net).
   const kdById = allocate(doctorBorne, doctorIds, input.doctorGross);

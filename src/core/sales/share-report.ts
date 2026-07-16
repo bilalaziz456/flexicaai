@@ -269,3 +269,33 @@ export async function listDoctorEarnings(
     amount: r.amount,
   }));
 }
+
+/**
+ * A doctor's discount-bearing lines (one per completed discounted visit they bear),
+ * signed, newest first — for the statement's "Discount borne" section. Clinic-scoped.
+ */
+export async function listDoctorSettlements(
+  clinicId: string,
+  doctorId: string,
+  limit = 1000,
+): Promise<ShareLine[]> {
+  const rows = await db
+    .select({
+      occurredAt: discountSettlements.occurredAt,
+      amount: discountSettlements.settlementAmount,
+      patientName: patients.fullName,
+    })
+    .from(discountSettlements)
+    .leftJoin(appointments, eq(appointments.id, discountSettlements.appointmentId))
+    .leftJoin(patients, eq(patients.id, appointments.patientId))
+    .where(
+      byClinic(
+        discountSettlements.clinicId,
+        clinicId,
+        and(eq(discountSettlements.party, "doctor"), eq(discountSettlements.doctorId, doctorId)),
+      ),
+    )
+    .orderBy(desc(discountSettlements.occurredAt))
+    .limit(limit);
+  return rows.map((r) => ({ occurredAt: r.occurredAt, patientName: r.patientName, amount: r.amount }));
+}

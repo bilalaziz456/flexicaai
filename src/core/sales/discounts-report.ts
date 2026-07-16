@@ -6,8 +6,8 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointmentDiscountApprovals, appointments, patients, users } from "@/core/db/schema";
 import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import { computeFee, normalizeDiscountType } from "@/core/appointments/fee";
-import { computeShare } from "@/core/appointments/shares";
-import { getAppointmentShareContext } from "@/core/appointments/share-context";
+import { discountBorneSplit } from "@/core/appointments/discount-bearing";
+import type { BearBorneBy } from "@/core/appointments/discount-bearing";
 import { displayStaffName } from "@/core/types/auth";
 import type { ResolvedRange } from "@/core/sales/report";
 
@@ -63,6 +63,8 @@ export async function getDiscountsReport(
       discountValue: appointments.discountValue,
       discountStatus: appointments.discountStatus,
       discountBorneBy: appointments.discountBorneBy,
+      discountSplitType: appointments.discountSplitType,
+      discountSplitValue: appointments.discountSplitValue,
       fee: users.consultationFee,
       doctorName: users.fullName,
       doctorUsername: users.username,
@@ -80,6 +82,11 @@ export async function getDiscountsReport(
     const type = normalizeDiscountType(r.discountType);
     const subtotal = (r.chargeConsultation ? (r.fee ?? 0) : 0) + Number(r.proceduresNet);
     const amount = computeFee(subtotal, type, r.discountValue).discount;
+    // No spillover (the new rule): the split follows borne-by + split only.
+    const { clinicBorne, doctorBorne } = discountBorneSplit(amount, r.discountBorneBy as BearBorneBy, {
+      type: r.discountSplitType === "amount" ? "amount" : "percent",
+      value: r.discountSplitValue,
+    });
     return {
       appointmentId: r.appointmentId,
       scheduledAt: r.scheduledAt,
@@ -93,8 +100,8 @@ export async function getDiscountsReport(
       amount,
       borneBy: r.discountBorneBy,
       status: r.discountStatus,
-      clinicBears: amount, // provisional; refined below
-      doctorBears: 0,
+      clinicBears: clinicBorne,
+      doctorBears: doctorBorne,
       approvedBy: null as string | null,
     };
   });
@@ -133,40 +140,7 @@ export async function getDiscountsReport(
     for (const [, arr] of approverMap) {
       arr.sort((x, y) => (x.startsWith("Clinic") ? 0 : 1) - (y.startsWith("Clinic") ? 0 : 1));
     }
-
-    // Split each discount between clinic and doctor(s). Clinic-borne is a shortcut
-    // (clinic absorbs all); doctor/split need the share context to weight by each
-    // party's gross cut — mirroring computeShare's bucket order so the numbers match
-    // the doctor payouts. Only the non-clinic rows pay the extra lookup.
-    await Promise.all(
-      out.map(async (row) => {
-        row.approvedBy = approverMap.get(row.appointmentId)?.join(" · ") ?? null;
-        if (row.amount <= 0 || row.borneBy === "clinic") {
-          row.clinicBears = row.amount;
-          row.doctorBears = 0;
-          return;
-        }
-        const ctx = await getAppointmentShareContext(clinicId, row.appointmentId);
-        if (!ctx.found || ctx.grossTotal <= 0) {
-          row.clinicBears = row.amount;
-          row.doctorBears = 0;
-          return;
-        }
-        const gross = computeShare({
-          consultation: ctx.consultation,
-          lines: ctx.lines,
-          netTotal: ctx.grossTotal, // no discount → each party's full gross cut
-          borneBy: "clinic",
-        });
-        const doctorGross = Object.values(gross.doctors).reduce((s, v) => s + v, 0);
-        const doctorBears =
-          row.borneBy === "doctor"
-            ? Math.min(row.amount, doctorGross) // doctors first, spill to clinic
-            : Math.round((row.amount * doctorGross) / (gross.clinic + doctorGross || 1)); // split: proportional
-        row.doctorBears = doctorBears;
-        row.clinicBears = row.amount - doctorBears;
-      }),
-    );
+    for (const row of out) row.approvedBy = approverMap.get(row.appointmentId)?.join(" · ") ?? null;
   }
 
   const applied = (s: string) => s === "none" || s === "approved";
