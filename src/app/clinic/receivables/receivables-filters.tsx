@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { DatePicker } from "@/core/ui/date-picker";
 import { Label } from "@/core/ui/label";
+import { DateRangeFields } from "@/core/ui/date-range-fields";
 import {
   FilterSelect,
   PERIOD_OPTIONS,
@@ -102,36 +102,20 @@ export function ReceivablesFilters({
           className={inputCls}
         />
       </div>
-      <div className={filterFieldCls}>
-        <Label htmlFor="from" className={filterLabelCls}>From</Label>
-        <div className="w-44">
-          <DatePicker
-            id="from"
-            ariaLabel="From date"
-            value={fromD}
-            onChange={(v) => {
-              setFromD(v);
-              setPeriodV("custom");
-              push({ period: "custom", from: v });
-            }}
-          />
-        </div>
-      </div>
-      <div className={filterFieldCls}>
-        <Label htmlFor="to" className={filterLabelCls}>To</Label>
-        <div className="w-44">
-          <DatePicker
-            id="to"
-            ariaLabel="To date"
-            value={toD}
-            onChange={(v) => {
-              setToD(v);
-              setPeriodV("custom");
-              push({ period: "custom", to: v });
-            }}
-          />
-        </div>
-      </div>
+      <DateRangeFields
+        from={fromD}
+        to={toD}
+        onFrom={(v) => {
+          setFromD(v);
+          setPeriodV("custom");
+          push({ period: "custom", from: v });
+        }}
+        onTo={(v) => {
+          setToD(v);
+          setPeriodV("custom");
+          push({ period: "custom", to: v });
+        }}
+      />
     </div>
   );
 }

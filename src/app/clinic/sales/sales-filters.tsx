@@ -4,8 +4,8 @@ import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Select } from "@base-ui/react/select";
 import { Check, ChevronsUpDown } from "lucide-react";
-import { DatePicker } from "@/core/ui/date-picker";
 import { Label } from "@/core/ui/label";
+import { DateRangeFields } from "@/core/ui/date-range-fields";
 
 export const PERIOD_OPTIONS: { value: string; label: string }[] = [
   { value: "today", label: "Today" },
@@ -164,40 +164,20 @@ export function SalesFilters({
           }}
         />
       ) : null}
-      <div className={fieldCls}>
-        <Label htmlFor="from" className={labelCls}>
-          From
-        </Label>
-        <div className="w-44">
-          <DatePicker
-            id="from"
-            ariaLabel="From date"
-            value={fromD}
-            onChange={(v) => {
-              setFromD(v);
-              setPeriodV("custom");
-              push({ period: "custom", from: v });
-            }}
-          />
-        </div>
-      </div>
-      <div className={fieldCls}>
-        <Label htmlFor="to" className={labelCls}>
-          To
-        </Label>
-        <div className="w-44">
-          <DatePicker
-            id="to"
-            ariaLabel="To date"
-            value={toD}
-            onChange={(v) => {
-              setToD(v);
-              setPeriodV("custom");
-              push({ period: "custom", to: v });
-            }}
-          />
-        </div>
-      </div>
+      <DateRangeFields
+        from={fromD}
+        to={toD}
+        onFrom={(v) => {
+          setFromD(v);
+          setPeriodV("custom");
+          push({ period: "custom", from: v });
+        }}
+        onTo={(v) => {
+          setToD(v);
+          setPeriodV("custom");
+          push({ period: "custom", to: v });
+        }}
+      />
     </div>
   );
 }

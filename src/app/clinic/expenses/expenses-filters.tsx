@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { DatePicker } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
+import { DateRangeFields } from "@/core/ui/date-range-fields";
 import {
   FilterSelect,
   PERIOD_OPTIONS,
@@ -120,36 +120,21 @@ export function ExpenseFilters({
           push({ method: v });
         }}
       />
-      <div className={filterFieldCls}>
-        <Label htmlFor="ex-from" className={filterLabelCls}>From</Label>
-        <div className="w-44">
-          <DatePicker
-            id="ex-from"
-            ariaLabel="From date"
-            value={fromD}
-            onChange={(v) => {
-              setFromD(v);
-              setPeriodV("custom");
-              push({ period: "custom", from: v });
-            }}
-          />
-        </div>
-      </div>
-      <div className={filterFieldCls}>
-        <Label htmlFor="ex-to" className={filterLabelCls}>To</Label>
-        <div className="w-44">
-          <DatePicker
-            id="ex-to"
-            ariaLabel="To date"
-            value={toD}
-            onChange={(v) => {
-              setToD(v);
-              setPeriodV("custom");
-              push({ period: "custom", to: v });
-            }}
-          />
-        </div>
-      </div>
+      <DateRangeFields
+        idPrefix="ex-"
+        from={fromD}
+        to={toD}
+        onFrom={(v) => {
+          setFromD(v);
+          setPeriodV("custom");
+          push({ period: "custom", from: v });
+        }}
+        onTo={(v) => {
+          setToD(v);
+          setPeriodV("custom");
+          push({ period: "custom", to: v });
+        }}
+      />
       <div className={`${filterFieldCls} min-w-40 flex-1`}>
         <Label htmlFor="ex-q" className={filterLabelCls}>Search</Label>
         <Input id="ex-q" placeholder="Vendor or note…" value={query} onChange={(e) => setQuery(e.target.value)} />
