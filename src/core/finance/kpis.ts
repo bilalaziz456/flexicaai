@@ -25,7 +25,7 @@ export type FinanceKpis = {
   collectedTrend: number[];
   profitTrend: number[];
   sharesTrend: number[]; // daily doctor shares (accruing) — for the Payable card
-  outstandingTrend: number[]; // daily receivable added — for the Outstanding card
+  outstandingTrend: number[]; // RUNNING receivable balance — rises to outstandingReceivable
 };
 
 const isoDate = (d: Date): string => {
@@ -40,7 +40,7 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
   // expression with the Receivables report, so the two always reconcile.
   const netSql = appointmentBillNetSql();
 
-  const [pl, [rec], balances, outByDay] = await Promise.all([
+  const [pl, [rec], balances, outByDay, [opening]] = await Promise.all([
     getProfitAndLoss(clinicId, range30),
     db
       .select({
@@ -78,17 +78,35 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
         ),
       )
       .groupBy(sql`date_trunc('day', ${appointments.scheduledAt})`),
+    // Opening receivable — completed visits BEFORE the window — to seed the running line.
+    db
+      .select({
+        v: sql<number>`coalesce(sum(greatest(${netSql} - ${appointments.amountCollected}, 0)), 0)::int`,
+      })
+      .from(appointments)
+      .leftJoin(users, eq(users.id, appointments.doctorId))
+      .where(
+        byClinic(
+          appointments.clinicId,
+          clinicId,
+          notDeleted(appointments.deletedAt),
+          and(eq(appointments.status, "completed"), lt(appointments.scheduledAt, range30.start)),
+        ),
+      ),
   ]);
 
   // Payable = Σ of each doctor's POSITIVE balance (owed to us doctors); a doctor who
   // owes the clinic (negative, from discount-bearing) doesn't reduce what we owe others.
   const payableToDoctors = balances.reduce((s, b) => s + Math.max(0, b.outstanding), 0);
 
-  // Build the outstanding-added series over the same days as the P&L buckets.
+  // RUNNING receivable balance: seed with the opening (visits before the window), then
+  // add each day's new receivable → the line rises to `outstandingReceivable`.
   const byDay = new Map(outByDay.map((r) => [r.d, Number(r.v)]));
   const outstandingTrend: number[] = [];
+  let runningRec = Number(opening?.v ?? 0);
   for (let d = new Date(range30.start); d < range30.end; d.setDate(d.getDate() + 1)) {
-    outstandingTrend.push(byDay.get(isoDate(d)) ?? 0);
+    runningRec += byDay.get(isoDate(d)) ?? 0;
+    outstandingTrend.push(runningRec);
   }
 
   return {
