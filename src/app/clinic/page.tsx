@@ -292,26 +292,29 @@ export default async function ClinicDashboard() {
             const loss = financeKpis.netProfit30d < 0;
             const kpis = [
               { show: billingKpiOn || financeKpiOn, title: "Collected (30d)", value: fmt(financeKpis.collected30d), note: "Revenue received", href: financeKpiOn ? "/clinic/pl" : "/clinic/sales", tone: "", trend: financeKpis.collectedTrend, trendColor: "var(--color-chart-1)" },
-              { show: billingKpiOn, title: "Outstanding", value: fmt(financeKpis.outstandingReceivable), note: "Patients owe us", href: "/clinic/appointments?status=completed&payment=unpaid", tone: "", trend: undefined as number[] | undefined, trendColor: "" },
+              { show: billingKpiOn, title: "Outstanding", value: fmt(financeKpis.outstandingReceivable), note: "Patients owe us", href: "/clinic/appointments?status=completed&payment=unpaid", tone: "", trend: financeKpis.outstandingTrend, trendColor: "var(--color-chart-1)" },
               { show: financeKpiOn, title: loss ? "Net loss (30d)" : "Net profit (30d)", value: fmt(Math.abs(financeKpis.netProfit30d)), note: "After shares + expenses", href: "/clinic/pl", tone: loss ? "text-destructive" : "text-emerald-600 dark:text-emerald-400", trend: financeKpis.profitTrend, trendColor: loss ? "var(--destructive)" : "#10b981" },
-              { show: financeKpiOn, title: "Payable to doctors", value: fmt(financeKpis.payableToDoctors), note: "Unpaid shares", href: "/clinic/shares", tone: "", trend: undefined as number[] | undefined, trendColor: "" },
+              { show: financeKpiOn, title: "Payable to doctors", value: fmt(financeKpis.payableToDoctors), note: "Unpaid shares", href: "/clinic/shares", tone: "", trend: financeKpis.sharesTrend, trendColor: "var(--color-chart-4)" },
             ].filter((k) => k.show);
-            return kpis.map((k) => (
-              <Link key={k.title} href={k.href}>
-                <Card className="transition-colors hover:border-primary/50">
-                  <CardHeader>
-                    <CardDescription>{k.title}</CardDescription>
-                    <CardTitle className={`text-3xl ${k.tone}`}>{k.value}</CardTitle>
-                    <CardDescription>{k.note}</CardDescription>
-                  </CardHeader>
-                  {k.trend && k.trend.length > 1 ? (
-                    <CardContent className="pt-0">
-                      <Sparkline values={k.trend} color={k.trendColor} ariaLabel={`${k.title} — last 30 days`} />
-                    </CardContent>
-                  ) : null}
-                </Card>
-              </Link>
-            ));
+            return kpis.map((k) => {
+              const hasSpark = Boolean(k.trend && k.trend.length > 1);
+              return (
+                <Link key={k.title} href={k.href} className="h-full">
+                  <Card className={`flex h-full flex-col transition-colors hover:border-primary/50 ${hasSpark ? "justify-between" : "justify-center"}`}>
+                    <CardHeader>
+                      <CardDescription>{k.title}</CardDescription>
+                      <CardTitle className={`text-3xl ${k.tone}`}>{k.value}</CardTitle>
+                      <CardDescription>{k.note}</CardDescription>
+                    </CardHeader>
+                    {hasSpark ? (
+                      <CardContent className="pt-0">
+                        <Sparkline values={k.trend!} color={k.trendColor} ariaLabel={`${k.title} — last 30 days`} />
+                      </CardContent>
+                    ) : null}
+                  </Card>
+                </Link>
+              );
+            });
           })()}
         </div>
       ) : null}
