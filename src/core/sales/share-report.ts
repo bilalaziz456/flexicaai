@@ -16,7 +16,9 @@ import {
 export type DoctorShareRow = {
   doctorId: string | null;
   name: string;
-  earned: number; // earned in the filtered period
+  grossEarned: number; // gross-basis earnings (before bearing) in the period
+  borne: number; // Σ discount settlements (signed) in the period
+  earned: number; // net = grossEarned + borne
   count: number; // earning visits in the period
 };
 
@@ -156,13 +158,15 @@ export async function getSharesReport(
     const key = r.doctorId ?? "__none__";
     const existing = doctorMap.get(key);
     if (existing) {
-      existing.earned += r.shareAmount;
+      existing.grossEarned += r.shareAmount;
       existing.count += 1;
     } else {
       doctorMap.set(key, {
         doctorId: r.doctorId,
         name: r.doctorName ?? "Unknown",
-        earned: r.shareAmount,
+        grossEarned: r.shareAmount,
+        borne: 0,
+        earned: 0,
         count: 1,
       });
     }
@@ -175,9 +179,10 @@ export async function getSharesReport(
     if (bi !== undefined) buckets[bi].earned += r.shareAmount;
     const key = r.doctorId ?? "__none__";
     const existing = doctorMap.get(key);
-    if (existing) existing.earned += r.shareAmount;
-    else doctorMap.set(key, { doctorId: r.doctorId, name: r.doctorName ?? "Unknown", earned: r.shareAmount, count: 0 });
+    if (existing) existing.borne += r.shareAmount;
+    else doctorMap.set(key, { doctorId: r.doctorId, name: r.doctorName ?? "Unknown", grossEarned: 0, borne: r.shareAmount, earned: 0, count: 0 });
   }
+  for (const d of doctorMap.values()) d.earned = d.grossEarned + d.borne;
 
   const byDoctor = [...doctorMap.values()].sort((a, b) => b.earned - a.earned);
 

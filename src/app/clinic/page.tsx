@@ -233,11 +233,21 @@ export default async function ClinicDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          Your clinic at a glance.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            Your clinic at a glance.
+          </p>
+        </div>
+        {financeKpiOn ? (
+          <Link
+            href="/clinic/overview"
+            className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent"
+          >
+            Day report →
+          </Link>
+        ) : null}
       </div>
 
       {/* Hero: Revenue Recovered — the top metric when the super admin enabled it. */}

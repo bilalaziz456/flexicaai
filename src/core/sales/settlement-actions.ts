@@ -1,6 +1,6 @@
 import "server-only";
 
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { doctorSettlementActions, users } from "@/core/db/schema";
@@ -122,6 +122,36 @@ export async function voidSettlementAction(clinicId: string, actionId: string): 
     .where(byClinic(doctorSettlementActions.clinicId, clinicId, eq(doctorSettlementActions.id, actionId)))
     .returning({ id: doctorSettlementActions.id });
   return Boolean(row);
+}
+
+/**
+ * Total waivers (doctor_waive + clinic_waive) recorded in a range, by action date —
+ * for the Overview's "Waivers" figure. Optionally scoped to one doctor.
+ */
+export async function getWaiversTotal(
+  clinicId: string,
+  range: { start: Date; end: Date },
+  doctorId?: string | null,
+): Promise<{ total: number; count: number }> {
+  const [row] = await db
+    .select({
+      total: sql<number>`coalesce(sum(${doctorSettlementActions.amount}), 0)::int`,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(doctorSettlementActions)
+    .where(
+      byClinic(
+        doctorSettlementActions.clinicId,
+        clinicId,
+        and(
+          inArray(doctorSettlementActions.kind, ["doctor_waive", "clinic_waive"]),
+          gte(doctorSettlementActions.createdAt, range.start),
+          lt(doctorSettlementActions.createdAt, range.end),
+          doctorId ? eq(doctorSettlementActions.doctorId, doctorId) : undefined,
+        ),
+      ),
+    );
+  return { total: Number(row?.total ?? 0), count: Number(row?.count ?? 0) };
 }
 
 /** Recent settlement actions for a clinic, optionally scoped to one doctor. */
