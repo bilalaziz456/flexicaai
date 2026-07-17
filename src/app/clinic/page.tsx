@@ -292,7 +292,7 @@ export default async function ClinicDashboard() {
             const loss = financeKpis.netProfit30d < 0;
             const kpis = [
               { show: billingKpiOn || financeKpiOn, title: "Collected (30d)", value: fmt(financeKpis.collected30d), note: "Revenue received", href: financeKpiOn ? "/clinic/pl" : "/clinic/sales", tone: "", trend: financeKpis.collectedTrend, trendColor: "var(--color-chart-1)" },
-              { show: billingKpiOn, title: "Outstanding", value: fmt(financeKpis.outstandingReceivable), note: "Patients owe us", href: "/clinic/appointments?status=completed&payment=unpaid", tone: "", trend: financeKpis.outstandingTrend, trendColor: "#a12b47" },
+              { show: billingKpiOn, title: "Outstanding", value: fmt(financeKpis.outstandingReceivable), note: "Patients owe us", href: "/clinic/appointments?status=completed&payment=unpaid", tone: "", trend: financeKpis.outstandingTrend, trendColor: "#851525" },
               { show: financeKpiOn, title: loss ? "Net loss (30d)" : "Net profit (30d)", value: fmt(Math.abs(financeKpis.netProfit30d)), note: "After shares + expenses", href: "/clinic/pl", tone: loss ? "text-destructive" : "text-emerald-600 dark:text-emerald-400", trend: financeKpis.profitTrend, trendColor: loss ? "var(--destructive)" : "#10b981" },
               { show: financeKpiOn, title: "Payable to doctors", value: fmt(financeKpis.payableToDoctors), note: "Unpaid shares", href: "/clinic/shares", tone: "", trend: financeKpis.sharesTrend, trendColor: "var(--color-chart-4)" },
             ].filter((k) => k.show);
