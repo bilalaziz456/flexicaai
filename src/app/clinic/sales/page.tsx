@@ -17,7 +17,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { SalesChart } from "./sales-chart";
+import { AreaChart } from "./area-chart";
+import { HBarChart } from "./h-bar-chart";
 import { SalesFilters } from "./sales-filters";
 
 const money = new Intl.NumberFormat("en-PK", {
@@ -126,7 +127,7 @@ export default async function ClinicSalesPage({
               No paid visits in this period.
             </p>
           ) : (
-            <SalesChart points={report.buckets} />
+            <AreaChart points={report.buckets} ariaLabel="Collected revenue over time" />
           )}
         </CardContent>
       </Card>
@@ -142,26 +143,14 @@ export default async function ClinicSalesPage({
             {report.byDoctor.length === 0 ? (
               <p className="text-sm text-muted-foreground">No sales yet.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[18rem] text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-xs text-muted-foreground">
-                      <th className="pb-2 font-normal">Doctor</th>
-                      <th className="pb-2 text-right font-normal">Visits</th>
-                      <th className="pb-2 text-right font-normal">Collected</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.byDoctor.map((d) => (
-                      <tr key={d.doctorId ?? "none"} className="border-b last:border-0">
-                        <td className="py-2">{d.name}</td>
-                        <td className="py-2 text-right tabular-nums">{d.count}</td>
-                        <td className="py-2 text-right tabular-nums">{money.format(d.net)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <HBarChart
+                ariaLabel="Collected revenue by doctor"
+                rows={report.byDoctor.map((d) => ({
+                  label: d.name,
+                  value: d.net,
+                  sublabel: `${d.count} visit${d.count === 1 ? "" : "s"}`,
+                }))}
+              />
             )}
           </CardContent>
         </Card>
@@ -179,26 +168,14 @@ export default async function ClinicSalesPage({
                 No procedures on completed appointments yet.
               </p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[18rem] text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-xs text-muted-foreground">
-                      <th className="pb-2 font-normal">Procedure</th>
-                      <th className="pb-2 text-right font-normal">Qty</th>
-                      <th className="pb-2 text-right font-normal">Billed</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.byProcedure.map((p) => (
-                      <tr key={p.name} className="border-b last:border-0">
-                        <td className="py-2">{p.name}</td>
-                        <td className="py-2 text-right tabular-nums">{p.qty}</td>
-                        <td className="py-2 text-right tabular-nums">{money.format(p.gross)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <HBarChart
+                ariaLabel="Billed value by procedure"
+                rows={report.byProcedure.map((p) => ({
+                  label: p.name,
+                  value: p.gross,
+                  sublabel: `×${p.qty}`,
+                }))}
+              />
             )}
           </CardContent>
         </Card>

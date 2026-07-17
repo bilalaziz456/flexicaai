@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { MultiBarChart } from "@/app/clinic/sales/multi-bar-chart";
+import { HBarChart } from "@/app/clinic/sales/h-bar-chart";
 import { SalesFilters } from "@/app/clinic/sales/sales-filters";
 
 const money = new Intl.NumberFormat("en-PK", {
@@ -180,14 +181,7 @@ export default async function ProfitLossPage({
             {pl.byExpenseCategory.length === 0 ? (
               <p className="text-sm text-muted-foreground">No expenses in this period.</p>
             ) : (
-              <ul className="divide-y text-sm">
-                {pl.byExpenseCategory.map((c) => (
-                  <li key={c.name} className="flex items-center justify-between py-1.5">
-                    <span>{c.name}</span>
-                    <span className="font-medium tabular-nums">{money.format(c.amount)}</span>
-                  </li>
-                ))}
-              </ul>
+              <HBarChart ariaLabel="Expenses by category" rows={pl.byExpenseCategory.map((c) => ({ label: c.name, value: c.amount }))} />
             )}
           </CardContent>
         </Card>
@@ -199,14 +193,7 @@ export default async function ProfitLossPage({
             {pl.byDoctor.length === 0 ? (
               <p className="text-sm text-muted-foreground">No doctor shares in this period.</p>
             ) : (
-              <ul className="divide-y text-sm">
-                {pl.byDoctor.map((d) => (
-                  <li key={d.name} className="flex items-center justify-between py-1.5">
-                    <span>{d.name}</span>
-                    <span className="font-medium tabular-nums">{money.format(d.amount)}</span>
-                  </li>
-                ))}
-              </ul>
+              <HBarChart ariaLabel="Doctor shares" rows={pl.byDoctor.map((d) => ({ label: d.name, value: d.amount }))} />
             )}
           </CardContent>
         </Card>
