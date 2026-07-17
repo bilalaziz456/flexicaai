@@ -80,6 +80,10 @@ export async function recordSaleForAppointment(
     // about PAYING visits; the money owed lives in receivables, not Sales.
     if (collected <= 0) {
       await voidSaleForAppointment(clinicId, appointmentId);
+      // The discount-bearing is ACCRUAL — recognised at completion, independent of
+      // collection (docs/discount-bearing-plan.md §3). So a completed but unpaid (or
+      // 100%-discount) visit still records the settlement even though there's no sale.
+      await recordDiscountSettlementForAppointment(clinicId, appointmentId);
       return;
     }
     const fraction = billed.net > 0 ? collected / billed.net : 0;
@@ -114,9 +118,8 @@ export async function recordSaleForAppointment(
   } catch {
     // best-effort
   }
-  // The per-doctor share ledger + the discount-settlement ledger are snapshotted in
-  // lockstep with the sale. (Settlement is a shadow ledger in phase 2 — written, not
-  // yet read.)
+  // The per-doctor earnings (collected-basis) + the discount-settlement ledger
+  // (accrual) are snapshotted in lockstep with the sale.
   await recordSaleSharesForAppointment(clinicId, appointmentId);
   await recordDiscountSettlementForAppointment(clinicId, appointmentId);
 }
