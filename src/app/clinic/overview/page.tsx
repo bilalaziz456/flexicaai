@@ -16,6 +16,7 @@ import {
 } from "@/core/ui/card";
 import { Badge } from "@/core/ui/badge";
 import { HBarChart } from "@/app/clinic/sales/h-bar-chart";
+import { WaterfallChart } from "@/app/clinic/sales/waterfall-chart";
 import { SalesFilters } from "@/app/clinic/sales/sales-filters";
 import { PrintButton } from "@/app/clinic/shares/payout-ui";
 
@@ -104,19 +105,22 @@ export default async function OverviewPage({
         ))}
       </div>
 
-      {/* Where the collected money went (clinic-wide only) */}
-      {!ov.scoped && ov.clinicCut !== null && ov.collected > 0 ? (
+      {/* Money flow: Collected → −Shares → −Expenses → Net profit (clinic-wide only). */}
+      {!ov.scoped && ov.collected > 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Where the collected money went</CardTitle>
-            <CardDescription>Of the {money.format(ov.collected)} collected, how it split.</CardDescription>
+            <CardTitle className="text-base">Money flow</CardTitle>
+            <CardDescription>How the {money.format(ov.collected)} collected became {money.format(ov.netProfit)} profit.</CardDescription>
           </CardHeader>
           <CardContent>
-            <HBarChart
-              ariaLabel="Collected revenue split"
-              rows={[
-                { label: "Doctor shares", value: ov.doctorShares },
-                { label: "Clinic cut", value: ov.clinicCut },
+            <WaterfallChart
+              ariaLabel="Collected revenue to net profit"
+              steps={[
+                { label: "Collected", value: ov.collected, role: "start" },
+                // The share deduction is the P&L cost (collected − expenses − profit), net of waivers.
+                { label: "− Shares", value: -(ov.collected - ov.expenses - ov.netProfit), role: "deduct" },
+                { label: "− Expenses", value: -ov.expenses, role: "deduct" },
+                { label: ov.netProfit < 0 ? "Net loss" : "Net profit", value: ov.netProfit, role: "result" },
               ]}
             />
           </CardContent>

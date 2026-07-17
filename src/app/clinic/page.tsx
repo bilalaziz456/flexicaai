@@ -15,6 +15,8 @@ import {
 import { clinicHasFeature } from "@/core/lib/features";
 import { getSalesSummary, resolveSalesRange } from "@/core/sales/report";
 import { getFinanceKpis } from "@/core/finance/kpis";
+import { getProfitAndLoss } from "@/core/finance/pl";
+import { WaterfallChart } from "@/app/clinic/sales/waterfall-chart";
 import {
   Card,
   CardContent,
@@ -63,7 +65,10 @@ export default async function ClinicDashboard() {
   const billingKpiOn = salesEnabled && can(user, "billing", "view");
   const financeKpiOn =
     clinicHasFeature(clinicRow?.featuresEnabled, "finance") && can(user, "finance", "view");
-  const financeKpis = billingKpiOn || financeKpiOn ? await getFinanceKpis(clinicId) : null;
+  const [financeKpis, todayPl] = await Promise.all([
+    billingKpiOn || financeKpiOn ? getFinanceKpis(clinicId) : Promise.resolve(null),
+    financeKpiOn ? getProfitAndLoss(clinicId, resolveSalesRange("today", undefined, undefined)) : Promise.resolve(null),
+  ]);
 
   // A doctor manages their OWN leave right here on the dashboard (no separate
   // "Doctors" nav item). Fetch their upcoming leave; the add/remove controls are
@@ -309,6 +314,34 @@ export default async function ClinicDashboard() {
             ));
           })()}
         </div>
+      ) : null}
+
+      {/* Today's money flow — collected → −shares → −expenses → profit (finance only). */}
+      {todayPl && todayPl.revenue > 0 ? (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Today&apos;s money flow</CardTitle>
+                <CardDescription>How today&apos;s collected revenue became profit.</CardDescription>
+              </div>
+              <Link href="/clinic/overview" className="no-underline text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+                Full day report →
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <WaterfallChart
+              ariaLabel="Today's collected revenue to net profit"
+              steps={[
+                { label: "Collected", value: todayPl.revenue, role: "start" },
+                { label: "− Shares", value: -todayPl.doctorShares, role: "deduct" },
+                { label: "− Expenses", value: -todayPl.expenses, role: "deduct" },
+                { label: todayPl.netProfit < 0 ? "Net loss" : "Net profit", value: todayPl.netProfit, role: "result" },
+              ]}
+            />
+          </CardContent>
+        </Card>
       ) : null}
 
       {/* Supporting stats */}

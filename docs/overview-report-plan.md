@@ -56,12 +56,13 @@ Small core additions needed (additive, no schema change):
 1. **Summary cards** (performance basis): **Collected** · **Discounts given** ·
    **Waivers** · **Doctor shares** · **Expenses** · **Net profit** (red on a loss).
    *No cash figure here* — cash is its own section.
-2. **Where the collected money went** — a chart. Since **Doctor shares + Expenses +
-   Net profit = Collected** (an identity), a 3-segment breakdown is exact and honest:
-   a horizontal `HBarChart` (Doctor shares / Expenses / Net profit — profit red if
-   loss) with the Collected total labelled. Discounts are shown *beside* it as "Rs X
-   given (clinic bore Y · doctors bore Z)" — discounts are money never collected, so
-   they're not part of the collected split.
+2. **Money flow** — a **waterfall** (`WaterfallChart`): **Collected → −Doctor shares →
+   −Expenses → Net profit**. Exact (`collected − shares − expenses = profit`); the
+   share step is the P&L cost `collected − expenses − profit` (net of waivers) so the
+   bars land on Net profit; the result bar is green (profit) or red (loss). Discounts
+   are shown separately (money never collected). *The same waterfall, scoped to TODAY,
+   is a compact "Today's money flow" card on the **dashboard** (finance-gated) with a
+   "Full day report →" link — the one Overview taste that the KPIs don't already show.*
 3. **Cash** — money in/out by method (collections − refunds − expenses = net cash),
    from the range cash summary. Clearly headed "Cash that moved" so it's never confused
    with collected revenue.
