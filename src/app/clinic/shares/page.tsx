@@ -72,7 +72,7 @@ export default async function ClinicSharesPage({
     { title: "Earned", value: money.format(scoped.earned), note: selfOnly ? "Your lifetime share" : "Doctor shares, all time", tone: "" },
     ...(netAdjust !== 0
       ? [{
-          title: "Discount borne",
+          title: "Discount adjustment",
           value: money.format(netAdjust),
           note: "Bearing + waives",
           tone: netAdjust < 0 ? "text-destructive" : "text-emerald-600 dark:text-emerald-400",

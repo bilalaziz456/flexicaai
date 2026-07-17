@@ -97,7 +97,7 @@ export default async function ShareStatementPage({
       <div className={`grid gap-4 ${borneTotal !== 0 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
         {[
           { label: "Earned", value: balance.earned, show: true, tone: "" },
-          { label: "Discount borne", value: borneTotal, show: borneTotal !== 0, tone: borneTotal < 0 ? "text-destructive" : "text-emerald-600" },
+          { label: "Discount adjustment", value: borneTotal, show: borneTotal !== 0, tone: borneTotal < 0 ? "text-destructive" : "text-emerald-600" },
           { label: "Paid", value: balance.paid, show: true, tone: "" },
           { label: owes ? "Owes clinic" : "Outstanding", value: Math.abs(balance.outstanding), show: true, tone: owes ? "text-destructive" : "" },
         ]
@@ -145,10 +145,10 @@ export default async function ShareStatementPage({
         )}
       </div>
 
-      {/* Discount borne (settlements) */}
+      {/* Discount adjustment (settlements) */}
       {settlements.length > 0 ? (
         <div>
-          <h2 className="mb-2 text-sm font-semibold">Discount borne</h2>
+          <h2 className="mb-2 text-sm font-semibold">Discount adjustment</h2>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[20rem] text-sm">
               <thead>
@@ -169,7 +169,7 @@ export default async function ShareStatementPage({
                   </tr>
                 ))}
                 <tr className="border-t font-medium">
-                  <td className="py-2" colSpan={2}>Total borne</td>
+                  <td className="py-2" colSpan={2}>Total adjustment</td>
                   <td className="py-2 text-right tabular-nums">{money.format(balance.borne)}</td>
                 </tr>
               </tbody>
