@@ -1,6 +1,10 @@
 # Overview report ("Day report") — plan
 
-> **Status: PLAN (awaiting approval). No code until approved.** A one-click,
+> **Status: BUILT (2026-07-17).** `/clinic/overview` — `core/finance/overview.ts` +
+> the page + a dashboard "Day report" button + a Reports-hub card, all as planned. All
+> reconciliation invariants (§8) DB-verified across every clinic; unit 33/33; e2e 61/61.
+>
+> Original plan below. A one-click,
 > period-scoped consolidated report — "how did the day (or period) go?" — reachable
 > from a **"Day report"** button on the dashboard + a card in the Reports hub. Owner
 > decision (2026-07-17): build this as **Overview**, NOT by overloading the Day Book;
