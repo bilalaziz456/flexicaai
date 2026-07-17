@@ -22,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
+import { Sparkline } from "@/core/ui/sparkline";
 import { AvgVisitValueForm } from "./avg-visit-value-form";
 import { DoctorLeaves } from "@/app/reception/doctor-leaves";
 import { CLINIC_STAFF_ROLES, CLINIC_STAFF_SUMMARY } from "@/core/types/auth";
@@ -99,7 +100,7 @@ export default async function ClinicDashboard() {
     ? getSalesSummary(clinicId, resolveSalesRange("30d", undefined, undefined))
     : Promise.resolve(null);
 
-  const [[staff], [patientRows], [recallsSent], [upcoming], recoveredRes] =
+  const [[staff], [patientRows], [recallsSent], [upcoming], recoveredRes, recoveredTrendRes] =
     await Promise.all([
       db
         .select({ value: count() })
@@ -161,12 +162,42 @@ export default async function ClinicDashboard() {
               )
           `)
         : Promise.resolve({ rows: [] as { recovered?: number }[] }),
+      // Recovered return VISITS per month (last 6 months) for the hero sparkline.
+      revenueEnabled
+        ? db.execute(sql`
+            SELECT to_char(date_trunc('month', a.scheduled_at), 'YYYY-MM') AS m, count(*)::int AS n
+            FROM appointments a
+            WHERE a.clinic_id = ${clinicId}
+              AND a.deleted_at IS NULL
+              AND a.status = 'completed'
+              AND a.scheduled_at >= date_trunc('month', now()) - interval '5 months'
+              AND EXISTS (
+                SELECT 1 FROM recalls r
+                WHERE r.patient_id = a.patient_id
+                  AND r.clinic_id = a.clinic_id
+                  AND r.deleted_at IS NULL
+                  AND r.status IN ('sent', 'booked', 'completed')
+                  AND a.scheduled_at >= COALESCE(r.sent_at, r.due_at)
+              )
+            GROUP BY m ORDER BY m
+          `)
+        : Promise.resolve({ rows: [] as { m: string; n: number }[] }),
     ]);
 
   const recovered = Number(
     (recoveredRes.rows[0] as { recovered?: number } | undefined)?.recovered ?? 0,
   );
   const revenueRecovered = recovered * avgVisitValue;
+  // Last 6 months of recovered revenue (visits × avg value), gap-filled → sparkline.
+  const recoveredTrend = (() => {
+    const byMonth = new Map<string, number>();
+    for (const r of (recoveredTrendRes.rows as { m: string; n: number }[])) byMonth.set(r.m, Number(r.n));
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      return (byMonth.get(key) ?? 0) * avgVisitValue;
+    });
+  })();
   const pkr = (n: number) =>
     new Intl.NumberFormat("en-PK", {
       style: "currency",
@@ -222,9 +253,15 @@ export default async function ClinicDashboard() {
               visit value.
             </CardDescription>
           </CardHeader>
-          {isAdmin ? (
-            <CardContent>
-              <AvgVisitValueForm value={avgVisitValue} />
+          {recoveredTrend.some((v) => v > 0) || isAdmin ? (
+            <CardContent className="space-y-3">
+              {recoveredTrend.some((v) => v > 0) ? (
+                <div>
+                  <Sparkline values={recoveredTrend} color="var(--brand-teal)" ariaLabel="Revenue recovered over the last 6 months" />
+                  <p className="text-xs text-muted-foreground">Recovered revenue · last 6 months</p>
+                </div>
+              ) : null}
+              {isAdmin ? <AvgVisitValueForm value={avgVisitValue} /> : null}
             </CardContent>
           ) : null}
         </Card>
@@ -239,19 +276,24 @@ export default async function ClinicDashboard() {
               new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 }).format(n);
             const loss = financeKpis.netProfit30d < 0;
             const kpis = [
-              { show: billingKpiOn || financeKpiOn, title: "Collected (30d)", value: fmt(financeKpis.collected30d), note: "Revenue received", href: financeKpiOn ? "/clinic/pl" : "/clinic/sales" },
-              { show: billingKpiOn, title: "Outstanding", value: fmt(financeKpis.outstandingReceivable), note: "Patients owe us", href: "/clinic/appointments?status=completed&payment=unpaid" },
-              { show: financeKpiOn, title: loss ? "Net loss (30d)" : "Net profit (30d)", value: fmt(Math.abs(financeKpis.netProfit30d)), note: "After shares + expenses", href: "/clinic/pl", tone: loss ? "text-destructive" : "text-emerald-600 dark:text-emerald-400" },
-              { show: financeKpiOn, title: "Payable to doctors", value: fmt(financeKpis.payableToDoctors), note: "Unpaid shares", href: "/clinic/shares" },
+              { show: billingKpiOn || financeKpiOn, title: "Collected (30d)", value: fmt(financeKpis.collected30d), note: "Revenue received", href: financeKpiOn ? "/clinic/pl" : "/clinic/sales", tone: "", trend: financeKpis.collectedTrend, trendColor: "var(--color-chart-1)" },
+              { show: billingKpiOn, title: "Outstanding", value: fmt(financeKpis.outstandingReceivable), note: "Patients owe us", href: "/clinic/appointments?status=completed&payment=unpaid", tone: "", trend: undefined as number[] | undefined, trendColor: "" },
+              { show: financeKpiOn, title: loss ? "Net loss (30d)" : "Net profit (30d)", value: fmt(Math.abs(financeKpis.netProfit30d)), note: "After shares + expenses", href: "/clinic/pl", tone: loss ? "text-destructive" : "text-emerald-600 dark:text-emerald-400", trend: financeKpis.profitTrend, trendColor: loss ? "var(--destructive)" : "#10b981" },
+              { show: financeKpiOn, title: "Payable to doctors", value: fmt(financeKpis.payableToDoctors), note: "Unpaid shares", href: "/clinic/shares", tone: "", trend: undefined as number[] | undefined, trendColor: "" },
             ].filter((k) => k.show);
             return kpis.map((k) => (
               <Link key={k.title} href={k.href}>
                 <Card className="transition-colors hover:border-primary/50">
                   <CardHeader>
                     <CardDescription>{k.title}</CardDescription>
-                    <CardTitle className={`text-3xl ${k.tone ?? ""}`}>{k.value}</CardTitle>
+                    <CardTitle className={`text-3xl ${k.tone}`}>{k.value}</CardTitle>
                     <CardDescription>{k.note}</CardDescription>
                   </CardHeader>
+                  {k.trend && k.trend.length > 1 ? (
+                    <CardContent className="pt-0">
+                      <Sparkline values={k.trend} color={k.trendColor} ariaLabel={`${k.title} — last 30 days`} />
+                    </CardContent>
+                  ) : null}
                 </Card>
               </Link>
             ));

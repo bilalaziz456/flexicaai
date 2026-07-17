@@ -20,6 +20,10 @@ export type FinanceKpis = {
   netProfit30d: number;
   outstandingReceivable: number;
   payableToDoctors: number;
+  /** Per-day series over the last 30 days, for the KPI sparklines (reuses the P&L
+   *  buckets already computed — no extra query). */
+  collectedTrend: number[];
+  profitTrend: number[];
 };
 
 export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
@@ -57,5 +61,7 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
     netProfit30d: pl.netProfit,
     outstandingReceivable: Number(rec?.v ?? 0),
     payableToDoctors,
+    collectedTrend: pl.revenueBuckets.map((b) => b.value),
+    profitTrend: pl.plBuckets.map((b) => b.profit),
   };
 }
