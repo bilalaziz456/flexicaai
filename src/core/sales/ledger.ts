@@ -17,6 +17,7 @@ import {
   recordDiscountSettlementForAppointment,
   voidDiscountSettlementForAppointment,
 } from "@/core/sales/settlement-ledger";
+import { syncLineWaives } from "@/core/sales/appointment-lines";
 
 /**
  * Snapshots (upserts) the sale for a COMPLETED appointment on a **collected** basis
@@ -119,9 +120,11 @@ export async function recordSaleForAppointment(
     // best-effort
   }
   // The per-doctor earnings (collected-basis) + the discount-settlement ledger
-  // (accrual) are snapshotted in lockstep with the sale.
+  // (accrual) are snapshotted in lockstep with the sale; any per-line waives re-sync
+  // to the now-current earned shares.
   await recordSaleSharesForAppointment(clinicId, appointmentId);
   await recordDiscountSettlementForAppointment(clinicId, appointmentId);
+  await syncLineWaives(clinicId, appointmentId);
 }
 
 /** Removes an appointment's sale (when it leaves "completed"). Best-effort. */
@@ -138,6 +141,9 @@ export async function voidSaleForAppointment(
   }
   await voidSaleSharesForAppointment(clinicId, appointmentId);
   await voidDiscountSettlementForAppointment(clinicId, appointmentId);
+  // Per-line waives sync to 0 when there's nothing to waive (un-completed / unpaid /
+  // soft-deleted), so a waive never lingers as a phantom balance deduction.
+  await syncLineWaives(clinicId, appointmentId);
 }
 
 /**
