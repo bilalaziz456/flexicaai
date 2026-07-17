@@ -295,6 +295,13 @@
       "when": 1784230950197,
       "tag": "0041_sticky_wind_dancer",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1784248169075,
+      "tag": "0042_lame_zarek",
+      "breakpoints": true
     }
   ]
 }

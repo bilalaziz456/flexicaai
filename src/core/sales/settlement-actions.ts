@@ -21,6 +21,17 @@ import { getDoctorBalance } from "@/core/sales/payouts";
 export type SettlementKind = "doctor_waive" | "clinic_waive" | "repayment" | "write_off";
 const KINDS: SettlementKind[] = ["doctor_waive", "clinic_waive", "repayment", "write_off"];
 
+/** True for a Postgres unique-violation (23505) — the pg code may sit on the error or
+ *  a nested `.cause` (Drizzle wraps it). Used to catch a double per-line waive race. */
+function isUniqueViolation(err: unknown): boolean {
+  let e: unknown = err;
+  for (let depth = 0; depth < 5 && e; depth++) {
+    if (typeof e === "object" && e !== null && "code" in e && (e as { code?: string }).code === "23505") return true;
+    e = typeof e === "object" && e !== null && "cause" in e ? (e as { cause?: unknown }).cause : undefined;
+  }
+  return false;
+}
+
 type Actor = { id: string; name: string };
 
 export type SettlementActionRow = {
@@ -77,21 +88,28 @@ export async function recordSettlementAction(
     }
   }
 
-  const [row] = await db
-    .insert(doctorSettlementActions)
-    .values({
-      clinicId,
-      doctorId: input.doctorId,
-      doctorName: doctor.fullName ?? doctor.username,
-      appointmentId: input.appointmentId ?? null,
-      lineRef: input.lineRef ?? null,
-      kind: input.kind,
-      amount,
-      note: input.note?.slice(0, 500) ?? null,
-      createdBy: input.actor.id,
-      createdByName: input.actor.name,
-    })
-    .returning({ id: doctorSettlementActions.id });
+  let row: { id: string };
+  try {
+    [row] = await db
+      .insert(doctorSettlementActions)
+      .values({
+        clinicId,
+        doctorId: input.doctorId,
+        doctorName: doctor.fullName ?? doctor.username,
+        appointmentId: input.appointmentId ?? null,
+        lineRef: input.lineRef ?? null,
+        kind: input.kind,
+        amount,
+        note: input.note?.slice(0, 500) ?? null,
+        createdBy: input.actor.id,
+        createdByName: input.actor.name,
+      })
+      .returning({ id: doctorSettlementActions.id });
+  } catch (err) {
+    // The partial unique index rejects a second per-line waive for the same line.
+    if (isUniqueViolation(err)) return { error: "This line is already waived." };
+    throw err;
+  }
 
   const delta = input.kind === "doctor_waive" ? -amount : amount;
   return { id: row.id, outstanding: bal.outstanding + delta };

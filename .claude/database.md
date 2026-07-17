@@ -295,8 +295,10 @@ no FK — the row a reversal undoes), `note`, `created_by(+name)` snapshot, `occ
 own share (`doctor_waive`, by self-identity), the clinic forgives a deficit
 (`clinic_waive`, a clinic cost) / records a doctor→clinic `repayment` / `write_off`, or
 reverses any (`reversal`). Clinic-side kinds need the **`share_waive`** permission.
-Enforcement lands in phase 4. Indexes: (`clinic_id`,`doctor_id`);
-(`clinic_id`,`occurred_at`); (`appointment_id`).
+Indexes: (`clinic_id`,`doctor_id`); (`clinic_id`,`occurred_at`); (`appointment_id`);
+**partial UNIQUE** (`appointment_id`,`line_ref`) `WHERE kind='doctor_waive' AND line_ref
+IS NOT NULL AND appointment_id IS NOT NULL` — at most one per-line waive per line, so a
+double-waive race can't create duplicates (migration `0042`).
 
 ### `patient_payments` — money in/out subledger (Finance, phase 1)
 `id`, `clinic_id` → clinics (`cascade`), `patient_id` → patients (`cascade`),
@@ -361,7 +363,8 @@ unchanged). Indexes: (`appointment_id`); (`clinic_id`,`status`);
   (soft-deletable) + `expense_categories`. See docs/finance-plan.md. `0041`
   (discount-bearing phase 1) adds the `discount_settlements` + `doctor_settlement_actions`
   tables and `appointments.discount_split_type` / `discount_split_value` /
-  `discount_split_stale`. See docs/discount-bearing-plan.md.
+  `discount_split_stale`. See docs/discount-bearing-plan.md. `0042` adds the partial
+  unique index on `doctor_settlement_actions` (one per-line doctor_waive per line).
   (`0017` adds `appointments.discount_type` / `discount_value`; `0018` adds
   `appointments.queue_session` / `queue_number` + the queue unique index; `0019`
   adds the `activity_logs` table; `0020` adds `clinics.log_access` and drops the

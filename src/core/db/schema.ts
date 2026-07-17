@@ -973,6 +973,12 @@ export const doctorSettlementActions = pgTable(
     index("doctor_settlement_actions_clinic_doctor_idx").on(t.clinicId, t.doctorId),
     index("doctor_settlement_actions_clinic_occurred_idx").on(t.clinicId, t.occurredAt),
     index("doctor_settlement_actions_appointment_idx").on(t.appointmentId),
+    // At most ONE per-line doctor_waive per (appointment, line) — makes a double-waive
+    // race impossible at the DB level (a duplicate insert 23505s). Only per-line waives
+    // (line_ref set) are constrained; amount-based waives (line_ref NULL) are not.
+    uniqueIndex("doctor_settlement_actions_line_waive_uniq")
+      .on(t.appointmentId, t.lineRef)
+      .where(sql`${t.kind} = 'doctor_waive' and ${t.lineRef} is not null and ${t.appointmentId} is not null`),
   ],
 );
 

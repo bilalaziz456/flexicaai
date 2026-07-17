@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "doctor_settlement_actions_line_waive_uniq" ON "doctor_settlement_actions" USING btree ("appointment_id","line_ref") WHERE "doctor_settlement_actions"."kind" = 'doctor_waive' and "doctor_settlement_actions"."line_ref" is not null and "doctor_settlement_actions"."appointment_id" is not null;
