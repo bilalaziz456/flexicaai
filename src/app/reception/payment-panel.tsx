@@ -116,25 +116,37 @@ export function PaymentPanel({
         ? "text-amber-600 dark:text-amber-400"
         : "text-muted-foreground";
 
+  // A visit that isn't completed yet has no real bill/receivable — its total is an
+  // estimate and any money taken is a deposit (held until the visit is completed).
+  const notBilled = paymentStatus === "not_billed";
+
   return (
     <div className="space-y-4">
       {/* Figures */}
       <div className="grid grid-cols-3 gap-3 text-sm">
         <div>
-          <div className="text-xs text-muted-foreground">Bill</div>
+          <div className="text-xs text-muted-foreground">{notBilled ? "Estimated total" : "Bill"}</div>
           <div className="font-medium tabular-nums">{money.format(billTotal)}</div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Collected</div>
+          <div className="text-xs text-muted-foreground">{notBilled ? "Deposit paid" : "Collected"}</div>
           <div className="font-medium tabular-nums">{money.format(collected)}</div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Outstanding</div>
+          <div className="text-xs text-muted-foreground">{notBilled ? "Est. balance" : "Outstanding"}</div>
           <div className={`font-medium tabular-nums ${statusTone}`}>
             {money.format(outstanding)}
           </div>
         </div>
       </div>
+
+      {notBilled ? (
+        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+          This visit isn&apos;t completed yet, so the total is an estimate and anything
+          paid is a <strong>deposit</strong>. It only counts as revenue — and the
+          balance only becomes a receivable — once the visit is marked completed.
+        </p>
+      ) : null}
 
       {/* Collect */}
       {canCollect && outstanding > 0 ? (
