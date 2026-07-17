@@ -37,7 +37,9 @@ export type AppointmentShareContext = {
   discountSplitType: string;
   discountSplitValue: number;
   consultation: { doctorId: string; fee: number; pct: number } | null;
-  lines: { doctorId: string | null; gross: number; pct: number }[];
+  /** Procedure lines. `lineRef` (the appointment_procedures row id) + `label` (name
+   *  snapshot) identify a line for a per-line waive. */
+  lines: { doctorId: string | null; gross: number; pct: number; lineRef: string; label: string }[];
   grossTotal: number;
   /** Net with the discount the staff entered (ignores approval status). */
   netRequested: number;
@@ -114,6 +116,8 @@ export async function getAppointmentShareContext(
   // Procedure lines with their performing doctor + own discount (for the net).
   const procRows = await db
     .select({
+      id: appointmentProcedures.id,
+      name: appointmentProcedures.name,
       procedureId: appointmentProcedures.procedureId,
       unitPrice: appointmentProcedures.unitPrice,
       quantity: appointmentProcedures.quantity,
@@ -156,6 +160,8 @@ export async function getAppointmentShareContext(
       doctorId: r.doctorId,
       gross: Math.max(0, r.unitPrice * r.quantity),
       pct: rate ? resolveProcedureRate(rate, r.procedureId) : 0,
+      lineRef: r.id,
+      label: r.name,
     };
   });
 

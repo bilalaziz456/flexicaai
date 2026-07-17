@@ -8,7 +8,9 @@ import { clinicHasFeature } from "@/core/lib/features";
 import { getAppointmentBill } from "@/core/billing/bill";
 import { getPatientCredit, listAppointmentPayments } from "@/core/billing/payments";
 import { getInvoiceForAppointment } from "@/core/billing/invoice";
+import { getAppointmentDoctorLines } from "@/core/sales/appointment-lines";
 import { PaymentPanel } from "./payment-panel";
+import { LineWaives } from "./line-waives";
 import { Badge } from "@/core/ui/badge";
 import {
   Card,
@@ -170,6 +172,19 @@ export async function AppointmentDetail({
         getInvoiceForAppointment(clinicId, appointmentId),
       ])
     : [null, 0, [], null];
+
+  // Doctor-share per-line waivers (revenue-share) — only for a completed visit, and
+  // only visible to a `share_waive` holder (all lines) or the earning doctor (their
+  // own). A plain receptionist doesn't see doctor earnings.
+  const shareWaiveOn = Boolean(currentUser && can(currentUser, "share_waive", "view"));
+  const doctorLines =
+    currentUser && appt.status === "completed"
+      ? await getAppointmentDoctorLines(clinicId, appointmentId)
+      : [];
+  const visibleLines = shareWaiveOn
+    ? doctorLines
+    : doctorLines.filter((l) => l.doctorId === currentUser?.id);
+  const canWaiveShares = shareWaiveOn || (currentUser?.role === "doctor" && visibleLines.length > 0);
 
   const d = appt.scheduledAt;
   const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -344,6 +359,31 @@ export async function AppointmentDetail({
               canInvoice={Boolean(currentUser && can(currentUser, "billing", "create"))}
               invoiceLabel={invoice?.label ?? null}
               invoiceHref={`/clinic/appointments/${appt.id}/invoice`}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Doctor share — per-line waive (goodwill; comes off the doctor's earnings). */}
+      {visibleLines.length > 0 && canWaiveShares ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Doctor share</CardTitle>
+            <CardDescription>
+              Waive a doctor&apos;s share for a line — it comes off their revenue-share earnings.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <LineWaives
+              appointmentId={appt.id}
+              canWaive={canWaiveShares}
+              lines={visibleLines.map((l) => ({
+                lineRef: l.lineRef,
+                label: l.label,
+                doctorName: l.doctorName,
+                earned: l.earned,
+                waivedActionId: l.waivedActionId,
+              }))}
             />
           </CardContent>
         </Card>

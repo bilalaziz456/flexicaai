@@ -187,10 +187,14 @@ collected, earnings rise (+50 dr / +450 clinic) → doctor **−300**, clinic **
    borne portion (split 0%→one side only), each gated by its `discount_needs_approval`
    switch. No spillover means clinic-borne never drags doctors into approval.
 
-**All phases complete + split UI shipped.** The appointment form now reveals a
-"Doctor bears %/Rs" control when borne-by = Split, with a live "clinic bears X / doctor
-bears Y" preview (`discount_split_type/value` saved on create + edit, prefilled on
-edit, flowing into approvals + the settlement ledger). Remaining follow-up
-(non-blocking): per-LINE waives from the appointment detail (`line_ref` currently NULL).
+**All phases complete + split UI + per-line waives shipped.** The appointment form
+reveals a "Doctor bears %/Rs" control for a Split discount (live preview; saved +
+prefilled; flows into approvals + settlement). And the appointment detail now has a
+**Doctor share** card: each earning line (consultation / each procedure) can have the
+doctor's share **waived per line** — by that doctor (self) or a `share_waive` holder,
+with Undo. The amount is the line's collected-basis earned share (`line_ref` set);
+`recordSettlementAction({ bounded: false })` lets a line already paid out push the
+doctor into deficit (they owe it back), correctly. Nothing left outstanding on the
+plan.
 
 Each phase: DB-tested, `tsc` clean, `e2e` green — same bar as the rest of the app.

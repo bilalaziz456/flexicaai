@@ -44,6 +44,10 @@ export async function recordSettlementAction(
     appointmentId?: string | null;
     lineRef?: string | null;
     note?: string | null;
+    /** Skip the "≤ what's owed" cap — for a server-computed per-line waive whose
+     *  amount is the line's earned share (may exceed the outstanding if already paid,
+     *  legitimately pushing the doctor into deficit). Default false (bounded). */
+    bounded?: boolean;
     actor: Actor;
   },
 ): Promise<{ id: string; outstanding: number } | { error: string }> {
@@ -62,13 +66,15 @@ export async function recordSettlementAction(
   const owedToDoctor = Math.max(0, bal.outstanding); // clinic owes the doctor
   const owedByDoctor = Math.max(0, -bal.outstanding); // the doctor owes the clinic
 
-  if (input.kind === "doctor_waive") {
-    if (owedToDoctor <= 0) return { error: "This doctor isn't owed anything to waive." };
-    if (amount > owedToDoctor) return { error: `A doctor can only waive up to what they're owed (Rs ${owedToDoctor}).` };
-  } else {
-    // clinic_waive / write_off / repayment all relieve a doctor's DEBT.
-    if (owedByDoctor <= 0) return { error: "This doctor doesn't owe anything." };
-    if (amount > owedByDoctor) return { error: `Amount exceeds what the doctor owes (Rs ${owedByDoctor}).` };
+  if (input.bounded !== false) {
+    if (input.kind === "doctor_waive") {
+      if (owedToDoctor <= 0) return { error: "This doctor isn't owed anything to waive." };
+      if (amount > owedToDoctor) return { error: `A doctor can only waive up to what they're owed (Rs ${owedToDoctor}).` };
+    } else {
+      // clinic_waive / write_off / repayment all relieve a doctor's DEBT.
+      if (owedByDoctor <= 0) return { error: "This doctor doesn't owe anything." };
+      if (amount > owedByDoctor) return { error: `Amount exceeds what the doctor owes (Rs ${owedByDoctor}).` };
+    }
   }
 
   const [row] = await db
