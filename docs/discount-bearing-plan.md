@@ -174,14 +174,13 @@ collected, earnings rise (+50 dr / +450 clinic) → doctor **−300**, clinic **
    `write_off` — **amount-based** on `/clinic/shares` (mirroring payouts), enforcing
    `share_waive` (a doctor waives his OWN by identity); void = delete. Folded into
    `getDoctorBalances` (`adjustments`) and P&L (`plActionEffect`: waive/write-off = clinic
-   cost, doctor-waive = saving, repayment = cash-only). *(Per-LINE waives from the
-   appointment detail are a Phase-5 refinement; `line_ref` is stored NULL for now.)*
+   cost, doctor-waive = saving, repayment = cash-only). *(Per-LINE waives added in the
+   follow-up — see below.)*
 5. Reports/statement wiring (done): **discounts report** uses `discountBorneSplit`
    (no spill) for Clinic-bears/Doctor-bears — dropping the per-row context fetch; the
    **doctor statement** shows Earned / Discount borne / Paid / Outstanding (owes-aware)
-   with per-visit **Discount borne** and **Waives & settlements** sections. (P&L/KPI
-   wiring landed in Phases 3–4.) *(Per-LINE waives from the appointment detail remain a
-   follow-up; `line_ref` stays NULL.)*
+   with per-visit **Discount adjustment** and **Waives & settlements** sections. (P&L/KPI
+   wiring landed in Phases 3–4.)
 6. Consent/approval regeneration for bearing parties (done): `syncDiscountApprovals`
    now uses `discountBorneSplit` to require sign-off only from parties with a POSITIVE
    borne portion (split 0%→one side only), each gated by its `discount_needs_approval`
@@ -198,3 +197,34 @@ doctor into deficit (they owe it back), correctly. Nothing left outstanding on t
 plan.
 
 Each phase: DB-tested, `tsc` clean, `e2e` green — same bar as the rest of the app.
+
+## 10. Final end-to-end review — all findings RESOLVED (2026-07-17)
+
+A deep review traced every lifecycle hook and reconciled the whole system on live data.
+Result: **feature ship-ready; all findings addressed.**
+
+- **🐛 Accrual settlement lost on unpaid visits (bug — FIXED).** `recordSaleForAppointment`'s
+  `collected ≤ 0` branch voided the settlement and returned before recording it, so a
+  completed 100%-discount / unpaid visit recorded **no** bearing (the flagship "doctor
+  grants 100% discount" did nothing). Now the settlement is recorded regardless of
+  collection (it's accrual). Verified: 100% doctor-borne, collected 0 → doctor bears,
+  clinic protected, zero-sum.
+- **#1 Per-line waive snapshot drift (FIXED).** A per-line `doctor_waive` now re-syncs to
+  its line's **current** earned share on every payment/edit/void (`syncLineWaives`), and
+  syncs to 0 when the line no longer earns (unpaid / un-completed / soft-deleted) — so a
+  waived line nets to exactly 0 at any collection level and never lingers as a phantom
+  deduction. Verified: 263 (half-paid) → 525 (full, net 0) → 0 (unpaid).
+- **#2 "Discount borne" label (FIXED).** Renamed to **"Discount adjustment"** on the
+  shares balance card + doctor statement (it's positive when a doctor is protected).
+- **#4 Double-waive race (FIXED).** Partial UNIQUE index on `doctor_settlement_actions`
+  (`appointment_id`,`line_ref`) `WHERE kind='doctor_waive'` (migration `0042`) makes a
+  duplicate per-line waive impossible at the DB level; `recordSettlementAction` maps the
+  23505 to a friendly error.
+- **#3 A doctor can OWE on a completed-but-unpaid visit (by design, documented).** The
+  approved accrual model (§3, option a) recognises the bearing at completion; the debt
+  shrinks as the patient pays and converges to make-whole. Kept; flagged for staff.
+
+**Reconciliation invariants hold across every clinic** (re-snapshotted): settlements
+zero-sum; Outstanding = earned + borne + adjustments − paid; clinic cut = net − share;
+netProfit = revenue − doctorShares − expenses; KPI payable = Σ positive balances.
+Final gate: **unit 33/33 · tsc clean · e2e 61/61.** Migrations `0041`–`0042` applied.
