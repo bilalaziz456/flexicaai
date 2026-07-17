@@ -321,7 +321,7 @@ export default async function ClinicSharesPage({
                   }))}
                   series={[
                     { key: "earned", label: "Cumulative earned", color: "var(--color-chart-1)" },
-                    { key: "paid", label: "Cumulative paid", color: "var(--color-chart-2)" },
+                    { key: "paid", label: "Cumulative paid", color: "var(--color-chart-2)", dashed: true },
                   ]}
                 />
               </div>

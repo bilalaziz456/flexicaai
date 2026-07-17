@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 
-export type LineSeries = { key: string; label: string; color: string };
+export type LineSeries = { key: string; label: string; color: string; dashed?: boolean };
 export type LinePoint = { label: string; values: Record<string, number> };
 
 const HEIGHT = 260;
@@ -69,7 +69,11 @@ export function LineChart({
       <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
         {series.map((s) => (
           <li key={s.key} className="flex items-center gap-1.5">
-            <span className="inline-block h-0.5 w-3.5 rounded" style={{ background: s.color }} aria-hidden="true" />
+            {s.dashed ? (
+              <span className="inline-block w-3.5 border-t-2 border-dashed" style={{ borderColor: s.color }} aria-hidden="true" />
+            ) : (
+              <span className="inline-block h-0.5 w-3.5 rounded" style={{ background: s.color }} aria-hidden="true" />
+            )}
             <span className="text-muted-foreground">{s.label}</span>
           </li>
         ))}
@@ -94,7 +98,18 @@ export function LineChart({
               const d = points
                 .map((p, i) => `${i === 0 ? "M" : "L"}${xFor(i)},${yFor(p.values[s.key] ?? 0)}`)
                 .join(" ");
-              return <path key={s.key} d={d} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />;
+              return (
+                <path
+                  key={s.key}
+                  d={d}
+                  fill="none"
+                  stroke={s.color}
+                  strokeWidth={2}
+                  strokeDasharray={s.dashed ? "5 3" : undefined}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              );
             })}
 
             {/* x labels */}

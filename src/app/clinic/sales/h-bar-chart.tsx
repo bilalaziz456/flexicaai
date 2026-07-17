@@ -21,7 +21,9 @@ export function HBarChart({
   formatValue?: (v: number) => string;
   ariaLabel?: string;
 }) {
-  const max = rows.reduce((m, r) => Math.max(m, r.value), 0) || 1;
+  // Size bars by MAGNITUDE so a negative value (e.g. a doctor who net-bore a discount)
+  // still reads sensibly — shown red and sized by |value|.
+  const max = rows.reduce((m, r) => Math.max(m, Math.abs(r.value)), 0) || 1;
   return (
     <ul className="space-y-2.5" aria-label={ariaLabel}>
       {rows.map((r, i) => (
@@ -31,12 +33,12 @@ export function HBarChart({
               {r.label}
               {r.sublabel ? <span className="ml-1.5 text-xs text-muted-foreground">{r.sublabel}</span> : null}
             </span>
-            <span className="shrink-0 font-medium tabular-nums">{formatValue(r.value)}</span>
+            <span className={`shrink-0 font-medium tabular-nums ${r.value < 0 ? "text-destructive" : ""}`}>{formatValue(r.value)}</span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
             <div
-              className="h-full rounded-full bg-[var(--color-chart-1)]"
-              style={{ width: `${Math.max(2, Math.round((Math.max(0, r.value) / max) * 100))}%` }}
+              className={`h-full rounded-full ${r.value < 0 ? "bg-destructive" : "bg-[var(--color-chart-1)]"}`}
+              style={{ width: `${Math.max(2, Math.round((Math.abs(r.value) / max) * 100))}%` }}
             />
           </div>
         </li>
