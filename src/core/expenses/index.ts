@@ -5,6 +5,7 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, restoreValues, softDeleteValues } from "@/core/db/soft-delete";
 import { expenseCategories, expenses } from "@/core/db/schema";
+import { nextRunFrom, normalizeRecurrence } from "@/core/expenses/recurring";
 
 /**
  * Expenses (Finance) — CORE data layer. Categories are per-clinic config (deactivate,
@@ -160,13 +161,26 @@ export type ExpenseInput = {
   reference: string | null;
   note: string | null;
   recurring: boolean;
+  recurrence?: string | null; // 'monthly' | 'weekly' — only meaningful when recurring
 };
+
+/**
+ * The interval + first `next_run_on` for a (possibly recurring) expense — NULL on a
+ * one-off. The next run is one interval after the incurred date, so the original row
+ * IS the first occurrence and the cron generates only subsequent ones.
+ */
+function recurrenceFields(input: ExpenseInput): { recurrence: string | null; nextRunOn: string | null } {
+  if (!input.recurring) return { recurrence: null, nextRunOn: null };
+  const recurrence = normalizeRecurrence(input.recurrence);
+  return { recurrence, nextRunOn: nextRunFrom(input.incurredOn, recurrence) };
+}
 
 export async function createExpense(
   clinicId: string,
   input: ExpenseInput,
   actor: { id: string; name: string },
 ): Promise<string> {
+  const rec = recurrenceFields(input);
   const [row] = await db
     .insert(expenses)
     .values({
@@ -179,6 +193,8 @@ export async function createExpense(
       reference: input.reference?.slice(0, 120) || null,
       note: input.note?.slice(0, 500) || null,
       recurring: input.recurring,
+      recurrence: rec.recurrence,
+      nextRunOn: rec.nextRunOn,
       createdBy: actor.id,
       createdByName: actor.name,
     })
@@ -191,6 +207,7 @@ export async function updateExpense(
   id: string,
   input: ExpenseInput,
 ): Promise<boolean> {
+  const rec = recurrenceFields(input);
   const res = await db
     .update(expenses)
     .set({
@@ -202,6 +219,8 @@ export async function updateExpense(
       reference: input.reference?.slice(0, 120) || null,
       note: input.note?.slice(0, 500) || null,
       recurring: input.recurring,
+      recurrence: rec.recurrence,
+      nextRunOn: rec.nextRunOn,
       updatedAt: new Date(),
     })
     .where(byClinic(expenses.clinicId, clinicId, notDeleted(expenses.deletedAt), eq(expenses.id, id)))

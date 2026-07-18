@@ -47,6 +47,7 @@ const expenseSchema = z.object({
   reference: z.string().trim().max(120).optional(),
   note: z.string().trim().max(500).optional(),
   recurring: z.boolean().optional(),
+  recurrence: z.enum(["monthly", "weekly"]).optional(),
 });
 
 /** Create (id null) or edit an expense. */
@@ -68,6 +69,7 @@ export async function saveExpense(
     reference: formData.get("reference") || undefined,
     note: formData.get("note") || undefined,
     recurring: formData.get("recurring") === "on",
+    recurrence: (formData.get("recurrence") as string) || undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
 
@@ -80,6 +82,7 @@ export async function saveExpense(
     reference: parsed.data.reference ?? null,
     note: parsed.data.note ?? null,
     recurring: parsed.data.recurring ?? false,
+    recurrence: parsed.data.recurrence ?? null,
   };
 
   if (expenseId) {

@@ -6,12 +6,15 @@ import { Printer, Undo2 } from "lucide-react";
 import {
   collectPayment,
   applyAppointmentAdvance,
+  refundAppointmentPayment,
   voidAppointmentPayment,
   issueAppointmentInvoice,
+  sendInvoiceWhatsAppAction,
   type BillingActionState,
 } from "./payment-actions";
 import { Button } from "@/core/ui/button";
 import { Toast } from "@/core/ui/toast";
+import { MessageCircle } from "lucide-react";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -42,8 +45,10 @@ const KIND_LABEL: Record<string, string> = {
 /**
  * Payment section on the appointment detail — the visible face of the billing
  * ledger. Shows bill / collected / outstanding, a collect form (with apply-advance
- * when the patient has credit), the visit's payment history (void), and invoice
- * issue/print. Gating flags come from the server (ACL); the actions re-check.
+ * when the patient has credit), a refund form, the visit's payment history (void),
+ * and invoice issue/print. Gating flags come from the server (ACL); the actions
+ * re-check. `canRefund` = issue a refund; `canVoidPayment` = void a payment/advance;
+ * `canVoidRefundEntry` = reverse a refund entry (all independently grantable).
  */
 export function PaymentPanel({
   appointmentId,
@@ -54,10 +59,14 @@ export function PaymentPanel({
   credit,
   ledger,
   canCollect,
-  canVoidRefund,
+  canRefund,
+  canVoidPayment,
+  canVoidRefundEntry,
   canInvoice,
+  canSendWhatsapp,
   invoiceLabel,
   invoiceHref,
+  receiptHref,
 }: {
   appointmentId: string;
   billTotal: number;
@@ -67,11 +76,16 @@ export function PaymentPanel({
   credit: number;
   ledger: LedgerRow[];
   canCollect: boolean;
-  canVoidRefund: boolean;
+  canRefund: boolean;
+  canVoidPayment: boolean;
+  canVoidRefundEntry: boolean;
   canInvoice: boolean;
+  canSendWhatsapp: boolean;
   invoiceLabel: string | null;
   /** Reserved for the printable invoice link (next step). */
   invoiceHref?: string;
+  /** Printable payment receipt link (shown once money has been collected). */
+  receiptHref?: string;
 }) {
   const [state, formAction, pending] = useActionState<BillingActionState, FormData>(
     collectPayment.bind(null, appointmentId),
@@ -82,6 +96,18 @@ export function PaymentPanel({
     if (state.saved || state.error) setNonce((n) => n + 1);
   }, [state]);
   const [amount, setAmount] = useState(String(outstanding || ""));
+
+  // Refund form (collapsed by default; only offered when there's money to give back).
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [refundState, refundAction, refundPending] = useActionState<BillingActionState, FormData>(
+    refundAppointmentPayment.bind(null, appointmentId),
+    {},
+  );
+  const [refundNonce, setRefundNonce] = useState(0);
+  useEffect(() => {
+    if (refundState.saved || refundState.error) setRefundNonce((n) => n + 1);
+    if (refundState.saved) setRefundOpen(false);
+  }, [refundState]);
 
   const [busy, startTransition] = useTransition();
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null);
@@ -107,6 +133,11 @@ export function PaymentPanel({
     startTransition(async () => {
       const r = await issueAppointmentInvoice(appointmentId);
       flash(r.error ?? "Invoice issued.", Boolean(r.error));
+    });
+  const doSendWhatsapp = () =>
+    startTransition(async () => {
+      const r = await sendInvoiceWhatsAppAction(appointmentId);
+      flash(r.error ?? "Invoice sent on WhatsApp.", Boolean(r.error));
     });
 
   const statusTone =
@@ -206,6 +237,63 @@ export function PaymentPanel({
         </p>
       ) : null}
 
+      {/* Refund: give back money already collected on this visit. */}
+      {canRefund && collected > 0 ? (
+        refundOpen ? (
+          <form action={refundAction} className="space-y-2 rounded-lg border border-destructive/40 p-3">
+            <p className="text-xs font-medium text-destructive">
+              Refund from {money.format(collected)} collected
+            </p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground" htmlFor="rf-amount">Amount (Rs)</label>
+                <input
+                  id="rf-amount"
+                  name="amount"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={collected}
+                  defaultValue={String(collected)}
+                  className={inputCls}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground" htmlFor="rf-method">Method</label>
+                <select id="rf-method" name="method" defaultValue="cash" className={`${inputCls} select-chevron pr-8`}>
+                  <option value="cash">Cash</option>
+                  <option value="bank">Bank transfer</option>
+                  <option value="cheque">Cheque</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground" htmlFor="rf-ref">Reference</label>
+                <input id="rf-ref" name="reference" type="text" placeholder="Optional" className={inputCls} />
+              </div>
+            </div>
+            <input type="text" name="note" placeholder="Reason (optional)" className={inputCls} />
+            <div className="flex items-center gap-2">
+              <Button type="submit" size="sm" variant="destructive" disabled={refundPending}>
+                {refundPending ? "Refunding…" : "Confirm refund"}
+              </Button>
+              <Button type="button" size="sm" variant="outline" disabled={refundPending} onClick={() => setRefundOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+            <Toast
+              message={refundState.saved ? "Refund recorded." : refundState.error ?? null}
+              variant={refundState.error ? "error" : "success"}
+              token={refundNonce}
+            />
+          </form>
+        ) : (
+          <Button type="button" size="sm" variant="outline" onClick={() => setRefundOpen(true)}>
+            Refund…
+          </Button>
+        )
+      ) : null}
+
       {/* Invoice: issue a number (assigns INV-N) and/or print (thermal/A5/A4). */}
       <div className="flex flex-wrap items-center gap-3 text-sm">
         {invoiceLabel ? (
@@ -224,6 +312,25 @@ export function PaymentPanel({
           >
             <Printer className="size-3.5" aria-hidden="true" /> Print invoice
           </Link>
+        ) : null}
+        {receiptHref && collected > 0 ? (
+          <Link
+            href={receiptHref}
+            className="inline-flex items-center gap-1 font-medium underline underline-offset-4"
+          >
+            <Printer className="size-3.5" aria-hidden="true" /> Print receipt
+          </Link>
+        ) : null}
+        {canSendWhatsapp && billTotal > 0 ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={doSendWhatsapp}
+          >
+            <MessageCircle className="size-3.5" aria-hidden="true" /> Send on WhatsApp
+          </Button>
         ) : null}
       </div>
 
@@ -244,14 +351,15 @@ export function PaymentPanel({
                   {e.createdByName ? ` · ${e.createdByName}` : ""}
                 </span>
               </div>
-              {canVoidRefund ? (
+              {(e.kind === "refund" ? canVoidRefundEntry : canVoidPayment) ? (
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() => doVoid(e.id)}
                   className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
                 >
-                  <Undo2 className="size-3" aria-hidden="true" /> Void
+                  <Undo2 className="size-3" aria-hidden="true" />{" "}
+                  {e.kind === "refund" ? "Reverse" : "Void"}
                 </button>
               ) : null}
             </li>

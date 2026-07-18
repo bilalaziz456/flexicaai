@@ -106,6 +106,15 @@ export function AddExpenseForm({
           <input type="checkbox" name="recurring" className="size-4 accent-[var(--color-primary)]" />
           Recurring cost
         </label>
+        <select
+          name="recurrence"
+          defaultValue="monthly"
+          aria-label="Recurrence interval"
+          className="h-8 rounded-lg border border-input bg-[var(--input-bg)] px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <option value="monthly">Monthly</option>
+          <option value="weekly">Weekly</option>
+        </select>
       </div>
       <Toast
         message={state.saved ? "Expense added." : state.error ?? null}

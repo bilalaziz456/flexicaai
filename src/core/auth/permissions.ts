@@ -49,8 +49,16 @@ export const PERM_RESOURCES: PermResource[] = [
   { id: "discounts", label: "Discounts report", actions: ["view"], feature: "sales" },
   // Patient billing: `view` = see bills/balances/invoices; `create` = Collect a
   // payment / issue an invoice; `edit` = apply advance / edit a note; `delete` =
-  // Refund / Void (stricter — front-desk collects, a manager/admin reverses).
+  // Void a payment/advance (stricter — front-desk collects, a manager/admin
+  // reverses). NOTE: refunds are a SEPARATE resource (`refund`) below — a clinic
+  // can grant refund without also granting the power to void arbitrary payments.
   { id: "billing", label: "Billing & payments", actions: ["view", "create", "edit", "delete"], feature: "sales", createLabel: "Collect" },
+  // Refunds — money back to the patient. Split OUT of billing so refund can be
+  // granted independently of voiding payments. `create` = issue a refund;
+  // `delete` = reverse (void) a refund entry. No `edit` — a refund isn't edited,
+  // it's reversed and re-issued (the grid greys Edit out automatically). Same
+  // `sales` gate as billing.
+  { id: "refund", label: "Refunds", actions: ["view", "create", "delete"], feature: "sales", createLabel: "Refund" },
   // Receivables report — what patients owe on completed visits (view-only). Its own
   // ACL slug so a clinic can expose the "who owes us" report independently of who may
   // collect a payment (billing).
@@ -147,8 +155,10 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     sales: [V],
     discounts: [V],
     receivables: [V],
-    // Full billing incl. refund/void (manager oversees the money).
+    // Full billing incl. void (manager oversees the money).
     billing: [V, C, E, D],
+    // Manager can refund + reverse a refund (money oversight).
+    refund: [V, C, D],
     leave: [V, C, E, D],
     clinical: [V],
     prescriptions: [V],
@@ -179,7 +189,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     whatsapp: [V, C],
     recalls: [V, C, E],
     procedures: [V, C, E, D],
-    // Front desk collects payments + applies advances, but not refund/void (no D).
+    // Front desk collects payments + applies advances, but not void (no D) and
+    // not refund (the `refund` resource is not granted) — an admin/manager reverses.
     billing: [V, C, E],
     // Front desk chases balances → sees the receivables report.
     receivables: [V],

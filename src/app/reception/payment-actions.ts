@@ -9,7 +9,7 @@ import type { CurrentUser } from "@/core/types/auth";
 import { displayStaffName } from "@/core/types/auth";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments } from "@/core/db/schema";
+import { appointments, patientPayments } from "@/core/db/schema";
 import {
   recordPayment,
   applyAdvance,
@@ -17,18 +17,24 @@ import {
   voidPayment,
 } from "@/core/billing/payments";
 import { issueInvoice } from "@/core/billing/invoice";
+import { sendInvoiceWhatsApp } from "@/core/notifications/billing";
 import { revalidateFinance } from "@/app/clinic/finance-revalidate";
 import { logActivity } from "@/core/audit/log";
 
 export type BillingActionState = { error?: string; saved?: boolean };
 
-/** Billing is front-desk work: receptionist / manager / clinic admin, gated per action. */
+/**
+ * Billing is front-desk work: receptionist / manager / clinic admin, gated per
+ * action. `resource` is "billing" for collect/void, or "refund" for refunds —
+ * refunds are a separate ACL slug so they can be granted independently.
+ */
 async function requireBilling(
   action: PermAction,
+  resource: "billing" | "refund" = "billing",
 ): Promise<{ user: CurrentUser; clinicId: string } | { error: string }> {
   const user = await requireRole(["receptionist", "manager", "doctor", "clinic_admin"]);
   if (!user.clinicId) return { error: "No clinic access." };
-  if (!can(user, "billing", action)) return { error: "You don't have permission for that." };
+  if (!can(user, resource, action)) return { error: "You don't have permission for that." };
   return { user, clinicId: user.clinicId };
 }
 
@@ -137,13 +143,13 @@ export async function applyAppointmentAdvance(
   return { saved: true };
 }
 
-/** Refund from an appointment's collected amount. Stricter (billing:delete). */
+/** Refund from an appointment's collected amount. Needs `refund:create`. */
 export async function refundAppointmentPayment(
   appointmentId: string,
   _prev: BillingActionState,
   formData: FormData,
 ): Promise<BillingActionState> {
-  const guard = await requireBilling("delete");
+  const guard = await requireBilling("create", "refund");
   if ("error" in guard) return guard;
   const { user, clinicId } = guard;
 
@@ -181,14 +187,35 @@ export async function refundAppointmentPayment(
   return { saved: true };
 }
 
-/** Void (soft-delete) a ledger entry. Stricter (billing:delete). */
+/**
+ * Void (soft-delete) a ledger entry. Reversing a REFUND row needs `refund:delete`;
+ * reversing any other entry (payment/advance) needs `billing:delete` — so the two
+ * powers can be granted independently. We read the row's kind first to pick the gate.
+ */
 export async function voidAppointmentPayment(
   appointmentId: string,
   paymentId: string,
 ): Promise<BillingActionState> {
-  const guard = await requireBilling("delete");
-  if ("error" in guard) return guard;
-  const { user, clinicId } = guard;
+  const user = await requireRole(["receptionist", "manager", "doctor", "clinic_admin"]);
+  if (!user.clinicId) return { error: "No clinic access." };
+  const clinicId = user.clinicId;
+
+  const [row] = await db
+    .select({ kind: patientPayments.kind })
+    .from(patientPayments)
+    .where(
+      byClinic(
+        patientPayments.clinicId,
+        clinicId,
+        notDeleted(patientPayments.deletedAt),
+        eq(patientPayments.id, paymentId),
+      ),
+    )
+    .limit(1);
+  if (!row) return { error: "Payment not found." };
+
+  const resource = row.kind === "refund" ? "refund" : "billing";
+  if (!can(user, resource, "delete")) return { error: "You don't have permission for that." };
 
   const res = await voidPayment(clinicId, paymentId, actorOf(user));
   if ("error" in res) return { error: res.error };
@@ -197,7 +224,7 @@ export async function voidAppointmentPayment(
     action: "delete",
     entity: "appointment",
     entityId: appointmentId,
-    summary: "Voided a payment",
+    summary: row.kind === "refund" ? "Reversed a refund" : "Voided a payment",
   });
   revalidateAppt(appointmentId, await apptPatient(clinicId, appointmentId));
   return { saved: true };
@@ -219,6 +246,34 @@ export async function issueAppointmentInvoice(
     entity: "appointment",
     entityId: appointmentId,
     summary: `Issued invoice ${res.label}`,
+  });
+  revalidateAppt(appointmentId, await apptPatient(clinicId, appointmentId));
+  return { saved: true };
+}
+
+/**
+ * Send the appointment's invoice / bill summary to the patient on WhatsApp. Two
+ * gates: `billing:view` (may see the bill) AND `whatsapp:create` (may send a
+ * message) — so delivery is separate from collecting money.
+ */
+export async function sendInvoiceWhatsAppAction(
+  appointmentId: string,
+): Promise<BillingActionState> {
+  const user = await requireRole(["receptionist", "manager", "doctor", "clinic_admin"]);
+  if (!user.clinicId) return { error: "No clinic access." };
+  const clinicId = user.clinicId;
+  if (!can(user, "billing", "view") || !can(user, "whatsapp", "create")) {
+    return { error: "You don't have permission for that." };
+  }
+
+  const res = await sendInvoiceWhatsApp(clinicId, appointmentId);
+  if (!res.ok) return { error: res.error ?? "Could not send." };
+
+  await logActivity({
+    action: "create",
+    entity: "appointment",
+    entityId: appointmentId,
+    summary: "Sent invoice on WhatsApp",
   });
   revalidateAppt(appointmentId, await apptPatient(clinicId, appointmentId));
   return { saved: true };

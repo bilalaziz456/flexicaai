@@ -355,10 +355,14 @@ export async function AppointmentDetail({
                 }),
               }))}
               canCollect={Boolean(currentUser && can(currentUser, "billing", "create"))}
-              canVoidRefund={Boolean(currentUser && can(currentUser, "billing", "delete"))}
+              canRefund={Boolean(currentUser && can(currentUser, "refund", "create"))}
+              canVoidPayment={Boolean(currentUser && can(currentUser, "billing", "delete"))}
+              canVoidRefundEntry={Boolean(currentUser && can(currentUser, "refund", "delete"))}
               canInvoice={Boolean(currentUser && can(currentUser, "billing", "create"))}
+              canSendWhatsapp={Boolean(currentUser && can(currentUser, "whatsapp", "create"))}
               invoiceLabel={invoice?.label ?? null}
               invoiceHref={`/clinic/appointments/${appt.id}/invoice`}
+              receiptHref={`/clinic/appointments/${appt.id}/receipt`}
             />
           </CardContent>
         </Card>

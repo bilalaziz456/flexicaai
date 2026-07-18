@@ -1115,6 +1115,11 @@ export const expenses = pgTable(
     reference: text("reference"),
     note: text("note"),
     recurring: boolean("recurring").notNull().default(false),
+    // When `recurring`, the repeat interval ('monthly' | 'weekly') and the next date
+    // the cron should materialise a fresh (non-recurring) copy of this expense.
+    // NULL on a one-off expense and on a generated copy. See core/expenses/recurring.ts.
+    recurrence: text("recurrence"),
+    nextRunOn: date("next_run_on"),
     createdBy: uuid("created_by"),
     createdByName: text("created_by_name"),
     ...softDeleteColumns(),
@@ -1127,6 +1132,10 @@ export const expenses = pgTable(
     index("expenses_deleted_idx")
       .on(t.clinicId, t.deletedAt)
       .where(sql`${t.deletedAt} is not null`),
+    // The recurring-expense cron scans due templates across all clinics.
+    index("expenses_recurring_due_idx")
+      .on(t.nextRunOn)
+      .where(sql`${t.recurring} = true and ${t.deletedAt} is null`),
   ],
 );
 

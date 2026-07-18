@@ -137,6 +137,12 @@ export async function PatientDetail({
             <CardDescription>
               Billed, collected and outstanding across completed visits.
             </CardDescription>
+            <Link
+              href={`/clinic/patients/${patient.id}/statement`}
+              className="text-sm font-medium underline underline-offset-4"
+            >
+              Print statement →
+            </Link>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

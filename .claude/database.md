@@ -355,7 +355,7 @@ unchanged). Indexes: (`appointment_id`); (`clinic_id`,`status`);
 - **Timezone caveat (deploy):** availability, "tomorrow" (reminder), and day
   bounds use the **server's local timezone**. For a multi-region rollout
   (Pakistan vs GCC), pin each clinic to its own timezone.
-- Migrations `0000`–`0041` applied; almost always additive (the one drop:
+- Migrations `0000`–`0043` applied; almost always additive (the one drop:
   `0038` removes `sale_shares.payout_id`, superseded by amount-based payouts).
   `0039` adds the Finance billing foundation — `patient_payments` + `invoices`
   tables, `appointments.amount_collected`, and clinic invoice settings
@@ -365,6 +365,10 @@ unchanged). Indexes: (`appointment_id`); (`clinic_id`,`status`);
   tables and `appointments.discount_split_type` / `discount_split_value` /
   `discount_split_stale`. See docs/discount-bearing-plan.md. `0042` adds the partial
   unique index on `doctor_settlement_actions` (one per-line doctor_waive per line).
+  `0043` adds `expenses.recurrence` ('monthly'|'weekly') + `expenses.next_run_on`
+  date (+ a partial due-index) — the recurring-expense cron
+  (`core/expenses/recurring.ts`, `GET /api/cron/expenses`) clones a recurring
+  template into a plain expense each period and advances `next_run_on`.
   (`0017` adds `appointments.discount_type` / `discount_value`; `0018` adds
   `appointments.queue_session` / `queue_number` + the queue unique index; `0019`
   adds the `activity_logs` table; `0020` adds `clinics.log_access` and drops the

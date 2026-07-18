@@ -10,6 +10,7 @@ import { getDiscountsReport } from "@/core/sales/discounts-report";
 import { listExpenses } from "@/core/expenses";
 import { getDayBookLines } from "@/core/finance/daybook";
 import { getReceivablesReport } from "@/core/finance/receivables";
+import { getPaymentsLedger, isMoneyOut } from "@/core/finance/payments-ledger";
 import { getInvoicesList } from "@/core/billing/invoice";
 
 /**
@@ -91,6 +92,23 @@ export async function GET(req: Request) {
       report.patients.flatMap((p) =>
         p.visits.map((v) => [p.name, p.phone ?? "", ymd(v.scheduledAt), v.doctorName ?? "", v.bill, v.collected, v.outstanding]),
       ),
+    );
+  } else if (type === "payments") {
+    if (!hasSales || !can(user, "billing", "view")) return new Response("Forbidden", { status: 403 });
+    const range = resolveSalesRange(url.searchParams.get("period") ?? undefined, url.searchParams.get("from") ?? undefined, url.searchParams.get("to") ?? undefined);
+    const ledger = await getPaymentsLedger(clinicId, {
+      from: range.start,
+      toExclusive: range.end,
+      doctorId: url.searchParams.get("doctorId") || undefined,
+      method: url.searchParams.get("method") || undefined,
+      kind: url.searchParams.get("kind") || undefined,
+      q: url.searchParams.get("q") || undefined,
+      limit: 100000,
+    });
+    name = `payments-${range.from}_to_${range.to}`;
+    csv = toCsv(
+      ["Date", "Patient", "Phone", "Doctor", "Type", "Method", "Reference", "Amount", "Direction", "By", "Note"],
+      ledger.rows.map((r) => [ymd(r.occurredAt), r.patientName, r.patientPhone ?? "", r.doctorName ?? "", r.kind, r.method ?? "", r.reference ?? "", r.amount, isMoneyOut(r.kind) ? "out" : "in", r.createdByName ?? "", r.note ?? ""]),
     );
   } else if (type === "invoices") {
     if (!hasSales || !can(user, "billing", "view")) return new Response("Forbidden", { status: 403 });

@@ -106,6 +106,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; nodes: NavNode[] }> = {
         Icon: Wallet,
         items: [
           { href: "/clinic/sales", label: "Sales", Icon: TrendingUp, resource: "sales" },
+          { href: "/clinic/payments", label: "Payments", Icon: HandCoins, resource: "billing" },
           { href: "/clinic/receivables", label: "Receivables", Icon: HandCoins, resource: "receivables" },
           { href: "/clinic/discounts", label: "Discounts", Icon: TicketPercent, resource: "discounts" },
           { href: "/clinic/shares", label: "Revenue shares", Icon: PieChart, resource: "shares" },
@@ -162,6 +163,7 @@ const SALES_HREFS = new Set([
   "/reception/procedures",
   "/clinic/sales",
   "/clinic/discounts",
+  "/clinic/payments",
 ]);
 
 /**

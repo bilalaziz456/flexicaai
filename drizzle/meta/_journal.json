@@ -302,6 +302,13 @@
       "when": 1784248169075,
       "tag": "0042_lame_zarek",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1784405940125,
+      "tag": "0043_brave_brother_voodoo",
+      "breakpoints": true
     }
   ]
 }

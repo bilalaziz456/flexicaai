@@ -245,6 +245,39 @@ The app already has a **gold-standard responsive pattern** (see
 - **Nav refactor** (§8 Phase 7): parent/subtabs work in the **mobile drawer** too
   (auto-expand the active group).
 
+### Post-plan additions — document/delivery edge ✅ (2026-07-19)
+
+The finance ENGINE was complete, but four plan items lived only on the
+document/delivery edge; all now shipped, honouring the same feature + ACL gates:
+
+- **Payment receipt + patient statement (print).** `/clinic/appointments/[id]/receipt`
+  (money received on a visit + running balance) and `/clinic/patients/[id]/statement`
+  (per-visit bill/collected/outstanding + full ledger + closing balance/credit), both
+  via the shared `InvoicePrintFrame` (thermal/A5/A4 + Save-PDF). Linked from the
+  payment panel ("Print receipt") and the patient Account card ("Print statement").
+  Gated by `sales` feature + `billing:view`.
+- **Standalone Payments ledger** (`/clinic/payments`). Clinic-wide money in/out
+  register — period/doctor/method/type/patient-search filters, money-in/refunds/net
+  summary, dual-render mobile, CSV (`?type=payments`). Read-only (void/refund stay on
+  the appointment detail). `core/finance/payments-ledger.ts`; nav under Finance + a
+  Reports-hub card. Gated by `sales` + `billing:view`.
+- **Invoice WhatsApp delivery.** "Send on WhatsApp" on the payment panel →
+  `sendInvoiceWhatsApp` (`core/notifications/billing.ts`) sends the bill summary
+  (ref/total/paid/outstanding) via the new `AISENSY_INVOICE_CAMPAIGN` template.
+  Two gates: `billing:view` (see the bill) AND `whatsapp:create` (send) — delivery is
+  separate from collecting. Records + audits every attempt; graceful when unconfigured.
+- **Recurring-expense cron.** `expenses` gains `recurrence` ('monthly'|'weekly') +
+  `next_run_on` (migration `0043`); a recurring row is a TEMPLATE that
+  `GET /api/cron/expenses` (`core/expenses/recurring.ts`, daily 02:00 in `vercel.json`,
+  `CRON_SECRET`-guarded) clones into a plain expense each due period, advancing
+  `next_run_on` (catch-up capped at 24, idempotent). Expense form gained a
+  monthly/weekly selector. DB-verified: 2 missed months → 2 clones, template advances,
+  second run no-ops.
+
+Also (same day): **refunds split into their own ACL** — a dedicated `refund` resource
+(view/create/delete) out of `billing:delete`, wired to a Refund form on the payment
+panel; void stays `billing:delete` (kind-aware). Receptionist has no refund by default.
+
 ## 11. Not in scope (yet)
 
 Tax/VAT computation (slot left in P&L), multi-currency, insurance/third-party claims,
