@@ -8,6 +8,7 @@ import {
   PERIOD_OPTIONS,
   PERIOD_LABELS,
 } from "@/app/clinic/sales/sales-filters";
+import { SearchableSelect } from "@/core/ui/searchable-select";
 
 const BORNE_OPTIONS = [
   { value: "", label: "Any bearer" },
@@ -76,7 +77,6 @@ export function DiscountFilters({
     { value: "", label: "All doctors" },
     ...doctors.map((d) => ({ value: d.id, label: d.name })),
   ];
-  const doctorItems = Object.fromEntries(doctorOptions.map((o) => [o.value, o.label]));
 
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
@@ -91,11 +91,10 @@ export function DiscountFilters({
           push({ period: v });
         }}
       />
-      <FilterSelect
+      <SearchableSelect
         label="Doctor"
         ariaLabel="Filter by doctor"
         value={doctorV}
-        items={doctorItems}
         options={doctorOptions}
         onChange={(v) => {
           setDoctorV(v);

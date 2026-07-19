@@ -6,6 +6,7 @@ import { Select } from "@base-ui/react/select";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Label } from "@/core/ui/label";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
+import { SearchableSelect } from "@/core/ui/searchable-select";
 
 export const PERIOD_OPTIONS: { value: string; label: string }[] = [
   { value: "today", label: "Today" },
@@ -136,7 +137,6 @@ export function SalesFilters({
     { value: "", label: "All doctors" },
     ...doctors.map((d) => ({ value: d.id, label: d.name })),
   ];
-  const doctorItems = Object.fromEntries(doctorOptions.map((o) => [o.value, o.label]));
 
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
@@ -152,11 +152,10 @@ export function SalesFilters({
         }}
       />
       {showDoctor ? (
-        <FilterSelect
+        <SearchableSelect
           label="Doctor"
           ariaLabel="Filter by doctor"
           value={doctorV}
-          items={doctorItems}
           options={doctorOptions}
           onChange={(v) => {
             setDoctorV(v);

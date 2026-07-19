@@ -15,6 +15,7 @@ import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { DatePicker } from "@/core/ui/date-picker";
 import { Toast } from "@/core/ui/toast";
+import { SearchableSelect } from "@/core/ui/searchable-select";
 
 const inputCls =
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -39,26 +40,34 @@ export function AddExpenseForm({
   const [nonce, setNonce] = useState(0);
   const [date, setDate] = useState(todayStr());
   const [amount, setAmount] = useState("");
+  const [categoryId, setCategoryId] = useState("");
   useEffect(() => {
     if (state.saved) {
       setAmount("");
       setDate(todayStr());
+      setCategoryId("");
     }
     if (state.saved || state.error) setNonce((n) => n + 1);
   }, [state]);
 
+  const categoryOptions = [
+    { value: "", label: "Uncategorized" },
+    ...categories.map((c) => ({ value: c.id, label: c.name })),
+  ];
+
   return (
     <form action={formAction} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="space-y-1">
-          <Label htmlFor="ex-cat" className="text-xs text-muted-foreground">Category</Label>
-          <select id="ex-cat" name="categoryId" defaultValue="" className={selectCls}>
-            <option value="">Uncategorized</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
+        <SearchableSelect
+          label="Category"
+          ariaLabel="Expense category"
+          name="categoryId"
+          value={categoryId}
+          onChange={setCategoryId}
+          options={categoryOptions}
+          placeholder="Category"
+          className="w-full"
+        />
         <div className="space-y-1">
           <Label htmlFor="ex-amount" className="text-xs text-muted-foreground">Amount (Rs)</Label>
           <input

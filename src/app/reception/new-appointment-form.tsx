@@ -17,6 +17,7 @@ import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { TimeSelect } from "@/core/ui/time-select";
 import { Toast } from "@/core/ui/toast";
+import { SearchableSelect } from "@/core/ui/searchable-select";
 import {
   computeAppointmentTotal,
   formatPkr,
@@ -209,6 +210,10 @@ export function NewAppointmentForm({
   }, []);
 
   const selectedDoctor = doctors.find((d) => d.id === doctorId) ?? null;
+  const doctorOptions = [
+    { value: "", label: "— Any —" },
+    ...doctors.map((d) => ({ value: d.id, label: d.fullName ?? d.username })),
+  ];
   const consultationFee = selectedDoctor?.consultationFee ?? 0;
   // Live bill preview: consultation fee (if charged) + procedures, minus discount.
   const bill = computeAppointmentTotal(
@@ -313,24 +318,19 @@ export function NewAppointmentForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="doctorId">Doctor (optional)</Label>
-          <select
-            id="doctorId"
+          <Label>Doctor (optional)</Label>
+          <SearchableSelect
+            ariaLabel="Doctor"
             name="doctorId"
             value={doctorId}
-            onChange={(e) => {
-              setDoctorId(e.target.value);
-              void refreshSlots(e.target.value, date);
+            onChange={(v) => {
+              setDoctorId(v);
+              void refreshSlots(v, date);
             }}
-            className={nativeSelectCls}
-          >
-            <option value="">— Any —</option>
-            {doctors.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.fullName ?? d.username}
-              </option>
-            ))}
-          </select>
+            options={doctorOptions}
+            placeholder="Any doctor"
+            className="w-full"
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="durationMinutes">Duration (minutes)</Label>

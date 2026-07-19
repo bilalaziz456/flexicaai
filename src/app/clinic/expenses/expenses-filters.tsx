@@ -12,6 +12,7 @@ import {
   filterFieldCls,
   filterLabelCls,
 } from "@/app/clinic/sales/sales-filters";
+import { SearchableSelect } from "@/core/ui/searchable-select";
 
 const METHOD_OPTIONS = [
   { value: "", label: "Any method" },
@@ -83,7 +84,6 @@ export function ExpenseFilters({
     { value: "", label: "All categories" },
     ...categories.map((c) => ({ value: c.id, label: c.name })),
   ];
-  const catItems = Object.fromEntries(catOptions.map((o) => [o.value, o.label]));
 
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
@@ -98,11 +98,10 @@ export function ExpenseFilters({
           push({ period: v });
         }}
       />
-      <FilterSelect
+      <SearchableSelect
         label="Category"
         ariaLabel="Filter by category"
         value={catV}
-        items={catItems}
         options={catOptions}
         onChange={(v) => {
           setCatV(v);

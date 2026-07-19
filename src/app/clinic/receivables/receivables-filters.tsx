@@ -10,6 +10,7 @@ import {
   filterFieldCls,
   filterLabelCls,
 } from "@/app/clinic/sales/sales-filters";
+import { SearchableSelect } from "@/core/ui/searchable-select";
 
 // Receivables is a point-in-time balance, so it defaults to ALL TIME (no date
 // bound) — the presets narrow it to visits within a window when needed.
@@ -61,7 +62,6 @@ export function ReceivablesFilters({
   }
 
   const doctorOptions = [{ value: "", label: "All doctors" }, ...doctors.map((d) => ({ value: d.id, label: d.name }))];
-  const doctorItems = Object.fromEntries(doctorOptions.map((o) => [o.value, o.label]));
 
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
@@ -76,11 +76,10 @@ export function ReceivablesFilters({
           push({ period: v });
         }}
       />
-      <FilterSelect
+      <SearchableSelect
         label="Doctor"
         ariaLabel="Filter by doctor"
         value={doctorV}
-        items={doctorItems}
         options={doctorOptions}
         onChange={(v) => {
           setDoctorV(v);
