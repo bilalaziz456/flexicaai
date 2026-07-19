@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CalendarPlus } from "lucide-react";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, patients, users } from "@/core/db/schema";
+import { appointments, patients, users, visits } from "@/core/db/schema";
 import { Badge } from "@/core/ui/badge";
+import { buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
 import {
   Card,
   CardContent,
@@ -37,6 +40,9 @@ export async function PatientDetail({
   backHref,
   canEdit,
   canDelete,
+  canBook = false,
+  bookPath,
+  canViewClinical = false,
   showFinancials = false,
 }: {
   clinicId: string;
@@ -44,6 +50,12 @@ export async function PatientDetail({
   backHref: string;
   canEdit: boolean;
   canDelete: boolean;
+  /** Show a "Create appointment" action — needs `appointments:create` and the
+   *  new-appointment page path (`bookPath`). */
+  canBook?: boolean;
+  bookPath?: string;
+  /** Show the clinical history (visit notes) — needs `clinical:view` (§10). */
+  canViewClinical?: boolean;
   /** Show the Finance account card (sales feature + billing:view). */
   showFinancials?: boolean;
 }) {
@@ -82,6 +94,34 @@ export async function PatientDetail({
     .orderBy(desc(appointments.scheduledAt))
     .limit(20);
 
+  // Clinical history — the visit record timeline. Phase 0 reads the existing
+  // `visits` (transcript + module-shaped note); later phases add the structured
+  // chart. Gated by `clinical:view` (§6). Newest first.
+  const clinicalVisits = canViewClinical
+    ? await db
+        .select({
+          id: visits.id,
+          visitDate: visits.visitDate,
+          status: visits.status,
+          note: visits.note,
+          doctorName: users.fullName,
+          doctorUsername: users.username,
+          doctorPrefix: users.prefix,
+        })
+        .from(visits)
+        .leftJoin(users, eq(visits.doctorId, users.id))
+        .where(
+          byClinic(
+            visits.clinicId,
+            clinicId,
+            notDeleted(visits.deletedAt),
+            eq(visits.patientId, patientId),
+          ),
+        )
+        .orderBy(desc(visits.visitDate))
+        .limit(30)
+    : [];
+
   const account = showFinancials ? await getPatientAccount(clinicId, patientId) : null;
   const money = (n: number) =>
     new Intl.NumberFormat("en-PK", {
@@ -114,19 +154,30 @@ export async function PatientDetail({
         entityId={patient.id}
         summary={`Viewed patient ${patient.fullName}`}
       />
-      <div>
-        <Link
-          href={backHref}
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
-          ← Back to patients
-        </Link>
-        <h1 className="mt-2 text-xl font-semibold">{patient.fullName}</h1>
-        <p className="text-sm text-muted-foreground">{patient.phone ?? "No phone"}</p>
-        {patient.reference ? (
-          <p className="text-sm text-muted-foreground">
-            Reference: {patient.reference}
-          </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Link
+            href={backHref}
+            className="text-sm text-muted-foreground underline underline-offset-4"
+          >
+            ← Back to patients
+          </Link>
+          <h1 className="mt-2 text-xl font-semibold">{patient.fullName}</h1>
+          <p className="text-sm text-muted-foreground">{patient.phone ?? "No phone"}</p>
+          {patient.reference ? (
+            <p className="text-sm text-muted-foreground">
+              Reference: {patient.reference}
+            </p>
+          ) : null}
+        </div>
+        {canBook && bookPath ? (
+          <Link
+            href={`${bookPath}?patientId=${patient.id}`}
+            className={cn(buttonVariants(), "hidden sm:inline-flex")}
+          >
+            <CalendarPlus className="size-4" aria-hidden="true" />
+            Create appointment
+          </Link>
         ) : null}
       </div>
 
@@ -264,6 +315,92 @@ export async function PatientDetail({
         </CardContent>
       </Card>
 
+      {canViewClinical ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Clinical history</CardTitle>
+            <CardDescription>
+              The patient&apos;s visit records — chief complaint, findings, diagnosis and
+              treatment.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {clinicalVisits.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No clinical notes yet.</p>
+            ) : (
+              <ol className="space-y-4">
+                {clinicalVisits.map((v) => {
+                  const note = (v.note && typeof v.note === "object" ? v.note : {}) as {
+                    chiefComplaint?: string | null;
+                    diagnosis?: string | null;
+                    findings?: { tooth?: string | null; finding?: string }[];
+                    treatmentPerformed?: string[];
+                    treatmentPlan?: string[];
+                  };
+                  const findings = Array.isArray(note.findings) ? note.findings : [];
+                  const performed = Array.isArray(note.treatmentPerformed)
+                    ? note.treatmentPerformed
+                    : [];
+                  const doctor =
+                    v.doctorName || v.doctorUsername
+                      ? `${v.doctorPrefix ? `${v.doctorPrefix}. ` : ""}${v.doctorName ?? v.doctorUsername}`
+                      : "—";
+                  return (
+                    <li
+                      key={v.id}
+                      className="relative rounded-lg border p-3 text-sm"
+                    >
+                      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium">
+                          {v.visitDate ? dayFmt(v.visitDate) : "—"}
+                          <span className="text-muted-foreground"> · {doctor}</span>
+                        </span>
+                        <Badge variant={v.status === "approved" ? "default" : "secondary"}>
+                          {v.status === "approved" ? "Approved" : "Draft"}
+                        </Badge>
+                      </div>
+                      {note.chiefComplaint ? (
+                        <p>
+                          <span className="text-muted-foreground">Chief complaint: </span>
+                          {note.chiefComplaint}
+                        </p>
+                      ) : null}
+                      {note.diagnosis ? (
+                        <p>
+                          <span className="text-muted-foreground">Diagnosis: </span>
+                          {note.diagnosis}
+                        </p>
+                      ) : null}
+                      {findings.length > 0 ? (
+                        <p>
+                          <span className="text-muted-foreground">Findings: </span>
+                          {findings
+                            .map((f) => (f.tooth ? `${f.tooth}: ${f.finding ?? ""}` : f.finding ?? ""))
+                            .filter(Boolean)
+                            .join("; ")}
+                        </p>
+                      ) : null}
+                      {performed.length > 0 ? (
+                        <p>
+                          <span className="text-muted-foreground">Treatment: </span>
+                          {performed.join("; ")}
+                        </p>
+                      ) : null}
+                      {!note.chiefComplaint &&
+                      !note.diagnosis &&
+                      findings.length === 0 &&
+                      performed.length === 0 ? (
+                        <p className="text-muted-foreground">Clinical note recorded.</p>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>Appointments</CardTitle>
@@ -311,6 +448,21 @@ export async function PatientDetail({
             <DeletePatientButton patientId={patient.id} name={patient.fullName} />
           </CardContent>
         </Card>
+      ) : null}
+
+      {/* Mobile: a floating "create appointment" action (icon only), mirroring the
+          list FABs. The header button covers desktop. */}
+      {canBook && bookPath ? (
+        <Link
+          href={`${bookPath}?patientId=${patient.id}`}
+          aria-label="Create appointment"
+          className={cn(
+            buttonVariants({ size: "icon" }),
+            "fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg sm:hidden",
+          )}
+        >
+          <CalendarPlus className="size-6" aria-hidden="true" />
+        </Link>
       ) : null}
     </div>
   );

@@ -20,6 +20,9 @@ export default async function DoctorPatientDetailPage({
       backHref="/doctor/patients"
       canEdit={can(user, "patients", "edit")}
       canDelete={can(user, "patients", "delete")}
+      canBook={can(user, "appointments", "create")}
+      bookPath="/doctor/appointments/new"
+      canViewClinical={can(user, "clinical", "view")}
     />
   );
 }

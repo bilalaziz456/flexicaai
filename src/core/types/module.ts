@@ -7,6 +7,8 @@
  * interface in /modules and registering it — zero core changes.
  */
 
+import type { ComponentType } from "react";
+
 /** A module/specialty id, e.g. "dental". Kept as a plain string so core stays agnostic. */
 export type ModuleId = string;
 
@@ -55,6 +57,35 @@ export interface ProcedureTemplate {
   price: number;
 }
 
+/** Props core passes to a module's structured visit editor (e.g. the tooth chart). */
+export interface ClinicalVisitEditorProps {
+  /** The structured record being edited (module-shaped) — seeded from the scribe draft. */
+  value: unknown;
+  /** Controlled update as the doctor edits (still a DRAFT until the visit is approved). */
+  onChange: (value: unknown) => void;
+}
+
+/** Props core passes to a module's read-only patient chart (e.g. the current odontogram). */
+export interface PatientChartProps {
+  /** The patient's current chart state (module-shaped). */
+  chart: unknown;
+}
+
+/**
+ * Optional specialty clinical-record UI a module supplies — the `components` slot
+ * that was deliberately deferred until the panel needed it (§0). Core renders these
+ * BY THE CONTRACT and never knows it's an odontogram: when the enabled module provides
+ * this, the visit/scribe screen uses `VisitEditor` instead of the generic NoteEditor,
+ * and the patient clinical tab shows `PatientChart`. The concrete prop/record shapes
+ * are module-defined (hence `unknown`), tightened alongside the tooth chart in Phase 1.
+ */
+export interface ModuleClinicalRecord {
+  VisitEditor: ComponentType<ClinicalVisitEditorProps>;
+  PatientChart: ComponentType<PatientChartProps>;
+  /** Map a scribe draft note into the editor's initial value (a pre-filled chart). */
+  seedFromNote: (note: unknown) => unknown;
+}
+
 export interface ModuleDefinition {
   id: ModuleId;
   /** Display name of the specialty, e.g. "Dental". */
@@ -71,6 +102,12 @@ export interface ModuleDefinition {
    * a clinic always edits/adds its own afterwards.
    */
   procedureTemplates?: ProcedureTemplate[];
+  /**
+   * Optional structured clinical-record UI (tooth chart, etc.). When present, core
+   * renders it in place of the generic note editor / clinical tab. Absent for a
+   * module with no specialty chart — core falls back to the generic NoteEditor.
+   */
+  clinicalRecord?: ModuleClinicalRecord;
 }
 
 /** Whether a specialty is usable now or only planned. */

@@ -11,7 +11,11 @@ if (!process.env.DATABASE_URL) {
 }
 
 export default defineConfig({
-  schema: "./src/core/db/schema.ts",
+  // Core tables + module-owned tables (each specialty keeps its own schema file, e.g.
+  // src/modules/dental/db/schema.ts). This is drizzle-KIT codegen config only — it does
+  // NOT make /core import /modules; module code imports its own tables and passes them
+  // to `db.select()` (the app uses no relational `db.query`, so no client merge needed).
+  schema: ["./src/core/db/schema.ts", "./src/modules/**/db/schema.ts"],
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {
