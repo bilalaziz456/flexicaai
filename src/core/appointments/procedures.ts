@@ -66,6 +66,11 @@ export function appointmentProceduresGrossSql(): SQL<number> {
   return sql<number>`coalesce((select sum(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity})::int from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${appointments.id}), 0)`;
 }
 
+/** Correlated EXISTS — does the OUTER `appointments.id` have any procedure line? */
+export function appointmentHasProceduresSql(): SQL<boolean> {
+  return sql<boolean>`exists (select 1 from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${appointments.id})`;
+}
+
 /**
  * A clinic's ACTIVE procedures for the booking picker — but only when the
  * clinic has the `sales` feature on (otherwise appointments stay fee-only and

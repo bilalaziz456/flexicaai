@@ -21,6 +21,11 @@ const STATUSES: StatusFilter[] = [
   "no_show",
 ];
 
+/** Visit type: what the appointment is FOR ("" = any). Derived from the
+ *  consultation charge + whether any procedures are attached. */
+export type VisitTypeFilter = "" | "consultation" | "procedure" | "both";
+const VISIT_TYPES: VisitTypeFilter[] = ["consultation", "procedure", "both"];
+
 /**
  * Parses the appointment-list URL filters (`from`/`to`/`q`) with sensible
  * defaults: the date range falls back to TODAY (both bounds), a reversed range
@@ -32,12 +37,14 @@ export function parseListFilters(sp: {
   to?: string;
   q?: string;
   status?: string;
+  type?: string;
 }): {
   fromStr: string;
   toStr: string;
   today: string;
   q: string;
   status: StatusFilter;
+  type: VisitTypeFilter;
   start: Date;
   endExclusive: Date;
 } {
@@ -49,8 +56,11 @@ export function parseListFilters(sp: {
   const status: StatusFilter = STATUSES.includes(sp.status as StatusFilter)
     ? (sp.status as StatusFilter)
     : "";
+  const type: VisitTypeFilter = VISIT_TYPES.includes(sp.type as VisitTypeFilter)
+    ? (sp.type as VisitTypeFilter)
+    : "";
   const start = dateFromStr(fromStr);
   const endExclusive = dateFromStr(toStr);
   endExclusive.setDate(endExclusive.getDate() + 1);
-  return { fromStr, toStr, today, q, status, start, endExclusive };
+  return { fromStr, toStr, today, q, status, type, start, endExclusive };
 }

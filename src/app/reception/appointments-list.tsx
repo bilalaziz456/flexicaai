@@ -13,7 +13,10 @@ import {
   effectiveDiscountValue,
   formatPkr,
 } from "@/core/appointments/fee";
-import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
+import {
+  appointmentHasProceduresSql,
+  appointmentProceduresNetSql,
+} from "@/core/appointments/procedures";
 import { getDayQueue } from "@/core/appointments/queue";
 import { parseListFilters } from "@/core/appointments/list-filters";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
@@ -48,6 +51,7 @@ export type AppointmentsListSearchParams = {
   to?: string;
   q?: string;
   status?: string;
+  type?: string;
   payment?: string;
   session?: string;
   page?: string;
@@ -89,7 +93,7 @@ export async function AppointmentsList({
       ? "Appointment updated."
       : null;
 
-  const { fromStr, toStr, today, q, status, start, endExclusive } =
+  const { fromStr, toStr, today, q, status, type, start, endExclusive } =
     parseListFilters(sp);
 
   const session = typeof sp.session === "string" ? sp.session : "";
@@ -110,16 +114,31 @@ export async function AppointmentsList({
   const subtotalSql = sql`((case when ${appointments.chargeConsultation} then coalesce(${users.consultationFee}, 0) else 0 end) + ${appointmentProceduresNetSql()})`;
   const netSql = sql`(${subtotalSql} - least(greatest(case when ${appointments.discountType} = 'percent' then round(${subtotalSql} * ${effDiscount} / 100.0) else ${effDiscount} end, 0), ${subtotalSql}))`;
 
+  // A queue session pins the doctor + day + window (ordered by token); the date
+  // range applies only in the normal list. The other filters (search, status,
+  // type, payment) narrow BOTH views — so selecting a doctor's queue still filters.
   const conds = session
     ? [eq(appointments.queueSession, session)]
     : [gte(appointments.scheduledAt, start), lt(appointments.scheduledAt, endExclusive)];
-  if (!session && q) {
+  if (q) {
     conds.push(
       or(ilike(patients.fullName, `%${q}%`), ilike(patients.phone, `%${q}%`))!,
     );
   }
-  if (!session && status) conds.push(eq(appointments.status, status));
-  if (!session && payment) {
+  if (status) conds.push(eq(appointments.status, status));
+  // Visit type = consultation (fee, no procedures) · procedure (procedures, fee not
+  // charged) · both (fee + procedures). Derived from charge_consultation + procedures.
+  if (type) {
+    const hasProc = appointmentHasProceduresSql();
+    if (type === "both") {
+      conds.push(sql`${appointments.chargeConsultation} = true and ${hasProc}`);
+    } else if (type === "procedure") {
+      conds.push(sql`${appointments.chargeConsultation} = false and ${hasProc}`);
+    } else if (type === "consultation") {
+      conds.push(sql`not ${hasProc}`);
+    }
+  }
+  if (payment) {
     if (payment === "paid") {
       conds.push(sql`${appointments.status} = 'completed' and (${netSql} <= 0 or ${appointments.amountCollected} >= ${netSql})`);
     } else if (payment === "partial") {
@@ -155,6 +174,7 @@ export async function AppointmentsList({
         doctorPrefix: users.prefix,
         consultationFee: users.consultationFee,
         proceduresTotal: appointmentProceduresNetSql(),
+        hasProcedures: appointmentHasProceduresSql(),
       })
       .from(appointments)
       .innerJoin(patients, eq(appointments.patientId, patients.id))
@@ -212,13 +232,23 @@ export async function AppointmentsList({
     if (a.amountCollected > 0) return { label: `Partial · ${formatPkr(left)} left`, variant: "secondary" };
     return { label: "Unpaid", variant: "destructive" };
   };
+  // What the visit is FOR: consultation (fee, no procedures) · procedure (procedures,
+  // consultation not charged) · both. Mirrors the `type` filter's SQL derivation.
+  const typeInfo = (
+    a: (typeof rows)[number],
+  ): { label: string; variant: "default" | "secondary" | "outline" } => {
+    if (a.hasProcedures && a.chargeConsultation) return { label: "Both", variant: "default" };
+    if (a.hasProcedures) return { label: "Procedure", variant: "secondary" };
+    return { label: "Consultation", variant: "outline" };
+  };
 
   const rangeLabel =
     fromStr === toStr ? (fromStr === today ? "today" : fromStr) : `${fromStr} → ${toStr}`;
   const statusLabel = status ? ` · ${status.replace("_", " ")}` : "";
+  const typeLabel = type ? ` · ${type}` : "";
   const contextLabel = session
     ? `queue · ${activeQueue ? `${activeQueue.doctorName} · ${activeQueue.windowLabel}` : "selected"}`
-    : `${rangeLabel}${statusLabel}${q ? ` · “${q}”` : ""}`;
+    : `${rangeLabel}${statusLabel}${typeLabel}${q ? ` · “${q}”` : ""}`;
 
   return (
     <div className="space-y-6">
@@ -257,17 +287,22 @@ export async function AppointmentsList({
             Show all appointments
           </Link>
         </div>
-      ) : (
-        <AppointmentFilters
-          from={fromStr}
-          to={toStr}
-          q={q}
-          status={status}
-          payment={payment}
-          showPayment={billingOn}
-          today={today}
-        />
-      )}
+      ) : null}
+
+      {/* Filters stay visible even inside a doctor's queue — they narrow within it.
+          The date range only makes sense for the full list, so it's hidden in a queue
+          (the session already pins the day), and `session` is preserved on change. */}
+      <AppointmentFilters
+        from={fromStr}
+        to={toStr}
+        q={q}
+        status={status}
+        type={type}
+        payment={payment}
+        showPayment={billingOn}
+        today={today}
+        session={session}
+      />
 
       <Pagination
         page={page}
@@ -292,6 +327,7 @@ export async function AppointmentsList({
                   <TableHead>When</TableHead>
                   <TableHead>Patient</TableHead>
                   <TableHead>Doctor</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Fee</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -310,6 +346,12 @@ export async function AppointmentsList({
                     <TableCell className="font-medium">{fmt(a.scheduledAt)}</TableCell>
                     <TableCell>{a.patientName}</TableCell>
                     <TableCell>{doctorLabel(a)}</TableCell>
+                    <TableCell>
+                      {(() => {
+                        const t = typeInfo(a);
+                        return <Badge variant={t.variant}>{t.label}</Badge>;
+                      })()}
+                    </TableCell>
                     <TableCell>
                       {(() => {
                         const f = feeLabel(a);
@@ -381,6 +423,12 @@ export async function AppointmentsList({
                       return p ? <Badge variant={p.variant}>{p.label}</Badge> : null;
                     })()}
                   </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {(() => {
+                    const t = typeInfo(a);
+                    return <Badge variant={t.variant}>{t.label}</Badge>;
+                  })()}
                 </div>
                 <div className="text-sm text-muted-foreground">
                   {fmt(a.scheduledAt)} · {doctorLabel(a)}

@@ -30,6 +30,16 @@ const PAYMENT_LABELS: Record<string, string> = Object.fromEntries(
   PAYMENT_OPTIONS.map((o) => [o.value, o.label]),
 );
 
+const TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "Any type" },
+  { value: "consultation", label: "Consultation" },
+  { value: "procedure", label: "Procedure" },
+  { value: "both", label: "Both" },
+];
+const TYPE_LABELS: Record<string, string> = Object.fromEntries(
+  TYPE_OPTIONS.map((o) => [o.value, o.label]),
+);
+
 /**
  * Date-range + text filter bar for the appointment lists (clinic + reception).
  * Route-agnostic (uses the current pathname). Pushes `from`/`to`/`q` query
@@ -41,18 +51,24 @@ export function AppointmentFilters({
   to,
   q,
   status,
+  type = "",
   payment = "",
   showPayment = false,
   today,
+  session = "",
 }: {
   from: string;
   to: string;
   q: string;
   status: string;
+  type?: string;
   payment?: string;
   /** Show the Payment (Paid/Partial/Unpaid) filter — only when the clinic bills. */
   showPayment?: boolean;
   today: string;
+  /** When set, the list is scoped to one doctor's queue: preserve it on every
+   *  filter change and hide the date range (the session already pins the day). */
+  session?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -60,6 +76,7 @@ export function AppointmentFilters({
   const [toD, setToD] = useState(to);
   const [query, setQuery] = useState(q);
   const [statusV, setStatusV] = useState(status);
+  const [typeV, setTypeV] = useState(type);
   const [paymentV, setPaymentV] = useState(payment);
 
   function push(next: {
@@ -67,18 +84,27 @@ export function AppointmentFilters({
     to?: string;
     q?: string;
     status?: string;
+    type?: string;
     payment?: string;
   }) {
     const f = next.from ?? fromD;
     const t = next.to ?? toD;
     const qq = next.q ?? query;
     const st = next.status ?? statusV;
+    const ty = next.type ?? typeV;
     const pay = next.payment ?? paymentV;
     const params = new URLSearchParams();
-    if (f) params.set("from", f);
-    if (t) params.set("to", t);
+    // In a queue view the session pins the doctor/day — keep it and drop the date
+    // range; otherwise carry the date range as usual.
+    if (session) {
+      params.set("session", session);
+    } else {
+      if (f) params.set("from", f);
+      if (t) params.set("to", t);
+    }
     if (qq.trim()) params.set("q", qq.trim());
     if (st) params.set("status", st);
+    if (ty) params.set("type", ty);
     if (pay) params.set("payment", pay);
     const s = params.toString();
     router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
@@ -109,18 +135,20 @@ export function AppointmentFilters({
 
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
-      <DateRangeFields
-        from={fromD}
-        to={toD}
-        onFrom={(v) => {
-          setFromD(v);
-          push({ from: v });
-        }}
-        onTo={(v) => {
-          setToD(v);
-          push({ to: v });
-        }}
-      />
+      {!session ? (
+        <DateRangeFields
+          from={fromD}
+          to={toD}
+          onFrom={(v) => {
+            setFromD(v);
+            push({ from: v });
+          }}
+          onTo={(v) => {
+            setToD(v);
+            push({ to: v });
+          }}
+        />
+      ) : null}
       <div className={fieldCls}>
         <Label className={labelCls}>Status</Label>
         <Select.Root
@@ -145,6 +173,49 @@ export function AppointmentFilters({
             <Select.Positioner side="bottom" align="start" sideOffset={4} className="z-50">
               <Select.Popup className="z-50 min-w-40 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none">
                 {STATUS_OPTIONS.map((o) => (
+                  <Select.Item
+                    key={o.value}
+                    value={o.value}
+                    className="flex cursor-default select-none items-center gap-2 rounded-md py-1.5 pl-2 pr-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+                  >
+                    <span className="flex w-4 shrink-0 items-center justify-center">
+                      <Select.ItemIndicator>
+                        <Check className="size-3.5" aria-hidden="true" />
+                      </Select.ItemIndicator>
+                    </span>
+                    <Select.ItemText>{o.label}</Select.ItemText>
+                  </Select.Item>
+                ))}
+              </Select.Popup>
+            </Select.Positioner>
+          </Select.Portal>
+        </Select.Root>
+      </div>
+
+      <div className={fieldCls}>
+        <Label className={labelCls}>Type</Label>
+        <Select.Root
+          items={TYPE_LABELS}
+          value={typeV}
+          onValueChange={(next) => {
+            const v = (next as string | null) ?? "";
+            setTypeV(v);
+            push({ type: v });
+          }}
+        >
+          <Select.Trigger
+            aria-label="Filter by visit type"
+            className="inline-flex h-8 w-44 items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-3.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-ring"
+          >
+            <Select.Value />
+            <Select.Icon>
+              <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" aria-hidden="true" />
+            </Select.Icon>
+          </Select.Trigger>
+          <Select.Portal>
+            <Select.Positioner side="bottom" align="start" sideOffset={4} className="z-50">
+              <Select.Popup className="z-50 min-w-40 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none">
+                {TYPE_OPTIONS.map((o) => (
                   <Select.Item
                     key={o.value}
                     value={o.value}
@@ -220,19 +291,21 @@ export function AppointmentFilters({
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
-      <div className={fieldCls}>
-        {/* Invisible label keeps the button column the same height as the others. */}
-        <Label className={`${labelCls} invisible`} aria-hidden="true">
-          Today
-        </Label>
-        <button
-          type="button"
-          onClick={resetToday}
-          className="h-8 rounded-lg border border-input bg-[var(--input-bg)] px-4 text-sm font-medium outline-none transition-colors hover:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          Today
-        </button>
-      </div>
+      {!session ? (
+        <div className={fieldCls}>
+          {/* Invisible label keeps the button column the same height as the others. */}
+          <Label className={`${labelCls} invisible`} aria-hidden="true">
+            Today
+          </Label>
+          <button
+            type="button"
+            onClick={resetToday}
+            className="h-8 rounded-lg border border-input bg-[var(--input-bg)] px-4 text-sm font-medium outline-none transition-colors hover:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            Today
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
