@@ -57,9 +57,10 @@ export const themePreference = pgEnum("theme_preference", [
  * - `deletedByCascade` — true for rows hidden ONLY because a parent was trashed;
  *   the Trash list shows only the non-cascade (directly-deleted) rows.
  *
- * Spread `...softDeleteColumns()` into every soft-deletable table.
+ * Spread `...softDeleteColumns()` into every soft-deletable table. Exported so
+ * MODULE-owned tables (e.g. dental_records) reuse the exact same four columns.
  */
-const softDeleteColumns = () => ({
+export const softDeleteColumns = () => ({
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   deletedBy: uuid("deleted_by"),
   deleteGroup: uuid("delete_group"),
