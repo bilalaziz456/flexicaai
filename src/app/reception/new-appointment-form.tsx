@@ -66,6 +66,7 @@ export function NewAppointmentForm({
   procedures = [],
   appointmentId,
   fixedPatient,
+  preselectedPatient,
   initial,
 }: {
   initialPatients: Patient[];
@@ -74,6 +75,9 @@ export function NewAppointmentForm({
   procedures?: ProcedureOption[];
   appointmentId?: string;
   fixedPatient?: { id: string; fullName: string };
+  /** Create mode: start with this patient chosen (from "Book" on a patient row),
+   *  still changeable. */
+  preselectedPatient?: Patient | null;
   initial?: {
     doctorId: string;
     date: string;
@@ -95,7 +99,7 @@ export function NewAppointmentForm({
   };
 }) {
   const isEdit = Boolean(appointmentId);
-  const [patient, setPatient] = useState<Patient | null>(null);
+  const [patient, setPatient] = useState<Patient | null>(preselectedPatient ?? null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Patient[]>(initialPatients);
   const [doctorId, setDoctorId] = useState(initial?.doctorId ?? "");

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, Plus } from "lucide-react";
+import { CalendarPlus, ChevronRight, Plus } from "lucide-react";
 import { count, desc, ilike, or } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
@@ -38,6 +38,8 @@ export type PatientsListSearchParams = {
 export async function PatientsList({
   clinicId,
   canCreate,
+  canBook = false,
+  bookPath,
   listPath,
   detailBase,
   newHref,
@@ -45,11 +47,17 @@ export async function PatientsList({
 }: {
   clinicId: string;
   canCreate: boolean;
+  /** Show a "Book" (create appointment) action per patient — needs
+   *  `appointments:create` and the new-appointment page path (`bookPath`). */
+  canBook?: boolean;
+  bookPath?: string;
   listPath: string;
   detailBase: string;
   newHref: string;
   searchParams: PatientsListSearchParams;
 }) {
+  const showBook = canBook && Boolean(bookPath);
+  const bookHref = (patientId: string) => `${bookPath}?patientId=${patientId}`;
   const sp = searchParams;
   const query = sp.q?.trim();
   const page = parsePage(sp.page);
@@ -146,13 +154,24 @@ export async function PatientsList({
                     <TableCell>{ageFromDob(p.dateOfBirth) ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{p.reference ?? "—"}</TableCell>
                     <TableCell className="text-right">
-                      <Link
-                        href={`${detailBase}/${p.id}`}
-                        className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-                      >
-                        Open
-                        <ChevronRight className="size-4" aria-hidden="true" />
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        {showBook ? (
+                          <Link
+                            href={bookHref(p.id)}
+                            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                          >
+                            <CalendarPlus className="size-4" aria-hidden="true" />
+                            Book
+                          </Link>
+                        ) : null}
+                        <Link
+                          href={`${detailBase}/${p.id}`}
+                          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                        >
+                          Open
+                          <ChevronRight className="size-4" aria-hidden="true" />
+                        </Link>
+                      </div>
                     </TableCell>
                   </RowLink>
                 ))}
@@ -181,13 +200,24 @@ export async function PatientsList({
                     Ref: {p.reference}
                   </div>
                 ) : null}
-                <Link
-                  href={`${detailBase}/${p.id}`}
-                  className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-                >
-                  Open
-                  <ChevronRight className="size-4" aria-hidden="true" />
-                </Link>
+                <div className="flex flex-wrap items-center gap-2">
+                  {showBook ? (
+                    <Link
+                      href={bookHref(p.id)}
+                      className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                    >
+                      <CalendarPlus className="size-4" aria-hidden="true" />
+                      Book
+                    </Link>
+                  ) : null}
+                  <Link
+                    href={`${detailBase}/${p.id}`}
+                    className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                  >
+                    Open
+                    <ChevronRight className="size-4" aria-hidden="true" />
+                  </Link>
+                </div>
               </RowLink>
             ))}
           </ul>

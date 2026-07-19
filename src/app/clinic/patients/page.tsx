@@ -17,6 +17,8 @@ export default async function ClinicPatientsPage({
     <PatientsList
       clinicId={user.clinicId}
       canCreate={can(user, "patients", "create")}
+      canBook={can(user, "appointments", "create")}
+      bookPath="/clinic/appointments/new"
       listPath="/clinic/patients"
       detailBase="/clinic/patients"
       newHref="/clinic/patients/new"

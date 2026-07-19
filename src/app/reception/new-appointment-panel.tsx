@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { desc, inArray } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { patients, users } from "@/core/db/schema";
@@ -21,11 +21,14 @@ import { getBookingProcedures } from "@/core/appointments/procedures";
 export async function NewAppointmentPanel({
   clinicId,
   backHref,
+  preselectedPatientId,
 }: {
   clinicId: string;
   backHref: string;
+  /** Start with this patient chosen (from "Book" on a patient row). */
+  preselectedPatientId?: string;
 }) {
-  const [recentPatients, doctors, bookingProcedures] = await Promise.all([
+  const [recentPatients, doctors, bookingProcedures, preselectedPatient] = await Promise.all([
     db
       .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })
       .from(patients)
@@ -51,6 +54,21 @@ export async function NewAppointmentPanel({
       )
       .orderBy(desc(users.createdAt)),
     getBookingProcedures(clinicId),
+    preselectedPatientId
+      ? db
+          .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })
+          .from(patients)
+          .where(
+            byClinic(
+              patients.clinicId,
+              clinicId,
+              notDeleted(patients.deletedAt),
+              eq(patients.id, preselectedPatientId),
+            ),
+          )
+          .limit(1)
+          .then((r) => r[0] ?? null)
+      : Promise.resolve(null),
   ]);
 
   return (
@@ -75,6 +93,7 @@ export async function NewAppointmentPanel({
             initialPatients={recentPatients}
             doctors={doctors}
             procedures={bookingProcedures}
+            preselectedPatient={preselectedPatient}
           />
         </CardContent>
       </Card>
