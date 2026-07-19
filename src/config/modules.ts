@@ -1,4 +1,5 @@
 import type {
+  ModuleClinicalRecord,
   ModuleDefinition,
   ModuleId,
   NavItem,
@@ -79,6 +80,21 @@ export function procedureTemplatesFor(
 /** True if the id corresponds to a fully-built, enable-able module. */
 export function isModuleAvailable(id: ModuleId): boolean {
   return id in MODULES;
+}
+
+/**
+ * The structured clinical-record UI (tooth chart, etc.) from a clinic's enabled
+ * modules — the first that supplies one. Core reads only `clinic.modules_enabled`
+ * and renders the returned components by the contract; it never asks "is this
+ * dental?". `undefined` → no specialty chart (fall back to the generic note editor).
+ */
+export function clinicalRecordFor(
+  modulesEnabled: readonly ModuleId[],
+): ModuleClinicalRecord | undefined {
+  for (const m of loadModules(modulesEnabled)) {
+    if (m.clinicalRecord) return m.clinicalRecord;
+  }
+  return undefined;
 }
 
 /** The specialty ids a clinic is allowed to enable right now. */

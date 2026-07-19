@@ -84,6 +84,12 @@ export interface ModuleClinicalRecord {
   PatientChart: ComponentType<PatientChartProps>;
   /** Map a scribe draft note into the editor's initial value (a pre-filled chart). */
   seedFromNote: (note: unknown) => unknown;
+  /**
+   * Load the patient's current chart state (server-side — the module reads its own
+   * table). Core calls this and passes the result to `PatientChart`, so core never
+   * imports a specialty table. Module-shaped, hence `unknown`.
+   */
+  loadChart: (clinicId: string, patientId: string) => Promise<unknown>;
 }
 
 export interface ModuleDefinition {

@@ -4,7 +4,8 @@ import { CalendarPlus } from "lucide-react";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, patients, users, visits } from "@/core/db/schema";
+import { appointments, clinics, patients, users, visits } from "@/core/db/schema";
+import { clinicalRecordFor } from "@/config/modules";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
@@ -121,6 +122,20 @@ export async function PatientDetail({
         .orderBy(desc(visits.visitDate))
         .limit(30)
     : [];
+
+  // The specialty clinical chart (e.g. the dental odontogram) — resolved from the
+  // clinic's enabled modules, rendered by the contract (core never knows it's dental).
+  let clinicalRecord: ReturnType<typeof clinicalRecordFor> = undefined;
+  let currentChart: unknown = null;
+  if (canViewClinical) {
+    const [clinicRow] = await db
+      .select({ modulesEnabled: clinics.modulesEnabled })
+      .from(clinics)
+      .where(eq(clinics.id, clinicId))
+      .limit(1);
+    clinicalRecord = clinicalRecordFor(clinicRow?.modulesEnabled ?? []);
+    if (clinicalRecord) currentChart = await clinicalRecord.loadChart(clinicId, patientId);
+  }
 
   const account = showFinancials ? await getPatientAccount(clinicId, patientId) : null;
   const money = (n: number) =>
@@ -314,6 +329,18 @@ export async function PatientDetail({
           )}
         </CardContent>
       </Card>
+
+      {canViewClinical && clinicalRecord ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Odontogram</CardTitle>
+            <CardDescription>The patient&apos;s current tooth chart.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <clinicalRecord.PatientChart chart={currentChart} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {canViewClinical ? (
         <Card>

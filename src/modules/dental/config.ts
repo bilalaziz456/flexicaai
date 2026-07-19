@@ -3,6 +3,9 @@ import { dentalScribePrompt } from "@/modules/dental/prompts/scribe";
 import { dentalRecallRules } from "@/modules/dental/recall-rules";
 import { dentalDrugFormulary } from "@/modules/dental/drug-formulary";
 import { dentalProcedureTemplates } from "@/modules/dental/procedure-templates";
+import { DentalPatientChart, DentalVisitEditor } from "@/modules/dental/components/tooth-chart";
+import { seedFromNote } from "@/modules/dental/seed-from-note";
+import { getPatientChart } from "@/modules/dental/db/records";
 
 /**
  * The Dental module — the first (and, for now, only) built specialty.
@@ -25,4 +28,12 @@ export const dentalModule: ModuleDefinition = {
     { label: "Voice Scribe", href: "/doctor/scribe", icon: "mic" },
     { label: "Prescriptions", href: "/doctor/prescriptions", icon: "pill" },
   ],
+  // The structured clinical record: the FDI odontogram. Core renders these by the
+  // contract (never knowing it's a tooth chart) — the deferred `components` slot.
+  clinicalRecord: {
+    VisitEditor: DentalVisitEditor,
+    PatientChart: DentalPatientChart,
+    seedFromNote,
+    loadChart: getPatientChart,
+  },
 };
