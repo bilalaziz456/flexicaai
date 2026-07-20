@@ -4,8 +4,9 @@ import { useLayoutEffect, useRef, useState } from "react";
 
 /** A waterfall step. `role`: start = anchored bar from 0 (Collected); deduct = a
  *  descending step (value is signed, usually negative); result = anchored total
- *  (Net profit, coloured by sign). */
-export type WaterfallStep = { label: string; value: number; role: "start" | "deduct" | "result" };
+ *  (Net profit, coloured by sign). `color` overrides the role's default fill (e.g.
+ *  a maroon Expense bar). */
+export type WaterfallStep = { label: string; value: number; role: "start" | "deduct" | "result"; color?: string };
 
 const HEIGHT = 280;
 const PAD = { top: 22, right: 12, bottom: 30, left: 56 };
@@ -74,7 +75,7 @@ export function WaterfallChart({ steps, ariaLabel = "Money flow" }: { steps: Wat
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(bottom + span * f));
 
   const colorFor = (b: (typeof bars)[number]) =>
-    b.role === "start" ? "var(--color-chart-1)" : b.role === "result" ? (b.value < 0 ? BAD : GOOD) : "var(--color-chart-4)";
+    b.color ?? (b.role === "start" ? "var(--color-chart-1)" : b.role === "result" ? (b.value < 0 ? BAD : GOOD) : "var(--color-chart-4)");
 
   return (
     <div ref={wrapRef} className="w-full">
