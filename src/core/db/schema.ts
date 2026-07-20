@@ -288,6 +288,9 @@ export const patients = pgTable(
     reference: text("reference"),
     // Consent for data use (CLAUDE.md §10). Photo consent added by modules that need it.
     dataConsent: boolean("data_consent").notNull().default(false),
+    // Consent to take/store clinical PHOTOS (gates `is_photo` attachments — §10).
+    // Separate from data_consent; a photo can't be uploaded/shown without it.
+    photoConsent: boolean("photo_consent").notNull().default(false),
     ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -1260,9 +1263,48 @@ export const patientMedicalHistory = pgTable(
   ],
 );
 
+/**
+ * `clinical_attachments` — CORE imaging/photos/docs/consent (specialty-agnostic;
+ * derma/hair reuse it for before/after photos). Bytes live in clinic-scoped storage
+ * (`saveClinicFile(clinicId, "clinical", …)`), served by the authorized route
+ * `GET /api/clinical/attachment/[id]`. `is_photo` drives the photo-consent gate.
+ */
+export const clinicalAttachments = pgTable(
+  "clinical_attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    patientId: uuid("patient_id")
+      .notNull()
+      .references(() => patients.id, { onDelete: "cascade" }),
+    visitId: uuid("visit_id").references(() => visits.id, { onDelete: "set null" }),
+    kind: text("kind").notNull(), // xray | photo | document | consent
+    storageKey: text("storage_key").notNull(),
+    mime: text("mime"),
+    caption: text("caption"),
+    takenAt: timestamp("taken_at", { withTimezone: true }),
+    isPhoto: boolean("is_photo").notNull().default(false),
+    uploadedBy: uuid("uploaded_by"),
+    uploadedByName: text("uploaded_by_name"),
+    ...softDeleteColumns(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("clinical_attachments_patient_idx").on(t.clinicId, t.patientId),
+    index("clinical_attachments_visit_idx").on(t.visitId),
+    index("clinical_attachments_deleted_idx")
+      .on(t.clinicId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
+  ],
+);
+
 // Inferred row types for use across the app.
 export type Clinic = typeof clinics.$inferSelect;
 export type PatientMedicalHistory = typeof patientMedicalHistory.$inferSelect;
+export type ClinicalAttachment = typeof clinicalAttachments.$inferSelect;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type Procedure = typeof procedures.$inferSelect;
 export type DoctorProcedureShare = typeof doctorProcedureShares.$inferSelect;

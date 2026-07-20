@@ -22,7 +22,9 @@ import { ageFromDob } from "@/core/lib/age";
 import { getPatientAccount } from "@/core/billing/account";
 import { getMedicalHistory, getPatientAllergies } from "@/core/patients/medical-history";
 import type { MedicalHistoryData } from "@/core/lib/medical-history";
+import { listAttachments, getPhotoConsent } from "@/core/patients/attachments";
 import { MedicalHistoryCard } from "./medical-history-card";
+import { AttachmentsCard, type AttachmentRow } from "./attachments-card";
 import { DeletePatientButton, EditPatientForm } from "./[id]/patient-admin";
 import { PatientChartCard } from "./patient-chart-card";
 import { PerioChartCard } from "./perio-chart-card";
@@ -51,6 +53,9 @@ export async function PatientDetail({
   bookPath,
   canViewClinical = false,
   canEditClinical = false,
+  canViewAttachments = false,
+  canUploadAttachments = false,
+  canDeleteAttachments = false,
   showFinancials = false,
 }: {
   clinicId: string;
@@ -66,6 +71,10 @@ export async function PatientDetail({
   canViewClinical?: boolean;
   /** Allow editing the chart (existing conditions) — needs `clinical:edit`. */
   canEditClinical?: boolean;
+  /** Clinical attachments (imaging/docs) — `attachments` view/create/delete. */
+  canViewAttachments?: boolean;
+  canUploadAttachments?: boolean;
+  canDeleteAttachments?: boolean;
   /** Show the Finance account card (sales feature + billing:view). */
   showFinancials?: boolean;
 }) {
@@ -166,6 +175,19 @@ export async function PatientDetail({
   const medHistory: MedicalHistoryData | null = canViewClinical
     ? await getMedicalHistory(clinicId, patientId)
     : null;
+
+  // Clinical attachments (imaging/docs) + photo-consent — gated by `attachments:view`.
+  const attachmentRows = canViewAttachments ? await listAttachments(clinicId, patientId) : [];
+  const photoConsent = canViewAttachments ? await getPhotoConsent(clinicId, patientId) : false;
+  const attachments: AttachmentRow[] = attachmentRows.map((a) => ({
+    id: a.id,
+    kind: a.kind,
+    caption: a.caption,
+    mime: a.mime,
+    isPhoto: a.isPhoto,
+    uploadedByName: a.uploadedByName,
+    createdAt: a.createdAt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+  }));
 
   const account = showFinancials ? await getPatientAccount(clinicId, patientId) : null;
   const money = (n: number) =>
@@ -416,6 +438,24 @@ export async function PatientDetail({
               patientId={patient.id}
               modulesEnabled={modulesEnabled}
               canEdit={canEditClinical}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {canViewAttachments ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Imaging &amp; documents</CardTitle>
+            <CardDescription>X-rays, clinical photos, documents and consent forms.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AttachmentsCard
+              attachments={attachments}
+              patientId={patient.id}
+              photoConsent={photoConsent}
+              canUpload={canUploadAttachments}
+              canDelete={canDeleteAttachments}
             />
           </CardContent>
         </Card>

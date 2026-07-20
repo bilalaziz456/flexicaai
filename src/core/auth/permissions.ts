@@ -40,6 +40,10 @@ export const PERM_RESOURCES: PermResource[] = [
   { id: "appointments", label: "Appointments", actions: ["view", "create", "edit", "delete"] },
   { id: "patients", label: "Patients", actions: ["view", "create", "edit", "delete"] },
   { id: "clinical", label: "Clinical notes", actions: ["view", "create", "edit"] },
+  // Clinical imaging/photos/docs (x-rays, before/after photos, consent forms).
+  // `delete` soft-deletes. Photo attachments are additionally gated by the patient's
+  // photo_consent, enforced server-side. Doctor + clinic admin hold it by default.
+  { id: "attachments", label: "Clinical attachments", actions: ["view", "create", "delete"] },
   { id: "prescriptions", label: "Prescriptions", actions: ["view", "create", "edit", "delete"] },
   { id: "recalls", label: "Recalls", actions: ["view", "create", "edit", "delete"] },
   { id: "whatsapp", label: "WhatsApp", actions: ["view", "create"], createLabel: "Send" },
@@ -170,6 +174,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
   // patients/appointments/recalls.
   doctor: grant({
     clinical: [V, C, E],
+    // Clinical imaging — a doctor uploads/views x-rays & photos, and can remove them.
+    attachments: [V, C, D],
     prescriptions: [V, C, E, D],
     patients: [V],
     appointments: [V],

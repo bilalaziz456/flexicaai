@@ -330,6 +330,13 @@
       "when": 1784555864657,
       "tag": "0046_talented_shockwave",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1784556832887,
+      "tag": "0047_narrow_wrecker",
+      "breakpoints": true
     }
   ]
 }

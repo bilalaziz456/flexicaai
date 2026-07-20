@@ -35,6 +35,9 @@ export default async function PatientDetailPage({
       bookPath="/clinic/appointments/new"
       canViewClinical={can(user, "clinical", "view")}
       canEditClinical={can(user, "clinical", "edit")}
+      canViewAttachments={can(user, "attachments", "view")}
+      canUploadAttachments={can(user, "attachments", "create")}
+      canDeleteAttachments={can(user, "attachments", "delete")}
       showFinancials={showFinancials}
     />
   );
