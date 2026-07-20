@@ -351,6 +351,13 @@
       "when": 1784558885714,
       "tag": "0049_lush_unicorn",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1784588545258,
+      "tag": "0050_white_magma",
+      "breakpoints": true
     }
   ]
 }

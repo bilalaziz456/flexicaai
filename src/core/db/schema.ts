@@ -1231,6 +1231,48 @@ export const activityLogs = pgTable(
 );
 
 /**
+ * `notifications` — CORE, specialty-agnostic per-user in-app alerts (the bell). One
+ * ROW per recipient (fan-out = many rows). TRANSIENT like `activity_logs`/`sessions`:
+ * NOT soft-deleted and NOT in Trash; "dismiss" = mark read, old read rows pruned by an
+ * optional cron. `type`/`entity` are free-text tags (never enums) so specialties add
+ * none. Reads are self-scoped (`user_id = self`) AND clinic-scoped. See
+ * `core/notifications/in-app.ts` + docs/notifications-plan.md.
+ */
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // NULL only for super-admin/platform notifications (v2); clinic staff rows are set.
+    clinicId: uuid("clinic_id").references(() => clinics.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: text("type").notNull(), // free-text, e.g. discount.approval_needed | whatsapp.inbound
+    title: text("title").notNull(),
+    body: text("body"),
+    entity: text("entity"), // appointment | patient | discount | payout | …
+    entityId: uuid("entity_id"),
+    link: text("link"), // precomputed in-app URL for the bell to navigate to
+    // Who triggered it — snapshot (no FK; actors soft-delete). NULL for system events.
+    actorUserId: uuid("actor_user_id"),
+    actorName: text("actor_name"),
+    readAt: timestamp("read_at", { withTimezone: true }), // NULL = unread (source of truth)
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // Unread count: a partial index so COUNT(*) for a user's unread is O(index).
+    index("notifications_user_unread_idx")
+      .on(t.userId)
+      .where(sql`${t.readAt} is null`),
+    // The bell list: a user's notifications, newest first.
+    index("notifications_user_created_idx").on(t.userId, t.createdAt),
+    // Tenant scans + prune.
+    index("notifications_clinic_idx").on(t.clinicId),
+  ],
+);
+
+/**
  * `patient_medical_history` — CORE, specialty-agnostic (every specialty needs it).
  * 1:1 with a patient; the LATEST snapshot (the audit log covers who changed what).
  * Gates the drug formulary: prescribing a drug that matches a recorded allergy warns.
@@ -1376,6 +1418,7 @@ export type ClinicalAttachment = typeof clinicalAttachments.$inferSelect;
 export type TreatmentPlan = typeof treatmentPlans.$inferSelect;
 export type TreatmentPlanItem = typeof treatmentPlanItems.$inferSelect;
 export type ActivityLog = typeof activityLogs.$inferSelect;
+export type Notification = typeof notifications.$inferSelect;
 export type Procedure = typeof procedures.$inferSelect;
 export type DoctorProcedureShare = typeof doctorProcedureShares.$inferSelect;
 export type AppointmentDiscountApproval =
