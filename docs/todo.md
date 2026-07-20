@@ -1,7 +1,11 @@
 # Klenic — Task Tracker (Completed + Remaining)
 
-> Updated 2026-07-17. The CLAUDE.md §11 MVP (steps 1–12) is complete. This tracks
+> Updated 2026-07-21. The CLAUDE.md §11 MVP (steps 1–12) is complete. This tracks
 > post-MVP work: ✅ = shipped, [ ] = remaining. Roughly ordered by product value.
+>
+> **v1 scope decision (2026-07-21):** the remaining **Clinic-operations** work for
+> v1 is exactly three items — **prescription history**, **expenses → central Trash**,
+> and **no-show rate** (see §D). Everything else in "Remaining" is **v2**.
 
 ---
 
@@ -114,21 +118,34 @@
 - [ ] **File storage = local disk** — `core/integrations/storage` is local FS; ephemeral
       on Vercel. Needs S3-compatible swap BEFORE deploy.
 
-### C. Dental clinical depth (dental module is still a thin shell)
-- [ ] **Tooth chart / odontogram** + a `dental_records` table linked to `visits`
-      (neither exists; scribe dumps generic JSONB into `visits.note`).
-- [ ] **Treatment plans** — `treatment-templates.ts` never created; no `treatmentTemplates`
-      in `ModuleDefinition`; no multi-visit planning.
-- [ ] **Clinical imaging / X-ray / photo attachments** (+ consent-tracked photo use).
-- [ ] **Lab-work tracking** (crowns/dentures).
+### C. Dental clinical depth — ✅ shipped (dental clinical arc, migrations 0044–0049)
+- [x] **Tooth chart / odontogram** + `dental_records` / `dental_charts` tables linked to
+      `visits` (module-owned schema; core untouched); read-only chart + printable chart.
+- [x] **Treatment plans** — `treatment-templates.ts` + `treatmentTemplates` in the module
+      registry; multi-visit priced/tooth-tagged plans + printable estimate; `plans` ACL.
+- [x] **Clinical imaging / X-ray / photo attachments** (+ consent-tracked photo use);
+      `attachments` ACL.
+- [x] **Lab-work tracking** (crowns/dentures) + "your crown is ready" WhatsApp; `lab` ACL.
 
 ### D. Clinic-operations
-- [ ] **Standalone prescription history** — per-patient Rx list/reprint page.
-- [ ] **Reporting beyond finance** — no-show rate, utilization, doctor productivity,
+
+**→ v1 (build now):**
+- [ ] **Standalone prescription history** — per-patient Rx list/reprint. No schema
+      (reads approved `visits.note.prescriptions`); section on patient detail reusing
+      the existing `/api/prescriptions/[visitId]` PDF; `prescriptions:view` ACL.
+- [ ] **No-show rate** — `no_show / (completed + no_show)` over a period (data exists on
+      `appointments.status`); card in the Reports hub; `appointments:view` ACL.
+- [ ] **Expenses → central Trash** — expenses already soft-delete (`softDeleteExpense`);
+      wire the `expense` entity into `core/trash` (list + restore/purge) + the Trash UI.
+
+**→ v2 (defer):**
+- [ ] **Reporting beyond finance (rest)** — utilization, doctor productivity,
       recall-effectiveness. (Sales / Discounts / Shares / P&L / Receivables / Day book /
       Overview are DONE.)
 - [ ] **Inventory / payroll / attendance**. (Expenses is DONE.)
-- [ ] **Recurring-expense automation** (cron); global-Trash wiring for expenses.
+
+- [x] **Recurring-expense automation** (cron) — `core/expenses/recurring.ts` +
+      `GET /api/cron/expenses` (migration 0043). ✅ shipped.
 
 ### E. WhatsApp Cloud API — go-live (external, code is done)
 - [ ] Meta Business account + verification + WABA + system-user token.
@@ -154,7 +171,7 @@
 ## Suggested priority order (toward "sellable")
 1. **Online payment gateways** — JazzCash / Easypaisa / Raast / Stripe (billing core is
    done; this makes collection self-serve).
-2. **Dental clinical model** — tooth chart + `dental_records` + treatment plans.
+2. ~~**Dental clinical model** — tooth chart + `dental_records` + treatment plans.~~ ✅ shipped.
 3. **Email + in-app notifications** — onboarding, password reset, alerts.
 4. **Deploy hardening** — S3 storage, connection pooler, rate limiting.
 5. **WhatsApp Cloud API go-live** — when the Meta WABA is ready (code is done).
