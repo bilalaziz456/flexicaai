@@ -6,6 +6,7 @@ import { ActivityLogList } from "@/core/ui/activity-log";
 import { LogFilters } from "@/core/ui/log-filters";
 import { Pagination } from "@/core/ui/pagination";
 import { parseLogFilters } from "@/core/audit/log-filters";
+import { unscoped } from "@/core/db/tenant-guard";
 import {
   CLINIC_LOG_ROLES,
   LOG_ACTIONS,
@@ -52,7 +53,10 @@ export default async function AdminLogsPage({
   if (activeAction) conds.push(eq(activityLogs.action, activeAction));
 
   const where = and(...conds);
-  const [rows, clinicRows, actorRows, [{ total }]] = await Promise.all([
+  // Super-admin view spans every clinic by design — opt out of the tenant guard.
+  const [rows, clinicRows, actorRows, [{ total }]] = await unscoped(
+    "admin: activity logs across all clinics",
+    () => Promise.all([
     db
       .select({
         id: activityLogs.id,
@@ -88,7 +92,8 @@ export default async function AdminLogsPage({
           .orderBy(asc(users.fullName))
       : Promise.resolve([] as { id: string; fullName: string | null; username: string }[]),
     db.select({ total: count() }).from(activityLogs).where(where),
-  ]);
+    ]),
+  );
   const actors = actorRows.map((s) => ({ id: s.id, name: s.fullName ?? s.username }));
 
   return (
