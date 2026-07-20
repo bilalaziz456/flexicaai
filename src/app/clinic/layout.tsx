@@ -5,6 +5,7 @@ import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
 import { getThemeCookie } from "@/core/theme/server";
 import { clinicHasFeature } from "@/core/lib/features";
+import { getUnreadCount } from "@/core/notifications/in-app";
 import { accessibleResourceIds, can } from "@/core/auth/permissions";
 import { displayStaffName, staffInitials } from "@/core/types/auth";
 import { PanelShell } from "@/core/ui/panel-shell";
@@ -31,6 +32,7 @@ export default async function ClinicLayout({
     .where(eq(clinics.id, user.clinicId))
     .limit(1);
   const theme = await getThemeCookie();
+  const unread = await getUnreadCount(user.clinicId, user.id);
   // A clinic admin only sees the activity log if the super admin granted it; the
   // log nav is otherwise gated by the per-user `logs`… (kept as log_access).
   const logsEnabled =
@@ -57,6 +59,7 @@ export default async function ClinicLayout({
       userInitials={staffInitials(user.fullName, user.username)}
       accountHref="/clinic/settings"
       avatarVersion={user.avatarKey ?? "none"}
+      notificationCount={unread}
       theme={theme}
       logsEnabled={logsEnabled}
       salesEnabled={clinicHasFeature(clinic?.featuresEnabled, "sales")}

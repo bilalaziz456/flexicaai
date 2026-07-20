@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { signOut } from "@/core/auth/actions";
 import { Logo } from "@/core/ui/logo";
+import { NotificationBell } from "@/core/ui/notification-bell";
 import { ThemeToggle } from "@/core/ui/theme-toggle";
 import type { ThemePreference } from "@/core/theme/theme";
 import { cn } from "@/core/lib/utils";
@@ -198,6 +199,7 @@ export function PanelShell({
   userInitials = "",
   accountHref = "/account",
   avatarVersion = "none",
+  notificationCount = 0,
   theme,
   logsEnabled = true,
   salesEnabled = false,
@@ -216,6 +218,8 @@ export function PanelShell({
   accountHref?: string;
   /** The user's avatar key (or "none") — busts the top-bar avatar cache on change. */
   avatarVersion?: string;
+  /** Initial unread notification count (server-rendered so the badge has no flash). */
+  notificationCount?: number;
   theme: ThemePreference;
   /** Clinic panel: hide the Activity-log nav item when the clinic has no log access. */
   logsEnabled?: boolean;
@@ -368,6 +372,7 @@ export function PanelShell({
           {identityLabel}
         </span>
         <div className="flex items-center gap-3">
+          <NotificationBell initialUnread={notificationCount} />
           <ThemeToggle initial={theme} />
           <Link
             href={accountHref}
@@ -394,6 +399,7 @@ export function PanelShell({
           <Logo className="h-8" />
         </Link>
         <div className="flex items-center gap-1">
+          <NotificationBell initialUnread={notificationCount} />
           <Link href={accountHref} aria-label="Account settings" className="rounded-full p-0.5">
             <SelfAvatar key={avatarVersion} version={avatarVersion} initials={userInitials} className="size-7" />
           </Link>
