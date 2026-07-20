@@ -525,6 +525,7 @@ export async function PatientDetail({
               procedures={planProcedures}
               templates={planTemplates}
               patientId={patient.id}
+              estimateBase={`${backHref}/${patient.id}/estimate`}
               canCreate={canCreatePlans}
               canEdit={canEditPlans}
               canDelete={canDeletePlans}

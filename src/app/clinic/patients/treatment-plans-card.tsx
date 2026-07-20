@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Plus, Printer, Trash2 } from "lucide-react";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Badge } from "@/core/ui/badge";
@@ -32,6 +33,7 @@ export function TreatmentPlansCard({
   procedures,
   templates,
   patientId,
+  estimateBase,
   canCreate,
   canEdit,
   canDelete,
@@ -40,6 +42,8 @@ export function TreatmentPlansCard({
   procedures: Proc[];
   templates: string[];
   patientId: string;
+  /** Base path for a plan's printable estimate, e.g. "/clinic/patients/{id}/estimate". */
+  estimateBase?: string;
   canCreate: boolean;
   canEdit: boolean;
   canDelete: boolean;
@@ -69,6 +73,11 @@ export function TreatmentPlansCard({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-medium">{p.title}</span>
                   <div className="flex items-center gap-2">
+                    {estimateBase && p.items.length > 0 ? (
+                      <Link href={`${estimateBase}/${p.id}`} className="inline-flex items-center gap-1 text-xs font-medium underline underline-offset-4">
+                        <Printer className="size-3.5" aria-hidden="true" /> Estimate
+                      </Link>
+                    ) : null}
                     {canEdit ? (
                       <select value={p.status} disabled={pending} className={selectCls} onChange={(e) => run(() => setPlanStatusAction(p.id, patientId, e.target.value), "Plan updated.")}>
                         {PLAN_STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}

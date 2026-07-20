@@ -1,6 +1,18 @@
 # Dental clinical depth — plan
 
-> **Status: PLANNED (2026-07-17; revised 2026-07-20).** Turns the dental module
+> **Status: SHIPPED — Phases 0–6 complete (2026-07-20).** Migrations 0044–0049
+> applied; each phase DB-verified, `tsc` clean, unit + e2e green. Architecture
+> notes that changed in build: (a) core does NOT import module schema — the app
+> uses no relational `db.query`, so module code passes its own tables to
+> `db.select()` and only `drizzle.config.ts` globs the module schema; (b) the
+> `ModuleClinicalRecord` contract grew server data hooks (`loadChart`,
+> `saveRecord`, `visitChanges`, `saveBaseline`) + optional `perio` / `lab` bundles,
+> and a **client-side** UI registry (`config/clinical-record-ui.ts`) renders module
+> components without pulling server-only code into the browser; (c) new ACL
+> resources shipped: `attachments`, `plans`, `lab` (medical history + charts reuse
+> `clinical`). Remaining = the §8 deferred/adjacent items only.
+>
+> **Original plan (2026-07-17; revised 2026-07-20).** Turns the dental module
 > from a thin shell (scribe + recalls + formulary + procedure templates) into a real
 > clinical record: **tooth chart / odontogram**, **periodontal charting**, **medical
 > & dental history + allergies**, **clinical imaging**, **multi-visit treatment
