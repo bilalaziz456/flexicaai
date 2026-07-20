@@ -351,7 +351,7 @@ export default async function ClinicDashboard() {
                 <CardTitle className="text-base">Money flow (30 days)</CardTitle>
                 <CardDescription>How the last 30 days&apos; collected revenue became profit.</CardDescription>
               </div>
-              <Link href="/clinic/overview" className="no-underline text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+              <Link href="/clinic/pl" className="no-underline text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
                 Full report →
               </Link>
             </div>
