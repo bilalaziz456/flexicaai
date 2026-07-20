@@ -128,3 +128,10 @@ All `requireUser()` + self `user_id`; clinic-scoped:
 
 Realtime push (SSE/websockets); per-user mute/preferences; super-admin/platform-wide
 notifications (clinic_id NULL bell); email digest of unread; grouping/threading.
+
+**Realtime decision (2026-07-21):** Firebase / Redis were weighed and **deferred to v2**.
+For clinic staff working in-app, the 60s-poll + on-focus refresh is the right cost/
+compliance trade-off (notifications stay in our Postgres — no PII to Google). The
+cheapest realtime upgrade when needed is Postgres `LISTEN/NOTIFY` + SSE (single instance,
+no new vendor); Redis only at multi-instance; Firebase (FCM) only for push-to-closed-app
+or a mobile app.
