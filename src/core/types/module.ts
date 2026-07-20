@@ -100,6 +100,39 @@ export interface ModulePerio {
   ) => Promise<{ examDate: Date; bop: number; maxPocket: number }[]>;
 }
 
+/** A lab case (crown/denture/…) — generic shape core renders in the lab tracker. */
+export interface LabCaseData {
+  id: string;
+  labName: string | null;
+  item: string;
+  tooth: string | null;
+  shade: string | null;
+  status: string;
+  dueAt: Date | null;
+  cost: number | null;
+  note: string | null;
+  createdAt: Date;
+}
+
+/**
+ * Optional lab-case tracking a module supplies (dental crowns/dentures). Core
+ * renders a generic tracker from `statuses`/`itemTypes` + the cases; a status
+ * change can fire the module's own "ready" notification.
+ */
+export interface ModuleLab {
+  statuses: string[];
+  itemTypes: string[];
+  loadCases: (clinicId: string, patientId: string) => Promise<LabCaseData[]>;
+  saveCase: (
+    clinicId: string,
+    patientId: string,
+    input: { labName?: string | null; item: string; tooth?: string | null; shade?: string | null; dueAt?: string | null; cost?: number | null; note?: string | null },
+    actor: { id: string; name: string },
+  ) => Promise<void>;
+  updateStatus: (clinicId: string, caseId: string, status: string) => Promise<void>;
+  deleteCase: (clinicId: string, caseId: string, actorId: string) => Promise<void>;
+}
+
 /**
  * Optional specialty clinical-record UI a module supplies — the `components` slot
  * that was deliberately deferred until the panel needed it (§0). Core renders these
@@ -142,6 +175,8 @@ export interface ModuleClinicalRecord {
   saveBaseline: (clinicId: string, patientId: string, chart: unknown) => Promise<void>;
   /** Optional periodontal charting (a separate per-exam record). Absent → no perio card. */
   perio?: ModulePerio;
+  /** Optional lab-case tracking (crowns/dentures). Absent → no lab card. */
+  lab?: ModuleLab;
 }
 
 export interface ModuleDefinition {

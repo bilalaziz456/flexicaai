@@ -48,6 +48,9 @@ export const PERM_RESOURCES: PermResource[] = [
   // desk can be granted plan VIEW (to schedule plan items onto appointments) without
   // full clinical access. Doctor + clinic admin author; reception views by default.
   { id: "plans", label: "Treatment plans", actions: ["view", "create", "edit", "delete"] },
+  // Lab-case tracker (crowns/dentures). Reception gets VIEW for handoffs ("is the
+  // crown back yet?") — its own slug, no clinical grant. Doctor + admin manage.
+  { id: "lab", label: "Lab cases", actions: ["view", "create", "edit", "delete"] },
   { id: "prescriptions", label: "Prescriptions", actions: ["view", "create", "edit", "delete"] },
   { id: "recalls", label: "Recalls", actions: ["view", "create", "edit", "delete"] },
   { id: "whatsapp", label: "WhatsApp", actions: ["view", "create"], createLabel: "Send" },
@@ -171,6 +174,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     clinical: [V],
     // Manager sees treatment plans (oversight + scheduling).
     plans: [V],
+    // Manager oversees the lab tracker (can update status too).
+    lab: [V, C, E],
     prescriptions: [V],
     // Trash: view + restore on by default (C = "Restore"); purge stays super-admin.
     trash: [V, C],
@@ -184,6 +189,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     attachments: [V, C, D],
     // Treatment plans — a doctor proposes/edits the course.
     plans: [V, C, E, D],
+    // Lab cases — a doctor sends/tracks crowns & dentures.
+    lab: [V, C, E, D],
     prescriptions: [V, C, E, D],
     patients: [V],
     appointments: [V],
@@ -213,6 +220,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     prescriptions: [V],
     // Front desk sees treatment plans to schedule their items onto appointments.
     plans: [V],
+    // Front desk tracks lab cases for handoffs ("is the crown back?").
+    lab: [V],
     // Trash: view + restore on by default (C = "Restore"); purge stays super-admin.
     trash: [V, C],
   }),

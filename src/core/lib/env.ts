@@ -54,6 +54,8 @@ const serverSchema = z.object({
   AISENSY_BOOKING_REPLY_CAMPAIGN: z.string().default("booking_reply"),
   // AiSensy campaign to deliver an invoice / bill summary to a patient on WhatsApp.
   AISENSY_INVOICE_CAMPAIGN: z.string().default("invoice"),
+  // AiSensy campaign for the "your crown/denture is ready" lab notification.
+  AISENSY_LAB_CAMPAIGN: z.string().default("lab_ready"),
   // ---- WhatsApp via Meta Cloud API (multi-number; per-clinic sender) ----
   // Provider switch: "aisensy" (default, current single-number account) or
   // "cloud" (Meta Cloud API — one WABA token, a per-clinic phone_number_id chooses
@@ -100,6 +102,7 @@ export const serverEnv = serverSchema.parse({
   AISENSY_RESCHEDULE_CAMPAIGN: process.env.AISENSY_RESCHEDULE_CAMPAIGN,
   AISENSY_BOOKING_REPLY_CAMPAIGN: process.env.AISENSY_BOOKING_REPLY_CAMPAIGN,
   AISENSY_INVOICE_CAMPAIGN: process.env.AISENSY_INVOICE_CAMPAIGN,
+  AISENSY_LAB_CAMPAIGN: process.env.AISENSY_LAB_CAMPAIGN,
   WHATSAPP_PROVIDER: process.env.WHATSAPP_PROVIDER,
   WHATSAPP_CLOUD_TOKEN: process.env.WHATSAPP_CLOUD_TOKEN,
   WHATSAPP_WABA_ID: process.env.WHATSAPP_WABA_ID,

@@ -29,6 +29,7 @@ import { treatmentTemplatesFor } from "@/config/modules";
 import { MedicalHistoryCard } from "./medical-history-card";
 import { AttachmentsCard, type AttachmentRow } from "./attachments-card";
 import { TreatmentPlansCard, type PlanRow } from "./treatment-plans-card";
+import { LabTrackerCard, type LabCaseRow } from "./lab-tracker-card";
 import { DeletePatientButton, EditPatientForm } from "./[id]/patient-admin";
 import { PatientChartCard } from "./patient-chart-card";
 import { PerioChartCard } from "./perio-chart-card";
@@ -64,6 +65,10 @@ export async function PatientDetail({
   canCreatePlans = false,
   canEditPlans = false,
   canDeletePlans = false,
+  canViewLab = false,
+  canCreateLab = false,
+  canEditLab = false,
+  canDeleteLab = false,
   showFinancials = false,
 }: {
   clinicId: string;
@@ -88,6 +93,11 @@ export async function PatientDetail({
   canCreatePlans?: boolean;
   canEditPlans?: boolean;
   canDeletePlans?: boolean;
+  /** Lab cases — `lab` view/create/edit/delete. */
+  canViewLab?: boolean;
+  canCreateLab?: boolean;
+  canEditLab?: boolean;
+  canDeleteLab?: boolean;
   /** Show the Finance account card (sales feature + billing:view). */
   showFinancials?: boolean;
 }) {
@@ -154,18 +164,18 @@ export async function PatientDetail({
         .limit(30)
     : [];
 
-  // The specialty clinical chart (e.g. the dental odontogram) — resolved from the
-  // clinic's enabled modules, rendered by the contract (core never knows it's dental).
+  // The clinic's enabled modules — drives every module-agnostic clinical section
+  // (chart / perio / plans / lab), resolved via the contract (core never knows dental).
+  const [clinicModulesRow] = await db
+    .select({ modulesEnabled: clinics.modulesEnabled })
+    .from(clinics)
+    .where(eq(clinics.id, clinicId))
+    .limit(1);
+  const modulesEnabled: string[] = clinicModulesRow?.modulesEnabled ?? [];
+
   let clinicalRecord: ReturnType<typeof clinicalRecordFor> = undefined;
   let currentChart: unknown = null;
-  let modulesEnabled: string[] = [];
   if (canViewClinical) {
-    const [clinicRow] = await db
-      .select({ modulesEnabled: clinics.modulesEnabled })
-      .from(clinics)
-      .where(eq(clinics.id, clinicId))
-      .limit(1);
-    modulesEnabled = clinicRow?.modulesEnabled ?? [];
     clinicalRecord = clinicalRecordFor(modulesEnabled);
     if (clinicalRecord) currentChart = await clinicalRecord.loadChart(clinicId, patientId);
   }
@@ -203,12 +213,9 @@ export async function PatientDetail({
   }));
 
   // Treatment plans — gated by `plans:view`. Procedures + templates power the builder.
-  const [clinicForPlans] = canViewPlans
-    ? await db.select({ modulesEnabled: clinics.modulesEnabled }).from(clinics).where(eq(clinics.id, clinicId)).limit(1)
-    : [undefined];
   const planRows = canViewPlans ? await listPlans(clinicId, patientId) : [];
   const planProcedures = canViewPlans ? await getBookingProcedures(clinicId) : [];
-  const planTemplates = canViewPlans ? treatmentTemplatesFor(clinicForPlans?.modulesEnabled ?? []).map((t) => t.name) : [];
+  const planTemplates = canViewPlans ? treatmentTemplatesFor(modulesEnabled).map((t) => t.name) : [];
   const plans: PlanRow[] = planRows.map((p) => ({
     id: p.id,
     title: p.title,
@@ -216,6 +223,21 @@ export async function PatientDetail({
     note: p.note,
     items: p.items.map((i) => ({ id: i.id, name: i.name, tooth: i.tooth, quantity: i.quantity, unitPrice: i.unitPrice, status: i.status })),
   }));
+
+  // Lab cases (dental) — module-agnostic via the clinicalRecord `lab` bundle.
+  let labStatuses: string[] = [];
+  let labItemTypes: string[] = [];
+  let labCaseRows: LabCaseRow[] = [];
+  const labBundle = canViewLab ? clinicalRecordFor(modulesEnabled)?.lab : undefined;
+  if (labBundle) {
+    labStatuses = labBundle.statuses;
+    labItemTypes = labBundle.itemTypes;
+    const d = (x: Date | null) => (x ? x.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : null);
+    labCaseRows = (await labBundle.loadCases(clinicId, patientId)).map((c) => ({
+      id: c.id, labName: c.labName, item: c.item, tooth: c.tooth, shade: c.shade,
+      status: c.status, dueAt: d(c.dueAt), cost: c.cost, createdAt: d(c.createdAt) ?? "",
+    }));
+  }
 
   const account = showFinancials ? await getPatientAccount(clinicId, patientId) : null;
   const money = (n: number) =>
@@ -506,6 +528,26 @@ export async function PatientDetail({
               canCreate={canCreatePlans}
               canEdit={canEditPlans}
               canDelete={canDeletePlans}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {canViewLab && labBundle ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Lab cases</CardTitle>
+            <CardDescription>Crowns, dentures &amp; appliances — status → &ldquo;ready&rdquo; WhatsApp.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <LabTrackerCard
+              cases={labCaseRows}
+              statuses={labStatuses}
+              itemTypes={labItemTypes}
+              patientId={patient.id}
+              canCreate={canCreateLab}
+              canEdit={canEditLab}
+              canDelete={canDeleteLab}
             />
           </CardContent>
         </Card>

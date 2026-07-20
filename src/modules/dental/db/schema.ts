@@ -24,7 +24,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { clinics, patients, softDeleteColumns, visits } from "@/core/db/schema";
+import { clinics, patients, softDeleteColumns, treatmentPlanItems, visits } from "@/core/db/schema";
 
 // ─── jsonb payload types (co-located with the tables) ───────────────────────
 
@@ -203,6 +203,47 @@ export const perioExams = pgTable(
   ],
 );
 
+/**
+ * `lab_cases` — crowns/dentures/appliances sent to a dental lab (Phase 6). MODULE
+ * (dental). Status changes drive the "your crown is ready" WhatsApp. Optionally
+ * links to the visit + treatment-plan item it belongs to; `cost` is the lab bill.
+ */
+export const labCases = pgTable(
+  "lab_cases",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    patientId: uuid("patient_id")
+      .notNull()
+      .references(() => patients.id, { onDelete: "cascade" }),
+    visitId: uuid("visit_id").references(() => visits.id, { onDelete: "set null" }),
+    planItemId: uuid("plan_item_id").references(() => treatmentPlanItems.id, { onDelete: "set null" }),
+    labName: text("lab_name"),
+    item: text("item").notNull(), // crown | bridge | denture | veneer | …
+    tooth: text("tooth"), // FDI, nullable
+    shade: text("shade"),
+    status: text("status").notNull().default("sent"), // sent|in_lab|received|fitted|remake
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    receivedAt: timestamp("received_at", { withTimezone: true }),
+    cost: integer("cost"), // PKR
+    note: text("note"),
+    ...softDeleteColumns(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("lab_cases_patient_idx").on(t.clinicId, t.patientId),
+    index("lab_cases_status_idx").on(t.clinicId, t.status),
+    index("lab_cases_deleted_idx")
+      .on(t.clinicId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
+  ],
+);
+
 export type DentalRecord = typeof dentalRecords.$inferSelect;
 export type DentalChart = typeof dentalCharts.$inferSelect;
 export type PerioExam = typeof perioExams.$inferSelect;
+export type LabCase = typeof labCases.$inferSelect;

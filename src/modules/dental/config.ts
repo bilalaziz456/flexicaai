@@ -13,6 +13,7 @@ import {
   visitChanges,
 } from "@/modules/dental/db/records";
 import { dentalPerio } from "@/modules/dental/db/perio";
+import { dentalLab } from "@/modules/dental/db/lab";
 
 /**
  * The Dental module — the first (and, for now, only) built specialty.
@@ -47,5 +48,6 @@ export const dentalModule: ModuleDefinition = {
     visitChanges,
     saveBaseline,
     perio: dentalPerio,
+    lab: dentalLab,
   },
 };

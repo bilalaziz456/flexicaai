@@ -42,6 +42,10 @@ export default async function PatientDetailPage({
       canCreatePlans={can(user, "plans", "create")}
       canEditPlans={can(user, "plans", "edit")}
       canDeletePlans={can(user, "plans", "delete")}
+      canViewLab={can(user, "lab", "view")}
+      canCreateLab={can(user, "lab", "create")}
+      canEditLab={can(user, "lab", "edit")}
+      canDeleteLab={can(user, "lab", "delete")}
       showFinancials={showFinancials}
     />
   );
