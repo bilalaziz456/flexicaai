@@ -1,9 +1,11 @@
 import "server-only";
 
 import { drizzle } from "drizzle-orm/node-postgres";
+import type { Logger } from "drizzle-orm";
 import { Pool } from "pg";
 import { serverEnv } from "@/core/lib/env";
 import * as schema from "@/core/db/schema";
+import { checkSql } from "@/core/db/tenant-guard";
 
 /**
  * The one database entry point for the whole app. SERVER ONLY — importing this
@@ -57,6 +59,17 @@ if (serverEnv.NODE_ENV !== "production") {
   globalForDb.__klenicPool = pool;
 }
 
-export const db = drizzle(pool, { schema });
+// Tenant-scope guard: a Drizzle logger runs `checkSql` before every statement
+// (covers builder queries, `db.execute` raw SQL, and transactions) — defense-in-depth
+// for a forgotten `byClinic()`. It's a read-only hook, so it can't corrupt the query
+// pipeline; in strict mode `checkSql` throws, which rejects the offending query. See
+// tenant-guard.ts.
+const tenantGuardLogger: Logger = {
+  logQuery(query: string): void {
+    checkSql(query);
+  },
+};
+
+export const db = drizzle(pool, { schema, logger: tenantGuardLogger });
 
 export { schema };
