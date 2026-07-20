@@ -24,9 +24,15 @@ export async function notifyInboundWhatsApp(args: {
   phone: string;
   text: string | null;
   outcome: "booked" | "rescheduled" | "message";
+  /** The affected appointment's id (booking/reschedule) — deep-links the notification. */
+  appointmentId?: string | null;
 }): Promise<void> {
-  const { clinicId, patientId, phone, text, outcome } = args;
+  const { clinicId, patientId, phone, text, outcome, appointmentId } = args;
   if (!clinicId) return;
+  // Open the exact appointment when we have it; else fall back to the filtered list.
+  const apptLink = appointmentId
+    ? `/clinic/appointments/${appointmentId}`
+    : "/clinic/appointments?status=scheduled";
 
   let who = phone;
   if (patientId) {
@@ -45,7 +51,8 @@ export async function notifyInboundWhatsApp(args: {
       title: "New booking request",
       body: `${who} booked via WhatsApp — confirm the slot.`,
       entity: "appointment",
-      link: "/clinic/appointments?status=scheduled",
+      entityId: appointmentId ?? null,
+      link: apptLink,
     });
   } else if (outcome === "rescheduled") {
     await notifyUsersWithPermission(clinicId, "appointments", "edit", {
@@ -53,7 +60,8 @@ export async function notifyInboundWhatsApp(args: {
       title: "Appointment rescheduled",
       body: `${who} rescheduled via WhatsApp.`,
       entity: "appointment",
-      link: "/clinic/appointments",
+      entityId: appointmentId ?? null,
+      link: apptLink,
     });
   } else {
     await notifyUsersWithPermission(clinicId, "whatsapp", "view", {

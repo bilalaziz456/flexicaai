@@ -100,7 +100,12 @@ const reply = (
     body: message,
   });
 
-export type BookingOutcome = { handled: boolean; booked: boolean };
+export type BookingOutcome = {
+  handled: boolean;
+  booked: boolean;
+  /** The created appointment's id (set when booked) — for a deep-linked notification. */
+  appointmentId?: string | null;
+};
 
 /**
  * Handles a patient's "book …" WhatsApp message — CORE, clinic-scoped. Resolves
@@ -233,7 +238,7 @@ export async function handleBookingReply(args: {
             queueSession: q.queueSession,
             queueNumber: q.queueNumber,
           })
-          .returning({ queueNumber: appointments.queueNumber }),
+          .returning({ id: appointments.id, queueNumber: appointments.queueNumber }),
     );
 
     // A WhatsApp booking is a REQUEST: acknowledge it as pending (with the token
@@ -248,7 +253,7 @@ export async function handleBookingReply(args: {
       phone,
       `Thanks! Your booking request for ${doctor.name} on ${fmtWhen(when)} has been received.${tokenStr} The clinic will confirm it shortly and you'll get a confirmation message.`,
     );
-    return { handled: true, booked: true };
+    return { handled: true, booked: true, appointmentId: created?.id ?? null };
   } catch {
     return { handled: true, booked: false };
   }

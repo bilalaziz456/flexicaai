@@ -59,6 +59,8 @@ async function reply(
 export type RescheduleOutcome = {
   handled: boolean;
   rescheduled: boolean;
+  /** The moved appointment's id (set when rescheduled) — for a deep-linked notification. */
+  appointmentId?: string | null;
 };
 
 /**
@@ -223,7 +225,7 @@ export async function handleRescheduleReply(args: {
       phone,
       `Your appointment has been rescheduled to ${fmtWhen(when)} with ${doctorName}.${feeStr}${tokenStr}`,
     );
-    return { handled: true, rescheduled: true };
+    return { handled: true, rescheduled: true, appointmentId: appt.id };
   } catch {
     // Best-effort: an inbound webhook must never fail on a reschedule attempt.
     return { handled: true, rescheduled: false };

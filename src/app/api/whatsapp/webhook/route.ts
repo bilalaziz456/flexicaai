@@ -130,6 +130,7 @@ export async function POST(request: Request) {
   // booking only runs if the message wasn't a reschedule request.
   let rescheduled = false;
   let booked = false;
+  let apptId: string | null = null;
   if (matched && text) {
     const resched = await handleRescheduleReply({
       clinicId: matched.clinicId,
@@ -138,6 +139,7 @@ export async function POST(request: Request) {
       text,
     });
     rescheduled = resched.rescheduled;
+    if (resched.rescheduled) apptId = resched.appointmentId ?? null;
     if (!resched.handled) {
       const booking = await handleBookingReply({
         clinicId: matched.clinicId,
@@ -146,6 +148,7 @@ export async function POST(request: Request) {
         text,
       });
       booked = booking.booked;
+      if (booking.booked) apptId = booking.appointmentId ?? null;
     }
   }
 
@@ -157,6 +160,7 @@ export async function POST(request: Request) {
       phone,
       text: text ?? null,
       outcome: booked ? "booked" : rescheduled ? "rescheduled" : "message",
+      appointmentId: apptId,
     });
   }
 

@@ -140,16 +140,22 @@ export async function POST(request: Request) {
 
         // Self-service for a matched patient: reschedule, else book.
         let outcome: "booked" | "rescheduled" | "message" = "message";
+        let apptId: string | null = null;
         if (clinicId && matched && text) {
           const resched = await handleRescheduleReply({ clinicId, patientId: matched, phone, text });
-          if (resched.rescheduled) outcome = "rescheduled";
-          else if (!resched.handled) {
+          if (resched.rescheduled) {
+            outcome = "rescheduled";
+            apptId = resched.appointmentId ?? null;
+          } else if (!resched.handled) {
             const booking = await handleBookingReply({ clinicId, patientId: matched, phone, text });
-            if (booking.booked) outcome = "booked";
+            if (booking.booked) {
+              outcome = "booked";
+              apptId = booking.appointmentId ?? null;
+            }
           }
         }
         // In-app bell: front desk (booking/reschedule) or whatsapp:view (message).
-        await notifyInboundWhatsApp({ clinicId, patientId: matched, phone, text, outcome });
+        await notifyInboundWhatsApp({ clinicId, patientId: matched, phone, text, outcome, appointmentId: apptId });
       }
     }
   }
