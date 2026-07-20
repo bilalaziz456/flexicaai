@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -10,6 +10,7 @@ import {
 } from "@/core/theme/theme";
 import { createSession, destroySession } from "@/core/auth/session";
 import { hashPassword, verifyPassword } from "@/core/auth/password";
+import { loginByIp, loginByUser, retryAfterLabel } from "@/core/security/rate-limit";
 import { requireUser } from "@/core/auth/user";
 import { logActivityAs } from "@/core/audit/log";
 import { db } from "@/core/db";
@@ -44,6 +45,25 @@ export async function signIn(
   }
 
   const username = parsed.data.username.toLowerCase();
+
+  // Brute-force gate: throttle failed logins per-username (primary) and per-IP
+  // (spraying). Checked BEFORE any DB work / hashing so a locked key costs nothing.
+  const h = await headers();
+  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
+  const userKey = `login:user:${username}`;
+  const ipKey = `login:ip:${ip}`;
+  const uGate = loginByUser.peek(userKey);
+  const ipGate = loginByIp.peek(ipKey);
+  if (uGate.blocked || ipGate.blocked) {
+    const ms = Math.max(uGate.retryAfterMs, ipGate.retryAfterMs);
+    return { error: `Too many attempts. Please try again in ${retryAfterLabel(ms)}.` };
+  }
+  // Count a failed attempt against both keys (used on every failure path below).
+  const countFailure = () => {
+    loginByUser.hit(userKey);
+    loginByIp.hit(ipKey);
+  };
+
   const [user] = await db
     .select()
     .from(users)
@@ -53,10 +73,18 @@ export async function signIn(
   // Generic message for an unknown username OR a wrong password — never reveal
   // which, to avoid username enumeration.
   const invalid: AuthActionState = { error: "Incorrect username or password." };
-  if (!user) return invalid;
+  if (!user) {
+    countFailure();
+    return invalid;
+  }
 
   const ok = await verifyPassword(parsed.data.password, user.passwordHash);
-  if (!ok) return invalid;
+  if (!ok) {
+    countFailure();
+    return invalid;
+  }
+  // Correct credentials — clear the username's failure count (not a brute-force run).
+  loginByUser.reset(userKey);
 
   // Only AFTER the password is verified do we reveal a suspended account. The
   // person has proven they own the credentials, so this leaks nothing an
