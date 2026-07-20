@@ -8,6 +8,7 @@ import {
   BellRing,
   Building2,
   CalendarClock,
+  CalendarX2,
   ChevronRight,
   ClipboardList,
   Contact,
@@ -138,6 +139,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; nodes: NavNode[] }> = {
         items: [
           { href: "/clinic/procedures", label: "Procedures", Icon: ClipboardList, resource: "procedures" },
           { href: "/clinic/doctors", label: "Doctors", Icon: UserCog, resource: "leave" },
+          { href: "/clinic/no-shows", label: "No-shows", Icon: CalendarX2, resource: "appointments" },
           { href: "/clinic/whatsapp", label: "WhatsApp", Icon: MessageCircle, resource: "whatsapp" },
           { href: "/clinic/recalls", label: "Recalls", Icon: BellRing, resource: "recalls" },
         ],
