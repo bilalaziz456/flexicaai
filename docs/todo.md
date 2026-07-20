@@ -3,9 +3,14 @@
 > Updated 2026-07-21. The CLAUDE.md §11 MVP (steps 1–12) is complete. This tracks
 > post-MVP work: ✅ = shipped, [ ] = remaining. Roughly ordered by product value.
 >
-> **v1 scope decision (2026-07-21):** the remaining **Clinic-operations** work for
-> v1 is exactly three items — **prescription history**, **expenses → central Trash**,
-> and **no-show rate** (see §D). Everything else in "Remaining" is **v2**.
+> **v1 scope decision (2026-07-21):** the **Clinic-operations** v1 work — **prescription
+> history**, **expenses → central Trash**, **no-show rate** (§D) — is ✅ shipped.
+>
+> **Infra decision (2026-07-21):** build all **non-deploy-gated** platform/infra now
+> (§B: in-app + email-code notifications, Postgres RLS, rate limiting, hash hardening).
+> Everything needing a chosen host or external credentials — **file storage swap,
+> connection pooler, AI API keys (Claude/Whisper), email provider, WhatsApp Cloud
+> go-live** — is deferred to the **§Z Final v1 phase** and activated together at deploy.
 
 ---
 
@@ -107,16 +112,26 @@
 - [ ] **SaaS billing & usage (super admin)** — per-clinic billing, plans, usage metering.
 - [ ] **Marketing site** — `/(marketing)` (landing, pricing, SSG); only `(auth)` exists.
 
-### B. Platform / infrastructure
-- [ ] **Email notifications** — `core/notifications/` is WhatsApp-only (no password-reset
-      / staff-invite email). `CLAUDE.md §3` wants email + in-app alerts.
-- [ ] **In-app notifications** — no bell/alerts.
-- [ ] **Postgres RLS** — tenant isolation is query-layer only (`byClinic()`).
-- [ ] **Rate limiting** — none on login / general traffic.
-- [ ] **Load / scaling hardening** — bcryptjs blocks the event loop; pool `max:10`; no
-      connection pooler.
-- [ ] **File storage = local disk** — `core/integrations/storage` is local FS; ephemeral
-      on Vercel. Needs S3-compatible swap BEFORE deploy.
+### B. Platform / infrastructure — **building now**
+
+Everything here can be built WITHOUT choosing a deploy target or wiring an external
+provider. Provider credentials / go-live (email, storage, AI, WhatsApp) are deferred
+to **§Z Final v1 phase**.
+
+- [ ] **In-app notifications** — bell/alerts (no external dependency). Schema + UI.
+- [ ] **Email notifications (code)** — build the channel + templates (password-reset,
+      staff-invite) behind `core/notifications/`, provider-agnostic; the actual SMTP/
+      provider credentials + live send move to §Z (same pattern as WhatsApp Cloud).
+- [ ] **Postgres RLS** — tenant isolation is query-layer only (`byClinic()`); add native
+      RLS as defense-in-depth (a migration; no deploy-target dependency).
+- [ ] **Rate limiting** — none on login / general traffic; add (DB/in-memory now,
+      swap to a shared store at deploy if needed).
+- [ ] **Load / scaling hardening (code parts)** — bcryptjs blocks the event loop
+      (swap the hash impl); the pool `max` / connection-pooler choice is deploy-gated → §Z.
+
+_Deferred to §Z (deploy-gated):_ **File storage** — `core/integrations/storage` is
+local FS; the S3-compatible (or server-disk) swap depends on the chosen host
+(S3 / Linux / Windows), so it lands in the final phase.
 
 ### C. Dental clinical depth — ✅ shipped (dental clinical arc, migrations 0044–0049)
 - [x] **Tooth chart / odontogram** + `dental_records` / `dental_charts` tables linked to
@@ -152,13 +167,29 @@ Also: moved `/clinic/overview` → `/clinic/reports/overview` (consistent with
 - [x] **Recurring-expense automation** (cron) — `core/expenses/recurring.ts` +
       `GET /api/cron/expenses` (migration 0043). ✅ shipped.
 
-### E. WhatsApp Cloud API — go-live (external, code is done)
-- [ ] Meta Business account + verification + WABA + system-user token.
-- [ ] Set `WHATSAPP_PROVIDER=cloud` + token / WABA id / verify token / app secret; point
-      Meta's webhook at `/api/whatsapp/cloud`.
-- [ ] Create + get the 7 Utility templates approved (`docs/whatsapp-cloud-plan.md` §C).
-- [ ] Decide the "always-present variable" handling (docs §D).
-- [ ] Provision a pilot clinic's number → live send/receive test → roll out.
+### Z. Final v1 phase — deploy & external activation (code is/► will be done first)
+
+Everything whose CODE is written but that needs a **chosen host** or **external
+credentials** to actually go live. Deliberately last: decided 2026-07-21 to build all
+non-deploy infra first, then activate these together at deploy.
+
+- [ ] **Deploy target decision** — S3 vs Linux vs Windows server (drives storage + pooler).
+- [ ] **File storage swap** — `core/integrations/storage` local FS → S3-compatible (or
+      the chosen server's disk). Code is abstracted behind the storage module.
+- [ ] **Connection pooler + pool sizing** — depends on the host (serverless vs a box).
+- [ ] **External AI APIs go-live** — set `ANTHROPIC_API_KEY` (Claude scribe/chat) +
+      `OPENAI_API_KEY` (Whisper); live transcribe→note test. Code is done (the scribe
+      gracefully no-ops without keys).
+- [ ] **Email provider go-live** — plug SMTP/provider credentials into the email channel
+      built in §B; live password-reset / invite test.
+- [ ] **WhatsApp Cloud API go-live** (external, code is done):
+  - [ ] Meta Business account + verification + WABA + system-user token.
+  - [ ] Set `WHATSAPP_PROVIDER=cloud` + token / WABA id / verify token / app secret;
+        point Meta's webhook at `/api/whatsapp/cloud`.
+  - [ ] Create + get the 7 Utility templates approved (`docs/whatsapp-cloud-plan.md` §C).
+  - [ ] Decide the "always-present variable" handling (docs §D).
+  - [ ] Provision a pilot clinic's number → live send/receive test → roll out.
+- [ ] **Any other third-party API** (payment gateway keys, etc.) — activate here.
 
 ### F. Future specialty modules (architected for; NOT to build without instruction)
 - [ ] **Derma module** · [ ] **Hair-transplant module** — touch only `/modules/<id>` +
@@ -174,9 +205,10 @@ Also: moved `/clinic/overview` → `/clinic/reports/overview` (consistent with
 ---
 
 ## Suggested priority order (toward "sellable")
-1. **Online payment gateways** — JazzCash / Easypaisa / Raast / Stripe (billing core is
-   done; this makes collection self-serve).
-2. ~~**Dental clinical model** — tooth chart + `dental_records` + treatment plans.~~ ✅ shipped.
-3. **Email + in-app notifications** — onboarding, password reset, alerts.
-4. **Deploy hardening** — S3 storage, connection pooler, rate limiting.
-5. **WhatsApp Cloud API go-live** — when the Meta WABA is ready (code is done).
+1. ~~**Dental clinical model** — tooth chart + `dental_records` + treatment plans.~~ ✅ shipped.
+2. ~~**Clinic-operations v1** — prescription history, no-show rate, expenses-Trash.~~ ✅ shipped.
+3. **Platform / infrastructure (§B)** — in-app + email(code) notifications, Postgres RLS,
+   rate limiting, hash hardening. ← **building now (decided 2026-07-21).**
+4. **Online payment gateways** — JazzCash / Easypaisa / Raast / Stripe (code now; keys at §Z).
+5. **§Z Final v1 phase** — pick the host, then activate storage, pooler, AI keys, email
+   provider, and WhatsApp Cloud go-live together.

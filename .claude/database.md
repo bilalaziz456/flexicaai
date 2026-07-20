@@ -35,7 +35,11 @@
   exactly that batch), `deleted_by_cascade` bool (true = hidden only because a
   parent was trashed; the Trash list shows only the non-cascade rows). Tables with
   soft delete: `clinics`, `users`, `patients`, `appointments`, `visits`, `recalls`,
-  `procedures`, `doctor_leaves`. **Every normal read must filter `deleted_at IS
+  `procedures`, `doctor_leaves`, `expenses`, `patient_payments`, `invoices`. The
+  central Trash UI (`core/trash`, `/clinic/trash` + `/admin/trash`) currently lists +
+  restores `clinics`/`users`/`patients`/`appointments`/`visits`/`recalls`/`procedures`/
+  `expenses`/`doctor_leaves` (payments/invoices soft-delete but are managed in their
+  own ledgers, not the Trash UI). **Every normal read must filter `deleted_at IS
   NULL`.** A trashed record leaves the clinic-level Trash after
   `clinics.trash_retention_days` (default 30, super-admin-set) but stays in the DB
   and visible to the super admin forever; the ONLY physical delete is a super-admin
