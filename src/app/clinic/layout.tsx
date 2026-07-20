@@ -6,7 +6,7 @@ import { clinics } from "@/core/db/schema";
 import { getThemeCookie } from "@/core/theme/server";
 import { clinicHasFeature } from "@/core/lib/features";
 import { accessibleResourceIds, can } from "@/core/auth/permissions";
-import { displayStaffName } from "@/core/types/auth";
+import { displayStaffName, staffInitials } from "@/core/types/auth";
 import { PanelShell } from "@/core/ui/panel-shell";
 
 /**
@@ -54,6 +54,7 @@ export default async function ClinicLayout({
       panel="clinic"
       identityLabel={clinic?.name ?? user.username}
       userName={displayStaffName(user.prefix, user.fullName, user.username)}
+      userInitials={staffInitials(user.fullName, user.username)}
       accountHref="/clinic/settings"
       avatarVersion={user.avatarKey ?? "none"}
       theme={theme}

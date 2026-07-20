@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { requireUser } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { users } from "@/core/db/schema";
-import { ROLE_HOME_ROUTE, ROLE_LABELS } from "@/core/types/auth";
+import { ROLE_HOME_ROUTE, ROLE_LABELS, staffInitials } from "@/core/types/auth";
 import {
   Card,
   CardContent,
@@ -17,15 +17,6 @@ import {
   ProfileForm,
   PasswordForm,
 } from "./account-forms";
-
-function initialsOf(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("");
-}
 
 /** Account settings — any signed-in user manages their own profile, picture and
  * password. Standalone (not inside a panel); reached from the identity pill. */
@@ -45,8 +36,6 @@ export default async function AccountPage() {
     .where(eq(users.id, current.id))
     .limit(1);
   if (!u) return null;
-
-  const displayName = u.fullName ?? u.username;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
@@ -70,7 +59,7 @@ export default async function AccountPage() {
         </CardHeader>
         <CardContent>
           <AvatarForm
-            initials={initialsOf(displayName)}
+            initials={staffInitials(u.fullName, u.username)}
             hasAvatar={Boolean(u.avatarKey)}
             version={u.avatarKey ?? "none"}
           />

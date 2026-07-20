@@ -53,11 +53,14 @@ type NavGroup = { group: string; Icon: LucideIcon; items: NavItem[] };
 type NavNode = NavItem | NavGroup;
 const isGroup = (n: NavNode): n is NavGroup => "group" in n;
 
-/** The signed-in user's own avatar (from /api/me/avatar); falls back to an icon.
+/** The signed-in user's own avatar (from /api/me/avatar); falls back to the name
+ * initials (matching the settings page), or a generic icon when there's no name.
  * `version` (the avatar key) busts the cache so a new upload shows immediately —
- * keyed by it at the call site so the component remounts on change. */
-function SelfAvatar({ className, version }: { className?: string; version?: string }) {
-  const [ok, setOk] = useState(true);
+ * keyed by it at the call site so the component remounts on change. When the user
+ * has no picture (version "none") we skip the request and show initials directly. */
+function SelfAvatar({ className, version, initials }: { className?: string; version?: string; initials?: string }) {
+  const hasImage = Boolean(version) && version !== "none";
+  const [ok, setOk] = useState(hasImage);
   if (ok) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -67,6 +70,19 @@ function SelfAvatar({ className, version }: { className?: string; version?: stri
         onError={() => setOk(false)}
         className={cn("size-6 shrink-0 rounded-full object-cover", className)}
       />
+    );
+  }
+  if (initials) {
+    return (
+      <span
+        className={cn(
+          "flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-[0.7rem] font-semibold uppercase text-accent-foreground",
+          className,
+        )}
+        aria-hidden="true"
+      >
+        {initials}
+      </span>
     );
   }
   return (
@@ -177,6 +193,7 @@ export function PanelShell({
   panel,
   identityLabel,
   userName,
+  userInitials = "",
   accountHref = "/account",
   avatarVersion = "none",
   theme,
@@ -191,6 +208,8 @@ export function PanelShell({
   identityLabel: string;
   /** The signed-in user's display name (with prefix, e.g. "Dr. Bilal Aziz"). */
   userName: string;
+  /** Up-to-two-letter initials for the avatar fallback (no prefix, e.g. "BA"). */
+  userInitials?: string;
   /** Where the profile/avatar links go (in-panel Settings for a clinic user). */
   accountHref?: string;
   /** The user's avatar key (or "none") — busts the top-bar avatar cache on change. */
@@ -353,7 +372,7 @@ export function PanelShell({
             aria-label="Account settings"
             className="flex items-center gap-2 rounded-full py-0.5 pl-0.5 pr-3 transition-colors hover:bg-accent"
           >
-            <SelfAvatar key={avatarVersion} version={avatarVersion} className="size-7" />
+            <SelfAvatar key={avatarVersion} version={avatarVersion} initials={userInitials} className="size-7" />
             <span className="max-w-[12rem] truncate text-sm font-medium">{userName}</span>
           </Link>
         </div>
@@ -374,7 +393,7 @@ export function PanelShell({
         </Link>
         <div className="flex items-center gap-1">
           <Link href={accountHref} aria-label="Account settings" className="rounded-full p-0.5">
-            <SelfAvatar key={avatarVersion} version={avatarVersion} className="size-7" />
+            <SelfAvatar key={avatarVersion} version={avatarVersion} initials={userInitials} className="size-7" />
           </Link>
           <ThemeToggle initial={theme} />
           <form action={signOut}>
@@ -428,7 +447,7 @@ export function PanelShell({
               onClick={() => setOpen(false)}
               className="inline-flex max-w-full items-center gap-2 rounded-full pr-3 transition-colors hover:bg-accent"
             >
-              <SelfAvatar key={avatarVersion} version={avatarVersion} />
+              <SelfAvatar key={avatarVersion} version={avatarVersion} initials={userInitials} />
               <span className="truncate text-xs font-medium text-muted-foreground">
                 {identityLabel}
               </span>

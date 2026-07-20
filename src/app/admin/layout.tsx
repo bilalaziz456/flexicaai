@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { requireRole } from "@/core/auth/user";
 import { getThemeCookie } from "@/core/theme/server";
-import { displayStaffName } from "@/core/types/auth";
+import { displayStaffName, staffInitials } from "@/core/types/auth";
 import { PanelShell } from "@/core/ui/panel-shell";
 
 /**
@@ -23,6 +23,7 @@ export default async function AdminLayout({
       panel="admin"
       identityLabel="Super admin"
       userName={displayStaffName(user.prefix, user.fullName, user.username)}
+      userInitials={staffInitials(user.fullName, user.username)}
       avatarVersion={user.avatarKey ?? "none"}
       theme={theme}
     >

@@ -67,6 +67,24 @@ export function displayStaffName(
 }
 
 /**
+ * Up-to-two-letter initials for the avatar fallback — derived from the full name
+ * (or the username when there's no name), NEVER the prefix, so "Dr. Bilal Aziz" →
+ * "BA". Shared by the account page and the top-bar avatar so both match.
+ */
+export function staffInitials(
+  fullName: string | null | undefined,
+  fallback = "",
+): string {
+  const name = ((fullName ?? "").trim() || fallback).trim();
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+/**
  * The panel each role lands in after login. These map to the route groups in
  * /src/app. Keep this the single source of truth for role→home routing so
  * middleware and post-login redirects never drift apart.
