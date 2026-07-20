@@ -18,6 +18,11 @@ import { appointmentBillNetSql } from "@/core/finance/receivables";
 export type FinanceKpis = {
   collected30d: number;
   netProfit30d: number;
+  /** 30-day cost breakdown — feeds the dashboard "money flow" waterfall (same
+   *  window as the KPI cards, so it stays visible on a quiet day). Reused from the
+   *  P&L already computed below — no extra query. */
+  doctorShares30d: number;
+  expenses30d: number;
   outstandingReceivable: number;
   payableToDoctors: number;
   /** Per-day series over the last 30 days, for the KPI sparklines (reuses the P&L
@@ -112,6 +117,8 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
   return {
     collected30d: pl.revenue,
     netProfit30d: pl.netProfit,
+    doctorShares30d: pl.doctorShares,
+    expenses30d: pl.expenses,
     outstandingReceivable: Number(rec?.v ?? 0),
     payableToDoctors,
     collectedTrend: pl.revenueBuckets.map((b) => b.value),

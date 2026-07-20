@@ -15,7 +15,6 @@ import {
 import { clinicHasFeature } from "@/core/lib/features";
 import { getSalesSummary, resolveSalesRange } from "@/core/sales/report";
 import { getFinanceKpis } from "@/core/finance/kpis";
-import { getProfitAndLoss } from "@/core/finance/pl";
 import { WaterfallChart } from "@/app/clinic/sales/waterfall-chart";
 import {
   Card,
@@ -65,10 +64,8 @@ export default async function ClinicDashboard() {
   const billingKpiOn = salesEnabled && can(user, "billing", "view");
   const financeKpiOn =
     clinicHasFeature(clinicRow?.featuresEnabled, "finance") && can(user, "finance", "view");
-  const [financeKpis, todayPl] = await Promise.all([
-    billingKpiOn || financeKpiOn ? getFinanceKpis(clinicId) : Promise.resolve(null),
-    financeKpiOn ? getProfitAndLoss(clinicId, resolveSalesRange("today", undefined, undefined)) : Promise.resolve(null),
-  ]);
+  const financeKpis =
+    billingKpiOn || financeKpiOn ? await getFinanceKpis(clinicId) : null;
 
   // A doctor manages their OWN leave right here on the dashboard (no separate
   // "Doctors" nav item). Fetch their upcoming leave; the add/remove controls are
@@ -319,28 +316,31 @@ export default async function ClinicDashboard() {
         </div>
       ) : null}
 
-      {/* Today's money flow — collected → −shares → −expenses → profit (finance only). */}
-      {todayPl && todayPl.revenue > 0 ? (
+      {/* Money flow (last 30 days) — collected → −shares → −expenses → profit
+          (finance only). Tied to the SAME 30-day window as the KPI cards above so it
+          stays visible on a quiet day, instead of vanishing whenever today has no
+          collections yet. */}
+      {financeKpiOn && financeKpis && financeKpis.collected30d > 0 ? (
         <Card>
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <CardTitle className="text-base">Today&apos;s money flow</CardTitle>
-                <CardDescription>How today&apos;s collected revenue became profit.</CardDescription>
+                <CardTitle className="text-base">Money flow (30 days)</CardTitle>
+                <CardDescription>How the last 30 days&apos; collected revenue became profit.</CardDescription>
               </div>
               <Link href="/clinic/overview" className="no-underline text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
-                Full day report →
+                Full report →
               </Link>
             </div>
           </CardHeader>
           <CardContent>
             <WaterfallChart
-              ariaLabel="Today's collected revenue to net profit"
+              ariaLabel="Last 30 days' collected revenue to net profit"
               steps={[
-                { label: "Collected", value: todayPl.revenue, role: "start" },
-                { label: "− Shares", value: -todayPl.doctorShares, role: "deduct" },
-                { label: "− Expenses", value: -todayPl.expenses, role: "deduct" },
-                { label: todayPl.netProfit < 0 ? "Net loss" : "Net profit", value: todayPl.netProfit, role: "result" },
+                { label: "Collected", value: financeKpis.collected30d, role: "start" },
+                { label: "− Shares", value: -financeKpis.doctorShares30d, role: "deduct" },
+                { label: "− Expenses", value: -financeKpis.expenses30d, role: "deduct" },
+                { label: financeKpis.netProfit30d < 0 ? "Net loss" : "Net profit", value: financeKpis.netProfit30d, role: "result" },
               ]}
             />
           </CardContent>
