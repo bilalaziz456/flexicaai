@@ -29,7 +29,8 @@ export type FinanceKpis = {
    *  buckets already computed — no extra query). */
   collectedTrend: number[];
   profitTrend: number[];
-  sharesTrend: number[]; // daily doctor shares (accruing) — for the Payable card
+  sharesTrend: number[]; // daily doctor shares (accruing) — for the Doctor-shares card
+  expenseTrend: number[]; // daily expenses — for the Expenses card
   outstandingTrend: number[]; // RUNNING receivable balance — rises to outstandingReceivable
 };
 
@@ -124,6 +125,7 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
     collectedTrend: pl.revenueBuckets.map((b) => b.value),
     profitTrend: pl.plBuckets.map((b) => b.profit),
     sharesTrend: pl.plBuckets.map((b) => b.share),
+    expenseTrend: pl.plBuckets.map((b) => b.expense),
     outstandingTrend,
   };
 }

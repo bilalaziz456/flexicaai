@@ -226,6 +226,16 @@ export default async function ClinicDashboard() {
           },
         ]
       : []),
+    ...(financeKpiOn && financeKpis
+      ? [
+          {
+            title: "Payable to doctors",
+            value: pkr(financeKpis.payableToDoctors),
+            note: "Unpaid shares",
+            href: "/clinic/shares",
+          },
+        ]
+      : []),
     ...(salesEnabled && salesSummary
       ? [
           {
@@ -291,19 +301,20 @@ export default async function ClinicDashboard() {
         </Card>
       ) : null}
 
-      {/* Finance KPIs — Collected for billing clinics; Net profit + Payable when the
-          finance feature is on. (Outstanding lives in the stats grid below, so both
-          rows stay symmetric — a plain "Patients owe us" card.) */}
+      {/* Finance KPIs — mirror the P&L cards: Collected − Doctor shares − Expenses =
+          Net profit (colours match the P&L chart, except Expenses is yellow here).
+          Payable-to-doctors + Outstanding live in the stats grid below. */}
       {financeKpis ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {(() => {
             const fmt = (n: number) =>
               new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 }).format(n);
             const loss = financeKpis.netProfit30d < 0;
             const kpis = [
               { show: billingKpiOn || financeKpiOn, title: "Collected (30d)", value: fmt(financeKpis.collected30d), note: "Revenue received", href: financeKpiOn ? "/clinic/pl" : "/clinic/sales", tone: "", trend: financeKpis.collectedTrend, trendColor: "var(--color-chart-1)" },
+              { show: financeKpiOn, title: "Doctor shares (30d)", value: `− ${fmt(financeKpis.doctorShares30d)}`, note: "Earned on collection", href: "/clinic/pl", tone: "", trend: financeKpis.sharesTrend, trendColor: "var(--color-chart-2)" },
+              { show: financeKpiOn, title: "Expenses (30d)", value: `− ${fmt(financeKpis.expenses30d)}`, note: "Costs incurred", href: "/clinic/expenses", tone: "", trend: financeKpis.expenseTrend, trendColor: "#eab308" },
               { show: financeKpiOn, title: loss ? "Net loss (30d)" : "Net profit (30d)", value: fmt(Math.abs(financeKpis.netProfit30d)), note: "After shares + expenses", href: "/clinic/pl", tone: loss ? "text-destructive" : "text-emerald-600 dark:text-emerald-400", trend: financeKpis.profitTrend, trendColor: loss ? "var(--destructive)" : "#10b981" },
-              { show: financeKpiOn, title: "Payable to doctors", value: fmt(financeKpis.payableToDoctors), note: "Unpaid shares", href: "/clinic/shares", tone: "", trend: financeKpis.sharesTrend, trendColor: "var(--color-chart-4)" },
             ].filter((k) => k.show);
             return kpis.map((k) => {
               const hasSpark = Boolean(k.trend && k.trend.length > 1);
@@ -350,8 +361,8 @@ export default async function ClinicDashboard() {
               ariaLabel="Last 30 days' collected revenue to net profit"
               steps={[
                 { label: "Collected", value: financeKpis.collected30d, role: "start" },
-                { label: "− Shares", value: -financeKpis.doctorShares30d, role: "deduct" },
-                { label: "− Expenses", value: -financeKpis.expenses30d, role: "deduct", color: "#851525" },
+                { label: "− Shares", value: -financeKpis.doctorShares30d, role: "deduct", color: "var(--color-chart-2)" },
+                { label: "− Expenses", value: -financeKpis.expenses30d, role: "deduct", color: "#eab308" },
                 { label: financeKpis.netProfit30d < 0 ? "Net loss" : "Net profit", value: financeKpis.netProfit30d, role: "result" },
               ]}
             />
