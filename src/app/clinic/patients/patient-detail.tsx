@@ -457,6 +457,12 @@ export async function PatientDetail({
           <CardHeader>
             <CardTitle>Odontogram</CardTitle>
             <CardDescription>The patient&apos;s current tooth chart.</CardDescription>
+            <Link
+              href={`${backHref}/${patient.id}/chart-print`}
+              className="text-sm font-medium underline underline-offset-4"
+            >
+              Print chart →
+            </Link>
           </CardHeader>
           <CardContent>
             <PatientChartCard
