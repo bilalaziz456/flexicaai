@@ -122,8 +122,16 @@ to **§Z Final v1 phase**.
 - [ ] **Email notifications (code)** — build the channel + templates (password-reset,
       staff-invite) behind `core/notifications/`, provider-agnostic; the actual SMTP/
       provider credentials + live send move to §Z (same pattern as WhatsApp Cloud).
-- [ ] **Postgres RLS** — tenant isolation is query-layer only (`byClinic()`); add native
-      RLS as defense-in-depth (a migration; no deploy-target dependency).
+- [x] **Tenant-scope guard (RLS substitute)** — ✅ `core/db/tenant-guard.ts`: a Drizzle
+      logger flags any query touching a `clinic_id` table without a clinic_id scope;
+      `unscoped("reason", …)` opt-out for intentional cross-tenant reads; WARN by default,
+      `TENANT_GUARD_STRICT=1` throws (tests/CI). Decided over native RLS 2026-07-21 — same
+      failure mode (a dropped filter), no per-request DB-session/connection-pinning cost.
+      _Remaining:_ a wrapping pass — wrap the other super-admin/cron cross-tenant queries in
+      `unscoped()` so strict mode can run clean in CI (admin/logs done as the pattern).
+- [ ] ~~**Postgres RLS**~~ — deferred to §Z; revisit only if a direct-DB/BI connection is
+      added or a compliance checkbox requires native RLS. The guard above covers the
+      forgotten-`byClinic()` risk for the trusted single-tier app.
 - [x] **Rate limiting** — ✅ login brute-force gate (`core/security/rate-limit.ts`):
       per-username 5/15min (reset on success) + per-IP 50/15min, in-memory fixed-window;
       wired into `signIn`. Swap the `Limiter` for a shared store at §Z (multi-instance).
