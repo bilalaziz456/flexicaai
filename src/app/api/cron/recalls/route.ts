@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { processDueRecalls } from "@/core/recall";
+import { unscoped } from "@/core/db/tenant-guard";
 import { serverEnv, isProduction } from "@/core/lib/env";
 
 /**
@@ -25,6 +26,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const result = await processDueRecalls();
+  // System job: runs across every clinic → opt out of the tenant guard.
+  const result = await unscoped("cron: recalls (all clinics)", () => processDueRecalls());
   return NextResponse.json({ ok: true, ...result });
 }

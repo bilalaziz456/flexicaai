@@ -2,6 +2,7 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 import { db } from "@/core/db";
+import { byClinic } from "@/core/db/tenant";
 import { whatsappMessages } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import {
@@ -54,7 +55,7 @@ export async function sendWhatsAppToPatient(args: {
         error: "WhatsApp is not configured for this platform.",
         updatedAt: new Date(),
       })
-      .where(eq(whatsappMessages.id, messageId));
+      .where(byClinic(whatsappMessages.clinicId, args.clinicId, eq(whatsappMessages.id, messageId)));
     return { messageId, ok: false, error: "WhatsApp is not configured." };
   }
 

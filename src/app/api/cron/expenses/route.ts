@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { generateDueRecurringExpenses } from "@/core/expenses/recurring";
+import { unscoped } from "@/core/db/tenant-guard";
 import { serverEnv, isProduction } from "@/core/lib/env";
 
 /**
@@ -25,6 +26,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const result = await generateDueRecurringExpenses();
+  // System job: runs across every clinic → opt out of the tenant guard.
+  const result = await unscoped("cron: recurring expenses (all clinics)", () => generateDueRecurringExpenses());
   return NextResponse.json({ ok: true, ...result });
 }

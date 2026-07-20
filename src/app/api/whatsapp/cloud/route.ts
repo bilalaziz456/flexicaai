@@ -5,6 +5,7 @@ import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { patients, whatsappMessages } from "@/core/db/schema";
 import { normalisePhone } from "@/core/integrations/whatsapp";
+import { unscoped } from "@/core/db/tenant-guard";
 import { getClinicIdByPhoneNumberId } from "@/core/notifications/clinic-whatsapp";
 import { handleRescheduleReply } from "@/core/appointments/reschedule";
 import { handleBookingReply } from "@/core/appointments/booking";
@@ -101,11 +102,15 @@ export async function POST(request: Request) {
       // ---- Delivery/read receipts: advance the outbound row by its wamid ----
       for (const s of value.statuses ?? []) {
         const mapped = s.status ? STATUS_MAP[s.status.toLowerCase()] : undefined;
-        if (mapped && s.id) {
-          await db
-            .update(whatsappMessages)
-            .set({ status: mapped, updatedAt: new Date() })
-            .where(eq(whatsappMessages.externalId, s.id));
+        const wamid = s.id;
+        if (mapped && wamid) {
+          // Receipt matches the outbound row by its global wamid, across clinics.
+          await unscoped("whatsapp cloud: match outbound by wamid", () =>
+            db
+              .update(whatsappMessages)
+              .set({ status: mapped, updatedAt: new Date() })
+              .where(eq(whatsappMessages.externalId, wamid)),
+          );
           statuses++;
         }
       }

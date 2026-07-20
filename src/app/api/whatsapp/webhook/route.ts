@@ -4,6 +4,7 @@ import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { patients, whatsappMessages } from "@/core/db/schema";
 import { normalisePhone } from "@/core/integrations/whatsapp";
+import { unscoped } from "@/core/db/tenant-guard";
 import { handleRescheduleReply } from "@/core/appointments/reschedule";
 import { handleBookingReply } from "@/core/appointments/booking";
 import { serverEnv } from "@/core/lib/env";
@@ -67,10 +68,13 @@ export async function POST(request: Request) {
   // ---- Delivery/read receipt: advance an existing outbound message ----
   const mappedStatus = STATUS_MAP[statusRaw];
   if (mappedStatus && externalId) {
-    await db
-      .update(whatsappMessages)
-      .set({ status: mappedStatus, updatedAt: new Date() })
-      .where(eq(whatsappMessages.externalId, externalId));
+    // Inbound receipt matches an outbound message by provider id, across clinics.
+    await unscoped("whatsapp inbound: match outbound by external_id", () =>
+      db
+        .update(whatsappMessages)
+        .set({ status: mappedStatus, updatedAt: new Date() })
+        .where(eq(whatsappMessages.externalId, externalId)),
+    );
     return NextResponse.json({ ok: true, kind: "status" });
   }
 
@@ -90,18 +94,21 @@ export async function POST(request: Request) {
 
   // Attribute only when exactly one patient (platform-wide) has this number.
   const last9 = phone.slice(-9);
+  // An inbound number could belong to any clinic → platform-wide match by design.
   const candidates = last9
-    ? await db
-        .select({ id: patients.id, clinicId: patients.clinicId, phone: patients.phone })
-        .from(patients)
-        .where(
-          and(
-            notDeleted(patients.deletedAt),
-            isNotNull(patients.phone),
-            ilike(patients.phone, `%${last9}%`),
-          ),
-        )
-        .limit(5)
+    ? await unscoped("whatsapp inbound: match patient by phone (platform-wide)", () =>
+        db
+          .select({ id: patients.id, clinicId: patients.clinicId, phone: patients.phone })
+          .from(patients)
+          .where(
+            and(
+              notDeleted(patients.deletedAt),
+              isNotNull(patients.phone),
+              ilike(patients.phone, `%${last9}%`),
+            ),
+          )
+          .limit(5),
+      )
     : [];
   const exact = candidates.filter((c) => normalisePhone(c.phone ?? "") === phone);
   const matched = exact.length === 1 ? exact[0] : null;

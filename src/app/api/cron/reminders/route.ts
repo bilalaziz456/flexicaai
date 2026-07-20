@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sendDueAppointmentReminders } from "@/core/notifications/appointment";
+import { unscoped } from "@/core/db/tenant-guard";
 import { serverEnv, isProduction } from "@/core/lib/env";
 
 /**
@@ -24,6 +25,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const result = await sendDueAppointmentReminders();
+  // System job: runs across every clinic → opt out of the tenant guard.
+  const result = await unscoped("cron: reminders (all clinics)", () => sendDueAppointmentReminders());
   return NextResponse.json({ ok: true, ...result });
 }
