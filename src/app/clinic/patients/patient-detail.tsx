@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarPlus } from "lucide-react";
-import { desc, eq } from "drizzle-orm";
+import { CalendarPlus, Printer } from "lucide-react";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, clinics, patients, users, visits } from "@/core/db/schema";
@@ -58,6 +58,7 @@ export async function PatientDetail({
   bookPath,
   canViewClinical = false,
   canEditClinical = false,
+  canViewPrescriptions = false,
   canViewAttachments = false,
   canUploadAttachments = false,
   canDeleteAttachments = false,
@@ -84,6 +85,9 @@ export async function PatientDetail({
   canViewClinical?: boolean;
   /** Allow editing the chart (existing conditions) — needs `clinical:edit`. */
   canEditClinical?: boolean;
+  /** Show the patient's prescription history (reprint) — needs `prescriptions:view`.
+   *  Independent of clinical: front desk may reprint without seeing full notes. */
+  canViewPrescriptions?: boolean;
   /** Clinical attachments (imaging/docs) — `attachments` view/create/delete. */
   canViewAttachments?: boolean;
   canUploadAttachments?: boolean;
@@ -162,6 +166,53 @@ export async function PatientDetail({
         )
         .orderBy(desc(visits.visitDate))
         .limit(30)
+    : [];
+
+  // Prescription history — reprint list, gated by `prescriptions:view` (independent
+  // of clinical:view, so the front desk can reprint without seeing full notes). Only
+  // APPROVED visits with ≥1 drug; we project ONLY the drug lines out of the note so no
+  // other clinical data reaches a prescriptions-only viewer. Newest first.
+  type RxLine = { drug: string; dosage: string | null; duration: string | null };
+  type RxVisit = { visitId: string; date: Date | null; doctor: string; drugs: RxLine[] };
+  const prescriptionVisits: RxVisit[] = canViewPrescriptions
+    ? (
+        await db
+          .select({
+            id: visits.id,
+            visitDate: visits.visitDate,
+            note: visits.note,
+            doctorName: users.fullName,
+            doctorUsername: users.username,
+            doctorPrefix: users.prefix,
+          })
+          .from(visits)
+          .leftJoin(users, eq(visits.doctorId, users.id))
+          .where(
+            byClinic(
+              visits.clinicId,
+              clinicId,
+              notDeleted(visits.deletedAt),
+              and(eq(visits.patientId, patientId), eq(visits.status, "approved")),
+            ),
+          )
+          .orderBy(desc(visits.visitDate))
+          .limit(50)
+      ).flatMap((v) => {
+        const note = (v.note && typeof v.note === "object" ? v.note : {}) as Record<string, unknown>;
+        const drugs: RxLine[] = (Array.isArray(note.prescriptions) ? (note.prescriptions as Record<string, unknown>[]) : [])
+          .map((p) => ({
+            drug: typeof p.drug === "string" ? p.drug.trim() : "",
+            dosage: typeof p.dosage === "string" ? p.dosage : null,
+            duration: typeof p.duration === "string" ? p.duration : null,
+          }))
+          .filter((p) => p.drug.length > 0);
+        if (drugs.length === 0) return [];
+        const doctor =
+          v.doctorName || v.doctorUsername
+            ? `${v.doctorPrefix ? `${v.doctorPrefix}. ` : ""}${v.doctorName ?? v.doctorUsername}`
+            : "—";
+        return [{ visitId: v.id, date: v.visitDate, doctor, drugs }];
+      })
     : [];
 
   // The clinic's enabled modules — drives every module-agnostic clinical section
@@ -646,6 +697,48 @@ export async function PatientDetail({
                     </li>
                   );
                 })}
+              </ol>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {canViewPrescriptions ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Prescriptions</CardTitle>
+            <CardDescription>
+              Prescriptions from approved visits — open to print or re-print the PDF.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {prescriptionVisits.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No prescriptions yet.</p>
+            ) : (
+              <ol className="space-y-3">
+                {prescriptionVisits.map((rx) => (
+                  <li key={rx.visitId} className="rounded-lg border p-3 text-sm">
+                    <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">
+                        {rx.date ? dayFmt(rx.date) : "—"}
+                        <span className="text-muted-foreground"> · {rx.doctor}</span>
+                      </span>
+                      <a
+                        href={`/api/prescriptions/${rx.visitId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-primary underline underline-offset-4"
+                      >
+                        <Printer className="size-3.5" aria-hidden="true" /> Print
+                      </a>
+                    </div>
+                    <p className="text-muted-foreground">
+                      {rx.drugs
+                        .map((d) => d.drug + (d.dosage ? ` (${d.dosage}${d.duration ? `, ${d.duration}` : ""})` : d.duration ? ` (${d.duration})` : ""))
+                        .join(" · ")}
+                    </p>
+                  </li>
+                ))}
               </ol>
             )}
           </CardContent>
