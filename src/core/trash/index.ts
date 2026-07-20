@@ -7,6 +7,7 @@ import {
   appointments,
   clinics,
   doctorLeaves,
+  expenses,
   patients,
   procedures,
   recalls,
@@ -37,6 +38,7 @@ export type TrashEntity =
   | "visit"
   | "recall"
   | "procedure"
+  | "expense"
   | "leave"
   | "staff"
   | "clinic";
@@ -118,7 +120,7 @@ async function collect(scope: Scope, filters: TrashFilters = {}): Promise<TrashI
   };
 
   // Each entity is queried separately (label/detail differ).
-  const [pats, appts, vis, recs, procs, leaves, staff, clins] = await Promise.all([
+  const [pats, appts, vis, recs, procs, exps, leaves, staff, clins] = await Promise.all([
     db
       .select({
         id: patients.id,
@@ -188,6 +190,21 @@ async function collect(scope: Scope, filters: TrashFilters = {}): Promise<TrashI
       .orderBy(desc(procedures.deletedAt)),
     db
       .select({
+        id: expenses.id,
+        group: expenses.deleteGroup,
+        deletedAt: expenses.deletedAt,
+        deletedBy: expenses.deletedBy,
+        clinicId: expenses.clinicId,
+        amount: expenses.amount,
+        incurredOn: expenses.incurredOn,
+        vendor: expenses.vendor,
+        note: expenses.note,
+      })
+      .from(expenses)
+      .where(cond("expense", expenses.clinicId, expenses.deletedAt, expenses.deletedByCascade, expenses.deletedBy))
+      .orderBy(desc(expenses.deletedAt)),
+    db
+      .select({
         id: doctorLeaves.id,
         group: doctorLeaves.deleteGroup,
         deletedAt: doctorLeaves.deletedAt,
@@ -247,6 +264,8 @@ async function collect(scope: Scope, filters: TrashFilters = {}): Promise<TrashI
     push({ entity: "recall", id: r.id, group: r.group ?? r.id, label: r.patientName ? `${r.patientName} — recall` : (r.reason ?? "Recall"), detail: r.reason, clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
   for (const r of procs)
     push({ entity: "procedure", id: r.id, group: r.group ?? r.id, label: r.name, detail: `Rs ${r.price}`, clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
+  for (const r of exps)
+    push({ entity: "expense", id: r.id, group: r.group ?? r.id, label: r.vendor || r.note || "Expense", detail: `Rs ${r.amount} · ${dateStr(r.incurredOn)}`, clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
   for (const r of leaves)
     push({ entity: "leave", id: r.id, group: r.group ?? r.id, label: `${r.doctorName ?? r.doctorUsername ?? "Doctor"} — leave`, detail: r.startDate === r.endDate ? dateStr(r.startDate) : `${dateStr(r.startDate)} – ${dateStr(r.endDate)}`, clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
   for (const r of staff)
@@ -313,6 +332,7 @@ const TRASH_ENTITIES: readonly TrashEntity[] = [
   "visit",
   "recall",
   "procedure",
+  "expense",
   "leave",
   "staff",
   "clinic",
@@ -394,6 +414,7 @@ async function revertGroup(group: string, clinicId: string | null): Promise<void
   await db.update(visits).set(set).where(clinicId ? and(eq(visits.deleteGroup, group), eq(visits.clinicId, clinicId)) : eq(visits.deleteGroup, group));
   await db.update(recalls).set(set).where(clinicId ? and(eq(recalls.deleteGroup, group), eq(recalls.clinicId, clinicId)) : eq(recalls.deleteGroup, group));
   await db.update(procedures).set(set).where(clinicId ? and(eq(procedures.deleteGroup, group), eq(procedures.clinicId, clinicId)) : eq(procedures.deleteGroup, group));
+  await db.update(expenses).set(set).where(clinicId ? and(eq(expenses.deleteGroup, group), eq(expenses.clinicId, clinicId)) : eq(expenses.deleteGroup, group));
   await db.update(doctorLeaves).set(set).where(clinicId ? and(eq(doctorLeaves.deleteGroup, group), eq(doctorLeaves.clinicId, clinicId)) : eq(doctorLeaves.deleteGroup, group));
   await db.update(users).set(set).where(clinicId ? and(eq(users.deleteGroup, group), eq(users.clinicId, clinicId)) : eq(users.deleteGroup, group));
 
@@ -447,6 +468,7 @@ export async function purgeGroup(group: string): Promise<void> {
     await tx.delete(recalls).where(eq(recalls.deleteGroup, group));
     await tx.delete(appointments).where(eq(appointments.deleteGroup, group));
     await tx.delete(doctorLeaves).where(eq(doctorLeaves.deleteGroup, group));
+    await tx.delete(expenses).where(eq(expenses.deleteGroup, group));
     await tx.delete(procedures).where(eq(procedures.deleteGroup, group));
     await tx.delete(patients).where(eq(patients.deleteGroup, group));
     await tx.delete(users).where(eq(users.deleteGroup, group));

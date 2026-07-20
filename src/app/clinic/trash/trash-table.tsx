@@ -14,6 +14,7 @@ const ENTITY_LABEL: Record<TrashEntity, string> = {
   visit: "Clinical note",
   recall: "Recall",
   procedure: "Procedure",
+  expense: "Expense",
   leave: "Doctor leave",
   staff: "Staff",
   clinic: "Clinic",

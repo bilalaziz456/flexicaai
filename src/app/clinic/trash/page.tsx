@@ -15,6 +15,7 @@ const TYPE_OPTIONS = [
   { value: "visit", label: "Clinical note" },
   { value: "recall", label: "Recall" },
   { value: "procedure", label: "Procedure" },
+  { value: "expense", label: "Expense" },
   { value: "leave", label: "Doctor leave" },
   { value: "staff", label: "Staff" },
 ];
