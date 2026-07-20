@@ -5,7 +5,12 @@ import { dentalDrugFormulary } from "@/modules/dental/drug-formulary";
 import { dentalProcedureTemplates } from "@/modules/dental/procedure-templates";
 import { DentalPatientChart, DentalVisitEditor } from "@/modules/dental/components/tooth-chart";
 import { seedFromNote } from "@/modules/dental/seed-from-note";
-import { getPatientChart } from "@/modules/dental/db/records";
+import {
+  getPatientChart,
+  saveBaseline,
+  saveRecordOnApprove,
+  visitChanges,
+} from "@/modules/dental/db/records";
 
 /**
  * The Dental module — the first (and, for now, only) built specialty.
@@ -35,5 +40,8 @@ export const dentalModule: ModuleDefinition = {
     PatientChart: DentalPatientChart,
     seedFromNote,
     loadChart: getPatientChart,
+    saveRecord: saveRecordOnApprove,
+    visitChanges,
+    saveBaseline,
   },
 };

@@ -12,7 +12,8 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { NoteEditor } from "@/core/ui/note-editor";
-import { approveVisit, discardDraft, searchPatients } from "./actions";
+import { clinicalUiFor } from "@/config/clinical-record-ui";
+import { approveVisit, discardDraft, loadPatientChart, searchPatients } from "./actions";
 
 type Patient = { id: string; fullName: string; phone: string | null };
 type Draft = {
@@ -28,7 +29,15 @@ type Draft = {
  * note → the doctor reviews/edits → Approve saves it. Every note is a DRAFT
  * until the doctor approves; nothing is auto-finalized.
  */
-export function ScribeWorkspace({ initialPatients }: { initialPatients: Patient[] }) {
+export function ScribeWorkspace({
+  initialPatients,
+  modulesEnabled = [],
+}: {
+  initialPatients: Patient[];
+  /** The clinic's enabled modules — drives the specialty chart editor (if any). */
+  modulesEnabled?: string[];
+}) {
+  const clinicalUi = clinicalUiFor(modulesEnabled);
   const [patient, setPatient] = useState<Patient | null>(null);
   const [results, setResults] = useState<Patient[]>(initialPatients);
   const [query, setQuery] = useState("");
@@ -37,6 +46,9 @@ export function ScribeWorkspace({ initialPatients }: { initialPatients: Patient[
   const [processing, setProcessing] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [note, setNote] = useState<Record<string, unknown>>({});
+  // The specialty chart the doctor confirms (e.g. odontogram). Seeded once from the
+  // current chart + the note's suggested edits when the draft arrives.
+  const [chart, setChart] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -46,6 +58,7 @@ export function ScribeWorkspace({ initialPatients }: { initialPatients: Patient[
   function reset() {
     setDraft(null);
     setNote({});
+    setChart(null);
     setError(null);
   }
 
@@ -104,6 +117,13 @@ export function ScribeWorkspace({ initialPatients }: { initialPatients: Patient[
       }
       setDraft(data as Draft);
       setNote((data as Draft).note);
+      // Seed the specialty chart: the patient's current chart overlaid with the
+      // note's suggested edits — a pre-filled chart the doctor reviews (still a draft).
+      if (clinicalUi) {
+        const current = (await loadPatientChart(patient.id)) as Record<string, unknown> | null;
+        const seeded = clinicalUi.seedFromNote((data as Draft).note) as Record<string, unknown>;
+        setChart({ ...(current ?? {}), ...(seeded ?? {}) });
+      }
     } catch {
       setError("Could not reach the scribe. Check your connection.");
     } finally {
@@ -115,7 +135,7 @@ export function ScribeWorkspace({ initialPatients }: { initialPatients: Patient[
     if (!draft) return;
     setError(null);
     startTransition(async () => {
-      const r = await approveVisit(draft.visitId, note);
+      const r = await approveVisit(draft.visitId, note, clinicalUi ? chart : undefined);
       if ("error" in r) setError(r.error);
       else {
         reset();
@@ -159,6 +179,17 @@ export function ScribeWorkspace({ initialPatients }: { initialPatients: Patient[
           </details>
 
           <NoteEditor note={note} onChange={setNote} />
+
+          {clinicalUi ? (
+            <div className="space-y-2 rounded-lg border p-3">
+              <p className="text-sm font-medium">Tooth chart</p>
+              <p className="text-xs text-muted-foreground">
+                Pre-filled from the note. Adjust any tooth — it saves with the visit and
+                updates the patient&apos;s odontogram on approval.
+              </p>
+              <clinicalUi.VisitEditor value={chart} onChange={setChart} />
+            </div>
+          ) : null}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 

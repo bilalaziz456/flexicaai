@@ -20,6 +20,7 @@ import { ViewLogger } from "@/core/ui/view-logger";
 import { ageFromDob } from "@/core/lib/age";
 import { getPatientAccount } from "@/core/billing/account";
 import { DeletePatientButton, EditPatientForm } from "./[id]/patient-admin";
+import { PatientChartCard } from "./patient-chart-card";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive"> = {
   confirmed: "default",
@@ -44,6 +45,7 @@ export async function PatientDetail({
   canBook = false,
   bookPath,
   canViewClinical = false,
+  canEditClinical = false,
   showFinancials = false,
 }: {
   clinicId: string;
@@ -57,6 +59,8 @@ export async function PatientDetail({
   bookPath?: string;
   /** Show the clinical history (visit notes) — needs `clinical:view` (§10). */
   canViewClinical?: boolean;
+  /** Allow editing the chart (existing conditions) — needs `clinical:edit`. */
+  canEditClinical?: boolean;
   /** Show the Finance account card (sales feature + billing:view). */
   showFinancials?: boolean;
 }) {
@@ -127,15 +131,21 @@ export async function PatientDetail({
   // clinic's enabled modules, rendered by the contract (core never knows it's dental).
   let clinicalRecord: ReturnType<typeof clinicalRecordFor> = undefined;
   let currentChart: unknown = null;
+  let modulesEnabled: string[] = [];
   if (canViewClinical) {
     const [clinicRow] = await db
       .select({ modulesEnabled: clinics.modulesEnabled })
       .from(clinics)
       .where(eq(clinics.id, clinicId))
       .limit(1);
-    clinicalRecord = clinicalRecordFor(clinicRow?.modulesEnabled ?? []);
+    modulesEnabled = clinicRow?.modulesEnabled ?? [];
+    clinicalRecord = clinicalRecordFor(modulesEnabled);
     if (clinicalRecord) currentChart = await clinicalRecord.loadChart(clinicId, patientId);
   }
+  // Per-visit structured changes (e.g. tooth 16 caries→RCT) for the timeline.
+  const visitChangeMap: Record<string, string[]> = clinicalRecord
+    ? await clinicalRecord.visitChanges(clinicId, patientId)
+    : {};
 
   const account = showFinancials ? await getPatientAccount(clinicId, patientId) : null;
   const money = (n: number) =>
@@ -337,7 +347,12 @@ export async function PatientDetail({
             <CardDescription>The patient&apos;s current tooth chart.</CardDescription>
           </CardHeader>
           <CardContent>
-            <clinicalRecord.PatientChart chart={currentChart} />
+            <PatientChartCard
+              chart={currentChart}
+              patientId={patient.id}
+              modulesEnabled={modulesEnabled}
+              canEdit={canEditClinical}
+            />
           </CardContent>
         </Card>
       ) : null}
@@ -411,6 +426,12 @@ export async function PatientDetail({
                         <p>
                           <span className="text-muted-foreground">Treatment: </span>
                           {performed.join("; ")}
+                        </p>
+                      ) : null}
+                      {(visitChangeMap[v.id]?.length ?? 0) > 0 ? (
+                        <p>
+                          <span className="text-muted-foreground">Chart changes: </span>
+                          {visitChangeMap[v.id].join(" · ")}
                         </p>
                       ) : null}
                       {!note.chiefComplaint &&

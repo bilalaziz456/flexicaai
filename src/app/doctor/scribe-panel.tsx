@@ -3,7 +3,7 @@ import { can } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { patients, visits } from "@/core/db/schema";
+import { clinics, patients, visits } from "@/core/db/schema";
 import { getDayQueue } from "@/core/appointments/queue";
 import { QueueSummary } from "@/core/ui/queue-summary";
 import { Badge } from "@/core/ui/badge";
@@ -33,6 +33,12 @@ export async function ScribePanel({
   const canViewClinical = can(user, "clinical", "view");
   const canViewRx = can(user, "prescriptions", "view");
   const canSendRx = can(user, "prescriptions", "create");
+
+  const [clinicRow] = await db
+    .select({ modulesEnabled: clinics.modulesEnabled })
+    .from(clinics)
+    .where(eq(clinics.id, clinicId))
+    .limit(1);
 
   const [recentPatients, recentVisits, queue] = await Promise.all([
     db
@@ -72,7 +78,10 @@ export async function ScribePanel({
       />
 
       {canCreateClinical ? (
-        <ScribeWorkspace initialPatients={recentPatients} />
+        <ScribeWorkspace
+          initialPatients={recentPatients}
+          modulesEnabled={clinicRow?.modulesEnabled ?? []}
+        />
       ) : (
         <Card>
           <CardHeader>

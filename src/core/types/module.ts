@@ -90,6 +90,27 @@ export interface ModuleClinicalRecord {
    * imports a specialty table. Module-shaped, hence `unknown`.
    */
   loadChart: (clinicId: string, patientId: string) => Promise<unknown>;
+  /**
+   * Persist the structured record when a visit is APPROVED (writes the module's
+   * tables + folds the chart). Core calls this after finalising the visit — it
+   * never knows it's writing a tooth chart. `chart` is the doctor's confirmed
+   * chart when the in-visit editor was used, else the module derives it from `note`.
+   */
+  saveRecord: (
+    clinicId: string,
+    input: { visitId: string; patientId: string; note: unknown; chart?: unknown },
+  ) => Promise<void>;
+  /**
+   * Per-visit change summaries for the clinical timeline, keyed by `visitId` (each a
+   * list of human lines, e.g. "16: Caries → Root canal"). Core shows them next to the
+   * visit without knowing they describe teeth.
+   */
+  visitChanges: (clinicId: string, patientId: string) => Promise<Record<string, string[]>>;
+  /**
+   * Save the patient's intake BASELINE chart (existing conditions, no visit) directly
+   * — from the "edit chart" flow on the patient page. Re-folds the living chart.
+   */
+  saveBaseline: (clinicId: string, patientId: string, chart: unknown) => Promise<void>;
 }
 
 export interface ModuleDefinition {

@@ -23,6 +23,7 @@ export default async function DoctorPatientDetailPage({
       canBook={can(user, "appointments", "create")}
       bookPath="/doctor/appointments/new"
       canViewClinical={can(user, "clinical", "view")}
+      canEditClinical={can(user, "clinical", "edit")}
     />
   );
 }

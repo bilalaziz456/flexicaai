@@ -11,7 +11,9 @@ import {
   type ToothFinding,
   type ToothProcedure,
 } from "@/modules/dental/db/schema";
-import { reduceChart } from "@/modules/dental/chart-logic";
+import { diffTeeth, reduceChart } from "@/modules/dental/chart-logic";
+import { seedFromNote } from "@/modules/dental/seed-from-note";
+import { statusLabel } from "@/modules/dental/tooth-status";
 
 /**
  * Dental records + living chart — MODULE data layer (server-only). The living
@@ -194,6 +196,101 @@ export async function saveDentalRecord(
 
     await recomputeChart(tx, clinicId, input.patientId);
     return { id };
+  });
+}
+
+/**
+ * Persist a visit's dental record on approval and fold the chart — the module's
+ * `clinicalRecord.saveRecord`. Core calls this after approving a visit (it never
+ * imports a dental table). `chart` is the doctor's confirmed odontogram when the
+ * in-visit editor was used; otherwise the chart is auto-derived from the note
+ * (current chart overlaid with the scribe's suggested edits). Findings/procedures
+ * are snapshotted from the note for the timeline.
+ */
+export async function saveRecordOnApprove(
+  clinicId: string,
+  input: { visitId: string; patientId: string; note: unknown; chart?: unknown | null },
+): Promise<void> {
+  const n = (input.note && typeof input.note === "object" ? input.note : {}) as {
+    chiefComplaint?: string | null;
+    diagnosis?: string | null;
+    findings?: { tooth?: string | null; finding?: string }[];
+    treatmentPerformed?: string[];
+  };
+  const findings: ToothFinding[] = (Array.isArray(n.findings) ? n.findings : []).map((f) => ({
+    tooth: f.tooth ?? null,
+    condition: f.finding ?? "",
+  }));
+  const proceduresDone: ToothProcedure[] = (Array.isArray(n.treatmentPerformed) ? n.treatmentPerformed : []).map(
+    (p) => ({ tooth: null, procedure: p }),
+  );
+
+  let chartAfter: ChartTeeth;
+  if (input.chart && typeof input.chart === "object") {
+    chartAfter = input.chart as ChartTeeth;
+  } else {
+    const current = await getPatientChart(clinicId, input.patientId);
+    chartAfter = { ...current, ...seedFromNote(input.note) };
+  }
+
+  await saveDentalRecord(clinicId, {
+    patientId: input.patientId,
+    visitId: input.visitId,
+    chiefComplaint: n.chiefComplaint ?? null,
+    diagnosis: n.diagnosis ?? null,
+    findings,
+    proceduresDone,
+    chartAfter,
+  });
+}
+
+/**
+ * Per-visit tooth changes for the clinical timeline — keyed by `visitId`, each a
+ * list of human lines ("16: Caries → Root canal"). Computed by diffing each record's
+ * `chart_after` against the previous frame (baseline first). The baseline itself has
+ * no visit, so it seeds the starting state but isn't in the map.
+ */
+export async function visitChanges(
+  clinicId: string,
+  patientId: string,
+): Promise<Record<string, string[]>> {
+  const records = await listDentalRecords(clinicId, patientId);
+  // Chronological, baseline first (listDentalRecords returns newest-first).
+  const ordered = [...records].sort((a, b) => {
+    if (a.isBaseline && !b.isBaseline) return -1;
+    if (b.isBaseline && !a.isBaseline) return 1;
+    return a.createdAt.getTime() - b.createdAt.getTime();
+  });
+
+  const out: Record<string, string[]> = {};
+  let prev: ChartTeeth = {};
+  for (const r of ordered) {
+    const after = (r.chartAfter ?? {}) as ChartTeeth;
+    if (r.visitId) {
+      out[r.visitId] = diffTeeth(prev, after).map(
+        (c) =>
+          `${c.tooth}: ${c.from ? statusLabel(c.from) : "sound"} → ${c.to ? statusLabel(c.to) : "sound"}`,
+      );
+    }
+    prev = after;
+  }
+  return out;
+}
+
+/**
+ * Save the patient's intake BASELINE (existing conditions, no visit) from the
+ * "edit chart" flow, and re-fold the living chart. The module's `saveBaseline`.
+ */
+export async function saveBaseline(
+  clinicId: string,
+  patientId: string,
+  chart: unknown,
+): Promise<void> {
+  await saveDentalRecord(clinicId, {
+    patientId,
+    isBaseline: true,
+    visitId: null,
+    chartAfter: (chart && typeof chart === "object" ? chart : {}) as ChartTeeth,
   });
 }
 

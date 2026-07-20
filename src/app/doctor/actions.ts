@@ -12,16 +12,34 @@ import { serverEnv } from "@/core/lib/env";
 import { isPublicLinkingEnabled, signToken } from "@/core/lib/signed-link";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import { scheduleRecall } from "@/core/recall";
+import { clinicalRecordFor } from "@/config/modules";
 
 /**
  * Doctor actions on scribe drafts — CLAUDE.md §8: AI output is a DRAFT until the
  * doctor approves it. All queries are scoped to the doctor's own clinic_id.
  */
 
-/** Approve a draft: save the (edited) note and mark it approved. */
+/**
+ * The patient's current specialty chart (e.g. the dental odontogram), for the
+ * in-scribe editor. Module-agnostic; gated by `clinical:view`. Null when no chart.
+ */
+export async function loadPatientChart(patientId: string): Promise<unknown> {
+  const user = await requireRole("doctor");
+  if (!user.clinicId || !can(user, "clinical", "view")) return null;
+  const [clinicRow] = await db
+    .select({ modulesEnabled: clinics.modulesEnabled })
+    .from(clinics)
+    .where(eq(clinics.id, user.clinicId))
+    .limit(1);
+  const clinicalRecord = clinicalRecordFor(clinicRow?.modulesEnabled ?? []);
+  return clinicalRecord ? clinicalRecord.loadChart(user.clinicId, patientId) : null;
+}
+
+/** Approve a draft: save the (edited) note + chart and mark it approved. */
 export async function approveVisit(
   visitId: string,
   note: Record<string, unknown>,
+  chart?: unknown,
 ): Promise<{ ok: true } | { error: string }> {
   const user = await requireRole("doctor");
   if (!user.clinicId) return { error: "No clinic." };
@@ -50,6 +68,31 @@ export async function approveVisit(
     .returning({ id: visits.id, patientId: visits.patientId, module: visits.module });
 
   if (!updated) return { error: "Draft not found." };
+
+  // Persist the specialty structured record + fold the living chart (e.g. the dental
+  // odontogram), via the enabled module's contract. App-level resolution, like the
+  // recall capture below — core stays specialty-agnostic. Best-effort: the chart is
+  // always recomputable, so a hiccup here must not fail the approval.
+  try {
+    const [clinicRow] = await db
+      .select({ modulesEnabled: clinics.modulesEnabled })
+      .from(clinics)
+      .where(eq(clinics.id, user.clinicId))
+      .limit(1);
+    const clinicalRecord = clinicalRecordFor(clinicRow?.modulesEnabled ?? []);
+    if (clinicalRecord) {
+      await clinicalRecord.saveRecord(user.clinicId, {
+        visitId,
+        patientId: updated.patientId,
+        note,
+        // The doctor's confirmed chart from the in-scribe editor (else the module
+        // derives it from the note).
+        chart: chart ?? undefined,
+      });
+    }
+  } catch {
+    // Non-fatal — the chart can be rebuilt from records later.
+  }
 
   // Capture a recall from the note's nextVisit ({ reason, afterDays }) — the
   // scribe extracts it; approving schedules it (CLAUDE.md §10). Reading the note
