@@ -37,6 +37,7 @@ const rateOf = (noShow: number, attended: number): number =>
 export async function getNoShowStats(
   clinicId: string,
   range: ResolvedRange,
+  doctorId?: string | null,
 ): Promise<NoShowStats> {
   // One grouped scan: per doctor, count each finished status in the window. Statuses
   // filtered to the three "the appointment time has passed" outcomes.
@@ -61,6 +62,7 @@ export async function getNoShowStats(
           inArray(appointments.status, ["completed", "no_show", "cancelled"]),
           gte(appointments.scheduledAt, range.start),
           lt(appointments.scheduledAt, range.end),
+          doctorId ? eq(appointments.doctorId, doctorId) : undefined,
         ),
       ),
     )

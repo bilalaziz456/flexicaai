@@ -32,7 +32,7 @@ export default async function ReportsHubPage() {
   if (!sales) notFound();
 
   const reports = [
-    { show: finance && can(user, "finance", "view"), title: "Overview", desc: "The clinic's day end to end — sales, discounts, shares, cash, profit.", href: "/clinic/overview" },
+    { show: finance && can(user, "finance", "view"), title: "Overview", desc: "The clinic's day end to end — sales, discounts, shares, cash, profit.", href: "/clinic/reports/overview" },
     { show: can(user, "sales", "view"), title: "Sales", desc: "Collected revenue from completed visits.", href: "/clinic/sales" },
     { show: can(user, "discounts", "view"), title: "Discounts", desc: "Every discount, who bears it, approval state.", href: "/clinic/discounts", csv: "discounts" },
     { show: can(user, "shares", "view"), title: "Revenue shares", desc: "Per-doctor earnings, paid and outstanding.", href: "/clinic/shares" },

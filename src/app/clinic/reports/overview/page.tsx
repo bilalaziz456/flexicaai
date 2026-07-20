@@ -7,6 +7,7 @@ import { clinics } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { getSalesDoctors, resolveSalesRange } from "@/core/sales/report";
 import { getOverview } from "@/core/finance/overview";
+import { getNoShowStats } from "@/core/appointments/no-shows";
 import {
   Card,
   CardContent,
@@ -53,10 +54,12 @@ export default async function OverviewPage({
   const range = resolveSalesRange(sp.period ?? "today", sp.from, sp.to);
   const doctorId = sp.doctorId?.trim() || null;
 
-  const [ov, doctors] = await Promise.all([
+  const [ov, doctors, noShow] = await Promise.all([
     getOverview(clinicId, range, doctorId),
     getSalesDoctors(clinicId),
+    getNoShowStats(clinicId, range, doctorId),
   ]);
+  const noShowPct = `${(noShow.rate * 100).toFixed(1)}%`;
 
   const rangeLabel = range.from === range.to ? dayFmt(range.start) : `${dayFmt(range.start)} – ${range.to}`;
   const loss = ov.netProfit < 0;
@@ -104,6 +107,27 @@ export default async function OverviewPage({
           </Card>
         ))}
       </div>
+
+      {/* No-shows — attendance for the period (respects the doctor scope). */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <CardTitle className="text-base">No-shows</CardTitle>
+              <CardDescription>
+                {noShow.noShow} missed of {noShow.attended} intended visit{noShow.attended === 1 ? "" : "s"}
+                {noShow.cancelled > 0 ? ` · ${noShow.cancelled} cancelled` : ""}.
+              </CardDescription>
+            </div>
+            <div className="text-right">
+              <div className={`text-3xl font-semibold ${noShow.rate >= 0.15 ? "text-destructive" : ""}`}>{noShowPct}</div>
+              <Link href="/clinic/no-shows" className="no-print text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground">
+                Full report →
+              </Link>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
 
       {/* Money flow: Collected → −Shares → −Expenses → Net profit (clinic-wide only). */}
       {!ov.scoped && ov.collected > 0 ? (

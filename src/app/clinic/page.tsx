@@ -15,6 +15,7 @@ import {
 import { clinicHasFeature } from "@/core/lib/features";
 import { getSalesSummary, resolveSalesRange } from "@/core/sales/report";
 import { getFinanceKpis } from "@/core/finance/kpis";
+import { getNoShowStats } from "@/core/appointments/no-shows";
 import { WaterfallChart } from "@/app/clinic/sales/waterfall-chart";
 import {
   Card,
@@ -100,6 +101,11 @@ export default async function ClinicDashboard() {
   // is on). Runs in parallel with the other stats below.
   const salesSummaryPromise = salesEnabled
     ? getSalesSummary(clinicId, resolveSalesRange("30d", undefined, undefined))
+    : Promise.resolve(null);
+
+  // No-show rate (30d) — operational, shown to anyone who can see appointments.
+  const noShowPromise = can(user, "appointments", "view")
+    ? getNoShowStats(clinicId, resolveSalesRange("30d", undefined, undefined))
     : Promise.resolve(null);
 
   const [[staff], [patientRows], [recallsSent], [upcoming], recoveredRes, recoveredTrendRes] =
@@ -210,6 +216,7 @@ export default async function ClinicDashboard() {
 
   // Collect the parallel sales summary (already running since it was created).
   const salesSummary = await salesSummaryPromise;
+  const noShow = await noShowPromise;
 
   // "Return visits" only means something alongside the Revenue metric, so it is
   // shown only when that feature is enabled. Outstanding leads the stats grid (a
@@ -251,6 +258,16 @@ export default async function ClinicDashboard() {
       : []),
     { title: "Recalls sent", value: recallsSent.value, note: "Reminders delivered", href: "/clinic/recalls" },
     { title: "Upcoming appts", value: upcoming.value, note: "Scheduled ahead", href: "/clinic/appointments" },
+    ...(noShow && noShow.attended > 0
+      ? [
+          {
+            title: "No-show rate (30d)",
+            value: `${(noShow.rate * 100).toFixed(1)}%`,
+            note: `${noShow.noShow} of ${noShow.attended} missed`,
+            href: "/clinic/no-shows",
+          },
+        ]
+      : []),
     { title: "Patients", value: patientRows.value, note: "Registered", href: "/clinic/patients" },
     { title: "Staff", value: staff.value, note: CLINIC_STAFF_SUMMARY, href: "/clinic/staff" },
   ];
@@ -266,7 +283,7 @@ export default async function ClinicDashboard() {
         </div>
         {financeKpiOn ? (
           <Link
-            href="/clinic/overview"
+            href="/clinic/reports/overview"
             className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent"
           >
             Day report →
