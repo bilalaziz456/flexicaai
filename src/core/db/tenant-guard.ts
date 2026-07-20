@@ -21,6 +21,13 @@ import * as schema from "@/core/db/schema";
  * set `TENANT_GUARD_STRICT=1` (tests/CI) to THROW on a violation instead.
  */
 
+// The identity table is deliberately NOT guarded: `users` has a clinic_id, but it's
+// legitimately looked up by session/username/id (auth) BEFORE any clinic is known —
+// guarding it would false-positive on every authenticated request. Staff-listing
+// queries still scope by clinic in the query layer; this only opts the table out of
+// the automatic backstop.
+const GUARD_EXCLUDE = new Set(["users"]);
+
 // Tables that carry a `clinic_id` — derived from the schema so new tables are covered
 // automatically. (`clinics` itself has no clinic_id and is excluded.) Module-owned
 // tables aren't imported by core, so they're outside this set by design.
@@ -29,7 +36,9 @@ const TENANT_TABLES: string[] = (() => {
   for (const v of Object.values(schema)) {
     if (is(v, PgTable)) {
       const cfg = getTableConfig(v);
-      if (cfg.columns.some((c) => c.name === "clinic_id")) names.push(cfg.name);
+      if (!GUARD_EXCLUDE.has(cfg.name) && cfg.columns.some((c) => c.name === "clinic_id")) {
+        names.push(cfg.name);
+      }
     }
   }
   return names;
