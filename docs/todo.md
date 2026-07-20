@@ -127,8 +127,9 @@ to **§Z Final v1 phase**.
       `unscoped("reason", …)` opt-out for intentional cross-tenant reads; WARN by default,
       `TENANT_GUARD_STRICT=1` throws (tests/CI). Decided over native RLS 2026-07-21 — same
       failure mode (a dropped filter), no per-request DB-session/connection-pinning cost.
-      _Remaining:_ a wrapping pass — wrap the other super-admin/cron cross-tenant queries in
-      `unscoped()` so strict mode can run clean in CI (admin/logs done as the pattern).
+      Wrapping pass DONE — all cross-tenant system paths (admin logs, the 3 crons, both
+      WhatsApp inbound webhooks) wrapped in `unscoped()`; strict mode is clean end-to-end
+      (`TENANT_GUARD_STRICT=1` → unit + e2e 61/61). CI can now run strict.
 - [ ] ~~**Postgres RLS**~~ — deferred to §Z; revisit only if a direct-DB/BI connection is
       added or a compliance checkbox requires native RLS. The guard above covers the
       forgotten-`byClinic()` risk for the trusted single-tier app.
