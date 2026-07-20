@@ -7,6 +7,7 @@ import { normalisePhone } from "@/core/integrations/whatsapp";
 import { unscoped } from "@/core/db/tenant-guard";
 import { handleRescheduleReply } from "@/core/appointments/reschedule";
 import { handleBookingReply } from "@/core/appointments/booking";
+import { notifyInboundWhatsApp } from "@/core/notifications/triggers";
 import { serverEnv } from "@/core/lib/env";
 
 /**
@@ -146,6 +147,17 @@ export async function POST(request: Request) {
       });
       booked = booking.booked;
     }
+  }
+
+  // In-app bell: route to the front desk (booking/reschedule) or whatsapp:view (message).
+  if (matched) {
+    await notifyInboundWhatsApp({
+      clinicId: matched.clinicId,
+      patientId: matched.id,
+      phone,
+      text: text ?? null,
+      outcome: booked ? "booked" : rescheduled ? "rescheduled" : "message",
+    });
   }
 
   return NextResponse.json({ ok: true, kind: "inbound", rescheduled, booked });

@@ -12,6 +12,7 @@ import {
 } from "@/core/db/schema";
 import { getAppointmentShareContext } from "@/core/appointments/share-context";
 import { discountBorneSplit } from "@/core/appointments/discount-bearing";
+import { notify, notifyUsersWithPermission } from "@/core/notifications/in-app";
 
 /** The overall discount status derived from an appointment's approval rows. */
 export type DiscountStatus = "none" | "pending" | "approved" | "rejected";
@@ -107,7 +108,31 @@ export async function syncDiscountApprovals(
   }
   await db.insert(appointmentDiscountApprovals).values(rows);
 
+  // Notify approvers only when the discount NEWLY needs approval — not on every edit
+  // of an already-pending appointment (so re-saving doesn't re-ping everyone).
+  const [prev] = await db
+    .select({ status: appointments.discountStatus, patientName: patients.fullName })
+    .from(appointments)
+    .leftJoin(patients, eq(patients.id, appointments.patientId))
+    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
+    .limit(1);
   await setStatus(clinicId, appointmentId, "pending");
+  if (prev?.status !== "pending") {
+    const payload = {
+      type: "discount.approval_needed",
+      title: "Discount needs approval",
+      body: prev?.patientName ? `${prev.patientName} — review the discount.` : "Review a discount.",
+      entity: "appointment",
+      entityId: appointmentId,
+      link: "/clinic/approvals",
+    };
+    if (clinicRequires) {
+      await notifyUsersWithPermission(clinicId, "discount_approval", "view", payload);
+    }
+    for (const doctorId of requiringDoctorIds) {
+      await notify(clinicId, doctorId, payload);
+    }
+  }
   return "pending";
 }
 
@@ -195,6 +220,32 @@ export async function decideDiscountApproval(
     );
   const status = deriveStatus(siblings.map((s) => s.status));
   await setStatus(clinicId, row.appointmentId, status);
+
+  // Once the discount is fully decided (all approved, or any rejected), tell the front
+  // desk — the bill just changed. Fire once (not per sibling); skip the decider.
+  if (status === "approved" || status === "rejected") {
+    const [appt] = await db
+      .select({ patientName: patients.fullName })
+      .from(appointments)
+      .leftJoin(patients, eq(patients.id, appointments.patientId))
+      .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, row.appointmentId)))
+      .limit(1);
+    await notifyUsersWithPermission(
+      clinicId,
+      "appointments",
+      "edit",
+      {
+        type: "discount.decided",
+        title: `Discount ${status}`,
+        body: appt?.patientName ? `${appt.patientName}'s discount was ${status}.` : `A discount was ${status}.`,
+        entity: "appointment",
+        entityId: row.appointmentId,
+        link: `/clinic/appointments/${row.appointmentId}`,
+        actor: { userId: decidedBy.id, name: decidedBy.name },
+      },
+      { excludeUserId: decidedBy.id },
+    );
+  }
   return { appointmentId: row.appointmentId, status };
 }
 

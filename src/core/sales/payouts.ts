@@ -3,6 +3,7 @@ import "server-only";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
+import { notify } from "@/core/notifications/in-app";
 import {
   discountSettlements,
   doctorPayouts,
@@ -221,6 +222,16 @@ export async function recordPayout(
     note: input.note?.slice(0, 500) ?? null,
     createdBy: input.actor.id,
     createdByName: input.actor.name,
+  });
+
+  // Tell the doctor a payment was recorded against their balance.
+  await notify(clinicId, input.doctorId, {
+    type: "payout.recorded",
+    title: "Payment recorded",
+    body: `Rs ${amount} was recorded as paid to you${input.method ? ` (${input.method})` : ""}.`,
+    entity: "payout",
+    link: "/clinic/shares",
+    actor: { userId: input.actor.id, name: input.actor.name },
   });
 
   return { amount, outstanding: balance.outstanding - amount };

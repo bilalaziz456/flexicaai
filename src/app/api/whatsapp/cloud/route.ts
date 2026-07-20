@@ -9,6 +9,7 @@ import { unscoped } from "@/core/db/tenant-guard";
 import { getClinicIdByPhoneNumberId } from "@/core/notifications/clinic-whatsapp";
 import { handleRescheduleReply } from "@/core/appointments/reschedule";
 import { handleBookingReply } from "@/core/appointments/booking";
+import { notifyInboundWhatsApp } from "@/core/notifications/triggers";
 import { serverEnv } from "@/core/lib/env";
 
 /**
@@ -138,12 +139,17 @@ export async function POST(request: Request) {
         inbound++;
 
         // Self-service for a matched patient: reschedule, else book.
+        let outcome: "booked" | "rescheduled" | "message" = "message";
         if (clinicId && matched && text) {
           const resched = await handleRescheduleReply({ clinicId, patientId: matched, phone, text });
-          if (!resched.handled) {
-            await handleBookingReply({ clinicId, patientId: matched, phone, text });
+          if (resched.rescheduled) outcome = "rescheduled";
+          else if (!resched.handled) {
+            const booking = await handleBookingReply({ clinicId, patientId: matched, phone, text });
+            if (booking.booked) outcome = "booked";
           }
         }
+        // In-app bell: front desk (booking/reschedule) or whatsapp:view (message).
+        await notifyInboundWhatsApp({ clinicId, patientId: matched, phone, text, outcome });
       }
     }
   }
