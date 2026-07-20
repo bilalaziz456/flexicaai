@@ -23,8 +23,12 @@ import { getPatientAccount } from "@/core/billing/account";
 import { getMedicalHistory, getPatientAllergies } from "@/core/patients/medical-history";
 import type { MedicalHistoryData } from "@/core/lib/medical-history";
 import { listAttachments, getPhotoConsent } from "@/core/patients/attachments";
+import { listPlans } from "@/core/patients/treatment-plans";
+import { getBookingProcedures } from "@/core/appointments/procedures";
+import { treatmentTemplatesFor } from "@/config/modules";
 import { MedicalHistoryCard } from "./medical-history-card";
 import { AttachmentsCard, type AttachmentRow } from "./attachments-card";
+import { TreatmentPlansCard, type PlanRow } from "./treatment-plans-card";
 import { DeletePatientButton, EditPatientForm } from "./[id]/patient-admin";
 import { PatientChartCard } from "./patient-chart-card";
 import { PerioChartCard } from "./perio-chart-card";
@@ -56,6 +60,10 @@ export async function PatientDetail({
   canViewAttachments = false,
   canUploadAttachments = false,
   canDeleteAttachments = false,
+  canViewPlans = false,
+  canCreatePlans = false,
+  canEditPlans = false,
+  canDeletePlans = false,
   showFinancials = false,
 }: {
   clinicId: string;
@@ -75,6 +83,11 @@ export async function PatientDetail({
   canViewAttachments?: boolean;
   canUploadAttachments?: boolean;
   canDeleteAttachments?: boolean;
+  /** Treatment plans — `plans` view/create/edit/delete. */
+  canViewPlans?: boolean;
+  canCreatePlans?: boolean;
+  canEditPlans?: boolean;
+  canDeletePlans?: boolean;
   /** Show the Finance account card (sales feature + billing:view). */
   showFinancials?: boolean;
 }) {
@@ -187,6 +200,21 @@ export async function PatientDetail({
     isPhoto: a.isPhoto,
     uploadedByName: a.uploadedByName,
     createdAt: a.createdAt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+  }));
+
+  // Treatment plans — gated by `plans:view`. Procedures + templates power the builder.
+  const [clinicForPlans] = canViewPlans
+    ? await db.select({ modulesEnabled: clinics.modulesEnabled }).from(clinics).where(eq(clinics.id, clinicId)).limit(1)
+    : [undefined];
+  const planRows = canViewPlans ? await listPlans(clinicId, patientId) : [];
+  const planProcedures = canViewPlans ? await getBookingProcedures(clinicId) : [];
+  const planTemplates = canViewPlans ? treatmentTemplatesFor(clinicForPlans?.modulesEnabled ?? []).map((t) => t.name) : [];
+  const plans: PlanRow[] = planRows.map((p) => ({
+    id: p.id,
+    title: p.title,
+    status: p.status,
+    note: p.note,
+    items: p.items.map((i) => ({ id: i.id, name: i.name, tooth: i.tooth, quantity: i.quantity, unitPrice: i.unitPrice, status: i.status })),
   }));
 
   const account = showFinancials ? await getPatientAccount(clinicId, patientId) : null;
@@ -456,6 +484,28 @@ export async function PatientDetail({
               photoConsent={photoConsent}
               canUpload={canUploadAttachments}
               canDelete={canDeleteAttachments}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {canViewPlans ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Treatment plans</CardTitle>
+            <CardDescription>
+              Multi-visit courses — priced, tooth-tagged, feed the visit bill when scheduled.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TreatmentPlansCard
+              plans={plans}
+              procedures={planProcedures}
+              templates={planTemplates}
+              patientId={patient.id}
+              canCreate={canCreatePlans}
+              canEdit={canEditPlans}
+              canDelete={canDeletePlans}
             />
           </CardContent>
         </Card>

@@ -5,6 +5,7 @@ import type {
   NavItem,
   ProcedureTemplate,
   SpecialtyCatalogEntry,
+  TreatmentTemplate,
 } from "@/core/types/module";
 import { dentalModule } from "@/modules/dental/config";
 
@@ -80,6 +81,24 @@ export function procedureTemplatesFor(
 /** True if the id corresponds to a fully-built, enable-able module. */
 export function isModuleAvailable(id: ModuleId): boolean {
   return id in MODULES;
+}
+
+/** Treatment-plan templates from a clinic's enabled modules (deduped by name). */
+export function treatmentTemplatesFor(
+  modulesEnabled: readonly ModuleId[],
+): TreatmentTemplate[] {
+  const seen = new Set<string>();
+  const out: TreatmentTemplate[] = [];
+  for (const m of loadModules(modulesEnabled)) {
+    for (const t of m.treatmentTemplates ?? []) {
+      const key = t.name.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(t);
+      }
+    }
+  }
+  return out;
 }
 
 /**

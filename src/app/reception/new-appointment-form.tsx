@@ -67,12 +67,15 @@ export function NewAppointmentForm({
   appointmentId,
   fixedPatient,
   preselectedPatient,
+  planItems = [],
   initial,
 }: {
   initialPatients: Patient[];
   doctors: Doctor[];
   /** The clinic's active procedures (empty unless the `sales` feature is on). */
   procedures?: ProcedureOption[];
+  /** Unscheduled treatment-plan items for the (preselected) patient — booking-from-plan. */
+  planItems?: { id: string; name: string; tooth: string | null; unitPrice: number; quantity: number; planTitle: string }[];
   appointmentId?: string;
   fixedPatient?: { id: string; fullName: string };
   /** Create mode: start with this patient chosen (from "Book" on a patient row),
@@ -100,6 +103,7 @@ export function NewAppointmentForm({
 }) {
   const isEdit = Boolean(appointmentId);
   const [patient, setPatient] = useState<Patient | null>(preselectedPatient ?? null);
+  const [planItemSel, setPlanItemSel] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Patient[]>(initialPatients);
   const [doctorId, setDoctorId] = useState(initial?.doctorId ?? "");
@@ -476,6 +480,45 @@ export function NewAppointmentForm({
 
         {/* Procedures the patient is booked for — priced line items that add to
             the appointment total. Only shown when the clinic has procedures. */}
+        {!isEdit && planItems.length > 0 ? (
+          <div className="space-y-2 sm:col-span-2 rounded-lg border border-primary/40 bg-accent/30 p-3">
+            <Label>From treatment plan</Label>
+            <p className="text-xs text-muted-foreground">
+              Tick items to schedule onto this visit — they bill like procedures.
+            </p>
+            {[...planItemSel].map((id) => (
+              <input key={id} type="hidden" name="planItemId" value={id} />
+            ))}
+            <div className="space-y-1">
+              {planItems.map((it) => {
+                const checked = planItemSel.has(it.id);
+                return (
+                  <label key={it.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        setPlanItemSel((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(it.id)) next.delete(it.id);
+                          else next.add(it.id);
+                          return next;
+                        })
+                      }
+                      className="size-4 accent-[var(--color-primary)]"
+                    />
+                    <span>
+                      {it.name}
+                      {it.tooth ? <span className="text-muted-foreground"> · {it.tooth}</span> : null}
+                      <span className="text-muted-foreground"> · {it.planTitle}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
         {procedures.length > 0 ? (
           <div className="space-y-2 sm:col-span-2">
             <Label>Procedures (optional)</Label>

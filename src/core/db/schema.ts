@@ -1301,10 +1301,80 @@ export const clinicalAttachments = pgTable(
   ],
 );
 
+/**
+ * `treatment_plans` — CORE (specialty-agnostic): a multi-visit, priced course of
+ * treatment for a patient. `module` is a free-text tag. Derma/hair reuse this for
+ * their own courses. Soft-deletable.
+ */
+export const treatmentPlans = pgTable(
+  "treatment_plans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    patientId: uuid("patient_id")
+      .notNull()
+      .references(() => patients.id, { onDelete: "cascade" }),
+    module: text("module").notNull().default(""),
+    title: text("title").notNull(),
+    status: text("status").notNull().default("proposed"), // proposed|active|completed|cancelled
+    note: text("note"),
+    createdBy: uuid("created_by"),
+    createdByName: text("created_by_name"),
+    ...softDeleteColumns(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("treatment_plans_patient_idx").on(t.clinicId, t.patientId),
+    index("treatment_plans_deleted_idx")
+      .on(t.clinicId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
+  ],
+);
+
+/**
+ * `treatment_plan_items` — the planned procedures. `name`/`unit_price` are SNAPSHOTS
+ * (like appointment_procedures) so catalog edits never rewrite a plan. `tooth` is
+ * FDI (dental fills it; others leave null). Scheduling an item links it to an
+ * appointment and mints an `appointment_procedures` line, so plans feed Sales via
+ * the SAME money path.
+ */
+export const treatmentPlanItems = pgTable(
+  "treatment_plan_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    planId: uuid("plan_id")
+      .notNull()
+      .references(() => treatmentPlans.id, { onDelete: "cascade" }),
+    procedureId: uuid("procedure_id").references(() => procedures.id, { onDelete: "set null" }),
+    name: text("name").notNull(), // snapshot
+    unitPrice: integer("unit_price").notNull().default(0), // snapshot, PKR
+    tooth: text("tooth"), // FDI, nullable
+    quantity: integer("quantity").notNull().default(1),
+    status: text("status").notNull().default("planned"), // planned|in_progress|done|cancelled
+    appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: "set null" }),
+    sort: integer("sort").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("treatment_plan_items_plan_idx").on(t.planId),
+    index("treatment_plan_items_clinic_idx").on(t.clinicId),
+    index("treatment_plan_items_appt_idx").on(t.appointmentId),
+  ],
+);
+
 // Inferred row types for use across the app.
 export type Clinic = typeof clinics.$inferSelect;
 export type PatientMedicalHistory = typeof patientMedicalHistory.$inferSelect;
 export type ClinicalAttachment = typeof clinicalAttachments.$inferSelect;
+export type TreatmentPlan = typeof treatmentPlans.$inferSelect;
+export type TreatmentPlanItem = typeof treatmentPlanItems.$inferSelect;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type Procedure = typeof procedures.$inferSelect;
 export type DoctorProcedureShare = typeof doctorProcedureShares.$inferSelect;

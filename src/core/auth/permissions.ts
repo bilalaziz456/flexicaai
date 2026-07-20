@@ -44,6 +44,10 @@ export const PERM_RESOURCES: PermResource[] = [
   // `delete` soft-deletes. Photo attachments are additionally gated by the patient's
   // photo_consent, enforced server-side. Doctor + clinic admin hold it by default.
   { id: "attachments", label: "Clinical attachments", actions: ["view", "create", "delete"] },
+  // Multi-visit treatment plans (priced, tooth-tagged). Its own slug so the front
+  // desk can be granted plan VIEW (to schedule plan items onto appointments) without
+  // full clinical access. Doctor + clinic admin author; reception views by default.
+  { id: "plans", label: "Treatment plans", actions: ["view", "create", "edit", "delete"] },
   { id: "prescriptions", label: "Prescriptions", actions: ["view", "create", "edit", "delete"] },
   { id: "recalls", label: "Recalls", actions: ["view", "create", "edit", "delete"] },
   { id: "whatsapp", label: "WhatsApp", actions: ["view", "create"], createLabel: "Send" },
@@ -165,6 +169,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     refund: [V, C, D],
     leave: [V, C, E, D],
     clinical: [V],
+    // Manager sees treatment plans (oversight + scheduling).
+    plans: [V],
     prescriptions: [V],
     // Trash: view + restore on by default (C = "Restore"); purge stays super-admin.
     trash: [V, C],
@@ -176,6 +182,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     clinical: [V, C, E],
     // Clinical imaging — a doctor uploads/views x-rays & photos, and can remove them.
     attachments: [V, C, D],
+    // Treatment plans — a doctor proposes/edits the course.
+    plans: [V, C, E, D],
     prescriptions: [V, C, E, D],
     patients: [V],
     appointments: [V],
@@ -203,6 +211,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     leave: [V, C, E, D],
     // Front desk can view/print a prescription PDF (not author it).
     prescriptions: [V],
+    // Front desk sees treatment plans to schedule their items onto appointments.
+    plans: [V],
     // Trash: view + restore on by default (C = "Restore"); purge stays super-admin.
     trash: [V, C],
   }),

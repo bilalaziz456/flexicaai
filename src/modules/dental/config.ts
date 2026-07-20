@@ -3,6 +3,7 @@ import { dentalScribePrompt } from "@/modules/dental/prompts/scribe";
 import { dentalRecallRules } from "@/modules/dental/recall-rules";
 import { dentalDrugFormulary } from "@/modules/dental/drug-formulary";
 import { dentalProcedureTemplates } from "@/modules/dental/procedure-templates";
+import { dentalTreatmentTemplates } from "@/modules/dental/treatment-templates";
 import { DentalPatientChart, DentalVisitEditor } from "@/modules/dental/components/tooth-chart";
 import { seedFromNote } from "@/modules/dental/seed-from-note";
 import {
@@ -29,6 +30,7 @@ export const dentalModule: ModuleDefinition = {
   recallRules: dentalRecallRules,
   drugFormulary: dentalDrugFormulary,
   procedureTemplates: dentalProcedureTemplates,
+  treatmentTemplates: dentalTreatmentTemplates,
   navItems: [
     { label: "Patients", href: "/doctor/patients", icon: "users" },
     { label: "Voice Scribe", href: "/doctor/scribe", icon: "mic" },

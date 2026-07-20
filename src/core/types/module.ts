@@ -57,6 +57,16 @@ export interface ProcedureTemplate {
   price: number;
 }
 
+/**
+ * A multi-visit treatment-plan template a module suggests (e.g. "RCT + crown").
+ * `items` are procedure NAMES — the plan builder matches them to the clinic's own
+ * priced `procedures` for the snapshot price (unmatched names still add, price 0).
+ */
+export interface TreatmentTemplate {
+  name: string;
+  items: string[];
+}
+
 /** Props core passes to a module's structured visit editor (e.g. the tooth chart). */
 export interface ClinicalVisitEditorProps {
   /** The structured record being edited (module-shaped) — seeded from the scribe draft. */
@@ -150,6 +160,8 @@ export interface ModuleDefinition {
    * a clinic always edits/adds its own afterwards.
    */
   procedureTemplates?: ProcedureTemplate[];
+  /** Suggested multi-visit treatment-plan templates (e.g. "RCT + crown"). */
+  treatmentTemplates?: TreatmentTemplate[];
   /**
    * Optional structured clinical-record UI (tooth chart, etc.). When present, core
    * renders it in place of the generic note editor / clinical tab. Absent for a

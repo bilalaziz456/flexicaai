@@ -38,6 +38,10 @@ export default async function PatientDetailPage({
       canViewAttachments={can(user, "attachments", "view")}
       canUploadAttachments={can(user, "attachments", "create")}
       canDeleteAttachments={can(user, "attachments", "delete")}
+      canViewPlans={can(user, "plans", "view")}
+      canCreatePlans={can(user, "plans", "create")}
+      canEditPlans={can(user, "plans", "edit")}
+      canDeletePlans={can(user, "plans", "delete")}
       showFinancials={showFinancials}
     />
   );

@@ -35,6 +35,7 @@ import {
   type ProcedureSelection,
 } from "@/core/appointments/procedures";
 import { syncDiscountApprovals } from "@/core/appointments/approvals";
+import { scheduleItemsOnAppointment } from "@/core/patients/treatment-plans";
 import { revalidateFinance } from "@/app/clinic/finance-revalidate";
 import {
   recordSaleForAppointment,
@@ -244,6 +245,15 @@ export async function createAppointment(
     created.id,
     withApptDoctor(parseProcedureSelections(formData), parsed.data.doctorId ?? null),
   );
+
+  // Booking-from-plan: schedule any selected treatment-plan items onto this
+  // appointment — mints their appointment_procedures lines + marks them in progress.
+  const planItemIds = formData
+    .getAll("planItemId")
+    .filter((v): v is string => typeof v === "string" && v.length > 0);
+  if (planItemIds.length > 0 && can(user, "plans", "edit")) {
+    await scheduleItemsOnAppointment(clinicId, created.id, planItemIds);
+  }
 
   // Work out whether this discount needs anyone's approval (no-op unless a party
   // opted in) and set the appointment's discount status accordingly.
