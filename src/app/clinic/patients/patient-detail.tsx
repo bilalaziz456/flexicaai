@@ -17,8 +17,12 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { ViewLogger } from "@/core/ui/view-logger";
+import { AllergyBanner } from "@/core/ui/allergy-banner";
 import { ageFromDob } from "@/core/lib/age";
 import { getPatientAccount } from "@/core/billing/account";
+import { getMedicalHistory, getPatientAllergies } from "@/core/patients/medical-history";
+import type { MedicalHistoryData } from "@/core/lib/medical-history";
+import { MedicalHistoryCard } from "./medical-history-card";
 import { DeletePatientButton, EditPatientForm } from "./[id]/patient-admin";
 import { PatientChartCard } from "./patient-chart-card";
 import { PerioChartCard } from "./perio-chart-card";
@@ -156,6 +160,13 @@ export async function PatientDetail({
     perioTrend = await clinicalRecord.perio.trend(clinicId, patientId);
   }
 
+  // Allergies drive the safety banner — visible to anyone viewing the patient (§6).
+  // The full medical history card is clinical-gated.
+  const allergies = await getPatientAllergies(clinicId, patientId);
+  const medHistory: MedicalHistoryData | null = canViewClinical
+    ? await getMedicalHistory(clinicId, patientId)
+    : null;
+
   const account = showFinancials ? await getPatientAccount(clinicId, patientId) : null;
   const money = (n: number) =>
     new Intl.NumberFormat("en-PK", {
@@ -214,6 +225,8 @@ export async function PatientDetail({
           </Link>
         ) : null}
       </div>
+
+      <AllergyBanner allergies={allergies} />
 
       {account ? (
         <Card>
@@ -348,6 +361,24 @@ export async function PatientDetail({
           )}
         </CardContent>
       </Card>
+
+      {canViewClinical && medHistory ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Medical &amp; dental history</CardTitle>
+            <CardDescription>
+              Allergies, conditions, medications — reviewed before treatment.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <MedicalHistoryCard
+              history={medHistory}
+              patientId={patient.id}
+              canEdit={canEditClinical}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {canViewClinical && clinicalRecord ? (
         <Card>

@@ -21,6 +21,7 @@ type Draft = {
   transcript: string;
   note: Record<string, unknown>;
   drugWarnings: string[];
+  allergyWarnings?: string[];
 };
 
 /**
@@ -164,6 +165,17 @@ export function ScribeWorkspace({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {draft.allergyWarnings && draft.allergyWarnings.length > 0 && (
+            <div className="rounded-md border border-red-500/60 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
+              <p className="font-semibold">⚠ Allergy conflict — review before prescribing:</p>
+              <ul className="mt-1 list-inside list-disc">
+                {draft.allergyWarnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {draft.drugWarnings.length > 0 && (
             <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
               <p className="font-medium">Check these drugs — not in the formulary:</p>

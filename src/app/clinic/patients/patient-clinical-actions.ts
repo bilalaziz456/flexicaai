@@ -8,6 +8,8 @@ import { displayStaffName } from "@/core/types/auth";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
 import { clinicalRecordFor } from "@/config/modules";
+import { saveMedicalHistory } from "@/core/patients/medical-history";
+import { asMedicalHistory } from "@/core/lib/medical-history";
 import { logActivity } from "@/core/audit/log";
 
 /**
@@ -82,6 +84,33 @@ export async function savePerioExamAction(
     entity: "patient",
     entityId: patientId,
     summary: "Recorded a periodontal exam",
+  });
+  revalidatePath(`/clinic/patients/${patientId}`);
+  revalidatePath(`/doctor/patients/${patientId}`);
+  return { ok: true };
+}
+
+/** Save the patient's medical & dental history. Gated by `clinical:edit`. */
+export async function saveMedicalHistoryAction(
+  patientId: string,
+  data: unknown,
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireRole(["clinic_admin", "doctor", "manager"]);
+  if (!user.clinicId) return { error: "No clinic access." };
+  if (!can(user, "clinical", "edit")) {
+    return { error: "You don't have permission to edit clinical records." };
+  }
+
+  await saveMedicalHistory(user.clinicId, patientId, asMedicalHistory(data), {
+    id: user.id,
+    name: displayStaffName(user.prefix, user.fullName, user.username),
+  });
+
+  await logActivity({
+    action: "update",
+    entity: "patient",
+    entityId: patientId,
+    summary: "Updated medical history",
   });
   revalidatePath(`/clinic/patients/${patientId}`);
   revalidatePath(`/doctor/patients/${patientId}`);

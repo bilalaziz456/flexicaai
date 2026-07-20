@@ -9,6 +9,8 @@ import { getClinicWorkspace } from "@/config/modules";
 import { saveClinicFile } from "@/core/integrations/storage";
 import { runScribe } from "@/core/ai/scribe-engine";
 import { MissingApiKeyError, AiParseError } from "@/core/ai/prompt-runner";
+import { getPatientAllergies } from "@/core/patients/medical-history";
+import { allergyConflicts } from "@/core/lib/medical-history";
 
 /**
  * POST /api/ai/scribe — CORE, specialty-agnostic voice scribe (CLAUDE.md §8).
@@ -100,6 +102,17 @@ export async function POST(request: Request) {
           typeof drug === "string" && !known.has(drug.toLowerCase()),
       );
 
+    // Allergy gate: flag any prescribed drug that conflicts with a recorded allergy
+    // (direct or by drug class). A prominent warning for the doctor, not a hard block.
+    const allergies = await getPatientAllergies(clinicId, patientId);
+    const allergyWarnings = prescriptions
+      .map((p) => p?.drug)
+      .filter((drug): drug is string => typeof drug === "string")
+      .flatMap((drug) => {
+        const hits = allergyConflicts(allergies, drug);
+        return hits.length ? [`${drug} — allergy: ${hits.join(", ")}`] : [];
+      });
+
     const [visit] = await db
       .insert(visits)
       .values({
@@ -120,6 +133,7 @@ export async function POST(request: Request) {
       transcript,
       note,
       drugWarnings,
+      allergyWarnings,
     });
   } catch (e) {
     if (e instanceof MissingApiKeyError) {

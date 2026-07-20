@@ -13,6 +13,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { DayAvailability } from "@/core/lib/availability";
+import type { Allergy, Medication } from "@/core/lib/medical-history";
 
 /**
  * Drizzle schema — the single source of truth for the database structure.
@@ -1226,8 +1227,42 @@ export const activityLogs = pgTable(
   ],
 );
 
+/**
+ * `patient_medical_history` — CORE, specialty-agnostic (every specialty needs it).
+ * 1:1 with a patient; the LATEST snapshot (the audit log covers who changed what).
+ * Gates the drug formulary: prescribing a drug that matches a recorded allergy warns.
+ * Types + the allergy gate live in `core/lib/medical-history.ts`.
+ */
+export const patientMedicalHistory = pgTable(
+  "patient_medical_history",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    patientId: uuid("patient_id")
+      .notNull()
+      .references(() => patients.id, { onDelete: "cascade" }),
+    allergies: jsonb("allergies").$type<Allergy[]>().notNull().default([]),
+    conditions: jsonb("conditions").$type<string[]>().notNull().default([]),
+    medications: jsonb("medications").$type<Medication[]>().notNull().default([]),
+    smoking: text("smoking"),
+    alcohol: text("alcohol"),
+    notes: text("notes"),
+    updatedBy: uuid("updated_by"),
+    updatedByName: text("updated_by_name"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("patient_medical_history_patient_uq").on(t.patientId),
+    index("patient_medical_history_clinic_idx").on(t.clinicId),
+  ],
+);
+
 // Inferred row types for use across the app.
 export type Clinic = typeof clinics.$inferSelect;
+export type PatientMedicalHistory = typeof patientMedicalHistory.$inferSelect;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type Procedure = typeof procedures.$inferSelect;
 export type DoctorProcedureShare = typeof doctorProcedureShares.$inferSelect;
