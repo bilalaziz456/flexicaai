@@ -124,10 +124,13 @@ to **§Z Final v1 phase**.
       provider credentials + live send move to §Z (same pattern as WhatsApp Cloud).
 - [ ] **Postgres RLS** — tenant isolation is query-layer only (`byClinic()`); add native
       RLS as defense-in-depth (a migration; no deploy-target dependency).
-- [ ] **Rate limiting** — none on login / general traffic; add (DB/in-memory now,
-      swap to a shared store at deploy if needed).
-- [ ] **Load / scaling hardening (code parts)** — bcryptjs blocks the event loop
-      (swap the hash impl); the pool `max` / connection-pooler choice is deploy-gated → §Z.
+- [x] **Rate limiting** — ✅ login brute-force gate (`core/security/rate-limit.ts`):
+      per-username 5/15min (reset on success) + per-IP 50/15min, in-memory fixed-window;
+      wired into `signIn`. Swap the `Limiter` for a shared store at §Z (multi-instance).
+      _Remaining:_ optional generic API/route throttle.
+- [ ] **Load / scaling hardening (code parts)** — bcryptjs already uses the async
+      (chunked) API; the native-hash swap + pool `max` / connection-pooler are
+      platform-specific → §Z.
 
 _Deferred to §Z (deploy-gated):_ **File storage** — `core/integrations/storage` is
 local FS; the S3-compatible (or server-disk) swap depends on the chosen host
