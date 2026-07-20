@@ -129,14 +129,19 @@
 
 ### D. Clinic-operations
 
-**→ v1 (build now):**
-- [ ] **Standalone prescription history** — per-patient Rx list/reprint. No schema
-      (reads approved `visits.note.prescriptions`); section on patient detail reusing
-      the existing `/api/prescriptions/[visitId]` PDF; `prescriptions:view` ACL.
-- [ ] **No-show rate** — `no_show / (completed + no_show)` over a period (data exists on
-      `appointments.status`); card in the Reports hub; `appointments:view` ACL.
-- [ ] **Expenses → central Trash** — expenses already soft-delete (`softDeleteExpense`);
-      wire the `expense` entity into `core/trash` (list + restore/purge) + the Trash UI.
+**→ v1 — ✅ shipped:**
+- [x] **Standalone prescription history** — per-patient "Prescriptions" card on the
+      patient detail (approved `visits.note.prescriptions`, projected to drug lines
+      only); reprint via the existing `/api/prescriptions/[visitId]` PDF;
+      `prescriptions:view` ACL.
+- [x] **No-show rate** — `no_show / (completed + no_show)` over a period, per-doctor
+      breakdown (`/clinic/no-shows`, `appointments:view`, not finance-gated) + a
+      dashboard stat + an Overview card (`core/appointments/no-shows.ts`).
+- [x] **Expenses → central Trash** — `expense` entity wired into `core/trash`
+      (list + restore + purge) and both Trash UIs; `trash` ACL.
+
+Also: moved `/clinic/overview` → `/clinic/reports/overview` (consistent with
+`/clinic/reports/daybook`).
 
 **→ v2 (defer):**
 - [ ] **Reporting beyond finance (rest)** — utilization, doctor productivity,
