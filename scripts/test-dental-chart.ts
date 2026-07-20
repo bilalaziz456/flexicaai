@@ -4,6 +4,7 @@
  * Asserts reduceChart (baseline-first fold), orderFrames, and diffTeeth.
  */
 import { reduceChart, orderFrames, diffTeeth } from "../src/modules/dental/chart-logic";
+import { examStats, computeBop } from "../src/modules/dental/perio-logic";
 import type { ChartTeeth } from "../src/modules/dental/db/schema";
 
 let failures = 0;
@@ -57,6 +58,22 @@ check(
 );
 
 check("diff of identical charts = no changes", diffTeeth({ "16": t("filled") }, { "16": t("filled") }), []);
+
+console.log("\nPerio summary:");
+{
+  // Tooth 16: 6 pockets, 2 bleeding, deepest 6mm, two sites ≥5. Tooth 21: 3 charted.
+  const teeth = {
+    "16": { pockets: [3, 6, 5, 2, 3, 4], bleeding: [false, true, true, false, false, false] },
+    "21": { pockets: [2, 2, 3, null, null, null], bleeding: [false, false, false] },
+  } as never;
+  const s = examStats(teeth);
+  check("BOP% = bleeding/charted sites", s.bop, Math.round((2 / 9) * 100)); // 2 of 9 charted sites
+  check("computeBop matches examStats.bop", computeBop(teeth), s.bop);
+  check("deepest pocket", s.maxPocket, 6);
+  check("sites ≥ 5mm", s.sitesOver5, 2);
+  check("charted teeth", s.chartedTeeth, 2);
+  check("empty chart → zeros", examStats({} as never), { bop: 0, maxPocket: 0, sitesOver5: 0, chartedTeeth: 0 });
+}
 
 console.log(failures === 0 ? "\nALL PASSED" : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

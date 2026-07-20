@@ -11,6 +11,7 @@ import {
   saveRecordOnApprove,
   visitChanges,
 } from "@/modules/dental/db/records";
+import { dentalPerio } from "@/modules/dental/db/perio";
 
 /**
  * The Dental module — the first (and, for now, only) built specialty.
@@ -43,5 +44,6 @@ export const dentalModule: ModuleDefinition = {
     saveRecord: saveRecordOnApprove,
     visitChanges,
     saveBaseline,
+    perio: dentalPerio,
   },
 };

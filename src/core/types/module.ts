@@ -72,6 +72,25 @@ export interface PatientChartProps {
 }
 
 /**
+ * Optional periodontal charting a module supplies (dental). Each save is a new
+ * dated exam (perio is re-measured wholesale); `loadLatest` returns the current one.
+ */
+export interface ModulePerio {
+  loadLatest: (clinicId: string, patientId: string) => Promise<unknown>;
+  saveExam: (
+    clinicId: string,
+    patientId: string,
+    exam: { teeth: unknown; note?: string | null },
+    actor: { id: string; name: string },
+  ) => Promise<void>;
+  /** Per-exam summaries over time (oldest→newest) for the trend. */
+  trend: (
+    clinicId: string,
+    patientId: string,
+  ) => Promise<{ examDate: Date; bop: number; maxPocket: number }[]>;
+}
+
+/**
  * Optional specialty clinical-record UI a module supplies — the `components` slot
  * that was deliberately deferred until the panel needed it (§0). Core renders these
  * BY THE CONTRACT and never knows it's an odontogram: when the enabled module provides
@@ -111,6 +130,8 @@ export interface ModuleClinicalRecord {
    * — from the "edit chart" flow on the patient page. Re-folds the living chart.
    */
   saveBaseline: (clinicId: string, patientId: string, chart: unknown) => Promise<void>;
+  /** Optional periodontal charting (a separate per-exam record). Absent → no perio card. */
+  perio?: ModulePerio;
 }
 
 export interface ModuleDefinition {

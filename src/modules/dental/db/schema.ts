@@ -16,6 +16,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -75,6 +76,24 @@ export type ToothProcedure = {
   procedure: string;
   note?: string;
 };
+
+/**
+ * One tooth's periodontal measurements. Six sites per tooth in FDI order —
+ * MB, B, DB (buccal) then ML, L, DL (lingual/palatal). Pocket depth + recession in
+ * mm; bleeding-on-probing + suppuration per site; mobility/furcation 0–3; plaque.
+ */
+export type PerioTooth = {
+  pockets?: (number | null)[]; // 6 sites
+  recession?: (number | null)[]; // 6 sites
+  bleeding?: boolean[]; // 6 sites
+  suppuration?: boolean[]; // 6 sites
+  mobility?: number; // 0–3
+  furcation?: number; // 0–3
+  plaque?: boolean;
+};
+
+/** FDI tooth number → its periodontal measurements for one exam. */
+export type PerioTeeth = Record<string, PerioTooth>;
 
 // ─── tables ─────────────────────────────────────────────────────────────────
 
@@ -148,5 +167,42 @@ export const dentalCharts = pgTable(
   ],
 );
 
+/**
+ * `perio_exams` — a full periodontal chart per examination. Unlike the restorative
+ * odontogram (folded into a living chart), perio is re-measured wholesale each exam,
+ * so each row is a complete snapshot and "current perio" = the latest exam. May be
+ * tied to a visit or standalone. `bop_percent` is the derived bleeding-on-probing %.
+ */
+export const perioExams = pgTable(
+  "perio_exams",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    patientId: uuid("patient_id")
+      .notNull()
+      .references(() => patients.id, { onDelete: "cascade" }),
+    visitId: uuid("visit_id").references(() => visits.id, { onDelete: "set null" }),
+    examDate: timestamp("exam_date", { withTimezone: true }).notNull().defaultNow(),
+    teeth: jsonb("teeth").$type<PerioTeeth>().notNull().default({}),
+    bopPercent: integer("bop_percent").notNull().default(0),
+    note: text("note"),
+    chartedBy: uuid("charted_by"),
+    chartedByName: text("charted_by_name"),
+    ...softDeleteColumns(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("perio_exams_clinic_idx").on(t.clinicId),
+    index("perio_exams_patient_idx").on(t.clinicId, t.patientId, t.examDate),
+    index("perio_exams_deleted_idx")
+      .on(t.clinicId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
+  ],
+);
+
 export type DentalRecord = typeof dentalRecords.$inferSelect;
 export type DentalChart = typeof dentalCharts.$inferSelect;
+export type PerioExam = typeof perioExams.$inferSelect;

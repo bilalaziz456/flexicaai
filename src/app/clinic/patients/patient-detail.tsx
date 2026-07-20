@@ -21,6 +21,7 @@ import { ageFromDob } from "@/core/lib/age";
 import { getPatientAccount } from "@/core/billing/account";
 import { DeletePatientButton, EditPatientForm } from "./[id]/patient-admin";
 import { PatientChartCard } from "./patient-chart-card";
+import { PerioChartCard } from "./perio-chart-card";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive"> = {
   confirmed: "default",
@@ -146,6 +147,14 @@ export async function PatientDetail({
   const visitChangeMap: Record<string, string[]> = clinicalRecord
     ? await clinicalRecord.visitChanges(clinicId, patientId)
     : {};
+
+  // Periodontal chart (dental) — latest exam + BOP trend.
+  let latestPerio: unknown = null;
+  let perioTrend: { examDate: Date; bop: number; maxPocket: number }[] = [];
+  if (clinicalRecord?.perio) {
+    latestPerio = await clinicalRecord.perio.loadLatest(clinicId, patientId);
+    perioTrend = await clinicalRecord.perio.trend(clinicId, patientId);
+  }
 
   const account = showFinancials ? await getPatientAccount(clinicId, patientId) : null;
   const money = (n: number) =>
@@ -349,6 +358,30 @@ export async function PatientDetail({
           <CardContent>
             <PatientChartCard
               chart={currentChart}
+              patientId={patient.id}
+              modulesEnabled={modulesEnabled}
+              canEdit={canEditClinical}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {canViewClinical && clinicalRecord?.perio ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Periodontal chart</CardTitle>
+            <CardDescription>
+              Pocket depths, bleeding, mobility &amp; furcation — latest exam.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {perioTrend.length > 1 ? (
+              <p className="mb-3 text-xs text-muted-foreground">
+                BOP trend: {perioTrend.map((p) => `${p.bop}%`).join(" → ")}
+              </p>
+            ) : null}
+            <PerioChartCard
+              latest={latestPerio}
               patientId={patient.id}
               modulesEnabled={modulesEnabled}
               canEdit={canEditClinical}
