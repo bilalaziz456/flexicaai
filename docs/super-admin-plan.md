@@ -337,3 +337,123 @@ a usage panel (counts + AI/WhatsApp volume), a company dashboard, and an audited
 impersonation session. That turns `/admin` from a provisioning tool into an operable
 control plane — everything a launch actually needs — while leaving billing (v3) to slot
 onto the `status`/`trial` hooks later.
+
+---
+
+# 11. BUILD SPEC — concrete deliverables
+
+Everything below is the launch (v1) super-admin build, itemized as **schema · core · actions ·
+UI · gating**. All new tables/columns land in one or two migrations; all follow the existing
+patterns (soft-delete where deletable, `activity_logs` for audit, `requireRole("super_admin")`
+gating). Ordered to build in sequence.
+
+## Migration A — `clinics` columns + new tables (foundation)
+
+**`clinics` new columns:**
+- `status` text default `'trial'` — trial | active | suspended | past_due | cancelled
+- `trial_ends_at` timestamptz · `activated_at` · `suspended_at` timestamptz · `suspend_reason` text
+- `owner_name` · `owner_email` · `owner_phone` · `country` · `city` · `address` text
+- `timezone` text default `'Asia/Karachi'` · `region` text (intended data region)
+- `monthly_price` int (PKR) · `billing_cycle` text default `'monthly'` · `grace_days` int default 7
+- `capabilities` text[] (allowed `resource:action`; NULL/`['*']` = all) — granular control
+- `notes` text (internal CRM)
+
+**New `clinic_payments`** (mirrors `patient_payments`, soft-deletable):
+`id · clinic_id FK cascade · amount int · method text · reference text · months_covered int
+(or period_from/period_to date) · note · recorded_by uuid + recorded_by_name · occurred_at ·
+softDelete + timestamps`. Index (`clinic_id`,`occurred_at`).
+
+**`sessions` new column:** `impersonated_clinic_id` uuid null (a super-admin session acting as a clinic).
+
+**`users` new columns (2FA, super-admins first):** `totp_secret` text null · `totp_enabled` bool default false · `totp_backup` text[] null.
+
+## Feature 1 — Panel security (2FA + step-up + IP)   [build FIRST]
+- **Core:** `core/auth/totp.ts` — RFC-6238 TOTP (generate secret, otpauth URL/QR, verify with ±1 window) + backup codes (hashed). *No new dep needed (Node crypto HMAC) — or `otplib` if preferred.*
+- **Flow:** super-admin login = password → **TOTP challenge**. Extend existing step-up (`core/auth/reauth`) to require TOTP for super-admins on **delete/purge/impersonate/suspend**.
+- **Actions:** `enrollTotp`, `confirmTotp(code)`, `disableTotp` (self, re-auth).
+- **UI:** `/admin/security` (enroll: QR + code + backup codes) · a TOTP step on `/login` when the account has it.
+- **Proxy:** optional `ADMIN_IP_ALLOWLIST` env — if set, `proxy.ts` 404s `/admin/*` from other IPs.
+- **Gate:** super-admin only.
+
+## Feature 2 — Clinic lifecycle & status
+- **Core:** `core/clinics/status.ts` — `isClinicUsable(clinic)` (active, OR trial not expired). **Login-block:** in `getSessionUser`/`requireRole`, if a clinic-staff user's clinic isn't usable → return null / redirect to a `/paused` page ("access paused — contact support"). One check, all panels. (super_admin unaffected.)
+- **Actions:** `setClinicStatus(clinicId, status, reason)` · `extendTrial(clinicId, days)` · auto-derive `past_due` from billing (Feature 6).
+- **UI:** status **badge** + Suspend/Resume/Cancel + "Extend trial +30d" on clinic detail; **status filter** on the clinics list; a public `/paused` page.
+- **Audit + gate:** log each change; super-admin only.
+
+## Feature 3 — ⭐ Granular per-clinic control
+- **Schema:** `clinics.capabilities` (above) + extend `core/lib/features.ts` from 3 → a curated
+  **behavior-flag catalog** (`billing.partial_payment`, `appointments.online_booking`,
+  `appointments.walk_in`, `discounts.approval`, `sales.per_line_discount`, `scribe.enabled`,
+  `whatsapp.recalls`, …).
+- **Core:** `clinicAllows(clinic, resource, action)` (capabilities ⊇ slug, or `['*']`);
+  a `canInClinic(user, clinic, resource, action)` = `clinicAllows && can(user,…)`. Thread it
+  where pages gate buttons (or wrap `can`). `clinicHasFeature` already exists for flags.
+- **Actions:** `setClinicCapabilities(clinicId, slugs[])` · `setClinicFeatures(clinicId, ids[])`.
+- **UI:** on clinic detail — a **capability matrix** (reuse `permission-matrix.tsx` from staff,
+  at clinic level) + a **behavior-flag toggle list**.
+- **Coverage pass:** audit that every mutating button is behind a `can()`/feature check (add the
+  few missing) so toggles bite; add a dev guard flagging an un-gated mutation.
+- **Audit + gate:** log toggles; super-admin only.
+
+## Feature 4 — Clinic identity & contact
+- **Schema:** owner/contact/region/timezone/notes (Migration A).
+- **Actions:** extend `updateClinic` to persist them.
+- **UI:** an "Owner & contact" card on clinic detail (region + timezone pickers).
+
+## Feature 5 — Impersonation ("view as clinic")
+- **Core:** `requireWorkspace` honours `sessions.impersonated_clinic_id` — a super-admin with it
+  set resolves as that clinic (decide read-only vs read/write). Never exposed to clinic staff.
+- **Actions:** `startImpersonation(clinicId)` (step-up + TOTP + audit) · `endImpersonation()`.
+- **UI:** "Open workspace" on clinic detail · a persistent **"Viewing {clinic} as support — Exit"**
+  banner in the shell when impersonating.
+- **Audit:** who, which clinic, start/end — heavily logged (patient data).
+
+## Feature 6 — Manual billing ledger  (model: paid-through + carry-forward, §5.1)
+- **Core:** `core/admin/billing.ts` — `recordClinicPayment` (extend `paid_through` by months
+  covered) · `computeClinicBalance(clinicId)` → `{ paidThrough, owed, credit, status }`
+  (owed = months-elapsed×price − Σpayments; status active/due(grace)/overdue) · `voidClinicPayment`.
+  Mirrors `core/billing/*`.
+- **Auto-status:** overdue-past-grace → set `clinics.status='past_due'` (feeds Feature 2 login-block, your call).
+- **Actions:** `setClinicPrice(clinicId, monthly, cycle, grace)` · `recordClinicPaymentAction` ·
+  `voidClinicPaymentAction`.
+- **UI:** a **Billing card** on clinic detail — price/cycle, **paid-through date**, **balance
+  (owed/credit)**, record-payment form (amount · method · months covered · reference), payment
+  history, printable receipt (reuse `InvoicePrintFrame`). An **Overdue clinics** list on `/admin`.
+
+## Feature 7 — Usage & cost monitoring
+- **Core:** `core/admin/usage.ts` — `getClinicUsage(clinicId, range)` = COUNTs (patients ·
+  appointments · visits · **scribe calls** [visits w/ `audio_key`] · **WhatsApp sent/received**
+  [`whatsapp_messages`] · storage · active users 7/30d · last activity). **Cost** = usage ×
+  unit-cost config (env/const: `$ per scribe`, `$ per WA msg`).
+- **UI:** a **Usage & cost card** on clinic detail (this-month + trend).
+
+## Feature 8 — Company financial dashboard ("how much are WE earning")
+- **Core:** `core/admin/metrics.ts` — `getCompanyMetrics(range)` = clinics by status · new/churned ·
+  **MRR** (Σ active `monthly_price`) + **collected this month** (Σ `clinic_payments`) · **total
+  AI + WhatsApp cost** · **gross margin** (collected − variable cost) · top clinics by usage · overdue total.
+- **UI:** the `/admin` **home dashboard** — KPI cards (MRR · collected · cost · margin · clinics
+  by status) + charts (reuse `sparkline`/chart components) + overdue + churn-risk lists.
+- **Scale note:** these are cross-tenant aggregates — bound by date + index (scale-plan §2b).
+
+## Feature 9 — Internal super-admin RBAC   [v2]
+- Reuse the per-user ACL: a super-admin **permission catalog** (`clinics:manage`,
+  `billing:manage`, `impersonate`, `capabilities:manage`, `delete`, `purge`, `metrics:view`) on
+  `users.permissions`; sub-roles owner/support/billing. `requireRole("super_admin")` +
+  `can(superAdmin, …)` on each admin action.
+
+## Feature 10 — Platform ops   [v2]
+Announcements (`announcements` table + banner + optional WA/email blast) · WhatsApp provisioning
+tracker (per-clinic template/number approval status) · bulk actions (enable-feature / message /
+set-plan across selected clinics) · per-clinic **data export** (JSON/CSV) · onboarding checklist state.
+
+## Feature 11 — Admin scale-safety   [v2, before clinic count climbs]
+Pagination + date bounds + indexes on `/admin/logs` and `listAllTrash` (`collect({kind:"all"})`)
+— see scale-plan §2b.
+
+---
+
+### Build order (v1)
+1 Panel security → 2 Clinic status/lifecycle → 3 ⭐ Granular control → 4 Owner/contact →
+5 Impersonation → 6 Manual billing ledger → 7 Usage/cost → 8 Company dashboard.
+(2,3,4,6 share Migration A; each feature is independently committable + verifiable.)
