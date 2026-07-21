@@ -80,8 +80,11 @@ deferred as "optional" — at scale it's mandatory: `delete read where read_at <
 
 ## 4. Deferred security items (from the A–D pass)
 
-- **CSP** — not set yet. Needs a nonce for the inline theme script (`app/layout.tsx`) +
-  Tailwind; roll out **report-only first**, then enforce. Do as its own task.
+- **CSP** — ✅ **report-only shipped** (2026-07-21): the proxy mints a per-request nonce +
+  sets `Content-Security-Policy-Report-Only`; Next auto-nonces its scripts + our theme
+  script; violations POST to `/api/csp-report` (logged). _Next:_ watch the reports in a
+  real browser for a bit, tune the policy, then flip the header name to enforcing
+  `Content-Security-Policy` (drop dev-only `'unsafe-eval'` in prod — already conditional).
 - **Trusted proxy for rate-limit IP** — `x-forwarded-for` is spoofable unless the app is
   behind a trusted proxy that overwrites it; pin to the platform's client-IP header at §Z.
 - **Server Action origins** — set `serverActions.allowedOrigins` to the prod domain(s).
