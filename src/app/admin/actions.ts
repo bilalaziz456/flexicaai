@@ -445,6 +445,89 @@ export async function setClinicCapabilities(
   return { saved: true };
 }
 
+const contactSchema = z.object({
+  ownerName: z.string().trim().max(160).optional(),
+  ownerEmail: z
+    .string()
+    .trim()
+    .max(200)
+    .optional()
+    .refine((v) => !v || z.string().email().safeParse(v).success, {
+      message: "Enter a valid email address.",
+    }),
+  ownerPhone: z.string().trim().max(40).optional(),
+  country: z.string().trim().max(80).optional(),
+  city: z.string().trim().max(80).optional(),
+  address: z.string().trim().max(400).optional(),
+  region: z.string().trim().max(40).optional(),
+  timezone: z.string().trim().min(1).max(64),
+  notes: z.string().trim().max(4000).optional(),
+});
+
+/**
+ * Saves a clinic's owner / contact / region / timezone / internal notes
+ * (super-admin control plane, Feature 4). Empty fields are stored as NULL. The
+ * timezone is used for availability + reminder day-bounds (see the deploy caveat
+ * in .claude/database.md). super-admin only; audited.
+ */
+export async function updateClinicContact(
+  clinicId: string,
+  _prevState: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  await requireRole("super_admin");
+
+  const parsed = contactSchema.safeParse({
+    ownerName: formData.get("ownerName") ?? undefined,
+    ownerEmail: formData.get("ownerEmail") ?? undefined,
+    ownerPhone: formData.get("ownerPhone") ?? undefined,
+    country: formData.get("country") ?? undefined,
+    city: formData.get("city") ?? undefined,
+    address: formData.get("address") ?? undefined,
+    region: formData.get("region") ?? undefined,
+    timezone: formData.get("timezone") ?? "Asia/Karachi",
+    notes: formData.get("notes") ?? undefined,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+  const d = parsed.data;
+  const orNull = (v?: string) => (v && v.length ? v : null);
+
+  const [before] = await db
+    .select({ name: clinics.name })
+    .from(clinics)
+    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
+    .limit(1);
+  if (!before) return { error: "Clinic not found." };
+
+  await db
+    .update(clinics)
+    .set({
+      ownerName: orNull(d.ownerName),
+      ownerEmail: orNull(d.ownerEmail),
+      ownerPhone: orNull(d.ownerPhone),
+      country: orNull(d.country),
+      city: orNull(d.city),
+      address: orNull(d.address),
+      region: orNull(d.region),
+      timezone: d.timezone,
+      notes: orNull(d.notes),
+      updatedAt: new Date(),
+    })
+    .where(eq(clinics.id, clinicId));
+
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: `Updated owner & contact for clinic “${before.name}”`,
+  });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  return { saved: true };
+}
+
 const updateStaffSchema = z.object({
   fullName: z.string().trim().min(2, "Name is required."),
   username: z

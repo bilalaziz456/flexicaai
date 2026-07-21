@@ -415,10 +415,16 @@ softDelete + timestamps`. Index (`clinic_id`,`occurred_at`).
   behaviors that don't map to a CRUD slug (e.g. walk-in vs online booking), each needing its own
   enforcement point — not built now.
 
-## Feature 4 — Clinic identity & contact
-- **Schema:** owner/contact/region/timezone/notes (Migration A).
-- **Actions:** extend `updateClinic` to persist them.
-- **UI:** an "Owner & contact" card on clinic detail (region + timezone pickers).
+## Feature 4 — Clinic identity & contact   ✅ SHIPPED (2026-07-22)
+- **Schema:** owner/contact/region/timezone/notes (Migration A). ✅
+- **Actions:** dedicated `updateClinicContact(clinicId, …)` (kept separate from the busy
+  `updateClinic` settings save) — zod-validated (email format), empty → NULL, audited. ✅
+- **UI:** an "Owner & contact" card on clinic detail — owner name/email/phone, city/country,
+  **data-region** + **timezone** selects (curated PK+GCC list), address, and private internal
+  notes. ✅
+- **Verified** over HTTP: a full save persisted all 9 fields (timezone Asia/Dubai); a bad email
+  was rejected with no write (confirmed via DB state — the prior value survived). super-admin
+  only. tsc clean.
 
 ## Feature 5 — Impersonation ("view as clinic")
 - **Core:** `requireWorkspace` honours `sessions.impersonated_clinic_id` — a super-admin with it

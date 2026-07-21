@@ -25,6 +25,7 @@ import {
 } from "@/core/ui/table";
 import { ClinicSettingsForm } from "./clinic-settings-form";
 import { ClinicLifecycle } from "./clinic-lifecycle";
+import { ClinicContactForm } from "./clinic-contact-form";
 import { ClinicCapabilities } from "./clinic-capabilities";
 import { StaffActions } from "./staff-actions";
 import { DeleteClinic } from "./delete-clinic";
@@ -107,6 +108,32 @@ export default async function ClinicDetailPage({
             whatsappPhoneNumberId={clinic.whatsappPhoneNumberId}
             whatsappDisplayNumber={clinic.whatsappDisplayNumber}
             whatsappSenderName={clinic.whatsappSenderName}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Owner &amp; contact</CardTitle>
+          <CardDescription>
+            Who owns this clinic and how to reach them, its data region and timezone,
+            plus private internal notes.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ClinicContactForm
+            clinicId={clinic.id}
+            contact={{
+              ownerName: clinic.ownerName,
+              ownerEmail: clinic.ownerEmail,
+              ownerPhone: clinic.ownerPhone,
+              country: clinic.country,
+              city: clinic.city,
+              address: clinic.address,
+              region: clinic.region,
+              timezone: clinic.timezone,
+              notes: clinic.notes,
+            }}
           />
         </CardContent>
       </Card>
