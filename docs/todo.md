@@ -101,6 +101,15 @@
       recovered hero at top; whole-card-clickable report cards; app-wide horizontal-
       scroll fix; From/To date filters on one row across every filter bar.
 
+### Security & performance
+- [x] **Security + perf pass (A–D, 2026-07-21)** — response security headers (HSTS,
+      X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy, no X-Powered-By);
+      AI-scribe audio cap (25 MB via Content-Length) + per-user throttle; per-request
+      dedup (`getSessionUser` + `getClinic` in React `cache()`); WhatsApp webhook secret
+      via header. Full audit + the **10k-clinic scale-hardening track** in
+      **docs/scale-plan.md** (Redis limits, pooler, job-queue crons, super-admin
+      pagination, retention/partitioning, CSP) — additive infra, no rewrite.
+
 ---
 
 ## 🚧 Remaining
@@ -231,6 +240,10 @@ non-deploy infra first, then activate these together at deploy.
   - [ ] Decide the "always-present variable" handling (docs §D).
   - [ ] Provision a pilot clinic's number → live send/receive test → roll out.
 - [ ] **Any other third-party API** (payment gateway keys, etc.) — activate here.
+- [ ] **Scale-hardening (multi-instance & big-data)** — see **docs/scale-plan.md**:
+      Redis-backed rate limits, connection pooler, S3 storage, job-queue crons (+ fix the
+      recall N+1), super-admin query pagination, retention + partitioning for
+      logs/notifications/whatsapp, read replicas, CSP. Apply per the trigger points there.
 
 ### F. Future specialty modules (architected for; NOT to build without instruction)
 - [ ] **Derma module** · [ ] **Hair-transplant module** — touch only `/modules/<id>` +
