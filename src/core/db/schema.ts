@@ -123,6 +123,32 @@ export const clinics = pgTable(
     whatsappDisplayNumber: text("whatsapp_display_number"),
     whatsappSenderName: text("whatsapp_sender_name"),
     whatsappSignature: text("whatsapp_signature"),
+    // ---- Super-admin control plane (docs/super-admin-plan.md §11 Migration A) ----
+    // Lifecycle status. `active` = usable; a non-usable status blocks all the clinic's
+    // staff from logging in (enforced server-side). Default `active` so existing clinics
+    // stay usable; NEW clinics may be created as `trial`.
+    status: text("status").notNull().default("active"), // trial|active|suspended|past_due|cancelled
+    trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+    activatedAt: timestamp("activated_at", { withTimezone: true }),
+    suspendedAt: timestamp("suspended_at", { withTimezone: true }),
+    suspendReason: text("suspend_reason"),
+    // Owner / contact (CRM) + region. `timezone` drives availability/reminders per clinic.
+    ownerName: text("owner_name"),
+    ownerEmail: text("owner_email"),
+    ownerPhone: text("owner_phone"),
+    country: text("country"),
+    city: text("city"),
+    address: text("address"),
+    timezone: text("timezone").notNull().default("Asia/Karachi"),
+    region: text("region"), // intended data region (compliance)
+    // Manual billing (clinic → Klenic). `paid_through` is pushed forward by payments;
+    // owed/credit is derived (see core/admin/billing.ts). `capabilities` = the allowed
+    // `resource:action` slugs for the whole clinic (NULL = all) — granular super-admin control.
+    monthlyPrice: integer("monthly_price").notNull().default(0), // PKR
+    billingCycle: text("billing_cycle").notNull().default("monthly"), // monthly|2m|quarter|half|annual
+    graceDays: integer("grace_days").notNull().default(7),
+    capabilities: text("capabilities").array(), // NULL = all resource:action allowed
+    notes: text("notes"), // internal CRM notes
     ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -210,6 +236,13 @@ export const users = pgTable(
     // When true, a discount taken from THIS doctor's share needs their approval
     // before it applies (the doctor's own policy; editable by them and the admin).
     discountNeedsApproval: boolean("discount_needs_approval").notNull().default(false),
+    // ---- 2FA / TOTP (super-admin panel security; usable by any account) ----
+    // `totpSecret` = base32 shared secret (present once enrolled); `totpEnabled` gates
+    // the login TOTP challenge + step-up; `totpBackup` = SHA-256 hashes of one-time
+    // backup codes. See core/auth/totp.ts + docs/super-admin-plan.md §11 Feature 1.
+    totpSecret: text("totp_secret"),
+    totpEnabled: boolean("totp_enabled").notNull().default(false),
+    totpBackup: text("totp_backup").array(),
     ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -252,6 +285,9 @@ export const sessions = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     tokenHash: text("token_hash").notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    // Super-admin support impersonation: when set, this session ACTS AS that clinic
+    // (Feature 5). Never set for clinic staff. See docs/super-admin-plan.md §11.
+    impersonatedClinicId: uuid("impersonated_clinic_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1065,6 +1101,40 @@ export const patientPayments = pgTable(
 );
 
 /**
+ * `clinic_payments` — the CLINIC → Klenic subscription ledger (manual billing, v1).
+ * Mirrors `patient_payments`: each row is a payment RECEIVED from a clinic, covering
+ * `months_covered` months, which pushes the clinic's derived `paid_through` forward
+ * (unpaid time carries forward as a running balance). Super-admin only. Soft-deletable
+ * (a void). See core/admin/billing.ts + docs/super-admin-plan.md §5.1/§11 Feature 6.
+ */
+export const clinicPayments = pgTable(
+  "clinic_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    amount: integer("amount").notNull().default(0), // PKR
+    method: text("method"), // bank | cash | cheque | other
+    reference: text("reference"),
+    monthsCovered: integer("months_covered").notNull().default(1), // pushes paid_through
+    note: text("note"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+    recordedBy: uuid("recorded_by"),
+    recordedByName: text("recorded_by_name"),
+    ...softDeleteColumns(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("clinic_payments_clinic_occurred_idx").on(t.clinicId, t.occurredAt),
+    index("clinic_payments_deleted_idx")
+      .on(t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
+  ],
+);
+
+/**
  * Invoices (Finance — patient billing). One per completed appointment. The bill
  * amount is derived live from `computeBill` (not stored), so a later edit flows
  * through; the invoice just records that a numbered document was issued.
@@ -1444,6 +1514,7 @@ export type TreatmentPlanItem = typeof treatmentPlanItems.$inferSelect;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type ClinicPayment = typeof clinicPayments.$inferSelect;
 export type Procedure = typeof procedures.$inferSelect;
 export type DoctorProcedureShare = typeof doctorProcedureShares.$inferSelect;
 export type AppointmentDiscountApproval =
