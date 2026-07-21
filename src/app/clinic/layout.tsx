@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
+import { ShieldAlert } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
+import { endImpersonation } from "@/app/admin/actions";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { getThemeCookie } from "@/core/theme/server";
 import { clinicHasFeature } from "@/core/lib/features";
@@ -41,9 +43,30 @@ export default async function ClinicLayout({
   const approvalsEnabled =
     user.role === "doctor" || can(user, "discount_approval", "view");
 
+  // Impersonation banner (Feature 5): a persistent, unmissable bar while a
+  // super-admin is viewing this clinic read-only, with a one-click Exit.
+  const banner = user.impersonation ? (
+    <div className="flex items-center justify-between gap-3 border-b border-amber-500/40 bg-amber-500/15 px-4 py-2 text-sm text-amber-900 dark:text-amber-100">
+      <span className="flex items-center gap-2">
+        <ShieldAlert className="size-4 shrink-0" aria-hidden="true" />
+        Viewing <span className="font-semibold">{user.impersonation.clinicName}</span> as
+        support — read-only.
+      </span>
+      <form action={endImpersonation}>
+        <button
+          type="submit"
+          className="rounded-md border border-amber-600/50 px-2.5 py-1 text-xs font-medium hover:bg-amber-500/20"
+        >
+          Exit
+        </button>
+      </form>
+    </div>
+  ) : null;
+
   return (
     <PanelShell
       panel="clinic"
+      banner={banner}
       identityLabel={clinic?.name ?? user.username}
       userName={displayStaffName(user.prefix, user.fullName, user.username)}
       userInitials={staffInitials(user.fullName, user.username)}

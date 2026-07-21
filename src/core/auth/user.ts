@@ -1,10 +1,10 @@
 import "server-only";
 
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/core/auth/session";
+import { getSession, getSessionUser } from "@/core/auth/session";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { isClinicUsable } from "@/core/clinics/status";
-import { can, type PermAction } from "@/core/auth/permissions";
+import { can, VIEW_ONLY_CAPABILITIES, type PermAction } from "@/core/auth/permissions";
 import {
   ROLE_HOME_ROUTE,
   type CurrentUser,
@@ -25,8 +25,37 @@ const WORKSPACE_ROLES: UserRole[] = [
  * the users table (the canonical source, CLAUDE.md §5).
  */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
-  const user = await getSessionUser();
-  if (!user) return null;
+  const session = await getSession();
+  if (!session) return null;
+  const { user, impersonatedClinicId } = session;
+
+  // Impersonation (Feature 5): a super-admin with an active `impersonated_clinic_id`
+  // resolves as a READ-ONLY clinic_admin of that clinic — full VIEW of the
+  // workspace, but capabilities restricted to `:view` so no mutation `can()` check
+  // passes. The real super-admin's id/username stay for the audit trail.
+  if (user.role === "super_admin" && impersonatedClinicId) {
+    const clinic = await getClinic(impersonatedClinicId);
+    if (clinic && !clinic.deletedAt) {
+      return {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        prefix: user.prefix,
+        fullName: user.fullName,
+        avatarKey: user.avatarKey,
+        role: "clinic_admin",
+        clinicId: impersonatedClinicId,
+        mustChangePassword: false,
+        permissions: null,
+        // Read-only: the clinic's own caps intersected down to view-only.
+        capabilities: VIEW_ONLY_CAPABILITIES.filter(
+          (s) => !clinic.capabilities || clinic.capabilities.includes(s),
+        ),
+        impersonation: { clinicId: impersonatedClinicId, clinicName: clinic.name },
+      };
+    }
+    // Stale/deleted target → fall through to the normal super-admin identity.
+  }
 
   // Clinic capabilities (super-admin per-clinic control) ride on the user so every
   // `can()` check applies them (Feature 3). Only clinic staff have a clinic; the
@@ -51,6 +80,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     mustChangePassword: user.mustChangePassword,
     permissions: user.permissions ?? null,
     capabilities,
+    impersonation: null,
   };
 }
 
@@ -83,7 +113,9 @@ export async function requireRole(
   // guarded by requireRole is covered. super_admin has no clinic and is exempt.
   // getClinic is request-cached, so this adds no query the layout wasn't already
   // running. /paused itself uses requireUser, not requireRole, so it never loops.
-  if (user.clinicId && user.role !== "super_admin") {
+  // Impersonation is EXEMPT — a super-admin often views a clinic BECAUSE it's
+  // suspended/past-due (support diagnosis).
+  if (user.clinicId && user.role !== "super_admin" && !user.impersonation) {
     const clinic = await getClinic(user.clinicId);
     if (clinic && !isClinicUsable(clinic)) {
       redirect("/paused");

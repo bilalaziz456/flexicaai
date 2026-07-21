@@ -426,10 +426,28 @@ softDelete + timestamps`. Index (`clinic_id`,`occurred_at`).
   was rejected with no write (confirmed via DB state — the prior value survived). super-admin
   only. tsc clean.
 
-## Feature 5 — Impersonation ("view as clinic")
-- **Core:** `requireWorkspace` honours `sessions.impersonated_clinic_id` — a super-admin with it
-  set resolves as that clinic (decide read-only vs read/write). Never exposed to clinic staff.
-- **Actions:** `startImpersonation(clinicId)` (step-up + TOTP + audit) · `endImpersonation()`.
+## Feature 5 — Impersonation ("view as clinic")   ✅ SHIPPED (2026-07-22) — READ-ONLY
+- **Core:** `getSession` surfaces `sessions.impersonated_clinic_id`; `getCurrentUser` resolves a
+  super-admin with it set as a **READ-ONLY clinic_admin** of that clinic — full VIEW of the
+  workspace, but `capabilities` are clamped to `VIEW_ONLY_CAPABILITIES` (∩ the clinic's own caps)
+  so no mutation `can()` passes. Real super-admin `id`/`username` stay for the audit trail. The
+  Feature-2 login-block is EXEMPT for impersonation (support often views a suspended clinic).
+  Never exposed to clinic staff. Decision: **read-only** (safest for patient data; a super-admin
+  who must mutate does it from /admin). ✅
+- **Actions:** `startImpersonation(clinicId, password, totp?)` — password step-up + a TOTP/backup
+  code when the super-admin enrolled 2FA (the Feature-1 deferred step-up), heavily audited, sets
+  the flag, redirects to /clinic · `endImpersonation()` reads the REAL session user (the resolved
+  role is clinic_admin, so requireRole can't be used), clears the flag, audits, returns to the
+  clinic detail. ✅
+- **UI:** "Open workspace (view as clinic)" + step-up form on clinic detail · a persistent amber
+  **"Viewing {clinic} as support — read-only · Exit"** banner in the clinic shell (new PanelShell
+  `banner` prop). ✅
+- **Verified** end-to-end over HTTP: no-impersonation super-admin → /clinic bounces to /admin;
+  with the flag set → /clinic renders the clinic dashboard + banner, "New appointment" absent,
+  `/clinic/appointments/new` redirects (read-only); suspended clinic still reachable while a
+  normal staffer of it gets /paused (exemption is specific); `endImpersonation` form → 303 to the
+  clinic detail + flag cleared in the DB. `startImpersonation` = proven password step-up
+  (`disableTotp` pattern) + proven session write. tsc clean.
 - **UI:** "Open workspace" on clinic detail · a persistent **"Viewing {clinic} as support — Exit"**
   banner in the shell when impersonating.
 - **Audit:** who, which clinic, start/end — heavily logged (patient data).

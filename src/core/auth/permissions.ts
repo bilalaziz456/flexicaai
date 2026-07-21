@@ -117,6 +117,15 @@ export function permId(resource: string, action: PermAction): string {
 export const ALL_PERMISSIONS: string[] = PERM_RESOURCES.flatMap((r) =>
   r.actions.map((a) => permId(r.id, a)),
 );
+
+/**
+ * The `:view` slug of every resource — used as the capability whitelist for
+ * READ-ONLY super-admin impersonation (Feature 5), so a support session can see a
+ * clinic's workspace but never mutate its patient data.
+ */
+export const VIEW_ONLY_CAPABILITIES: string[] = PERM_RESOURCES.filter((r) =>
+  r.actions.includes("view"),
+).map((r) => permId(r.id, "view"));
 const ALL_PERMISSION_SET = new Set(ALL_PERMISSIONS);
 const VALID = ALL_PERMISSION_SET;
 

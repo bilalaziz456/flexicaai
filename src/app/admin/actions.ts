@@ -7,6 +7,9 @@ import { z } from "zod";
 import { requireRole } from "@/core/auth/user";
 import { hashPassword } from "@/core/auth/password";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
+import { getSession, setSessionImpersonation } from "@/core/auth/session";
+import { consumeBackupCode, verifyTotp } from "@/core/auth/totp";
+import { logActivityAs } from "@/core/audit/log";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
@@ -33,7 +36,7 @@ import { logActivity } from "@/core/audit/log";
 import { sanitizeLogAccess } from "@/core/audit/access";
 import { USERNAME_REGEX } from "@/core/types/auth";
 
-export type AdminActionState = { error?: string; saved?: boolean };
+export type AdminActionState = { error?: string; saved?: boolean; needsTotp?: boolean };
 
 /** True for a Postgres unique-constraint violation (e.g. duplicate username). */
 function isUniqueViolation(err: unknown): boolean {
@@ -526,6 +529,95 @@ export async function updateClinicContact(
   });
   revalidatePath(`/admin/clinics/${clinicId}`);
   return { saved: true };
+}
+
+/**
+ * Starts a READ-ONLY impersonation ("view as clinic", Feature 5): the super-admin's
+ * session gets `impersonated_clinic_id`, so they resolve as a view-only clinic_admin
+ * of that clinic (see getCurrentUser). STEP-UP: re-enter the password, plus a TOTP /
+ * backup code when the super-admin has 2FA (Feature 1). Heavily audited — patient
+ * data. Redirects into the clinic workspace on success.
+ */
+export async function startImpersonation(
+  clinicId: string,
+  password: string,
+  totp?: string,
+): Promise<AdminActionState> {
+  const admin = await requireRole("super_admin");
+
+  if (!(await verifyCurrentUserPassword(password))) {
+    return { error: "Incorrect password." };
+  }
+
+  // 2FA step-up for a super-admin who enrolled it (Feature 1 deferred item).
+  const [me] = await db
+    .select({
+      totpEnabled: users.totpEnabled,
+      totpSecret: users.totpSecret,
+      totpBackup: users.totpBackup,
+    })
+    .from(users)
+    .where(eq(users.id, admin.id))
+    .limit(1);
+  if (me?.totpEnabled && me.totpSecret) {
+    const code = (totp ?? "").trim();
+    if (!code) return { error: "Enter your 6-digit authenticator code.", needsTotp: true };
+    let ok = verifyTotp(me.totpSecret, code);
+    if (!ok) {
+      const remaining = consumeBackupCode(me.totpBackup ?? [], code);
+      if (remaining) {
+        ok = true;
+        await db.update(users).set({ totpBackup: remaining }).where(eq(users.id, admin.id));
+      }
+    }
+    if (!ok) return { error: "Invalid authentication code.", needsTotp: true };
+  }
+
+  const [clinic] = await db
+    .select({ name: clinics.name })
+    .from(clinics)
+    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
+    .limit(1);
+  if (!clinic) return { error: "Clinic not found." };
+
+  await setSessionImpersonation(clinicId);
+
+  // Log against the clinic (transparency in its own log) as the REAL super-admin.
+  await logActivityAs(
+    { clinicId, userId: admin.id, name: admin.username, role: "super_admin" },
+    {
+      action: "login",
+      entity: "clinic",
+      entityId: clinicId,
+      summary: `Started viewing clinic “${clinic.name}” as support (impersonation)`,
+    },
+  );
+  revalidatePath("/clinic", "layout");
+  redirect("/clinic");
+}
+
+/**
+ * Ends impersonation. Reads the REAL session user (during impersonation the
+ * resolved role is clinic_admin, so we can't use requireRole here). Clears the
+ * flag, audits, and returns the super-admin to the clinic they were viewing.
+ */
+export async function endImpersonation(): Promise<void> {
+  const session = await getSession();
+  if (!session || session.user.role !== "super_admin") redirect("/login");
+  const target = session!.impersonatedClinicId;
+
+  await setSessionImpersonation(null);
+  await logActivityAs(
+    { clinicId: target, userId: session!.user.id, name: session!.user.username, role: "super_admin" },
+    {
+      action: "login",
+      entity: "clinic",
+      entityId: target,
+      summary: "Ended clinic impersonation",
+    },
+  );
+  revalidatePath("/clinic", "layout");
+  redirect(target ? `/admin/clinics/${target}` : "/admin");
 }
 
 const updateStaffSchema = z.object({

@@ -25,6 +25,7 @@ import {
 } from "@/core/ui/table";
 import { ClinicSettingsForm } from "./clinic-settings-form";
 import { ClinicLifecycle } from "./clinic-lifecycle";
+import { ImpersonateClinic } from "./impersonate-clinic";
 import { ClinicContactForm } from "./clinic-contact-form";
 import { ClinicCapabilities } from "./clinic-capabilities";
 import { StaffActions } from "./staff-actions";
@@ -84,6 +85,9 @@ export default async function ClinicDetailPage({
             status={clinic.status}
             trialEndsAt={clinic.trialEndsAt ? clinic.trialEndsAt.toISOString() : null}
           />
+          <div className="mt-4 border-t pt-4">
+            <ImpersonateClinic clinicId={clinic.id} />
+          </div>
         </CardContent>
       </Card>
 

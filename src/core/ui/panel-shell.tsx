@@ -208,6 +208,7 @@ export function PanelShell({
   financeEnabled = false,
   approvalsEnabled = false,
   accessibleResources,
+  banner,
   children,
 }: {
   panel: PanelId;
@@ -238,6 +239,8 @@ export function PanelShell({
    * hidden. Omitted for the super admin (sees everything).
    */
   accessibleResources?: readonly string[];
+  /** A full-width bar rendered above the content (e.g. the impersonation banner). */
+  banner?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const { brand, nodes } = NAV_BY_PANEL[panel];
@@ -467,6 +470,7 @@ export function PanelShell({
         </div>
       </div>
 
+      {banner ? <div className="sticky top-0 z-40">{banner}</div> : null}
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">{children}</main>
     </div>
   );

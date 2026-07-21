@@ -152,6 +152,12 @@ export interface CurrentUser {
    * Always null for super_admin (no clinic).
    */
   capabilities: string[] | null;
+  /**
+   * Set when a super-admin is viewing a clinic's workspace (Feature 5). The user
+   * then resolves as a READ-ONLY clinic_admin of `clinicId`, but `id`/`username`
+   * stay the real super-admin's (for the audit trail). null in every normal case.
+   */
+  impersonation: { clinicId: string; clinicName: string } | null;
 }
 
 /**
