@@ -105,6 +105,21 @@
 
 ## 🚧 Remaining
 
+### v1 status (checked 2026-07-21)
+
+**The clinic-facing product v1 is feature-complete.** Excluding **§Z** (the deploy /
+external-activation phase), what's left is NOT clinic-app features:
+
+- **Clinic app v1 — ✅ done.** Every §B/§C/§D v1 item shipped. Only **§Z** (pick a host,
+  then activate storage / pooler / AI keys / email SMTP / WhatsApp Cloud) remains to
+  actually go live.
+- **Commercial / go-to-market (§A)** — payment gateways, SaaS billing, marketing site.
+  NOT required for a clinic to run the app (manual billing + manual onboarding work);
+  this is a **v1.5 / separate commercial track** — decide v1-vs-v2 per item.
+- **Hygiene (Cleanup)** — small dead-code + orphaned-test-user cleanup; do before release.
+- **Explicitly v2** — operational analytics, inventory/payroll/attendance, realtime
+  notifications, derma/hair modules.
+
 ### A. Payments gateway & SaaS (money movement is built; integrations are not)
 - [ ] **Online payment gateways** — `/core/integrations/payments` still empty; no
       JazzCash / Easypaisa / Raast / Stripe. (Manual payment recording, receipts,
@@ -130,7 +145,7 @@ to **§Z Final v1 phase**.
       **password reset** (`password_reset_tokens` 0051, `core/auth/password-reset.ts` —
       hashed single-use tokens, session-revoke, no enumeration) with `/forgot-password`
       + `/reset-password` pages, rate-limited. See docs/email-plan.md. _Remaining:_
-      staff-invite email (deferred); live SMTP creds + send test = §Z.
+      live SMTP creds + send test = §Z. (Staff-invite email dropped — not needed.)
 - [x] **Tenant-scope guard (RLS substitute)** — ✅ `core/db/tenant-guard.ts`: a Drizzle
       logger flags any query touching a `clinic_id` table without a clinic_id scope;
       `unscoped("reason", …)` opt-out for intentional cross-tenant reads; WARN by default,
@@ -202,7 +217,7 @@ non-deploy infra first, then activate these together at deploy.
       `OPENAI_API_KEY` (Whisper); live transcribe→note test. Code is done (the scribe
       gracefully no-ops without keys).
 - [ ] **Email provider go-live** — plug SMTP/provider credentials into the email channel
-      built in §B; live password-reset / invite test.
+      built in §B; live password-reset send test.
 - [ ] **WhatsApp Cloud API go-live** (external, code is done):
   - [ ] Meta Business account + verification + WABA + system-user token.
   - [ ] Set `WHATSAPP_PROVIDER=cloud` + token / WABA id / verify token / app secret;
