@@ -113,18 +113,17 @@ external-activation phase), what's left is NOT clinic-app features:
 - **Clinic app v1 — ✅ done.** Every §B/§C/§D v1 item shipped. Only **§Z** (pick a host,
   then activate storage / pooler / AI keys / email SMTP / WhatsApp Cloud) remains to
   actually go live.
-- **Commercial / go-to-market (§A)** — payment gateways, SaaS billing, marketing site.
-  NOT required for a clinic to run the app (manual billing + manual onboarding work);
-  this is a **v1.5 / separate commercial track** — decide v1-vs-v2 per item.
+- **Commercial / go-to-market (§A) — all → v3** (2026-07-21): payment gateways, SaaS
+  billing, marketing site. NOT required for a clinic to run the app.
 - **Hygiene (Cleanup)** — small dead-code + orphaned-test-user cleanup; do before release.
 - **Explicitly v2** — operational analytics, inventory/payroll/attendance, realtime
   notifications, derma/hair modules.
 
-### A. Payments gateway & SaaS (money movement is built; integrations are not)
-- [ ] **Online payment gateways** — `/core/integrations/payments` still empty; no
+### A. Payments gateway & SaaS — **→ v3 / commercial** (decided 2026-07-21)
+- [ ] **Online payment gateways** — **v3**. `/core/integrations/payments` still empty; no
       JazzCash / Easypaisa / Raast / Stripe. (Manual payment recording, receipts,
       partial payments + outstanding are DONE — see Finance & billing above.)
-- [ ] **SaaS billing & usage (super admin)** — per-clinic billing, plans, usage metering.
+- [ ] **SaaS billing & usage (super admin)** — **v3**. Per-clinic billing, plans, usage metering.
 - [ ] **Marketing site** — `/(marketing)` (landing, pricing, SSG); only `(auth)` exists.
       **→ v3 / commercial** (decided 2026-07-21) — the public storefront (lead-gen, since
       signup is admin-provisioned); not needed for the clinic app, can even be a
@@ -160,13 +159,14 @@ to **§Z Final v1 phase**.
 - [ ] ~~**Postgres RLS**~~ — deferred to §Z; revisit only if a direct-DB/BI connection is
       added or a compliance checkbox requires native RLS. The guard above covers the
       forgotten-`byClinic()` risk for the trusted single-tier app.
-- [x] **Rate limiting** — ✅ login brute-force gate (`core/security/rate-limit.ts`):
-      per-username 5/15min (reset on success) + per-IP 50/15min, in-memory fixed-window;
-      wired into `signIn`. Swap the `Limiter` for a shared store at §Z (multi-instance).
-      _Remaining:_ optional generic API/route throttle.
-- [ ] **Load / scaling hardening (code parts)** — bcryptjs already uses the async
-      (chunked) API; the native-hash swap + pool `max` / connection-pooler are
-      platform-specific → §Z.
+- [x] **Rate limiting** — ✅ login brute-force gate + a reusable **generic route throttle**
+      (`core/security/rate-limit.ts` + `throttle()`/`tooManyRequests()`): login
+      per-username 5/15min + per-IP 50/15min; the AI scribe is per-user throttled (bounds
+      paid Whisper+Claude spend). In-memory fixed-window; swap the `Limiter` for a shared
+      store at §Z (multi-instance).
+- [ ] ~~**Load / scaling hardening**~~ → **moved to §Z** (host-specific): native-hash swap
+      + pool sizing / connection-pooler + load test. The one code part (async bcryptjs) is
+      already done.
 
 _Deferred to §Z (deploy-gated):_ **File storage** — `core/integrations/storage` is
 local FS; the S3-compatible (or server-disk) swap depends on the chosen host
@@ -215,7 +215,9 @@ non-deploy infra first, then activate these together at deploy.
 - [ ] **Deploy target decision** — S3 vs Linux vs Windows server (drives storage + pooler).
 - [ ] **File storage swap** — `core/integrations/storage` local FS → S3-compatible (or
       the chosen server's disk). Code is abstracted behind the storage module.
-- [ ] **Connection pooler + pool sizing** — depends on the host (serverless vs a box).
+- [ ] **Load / scaling hardening** (host-specific) — native-hash swap (`@node-rs/bcrypt`
+      / argon2, off-thread); pool `max` sizing + a **connection pooler** on serverless
+      (PgBouncer / Neon / Supabase); a load test on a prod build.
 - [ ] **External AI APIs go-live** — set `ANTHROPIC_API_KEY` (Claude scribe/chat) +
       `OPENAI_API_KEY` (Whisper); live transcribe→note test. Code is done (the scribe
       gracefully no-ops without keys).

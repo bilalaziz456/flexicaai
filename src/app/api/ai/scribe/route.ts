@@ -11,6 +11,7 @@ import { runScribe } from "@/core/ai/scribe-engine";
 import { MissingApiKeyError, AiParseError } from "@/core/ai/prompt-runner";
 import { getPatientAllergies } from "@/core/patients/medical-history";
 import { allergyConflicts } from "@/core/lib/medical-history";
+import { aiScribeByUser, throttle, tooManyRequests } from "@/core/security/rate-limit";
 
 /**
  * POST /api/ai/scribe — CORE, specialty-agnostic voice scribe (CLAUDE.md §8).
@@ -29,6 +30,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not permitted." }, { status: 403 });
   }
   const clinicId = user.clinicId;
+
+  // Throttle before reading the (large) upload or hitting the PAID AI APIs — bounds
+  // spend if a client loops. Per doctor.
+  const gate = throttle(aiScribeByUser, `scribe:${user.id}`);
+  if (!gate.ok) return tooManyRequests(gate.retryAfterMs);
 
   const form = await request.formData();
   const audio = form.get("audio");

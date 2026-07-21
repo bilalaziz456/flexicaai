@@ -98,6 +98,41 @@ export const resetByIdentifier = new Limiter(3, 15 * MIN);
 /** Password-reset requests per IP — generous (shared NAT) but caps a spray. */
 export const resetByIp = new Limiter(20, 15 * MIN);
 
+// ---- Generic route throttle ------------------------------------------------
+
+/** AI scribe per user — bounds PAID Whisper+Claude spend if a recorder loops. */
+export const aiScribeByUser = new Limiter(20, 10 * MIN);
+
+/**
+ * Peek-then-hit: allow up to the limit, then report how long until the window rolls.
+ * Use at the top of a Route Handler:
+ *   const g = throttle(aiScribeByUser, `scribe:${user.id}`);
+ *   if (!g.ok) return tooManyRequests(g.retryAfterMs);
+ */
+export function throttle(
+  limiter: Limiter,
+  key: string,
+): { ok: true } | { ok: false; retryAfterMs: number } {
+  const p = limiter.peek(key);
+  if (p.blocked) return { ok: false, retryAfterMs: p.retryAfterMs };
+  limiter.hit(key);
+  return { ok: true };
+}
+
+/** A standard 429 response with a Retry-After header + JSON `{ error }` body. */
+export function tooManyRequests(retryAfterMs: number): Response {
+  return new Response(
+    JSON.stringify({ error: `Too many requests. Please try again in ${retryAfterLabel(retryAfterMs)}.` }),
+    {
+      status: 429,
+      headers: {
+        "content-type": "application/json",
+        "retry-after": String(Math.ceil(retryAfterMs / 1000)),
+      },
+    },
+  );
+}
+
 /** Human-friendly "try again in N minutes/seconds" from a retry-after in ms. */
 export function retryAfterLabel(ms: number): string {
   const secs = Math.ceil(ms / 1000);
@@ -107,6 +142,6 @@ export function retryAfterLabel(ms: number): string {
 }
 
 // Periodic cleanup — unref'd so it never keeps the process alive.
-const ALL = [loginByUser, loginByIp, resetByIdentifier, resetByIp];
+const ALL = [loginByUser, loginByIp, resetByIdentifier, resetByIp, aiScribeByUser];
 const timer = setInterval(() => ALL.forEach((l) => l.prune()), 10 * MIN);
 if (typeof timer === "object" && "unref" in timer) timer.unref();
