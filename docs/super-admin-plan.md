@@ -182,17 +182,36 @@ cheque — no payment gateway, no PCI scope, no dunning automation). But manual 
 you still need a **small ledger** to set prices, record what came in, and see revenue +
 who hasn't paid. It **mirrors the `patient_payments` ledger already built** — small.
 
-### 5.1 v1 — manual billing layer (build this; small)
-- **Per-clinic plan/price** — `clinics.plan` (free-text or a tiny `plans` list) +
-  `monthly_price` + `billing_cycle` (monthly/annual). Set from clinic detail.
-- **Subscription-payment ledger** (`clinic_payments`, mirrors `patient_payments`): amount,
-  date, method (bank/cash/cheque), reference, **period covered** (e.g. Jul 2026), note,
-  recorded-by. Super admin records each payment received.
-- **Derived status** → `paid` / `due` / `overdue` (from the price + latest covered period)
-  → feeds the **§1 clinic status** (overdue can prompt/auto-suspend, your call).
-- **Revenue view** = Σ recorded payments → **MRR + "who's paid this month" + overdue list**
-  on `/admin` (real numbers, from actual receipts — not projections).
+### 5.1 v1 — manual billing layer (build this; small). Model = "paid-through date + running balance"
+
+Handles **any payment period** (2 / 3 / 5 / 12 months), a **per-clinic term the super admin
+decides**, and **carry-forward when unpaid** — all with the SAME advance-credit / outstanding
+math as the `patient_payments` ledger. The core idea: a **`paid_through` date** (the
+subscription's valid-until) that each payment PUSHES forward.
+
+- **Per-clinic price + term** (`clinics`): `monthly_price` (base rate) + `billing_cycle` the
+  super admin sets per clinic — **monthly / 2-monthly / quarterly / half-yearly / annual**
+  (just the *expected* cadence; an annual rate can be discounted via a term-price override).
+  `paid_through` date = derived (subscription valid until).
+- **Payment ledger** (`clinic_payments`, mirrors `patient_payments`): amount, date, method
+  (bank/cash/cheque), reference, **period covered** — either an explicit `from → to` OR
+  `months_covered` (e.g. 3, 5, 12) — note, recorded-by.
+  - Recording a payment **extends `paid_through`** by the months it covers (pay for a year →
+    +12 months; pay 2 months → +2). Paying ahead just pushes the date further out.
+- **Carry-forward = the running balance** (identical to patient outstanding/credit):
+  - **Owed = (months elapsed to today × `monthly_price`) − Σ payments.**
+  - `paid_through ≥ today` → **paid ahead** (active; show days/months remaining).
+  - `paid_through < today` → **overdue**; the gap **accrues/carries forward** automatically
+    (owed grows each month it stays unpaid — no data to "re-bill", it's derived).
+- **Status → lifecycle:** `active` (paid ahead) · `due` (within grace) · `overdue` (past
+  grace) → feeds **§1 clinic status** (a configurable grace period, then prompt or
+  auto-suspend — your call).
+- **Revenue view** (`/admin`): Σ payments → **MRR / this-month collected**, **paid-through
+  per clinic**, and an **overdue list with the carried-forward amount owed**.
 - **Optional:** a printable company invoice/receipt PDF (reuse the invoice PDF frame).
+
+This is the exact pattern already proven in `core/billing/*` (advance → paid-through;
+outstanding → carry-forward) — just at the clinic→Klenic level, so it's a small build.
 
 ### 5.2 v3 — automated (when you scale)
 - **Payment gateway** for clinic self-serve (Stripe / local), auto-charge on renewal.
