@@ -126,6 +126,9 @@ external-activation phase), what's left is NOT clinic-app features:
       partial payments + outstanding are DONE — see Finance & billing above.)
 - [ ] **SaaS billing & usage (super admin)** — per-clinic billing, plans, usage metering.
 - [ ] **Marketing site** — `/(marketing)` (landing, pricing, SSG); only `(auth)` exists.
+      **→ v3 / commercial** (decided 2026-07-21) — the public storefront (lead-gen, since
+      signup is admin-provisioned); not needed for the clinic app, can even be a
+      standalone/no-code site.
 
 ### B. Platform / infrastructure — **building now**
 
