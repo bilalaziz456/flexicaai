@@ -384,20 +384,36 @@ softDelete + timestamps`. Index (`clinic_id`,`occurred_at`).
 - **Audit + gate:** every change logged; super-admin only (no clinic-staff ACL — this is the platform control plane). ✅
 - **Verified** end-to-end over HTTP: staff blocked → /paused for suspended / past_due / cancelled / expired-trial; usable for active + future-trial; super_admin exempt; /paused bounces a usable-clinic user home; list filter + detail controls render. tsc clean.
 
-## Feature 3 — ⭐ Granular per-clinic control
-- **Schema:** `clinics.capabilities` (above) + extend `core/lib/features.ts` from 3 → a curated
-  **behavior-flag catalog** (`billing.partial_payment`, `appointments.online_booking`,
-  `appointments.walk_in`, `discounts.approval`, `sales.per_line_discount`, `scribe.enabled`,
-  `whatsapp.recalls`, …).
-- **Core:** `clinicAllows(clinic, resource, action)` (capabilities ⊇ slug, or `['*']`);
-  a `canInClinic(user, clinic, resource, action)` = `clinicAllows && can(user,…)`. Thread it
-  where pages gate buttons (or wrap `can`). `clinicHasFeature` already exists for flags.
-- **Actions:** `setClinicCapabilities(clinicId, slugs[])` · `setClinicFeatures(clinicId, ids[])`.
-- **UI:** on clinic detail — a **capability matrix** (reuse `permission-matrix.tsx` from staff,
-  at clinic level) + a **behavior-flag toggle list**.
-- **Coverage pass:** audit that every mutating button is behind a `can()`/feature check (add the
-  few missing) so toggles bite; add a dev guard flagging an un-gated mutation.
-- **Audit + gate:** log toggles; super-admin only.
+## Feature 3 — ⭐ Granular per-clinic control   ✅ SHIPPED (2026-07-22)
+- **Schema:** `clinics.capabilities` (Migration A) — a WHITELIST of allowed `resource:action`
+  slugs; NULL (or a `'*'` entry) = all allowed. ✅
+- **Core (the key move — "wrap `can`"):** `clinicAllows(capabilities, resource, action)` +
+  `can`/`canAccess` now do **clinic capability ∩ user permission**, and `getCurrentUser` carries
+  the clinic's capabilities on the user. So EVERY existing `can()` call — nav (`accessibleResourceIds`),
+  page guards (`requireWorkspace`), button booleans (`canCreate=…`), and the create/edit/delete
+  **server actions** — respects the super-admin's per-clinic control with **zero coverage-pass
+  churn**. Undefined capabilities (super-admin, non-clinic callers) = unrestricted, so nothing
+  else changed. ✅
+- **Actions:** `setClinicCapabilities(clinicId, slugs[])` — stores the whitelist, or NULL when all
+  usable slugs are allowed (the clean default; also lets a later-enabled feature just work). Plus
+  capability upkeep folded into `updateClinic`: enabling a feature auto-allows its slugs when the
+  clinic has a restricted whitelist (no silent lockout). ✅
+- **UI:** a **Capabilities** card on clinic detail reusing the staff `PermissionMatrix` — all
+  checked = allowed; uncheck to disable an action for every user in the clinic; "N actions
+  disabled" hint + "Allow all". (Feature TOGGLES stay in the existing settings form.) ✅
+- **Coverage:** achieved by the `can`-wrap (no per-button audit needed — verified the create
+  button, `/new` page, nav, AND the `createAppointment` action all bite). The optional dev-guard
+  for un-`can`'d mutations is deferred (speculative; the wrap already covers the real gates).
+- **Audit + gate:** every capability change logged; super-admin only. ✅
+- **Verified** end-to-end over HTTP (clinic_admin, so only capability — not user permission —
+  varies): caps NULL → "New appointment" present; whitelist without `appointments:create` →
+  button hidden, `/clinic/appointments/new` redirects, unlisted resources' nav hidden, page still
+  loads via `appointments:view`; admin matrix renders. tsc clean.
+- **Behavior-flag catalog** (`billing.partial_payment`, `appointments.online_booking`, …) — the
+  originally-sketched second mechanism is **superseded**: `resource:action` capabilities already
+  deliver "disable any button" granularly. Named behavior flags remain a possible future add for
+  behaviors that don't map to a CRUD slug (e.g. walk-in vs online booking), each needing its own
+  enforcement point — not built now.
 
 ## Feature 4 — Clinic identity & contact
 - **Schema:** owner/contact/region/timezone/notes (Migration A).

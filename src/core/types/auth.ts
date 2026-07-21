@@ -145,6 +145,13 @@ export interface CurrentUser {
    * array is an admin override that replaces the defaults entirely.
    */
   permissions: string[] | null;
+  /**
+   * The user's CLINIC capabilities (`clinics.capabilities`) — the super-admin
+   * per-clinic control whitelist. NULL = all allowed. Carried on the user so every
+   * `can()` check applies clinic capability ∩ user permission (see `clinicAllows`).
+   * Always null for super_admin (no clinic).
+   */
+  capabilities: string[] | null;
 }
 
 /**

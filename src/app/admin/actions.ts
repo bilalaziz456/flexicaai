@@ -27,6 +27,7 @@ import {
 import { availableSpecialtyIds } from "@/config/modules";
 import { CLINIC_FEATURE_IDS } from "@/core/lib/features";
 import { isClinicStatus, isClinicUsable, type ClinicStatus } from "@/core/clinics/status";
+import { permId, resourcesForClinic, sanitizePermissions } from "@/core/auth/permissions";
 import { backfillClinicSales } from "@/core/sales/ledger";
 import { logActivity } from "@/core/audit/log";
 import { sanitizeLogAccess } from "@/core/audit/access";
@@ -195,13 +196,30 @@ export async function updateClinic(
   // Was the sales feature off before this save? If so, and it's on now, we backfill
   // the ledger below so the report shows history the moment the feature is enabled.
   const [before] = await db
-    .select({ featuresEnabled: clinics.featuresEnabled })
+    .select({
+      featuresEnabled: clinics.featuresEnabled,
+      capabilities: clinics.capabilities,
+    })
     .from(clinics)
     .where(eq(clinics.id, clinicId))
     .limit(1);
   const salesNewlyEnabled =
     featuresEnabled.includes("sales") &&
     !(before?.featuresEnabled ?? []).includes("sales");
+
+  // Capability upkeep: if this clinic has a RESTRICTED capability whitelist and a
+  // feature is newly enabled, allow that feature's slugs by default — otherwise
+  // the new feature's actions would be silently disabled. (No-op when capabilities
+  // is NULL = all allowed, the common case.)
+  let capabilities = before?.capabilities ?? null;
+  if (capabilities) {
+    const newlyUsable = usableCapabilitySlugs(featuresEnabled).filter(
+      (s) => !usableCapabilitySlugs(before?.featuresEnabled ?? null).includes(s),
+    );
+    if (newlyUsable.length) {
+      capabilities = sanitizePermissions([...capabilities, ...newlyUsable]);
+    }
+  }
 
   try {
     await db
@@ -210,6 +228,7 @@ export async function updateClinic(
         name: parsed.data.name,
         modulesEnabled,
         featuresEnabled,
+        capabilities,
         logAccess,
         trashRetentionDays: parsed.data.trashRetentionDays,
         // Per-clinic WhatsApp sender (empty → cleared). phone_number_id is unique
@@ -367,6 +386,61 @@ export async function extendTrial(
   });
   revalidatePath(`/admin/clinics/${clinicId}`);
   revalidatePath("/admin");
+  revalidatePath("/clinic", "layout");
+  return { saved: true };
+}
+
+/** Every `resource:action` slug a clinic with these features can use. */
+function usableCapabilitySlugs(featuresEnabled: string[] | null): string[] {
+  return resourcesForClinic(featuresEnabled).flatMap((r) =>
+    r.actions.map((a) => permId(r.id, a)),
+  );
+}
+
+/**
+ * Sets a clinic's capability WHITELIST (super-admin granular control, Feature 3):
+ * the `resource:action` slugs the clinic is allowed to use. `can()` intersects
+ * these with each user's own permissions, so dropping a slug disables that action
+ * for EVERY user in the clinic. When ALL usable slugs are allowed we store NULL
+ * ("all") — the clean default that also lets a later-enabled feature work without
+ * revisiting. super-admin only; audited.
+ */
+export async function setClinicCapabilities(
+  clinicId: string,
+  slugs: string[],
+): Promise<AdminActionState> {
+  await requireRole("super_admin");
+
+  const [before] = await db
+    .select({ name: clinics.name, featuresEnabled: clinics.featuresEnabled })
+    .from(clinics)
+    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
+    .limit(1);
+  if (!before) return { error: "Clinic not found." };
+
+  const usable = usableCapabilitySlugs(before.featuresEnabled);
+  const usableSet = new Set(usable);
+  // Keep only recognised slugs the clinic can actually use.
+  const checked = sanitizePermissions(slugs).filter((s) => usableSet.has(s));
+  // All usable allowed → NULL (unrestricted); otherwise store the explicit whitelist.
+  const capabilities = checked.length >= usable.length ? null : checked;
+
+  await db
+    .update(clinics)
+    .set({ capabilities, updatedAt: new Date() })
+    .where(eq(clinics.id, clinicId));
+
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: capabilities
+      ? `Restricted clinic “${before.name}” capabilities (${capabilities.length}/${usable.length} actions allowed)`
+      : `Cleared clinic “${before.name}” capability restrictions (all allowed)`,
+  });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  // Capabilities change what every staff member's nav + buttons show.
   revalidatePath("/clinic", "layout");
   return { saved: true };
 }

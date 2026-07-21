@@ -232,14 +232,40 @@ export function defaultPermissionsForRole(role: UserRole): string[] {
   return ROLE_DEFAULTS[role] ?? [];
 }
 
+// ---- Clinic capabilities (super-admin per-clinic control) ----------------
+
+/**
+ * `clinics.capabilities` is a WHITELIST of `resource:action` slugs the super admin
+ * allows for the WHOLE clinic — the granular control lever (e.g. drop
+ * `appointments:create` to disable "New appointment" for every user in that
+ * clinic). NULL (or a `'*'` entry) means "all allowed" — the default, so an
+ * unconfigured clinic behaves exactly as before. This is the FIRST tier of the
+ * two-tier model: a user's effective access = clinic capability ∩ user permission.
+ */
+export function clinicAllows(
+  capabilities: readonly string[] | null | undefined,
+  resource: string,
+  action: PermAction,
+): boolean {
+  if (!capabilities || capabilities.includes("*")) return true;
+  return capabilities.includes(permId(resource, action));
+}
+
 // ---- Runtime checks ------------------------------------------------------
 
-type PermUser = { role: UserRole; permissions?: string[] | null };
+type PermUser = {
+  role: UserRole;
+  permissions?: string[] | null;
+  /** The user's clinic capabilities (see `clinicAllows`). Undefined = all allowed
+   *  (so callers that don't carry it — e.g. super-admin paths — are unaffected). */
+  capabilities?: string[] | null;
+};
 
 /**
  * A user's effective permission set. super_admin / clinic_admin implicitly hold
  * everything; everyone else uses their stored array, or the role defaults when it
- * is NULL. (Feature-gating is applied separately at the page/query layer.)
+ * is NULL. NOTE: this is the USER tier only — clinic capabilities are applied on
+ * top in `can`/`canAccess`. (Feature-gating is separate, at the page/query layer.)
  */
 export function permissionSet(user: PermUser): ReadonlySet<string> {
   if (user.role === "super_admin" || user.role === "clinic_admin") {
@@ -248,17 +274,28 @@ export function permissionSet(user: PermUser): ReadonlySet<string> {
   return new Set(user.permissions ?? defaultPermissionsForRole(user.role));
 }
 
-/** Does the user hold `resource:action`? */
+/**
+ * Does the user hold `resource:action`? TWO-TIER: the clinic must ALLOW the slug
+ * (super-admin capability) AND the user must hold it (clinic-admin permission).
+ * Capabilities ride here so every existing `can()` call — nav, page guards, button
+ * booleans, server actions — respects the super admin's per-clinic control with no
+ * extra wiring. super_admin has undefined capabilities → unrestricted.
+ */
 export function can(user: PermUser, resource: string, action: PermAction): boolean {
-  return permissionSet(user).has(permId(resource, action));
+  return (
+    clinicAllows(user.capabilities, resource, action) &&
+    permissionSet(user).has(permId(resource, action))
+  );
 }
 
-/** True if the user can do ANY action on a resource (i.e. should see its nav). */
+/** True if the user can do ANY (clinic-allowed) action on a resource — drives nav. */
 export function canAccess(user: PermUser, resource: string): boolean {
   const res = RESOURCE_BY_ID.get(resource);
   if (!res) return false;
   const set = permissionSet(user);
-  return res.actions.some((a) => set.has(permId(resource, a)));
+  return res.actions.some(
+    (a) => clinicAllows(user.capabilities, resource, a) && set.has(permId(resource, a)),
+  );
 }
 
 /** Resources a clinic can use (drops feature-gated ones it hasn't enabled). */

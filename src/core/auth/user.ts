@@ -28,6 +28,16 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const user = await getSessionUser();
   if (!user) return null;
 
+  // Clinic capabilities (super-admin per-clinic control) ride on the user so every
+  // `can()` check applies them (Feature 3). Only clinic staff have a clinic; the
+  // read is request-cached (the layout + Feature-2 guard already load it), so this
+  // adds no query. super_admin has no clinic → capabilities stay null (unrestricted).
+  let capabilities: string[] | null = null;
+  if (user.clinicId && user.role !== "super_admin") {
+    const clinic = await getClinic(user.clinicId);
+    capabilities = clinic?.capabilities ?? null;
+  }
+
   return {
     id: user.id,
     username: user.username,
@@ -40,6 +50,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     clinicId: user.clinicId,
     mustChangePassword: user.mustChangePassword,
     permissions: user.permissions ?? null,
+    capabilities,
   };
 }
 

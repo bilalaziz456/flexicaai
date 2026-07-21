@@ -6,6 +6,7 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, users } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
 import { CLINIC_FEATURES } from "@/core/lib/features";
+import { resourcesForClinic } from "@/core/auth/permissions";
 import { Badge } from "@/core/ui/badge";
 import {
   Card,
@@ -24,6 +25,7 @@ import {
 } from "@/core/ui/table";
 import { ClinicSettingsForm } from "./clinic-settings-form";
 import { ClinicLifecycle } from "./clinic-lifecycle";
+import { ClinicCapabilities } from "./clinic-capabilities";
 import { StaffActions } from "./staff-actions";
 import { DeleteClinic } from "./delete-clinic";
 
@@ -105,6 +107,23 @@ export default async function ClinicDetailPage({
             whatsappPhoneNumberId={clinic.whatsappPhoneNumberId}
             whatsappDisplayNumber={clinic.whatsappDisplayNumber}
             whatsappSenderName={clinic.whatsappSenderName}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Capabilities</CardTitle>
+          <CardDescription>
+            Granular per-clinic control — which actions this clinic&apos;s staff may
+            perform. Disabling one turns off that button for every user here.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ClinicCapabilities
+            clinicId={clinic.id}
+            resources={resourcesForClinic(clinic.featuresEnabled)}
+            capabilities={clinic.capabilities}
           />
         </CardContent>
       </Card>
