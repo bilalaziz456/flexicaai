@@ -38,6 +38,20 @@ export function normalisePhone(phone: string): string {
   return phone.replace(/[^0-9]/g, "");
 }
 
+/**
+ * Placeholder for an otherwise-empty template variable. WhatsApp (Meta) REJECTS a send
+ * whose body variable is blank / whitespace-only / contains a newline or tab — so no
+ * template needs a "with vs without" split; a missing value becomes "—".
+ */
+const EMPTY_PARAM = "—";
+
+/** Make one template variable Meta-safe: collapse whitespace/newlines, trim, and never
+ *  return an empty string. */
+function cleanParam(value: string | null | undefined): string {
+  const t = (value ?? "").replace(/\s+/g, " ").trim();
+  return t.length > 0 ? t : EMPTY_PARAM;
+}
+
 export type SendTemplateArgs = {
   /** Destination phone, digits with country code (e.g. 923001234567). */
   to: string;
@@ -72,10 +86,19 @@ export type SendResult =
 export async function sendWhatsAppTemplate(
   args: SendTemplateArgs,
 ): Promise<SendResult> {
+  // Sanitize every variable so Meta never rejects the send on a blank/whitespace param.
+  // The signature (Cloud, trailing var) is dropped when blank so the param count stays
+  // consistent with a template that has no signature var; a real one is cleaned.
+  const sig = args.signature?.trim();
+  const clean: SendTemplateArgs = {
+    ...args,
+    templateParams: args.templateParams?.map(cleanParam),
+    signature: sig ? cleanParam(sig) : null,
+  };
   if (serverEnv.WHATSAPP_PROVIDER === "cloud") {
-    return sendViaCloud(args);
+    return sendViaCloud(clean);
   }
-  return sendViaAisensy(args);
+  return sendViaAisensy(clean);
 }
 
 /** AiSensy v2 Campaign API sender (the default, single-account provider). */
