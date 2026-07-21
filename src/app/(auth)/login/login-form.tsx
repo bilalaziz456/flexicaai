@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { signIn, type AuthActionState } from "@/core/auth/actions";
 import { Button } from "@/core/ui/button";
 import {
@@ -15,11 +16,17 @@ import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { PasswordInput } from "@/core/ui/password-input";
 
-export function LoginForm({ initialError }: { initialError?: string }) {
+export function LoginForm({
+  initialError,
+  initialMessage,
+}: {
+  initialError?: string;
+  initialMessage?: string;
+}) {
   const [state, formAction, pending] = useActionState<
     AuthActionState,
     FormData
-  >(signIn, { error: initialError });
+  >(signIn, { error: initialError, message: initialMessage });
 
   return (
     <Card>
@@ -42,7 +49,15 @@ export function LoginForm({ initialError }: { initialError?: string }) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Password</Label>
+              <Link
+                href="/forgot-password"
+                className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
             <PasswordInput
               id="password"
               name="password"
@@ -50,6 +65,11 @@ export function LoginForm({ initialError }: { initialError?: string }) {
               required
             />
           </div>
+          {state.message ? (
+            <p className="text-sm text-emerald-600 dark:text-emerald-400" role="status">
+              {state.message}
+            </p>
+          ) : null}
           {state.error ? (
             <p className="text-sm text-destructive" role="alert">
               {state.error}
