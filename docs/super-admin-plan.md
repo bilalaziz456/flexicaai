@@ -347,7 +347,9 @@ UI · gating**. All new tables/columns land in one or two migrations; all follow
 patterns (soft-delete where deletable, `activity_logs` for audit, `requireRole("super_admin")`
 gating). Ordered to build in sequence.
 
-## Migration A — `clinics` columns + new tables (foundation)
+## Migration A — `clinics` columns + new tables (foundation)   ✅ SHIPPED (migration 0052, 2026-07-22)
+> Note: `clinics.status` ships defaulting to **`'active'`** (not `'trial'`) so every existing
+> clinic stays usable the moment the Feature 2 login-block lands; new clinics can be created as trial.
 
 **`clinics` new columns:**
 - `status` text default `'trial'` — trial | active | suspended | past_due | cancelled
@@ -367,13 +369,13 @@ softDelete + timestamps`. Index (`clinic_id`,`occurred_at`).
 
 **`users` new columns (2FA, super-admins first):** `totp_secret` text null · `totp_enabled` bool default false · `totp_backup` text[] null.
 
-## Feature 1 — Panel security (2FA + step-up + IP)   [build FIRST]
-- **Core:** `core/auth/totp.ts` — RFC-6238 TOTP (generate secret, otpauth URL/QR, verify with ±1 window) + backup codes (hashed). *No new dep needed (Node crypto HMAC) — or `otplib` if preferred.*
-- **Flow:** super-admin login = password → **TOTP challenge**. Extend existing step-up (`core/auth/reauth`) to require TOTP for super-admins on **delete/purge/impersonate/suspend**.
-- **Actions:** `enrollTotp`, `confirmTotp(code)`, `disableTotp` (self, re-auth).
-- **UI:** `/admin/security` (enroll: QR + code + backup codes) · a TOTP step on `/login` when the account has it.
-- **Proxy:** optional `ADMIN_IP_ALLOWLIST` env — if set, `proxy.ts` 404s `/admin/*` from other IPs.
-- **Gate:** super-admin only.
+## Feature 1 — Panel security (2FA + step-up + IP)   ✅ SHIPPED (2026-07-22) — 2FA login done; step-up+IP deferred
+- **Core:** `core/auth/totp.ts` — RFC-6238 TOTP (Node crypto HMAC, no dep), ±1 window + hashed single-use backup codes. **Verified against the RFC 6238 vectors.** ✅
+- **Flow:** super-admin login = password → **TOTP challenge** (single-action two-phase in `signIn`; failures feed the brute-force gate). ✅
+- **Actions:** `beginTotpEnrollment`, `confirmTotpEnrollment(code)`, `disableTotp`, `regenerateBackupCodes` (self, password step-up). ✅
+- **UI:** `/admin/security` (enroll via manual key / `otpauth://` link + 6-digit confirm + one-time backup codes) · a TOTP step on `/login`. ✅ *(QR image not rendered — manual key entry only, to stay dep-free; add a QR later if desired.)*
+- **Deferred to the impersonation/suspend features:** extend `core/auth/reauth` to require a TOTP step-up on delete/purge/impersonate/suspend; optional `ADMIN_IP_ALLOWLIST` in `proxy.ts` (404 `/admin/*` from other IPs).
+- **Gate:** super-admin only. ✅
 
 ## Feature 2 — Clinic lifecycle & status
 - **Core:** `core/clinics/status.ts` — `isClinicUsable(clinic)` (active, OR trial not expired). **Login-block:** in `getSessionUser`/`requireRole`, if a clinic-staff user's clinic isn't usable → return null / redirect to a `/paused` page ("access paused — contact support"). One check, all panels. (super_admin unaffected.)

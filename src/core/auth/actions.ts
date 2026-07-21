@@ -10,6 +10,7 @@ import {
 } from "@/core/theme/theme";
 import { createSession, destroySession } from "@/core/auth/session";
 import { hashPassword, verifyPassword } from "@/core/auth/password";
+import { consumeBackupCode, verifyTotp } from "@/core/auth/totp";
 import { loginByIp, loginByUser, retryAfterLabel } from "@/core/security/rate-limit";
 import { requireUser } from "@/core/auth/user";
 import { logActivityAs } from "@/core/audit/log";
@@ -18,8 +19,14 @@ import { notDeleted } from "@/core/db/tenant";
 import { users } from "@/core/db/schema";
 import { ROLE_HOME_ROUTE, type UserRole } from "@/core/types/auth";
 
-/** Shared shape for useActionState in the login form. */
-export type AuthActionState = { error?: string; message?: string };
+/** Shared shape for useActionState in the login form. `totpRequired` tells the
+ *  form to reveal the 6-digit code field and re-submit (with username+password
+ *  still in the form) — see the two-factor step in `signIn`. */
+export type AuthActionState = {
+  error?: string;
+  message?: string;
+  totpRequired?: boolean;
+};
 
 const credentialsSchema = z.object({
   username: z.string().trim().min(1, "Enter your username."),
@@ -83,9 +90,6 @@ export async function signIn(
     countFailure();
     return invalid;
   }
-  // Correct credentials — clear the username's failure count (not a brute-force run).
-  loginByUser.reset(userKey);
-
   // Only AFTER the password is verified do we reveal a suspended account. The
   // person has proven they own the credentials, so this leaks nothing an
   // attacker could enumerate — and it's clearer than "wrong password".
@@ -95,6 +99,42 @@ export async function signIn(
         "Your account has been suspended. Please contact your administrator.",
     };
   }
+
+  // Two-factor challenge. When the account has TOTP enabled, the SAME submit must
+  // also carry a valid 6-digit code (or a one-time backup code). The form reveals
+  // the code field on `totpRequired` and re-posts username+password+totp — the
+  // password is re-verified above on every pass, so this pending state grants
+  // nothing on its own (no separate session/cookie needed). TOTP failures DO count
+  // toward the brute-force gate (the username counter isn't reset until 2FA also
+  // passes), throttling code-guessing.
+  if (user.totpEnabled && user.totpSecret) {
+    const totp = (formData.get("totp") as string | null)?.trim() ?? "";
+    if (!totp) {
+      return {
+        totpRequired: true,
+        message: "Enter the 6-digit code from your authenticator app.",
+      };
+    }
+    let twoFactorOk = verifyTotp(user.totpSecret, totp);
+    if (!twoFactorOk) {
+      // Fall back to a one-time backup code; if it matches, consume it.
+      const remaining = consumeBackupCode(user.totpBackup ?? [], totp);
+      if (remaining) {
+        twoFactorOk = true;
+        await db
+          .update(users)
+          .set({ totpBackup: remaining, updatedAt: new Date() })
+          .where(eq(users.id, user.id));
+      }
+    }
+    if (!twoFactorOk) {
+      countFailure();
+      return { totpRequired: true, error: "Invalid authentication code." };
+    }
+  }
+
+  // Correct credentials (and 2FA, if enabled) — clear the failure count.
+  loginByUser.reset(userKey);
 
   await createSession(user.id);
 
