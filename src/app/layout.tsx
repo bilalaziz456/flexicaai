@@ -40,7 +40,14 @@ export default async function RootLayout({
       {/* suppressHydrationWarning: the theme script (and browser extensions like
           Grammarly) may adjust attributes before hydration; this silences that. */}
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeScript }} />
+        {/* suppressHydrationWarning: the browser blanks the `nonce` content attribute
+            after parsing (CSP hardening), so server nonce="…" vs client nonce="" trips
+            hydration — the script already ran with the correct nonce; nothing to patch. */}
+        <script
+          nonce={nonce}
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: themeScript }}
+        />
         {children}
       </body>
     </html>
