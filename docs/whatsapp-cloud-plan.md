@@ -154,8 +154,8 @@ calls `GET` to verify (we echo `hub.challenge`), then `POST`s messages + statuse
 Approve ONCE at the WABA level — shared by every clinic number. The **template name**
 is the value of the matching `AISENSY_*_CAMPAIGN` env var (reused as the Cloud
 template name). The app sends these body variables **in this exact order**; the cloud
-adapter appends the clinic's `{{note}}` (booking/reminder/recall only) then
-`{{signature}}` as the LAST variables.
+adapter appends the clinic's `{{signature}}` as the LAST variable. (The old per-event
+`{{note}}` variable was removed — migration 0030 — so templates are **signature-only**.)
 
 | Event · template (env) | Header | Body variables in order |
 |---|---|---|
@@ -169,29 +169,101 @@ adapter appends the clinic's `{{note}}` (booking/reminder/recall only) then
 
 Param sources in code: `core/notifications/appointment.ts` (booking/cancel/reminder),
 `core/recall/index.ts` (recall), `core/appointments/{reschedule,booking}.ts` (replies),
-`app/doctor/actions.ts` (prescription). The trailing note/signature are appended by
+`app/doctor/actions.ts` (prescription). The trailing signature is appended by
 `core/integrations/whatsapp/cloud.ts`.
 
-## D. ⚠️ The "always-present variable" rule (read before approving templates)
+### C.1 Sample template bodies (ready to paste — category **Utility**, lang `en`)
 
-The cloud adapter appends `{{note}}` / `{{signature}}` **only when they are set**. A
-WhatsApp template has a FIXED number of variables, so the params we send must match
-the template exactly, every time. Therefore:
+Copy each into Meta's template editor. The last `{{n}}` is the **signature** (Cloud only —
+**on AiSensy, delete that last line + variable**). A missing value renders as `—`
+automatically (`sendWhatsAppTemplate` sanitizer), so ONE wording covers the
+no-token / no-doctor cases — no variant templates needed.
 
-- **Signature:** make sure **every clinic sets a signature** (it's the last variable
-  of every template). If a clinic leaves it blank, its messages would send one param
-  short and Meta will reject them.
-- **Note (booking/reminder/recall):** these templates carry a `{{note}}` variable, so
-  the clinic must **always** have a note for those events — OR you omit the `{{note}}`
-  variable from those templates for v1 and rely on `{{signature}}` only (then clinics
-  must NOT set notes).
+**`appointment_booked`**
+```
+Hi {{1}}, your appointment at {{5}} is confirmed with {{2}} on {{3}}.
+Consultation fee: {{4}}.
+Queue token: {{6}}.
 
-**Recommended v1:** ship **signature-only** templates (drop the `{{note}}` variable),
-require a signature per clinic, and add `{{note}}` later. **Or**, before go-live, make
-the adapter force non-empty trailing params (signature ← sender name; note ← a
-placeholder) so counts are always stable regardless of what the clinic sets — decide
-this during the live test, since it depends on Meta's handling of blank params. This
-is the one code decision left; everything else is wired.
+{{7}}
+```
+**`appointment_cancelled`**
+```
+Hi {{1}}, your appointment with {{2}} on {{3}} at {{4}} has been cancelled. Please contact us to rebook.
+
+{{5}}
+```
+**`appointment_reminder`**
+```
+Hi {{1}}, a reminder of your appointment with {{2}} on {{3}} at {{4}}. See you soon.
+
+{{5}}
+```
+**`recall_reminder`**
+```
+Hi {{1}}, it's time for {{2}}. Please contact {{3}} to book your visit.
+
+{{4}}
+```
+**`invoice`**
+```
+Hi {{1}}, here is your bill from {{2}}.
+Invoice: {{3}}
+Total: {{4}} | Paid: {{5}} | Outstanding: {{6}}
+
+{{7}}
+```
+**`prescription`** — add a **Document** header component (the PDF)
+```
+Hi {{1}}, your prescription from {{2}} is attached. Please follow the dosage as advised.
+
+{{3}}
+```
+**`lab_ready`**
+```
+Hi {{1}}, good news — your {{2}} is back from the lab and ready to fit. Please call us to book your fitting.
+
+{{3}}
+```
+**`booking_reply`** (auto-reply to an inbound "book…")
+```
+{{1}}
+Reply to this message with a date & time to continue.
+
+{{2}}
+```
+**`reschedule_reply`** (auto-reply to "reschedule…" + the confirmation)
+```
+{{1}}
+Reply to this message with the new date & time to continue.
+
+{{2}}
+```
+
+**Approval tips:** keep the fixed lines in `booking_reply` / `reschedule_reply` — Meta
+often rejects a body that is *only* a variable. Don't start/end a body with a bare
+variable. Keep every template **Utility** (no promotional wording).
+
+## D. Blank / missing variables (mostly handled in code)
+
+WhatsApp rejects a send whose body variable is blank / whitespace-only / has a newline —
+and a template has a FIXED variable count, so params must match exactly, every time.
+
+- ✅ **Empty EVENT variables → "—" (done, 2026-07-22).** `sendWhatsAppTemplate`
+  (`core/integrations/whatsapp`) sanitizes every param — collapses whitespace, trims,
+  and substitutes `—` for a blank — so the booking queue token `{{6}}`, a doctor-less
+  booking, etc. never send an empty variable. **No "with/without" template split needed.**
+- ✅ **`{{note}}` removed** (migration 0030) — templates are **signature-only**.
+- ⚠️ **The trailing `{{signature}}` must ALWAYS be present.** Every template above ends
+  with `{{signature}}`, so if a clinic hasn't set a signature the send is one param
+  short → Meta rejects. Pick one:
+  - **(a)** Require a signature per clinic in the provisioning UI (Phase 5), OR
+  - **(b, recommended)** make the cloud send **fall back** to the clinic/sender name when
+    the signature is blank, so `{{signature}}` is always filled regardless of what the
+    clinic sets. (Small, localized change in `core/notifications/clinic-whatsapp.ts` /
+    `cloud.ts`.)
+
+This is the ONE remaining go-live decision on templates; everything else is wired.
 
 ## E. Go-live steps
 1. Set the Phase 6.A env vars; deploy.
