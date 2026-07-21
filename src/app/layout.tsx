@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { getThemeCookie } from "@/core/theme/server";
 import "./globals.css";
@@ -21,6 +22,9 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const theme = await getThemeCookie();
+  // The per-request CSP nonce set by the proxy — attached to our inline theme script so
+  // it passes a nonce-based CSP (report-only for now).
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   // Runs before paint: applies the .dark class from the saved preference, and
   // for "system" follows the OS and reacts to OS theme changes live. Prevents
@@ -36,7 +40,7 @@ export default async function RootLayout({
       {/* suppressHydrationWarning: the theme script (and browser extensions like
           Grammarly) may adjust attributes before hydration; this silences that. */}
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeScript }} />
         {children}
       </body>
     </html>
