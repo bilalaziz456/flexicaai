@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { and, eq, gt } from "drizzle-orm";
@@ -48,10 +49,13 @@ export async function createSession(userId: string): Promise<void> {
  * token against the DB and checks expiry + active flag. Safe to call from
  * Server Components (it only reads the cookie).
  *
- * DRIZZLE: a simple, type-safe join run once per request — the query builder is
- * ideal here; there is nothing to hand-tune.
+ * DEDUPED per request via React `cache()`: a single render pass calls this many
+ * times (layout + page + nested guards all hit requireWorkspace), and this collapses
+ * them to ONE session⋈users lookup — a meaningful win at scale.
+ *
+ * DRIZZLE: a simple, type-safe join; the query builder is ideal here.
  */
-export async function getSessionUser(): Promise<User | null> {
+export const getSessionUser = cache(async (): Promise<User | null> => {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
@@ -72,7 +76,7 @@ export async function getSessionUser(): Promise<User | null> {
   // Their sessions are hard-revoked on suspend/delete; this is defense-in-depth.
   if (!row || !row.user.isActive || row.user.deletedAt) return null;
   return row.user;
-}
+});
 
 /**
  * Destroys the current session (DB row + cookie). Call from a Server Action.

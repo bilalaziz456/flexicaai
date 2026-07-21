@@ -13,6 +13,10 @@ import { getPatientAllergies } from "@/core/patients/medical-history";
 import { allergyConflicts } from "@/core/lib/medical-history";
 import { aiScribeByUser, throttle, tooManyRequests } from "@/core/security/rate-limit";
 
+/** Cap the audio upload — bounds memory + the paid Whisper call. A few minutes of
+ *  compressed audio is well under this; a huge upload is rejected before buffering. */
+const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB
+
 /**
  * POST /api/ai/scribe — CORE, specialty-agnostic voice scribe (CLAUDE.md §8).
  * Doctor uploads audio (+ patientId); we transcribe (Whisper) and generate a
@@ -36,6 +40,13 @@ export async function POST(request: Request) {
   const gate = throttle(aiScribeByUser, `scribe:${user.id}`);
   if (!gate.ok) return tooManyRequests(gate.retryAfterMs);
 
+  // Reject an oversized upload from the Content-Length header BEFORE parsing the body,
+  // so a huge request never gets buffered (a clean 413, not a parse 500).
+  const declaredBytes = Number(request.headers.get("content-length") ?? 0);
+  if (declaredBytes > MAX_AUDIO_BYTES) {
+    return NextResponse.json({ error: "Audio is too large (max 25 MB)." }, { status: 413 });
+  }
+
   const form = await request.formData();
   const audio = form.get("audio");
   const patientId = form.get("patientId");
@@ -43,6 +54,12 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "audio file and patientId are required." },
       { status: 400 },
+    );
+  }
+  if (audio.size > MAX_AUDIO_BYTES) {
+    return NextResponse.json(
+      { error: "Audio is too large (max 25 MB)." },
+      { status: 413 },
     );
   }
 

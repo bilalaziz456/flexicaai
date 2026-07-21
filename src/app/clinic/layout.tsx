@@ -1,8 +1,6 @@
 import type { ReactNode } from "react";
-import { eq } from "drizzle-orm";
 import { requireWorkspace } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { clinics } from "@/core/db/schema";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { getThemeCookie } from "@/core/theme/server";
 import { clinicHasFeature } from "@/core/lib/features";
 import { getUnreadCount } from "@/core/notifications/in-app";
@@ -22,15 +20,7 @@ export default async function ClinicLayout({
   children: ReactNode;
 }) {
   const user = await requireWorkspace();
-  const [clinic] = await db
-    .select({
-      name: clinics.name,
-      logAccess: clinics.logAccess,
-      featuresEnabled: clinics.featuresEnabled,
-    })
-    .from(clinics)
-    .where(eq(clinics.id, user.clinicId))
-    .limit(1);
+  const clinic = await getClinic(user.clinicId);
   const theme = await getThemeCookie();
   const unread = await getUnreadCount(user.clinicId, user.id);
   // A clinic admin only sees the activity log if the super admin granted it; the

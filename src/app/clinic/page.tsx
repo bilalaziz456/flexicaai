@@ -6,13 +6,13 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import {
   appointments,
-  clinics,
   doctorLeaves,
   patients,
   recalls,
   users,
 } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { getSalesSummary, resolveSalesRange } from "@/core/sales/report";
 import { getFinanceKpis } from "@/core/finance/kpis";
 import { getNoShowStats } from "@/core/appointments/no-shows";
@@ -43,14 +43,8 @@ export default async function ClinicDashboard() {
   // The Revenue dashboard is an optional, super-admin-gated feature (works for
   // any specialty). Fetch the clinic first so we can SKIP the expensive
   // "recovered" analytics query entirely when the feature is off (perf-first).
-  const [clinicRow] = await db
-    .select({
-      avgVisitValue: clinics.avgVisitValue,
-      featuresEnabled: clinics.featuresEnabled,
-    })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  // Deduped with the layout's fetch via cache() — one clinics read for the whole request.
+  const clinicRow = await getClinic(clinicId);
 
   const revenueEnabled = clinicHasFeature(
     clinicRow?.featuresEnabled,

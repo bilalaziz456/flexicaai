@@ -42,7 +42,10 @@ const STATUS_MAP: Record<string, "sent" | "delivered" | "read" | "failed"> = {
 
 export async function POST(request: Request) {
   const url = new URL(request.url);
-  const token = url.searchParams.get("token");
+  // Prefer a header (keeps the secret out of the URL / access logs); fall back to the
+  // query param for providers that can only append it to the webhook URL.
+  const token =
+    request.headers.get("x-webhook-token") || url.searchParams.get("token");
   if (
     !serverEnv.WHATSAPP_WEBHOOK_TOKEN ||
     token !== serverEnv.WHATSAPP_WEBHOOK_TOKEN
