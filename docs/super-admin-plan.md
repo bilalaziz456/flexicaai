@@ -377,11 +377,12 @@ softDelete + timestamps`. Index (`clinic_id`,`occurred_at`).
 - **Deferred to the impersonation/suspend features:** extend `core/auth/reauth` to require a TOTP step-up on delete/purge/impersonate/suspend; optional `ADMIN_IP_ALLOWLIST` in `proxy.ts` (404 `/admin/*` from other IPs).
 - **Gate:** super-admin only. ✅
 
-## Feature 2 — Clinic lifecycle & status
-- **Core:** `core/clinics/status.ts` — `isClinicUsable(clinic)` (active, OR trial not expired). **Login-block:** in `getSessionUser`/`requireRole`, if a clinic-staff user's clinic isn't usable → return null / redirect to a `/paused` page ("access paused — contact support"). One check, all panels. (super_admin unaffected.)
-- **Actions:** `setClinicStatus(clinicId, status, reason)` · `extendTrial(clinicId, days)` · auto-derive `past_due` from billing (Feature 6).
-- **UI:** status **badge** + Suspend/Resume/Cancel + "Extend trial +30d" on clinic detail; **status filter** on the clinics list; a public `/paused` page.
-- **Audit + gate:** log each change; super-admin only.
+## Feature 2 — Clinic lifecycle & status   ✅ SHIPPED (2026-07-22)
+- **Core:** `core/clinics/status.ts` — `isClinicUsable(clinic)` (active, OR trial not expired) + `CLINIC_STATUSES`/labels/`unusableReason`. **Login-block:** enforced in **`requireRole`** (the single chokepoint every panel page + clinic mutation passes through) — a clinic-staff user whose clinic isn't usable is redirected to **`/paused`** (message + reason + sign-out). `getClinic` is request-cached so it adds no query the layout wasn't already running; super_admin (no clinic) is exempt; `/paused` uses `requireUser` so it never loops. ✅
+- **Actions:** `setClinicStatus(clinicId, status, reason)` — moving to a non-usable status revokes all staff sessions (immediate lock-out; the block is the real gate, revoke is defense-in-depth), moving to active clears the suspend fields · `extendTrial(clinicId, days)` (base = later of now / current trial end, so it never shortens; re-enables a suspended clinic). Auto-derive `past_due` from billing → Feature 6. ✅
+- **UI:** `ClinicLifecycle` on clinic detail — status badge + Suspend (with reason) / Resume / Activate / Cancel / Reactivate + "Extend trial +30 days"; shared `ClinicStatusBadge` + a **status filter** on the clinics list (+ Status column). ✅
+- **Audit + gate:** every change logged; super-admin only (no clinic-staff ACL — this is the platform control plane). ✅
+- **Verified** end-to-end over HTTP: staff blocked → /paused for suspended / past_due / cancelled / expired-trial; usable for active + future-trial; super_admin exempt; /paused bounces a usable-clinic user home; list filter + detail controls render. tsc clean.
 
 ## Feature 3 — ⭐ Granular per-clinic control
 - **Schema:** `clinics.capabilities` (above) + extend `core/lib/features.ts` from 3 → a curated

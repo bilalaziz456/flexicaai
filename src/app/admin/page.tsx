@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
-import { and, count, desc, ilike } from "drizzle-orm";
+import { and, count, desc, eq, ilike } from "drizzle-orm";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { clinics } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
+import { CLINIC_STATUSES, CLINIC_STATUS_LABEL, isClinicStatus } from "@/core/clinics/status";
+import { ClinicStatusBadge } from "./clinics/status-badge";
 import { buttonVariants } from "@/core/ui/button";
 import { Badge } from "@/core/ui/badge";
 import { cn } from "@/core/lib/utils";
@@ -30,6 +32,7 @@ export default async function AdminHome({
 }: {
   searchParams: Promise<{
     q?: string;
+    status?: string;
     page?: string;
     size?: string;
     created?: string;
@@ -39,6 +42,7 @@ export default async function AdminHome({
 }) {
   const sp = await searchParams;
   const query = sp.q?.trim();
+  const statusFilter = sp.status && isClinicStatus(sp.status) ? sp.status : undefined;
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
   const toastMessage = sp.created
@@ -53,6 +57,7 @@ export default async function AdminHome({
   const where = and(
     notDeleted(clinics.deletedAt),
     query ? ilike(clinics.name, `%${query}%`) : undefined,
+    statusFilter ? eq(clinics.status, statusFilter) : undefined,
   );
   const [allClinics, [{ total }]] = await Promise.all([
     db
@@ -87,6 +92,31 @@ export default async function AdminHome({
 
       <ClinicsSearch initial={query ?? ""} />
 
+      {/* Status filter — preserves the current search query. */}
+      <div className="flex flex-wrap gap-1.5">
+        {[{ id: undefined, label: "All" }, ...CLINIC_STATUSES.map((s) => ({ id: s, label: CLINIC_STATUS_LABEL[s] }))].map(
+          (opt) => {
+            const active = statusFilter === opt.id || (!statusFilter && opt.id === undefined);
+            const params = new URLSearchParams();
+            if (query) params.set("q", query);
+            if (opt.id) params.set("status", opt.id);
+            const href = params.toString() ? `/admin?${params.toString()}` : "/admin";
+            return (
+              <Link
+                key={opt.label}
+                href={href}
+                className={cn(
+                  buttonVariants({ variant: active ? "default" : "outline", size: "sm" }),
+                  "h-7 px-2.5 text-xs",
+                )}
+              >
+                {opt.label}
+              </Link>
+            );
+          },
+        )}
+      </div>
+
       <Pagination
         page={page}
         pageSize={pageSize}
@@ -107,6 +137,7 @@ export default async function AdminHome({
           <TableHeader>
             <TableRow>
               <TableHead>Clinic</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Specialties</TableHead>
               <TableHead>Created</TableHead>
               <TableHead className="text-right">Manage</TableHead>
@@ -116,6 +147,9 @@ export default async function AdminHome({
             {allClinics.map((clinic) => (
               <RowLink key={clinic.id} href={`/admin/clinics/${clinic.id}`} className="border-b">
                 <TableCell className="font-medium">{clinic.name}</TableCell>
+                <TableCell>
+                  <ClinicStatusBadge status={clinic.status} />
+                </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
                     {clinic.modulesEnabled.length === 0 ? (

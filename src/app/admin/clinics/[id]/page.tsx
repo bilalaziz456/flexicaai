@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/core/ui/table";
 import { ClinicSettingsForm } from "./clinic-settings-form";
+import { ClinicLifecycle } from "./clinic-lifecycle";
 import { StaffActions } from "./staff-actions";
 import { DeleteClinic } from "./delete-clinic";
 
@@ -65,6 +66,23 @@ export default async function ClinicDetailPage({
         </Link>
         <h1 className="mt-2 text-xl font-semibold">{clinic.name}</h1>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Subscription & access</CardTitle>
+          <CardDescription>
+            Control whether this clinic can use the app. Suspending, cancelling or an
+            expired trial locks out all its staff immediately.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ClinicLifecycle
+            clinicId={clinic.id}
+            status={clinic.status}
+            trialEndsAt={clinic.trialEndsAt ? clinic.trialEndsAt.toISOString() : null}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

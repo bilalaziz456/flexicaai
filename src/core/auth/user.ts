@@ -2,6 +2,8 @@ import "server-only";
 
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/core/auth/session";
+import { getClinic } from "@/core/clinics/get-clinic";
+import { isClinicUsable } from "@/core/clinics/status";
 import { can, type PermAction } from "@/core/auth/permissions";
 import {
   ROLE_HOME_ROUTE,
@@ -63,6 +65,18 @@ export async function requireRole(
 
   if (!allowedRoles.includes(user.role)) {
     redirect(ROLE_HOME_ROUTE[user.role]);
+  }
+  // Clinic-level access block (super-admin control plane): if this staff member's
+  // clinic isn't usable (suspended / past-due / cancelled / trial expired) they're
+  // sent to /paused. ONE chokepoint — every panel page AND every clinic mutation
+  // guarded by requireRole is covered. super_admin has no clinic and is exempt.
+  // getClinic is request-cached, so this adds no query the layout wasn't already
+  // running. /paused itself uses requireUser, not requireRole, so it never loops.
+  if (user.clinicId && user.role !== "super_admin") {
+    const clinic = await getClinic(user.clinicId);
+    if (clinic && !isClinicUsable(clinic)) {
+      redirect("/paused");
+    }
   }
   // A user with a temporary password can't use any panel until they change it.
   if (user.mustChangePassword) {

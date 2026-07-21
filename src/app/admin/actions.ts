@@ -26,6 +26,7 @@ import {
 } from "@/core/db/schema";
 import { availableSpecialtyIds } from "@/config/modules";
 import { CLINIC_FEATURE_IDS } from "@/core/lib/features";
+import { isClinicStatus, isClinicUsable, type ClinicStatus } from "@/core/clinics/status";
 import { backfillClinicSales } from "@/core/sales/ledger";
 import { logActivity } from "@/core/audit/log";
 import { sanitizeLogAccess } from "@/core/audit/access";
@@ -245,6 +246,129 @@ export async function updateClinic(
   // Features + log access change what the clinic admin's own panel/nav shows.
   revalidatePath("/clinic", "layout");
   redirect("/admin?updated=1");
+}
+
+/** Revoke every session of a clinic's staff (immediate lock-out) inside a tx. */
+async function revokeClinicSessions(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  clinicId: string,
+): Promise<void> {
+  const staff = await tx
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.clinicId, clinicId));
+  const ids = staff.map((s) => s.id);
+  if (ids.length) await tx.delete(sessions).where(inArray(sessions.userId, ids));
+}
+
+/**
+ * Sets a clinic's lifecycle status (super-admin control plane, Feature 2). Moving
+ * to a NON-usable status (suspended / past_due / cancelled) revokes all staff
+ * sessions so access is cut immediately — the `requireRole` login-block then keeps
+ * them out on every subsequent request. Moving to `active` clears the suspend
+ * fields. super-admin only; audited.
+ */
+export async function setClinicStatus(
+  clinicId: string,
+  status: string,
+  reason?: string,
+): Promise<AdminActionState> {
+  await requireRole("super_admin");
+  if (!isClinicStatus(status)) return { error: "Unknown status." };
+  const target = status as ClinicStatus;
+
+  const [before] = await db
+    .select({ name: clinics.name, status: clinics.status })
+    .from(clinics)
+    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
+    .limit(1);
+  if (!before) return { error: "Clinic not found." };
+
+  const now = new Date();
+  const nowUnusable = !isClinicUsable({ status: target, trialEndsAt: null });
+
+  // Field bookkeeping: record when suspended (+ why), and when (re)activated.
+  const patch: Record<string, unknown> = { status: target, updatedAt: now };
+  if (target === "suspended") {
+    patch.suspendedAt = now;
+    patch.suspendReason = reason?.trim() || null;
+  } else if (target === "active") {
+    patch.activatedAt = now;
+    patch.suspendedAt = null;
+    patch.suspendReason = null;
+  } else if (target === "past_due" || target === "cancelled") {
+    patch.suspendReason = reason?.trim() || null;
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.update(clinics).set(patch).where(eq(clinics.id, clinicId));
+    if (nowUnusable) await revokeClinicSessions(tx, clinicId);
+  });
+
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: `Set clinic “${before.name}” status ${before.status} → ${target}${
+      reason?.trim() ? ` (${reason.trim()})` : ""
+    }`,
+  });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  revalidatePath("/admin");
+  revalidatePath("/clinic", "layout");
+  return { saved: true };
+}
+
+/**
+ * Extends (or starts) a clinic's trial by N days and sets status to `trial`.
+ * Base is the later of now / the current trial end, so extending never shortens
+ * an active trial. Re-enables a suspended clinic (status becomes usable). Audited.
+ */
+export async function extendTrial(
+  clinicId: string,
+  days: number,
+): Promise<AdminActionState> {
+  await requireRole("super_admin");
+  const n = Math.trunc(Number(days));
+  if (!Number.isFinite(n) || n < 1 || n > 365) {
+    return { error: "Enter 1–365 days." };
+  }
+
+  const [before] = await db
+    .select({ name: clinics.name, trialEndsAt: clinics.trialEndsAt })
+    .from(clinics)
+    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
+    .limit(1);
+  if (!before) return { error: "Clinic not found." };
+
+  const now = Date.now();
+  const base = Math.max(now, before.trialEndsAt?.getTime() ?? now);
+  const newEnd = new Date(base + n * 24 * 60 * 60 * 1000);
+
+  await db
+    .update(clinics)
+    .set({
+      status: "trial",
+      trialEndsAt: newEnd,
+      // Extending re-enables access — clear any suspension.
+      suspendedAt: null,
+      suspendReason: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(clinics.id, clinicId));
+
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: `Extended trial for “${before.name}” by ${n} day${n === 1 ? "" : "s"} (until ${newEnd.toISOString().slice(0, 10)})`,
+  });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  revalidatePath("/admin");
+  revalidatePath("/clinic", "layout");
+  return { saved: true };
 }
 
 const updateStaffSchema = z.object({
