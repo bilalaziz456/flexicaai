@@ -175,22 +175,33 @@ Support cannot help without seeing the clinic's workspace.
 - **Why:** #1 support capability; every SaaS admin has it. Must be tightly audited
   (patient data).
 
-## 5. SaaS billing & subscriptions  — **v3 / commercial (§A)** but design the seam now
+## 5. Billing from clinics — **DECIDED: manual for v1** (automated = v3)
 
-The revenue engine. Big; explicitly v3, but the lifecycle/status fields above should be
-built so plans slot in.
+**Decision (2026-07-22): clinics pay Klenic MANUALLY for v1** (bank transfer / cash /
+cheque — no payment gateway, no PCI scope, no dunning automation). But manual ≠ nothing:
+you still need a **small ledger** to set prices, record what came in, and see revenue +
+who hasn't paid. It **mirrors the `patient_payments` ledger already built** — small.
 
-- **Plans** (`plans`): id, name, price, interval, **entitlements** (which modules +
-  features + seat/usage limits). Entitlements should DRIVE `features_enabled` (today it's
-  hand-toggled; a plan sets the baseline).
-- **Subscription per clinic** (`clinic_subscriptions`): plan, status, current-period
-  start/end, trial end, price snapshot, cancel-at-period-end.
-- **Company invoices** (what the CLINIC pays Klenic — separate from patient invoices):
-  numbered, PDF, mark-paid (manual first; gateway later).
-- **Dunning:** past-due → grace → auto-suspend (drives §1 status).
-- **Metrics:** MRR, churn, trial→paid conversion, ARPU.
-- **Why:** none of this is needed to RUN a clinic (manual invoicing/onboarding works for
-  early customers), so it's v3 — but §1's `status`/`trial_ends_at` are the hooks.
+### 5.1 v1 — manual billing layer (build this; small)
+- **Per-clinic plan/price** — `clinics.plan` (free-text or a tiny `plans` list) +
+  `monthly_price` + `billing_cycle` (monthly/annual). Set from clinic detail.
+- **Subscription-payment ledger** (`clinic_payments`, mirrors `patient_payments`): amount,
+  date, method (bank/cash/cheque), reference, **period covered** (e.g. Jul 2026), note,
+  recorded-by. Super admin records each payment received.
+- **Derived status** → `paid` / `due` / `overdue` (from the price + latest covered period)
+  → feeds the **§1 clinic status** (overdue can prompt/auto-suspend, your call).
+- **Revenue view** = Σ recorded payments → **MRR + "who's paid this month" + overdue list**
+  on `/admin` (real numbers, from actual receipts — not projections).
+- **Optional:** a printable company invoice/receipt PDF (reuse the invoice PDF frame).
+
+### 5.2 v3 — automated (when you scale)
+- **Payment gateway** for clinic self-serve (Stripe / local), auto-charge on renewal.
+- **Plans with entitlements** that DRIVE `features_enabled`/capabilities (⭐) instead of
+  hand-toggling; **`clinic_subscriptions`** (period, trial, cancel-at-period-end);
+  **automated dunning** (past-due → grace → auto-suspend); churn/ARPU/conversion metrics.
+
+**Net:** v1 is a **record-payments + price + status + revenue** ledger (a few hours,
+mirrors patient payments). The gateway/self-serve/dunning automation is v3.
 
 ### 5b. Company financials — "how much are WE earning?"  — **the owner's real question**
 
@@ -280,17 +291,21 @@ Things a mature multi-clinic SaaS super admin needs that aren't obvious from "ma
    headline "disable any button / toggle partial-payment per clinic" feature.
 4. **Owner/contact + region/timezone** (§2).
 5. **Impersonation for support** (§4).
-6. **Per-clinic usage + company dashboard incl. COST** (§3 + §5b cost half) — counts +
-   AI/WhatsApp volume × unit cost = "what each clinic costs us." (Revenue/MRR waits on §5.)
+6. **Manual billing ledger** (§5.1) — per-clinic price + record payments received +
+   paid/due/overdue status. Small (mirrors `patient_payments`). Makes revenue real.
+7. **Per-clinic usage + company dashboard (revenue + cost + margin)** (§3 + §5b) — counts,
+   AI/WhatsApp volume × unit cost, and **MRR from the recorded manual payments** →
+   gross margin. The full "how much are we earning" view, at launch.
 
 **→ Post-launch (v2):**
-7. Internal super-admin RBAC (§6) + quotas/limits + company alerts (§8b).
-8. Announcements + WhatsApp provisioning tracker + bulk actions + onboarding checklist (§7/§8b).
-9. Admin cross-tenant pagination/bounds (§8) — before clinic count climbs.
+8. Internal super-admin RBAC (§6) + quotas/limits + company alerts (§8b).
+9. Announcements + WhatsApp provisioning tracker + bulk actions + onboarding checklist (§7/§8b).
+10. Admin cross-tenant pagination/bounds (§8) — before clinic count climbs.
 
 **→ v3 / commercial (§A):**
-10. Plans + subscriptions + company invoices + dunning + **MRR / gross-margin dashboard**
-   (§5 + §5b) — entitlements drive
+11. **Automated** billing — payment gateway self-serve, plans-with-entitlements that drive
+   capabilities, `clinic_subscriptions`, automated dunning, churn/ARPU (§5.2) — the
+   manual v1 ledger's numbers carry over. Entitlements drive
    feature toggles.
 
 ---
