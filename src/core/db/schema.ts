@@ -264,6 +264,30 @@ export const sessions = pgTable(
 );
 
 /**
+ * `password_reset_tokens` — self-service password reset. Follows the `sessions` pattern
+ * (keyed by user; no clinic_id, not soft-deleted): store the SHA-256 of an opaque token,
+ * single-use (`used_at`), short expiry. Consuming one revokes the user's sessions.
+ * See `core/auth/password-reset.ts`.
+ */
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("password_reset_tokens_hash_unique").on(table.tokenHash),
+    index("password_reset_tokens_user_idx").on(table.userId),
+  ],
+);
+
+/**
  * Patients — shared across all specialties (CLAUDE.md §5). One patient may use
  * multiple modules at the same clinic. `phone` is the WhatsApp number (primary
  * contact channel for recalls). Specialty clinical data never lives here.
@@ -1419,6 +1443,7 @@ export type TreatmentPlan = typeof treatmentPlans.$inferSelect;
 export type TreatmentPlanItem = typeof treatmentPlanItems.$inferSelect;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type Procedure = typeof procedures.$inferSelect;
 export type DoctorProcedureShare = typeof doctorProcedureShares.$inferSelect;
 export type AppointmentDiscountApproval =

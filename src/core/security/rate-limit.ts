@@ -93,6 +93,11 @@ export const loginByUser = new Limiter(5, 15 * MIN);
  *  Deliberately generous so a whole clinic behind one NAT isn't locked out. */
 export const loginByIp = new Limiter(50, 15 * MIN);
 
+/** Password-reset requests per identifier (username/email) — throttle abuse/spam. */
+export const resetByIdentifier = new Limiter(3, 15 * MIN);
+/** Password-reset requests per IP — generous (shared NAT) but caps a spray. */
+export const resetByIp = new Limiter(20, 15 * MIN);
+
 /** Human-friendly "try again in N minutes/seconds" from a retry-after in ms. */
 export function retryAfterLabel(ms: number): string {
   const secs = Math.ceil(ms / 1000);
@@ -102,6 +107,6 @@ export function retryAfterLabel(ms: number): string {
 }
 
 // Periodic cleanup — unref'd so it never keeps the process alive.
-const ALL = [loginByUser, loginByIp];
+const ALL = [loginByUser, loginByIp, resetByIdentifier, resetByIp];
 const timer = setInterval(() => ALL.forEach((l) => l.prune()), 10 * MIN);
 if (typeof timer === "object" && "unref" in timer) timer.unref();

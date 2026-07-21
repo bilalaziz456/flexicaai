@@ -83,6 +83,20 @@ const serverSchema = z.object({
   // HMAC secret for signing public, unguessable links (prescription PDFs sent
   // over WhatsApp). OPTIONAL — without it, public links are disabled.
   LINK_SIGNING_SECRET: z.string().optional(),
+
+  // ---- Email (SMTP) — transactional email (password reset). OPTIONAL: without
+  // host+user+pass the channel no-ops (logs), so the app boots the same. Works with
+  // any SMTP provider (SES / Resend / Postmark / …). Go-live = set these at §Z. ----
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_SECURE: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  // The From header, e.g. "Klenic <no-reply@klenic.app>". Falls back to SMTP_USER.
+  EMAIL_FROM: z.string().optional(),
 });
 
 export const serverEnv = serverSchema.parse({
@@ -112,6 +126,12 @@ export const serverEnv = serverSchema.parse({
   CRON_SECRET: process.env.CRON_SECRET,
   WHATSAPP_WEBHOOK_TOKEN: process.env.WHATSAPP_WEBHOOK_TOKEN,
   LINK_SIGNING_SECRET: process.env.LINK_SIGNING_SECRET,
+  SMTP_HOST: process.env.SMTP_HOST,
+  SMTP_PORT: process.env.SMTP_PORT,
+  SMTP_USER: process.env.SMTP_USER,
+  SMTP_PASS: process.env.SMTP_PASS,
+  SMTP_SECURE: process.env.SMTP_SECURE,
+  EMAIL_FROM: process.env.EMAIL_FROM,
 });
 
 export const isProduction = serverEnv.NODE_ENV === "production";
