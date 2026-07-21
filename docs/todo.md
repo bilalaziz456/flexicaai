@@ -125,9 +125,12 @@ to **§Z Final v1 phase**.
       (discount approval needed/decided, WhatsApp inbound, patient self-book/reschedule,
       doctor payout). See docs/notifications-plan.md. _Remaining (optional):_ prune cron
       for old read rows; super-admin/platform bell + realtime are v2.
-- [ ] **Email notifications (code)** — build the channel + templates (password-reset,
-      staff-invite) behind `core/notifications/`, provider-agnostic; the actual SMTP/
-      provider credentials + live send move to §Z (same pattern as WhatsApp Cloud).
+- [x] **Email notifications (code)** — ✅ SMTP channel (`core/notifications/email.ts`,
+      nodemailer, config-gated → no-op until §Z creds) + branded template; self-service
+      **password reset** (`password_reset_tokens` 0051, `core/auth/password-reset.ts` —
+      hashed single-use tokens, session-revoke, no enumeration) with `/forgot-password`
+      + `/reset-password` pages, rate-limited. See docs/email-plan.md. _Remaining:_
+      staff-invite email (deferred); live SMTP creds + send test = §Z.
 - [x] **Tenant-scope guard (RLS substitute)** — ✅ `core/db/tenant-guard.ts`: a Drizzle
       logger flags any query touching a `clinic_id` table without a clinic_id scope;
       `unscoped("reason", …)` opt-out for intentional cross-tenant reads; WARN by default,
