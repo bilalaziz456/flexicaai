@@ -192,6 +192,30 @@ built so plans slot in.
 - **Why:** none of this is needed to RUN a clinic (manual invoicing/onboarding works for
   early customers), so it's v3 — but §1's `status`/`trial_ends_at` are the hooks.
 
+### 5b. Company financials — "how much are WE earning?"  — **the owner's real question**
+
+Important distinction: the clinic **Expenses / P&L / doctor-payout** modules are the
+CLINIC's own money (built, §1-finance). They tell the COMPANY nothing. Klenic's earnings
+are a **separate, company-level view that does NOT exist yet**:
+
+> **Company profit = Revenue (what clinics pay Klenic) − Cost (what it costs to serve them)**
+
+- **Revenue = MRR** — from subscriptions (§5). The headline number; doesn't exist until
+  billing is built.
+- **Cost = your metered spend** — **AI (Whisper + Claude) per scribe call** + **WhatsApp
+  per message**, per clinic and total (§3). These are your real variable costs and scale
+  per clinic; infra is roughly fixed.
+- **Company dashboard** on `/admin`: MRR, new/churned revenue, total AI + WhatsApp cost,
+  **gross margin (MRR − variable cost)**, and per-clinic margin (spot a clinic that costs
+  more than it pays).
+- **DON'T rebuild company accounting in-app.** Klenic's own staff **payroll**, rent, tax,
+  and full bookkeeping belong in **dedicated accounting software (QuickBooks / Xero / an
+  accountant)** — the product should expose **revenue + usage-cost + margin** and **export**
+  to that tool, not replace it. (So: no "super-admin payroll module" — that's external.)
+- **You can do the COST half NOW** (before billing): count scribe calls + WhatsApp
+  messages per clinic × your unit costs = spend/margin-of-cost, immediately answering
+  "what are these clinics costing me." Revenue (MRR) follows with §5 billing.
+
 ## 6. Internal super-admin RBAC  — **MEDIUM (as the company team grows)**
 
 Today there's ONE `super_admin` role = full god mode. The company will have support,
@@ -220,26 +244,53 @@ you have thousands of clinics. (Clinics list is already paginated.)
 
 ---
 
+## 8b. Additional needs (independent additions — don't miss these)
+
+Things a mature multi-clinic SaaS super admin needs that aren't obvious from "manage clinics":
+
+- **⚠️ Super-admin PANEL security — HIGH.** `/admin` is god-mode over **every clinic's
+  patient data**. It needs hardening the clinic panels don't: **2FA/MFA** for super admins,
+  an optional **IP allowlist** for `/admin`, **shorter session TTL** + re-auth on sensitive
+  actions (delete/purge/impersonate), and email/alert on a new super-admin login. This is
+  the single most important thing NOT yet covered — a compromised super-admin is a total breach.
+- **Quota / limit enforcement — MEDIUM.** Set + ENFORCE per-clinic caps (max scribe calls,
+  WhatsApp messages, patients, users) tied to the plan/entitlement (§5/⭐), with a soft
+  alert then a hard block/throttle. Protects your API budget and enables usage-based tiers.
+- **Company alerts / notifications — MEDIUM.** Proactively notify the super-admin team:
+  payment failed, clinic over quota, clinic throwing errors, **churn risk** (no activity
+  N days), trial ending. A super-admin notification feed (reuse the in-app bell / email).
+- **New-clinic onboarding checklist — MEDIUM.** A guided setup state per clinic (admin
+  created → staff added → first patient → WhatsApp provisioned → first scribe) so you can
+  see who's stuck activating. Ties to §1 trial/status.
+- **Data residency / region — MEDIUM (compliance).** CLAUDE.md §10 wants Pakistan data in
+  a Pakistan region and GCC in-region. Region per clinic (§2) is the app hook; the physical
+  residency is a deploy/infra decision (§Z / scale-plan) — but track the *intended* region.
+- **Sandbox / demo clinic — LOW.** A reset-able demo clinic for sales/onboarding demos.
+- **White-label / per-clinic branding — LOW (only if you sell it).** Clinic logo/colours on
+  their workspace + on WhatsApp/PDF. Not needed for v1.
+
 ## 9. Priority — build order
 
 **→ For launch (v1) — the minimum to actually operate clinics:**
-1. **Clinic status + lifecycle** (§1) — suspend/resume, trial, login-block. *(Also the
-   billing hook.)*
-2. **⭐ Granular per-clinic control** (the ⭐ section) — clinic capability grants
+1. **Super-admin panel security** (§8b) — 2FA + re-auth on destructive/impersonate. The
+   panel is god-mode over all patient data; harden it FIRST.
+2. **Clinic status + lifecycle** (§1) — suspend/resume, trial, login-block. *(Billing hook.)*
+3. **⭐ Granular per-clinic control** (the ⭐ section) — clinic capability grants
    (resource:action) + a curated behavior-flag catalog + the super-admin matrix UI. The
    headline "disable any button / toggle partial-payment per clinic" feature.
-3. **Owner/contact + region/timezone** (§2).
-4. **Impersonation for support** (§4).
-5. **Per-clinic usage + a company dashboard** (§3, the read-only version — counts + AI/
-   WhatsApp volume; cost estimate optional).
+4. **Owner/contact + region/timezone** (§2).
+5. **Impersonation for support** (§4).
+6. **Per-clinic usage + company dashboard incl. COST** (§3 + §5b cost half) — counts +
+   AI/WhatsApp volume × unit cost = "what each clinic costs us." (Revenue/MRR waits on §5.)
 
 **→ Post-launch (v2):**
-5. Internal super-admin RBAC (§6).
-6. Announcements + WhatsApp provisioning tracker + bulk actions (§7).
-7. Admin cross-tenant pagination/bounds (§8) — before clinic count climbs.
+7. Internal super-admin RBAC (§6) + quotas/limits + company alerts (§8b).
+8. Announcements + WhatsApp provisioning tracker + bulk actions + onboarding checklist (§7/§8b).
+9. Admin cross-tenant pagination/bounds (§8) — before clinic count climbs.
 
 **→ v3 / commercial (§A):**
-8. Plans + subscriptions + company invoices + dunning + MRR (§5) — entitlements drive
+10. Plans + subscriptions + company invoices + dunning + **MRR / gross-margin dashboard**
+   (§5 + §5b) — entitlements drive
    feature toggles.
 
 ---
