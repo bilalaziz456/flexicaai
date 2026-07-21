@@ -7,6 +7,7 @@ import { clinics, users } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
 import { CLINIC_FEATURES } from "@/core/lib/features";
 import { resourcesForClinic } from "@/core/auth/permissions";
+import { getClinicBilling } from "@/core/admin/billing";
 import { Badge } from "@/core/ui/badge";
 import {
   Card,
@@ -27,6 +28,7 @@ import { ClinicSettingsForm } from "./clinic-settings-form";
 import { ClinicLifecycle } from "./clinic-lifecycle";
 import { ImpersonateClinic } from "./impersonate-clinic";
 import { ClinicContactForm } from "./clinic-contact-form";
+import { ClinicBilling } from "./clinic-billing";
 import { ClinicCapabilities } from "./clinic-capabilities";
 import { StaffActions } from "./staff-actions";
 import { DeleteClinic } from "./delete-clinic";
@@ -46,6 +48,8 @@ export default async function ClinicDetailPage({
     .limit(1);
 
   if (!clinic) notFound();
+
+  const billing = await getClinicBilling(clinic.id);
 
   // Tenant-scoped: this clinic's staff only (byClinic = the isolation boundary).
   const staff = await db
@@ -115,6 +119,46 @@ export default async function ClinicDetailPage({
           />
         </CardContent>
       </Card>
+
+      {billing ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Billing</CardTitle>
+            <CardDescription>
+              Subscription price, paid-through date and carried-forward balance. Recording
+              a payment extends paid-through; overdue past grace flips the clinic to
+              past-due (locking staff out).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ClinicBilling
+              clinicId={clinic.id}
+              monthlyPrice={billing.clinic.monthlyPrice}
+              billingCycle={billing.clinic.billingCycle}
+              graceDays={billing.clinic.graceDays}
+              balance={{
+                billingStatus: billing.balance.billingStatus,
+                paidThrough: billing.balance.paidThrough.toISOString(),
+                monthsPaid: billing.balance.monthsPaid,
+                totalPaid: billing.balance.totalPaid,
+                owed: billing.balance.owed,
+                daysRemaining: billing.balance.daysRemaining,
+                daysOverdue: billing.balance.daysOverdue,
+              }}
+              payments={billing.payments.map((p) => ({
+                id: p.id,
+                amount: p.amount,
+                method: p.method,
+                reference: p.reference,
+                monthsCovered: p.monthsCovered,
+                note: p.note,
+                occurredAt: p.occurredAt.toISOString(),
+                recordedByName: p.recordedByName,
+              }))}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

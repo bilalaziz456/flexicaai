@@ -31,6 +31,7 @@ import { availableSpecialtyIds } from "@/config/modules";
 import { CLINIC_FEATURE_IDS } from "@/core/lib/features";
 import { isClinicStatus, isClinicUsable, type ClinicStatus } from "@/core/clinics/status";
 import { permId, resourcesForClinic, sanitizePermissions } from "@/core/auth/permissions";
+import { recordClinicPayment, syncClinicBillingStatus, voidClinicPayment } from "@/core/admin/billing";
 import { backfillClinicSales } from "@/core/sales/ledger";
 import { logActivity } from "@/core/audit/log";
 import { sanitizeLogAccess } from "@/core/audit/access";
@@ -618,6 +619,132 @@ export async function endImpersonation(): Promise<void> {
   );
   revalidatePath("/clinic", "layout");
   redirect(target ? `/admin/clinics/${target}` : "/admin");
+}
+
+const priceSchema = z.object({
+  monthlyPrice: z.coerce.number().int("Whole PKR only.").min(0, "Cannot be negative.").max(100_000_000),
+  billingCycle: z.enum(["monthly", "2m", "quarter", "half", "annual"]),
+  graceDays: z.coerce.number().int().min(0, "Cannot be negative.").max(365),
+});
+
+/** Sets a clinic's subscription price / expected cycle / grace days (Feature 6).
+ *  Re-syncs the billing status (a price/grace change can flip active↔past_due). */
+export async function setClinicPrice(
+  clinicId: string,
+  _prev: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  await requireRole("super_admin");
+  const parsed = priceSchema.safeParse({
+    monthlyPrice: formData.get("monthlyPrice") ?? 0,
+    billingCycle: formData.get("billingCycle") ?? "monthly",
+    graceDays: formData.get("graceDays") ?? 7,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+
+  const [before] = await db
+    .select({ name: clinics.name })
+    .from(clinics)
+    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
+    .limit(1);
+  if (!before) return { error: "Clinic not found." };
+
+  await db
+    .update(clinics)
+    .set({
+      monthlyPrice: parsed.data.monthlyPrice,
+      billingCycle: parsed.data.billingCycle,
+      graceDays: parsed.data.graceDays,
+      updatedAt: new Date(),
+    })
+    .where(eq(clinics.id, clinicId));
+  await syncClinicBillingStatus(clinicId);
+
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: `Set billing for “${before.name}”: ${parsed.data.monthlyPrice} PKR / ${parsed.data.billingCycle}, grace ${parsed.data.graceDays}d`,
+  });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  revalidatePath("/admin");
+  return { saved: true };
+}
+
+const clinicPaymentSchema = z.object({
+  amount: z.coerce.number().int("Whole PKR only.").positive("Amount must be positive."),
+  monthsCovered: z.coerce.number().int().min(0).max(120),
+  method: z.enum(["bank", "cash", "cheque", "other"]).optional(),
+  reference: z.string().trim().max(120).optional(),
+  note: z.string().trim().max(500).optional(),
+  occurredAt: z.string().trim().optional(),
+});
+
+/** Records a manual clinic→Klenic payment (extends paid-through) — Feature 6. */
+export async function recordClinicPaymentAction(
+  clinicId: string,
+  _prev: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  const admin = await requireRole("super_admin");
+  const parsed = clinicPaymentSchema.safeParse({
+    amount: formData.get("amount"),
+    monthsCovered: formData.get("monthsCovered") ?? 1,
+    method: formData.get("method") || undefined,
+    reference: formData.get("reference") || undefined,
+    note: formData.get("note") || undefined,
+    occurredAt: formData.get("occurredAt") || undefined,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+
+  const occurredAt = parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : undefined;
+  if (occurredAt && Number.isNaN(occurredAt.getTime())) return { error: "Invalid date." };
+
+  const res = await recordClinicPayment({
+    clinicId,
+    amount: parsed.data.amount,
+    monthsCovered: parsed.data.monthsCovered,
+    method: parsed.data.method,
+    reference: parsed.data.reference,
+    note: parsed.data.note,
+    occurredAt,
+    recordedBy: admin.id,
+    recordedByName: admin.username,
+  });
+  if ("error" in res) return { error: res.error };
+
+  await logActivity({
+    action: "create",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: `Recorded clinic payment ${parsed.data.amount} PKR (${parsed.data.monthsCovered} month${parsed.data.monthsCovered === 1 ? "" : "s"})`,
+  });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  revalidatePath("/admin");
+  return { saved: true };
+}
+
+/** Voids (soft-deletes) a clinic payment — Feature 6. */
+export async function voidClinicPaymentAction(
+  clinicId: string,
+  paymentId: string,
+): Promise<AdminActionState> {
+  const admin = await requireRole("super_admin");
+  const res = await voidClinicPayment(clinicId, paymentId, admin.id);
+  if ("error" in res) return { error: res.error };
+
+  await logActivity({
+    action: "delete",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: "Voided a clinic payment",
+  });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  revalidatePath("/admin");
+  return { saved: true };
 }
 
 const updateStaffSchema = z.object({

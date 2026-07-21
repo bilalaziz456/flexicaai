@@ -452,17 +452,27 @@ softDelete + timestamps`. Index (`clinic_id`,`occurred_at`).
   banner in the shell when impersonating.
 - **Audit:** who, which clinic, start/end — heavily logged (patient data).
 
-## Feature 6 — Manual billing ledger  (model: paid-through + carry-forward, §5.1)
-- **Core:** `core/admin/billing.ts` — `recordClinicPayment` (extend `paid_through` by months
-  covered) · `computeClinicBalance(clinicId)` → `{ paidThrough, owed, credit, status }`
-  (owed = months-elapsed×price − Σpayments; status active/due(grace)/overdue) · `voidClinicPayment`.
-  Mirrors `core/billing/*`.
-- **Auto-status:** overdue-past-grace → set `clinics.status='past_due'` (feeds Feature 2 login-block, your call).
+## Feature 6 — Manual billing ledger  (model: paid-through + carry-forward, §5.1)   ✅ SHIPPED (2026-07-22)
+- **Core:** `core/admin/billing.ts` — `computeClinicBalance(clinic, payments)` (PURE; date-driven:
+  `paidThrough = (activatedAt ?? createdAt) + Σ months_covered`; `billingStatus` free/active/due(grace)/
+  overdue; carried-forward `owed = monthsOverdue × price`) · `getClinicBilling(clinicId)` ·
+  `recordClinicPayment` (extends paid-through, then syncs status) · `voidClinicPayment` (soft-delete +
+  sync) · `listDueClinics()` (cross-tenant, `unscoped`) · `sweepClinicBillingStatus()` (the daily
+  time-based downgrade). Mirrors `core/billing/*`. ✅
+- **Auto-status:** `syncClinicBillingStatus` flips `clinics.status` **active↔past_due** ONLY (trial/
+  suspended/cancelled untouched) — feeds the Feature-2 login-block. Recovery fires on a payment;
+  the time-based downgrade rides the new **`/api/cron/billing`** daily sweep (vercel.json 03:00). ✅
 - **Actions:** `setClinicPrice(clinicId, monthly, cycle, grace)` · `recordClinicPaymentAction` ·
-  `voidClinicPaymentAction`.
-- **UI:** a **Billing card** on clinic detail — price/cycle, **paid-through date**, **balance
-  (owed/credit)**, record-payment form (amount · method · months covered · reference), payment
-  history, printable receipt (reuse `InvoicePrintFrame`). An **Overdue clinics** list on `/admin`.
+  `voidClinicPaymentAction`. super-admin only, audited. ✅
+- **UI:** a **Billing card** on clinic detail — price/cycle/grace form, balance summary (status ·
+  **paid-through** · owed · total collected), record-payment form (amount · months covered · method ·
+  date · reference · note), payment history + void; plus a **due/overdue list on `/admin`**. ✅
+- **Verified end-to-end over HTTP:** price 5000 + activated 120d ago + no payments → card shows
+  Overdue/carried-forward; `/api/cron/billing` (with CRON_SECRET) → active→**past_due** (`changed:1`);
+  record-payment action (6mo/30000) → payment persisted (recordedBy=admin) + status recovered
+  **past_due→active**, card shows Active/Rs 30,000/history, `/admin` overdue list cleared; voiding
+  (soft-delete) + sweep → back to past_due. tsc clean.
+- **Deferred (optional):** a printable company receipt PDF (reuse `InvoicePrintFrame`) — not built.
 
 ## Feature 7 — Usage & cost monitoring
 - **Core:** `core/admin/usage.ts` — `getClinicUsage(clinicId, range)` = COUNTs (patients ·

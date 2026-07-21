@@ -6,6 +6,7 @@ import { notDeleted } from "@/core/db/tenant";
 import { clinics } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
 import { CLINIC_STATUSES, CLINIC_STATUS_LABEL, isClinicStatus } from "@/core/clinics/status";
+import { listDueClinics } from "@/core/admin/billing";
 import { ClinicStatusBadge } from "./clinics/status-badge";
 import { buttonVariants } from "@/core/ui/button";
 import { Badge } from "@/core/ui/badge";
@@ -59,7 +60,7 @@ export default async function AdminHome({
     query ? ilike(clinics.name, `%${query}%`) : undefined,
     statusFilter ? eq(clinics.status, statusFilter) : undefined,
   );
-  const [allClinics, [{ total }]] = await Promise.all([
+  const [allClinics, [{ total }], dueClinics] = await Promise.all([
     db
       .select()
       .from(clinics)
@@ -68,6 +69,7 @@ export default async function AdminHome({
       .limit(pageSize)
       .offset(pageOffset(page, pageSize)),
     db.select({ total: count() }).from(clinics).where(where),
+    listDueClinics(),
   ]);
 
   return (
@@ -89,6 +91,28 @@ export default async function AdminHome({
           New clinic
         </Link>
       </div>
+
+      {dueClinics.length > 0 ? (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-4">
+          <div className="mb-2 text-sm font-medium text-amber-700 dark:text-amber-400">
+            {dueClinics.length} clinic{dueClinics.length === 1 ? "" : "s"} due or overdue
+          </div>
+          <ul className="space-y-1 text-sm">
+            {dueClinics.slice(0, 8).map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-3">
+                <Link href={`/admin/clinics/${c.id}`} className="font-medium hover:underline">
+                  {c.name}
+                </Link>
+                <span className="text-muted-foreground">
+                  {c.balance.billingStatus === "overdue"
+                    ? `Rs ${c.balance.owed.toLocaleString("en-PK")} owed · ${c.balance.daysOverdue}d overdue`
+                    : `due in grace · ${c.balance.daysOverdue}d past`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <ClinicsSearch initial={query ?? ""} />
 
