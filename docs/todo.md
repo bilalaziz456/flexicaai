@@ -252,7 +252,9 @@ blockers-vs-should-haves is docs/launch-checklist.md** — this is the tracked l
   - [ ] Set `WHATSAPP_PROVIDER=cloud` + token / WABA id / verify token / app secret;
         point Meta's webhook at `/api/whatsapp/cloud`.
   - [ ] Create + get the 7 Utility templates approved (`docs/whatsapp-cloud-plan.md` §C).
-  - [ ] Decide the "always-present variable" handling (docs §D).
+  - [x] ~~Decide the "always-present variable" handling (docs §D)~~ — ✅ handled in code:
+        `sendWhatsAppTemplate` substitutes "—" for any blank body variable + drops a blank
+        signature, so no template needs a with/without split. (2026-07-22)
   - [ ] Provision a pilot clinic's number → live send/receive test → roll out.
 - [ ] **Any other third-party API** (payment gateway keys, etc.) — activate here.
 - [ ] **Scale-hardening (multi-instance & big-data)** — see **docs/scale-plan.md**:
