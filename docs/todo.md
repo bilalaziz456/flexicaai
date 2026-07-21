@@ -215,24 +215,39 @@ Also: moved `/clinic/overview` → `/clinic/reports/overview` (consistent with
 - [x] **Recurring-expense automation** (cron) — `core/expenses/recurring.ts` +
       `GET /api/cron/expenses` (migration 0043). ✅ shipped.
 
-### Z. Final v1 phase — deploy & external activation (code is/► will be done first)
+### Z. Final v1 phase — deploy & go-live (ALL of launch is here)
 
-Everything whose CODE is written but that needs a **chosen host** or **external
-credentials** to actually go live. Deliberately last: decided 2026-07-21 to build all
-non-deploy infra first, then activate these together at deploy.
+Everything whose CODE is done but that needs a **chosen host**, **prod config**, or
+**external credentials** to actually go live. Decided 2026-07-21: build all non-deploy
+infra first, then do this whole phase together at deploy. **The full ops checklist with
+blockers-vs-should-haves is docs/launch-checklist.md** — this is the tracked list.
 
+**Infra & ops (host):**
 - [ ] **Deploy target decision** — S3 vs Linux vs Windows server (drives storage + pooler).
-- [ ] **File storage swap** — `core/integrations/storage` local FS → S3-compatible (or
-      the chosen server's disk). Code is abstracted behind the storage module.
+- [ ] **Host + HTTPS + domain** — TLS cert on a real domain (secure cookies + HSTS need it).
+- [ ] **Prod Postgres** — provision; run migrations `0000–0051` (`db:migrate`); confirm
+      `pg_trgm`/`pgcrypto`; **seed the first super admin** then change its password.
+- [ ] **Secrets in prod** (`.env`) — `DATABASE_URL`, `APP_URL`, `CRON_SECRET`,
+      `LINK_SIGNING_SECRET`, `WHATSAPP_WEBHOOK_TOKEN`, `SEED_ADMIN_*`.
+- [ ] **Server timezone** = clinic region (e.g. Asia/Karachi) — availability, "tomorrow"
+      reminders, day-bounds use the server's local TZ (.claude/database.md caveat).
+- [ ] **Cron scheduling on the host** — hit `/api/cron/recalls|reminders|expenses` with
+      `Authorization: Bearer $CRON_SECRET` (vercel.json / system cron / Task Scheduler).
+- [ ] **`serverActions.allowedOrigins`** (next.config) = the prod domain(s).
+- [ ] **DB backups** — automated + tested restore. Non-negotiable for patient data.
+- [ ] **File storage** — local FS OK on a **single VM** (add disk backups); the
+      S3-compatible swap is only for serverless / multi-instance. Abstracted behind
+      `core/integrations/storage`.
 - [ ] **Load / scaling hardening** (host-specific) — native-hash swap (`@node-rs/bcrypt`
       / argon2, off-thread); pool `max` sizing + a **connection pooler** on serverless
       (PgBouncer / Neon / Supabase); a load test on a prod build.
-- [ ] **External AI APIs go-live** — set `ANTHROPIC_API_KEY` (Claude scribe/chat) +
-      `OPENAI_API_KEY` (Whisper); live transcribe→note test. Code is done (the scribe
-      gracefully no-ops without keys).
-- [ ] **Email provider go-live** — plug SMTP/provider credentials into the email channel
-      built in §B; live password-reset send test.
-- [ ] **WhatsApp Cloud API go-live** (external, code is done):
+
+**External integrations (keys + approval):**
+- [ ] **AI keys** — `ANTHROPIC_API_KEY` (Claude) + `OPENAI_API_KEY` (Whisper); live
+      record→transcribe→note test. (App runs without them — the scribe just no-ops.)
+- [ ] **Email SMTP** — `SMTP_*` / `EMAIL_FROM`; live password-reset send test. (Soft — an
+      admin can reset staff passwords manually without it.)
+- [ ] **WhatsApp go-live** — ⚠️ **longest lead — start FIRST** (external, code is done):
   - [ ] Meta Business account + verification + WABA + system-user token.
   - [ ] Set `WHATSAPP_PROVIDER=cloud` + token / WABA id / verify token / app secret;
         point Meta's webhook at `/api/whatsapp/cloud`.
