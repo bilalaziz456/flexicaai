@@ -254,16 +254,15 @@ and a template has a FIXED variable count, so params must match exactly, every t
   and substitutes `—` for a blank — so the booking queue token `{{6}}`, a doctor-less
   booking, etc. never send an empty variable. **No "with/without" template split needed.**
 - ✅ **`{{note}}` removed** (migration 0030) — templates are **signature-only**.
-- ⚠️ **The trailing `{{signature}}` must ALWAYS be present.** Every template above ends
-  with `{{signature}}`, so if a clinic hasn't set a signature the send is one param
-  short → Meta rejects. Pick one:
-  - **(a)** Require a signature per clinic in the provisioning UI (Phase 5), OR
-  - **(b, recommended)** make the cloud send **fall back** to the clinic/sender name when
-    the signature is blank, so `{{signature}}` is always filled regardless of what the
-    clinic sets. (Small, localized change in `core/notifications/clinic-whatsapp.ts` /
-    `cloud.ts`.)
+- ✅ **The trailing `{{signature}}` is always present (done, 2026-07-22).**
+  `getClinicSender` (`core/notifications/clinic-whatsapp.ts`) resolves the signature with
+  a **fallback chain**: the clinic's signature → its WhatsApp sender name → its clinic
+  name. So `{{signature}}` is never blank even if a clinic sets nothing, and the Cloud
+  param count always matches.
 
-This is the ONE remaining go-live decision on templates; everything else is wired.
+**Net:** with the event-param sanitizer (`—`) + this signature fallback, **no template
+variable can ever be blank or missing** — approve one wording per template and you're
+done. Nothing else on templates is left to decide.
 
 ## E. Go-live steps
 1. Set the Phase 6.A env vars; deploy.

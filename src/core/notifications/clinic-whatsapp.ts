@@ -28,11 +28,23 @@ export async function getClinicSender(
       displayNumber: clinics.whatsappDisplayNumber,
       senderName: clinics.whatsappSenderName,
       signature: clinics.whatsappSignature,
+      name: clinics.name,
     })
     .from(clinics)
     .where(eq(clinics.id, clinicId))
     .limit(1);
-  return row ?? null;
+  if (!row) return null;
+  // The signature is the template's ALWAYS-PRESENT trailing {{signature}} var — never
+  // let it be blank, or a Cloud send is one param short and Meta rejects it. Fall back
+  // to the sender name, then the clinic name. See docs/whatsapp-cloud-plan.md §D.
+  const signature =
+    row.signature?.trim() || row.senderName?.trim() || row.name?.trim() || null;
+  return {
+    phoneNumberId: row.phoneNumberId,
+    displayNumber: row.displayNumber,
+    senderName: row.senderName,
+    signature,
+  };
 }
 
 /**
