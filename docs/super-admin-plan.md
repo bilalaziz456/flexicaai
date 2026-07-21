@@ -28,6 +28,95 @@ None of those exist yet.
 
 ---
 
+## ⭐ THE CORE ASK — granular per-clinic control ("disable any button", extend trial, toggle partial-payment)
+
+The super admin should control, **per clinic**, exactly which capabilities and behaviors
+are available — down to individual actions. This is achievable, and the app is **~80%
+built for it already**.
+
+### Why it's already 80% there
+Almost every button/page is ALREADY behind two gates in code:
+- **`can(user, resource, action)`** — the per-user ACL: ~25 resources × view/create/edit/
+  delete ≈ **~100 capabilities** (`appointments:create`, `billing:create`,
+  `patients:delete`, `refund:create`, `plans:edit`, …). Every button is wrapped in one.
+- **`clinicHasFeature(clinic, feature)`** — coarse clinic feature flags (3 today:
+  revenue_dashboard / sales / finance).
+
+So the "which buttons show" machinery exists. We add a **super-admin CLINIC layer** on
+top of the SAME catalog — no new gate at each button.
+
+### The model: three layers, intersected
+Effective capability for a user in a clinic =
+
+> **Plan entitlement** (what the clinic PAID for)  ∩  **Clinic capability** (super-admin
+> per-clinic override)  ∩  **User permission** (clinic-admin → staff)
+
+…plus **behavior flags** for sub-features that aren't a plain CRUD action.
+
+1. **Clinic capability grants** (super-admin) — the SAME `resource:action` catalog, but at
+   the CLINIC level. Revoke `appointments:create` for a clinic → **nobody there** can
+   create an appointment (the button vanishes for every role at once). Store:
+   `clinics.capabilities` text[] (allowed slugs; a sentinel = "all"). Effective check
+   becomes `clinicAllows(resource,action) && userHas(resource,action)` — a one-line change
+   in `can()` / a `canInClinic()` wrapper, and every existing button obeys it automatically.
+
+2. **Behavior / feature flags** (super-admin) — named toggles for things that AREN'T a
+   plain CRUD action: `billing.partial_payment`, `appointments.online_booking`,
+   `appointments.walk_in`, `discounts.approval`, `sales.per_line_discount`,
+   `scribe.enabled`, `whatsapp.recalls`, … Grow `core/lib/features.ts` from 3 → a curated
+   catalog; each flag gates its specific behavior + hides its UI.
+
+3. **Plan entitlements** (v3) — a plan sets the DEFAULT capability/flag set; the
+   super-admin per-clinic layer overrides it.
+
+### Your exact examples, mapped
+| You want | How |
+|---|---|
+| Disable the **Create appointment** button only | Clinic capability: revoke `appointments:create` (view/edit stay). |
+| **Extend the trial** period | Operational override: edit `clinics.trial_ends_at` (+30d button on clinic detail — §1). |
+| Enable/disable **partial payment** | Behavior flag `billing.partial_payment` (off → partial-pay path blocked + UI hidden). |
+| Disable **any Save** button | Revoke that resource's `:create`/`:edit` for the clinic (Save = create/edit). Finer than a resource → add a targeted behavior flag. |
+| Turn off **online self-booking** for a clinic | Behavior flag `appointments.online_booking` (the WhatsApp booking path). |
+
+### The honest granularity trade-off (read this)
+- **Resource:action level (recommended)** cleanly covers ~all buttons — they're grouped by
+  resource — with **~100 toggles and ZERO new code per button** (the `can()` checks already
+  exist). This is the sweet spot: "disable ~any button" in practice.
+- **Literally one specific button** (e.g. disable the Save on ONE sub-form while leaving
+  that resource's edit elsewhere) needs a **named flag per such button** → an unbounded
+  catalog + a code change each. Do this only for behaviors you actually want to gate
+  (partial payment, online booking, …), not universally.
+
+→ **Recommendation:** ship (a) **resource:action clinic capabilities** + (b) a **curated
+behavior-flag catalog** (extend the 3 features to ~15–25 real toggles). That delivers the
+"control everything per clinic" experience without an infinite, unmaintainable flag list.
+
+### What to build
+1. **Store:** `clinics.capabilities` text[] (allowed `resource:action`; empty/sentinel =
+   all) + extend `features_enabled` into the richer behavior-flag catalog
+   (`core/lib/features.ts`).
+2. **Unified check:** `clinicAllows(clinic, resource, action)`; make effective `can` =
+   clinic ∩ user (`canInClinic()`), threaded where pages call `can`. `clinicHasFeature`
+   already exists for behavior flags.
+3. **Super-admin UI (clinic detail):** a **capability matrix** (like the staff permission
+   grid, but clinic-level) + a **behavior-flag toggle list** + **operational overrides**
+   (extend trial, status, usage limits — §1).
+4. **Audit:** every toggle logged (who disabled what, which clinic, when — reuse
+   `activity_logs`).
+5. **Coverage pass:** verify EVERY meaningful button is behind a `can()`/feature check
+   (add the few missing ones) so the toggles actually bite. Ship the guard test that
+   flags an un-gated mutating action.
+6. **Plan layer (v3):** entitlements set the defaults the overrides adjust.
+
+### Effort read
+The *mechanism* is small (capabilities store + a one-line `can()` intersection + a matrix
+UI mirroring the existing staff grid). The *work* is the **coverage pass** (auditing that
+every button is gated) + curating the behavior-flag catalog. This is a **v1-adjacent /
+early-v2** build — high control value, low architectural risk (it reuses the ACL + feature
+machinery already in place).
+
+---
+
 ## 1. Clinic lifecycle & status  — **HIGH (needed for launch)**
 
 Today "suspend" is per-user (suspending the `clinic_admin` cascades). There's no
@@ -136,9 +225,12 @@ you have thousands of clinics. (Clinics list is already paginated.)
 **→ For launch (v1) — the minimum to actually operate clinics:**
 1. **Clinic status + lifecycle** (§1) — suspend/resume, trial, login-block. *(Also the
    billing hook.)*
-2. **Owner/contact + region/timezone** (§2).
-3. **Impersonation for support** (§4).
-4. **Per-clinic usage + a company dashboard** (§3, the read-only version — counts + AI/
+2. **⭐ Granular per-clinic control** (the ⭐ section) — clinic capability grants
+   (resource:action) + a curated behavior-flag catalog + the super-admin matrix UI. The
+   headline "disable any button / toggle partial-payment per clinic" feature.
+3. **Owner/contact + region/timezone** (§2).
+4. **Impersonation for support** (§4).
+5. **Per-clinic usage + a company dashboard** (§3, the read-only version — counts + AI/
    WhatsApp volume; cost estimate optional).
 
 **→ Post-launch (v2):**
