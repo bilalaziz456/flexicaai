@@ -2,7 +2,6 @@ import type {
   ModuleClinicalRecord,
   ModuleDefinition,
   ModuleId,
-  NavItem,
   ProcedureTemplate,
   SpecialtyCatalogEntry,
   TreatmentTemplate,
@@ -139,7 +138,6 @@ export function getClinicWorkspace(modulesEnabled: readonly ModuleId[]) {
   const modules = loadModules(modulesEnabled);
   return {
     modules,
-    navItems: modules.flatMap((m): NavItem[] => m.navItems),
     scribePrompts: Object.fromEntries(
       modules.map((m) => [m.id, m.scribePrompt]),
     ) as Record<ModuleId, string>,

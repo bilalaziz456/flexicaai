@@ -237,11 +237,19 @@ non-deploy infra first, then activate these together at deploy.
       the registry, zero core changes.
 
 ### Cleanup
-- [ ] **Dead dental nav config** — `dental/config.ts` `navItems` point at old `/doctor/*`
-      routes; unused now that `PanelShell` drives nav. Remove/repoint.
-- [ ] **Dead route pages** — the folded-in `/doctor` + `/reception` `page.tsx` redirect
-      stubs can be removed.
-- [ ] Clean orphaned test users (clinic_id NULL non-super-admin rows from verify scripts).
+- [x] **Dead dental nav config** — ✅ removed. `navItems` was computed by
+      `getClinicWorkspace` but rendered nowhere (`PanelShell` drives nav); dropped it from
+      the `ModuleDefinition` contract, `getClinicWorkspace`, and the dental config.
+- [x] **Clean orphaned test users** — ✅ deleted 126 `clinic_id NULL` non-super-admin rows
+      (machine-generated usernames left by e2e/verify runs; a real staffer always has a
+      clinic). FK cascades handled the rest.
+- [ ] **~~Dead route pages~~ — NOT stubs; keep.** Correction (2026-07-21): `/doctor` +
+      `/reception` `page.tsx` are REAL pages, and worse, those dirs house ~10 SHARED
+      components `/clinic` imports (`appointments-list`, `invoice-print`, `scribe-panel`,
+      `doctors-panel`, `whatsapp-queue`, …). Deleting them would break `/clinic`. The
+      ROUTES are orphaned (all staff land on `/clinic` via `ROLE_HOME_ROUTE`), but removing
+      them needs a real refactor — move the shared components into `/clinic` or `core`
+      first, then delete the orphaned routes + their `NAV_BY_PANEL` entries. Low value; v2.
 
 ---
 

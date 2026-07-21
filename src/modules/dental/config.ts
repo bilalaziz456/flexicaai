@@ -32,11 +32,6 @@ export const dentalModule: ModuleDefinition = {
   drugFormulary: dentalDrugFormulary,
   procedureTemplates: dentalProcedureTemplates,
   treatmentTemplates: dentalTreatmentTemplates,
-  navItems: [
-    { label: "Patients", href: "/doctor/patients", icon: "users" },
-    { label: "Voice Scribe", href: "/doctor/scribe", icon: "mic" },
-    { label: "Prescriptions", href: "/doctor/prescriptions", icon: "pill" },
-  ],
   // The structured clinical record: the FDI odontogram. Core renders these by the
   // contract (never knowing it's a tooth chart) — the deferred `components` slot.
   clinicalRecord: {

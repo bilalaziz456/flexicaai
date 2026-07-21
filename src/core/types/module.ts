@@ -12,15 +12,6 @@ import type { ComponentType } from "react";
 /** A module/specialty id, e.g. "dental". Kept as a plain string so core stays agnostic. */
 export type ModuleId = string;
 
-/** A sidebar/menu entry a module contributes to a panel. */
-export interface NavItem {
-  label: string;
-  /** Route relative to the panel, e.g. "/doctor/tooth-chart". */
-  href: string;
-  /** Lucide icon name (a string, so core isn't coupled to an icon component). */
-  icon?: string;
-}
-
 /** A recall interval the recall engine schedules from (CLAUDE.md §10 recall). */
 export interface RecallRule {
   id: string;
@@ -187,8 +178,6 @@ export interface ModuleDefinition {
   scribePrompt: string;
   recallRules: RecallRule[];
   drugFormulary: Drug[];
-  /** Menu items this module adds to the relevant panels. */
-  navItems: NavItem[];
   /**
    * Suggested priced procedures a clinic can one-click import into its own
    * catalog (the `sales` feature). Optional — core stays specialty-agnostic and
