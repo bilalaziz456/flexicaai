@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
-import { and, count, desc, eq, ilike } from "drizzle-orm";
+import { and, count, desc, eq, ilike, isNull } from "drizzle-orm";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
-import { clinics } from "@/core/db/schema";
+import { clinics, users } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
 import { CLINIC_STATUSES, CLINIC_STATUS_LABEL, isClinicStatus } from "@/core/clinics/status";
 import { requireRole } from "@/core/auth/user";
@@ -43,12 +43,23 @@ export default async function AdminHome({
     created?: string;
     updated?: string;
     deleted?: string;
+    assigned?: string;
   }>;
 }) {
   const user = await requireRole("super_admin");
   const sp = await searchParams;
   const query = sp.q?.trim();
   const statusFilter = sp.status && isClinicStatus(sp.status) ? sp.status : undefined;
+  // Assigned-to filter: "me" · "unassigned" · a team-member id.
+  const assignedFilter = sp.assigned?.trim() || undefined;
+  const assignedWhere =
+    assignedFilter === "unassigned"
+      ? isNull(clinics.assignedTo)
+      : assignedFilter === "me"
+        ? eq(clinics.assignedTo, user.id)
+        : assignedFilter
+          ? eq(clinics.assignedTo, assignedFilter)
+          : undefined;
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
   const toastMessage = sp.created
@@ -64,15 +75,17 @@ export default async function AdminHome({
     notDeleted(clinics.deletedAt),
     query ? ilike(clinics.name, `%${query}%`) : undefined,
     statusFilter ? eq(clinics.status, statusFilter) : undefined,
+    assignedWhere,
   );
   // The full financial panel is `metrics:view`; the due/overdue list is billing
   // VISIBILITY (owner + sales + billing + support see it). Feature 9.
   const showMetrics = canAdmin(user, "metrics:view");
   const showBilling = canSeeBilling(user);
-  const [allClinics, [{ total }], dueClinics, metrics] = await Promise.all([
+  const [clinicRows, [{ total }], dueClinics, metrics] = await Promise.all([
     db
-      .select()
+      .select({ clinic: clinics, assigneeName: users.fullName, assigneeUsername: users.username })
       .from(clinics)
+      .leftJoin(users, eq(clinics.assignedTo, users.id))
       .where(where)
       .orderBy(desc(clinics.createdAt))
       .limit(pageSize)
@@ -81,6 +94,10 @@ export default async function AdminHome({
     showBilling ? listDueClinics() : Promise.resolve([]),
     showMetrics ? getCompanyMetrics() : Promise.resolve(null),
   ]);
+  const allClinics = clinicRows.map((r) => ({
+    ...r.clinic,
+    assigneeName: r.assigneeName ?? r.assigneeUsername,
+  }));
 
   return (
     <div className="space-y-6">
@@ -121,6 +138,13 @@ export default async function AdminHome({
                       ? `Rs ${c.balance.owed.toLocaleString("en-PK")} owed · ${c.balance.daysOverdue}d overdue`
                       : `due in grace · ${c.balance.daysOverdue}d past`}
                   </span>
+                  <span className="text-xs">
+                    {c.assignedTo === user.id
+                      ? "👤 you"
+                      : c.assigneeName
+                        ? `👤 ${c.assigneeName}`
+                        : "unassigned"}
+                  </span>
                   {c.commitmentAt ? (
                     <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs text-amber-700 dark:text-amber-400">
                       follow up{" "}
@@ -137,7 +161,7 @@ export default async function AdminHome({
 
       <ClinicsSearch initial={query ?? ""} />
 
-      {/* Status filter — preserves the current search query. */}
+      {/* Status filter — preserves the current search query + assignee filter. */}
       <div className="flex flex-wrap gap-1.5">
         {[{ id: undefined, label: "All" }, ...CLINIC_STATUSES.map((s) => ({ id: s, label: CLINIC_STATUS_LABEL[s] }))].map(
           (opt) => {
@@ -145,6 +169,7 @@ export default async function AdminHome({
             const params = new URLSearchParams();
             if (query) params.set("q", query);
             if (opt.id) params.set("status", opt.id);
+            if (assignedFilter) params.set("assigned", assignedFilter);
             const href = params.toString() ? `/admin?${params.toString()}` : "/admin";
             return (
               <Link
@@ -160,6 +185,34 @@ export default async function AdminHome({
             );
           },
         )}
+      </div>
+
+      {/* Assigned-to filter (account manager). */}
+      <div className="flex flex-wrap gap-1.5">
+        {[
+          { id: undefined, label: "Any manager" },
+          { id: "me", label: "My clinics" },
+          { id: "unassigned", label: "Unassigned" },
+        ].map((opt) => {
+          const active = assignedFilter === opt.id || (!assignedFilter && opt.id === undefined);
+          const params = new URLSearchParams();
+          if (query) params.set("q", query);
+          if (statusFilter) params.set("status", statusFilter);
+          if (opt.id) params.set("assigned", opt.id);
+          const href = params.toString() ? `/admin?${params.toString()}` : "/admin";
+          return (
+            <Link
+              key={opt.label}
+              href={href}
+              className={cn(
+                buttonVariants({ variant: active ? "default" : "outline", size: "sm" }),
+                "h-7 px-2.5 text-xs",
+              )}
+            >
+              {opt.label}
+            </Link>
+          );
+        })}
       </div>
 
       <Pagination
@@ -183,6 +236,7 @@ export default async function AdminHome({
             <TableRow>
               <TableHead>Clinic</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Assigned to</TableHead>
               <TableHead>Specialties</TableHead>
               <TableHead>Created</TableHead>
               <TableHead className="text-right">Manage</TableHead>
@@ -194,6 +248,15 @@ export default async function AdminHome({
                 <TableCell className="font-medium">{clinic.name}</TableCell>
                 <TableCell>
                   <ClinicStatusBadge status={clinic.status} />
+                </TableCell>
+                <TableCell className="text-sm">
+                  {clinic.assignedTo === user.id ? (
+                    <span className="font-medium">You</span>
+                  ) : clinic.assigneeName ? (
+                    clinic.assigneeName
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">

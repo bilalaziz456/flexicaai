@@ -10,6 +10,7 @@ import { resourcesForClinic } from "@/core/auth/permissions";
 import { requireAdminCapability } from "@/core/auth/user";
 import { canManageBilling, canSeeBilling } from "@/core/auth/admin-permissions";
 import { getClinicBilling } from "@/core/admin/billing";
+import { listAssignableTeam } from "@/core/admin/assignment";
 import { Badge } from "@/core/ui/badge";
 import {
   Card,
@@ -28,6 +29,7 @@ import {
 } from "@/core/ui/table";
 import { ClinicSettingsForm } from "./clinic-settings-form";
 import { ClinicLifecycle } from "./clinic-lifecycle";
+import { ClinicAssignee } from "./clinic-assignee";
 import { ImpersonateClinic } from "./impersonate-clinic";
 import { ClinicContactForm } from "./clinic-contact-form";
 import { ClinicBilling } from "./clinic-billing";
@@ -58,6 +60,7 @@ export default async function ClinicDetailPage({
   const showBilling = canSeeBilling(admin);
   const canManageBillingCard = canManageBilling(admin);
   const billing = showBilling ? await getClinicBilling(clinic.id) : null;
+  const team = await listAssignableTeam();
 
   // Tenant-scoped: this clinic's staff only (byClinic = the isolation boundary).
   const staff = await db
@@ -180,6 +183,19 @@ export default async function ClinicDetailPage({
           </CardContent>
         </Card>
       ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Account manager</CardTitle>
+          <CardDescription>
+            The team member who owns this clinic on our side — for &ldquo;my clinics&rdquo; and
+            payment-due / follow-up updates.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ClinicAssignee clinicId={clinic.id} assignedTo={clinic.assignedTo} team={team} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

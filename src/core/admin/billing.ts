@@ -5,7 +5,7 @@ import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { unscoped } from "@/core/db/tenant-guard";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
-import { clinics, clinicPayments } from "@/core/db/schema";
+import { clinics, clinicPayments, users } from "@/core/db/schema";
 
 /**
  * Manual clinic→Klenic billing — CORE, super-admin control plane (Feature 6).
@@ -292,6 +292,9 @@ export type OverdueClinic = {
   /** Follow-up the clinic promised for the remaining balance (if any). */
   commitmentAt: Date | null;
   commitmentNote: string | null;
+  /** Account manager (team member) assigned to this clinic. */
+  assignedTo: string | null;
+  assigneeName: string | null;
 };
 
 /**
@@ -312,8 +315,12 @@ export async function listDueClinics(): Promise<OverdueClinic[]> {
         createdAt: clinics.createdAt,
         commitmentAt: clinics.paymentCommitmentAt,
         commitmentNote: clinics.paymentCommitmentNote,
+        assignedTo: clinics.assignedTo,
+        assigneeName: users.fullName,
+        assigneeUsername: users.username,
       })
       .from(clinics)
+      .leftJoin(users, eq(clinics.assignedTo, users.id))
       .where(and(notDeleted(clinics.deletedAt), gt(clinics.monthlyPrice, 0)));
     if (cs.length === 0) return [];
 
@@ -340,6 +347,7 @@ export async function listDueClinics(): Promise<OverdueClinic[]> {
         out.push({
           id: c.id, name: c.name, status: c.status, balance,
           commitmentAt: c.commitmentAt, commitmentNote: c.commitmentNote,
+          assignedTo: c.assignedTo, assigneeName: c.assigneeName ?? c.assigneeUsername,
         });
       }
     }

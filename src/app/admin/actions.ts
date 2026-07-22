@@ -732,6 +732,39 @@ export async function recordClinicPaymentAction(
   return { saved: true };
 }
 
+/** Assigns (or clears) a clinic's account manager — a team member (super-admin). */
+export async function setClinicAssigneeAction(
+  clinicId: string,
+  assigneeId: string | null,
+): Promise<AdminActionState> {
+  await requireAdminCapability("clinics:edit");
+
+  let assigned: string | null = null;
+  let name = "unassigned";
+  if (assigneeId) {
+    const [m] = await db
+      .select({ id: users.id, fullName: users.fullName, username: users.username })
+      .from(users)
+      .where(and(eq(users.id, assigneeId), eq(users.role, "super_admin"), notDeleted(users.deletedAt)))
+      .limit(1);
+    if (!m) return { error: "Not a valid team member." };
+    assigned = m.id;
+    name = m.fullName ?? m.username;
+  }
+
+  await db.update(clinics).set({ assignedTo: assigned, updatedAt: new Date() }).where(eq(clinics.id, clinicId));
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: `Assigned clinic to ${name}`,
+  });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  revalidatePath("/admin");
+  return { saved: true };
+}
+
 /** Voids (soft-deletes) a clinic payment — Feature 6. */
 export async function voidClinicPaymentAction(
   clinicId: string,

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   date,
   index,
@@ -153,6 +154,10 @@ export const clinics = pgTable(
     paymentCommitmentAt: timestamp("payment_commitment_at", { withTimezone: true }),
     paymentCommitmentNote: text("payment_commitment_note"),
     capabilities: text("capabilities").array(), // NULL = all resource:action allowed
+    // Account manager — the TEAM MEMBER (super-admin) who owns this clinic on our
+    // side. NULL = unassigned. Drives "my clinics" + who to update on dues/follow-ups.
+    // `AnyPgColumn` return type breaks the clinics⇄users circular type reference.
+    assignedTo: uuid("assigned_to").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
     notes: text("notes"), // internal CRM notes
     ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
