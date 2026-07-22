@@ -5,6 +5,7 @@ import { getSession, getSessionUser } from "@/core/auth/session";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { isClinicUsable } from "@/core/clinics/status";
 import { can, VIEW_ONLY_CAPABILITIES, type PermAction } from "@/core/auth/permissions";
+import { canAdmin, isAdminOwner, type AdminCapability } from "@/core/auth/admin-permissions";
 import {
   ROLE_HOME_ROUTE,
   type CurrentUser,
@@ -125,6 +126,27 @@ export async function requireRole(
   if (user.mustChangePassword) {
     redirect("/change-password");
   }
+  return user;
+}
+
+/**
+ * Guards a super-admin action/page on a specific ADMIN capability (Feature 9).
+ * requireRole("super_admin") first, then the sub-role capability check; a
+ * super-admin lacking the capability is bounced to their /admin home. Returns the
+ * user so callers can use `admin.id` etc.
+ */
+export async function requireAdminCapability(
+  capability: AdminCapability,
+): Promise<CurrentUser> {
+  const user = await requireRole("super_admin");
+  if (!canAdmin(user, capability)) redirect("/admin");
+  return user;
+}
+
+/** Guards an owner-only super-admin action/page (managing the company team). */
+export async function requireAdminOwner(): Promise<CurrentUser> {
+  const user = await requireRole("super_admin");
+  if (!isAdminOwner(user)) redirect("/admin");
   return user;
 }
 

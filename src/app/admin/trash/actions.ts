@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireRole } from "@/core/auth/user";
+import { requireAdminCapability } from "@/core/auth/user";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { restoreGlobal, purgeGroup } from "@/core/trash";
 import { logActivity } from "@/core/audit/log";
@@ -14,7 +14,7 @@ import { logActivity } from "@/core/audit/log";
 export async function restoreTrashGlobal(
   group: string,
 ): Promise<{ ok: true } | { error: string }> {
-  await requireRole("super_admin");
+  await requireAdminCapability("clinics:manage");
   if (!group) return { error: "Nothing to restore." };
 
   await restoreGlobal(group);
@@ -38,7 +38,7 @@ export async function purgeTrashGlobal(
   group: string,
   password: string,
 ): Promise<{ ok: true } | { error: string }> {
-  await requireRole("super_admin");
+  await requireAdminCapability("purge");
   if (!group) return { error: "Nothing to purge." };
   if (!(await verifyCurrentUserPassword(password))) {
     return { error: "Incorrect password." };

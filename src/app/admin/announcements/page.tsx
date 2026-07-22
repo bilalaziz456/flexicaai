@@ -1,5 +1,5 @@
 import { and, asc } from "drizzle-orm";
-import { requireRole } from "@/core/auth/user";
+import { requireAdminCapability } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { clinics } from "@/core/db/schema";
@@ -17,7 +17,7 @@ import { AnnouncementRowActions } from "./announcement-actions";
 
 /** Super-admin announcements — broadcast or per-clinic notices shown in the clinic bar. */
 export default async function AnnouncementsPage() {
-  await requireRole("super_admin");
+  await requireAdminCapability("announcements:manage");
 
   const [rows, clinicList] = await Promise.all([
     listAllAnnouncements(),

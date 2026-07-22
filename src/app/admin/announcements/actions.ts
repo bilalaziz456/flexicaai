@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireRole } from "@/core/auth/user";
+import { requireAdminCapability } from "@/core/auth/user";
 import {
   createAnnouncement,
   deleteAnnouncement,
@@ -25,7 +25,7 @@ export async function createAnnouncementAction(
   _prev: AnnouncementActionState,
   formData: FormData,
 ): Promise<AnnouncementActionState> {
-  const admin = await requireRole("super_admin");
+  const admin = await requireAdminCapability("announcements:manage");
   const parsed = schema.safeParse({
     clinicId: formData.get("clinicId") ?? undefined,
     level: formData.get("level") ?? "info",
@@ -61,7 +61,7 @@ export async function createAnnouncementAction(
 
 /** Activates / deactivates an announcement. */
 export async function toggleAnnouncementAction(id: string, active: boolean): Promise<void> {
-  await requireRole("super_admin");
+  await requireAdminCapability("announcements:manage");
   await setAnnouncementActive(id, active);
   await logActivity({
     action: "update",
@@ -75,7 +75,7 @@ export async function toggleAnnouncementAction(id: string, active: boolean): Pro
 
 /** Deletes an announcement (super-admin platform content, not clinic data). */
 export async function deleteAnnouncementAction(id: string): Promise<void> {
-  await requireRole("super_admin");
+  await requireAdminCapability("announcements:manage");
   await deleteAnnouncement(id);
   await logActivity({ action: "delete", entity: "clinic", entityId: id, summary: "Deleted an announcement" });
   revalidatePath("/admin/announcements");

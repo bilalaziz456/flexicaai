@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { requireRole } from "@/core/auth/user";
+import { requireAdminCapability } from "@/core/auth/user";
 import { hashPassword } from "@/core/auth/password";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { getSession, setSessionImpersonation } from "@/core/auth/session";
@@ -85,7 +85,7 @@ export async function createClinicWithAdmin(
   _prevState: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  await requireRole("super_admin");
+  await requireAdminCapability("clinics:manage");
 
   const parsed = createClinicSchema.safeParse({
     clinicName: formData.get("clinicName"),
@@ -170,7 +170,7 @@ export async function updateClinic(
   _prevState: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  await requireRole("super_admin");
+  await requireAdminCapability("clinics:manage");
 
   const parsed = clinicSettingsSchema.safeParse({
     name: formData.get("name"),
@@ -296,7 +296,7 @@ export async function setClinicStatus(
   status: string,
   reason?: string,
 ): Promise<AdminActionState> {
-  await requireRole("super_admin");
+  await requireAdminCapability("clinics:manage");
   if (!isClinicStatus(status)) return { error: "Unknown status." };
   const target = status as ClinicStatus;
 
@@ -352,7 +352,7 @@ export async function extendTrial(
   clinicId: string,
   days: number,
 ): Promise<AdminActionState> {
-  await requireRole("super_admin");
+  await requireAdminCapability("clinics:manage");
   const n = Math.trunc(Number(days));
   if (!Number.isFinite(n) || n < 1 || n > 365) {
     return { error: "Enter 1–365 days." };
@@ -413,7 +413,7 @@ export async function setClinicCapabilities(
   clinicId: string,
   slugs: string[],
 ): Promise<AdminActionState> {
-  await requireRole("super_admin");
+  await requireAdminCapability("capabilities:manage");
 
   const [before] = await db
     .select({ name: clinics.name, featuresEnabled: clinics.featuresEnabled })
@@ -479,7 +479,7 @@ export async function updateClinicContact(
   _prevState: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  await requireRole("super_admin");
+  await requireAdminCapability("clinics:manage");
 
   const parsed = contactSchema.safeParse({
     ownerName: formData.get("ownerName") ?? undefined,
@@ -544,7 +544,7 @@ export async function startImpersonation(
   password: string,
   totp?: string,
 ): Promise<AdminActionState> {
-  const admin = await requireRole("super_admin");
+  const admin = await requireAdminCapability("impersonate");
 
   if (!(await verifyCurrentUserPassword(password))) {
     return { error: "Incorrect password." };
@@ -634,7 +634,7 @@ export async function setClinicPrice(
   _prev: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  await requireRole("super_admin");
+  await requireAdminCapability("billing:manage");
   const parsed = priceSchema.safeParse({
     monthlyPrice: formData.get("monthlyPrice") ?? 0,
     billingCycle: formData.get("billingCycle") ?? "monthly",
@@ -687,7 +687,7 @@ export async function recordClinicPaymentAction(
   _prev: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  const admin = await requireRole("super_admin");
+  const admin = await requireAdminCapability("billing:manage");
   const parsed = clinicPaymentSchema.safeParse({
     amount: formData.get("amount"),
     monthsCovered: formData.get("monthsCovered") ?? 1,
@@ -731,7 +731,7 @@ export async function voidClinicPaymentAction(
   clinicId: string,
   paymentId: string,
 ): Promise<AdminActionState> {
-  const admin = await requireRole("super_admin");
+  const admin = await requireAdminCapability("billing:manage");
   const res = await voidClinicPayment(clinicId, paymentId, admin.id);
   if ("error" in res) return { error: res.error };
 
@@ -766,7 +766,7 @@ export async function updateStaffProfile(
   _prevState: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  await requireRole("super_admin");
+  await requireAdminCapability("clinics:manage");
 
   const parsed = updateStaffSchema.safeParse({
     fullName: formData.get("fullName"),
@@ -816,7 +816,7 @@ export async function resetUserPassword(
   _prevState: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  await requireRole("super_admin");
+  await requireAdminCapability("clinics:manage");
 
   const parsed = resetPasswordSchema.safeParse({
     password: formData.get("password"),
@@ -852,7 +852,7 @@ export async function setUserActive(
   isActive: boolean,
   _formData: FormData,
 ): Promise<void> {
-  await requireRole("super_admin");
+  await requireAdminCapability("clinics:manage");
 
   await db.transaction(async (tx) => {
     const [target] = await tx
@@ -911,7 +911,7 @@ export async function deleteClinic(
   clinicId: string,
   password: string,
 ): Promise<AdminActionState> {
-  const admin = await requireRole("super_admin");
+  const admin = await requireAdminCapability("delete");
 
   // Step-up auth: re-verify the super admin's own password before wiping a clinic.
   if (!(await verifyCurrentUserPassword(password))) {
