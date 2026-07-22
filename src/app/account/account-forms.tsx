@@ -308,6 +308,9 @@ export function ProfileForm({
     {},
   );
   const nonce = useToast(state);
+  // Controlled — avoids the Base UI uncontrolled-FieldControl warning on re-render.
+  const [nameVal, setNameVal] = useState(fullName ?? "");
+  const [emailVal, setEmailVal] = useState(email ?? "");
 
   return (
     <form action={formAction} className="space-y-4">
@@ -331,7 +334,8 @@ export function ProfileForm({
             <Input
               id="fullName"
               name="fullName"
-              defaultValue={fullName ?? ""}
+              value={nameVal}
+              onChange={(e) => setNameVal(e.target.value)}
               className="flex-1"
               required
             />
@@ -339,7 +343,7 @@ export function ProfileForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
-          <Input id="email" name="email" type="email" defaultValue={email ?? ""} />
+          <Input id="email" name="email" type="email" value={emailVal} onChange={(e) => setEmailVal(e.target.value)} />
         </div>
       </div>
       <div className="space-y-1">

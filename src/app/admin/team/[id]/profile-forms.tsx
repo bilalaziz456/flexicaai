@@ -28,17 +28,19 @@ export function ProfileForm({
     editTeamMemberProfileAction.bind(null, userId),
     {},
   );
+  const [nameVal, setNameVal] = useState(fullName);
+  const [userVal, setUserVal] = useState(username);
   return (
     <form action={action} className="space-y-3">
       {state.saved ? <Toast message="Profile saved." /> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>
-          <Input id="fullName" name="fullName" defaultValue={fullName} required />
+          <Input id="fullName" name="fullName" value={nameVal} onChange={(e) => setNameVal(e.target.value)} required />
         </div>
         <div className="space-y-2">
           <Label htmlFor="username">Username</Label>
-          <Input id="username" name="username" defaultValue={username} autoCapitalize="none" spellCheck={false} required />
+          <Input id="username" name="username" value={userVal} onChange={(e) => setUserVal(e.target.value)} autoCapitalize="none" spellCheck={false} required />
         </div>
       </div>
       {state.error ? <p className="text-sm text-destructive" role="alert">{state.error}</p> : null}

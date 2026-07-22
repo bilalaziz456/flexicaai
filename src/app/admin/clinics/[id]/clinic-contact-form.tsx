@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { updateClinicContact, type AdminActionState } from "@/app/admin/actions";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
@@ -55,6 +55,17 @@ export function ClinicContactForm({
     action,
     {},
   );
+  // Controlled text fields — avoids Base UI's uncontrolled-FieldControl warning
+  // when the form re-renders after a save.
+  const [f, setF] = useState({
+    ownerName: contact.ownerName ?? "",
+    ownerPhone: contact.ownerPhone ?? "",
+    ownerEmail: contact.ownerEmail ?? "",
+    city: contact.city ?? "",
+    country: contact.country ?? "",
+  });
+  const on = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setF((s) => ({ ...s, [k]: e.target.value }));
 
   return (
     <form action={formAction} className="space-y-4">
@@ -63,28 +74,23 @@ export function ClinicContactForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="ownerName">Owner name</Label>
-          <Input id="ownerName" name="ownerName" defaultValue={contact.ownerName ?? ""} />
+          <Input id="ownerName" name="ownerName" value={f.ownerName} onChange={on("ownerName")} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="ownerPhone">Owner phone</Label>
-          <Input id="ownerPhone" name="ownerPhone" defaultValue={contact.ownerPhone ?? ""} />
+          <Input id="ownerPhone" name="ownerPhone" value={f.ownerPhone} onChange={on("ownerPhone")} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="ownerEmail">Owner email</Label>
-          <Input
-            id="ownerEmail"
-            name="ownerEmail"
-            type="email"
-            defaultValue={contact.ownerEmail ?? ""}
-          />
+          <Input id="ownerEmail" name="ownerEmail" type="email" value={f.ownerEmail} onChange={on("ownerEmail")} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="city">City</Label>
-          <Input id="city" name="city" defaultValue={contact.city ?? ""} />
+          <Input id="city" name="city" value={f.city} onChange={on("city")} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="country">Country</Label>
-          <Input id="country" name="country" defaultValue={contact.country ?? ""} />
+          <Input id="country" name="country" value={f.country} onChange={on("country")} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="region">Data region</Label>
