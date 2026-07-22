@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { requireUser } from "@/core/auth/user";
+import { canUseAccount } from "@/core/auth/admin-permissions";
 import { hashPassword } from "@/core/auth/password";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { db } from "@/core/db";
@@ -34,6 +35,7 @@ export async function updateMyProfile(
   formData: FormData,
 ): Promise<AccountActionState> {
   const user = await requireUser();
+  if (!canUseAccount(user, "edit")) return { error: "You don't have access to change account settings." };
 
   const parsed = profileSchema.safeParse({
     fullName: formData.get("fullName"),
@@ -81,6 +83,7 @@ export async function updateMyDiscountApproval(
   formData: FormData,
 ): Promise<AccountActionState> {
   const user = await requireUser();
+  if (!canUseAccount(user, "edit")) return { error: "You don't have access to change account settings." };
   if (user.role !== "doctor") return { error: "Only doctors have this setting." };
 
   const needsApproval = formData.get("discountNeedsApproval") === "on";
@@ -117,6 +120,7 @@ export async function changeMyPassword(
   formData: FormData,
 ): Promise<AccountActionState> {
   const user = await requireUser();
+  if (!canUseAccount(user, "edit")) return { error: "You don't have access to change account settings." };
 
   const parsed = passwordSchema.safeParse({
     currentPassword: formData.get("currentPassword"),
@@ -158,6 +162,7 @@ export async function uploadMyAvatar(
   formData: FormData,
 ): Promise<AccountActionState> {
   const user = await requireUser();
+  if (!canUseAccount(user, "edit")) return { error: "You don't have access to change account settings." };
 
   const file = formData.get("avatar");
   if (!(file instanceof File) || file.size === 0) {
@@ -199,6 +204,7 @@ export async function uploadMyAvatar(
 /** Remove the signed-in user's profile picture. */
 export async function removeMyAvatar(): Promise<void> {
   const user = await requireUser();
+  if (!canUseAccount(user, "edit")) return;
   const [prev] = await db
     .select({ avatarKey: users.avatarKey })
     .from(users)

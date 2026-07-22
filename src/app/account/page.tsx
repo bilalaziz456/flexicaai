@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { requireUser } from "@/core/auth/user";
+import { canUseAccount } from "@/core/auth/admin-permissions";
 import { db } from "@/core/db";
 import { users } from "@/core/db/schema";
 import { ROLE_HOME_ROUTE, ROLE_LABELS, staffInitials } from "@/core/types/auth";
@@ -22,6 +24,8 @@ import {
  * password. Standalone (not inside a panel); reached from the identity pill. */
 export default async function AccountPage() {
   const current = await requireUser();
+  // Account settings are ACL-gated for super-admins (Feature 9); clinic staff pass.
+  if (!canUseAccount(current, "view")) redirect(ROLE_HOME_ROUTE[current.role]);
   const [u] = await db
     .select({
       prefix: users.prefix,

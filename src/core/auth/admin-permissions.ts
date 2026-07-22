@@ -16,6 +16,8 @@ export const ADMIN_RESOURCES: PermResource[] = [
   // view=billing status+overdue; create=record payment; edit=set price; delete=void payment.
   { id: "billing", label: "Billing", actions: ["view", "create", "edit", "delete"], createLabel: "Record" },
   { id: "announcements", label: "Announcements", actions: ["view", "create", "edit", "delete"] },
+  // view = open account settings; edit = change name/password/picture.
+  { id: "account", label: "Account settings", actions: ["view", "edit"] },
   // Single-action resources (matrix shows only their column).
   { id: "impersonate", label: "Impersonation", actions: ["view"] }, // view = may impersonate
   { id: "metrics", label: "Company metrics", actions: ["view"] },
@@ -49,12 +51,13 @@ export const ADMIN_SUBROLE_PRESETS: Record<AssignableSubRole, string[]> = {
     "billing:view",
     "announcements:view", "announcements:create", "announcements:edit", "announcements:delete",
     "impersonate:view", "metrics:view",
+    "account:view", "account:edit",
   ],
   // Sales: onboard + manage clinics, see the numbers + which clinics are overdue
   // (read-only billing) — no record payments, impersonate, delete or purge.
-  sales: ["clinics:view", "clinics:create", "clinics:edit", "billing:view", "metrics:view"],
+  sales: ["clinics:view", "clinics:create", "clinics:edit", "billing:view", "metrics:view", "account:view", "account:edit"],
   // Billing: full billing (view/record/price/void) + see clinics + metrics.
-  billing: ["clinics:view", "billing:view", "billing:create", "billing:edit", "billing:delete", "metrics:view"],
+  billing: ["clinics:view", "billing:view", "billing:create", "billing:edit", "billing:delete", "metrics:view", "account:view", "account:edit"],
 };
 
 /** Human labels + one-line descriptions for the sub-roles (UI). */
@@ -101,6 +104,16 @@ export function canManageTeam(user: AdminUser): boolean {
 export function canSeeBilling(user: AdminUser): boolean {
   for (const s of adminCapabilitySet(user)) if (s.startsWith("billing:")) return true;
   return false;
+}
+
+/**
+ * Whether a user may VIEW/EDIT their own account settings. Self-service is
+ * ACL-gated ONLY for super-admins (the admin panel); clinic staff always may
+ * (returns true) so the shared /account page keeps working for them.
+ */
+export function canUseAccount(user: AdminUser, action: "view" | "edit"): boolean {
+  if (user.role !== "super_admin") return true;
+  return canAdmin(user, `account:${action}`);
 }
 
 /** Can this super-admin CHANGE billing (record/void payments, set price)? */

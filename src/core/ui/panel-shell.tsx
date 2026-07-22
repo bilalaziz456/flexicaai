@@ -118,6 +118,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; nodes: NavNode[] }> = {
       { href: "/admin/announcements", label: "Announcements", Icon: Megaphone, cap: "announcements:view" },
       { href: "/admin/team", label: "Team", Icon: Users, teamManager: true },
       { href: "/admin/security", label: "Security", Icon: ShieldCheck },
+      { href: "/account", label: "Account settings", Icon: UserCog, cap: "account:view" },
       { href: "/admin/trash", label: "Trash", Icon: Trash2, cap: "clinics:edit" },
     ],
   },
