@@ -18,6 +18,11 @@ export const ADMIN_RESOURCES: PermResource[] = [
   { id: "announcements", label: "Announcements", actions: ["view", "create", "edit", "delete"] },
   // view = open account settings; edit = change name/password/picture.
   { id: "account", label: "Account settings", actions: ["view", "edit"] },
+  // Company team accounts. view=see team + open profiles; create=add a member;
+  // edit=name/password/state (suspend/deactivate/reactivate)/reassign/capabilities;
+  // delete=delete a member (with a password step-up). Only full admins can GRANT
+  // capabilities they don't hold (see canGrantAdminCapabilities).
+  { id: "team", label: "Team", actions: ["view", "create", "edit", "delete"] },
   // Single-action resources (matrix shows only their column).
   { id: "impersonate", label: "Impersonation", actions: ["view"] }, // view = may impersonate
   { id: "metrics", label: "Company metrics", actions: ["view"] },
@@ -106,6 +111,18 @@ export function adminAccountState(user: { isActive: boolean; deactivatedAt: Date
 /** May manage the company team — owner OR super_admin (i.e. holds every capability). */
 export function canManageTeam(user: AdminUser): boolean {
   return adminCapabilitySet(user).size === ADMIN_CAPABILITY_IDS.length;
+}
+
+/**
+ * PRIVILEGE GUARD: an actor may only grant capabilities they themselves hold — so
+ * a partial admin with `team:edit`/`team:create` can't mint or elevate someone
+ * above their own access (no self- or lateral escalation). A full admin/owner
+ * (holds everything) can grant anything.
+ */
+export function canGrantAdminCapabilities(actor: AdminUser, slugs: string[]): boolean {
+  const mine = adminCapabilitySet(actor);
+  if (mine.size === ADMIN_CAPABILITY_IDS.length) return true; // full/owner
+  return sanitizeAdminCapabilities(slugs).every((s) => mine.has(s));
 }
 
 /** Can this super-admin SEE billing (the due/overdue list + a clinic's status)? */

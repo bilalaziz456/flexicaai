@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   deactivateMemberAction,
   deleteSuperAdminAction,
@@ -13,6 +12,7 @@ import {
 } from "../actions";
 import type { AdminAccountState } from "@/core/auth/admin-permissions";
 import { Button } from "@/core/ui/button";
+import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { PasswordInput } from "@/core/ui/password-input";
@@ -70,24 +70,34 @@ export function PasswordResetForm({ userId }: { userId: string }) {
   );
 }
 
-export function DangerActions({ userId, state }: { userId: string; state: AdminAccountState }) {
+export function DangerActions({
+  userId,
+  state,
+  canEdit,
+  canDelete,
+}: {
+  userId: string;
+  state: AdminAccountState;
+  /** Holds team:edit — may suspend/deactivate/reactivate. */
+  canEdit: boolean;
+  /** Holds team:delete — may delete (with a password step-up). */
+  canDelete: boolean;
+}) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
 
-  const run = (fn: () => Promise<{ error?: string }>, goList = false) =>
+  const run = (fn: () => Promise<{ error?: string }>) =>
     start(async () => {
       setError(null);
       const res = await fn();
       if (res?.error) setError(res.error);
-      else if (goList) router.push("/admin/team");
     });
 
   return (
     <div className="flex flex-wrap items-center gap-3">
       {/* Active → Suspend (keeps clinics). Suspended → Deactivate (unassigns) /
-          Reactivate. Deactivated → Reactivate. */}
-      {state === "active" ? (
+          Reactivate. Deactivated → Reactivate. (team:edit) */}
+      {canEdit && state === "active" ? (
         <Button
           type="button"
           variant="outline"
@@ -100,7 +110,7 @@ export function DangerActions({ userId, state }: { userId: string; state: AdminA
           Suspend
         </Button>
       ) : null}
-      {state !== "deactivated" && state !== "active" ? (
+      {canEdit && state === "suspended" ? (
         <Button
           type="button"
           variant="outline"
@@ -113,23 +123,22 @@ export function DangerActions({ userId, state }: { userId: string; state: AdminA
           Deactivate (unassign clinics)
         </Button>
       ) : null}
-      {state !== "active" ? (
+      {canEdit && state !== "active" ? (
         <Button type="button" variant="outline" disabled={pending} onClick={() => run(() => reactivateMemberAction(userId))}>
           Reactivate
         </Button>
       ) : null}
-      <Button
-        type="button"
-        variant="destructive"
-        disabled={pending}
-        onClick={() => {
-          if (confirm("Delete this team member? Their access is removed and their clinics unassigned.")) {
-            run(() => deleteSuperAdminAction(userId), true);
-          }
-        }}
-      >
-        Delete account
-      </Button>
+      {/* Delete requires re-typing your own password (step-up auth). team:delete. */}
+      {canDelete ? (
+        <ConfirmDeleteDialog
+          triggerLabel="Delete account"
+          triggerVariant="destructive"
+          title="Delete team member"
+          description="This removes their access and unassigns any clinics they manage. The account moves to Trash."
+          confirmLabel="Delete account"
+          onConfirm={(password) => deleteSuperAdminAction(userId, password)}
+        />
+      ) : null}
       {error ? <span className="text-sm text-destructive" role="alert">{error}</span> : null}
     </div>
   );

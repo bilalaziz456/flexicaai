@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, count, eq } from "drizzle-orm";
-import { requireTeamManager } from "@/core/auth/user";
+import { requireAdminCapability } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { clinics, users } from "@/core/db/schema";
@@ -10,6 +10,7 @@ import {
   adminAccountState,
   adminCapabilitySet,
   adminSubRoleOf,
+  canAdmin,
   isOwner,
 } from "@/core/auth/admin-permissions";
 import { listActiveTeam } from "@/core/admin/assignment";
@@ -25,14 +26,17 @@ import { CapabilityEditor } from "./capability-editor";
 import { ReassignClinics } from "./reassign-clinics";
 import { DangerActions, PasswordResetForm, ProfileForm } from "./profile-forms";
 
-/** Owner-only: a team member's profile — edit name/username, reset password,
- *  granular capability ACL, and suspend/delete. */
+/** A team member's profile. Viewing needs `team:view`; editing (name/password/
+ *  capabilities/state/reassign) needs `team:edit`; deleting needs `team:delete`
+ *  (with a password step-up). Without team:edit the page is read-only. */
 export default async function TeamMemberPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const viewer = await requireTeamManager();
+  const viewer = await requireAdminCapability("team:view");
+  const canEdit = canAdmin(viewer, "team:edit");
+  const canDelete = canAdmin(viewer, "team:delete");
   const { id } = await params;
 
   const [member] = await db
@@ -92,7 +96,14 @@ export default async function TeamMemberPage({
           <CardDescription>Display name and login username.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ProfileForm userId={member.id} fullName={member.fullName ?? ""} username={member.username} />
+          {canEdit ? (
+            <ProfileForm userId={member.id} fullName={member.fullName ?? ""} username={member.username} />
+          ) : (
+            <dl className="grid gap-3 sm:grid-cols-2 text-sm">
+              <div><dt className="text-muted-foreground">Full name</dt><dd className="font-medium">{member.fullName ?? "—"}</dd></div>
+              <div><dt className="text-muted-foreground">Username</dt><dd className="font-medium">@{member.username}</dd></div>
+            </dl>
+          )}
         </CardContent>
       </Card>
 
@@ -113,7 +124,14 @@ export default async function TeamMemberPage({
         </CardHeader>
         {!memberIsOwner ? (
           <CardContent>
-            <CapabilityEditor userId={member.id} initial={caps} isSelf={isSelf} />
+            {canEdit ? (
+              <CapabilityEditor userId={member.id} initial={caps} isSelf={isSelf} />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {caps.length} capabilit{caps.length === 1 ? "y" : "ies"} — you don&apos;t have
+                permission to change access.
+              </p>
+            )}
           </CardContent>
         ) : null}
       </Card>
@@ -127,11 +145,17 @@ export default async function TeamMemberPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ReassignClinics fromUserId={member.id} count={managed} team={reassignTargets} />
+          {canEdit ? (
+            <ReassignClinics fromUserId={member.id} count={managed} team={reassignTargets} />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Manages <span className="font-medium text-foreground">{managed}</span> clinic{managed === 1 ? "" : "s"}.
+            </p>
+          )}
         </CardContent>
       </Card>
 
-      {!isSelf ? (
+      {!isSelf && canEdit ? (
         <Card>
           <CardHeader>
             <CardTitle>Password</CardTitle>
@@ -141,7 +165,7 @@ export default async function TeamMemberPage({
             <PasswordResetForm userId={member.id} />
           </CardContent>
         </Card>
-      ) : (
+      ) : isSelf ? (
         <Card>
           <CardHeader>
             <CardTitle>Password</CardTitle>
@@ -151,16 +175,16 @@ export default async function TeamMemberPage({
             </CardDescription>
           </CardHeader>
         </Card>
-      )}
+      ) : null}
 
-      {!isSelf ? (
+      {!isSelf && (canEdit || canDelete) ? (
         <Card className="border-destructive/40">
           <CardHeader>
             <CardTitle className="text-destructive">Danger zone</CardTitle>
             <CardDescription>Suspend cuts access immediately; delete removes the account.</CardDescription>
           </CardHeader>
           <CardContent>
-            <DangerActions userId={member.id} state={accountState} />
+            <DangerActions userId={member.id} state={accountState} canEdit={canEdit} canDelete={canDelete} />
           </CardContent>
         </Card>
       ) : null}

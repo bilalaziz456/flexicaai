@@ -3,11 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { requireTeamManager } from "@/core/auth/user";
+import { requireAdminCapability } from "@/core/auth/user";
 import { hashPassword } from "@/core/auth/password";
+import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import {
   ADMIN_CAPABILITY_IDS,
   ADMIN_SUBROLE_PRESETS,
+  canGrantAdminCapabilities,
   isOwner,
   sanitizeAdminCapabilities,
   type AssignableSubRole,
@@ -63,7 +65,7 @@ export async function createSuperAdminAction(
   _prev: TeamActionState,
   formData: FormData,
 ): Promise<TeamActionState> {
-  await requireTeamManager();
+  const actor = await requireAdminCapability("team:create");
   const parsed = createSchema.safeParse({
     fullName: formData.get("fullName"),
     username: formData.get("username"),
@@ -71,6 +73,11 @@ export async function createSuperAdminAction(
     subRole: formData.get("subRole") ?? "support",
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+
+  // Can't create someone with more access than you have (no escalation).
+  if (!canGrantAdminCapabilities(actor, permsForSubRole(parsed.data.subRole))) {
+    return { error: "You can only create a member with capabilities you have yourself." };
+  }
 
   const passwordHash = await hashPassword(parsed.data.password);
   try {
@@ -97,9 +104,9 @@ export async function createSuperAdminAction(
   return { saved: true };
 }
 
-/** Shared guard for the state actions: team-manager, not self, not the owner. */
+/** Shared guard for the state actions: team:edit, not self, not the owner. */
 async function guardStateChange(userId: string) {
-  const actor = await requireTeamManager();
+  const actor = await requireAdminCapability("team:edit");
   if (userId === actor.id) return { error: "You can't change your own account state." as const };
   const blocked = await ownerGuard(actor, userId);
   if (blocked) return { error: blocked };
@@ -164,7 +171,7 @@ export async function editTeamMemberProfileAction(
   _prev: TeamActionState,
   formData: FormData,
 ): Promise<TeamActionState> {
-  const actor = await requireTeamManager();
+  const actor = await requireAdminCapability("team:edit");
   const blocked = await ownerGuard(actor, userId);
   if (blocked) return { error: blocked };
   const parsed = profileSchema.safeParse({
@@ -199,7 +206,7 @@ export async function resetTeamMemberPasswordAction(
   _prev: TeamActionState,
   formData: FormData,
 ): Promise<TeamActionState> {
-  const actor = await requireTeamManager();
+  const actor = await requireAdminCapability("team:edit");
   if (userId === actor.id) return { error: "Change your own password in Account settings." };
   const blocked = await ownerGuard(actor, userId);
   if (blocked) return { error: blocked };
@@ -226,7 +233,7 @@ export async function setSuperAdminCapabilitiesAction(
   userId: string,
   slugs: string[],
 ): Promise<TeamActionState> {
-  const actor = await requireTeamManager();
+  const actor = await requireAdminCapability("team:edit");
   const blocked = await ownerGuard(actor, userId);
   if (blocked) return { error: blocked };
 
@@ -241,6 +248,10 @@ export async function setSuperAdminCapabilitiesAction(
   }
 
   const caps = sanitizeAdminCapabilities(slugs);
+  // No escalation: you can only grant capabilities you hold yourself.
+  if (!canGrantAdminCapabilities(actor, caps)) {
+    return { error: "You can only grant capabilities you have yourself." };
+  }
   const isFull = caps.length === ADMIN_CAPABILITY_IDS.length;
   if (userId === actor.id && !isFull) {
     return { error: "You can't reduce your own access." };
@@ -266,7 +277,7 @@ export async function reassignClinicsAction(
   fromUserId: string,
   toAssigneeId: string | null,
 ): Promise<TeamActionState> {
-  const actor = await requireTeamManager();
+  const actor = await requireAdminCapability("team:edit");
   const blocked = await ownerGuard(actor, fromUserId);
   if (blocked) return { error: blocked };
 
@@ -298,13 +309,21 @@ export async function reassignClinicsAction(
   return { saved: true };
 }
 
-/** Deletes a super-admin (owner-only). SOFT delete + revoke sessions; frees the
- *  username. Can't delete yourself (guarantees at least one owner remains). */
-export async function deleteSuperAdminAction(userId: string): Promise<TeamActionState> {
-  const actor = await requireTeamManager();
+/** Deletes a super-admin (needs `team:delete`). SOFT delete + revoke sessions;
+ *  frees the username. Requires the actor to re-type their OWN password (step-up
+ *  auth). Can't delete yourself (guarantees at least one owner remains). */
+export async function deleteSuperAdminAction(
+  userId: string,
+  password: string,
+): Promise<TeamActionState> {
+  const actor = await requireAdminCapability("team:delete");
   if (userId === actor.id) return { error: "You can't delete your own account." };
   const blocked = await ownerGuard(actor, userId);
   if (blocked) return { error: blocked };
+  // Step-up: re-prove the signed-in admin's password before a destructive delete.
+  if (!(await verifyCurrentUserPassword(password))) {
+    return { error: "Incorrect password." };
+  }
 
   await db.transaction(async (tx) => {
     await tx

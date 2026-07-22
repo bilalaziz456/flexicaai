@@ -1,9 +1,9 @@
 import { and, eq, isNotNull } from "drizzle-orm";
-import { requireTeamManager } from "@/core/auth/user";
+import { requireAdminCapability } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { users } from "@/core/db/schema";
-import { adminAccountState, adminSubRoleOf, isOwner } from "@/core/auth/admin-permissions";
+import { adminAccountState, adminSubRoleOf, canAdmin, isOwner } from "@/core/auth/admin-permissions";
 import {
   Card,
   CardContent,
@@ -14,11 +14,14 @@ import {
 import { AddTeamMember } from "./add-team";
 import { TeamList } from "./team-list";
 
-/** Team management (owner or super_admin). The OWNER account is hidden from
- *  non-owner viewers — only the owner sees/manages the owner (Feature 9). */
+/** Team management — gated on the `team:view` capability (owner + super_admin by
+ *  default; grantable to others). The Add form needs `team:create`. The OWNER
+ *  account is hidden from non-owner viewers — only the owner sees/manages the
+ *  owner (Feature 9). */
 export default async function TeamPage() {
-  const viewer = await requireTeamManager();
+  const viewer = await requireAdminCapability("team:view");
   const viewerIsOwner = isOwner(viewer);
+  const canCreate = canAdmin(viewer, "team:create");
 
   const rows = await db
     .select({
@@ -53,7 +56,7 @@ export default async function TeamPage() {
         </p>
       </div>
 
-      <AddTeamMember />
+      {canCreate ? <AddTeamMember /> : null}
 
       <Card>
         <CardHeader>

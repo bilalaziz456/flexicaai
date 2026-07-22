@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { requireRole } from "@/core/auth/user";
-import { adminCapabilitySet, canManageTeam } from "@/core/auth/admin-permissions";
+import { adminCapabilitySet } from "@/core/auth/admin-permissions";
 import { getThemeCookie } from "@/core/theme/server";
 import { displayStaffName, staffInitials } from "@/core/types/auth";
 import { PanelShell } from "@/core/ui/panel-shell";
@@ -29,7 +29,6 @@ export default async function AdminLayout({
       avatarVersion={user.avatarKey ?? "none"}
       theme={theme}
       adminCapabilities={[...adminCapabilitySet(user)]}
-      canManageTeam={canManageTeam(user)}
     >
       {children}
     </PanelShell>

@@ -53,8 +53,6 @@ type NavItem = {
   resource?: string;
   /** ADMIN panel: required admin capability slug; hidden if the user lacks it. */
   cap?: string;
-  /** ADMIN panel: only a team manager (owner or super_admin) sees this item. */
-  teamManager?: boolean;
 };
 
 /** A collapsible parent tab that groups related items under a ">" disclosure. */
@@ -116,7 +114,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; nodes: NavNode[] }> = {
       { href: "/admin", label: "Clinics", Icon: Building2, exact: true, cap: "clinics:view" },
       { href: "/admin/logs", label: "Activity log", Icon: ScrollText },
       { href: "/admin/announcements", label: "Announcements", Icon: Megaphone, cap: "announcements:view" },
-      { href: "/admin/team", label: "Team", Icon: Users, teamManager: true },
+      { href: "/admin/team", label: "Team", Icon: Users, cap: "team:view" },
       { href: "/admin/security", label: "Security", Icon: ShieldCheck },
       { href: "/admin/account", label: "Account settings", Icon: UserCog, cap: "account:view" },
       { href: "/admin/trash", label: "Trash", Icon: Trash2, cap: "clinics:edit" },
@@ -218,7 +216,6 @@ export function PanelShell({
   approvalsEnabled = false,
   accessibleResources,
   adminCapabilities,
-  canManageTeam = false,
   banner,
   children,
 }: {
@@ -253,8 +250,6 @@ export function PanelShell({
   /** ADMIN panel: the super-admin's capability slugs — nav items tagged with a
    *  `cap` the user lacks are hidden. Omit for the owner (sees everything). */
   adminCapabilities?: readonly string[];
-  /** ADMIN panel: whether the user is an owner (sees `ownerOnly` items). */
-  canManageTeam?: boolean;
   /** A full-width bar rendered above the content (e.g. the impersonation banner). */
   banner?: React.ReactNode;
   children: React.ReactNode;
@@ -268,8 +263,8 @@ export function PanelShell({
   // per-user permissions (a resource-tagged item needs access to that resource).
   const adminCaps = adminCapabilities ? new Set(adminCapabilities) : null;
   const visible = (i: NavItem): boolean => {
-    // ADMIN panel: gate by admin capability / owner (Feature 9).
-    if (i.teamManager) return canManageTeam;
+    // ADMIN panel: gate by admin capability (Feature 9). Owner has adminCaps=null
+    // → every cap-tagged item shows.
     if (i.cap && adminCaps && !adminCaps.has(i.cap)) return false;
     if (i.href === "/clinic/logs") return logsEnabled;
     if (i.href === "/clinic/approvals") return approvalsEnabled;

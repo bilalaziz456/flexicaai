@@ -5,7 +5,7 @@ import { getSession, getSessionUser } from "@/core/auth/session";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { isClinicUsable } from "@/core/clinics/status";
 import { can, VIEW_ONLY_CAPABILITIES, type PermAction } from "@/core/auth/permissions";
-import { canAdmin, canManageTeam } from "@/core/auth/admin-permissions";
+import { canAdmin } from "@/core/auth/admin-permissions";
 import {
   ROLE_HOME_ROUTE,
   type CurrentUser,
@@ -140,13 +140,6 @@ export async function requireAdminCapability(
 ): Promise<CurrentUser> {
   const user = await requireRole("super_admin");
   if (!canAdmin(user, capability)) redirect("/admin");
-  return user;
-}
-
-/** Guards a team-management action/page — owner OR super_admin (Feature 9). */
-export async function requireTeamManager(): Promise<CurrentUser> {
-  const user = await requireRole("super_admin");
-  if (!canManageTeam(user)) redirect("/admin");
   return user;
 }
 
