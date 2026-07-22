@@ -13,6 +13,7 @@ import {
 import type { AdminAccountState } from "@/core/auth/admin-permissions";
 import { Button } from "@/core/ui/button";
 import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
+import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { PasswordInput } from "@/core/ui/password-input";
@@ -98,30 +99,27 @@ export function DangerActions({
       {/* Active → Suspend (keeps clinics). Suspended → Deactivate (unassigns) /
           Reactivate. Deactivated → Reactivate. (team:edit) */}
       {canEdit && state === "active" ? (
-        <Button
-          type="button"
-          variant="outline"
-          disabled={pending}
-          onClick={() =>
-            confirm("Suspend this member? They can't log in; their clinics stay assigned.") &&
-            run(() => suspendMemberAction(userId))
-          }
-        >
-          Suspend
-        </Button>
+        <ConfirmDialog
+          triggerLabel="Suspend"
+          triggerVariant="outline"
+          triggerDisabled={pending}
+          title="Suspend team member"
+          description="They won't be able to log in. Their clinics stay assigned to them — you can reactivate them anytime."
+          confirmLabel="Suspend"
+          onConfirm={() => suspendMemberAction(userId)}
+        />
       ) : null}
       {canEdit && state === "suspended" ? (
-        <Button
-          type="button"
-          variant="outline"
-          disabled={pending}
-          onClick={() =>
-            confirm("Deactivate this member? Their clinics will be UNASSIGNED.") &&
-            run(() => deactivateMemberAction(userId))
-          }
-        >
-          Deactivate (unassign clinics)
-        </Button>
+        <ConfirmDialog
+          triggerLabel="Deactivate (unassign clinics)"
+          triggerVariant="outline"
+          triggerDisabled={pending}
+          title="Deactivate team member"
+          description="They won't be able to log in, AND every clinic they manage will be unassigned. You can reactivate them later, but the clinic assignments won't come back automatically."
+          confirmLabel="Deactivate"
+          confirmVariant="destructive"
+          onConfirm={() => deactivateMemberAction(userId)}
+        />
       ) : null}
       {canEdit && state !== "active" ? (
         <Button type="button" variant="outline" disabled={pending} onClick={() => run(() => reactivateMemberAction(userId))}>
