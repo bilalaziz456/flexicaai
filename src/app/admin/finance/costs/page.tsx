@@ -1,6 +1,8 @@
 import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin } from "@/core/auth/admin-permissions";
 import { computeServingCost, getCostRates } from "@/core/admin/cost";
+import { resolveSalesRange } from "@/core/sales/report";
+import { MultiBarChart } from "@/app/clinic/sales/multi-bar-chart";
 import {
   Card,
   CardContent,
@@ -16,27 +18,40 @@ import {
   TableHeader,
   TableRow,
 } from "@/core/ui/table";
+import { CostFilters } from "./cost-filters";
 import { CostRatesForm } from "./cost-rates-form";
 
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 
 /**
  * Owner Finance — serving-cost tracking (Phase 1). Klenic's estimated variable cost
- * (AI scribe + WhatsApp) this month, per clinic + total, driven by the configurable
- * unit rates. Gated by `finance:view`; rate editing by `finance:edit`.
+ * (AI scribe + WhatsApp) over a chosen period, with a scribe-vs-WhatsApp cost trend
+ * and a per-clinic breakdown, driven by the configurable unit rates. Gated by
+ * `finance:view`; rate editing by `finance:edit`.
  */
-export default async function CostsPage() {
+export default async function CostsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
+}) {
   const user = await requireAdminCapability("finance:view");
   const canEdit = canAdmin(user, "finance:edit");
 
-  const now = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth(), 1);
-  const [rates, cost] = await Promise.all([
-    getCostRates(),
-    computeServingCost({ from, to: now }),
-  ]);
-  const monthLabel = from.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const sp = await searchParams;
+  const range = resolveSalesRange(sp.period ?? "30d", sp.from, sp.to);
+  const [rates, cost] = await Promise.all([getCostRates(), computeServingCost(range)]);
+  const rangeLabel = `${range.from} → ${range.to}`;
   const notConfigured = rates.effectiveFrom === null || rates.usdToPkr === 0;
+
+  const chartPoints = cost.trend.map((b) => ({
+    label: b.label,
+    values: { scribe: b.scribeCostPkr, whatsapp: b.whatsappCostPkr },
+  }));
+  const chartSeries = [
+    { key: "scribe", label: "AI scribe", color: "#6366f1" },
+    { key: "whatsapp", label: "WhatsApp", color: "#22c55e" },
+  ];
+  const hasTrend = cost.trend.some((b) => b.costPkr > 0);
 
   return (
     <div className="space-y-6">
@@ -44,9 +59,11 @@ export default async function CostsPage() {
         <h1 className="text-xl font-semibold">Company finance — serving cost</h1>
         <p className="text-sm text-muted-foreground">
           Klenic&apos;s estimated variable cost of serving clinics (AI scribe + WhatsApp).
-          Counts × your unit rates — {monthLabel}.
+          Counts × your unit rates.
         </p>
       </div>
+
+      <CostFilters period={range.period} from={range.from} to={range.to} />
 
       {notConfigured ? (
         <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
@@ -54,10 +71,10 @@ export default async function CostsPage() {
         </div>
       ) : null}
 
-      {/* This-month cost KPIs */}
+      {/* Cost KPIs for the range */}
       <div className="grid gap-3 sm:grid-cols-3">
         <Card>
-          <CardHeader className="pb-2"><CardDescription>Estimated cost ({monthLabel})</CardDescription></CardHeader>
+          <CardHeader className="pb-2"><CardDescription>Estimated cost</CardDescription></CardHeader>
           <CardContent><div className="text-2xl font-semibold tabular-nums">{rs(cost.totalCostPkr)}</div></CardContent>
         </Card>
         <Card>
@@ -69,6 +86,21 @@ export default async function CostsPage() {
           <CardContent><div className="text-2xl font-semibold tabular-nums">{cost.totalWhatsappMsgs.toLocaleString("en-PK")}</div></CardContent>
         </Card>
       </div>
+
+      {/* Cost trend */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Cost trend</CardTitle>
+          <CardDescription>Estimated cost by period — AI scribe vs WhatsApp ({rangeLabel}).</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {hasTrend ? (
+            <MultiBarChart points={chartPoints} series={chartSeries} ariaLabel="Serving cost by period" />
+          ) : (
+            <p className="py-6 text-center text-sm text-muted-foreground">No usage in this period yet.</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Rates */}
       <Card>
@@ -96,12 +128,12 @@ export default async function CostsPage() {
       {/* Per-clinic breakdown */}
       <Card>
         <CardHeader>
-          <CardTitle>Cost by clinic ({monthLabel})</CardTitle>
-          <CardDescription>Highest cost first. Estimate — counts × the current rates.</CardDescription>
+          <CardTitle>Cost by clinic</CardTitle>
+          <CardDescription>Highest cost first ({rangeLabel}). Estimate — counts × the current rates.</CardDescription>
         </CardHeader>
         <CardContent>
           {cost.perClinic.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">No scribe or WhatsApp usage this month yet.</p>
+            <p className="py-4 text-center text-sm text-muted-foreground">No scribe or WhatsApp usage in this period yet.</p>
           ) : (
             <Table>
               <TableHeader>
