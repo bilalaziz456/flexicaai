@@ -1505,6 +1505,34 @@ export const treatmentPlanItems = pgTable(
   ],
 );
 
+/**
+ * `announcements` — super-admin → clinic notices (Feature 10). `clinic_id` NULL =
+ * broadcast to ALL clinics; else targeted to one. Shown in the clinic notice bar
+ * while `active` and within the optional starts_at/ends_at window. Platform data
+ * (super-admin's own content), not tenant clinical data — hard-deletable.
+ */
+export const announcements = pgTable(
+  "announcements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id").references(() => clinics.id, { onDelete: "cascade" }), // NULL = all
+    level: text("level").notNull().default("info"), // info | warning
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    active: boolean("active").notNull().default(true),
+    startsAt: timestamp("starts_at", { withTimezone: true }),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    createdBy: uuid("created_by"),
+    createdByName: text("created_by_name"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("announcements_clinic_idx").on(t.clinicId),
+    index("announcements_active_idx").on(t.active),
+  ],
+);
+
 // Inferred row types for use across the app.
 export type Clinic = typeof clinics.$inferSelect;
 export type PatientMedicalHistory = typeof patientMedicalHistory.$inferSelect;
@@ -1515,6 +1543,7 @@ export type ActivityLog = typeof activityLogs.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type ClinicPayment = typeof clinicPayments.$inferSelect;
+export type Announcement = typeof announcements.$inferSelect;
 export type Procedure = typeof procedures.$inferSelect;
 export type DoctorProcedureShare = typeof doctorProcedureShares.$inferSelect;
 export type AppointmentDiscountApproval =

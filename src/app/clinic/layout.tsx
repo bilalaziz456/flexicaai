@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
-import { AlertTriangle, ShieldAlert } from "lucide-react";
+import { AlertTriangle, Megaphone, ShieldAlert } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { endImpersonation } from "@/app/admin/actions";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { getClinicBalanceSummary } from "@/core/admin/billing";
+import { listActiveForClinic } from "@/core/admin/announcements";
 import { getThemeCookie } from "@/core/theme/server";
 import { clinicHasFeature } from "@/core/lib/features";
 import { getUnreadCount } from "@/core/notifications/in-app";
@@ -105,6 +106,28 @@ export default async function ClinicLayout({
         </div>,
       );
     }
+  }
+
+  // Super-admin announcements (Feature 10): global + clinic-targeted, active + in window.
+  const announcements = await listActiveForClinic(user.clinicId);
+  for (const a of announcements) {
+    const warn = a.level === "warning";
+    notices.push(
+      <div
+        key={`ann-${a.id}`}
+        className={
+          "flex items-start gap-2 border-b px-4 py-2 text-sm " +
+          (warn
+            ? "border-amber-500/40 bg-amber-500/15 text-amber-900 dark:text-amber-100"
+            : "border-sky-500/40 bg-sky-500/15 text-sky-900 dark:text-sky-100")
+        }
+      >
+        <Megaphone className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <span>
+          <span className="font-semibold">{a.title}</span> — {a.body}
+        </span>
+      </div>,
+    );
   }
 
   const banner = notices.length ? <>{notices}</> : null;
