@@ -97,30 +97,53 @@ export async function createSuperAdminAction(
   return { saved: true };
 }
 
-/** Suspends / reactivates a super-admin (owner-only). Can't suspend yourself. */
-export async function setSuperAdminActiveAction(
-  userId: string,
-  isActive: boolean,
-): Promise<TeamActionState> {
+/** Shared guard for the state actions: team-manager, not self, not the owner. */
+async function guardStateChange(userId: string) {
   const actor = await requireTeamManager();
-  if (userId === actor.id) return { error: "You can't suspend your own account." };
+  if (userId === actor.id) return { error: "You can't change your own account state." as const };
   const blocked = await ownerGuard(actor, userId);
   if (blocked) return { error: blocked };
+  return { actor };
+}
 
+/** SUSPEND — temporary: block login (revoke sessions), KEEP their clinics. */
+export async function suspendMemberAction(userId: string): Promise<TeamActionState> {
+  const g = await guardStateChange(userId);
+  if ("error" in g) return { error: g.error };
   await db.transaction(async (tx) => {
-    await tx
-      .update(users)
-      .set({ isActive, updatedAt: new Date() })
-      .where(eq(users.id, userId));
-    if (!isActive) await tx.delete(sessions).where(eq(sessions.userId, userId));
+    await tx.update(users).set({ isActive: false, deactivatedAt: null, updatedAt: new Date() }).where(eq(users.id, userId));
+    await tx.delete(sessions).where(eq(sessions.userId, userId));
   });
-  await logActivity({
-    action: "update",
-    entity: "staff",
-    entityId: userId,
-    summary: isActive ? "Reactivated a super-admin" : "Suspended a super-admin",
-  });
+  await logActivity({ action: "update", entity: "staff", entityId: userId, summary: "Suspended a team member" });
   revalidatePath("/admin/team");
+  revalidatePath(`/admin/team/${userId}`);
+  return { saved: true };
+}
+
+/** DEACTIVATE — stronger: block login AND unassign every clinic they managed. */
+export async function deactivateMemberAction(userId: string): Promise<TeamActionState> {
+  const g = await guardStateChange(userId);
+  if ("error" in g) return { error: g.error };
+  await db.transaction(async (tx) => {
+    await tx.update(users).set({ isActive: false, deactivatedAt: new Date(), updatedAt: new Date() }).where(eq(users.id, userId));
+    await tx.delete(sessions).where(eq(sessions.userId, userId));
+    await tx.update(clinics).set({ assignedTo: null, updatedAt: new Date() }).where(eq(clinics.assignedTo, userId));
+  });
+  await logActivity({ action: "update", entity: "staff", entityId: userId, summary: "Deactivated a team member (clinics unassigned)" });
+  revalidatePath("/admin/team");
+  revalidatePath(`/admin/team/${userId}`);
+  revalidatePath("/admin");
+  return { saved: true };
+}
+
+/** REACTIVATE — restore login (clinics stay wherever they are now). */
+export async function reactivateMemberAction(userId: string): Promise<TeamActionState> {
+  const g = await guardStateChange(userId);
+  if ("error" in g) return { error: g.error };
+  await db.update(users).set({ isActive: true, deactivatedAt: null, updatedAt: new Date() }).where(eq(users.id, userId));
+  await logActivity({ action: "update", entity: "staff", entityId: userId, summary: "Reactivated a team member" });
+  revalidatePath("/admin/team");
+  revalidatePath(`/admin/team/${userId}`);
   return { saved: true };
 }
 

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { users } from "@/core/db/schema";
@@ -19,7 +19,9 @@ export async function listAssignableTeam(): Promise<TeamMemberOption[]> {
   const rows = await db
     .select({ id: users.id, fullName: users.fullName, username: users.username, isActive: users.isActive })
     .from(users)
-    .where(and(eq(users.role, "super_admin"), notDeleted(users.deletedAt)))
+    // Active + suspended (suspended keep their clinics, so must still show); exclude
+    // DEACTIVATED (no clinics) + deleted.
+    .where(and(eq(users.role, "super_admin"), notDeleted(users.deletedAt), isNull(users.deactivatedAt)))
     .orderBy(users.username);
   return rows.map((r) => ({
     id: r.id,

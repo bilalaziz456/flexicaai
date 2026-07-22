@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import type { AdminSubRole } from "@/core/auth/admin-permissions";
+import type { AdminAccountState, AdminSubRole } from "@/core/auth/admin-permissions";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
@@ -19,7 +19,7 @@ export type TeamMember = {
   id: string;
   username: string;
   fullName: string | null;
-  isActive: boolean;
+  state: AdminAccountState;
   subRole: AdminSubRole | "custom";
   isSelf: boolean;
 };
@@ -35,8 +35,7 @@ export function TeamList({ members }: { members: TeamMember[] }) {
     return members.filter((m) => {
       if (query && !`${m.fullName ?? ""} ${m.username}`.toLowerCase().includes(query)) return false;
       if (role !== "all" && m.subRole !== role) return false;
-      if (status === "active" && !m.isActive) return false;
-      if (status === "suspended" && m.isActive) return false;
+      if (status !== "all" && m.state !== status) return false;
       return true;
     });
   }, [members, q, role, status]);
@@ -62,6 +61,7 @@ export function TeamList({ members }: { members: TeamMember[] }) {
           <option value="all">All statuses</option>
           <option value="active">Active</option>
           <option value="suspended">Suspended</option>
+          <option value="deactivated">Deactivated</option>
         </select>
       </div>
 
@@ -81,7 +81,9 @@ export function TeamList({ members }: { members: TeamMember[] }) {
                 <span className="text-sm text-muted-foreground">@{m.username}</span>
                 <Badge variant="secondary" className="capitalize">{m.subRole}</Badge>
                 {m.isSelf ? <Badge variant="outline">you</Badge> : null}
-                {!m.isActive ? <span className="text-xs text-muted-foreground">suspended</span> : null}
+                {m.state !== "active" ? (
+                  <span className="text-xs text-amber-600 dark:text-amber-400 capitalize">{m.state}</span>
+                ) : null}
               </div>
               <Link
                 href={`/admin/team/${m.id}`}

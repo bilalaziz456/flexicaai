@@ -3,7 +3,7 @@ import { requireTeamManager } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { users } from "@/core/db/schema";
-import { adminSubRoleOf, isOwner } from "@/core/auth/admin-permissions";
+import { adminAccountState, adminSubRoleOf, isOwner } from "@/core/auth/admin-permissions";
 import {
   Card,
   CardContent,
@@ -26,6 +26,7 @@ export default async function TeamPage() {
       username: users.username,
       fullName: users.fullName,
       isActive: users.isActive,
+      deactivatedAt: users.deactivatedAt,
       permissions: users.permissions,
       role: users.role,
     })
@@ -64,7 +65,7 @@ export default async function TeamPage() {
               id: u.id,
               username: u.username,
               fullName: u.fullName,
-              isActive: u.isActive,
+              state: adminAccountState(u),
               subRole: adminSubRoleOf(u),
               isSelf: u.id === viewer.id,
             }))}

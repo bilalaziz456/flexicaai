@@ -210,6 +210,11 @@ export const users = pgTable(
     // NULL. Served (self-only) via GET /api/me/avatar.
     avatarKey: text("avatar_key"),
     isActive: boolean("is_active").notNull().default(true),
+    // Distinguishes the two inactive states for team members (both have
+    // is_active=false): NULL = SUSPENDED (temporary, keeps their clinic
+    // assignments); set = DEACTIVATED (their clinics were unassigned). Reactivating
+    // clears it. (core/auth/admin-permissions.ts adminAccountState)
+    deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
     // Set true when an admin creates the account with a temporary password;
     // cleared once the user sets their own (forced on first login).
     mustChangePassword: boolean("must_change_password").notNull().default(false),

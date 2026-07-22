@@ -7,6 +7,7 @@ import { notDeleted } from "@/core/db/tenant";
 import { clinics, users } from "@/core/db/schema";
 import {
   ADMIN_SUBROLE_META,
+  adminAccountState,
   adminCapabilitySet,
   adminSubRoleOf,
   isOwner,
@@ -40,6 +41,7 @@ export default async function TeamMemberPage({
       username: users.username,
       fullName: users.fullName,
       isActive: users.isActive,
+      deactivatedAt: users.deactivatedAt,
       permissions: users.permissions,
       role: users.role,
     })
@@ -62,6 +64,7 @@ export default async function TeamMemberPage({
 
   const isSelf = member.id === viewer.id;
   const subRole = adminSubRoleOf(member);
+  const accountState = adminAccountState(member);
   const caps = [...adminCapabilitySet(member)];
 
   return (
@@ -75,7 +78,11 @@ export default async function TeamMemberPage({
           <span className="text-muted-foreground">@{member.username}</span>
           <Badge variant="secondary" className="capitalize">{subRole}</Badge>
           {isSelf ? <Badge variant="outline">you</Badge> : null}
-          {!member.isActive ? <span className="text-xs text-muted-foreground">suspended</span> : null}
+          {accountState !== "active" ? (
+            <Badge variant="outline" className="border-transparent bg-amber-500/10 text-amber-600 dark:text-amber-400 capitalize">
+              {accountState}
+            </Badge>
+          ) : null}
         </div>
       </div>
 
@@ -153,7 +160,7 @@ export default async function TeamMemberPage({
             <CardDescription>Suspend cuts access immediately; delete removes the account.</CardDescription>
           </CardHeader>
           <CardContent>
-            <DangerActions userId={member.id} isActive={member.isActive} />
+            <DangerActions userId={member.id} state={accountState} />
           </CardContent>
         </Card>
       ) : null}

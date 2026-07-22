@@ -3,12 +3,15 @@
 import { useActionState, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  deactivateMemberAction,
   deleteSuperAdminAction,
   editTeamMemberProfileAction,
+  reactivateMemberAction,
   resetTeamMemberPasswordAction,
-  setSuperAdminActiveAction,
+  suspendMemberAction,
   type TeamActionState,
 } from "../actions";
+import type { AdminAccountState } from "@/core/auth/admin-permissions";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
@@ -67,7 +70,7 @@ export function PasswordResetForm({ userId }: { userId: string }) {
   );
 }
 
-export function DangerActions({ userId, isActive }: { userId: string; isActive: boolean }) {
+export function DangerActions({ userId, state }: { userId: string; state: AdminAccountState }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -82,20 +85,45 @@ export function DangerActions({ userId, isActive }: { userId: string; isActive: 
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <Button
-        type="button"
-        variant="outline"
-        disabled={pending}
-        onClick={() => run(() => setSuperAdminActiveAction(userId, !isActive))}
-      >
-        {isActive ? "Suspend account" : "Reactivate account"}
-      </Button>
+      {/* Active → Suspend (keeps clinics). Suspended → Deactivate (unassigns) /
+          Reactivate. Deactivated → Reactivate. */}
+      {state === "active" ? (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={pending}
+          onClick={() =>
+            confirm("Suspend this member? They can't log in; their clinics stay assigned.") &&
+            run(() => suspendMemberAction(userId))
+          }
+        >
+          Suspend
+        </Button>
+      ) : null}
+      {state !== "deactivated" && state !== "active" ? (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={pending}
+          onClick={() =>
+            confirm("Deactivate this member? Their clinics will be UNASSIGNED.") &&
+            run(() => deactivateMemberAction(userId))
+          }
+        >
+          Deactivate (unassign clinics)
+        </Button>
+      ) : null}
+      {state !== "active" ? (
+        <Button type="button" variant="outline" disabled={pending} onClick={() => run(() => reactivateMemberAction(userId))}>
+          Reactivate
+        </Button>
+      ) : null}
       <Button
         type="button"
         variant="destructive"
         disabled={pending}
         onClick={() => {
-          if (confirm("Delete this team member? Their access is removed immediately.")) {
+          if (confirm("Delete this team member? Their access is removed and their clinics unassigned.")) {
             run(() => deleteSuperAdminAction(userId), true);
           }
         }}

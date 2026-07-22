@@ -95,6 +95,14 @@ export function isOwner(user: AdminUser): boolean {
   return user.role === "super_admin" && user.permissions == null;
 }
 
+/** Team member account state. Both inactive states block login; `deactivated`
+ *  additionally had its clinic assignments cleared. */
+export type AdminAccountState = "active" | "suspended" | "deactivated";
+export function adminAccountState(user: { isActive: boolean; deactivatedAt: Date | null }): AdminAccountState {
+  if (user.isActive) return "active";
+  return user.deactivatedAt ? "deactivated" : "suspended";
+}
+
 /** May manage the company team — owner OR super_admin (i.e. holds every capability). */
 export function canManageTeam(user: AdminUser): boolean {
   return adminCapabilitySet(user).size === ADMIN_CAPABILITY_IDS.length;
