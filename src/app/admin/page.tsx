@@ -13,7 +13,7 @@ import { listAssignableTeam } from "@/core/admin/assignment";
 import { getCompanyMetrics } from "@/core/admin/metrics";
 import { ClinicStatusBadge } from "./clinics/status-badge";
 import { CompanyMetricsPanel } from "./company-metrics";
-import { AssigneeFilter } from "./assignee-filter";
+import { ClinicsFilters } from "./clinics-filters";
 import { buttonVariants } from "@/core/ui/button";
 import { Badge } from "@/core/ui/badge";
 import { cn } from "@/core/lib/utils";
@@ -21,7 +21,6 @@ import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { Pagination } from "@/core/ui/pagination";
 import { FlashToast } from "@/core/ui/toast";
 import { RowLink } from "@/core/ui/row-link";
-import { ClinicsSearch } from "./clinics-search";
 import {
   Table,
   TableBody,
@@ -130,19 +129,6 @@ export default async function AdminHome({
     assigneeName: r.assigneeName ?? r.assigneeUsername,
   }));
 
-  // Build an /admin href preserving the current filters, applying `overrides`.
-  const filterHref = (overrides: Record<string, string | undefined>) => {
-    const merged: Record<string, string | undefined> = {
-      q: query,
-      status: statusFilter,
-      assigned: assignedFilter,
-      billing: billingFilter,
-      ...overrides,
-    };
-    const params = new URLSearchParams();
-    for (const [k, v] of Object.entries(merged)) if (v) params.set(k, v);
-    return params.toString() ? `/admin?${params.toString()}` : "/admin";
-  };
 
   return (
     <div className="space-y-6">
@@ -204,67 +190,22 @@ export default async function AdminHome({
         </div>
       ) : null}
 
-      <ClinicsSearch initial={query ?? ""} />
-
-      {/* Status filter (lifecycle) — preserves the other filters. */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        {[{ id: undefined, label: "All" }, ...CLINIC_STATUSES.map((s) => ({ id: s, label: CLINIC_STATUS_LABEL[s] }))].map(
-          (opt) => {
-            const active = statusFilter === opt.id || (!statusFilter && opt.id === undefined);
-            const href = filterHref({ status: opt.id });
-            return (
-              <Link
-                key={opt.label}
-                href={href}
-                className={cn(
-                  buttonVariants({ variant: active ? "default" : "outline", size: "sm" }),
-                  "h-7 px-2.5 text-xs",
-                )}
-              >
-                {opt.label}
-              </Link>
-            );
-          },
-        )}
-      </div>
-
-      {/* Billing filter (by computed health) + account-manager filter. */}
-      <div className="flex flex-wrap items-center gap-3">
-        {showBilling ? (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Billing:</span>
-            {[
-              { id: undefined, label: "All" },
-              { id: "due", label: "Due" },
-              { id: "overdue", label: "Overdue" },
-            ].map((opt) => {
-              const active = billingFilter === opt.id || (!billingFilter && opt.id === undefined);
-              const href = filterHref({ billing: opt.id });
-              return (
-                <Link
-                  key={opt.label}
-                  href={href}
-                  className={cn(
-                    buttonVariants({ variant: active ? "default" : "outline", size: "sm" }),
-                    "h-7 px-2.5 text-xs",
-                  )}
-                >
-                  {opt.label}
-                </Link>
-              );
-            })}
-          </div>
-        ) : null}
-
-        {seesAll ? (
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Manager:</span>
-            <AssigneeFilter team={team} value={assignedFilter ?? ""} />
-          </div>
-        ) : (
-          <span className="text-xs text-muted-foreground">Showing your assigned clinics.</span>
-        )}
-      </div>
+      <ClinicsFilters
+        q={query ?? ""}
+        status={statusFilter ?? ""}
+        billing={billingFilter ?? ""}
+        assigned={assignedFilter ?? ""}
+        statusOptions={[
+          { value: "", label: "All statuses" },
+          ...CLINIC_STATUSES.map((s) => ({ value: s, label: CLINIC_STATUS_LABEL[s] })),
+        ]}
+        showBilling={showBilling}
+        showManager={seesAll}
+        team={team}
+      />
+      {!seesAll ? (
+        <p className="text-xs text-muted-foreground">Showing your assigned clinics.</p>
+      ) : null}
 
       <Pagination
         page={page}
