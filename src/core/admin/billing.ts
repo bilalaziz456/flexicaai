@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, gt, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { unscoped } from "@/core/db/tenant-guard";
@@ -320,7 +320,7 @@ export async function listDueClinics(): Promise<OverdueClinic[]> {
         assigneeUsername: users.username,
       })
       .from(clinics)
-      .leftJoin(users, eq(clinics.assignedTo, users.id))
+      .leftJoin(users, and(eq(clinics.assignedTo, users.id), isNull(users.deletedAt)))
       .where(and(notDeleted(clinics.deletedAt), gt(clinics.monthlyPrice, 0)));
     if (cs.length === 0) return [];
 

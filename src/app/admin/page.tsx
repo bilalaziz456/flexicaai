@@ -115,7 +115,7 @@ export default async function AdminHome({
     db
       .select({ clinic: clinics, assigneeName: users.fullName, assigneeUsername: users.username })
       .from(clinics)
-      .leftJoin(users, eq(clinics.assignedTo, users.id))
+      .leftJoin(users, and(eq(clinics.assignedTo, users.id), isNull(users.deletedAt)))
       .where(where)
       .orderBy(desc(clinics.createdAt))
       .limit(pageSize)

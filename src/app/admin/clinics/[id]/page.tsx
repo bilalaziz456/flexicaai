@@ -196,7 +196,11 @@ export default async function ClinicDetailPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ClinicAssignee clinicId={clinic.id} assignedTo={clinic.assignedTo} team={team} />
+          <ClinicAssignee
+            clinicId={clinic.id}
+            assignedTo={team.some((m) => m.id === clinic.assignedTo) ? clinic.assignedTo : null}
+            team={team}
+          />
         </CardContent>
       </Card>
 

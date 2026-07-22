@@ -15,7 +15,7 @@ import {
 import type { CurrentUser } from "@/core/types/auth";
 import { db } from "@/core/db";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
-import { sessions, users } from "@/core/db/schema";
+import { clinics, sessions, users } from "@/core/db/schema";
 import { logActivity } from "@/core/audit/log";
 import { USERNAME_REGEX } from "@/core/types/auth";
 
@@ -250,6 +250,9 @@ export async function deleteSuperAdminAction(userId: string): Promise<TeamAction
       .set(softDeleteValues(actor.id, newDeleteGroup()))
       .where(eq(users.id, userId));
     await tx.delete(sessions).where(eq(sessions.userId, userId));
+    // Unassign any clinics they managed — a deleted member can't be the account
+    // manager (soft-delete leaves the row, so the FK's set-null won't fire).
+    await tx.update(clinics).set({ assignedTo: null, updatedAt: new Date() }).where(eq(clinics.assignedTo, userId));
   });
   await logActivity({
     action: "delete",
