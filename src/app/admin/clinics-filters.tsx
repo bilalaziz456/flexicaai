@@ -9,6 +9,7 @@ import {
   filterFieldCls,
   filterLabelCls,
 } from "@/app/clinic/sales/sales-filters";
+import { SearchableSelect } from "@/core/ui/searchable-select";
 
 type Opt = { value: string; label: string };
 
@@ -109,12 +110,13 @@ export function ClinicsFilters({
         />
       ) : null}
       {showManager ? (
-        <FilterSelect
+        <SearchableSelect
           label="Account manager"
           ariaLabel="Filter by account manager"
           value={assignedV}
-          items={asItems(managerOptions)}
           options={managerOptions}
+          placeholder="Any manager"
+          searchPlaceholder="Search team…"
           onChange={(v) => {
             setAssignedV(v);
             push({ assigned: v });
