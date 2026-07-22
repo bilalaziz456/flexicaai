@@ -32,7 +32,7 @@ export function ReassignClinics({
     });
 
   const options = [
-    { value: "", label: "Unassign (no manager)" },
+    { value: "", label: "Unassign" },
     ...team.map((m) => ({ value: m.id, label: m.name })),
   ];
 
