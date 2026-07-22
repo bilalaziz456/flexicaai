@@ -7,6 +7,7 @@ import type { AdminSubRole } from "@/core/auth/admin-permissions";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
+import { RowLink } from "@/core/ui/row-link";
 import { cn } from "@/core/lib/utils";
 
 const selectClass = cn(
@@ -69,7 +70,12 @@ export function TeamList({ members }: { members: TeamMember[] }) {
       ) : (
         <ul className="divide-y">
           {filtered.map((m) => (
-            <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <RowLink
+              key={m.id}
+              as="li"
+              href={`/admin/team/${m.id}`}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-md px-2 py-3"
+            >
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{m.fullName ?? m.username}</span>
                 <span className="text-sm text-muted-foreground">@{m.username}</span>
@@ -84,7 +90,7 @@ export function TeamList({ members }: { members: TeamMember[] }) {
                 Open
                 <ChevronRight className="size-4" aria-hidden="true" />
               </Link>
-            </li>
+            </RowLink>
           ))}
         </ul>
       )}
