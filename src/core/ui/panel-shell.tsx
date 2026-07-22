@@ -51,6 +51,10 @@ type NavItem = {
   exact?: boolean;
   /** Permission resource this item maps to; hidden if the user can't access it. */
   resource?: string;
+  /** ADMIN panel: required admin capability slug; hidden if the user lacks it. */
+  cap?: string;
+  /** ADMIN panel: only the owner (all capabilities) sees this item. */
+  ownerOnly?: boolean;
 };
 
 /** A collapsible parent tab that groups related items under a ">" disclosure. */
@@ -109,12 +113,12 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; nodes: NavNode[] }> = {
   admin: {
     brand: "/admin",
     nodes: [
-      { href: "/admin", label: "Clinics", Icon: Building2, exact: true },
+      { href: "/admin", label: "Clinics", Icon: Building2, exact: true, cap: "clinics:view" },
       { href: "/admin/logs", label: "Activity log", Icon: ScrollText },
-      { href: "/admin/announcements", label: "Announcements", Icon: Megaphone },
-      { href: "/admin/team", label: "Team", Icon: Users },
+      { href: "/admin/announcements", label: "Announcements", Icon: Megaphone, cap: "announcements:view" },
+      { href: "/admin/team", label: "Team", Icon: Users, ownerOnly: true },
       { href: "/admin/security", label: "Security", Icon: ShieldCheck },
-      { href: "/admin/trash", label: "Trash", Icon: Trash2 },
+      { href: "/admin/trash", label: "Trash", Icon: Trash2, cap: "clinics:edit" },
     ],
   },
   clinic: {
@@ -212,6 +216,8 @@ export function PanelShell({
   financeEnabled = false,
   approvalsEnabled = false,
   accessibleResources,
+  adminCapabilities,
+  isAdminOwner = false,
   banner,
   children,
 }: {
@@ -243,6 +249,11 @@ export function PanelShell({
    * hidden. Omitted for the super admin (sees everything).
    */
   accessibleResources?: readonly string[];
+  /** ADMIN panel: the super-admin's capability slugs — nav items tagged with a
+   *  `cap` the user lacks are hidden. Omit for the owner (sees everything). */
+  adminCapabilities?: readonly string[];
+  /** ADMIN panel: whether the user is an owner (sees `ownerOnly` items). */
+  isAdminOwner?: boolean;
   /** A full-width bar rendered above the content (e.g. the impersonation banner). */
   banner?: React.ReactNode;
   children: React.ReactNode;
@@ -254,7 +265,11 @@ export function PanelShell({
 
   // Per-item gating, in order: feature flags (Activity log / Sales / Finance) then
   // per-user permissions (a resource-tagged item needs access to that resource).
+  const adminCaps = adminCapabilities ? new Set(adminCapabilities) : null;
   const visible = (i: NavItem): boolean => {
+    // ADMIN panel: gate by admin capability / owner (Feature 9).
+    if (i.ownerOnly) return isAdminOwner;
+    if (i.cap && adminCaps && !adminCaps.has(i.cap)) return false;
     if (i.href === "/clinic/logs") return logsEnabled;
     if (i.href === "/clinic/approvals") return approvalsEnabled;
     if (i.href === "/clinic/expenses") return financeEnabled && (!canSee || canSee.has("expenses"));

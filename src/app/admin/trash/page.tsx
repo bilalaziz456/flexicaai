@@ -1,5 +1,5 @@
 import { asc } from "drizzle-orm";
-import { requireRole } from "@/core/auth/user";
+import { requireAdminCapability } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, users } from "@/core/db/schema";
@@ -39,7 +39,7 @@ export default async function AdminTrashPage({
     clinic?: string;
   }>;
 }) {
-  await requireRole("super_admin");
+  await requireAdminCapability("clinics:edit");
   const sp = await searchParams;
   const { filters, ui } = parseTrashFilters(sp);
 
