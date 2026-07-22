@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, gt } from "drizzle-orm";
+import { and, desc, eq, gt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { unscoped } from "@/core/db/tenant-guard";
@@ -135,6 +135,26 @@ export async function getClinicBilling(clinicId: string): Promise<{
     .orderBy(desc(clinicPayments.occurredAt));
 
   return { clinic, payments, balance: computeClinicBalance(clinic, payments) };
+}
+
+/**
+ * Lightweight balance from a SINGLE aggregate (Σ months, Σ amount) — for hot paths
+ * like the clinic layout's payment-due banner, where loading every payment row per
+ * request would be wasteful. Same math as `computeClinicBalance`.
+ */
+export async function getClinicBalanceSummary(
+  clinic: BalanceClinic & { id: string },
+): Promise<ClinicBalance> {
+  const [agg] = await db
+    .select({
+      months: sql<number>`coalesce(sum(${clinicPayments.monthsCovered}),0)`,
+      amount: sql<number>`coalesce(sum(${clinicPayments.amount}),0)`,
+    })
+    .from(clinicPayments)
+    .where(and(eq(clinicPayments.clinicId, clinic.id), notDeleted(clinicPayments.deletedAt)));
+  return computeClinicBalance(clinic, [
+    { amount: Number(agg?.amount ?? 0), monthsCovered: Number(agg?.months ?? 0) },
+  ]);
 }
 
 /**

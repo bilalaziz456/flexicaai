@@ -474,7 +474,11 @@ softDelete + timestamps`. Index (`clinic_id`,`occurred_at`).
   (soft-delete) + sweep → back to past_due. tsc clean.
 - **Deferred (optional):** a printable company receipt PDF (reuse `InvoicePrintFrame`) — not built.
 
-## Feature 7 — Usage & cost monitoring
+## Feature 7 — Usage & cost monitoring   ⏳ DEFERRED to FINAL-PHASE v1 (owner's call, 2026-07-22)
+> The usage COUNTs are cheap, but the **cost** half needs real per-scribe / per-WhatsApp unit
+> costs that only exist once the AI + WhatsApp integrations are live/billed (the §Z deploy phase).
+> Build this alongside AI-key / WhatsApp go-live; it also lights up the cost + gross-margin KPIs
+> on the Feature-8 company dashboard.
 - **Core:** `core/admin/usage.ts` — `getClinicUsage(clinicId, range)` = COUNTs (patients ·
   appointments · visits · **scribe calls** [visits w/ `audio_key`] · **WhatsApp sent/received**
   [`whatsapp_messages`] · storage · active users 7/30d · last activity). **Cost** = usage ×

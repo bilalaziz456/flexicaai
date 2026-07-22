@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ConnectionStatus } from "@/core/ui/connection-status";
 import {
   BadgeCheck,
   BellRing,
@@ -472,6 +473,7 @@ export function PanelShell({
 
       {banner ? <div className="sticky top-0 z-40">{banner}</div> : null}
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">{children}</main>
+      <ConnectionStatus />
     </div>
   );
 }

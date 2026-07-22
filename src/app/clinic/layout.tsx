@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
-import { ShieldAlert } from "lucide-react";
+import { AlertTriangle, ShieldAlert } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { endImpersonation } from "@/app/admin/actions";
 import { getClinic } from "@/core/clinics/get-clinic";
+import { getClinicBalanceSummary } from "@/core/admin/billing";
 import { getThemeCookie } from "@/core/theme/server";
 import { clinicHasFeature } from "@/core/lib/features";
 import { getUnreadCount } from "@/core/notifications/in-app";
@@ -43,25 +44,70 @@ export default async function ClinicLayout({
   const approvalsEnabled =
     user.role === "doctor" || can(user, "discount_approval", "view");
 
+  // Stacked shell notices, shown to EVERY clinic user.
+  const notices: ReactNode[] = [];
+
   // Impersonation banner (Feature 5): a persistent, unmissable bar while a
   // super-admin is viewing this clinic read-only, with a one-click Exit.
-  const banner = user.impersonation ? (
-    <div className="flex items-center justify-between gap-3 border-b border-amber-500/40 bg-amber-500/15 px-4 py-2 text-sm text-amber-900 dark:text-amber-100">
-      <span className="flex items-center gap-2">
-        <ShieldAlert className="size-4 shrink-0" aria-hidden="true" />
-        Viewing <span className="font-semibold">{user.impersonation.clinicName}</span> as
-        support — read-only.
-      </span>
-      <form action={endImpersonation}>
-        <button
-          type="submit"
-          className="rounded-md border border-amber-600/50 px-2.5 py-1 text-xs font-medium hover:bg-amber-500/20"
+  if (user.impersonation) {
+    notices.push(
+      <div
+        key="impersonation"
+        className="flex items-center justify-between gap-3 border-b border-amber-500/40 bg-amber-500/15 px-4 py-2 text-sm text-amber-900 dark:text-amber-100"
+      >
+        <span className="flex items-center gap-2">
+          <ShieldAlert className="size-4 shrink-0" aria-hidden="true" />
+          Viewing <span className="font-semibold">{user.impersonation.clinicName}</span> as
+          support — read-only.
+        </span>
+        <form action={endImpersonation}>
+          <button
+            type="submit"
+            className="rounded-md border border-amber-600/50 px-2.5 py-1 text-xs font-medium hover:bg-amber-500/20"
+          >
+            Exit
+          </button>
+        </form>
+      </div>,
+    );
+  }
+
+  // Payment-due notice (Feature 6 toolkit): warn ALL staff while the subscription
+  // is past its paid-through date but the clinic is still usable (within grace, or
+  // overdue-but-not-yet-locked). Priced clinics only; skipped during impersonation.
+  if (!user.impersonation && clinic && clinic.monthlyPrice > 0) {
+    const bal = await getClinicBalanceSummary(clinic);
+    if (bal.billingStatus === "due" || bal.billingStatus === "overdue") {
+      const overdue = bal.billingStatus === "overdue";
+      notices.push(
+        <div
+          key="payment"
+          className={
+            "flex items-center gap-2 border-b px-4 py-2 text-sm " +
+            (overdue
+              ? "border-destructive/40 bg-destructive/15 text-destructive"
+              : "border-amber-500/40 bg-amber-500/15 text-amber-900 dark:text-amber-100")
+          }
         >
-          Exit
-        </button>
-      </form>
-    </div>
-  ) : null;
+          <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
+          {overdue ? (
+            <span>
+              <span className="font-semibold">Payment overdue.</span> Rs{" "}
+              {bal.owed.toLocaleString("en-PK")} due — access may be suspended soon. Please
+              contact your clinic admin.
+            </span>
+          ) : (
+            <span>
+              <span className="font-semibold">Payment due.</span> Your subscription has
+              lapsed — please settle it to avoid interruption.
+            </span>
+          )}
+        </div>,
+      );
+    }
+  }
+
+  const banner = notices.length ? <>{notices}</> : null;
 
   return (
     <PanelShell
