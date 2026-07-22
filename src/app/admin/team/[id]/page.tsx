@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { requireTeamManager } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
-import { users } from "@/core/db/schema";
+import { clinics, users } from "@/core/db/schema";
 import {
   ADMIN_SUBROLE_META,
   adminCapabilitySet,
   adminSubRoleOf,
   isOwner,
 } from "@/core/auth/admin-permissions";
+import { listActiveTeam } from "@/core/admin/assignment";
 import { Badge } from "@/core/ui/badge";
 import {
   Card,
@@ -20,6 +21,7 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { CapabilityEditor } from "./capability-editor";
+import { ReassignClinics } from "./reassign-clinics";
 import { DangerActions, PasswordResetForm, ProfileForm } from "./profile-forms";
 
 /** Owner-only: a team member's profile — edit name/username, reset password,
@@ -50,6 +52,13 @@ export default async function TeamMemberPage({
   // Owner protection: only the owner may open an owner's profile.
   const memberIsOwner = isOwner(member);
   if (memberIsOwner && !isOwner(viewer)) notFound();
+
+  // Managed clinics (for bulk reassign) + the active team to move them to.
+  const [[{ managed }], activeTeam] = await Promise.all([
+    db.select({ managed: count() }).from(clinics).where(and(eq(clinics.assignedTo, member.id), notDeleted(clinics.deletedAt))),
+    listActiveTeam(),
+  ]);
+  const reassignTargets = activeTeam.filter((m) => m.id !== member.id);
 
   const isSelf = member.id === viewer.id;
   const subRole = adminSubRoleOf(member);
@@ -100,6 +109,19 @@ export default async function TeamMemberPage({
             <CapabilityEditor userId={member.id} initial={caps} isSelf={isSelf} />
           </CardContent>
         ) : null}
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Managed clinics</CardTitle>
+          <CardDescription>
+            Clinics this member is the account manager for — bulk-reassign them to
+            someone else (e.g. while they&apos;re suspended or leaving).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ReassignClinics fromUserId={member.id} count={managed} team={reassignTargets} />
+        </CardContent>
       </Card>
 
       {!isSelf ? (

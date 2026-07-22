@@ -14,6 +14,7 @@ import {
 } from "@/core/auth/admin-permissions";
 import type { CurrentUser } from "@/core/types/auth";
 import { db } from "@/core/db";
+import { notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import { clinics, sessions, users } from "@/core/db/schema";
 import { logActivity } from "@/core/audit/log";
@@ -233,6 +234,44 @@ export async function setSuperAdminCapabilitiesAction(
   });
   revalidatePath("/admin/team");
   revalidatePath(`/admin/team/${userId}`);
+  return { saved: true };
+}
+
+/** Bulk-reassign every clinic managed by `fromUserId` to another team member
+ *  (or unassign when `toAssigneeId` is null). Owner/super-admin only. */
+export async function reassignClinicsAction(
+  fromUserId: string,
+  toAssigneeId: string | null,
+): Promise<TeamActionState> {
+  const actor = await requireTeamManager();
+  const blocked = await ownerGuard(actor, fromUserId);
+  if (blocked) return { error: blocked };
+
+  let target: string | null = null;
+  if (toAssigneeId) {
+    if (toAssigneeId === fromUserId) return { error: "Pick a different team member." };
+    const [m] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.id, toAssigneeId), eq(users.role, "super_admin"), notDeleted(users.deletedAt), eq(users.isActive, true)))
+      .limit(1);
+    if (!m) return { error: "Not a valid (active) team member." };
+    target = m.id;
+  }
+
+  const moved = await db
+    .update(clinics)
+    .set({ assignedTo: target, updatedAt: new Date() })
+    .where(eq(clinics.assignedTo, fromUserId))
+    .returning({ id: clinics.id });
+
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    summary: `Reassigned ${moved.length} clinic${moved.length === 1 ? "" : "s"} ${target ? "to another manager" : "to unassigned"}`,
+  });
+  revalidatePath(`/admin/team/${fromUserId}`);
+  revalidatePath("/admin");
   return { saved: true };
 }
 

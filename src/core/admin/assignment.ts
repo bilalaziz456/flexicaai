@@ -26,3 +26,13 @@ export async function listAssignableTeam(): Promise<TeamMemberOption[]> {
     name: (r.fullName ?? r.username) + (r.isActive ? "" : " (suspended)"),
   }));
 }
+
+/** ACTIVE team members only — the valid targets to reassign clinics TO. */
+export async function listActiveTeam(): Promise<TeamMemberOption[]> {
+  const rows = await db
+    .select({ id: users.id, fullName: users.fullName, username: users.username })
+    .from(users)
+    .where(and(eq(users.role, "super_admin"), notDeleted(users.deletedAt), eq(users.isActive, true)))
+    .orderBy(users.username);
+  return rows.map((r) => ({ id: r.id, name: r.fullName ?? r.username }));
+}
