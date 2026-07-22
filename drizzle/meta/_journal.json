@@ -414,6 +414,13 @@
       "when": 1784751506186,
       "tag": "0058_odd_sauron",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1784763186986,
+      "tag": "0059_faulty_havok",
+      "breakpoints": true
     }
   ]
 }

@@ -1233,6 +1233,56 @@ export const companyExpenses = pgTable(
 );
 
 /**
+ * Company settings (Owner Finance) — a SINGLETON config row for Klenic itself (not
+ * a tenant). Holds the company-global subscription-invoice counter + prefix (Klenic
+ * issues one numbered sequence across all clinics). Seeded lazily. See
+ * core/admin/clinic-invoices.ts.
+ */
+export const companySettings = pgTable("company_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  nextInvoiceNo: integer("next_invoice_no").notNull().default(1),
+  invoicePrefix: text("invoice_prefix").notNull().default("KL-INV-"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Clinic subscription invoices (Owner Finance, Phase 4) — invoices/receipts KLENIC
+ * issues TO a clinic for its subscription (distinct from patient `invoices`).
+ * `invoice_no` is a company-global sequence (allocated by locking `company_settings`
+ * and bumping `next_invoice_no`), shown with its prefix. `amount` is stored (the
+ * agreed charge for the period — usually the clinic's monthly_price). Soft-deletable
+ * (a void keeps the number). Cross-tenant super-admin reads → `unscoped`.
+ */
+export const clinicInvoices = pgTable(
+  "clinic_invoices",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    invoiceNo: integer("invoice_no").notNull(),
+    periodStart: date("period_start"),
+    periodEnd: date("period_end"),
+    amount: integer("amount").notNull().default(0), // PKR
+    note: text("note"),
+    issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
+    issuedBy: uuid("issued_by"),
+    issuedByName: text("issued_by_name"),
+    ...softDeleteColumns(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("clinic_invoices_no_unique").on(t.invoiceNo),
+    index("clinic_invoices_clinic_idx").on(t.clinicId),
+    index("clinic_invoices_issued_idx").on(t.issuedAt),
+    index("clinic_invoices_deleted_idx")
+      .on(t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
+  ],
+);
+
+/**
  * Invoices (Finance — patient billing). One per completed appointment. The bill
  * amount is derived live from `computeBill` (not stored), so a later edit flows
  * through; the invoice just records that a numbered document was issued.
@@ -1644,6 +1694,8 @@ export type ClinicPayment = typeof clinicPayments.$inferSelect;
 export type PlatformCostRate = typeof platformCostRates.$inferSelect;
 export type CompanyExpense = typeof companyExpenses.$inferSelect;
 export type CompanyExpenseCategory = typeof companyExpenseCategories.$inferSelect;
+export type CompanySettings = typeof companySettings.$inferSelect;
+export type ClinicInvoice = typeof clinicInvoices.$inferSelect;
 export type Announcement = typeof announcements.$inferSelect;
 export type Procedure = typeof procedures.$inferSelect;
 export type DoctorProcedureShare = typeof doctorProcedureShares.$inferSelect;

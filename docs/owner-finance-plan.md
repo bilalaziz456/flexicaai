@@ -155,8 +155,16 @@ grantable (e.g. to a finance/accountant team member).
    per-clinic margins (negatives first); MRR gate; CSV + 403; page bounces without
    finance:view. Folding serving cost/margin into `getCompanyMetrics` (the main
    dashboard) is a later nicety.
-4. **(Optional) Company invoices/receipts to clinics** — `clinic_invoices` + PDF +
-   optional clinic refund/credit.
+4. **Company invoices/receipts to clinics** ✅ — `clinic_invoices` + `company_settings`
+   (company-global invoice counter + prefix, migration 0059) + `core/admin/clinic-invoices.ts`
+   (issue under a row lock, list/void/restore, invoiced total + trend, print) +
+   `/admin/finance/invoices` (filters: clinic/period/Trash · **graph:** invoiced trend ·
+   issue form that pre-fills the clinic's monthly price · ledger with a **printable
+   receipt** reusing `InvoicePrintFrame` + void/restore). Gated `finance:view` /
+   `finance:create` (issue) / `finance:delete` (void). Verified over HTTP: ACL 4 roles,
+   sequential numbering (KL-INV-1/2, counter→3), list+total+trend, print (bill-to clinic
+   + owner, Klenic issuer) + print gated, clinic filter, void→Trash→restore. **Clinic
+   refund/credit deferred** (optional; add if a clinic overpays/cancels).
 
 **Deferred:** precise token/minute AI metering (`ai_usage`), plans/tiers +
 entitlements + automated dunning (v3), multi-currency beyond one FX rate, automated
