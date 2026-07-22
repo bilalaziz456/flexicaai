@@ -502,16 +502,40 @@ softDelete + timestamps`. Index (`clinic_id`,`occurred_at`).
   clinics, status breakdown + sparkline; nested `unscoped` (metrics → listDueClinics) runs clean.
   tsc clean.
 
-## Feature 9 — Internal super-admin RBAC   [v2]
-- Reuse the per-user ACL: a super-admin **permission catalog** (`clinics:manage`,
-  `billing:manage`, `impersonate`, `capabilities:manage`, `delete`, `purge`, `metrics:view`) on
-  `users.permissions`; sub-roles owner/support/billing. `requireRole("super_admin")` +
-  `can(superAdmin, …)` on each admin action.
+## Feature 9 — Internal super-admin RBAC   ✅ SHIPPED (2026-07-22)
+- `core/auth/admin-permissions.ts` — a super-admin **capability catalog** (`clinics:manage`,
+  `capabilities:manage`, `billing:manage`, `impersonate`, `announcements:manage`, `delete`,
+  `purge`, `metrics:view`) stored in `users.permissions` (separate namespace; NULL = owner/all).
+  Sub-role presets owner/support/billing. `canAdmin` / `isAdminOwner` / `adminSubRoleOf`. ✅
+- `requireAdminCapability(cap)` + `requireAdminOwner()` guards; EVERY admin action gated by its
+  capability; the `/admin` metrics panel + due list gated on `metrics:view`. ✅
+- `/admin/team` (owner-only): add a super-admin with a sub-role, change sub-roles, suspend/
+  reactivate (can't demote/suspend yourself). ✅
+- **Verified** over HTTP: owner reaches team/announcements/metrics; a billing sub-role is
+  redirected from /admin/team + /admin/announcements, keeps the clinics list + metrics. tsc clean.
+- **Minor follow-up:** the admin nav still shows Team/Announcements to sub-roles that get
+  redirected (guards enforce; nav isn't capability-filtered yet).
 
-## Feature 10 — Platform ops   [v2]
-Announcements (`announcements` table + banner + optional WA/email blast) · WhatsApp provisioning
-tracker (per-clinic template/number approval status) · bulk actions (enable-feature / message /
-set-plan across selected clinics) · per-clinic **data export** (JSON/CSV) · onboarding checklist state.
+## Feature 10 — Platform ops   (partially SHIPPED 2026-07-22)
+- **Announcements** ✅ — `announcements` table (0053, `clinic_id` NULL = broadcast), super-admin
+  `/admin/announcements` CRUD, shown in the **clinic notice bar** (with the payment-due +
+  impersonation notices). Optional WA/email blast — deferred.
+- **Per-clinic data export** ✅ — `GET /api/admin/clinics/[id]/export` (super-admin +
+  `clinics:manage`) downloads a full JSON dump (clinic + staff [no auth secrets] + patients /
+  appointments / visits / recalls / procedures / payments / invoices / expenses / leave);
+  "Export data (JSON)" link on clinic detail. Verified: 200 download, no `password_hash`/`totp`,
+  403 unauthenticated.
+- **Deferred (scale-triggered):** WhatsApp provisioning tracker (per-clinic number/template
+  approval status — value arrives with WhatsApp go-live) · bulk actions (multi-select
+  enable-feature / message / set-plan) · onboarding checklist state. Build when the manual
+  version starts hurting.
+
+## Clinic status toolkit   ✅ SHIPPED (2026-07-22, owner request)
+- **Connectivity indicator** — `ConnectionStatus` in PanelShell (browser online/offline +
+  `/api/ping` probe every 20s); silent while healthy, red pill offline / green on recovery.
+- **Payment-due banner** — the clinic notice bar warns ALL staff while the subscription is past
+  paid-through but still usable (amber "due" within grace, red "overdue" pre-lock); priced
+  clinics only, via `getClinicBalanceSummary`.
 
 ## Feature 11 — Admin scale-safety   [v2, before clinic count climbs]
 Pagination + date bounds + indexes on `/admin/logs` and `listAllTrash` (`collect({kind:"all"})`)

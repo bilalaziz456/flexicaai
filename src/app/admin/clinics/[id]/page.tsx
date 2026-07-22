@@ -72,7 +72,15 @@ export default async function ClinicDetailPage({
         >
           ← Back to clinics
         </Link>
-        <h1 className="mt-2 text-xl font-semibold">{clinic.name}</h1>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-xl font-semibold">{clinic.name}</h1>
+          <a
+            href={`/api/admin/clinics/${clinic.id}/export`}
+            className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+          >
+            Export data (JSON)
+          </a>
+        </div>
       </div>
 
       <Card>
