@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { AdminSubRole } from "@/core/auth/admin-permissions";
 import { Badge } from "@/core/ui/badge";
+import { buttonVariants } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { cn } from "@/core/lib/utils";
 
@@ -68,19 +69,20 @@ export function TeamList({ members }: { members: TeamMember[] }) {
       ) : (
         <ul className="divide-y">
           {filtered.map((m) => (
-            <li key={m.id}>
+            <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">{m.fullName ?? m.username}</span>
+                <span className="text-sm text-muted-foreground">@{m.username}</span>
+                <Badge variant="secondary" className="capitalize">{m.subRole}</Badge>
+                {m.isSelf ? <Badge variant="outline">you</Badge> : null}
+                {!m.isActive ? <span className="text-xs text-muted-foreground">suspended</span> : null}
+              </div>
               <Link
                 href={`/admin/team/${m.id}`}
-                className="flex flex-wrap items-center justify-between gap-3 py-3 hover:bg-accent/40"
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
               >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{m.fullName ?? m.username}</span>
-                  <span className="text-sm text-muted-foreground">@{m.username}</span>
-                  <Badge variant="secondary" className="capitalize">{m.subRole}</Badge>
-                  {m.isSelf ? <Badge variant="outline">you</Badge> : null}
-                  {!m.isActive ? <span className="text-xs text-muted-foreground">suspended</span> : null}
-                </div>
-                <ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
+                Open
+                <ChevronRight className="size-4" aria-hidden="true" />
               </Link>
             </li>
           ))}

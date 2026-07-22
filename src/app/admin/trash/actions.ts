@@ -14,7 +14,7 @@ import { logActivity } from "@/core/audit/log";
 export async function restoreTrashGlobal(
   group: string,
 ): Promise<{ ok: true } | { error: string }> {
-  await requireAdminCapability("clinics:manage");
+  await requireAdminCapability("clinics:edit");
   if (!group) return { error: "Nothing to restore." };
 
   await restoreGlobal(group);
@@ -38,7 +38,7 @@ export async function purgeTrashGlobal(
   group: string,
   password: string,
 ): Promise<{ ok: true } | { error: string }> {
-  await requireAdminCapability("purge");
+  await requireAdminCapability("purge:delete");
   if (!group) return { error: "Nothing to purge." };
   if (!(await verifyCurrentUserPassword(password))) {
     return { error: "Incorrect password." };

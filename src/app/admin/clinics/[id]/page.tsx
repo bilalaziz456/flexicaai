@@ -7,8 +7,8 @@ import { clinics, users } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
 import { CLINIC_FEATURES } from "@/core/lib/features";
 import { resourcesForClinic } from "@/core/auth/permissions";
-import { requireRole } from "@/core/auth/user";
-import { canAdmin, canSeeBilling } from "@/core/auth/admin-permissions";
+import { requireAdminCapability } from "@/core/auth/user";
+import { canManageBilling, canSeeBilling } from "@/core/auth/admin-permissions";
 import { getClinicBilling } from "@/core/admin/billing";
 import { Badge } from "@/core/ui/badge";
 import {
@@ -51,11 +51,12 @@ export default async function ClinicDetailPage({
 
   if (!clinic) notFound();
 
-  const admin = await requireRole("super_admin");
+  // Viewing a clinic needs clinics:view (redirects otherwise).
+  const admin = await requireAdminCapability("clinics:view");
   // Billing card: visible to billing VISIBILITY (owner/sales/billing/support), and
-  // editable only with billing:manage (sales sees it read-only).
+  // editable only with a billing manage action (sales sees it read-only).
   const showBilling = canSeeBilling(admin);
-  const canManageBilling = canAdmin(admin, "billing:manage");
+  const canManageBillingCard = canManageBilling(admin);
   const billing = showBilling ? await getClinicBilling(clinic.id) : null;
 
   // Tenant-scoped: this clinic's staff only (byClinic = the isolation boundary).
@@ -170,7 +171,7 @@ export default async function ClinicDetailPage({
                 occurredAt: p.occurredAt.toISOString(),
                 recordedByName: p.recordedByName,
               }))}
-              canManage={canManageBilling}
+              canManage={canManageBillingCard}
             />
           </CardContent>
         </Card>

@@ -17,7 +17,7 @@ import { AnnouncementRowActions } from "./announcement-actions";
 
 /** Super-admin announcements — broadcast or per-clinic notices shown in the clinic bar. */
 export default async function AnnouncementsPage() {
-  await requireAdminCapability("announcements:manage");
+  await requireAdminCapability("announcements:view");
 
   const [rows, clinicList] = await Promise.all([
     listAllAnnouncements(),

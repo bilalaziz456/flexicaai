@@ -5,7 +5,7 @@ import { getSession, getSessionUser } from "@/core/auth/session";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { isClinicUsable } from "@/core/clinics/status";
 import { can, VIEW_ONLY_CAPABILITIES, type PermAction } from "@/core/auth/permissions";
-import { canAdmin, isAdminOwner, type AdminCapability } from "@/core/auth/admin-permissions";
+import { canAdmin, isAdminOwner } from "@/core/auth/admin-permissions";
 import {
   ROLE_HOME_ROUTE,
   type CurrentUser,
@@ -136,7 +136,7 @@ export async function requireRole(
  * user so callers can use `admin.id` etc.
  */
 export async function requireAdminCapability(
-  capability: AdminCapability,
+  capability: string,
 ): Promise<CurrentUser> {
   const user = await requireRole("super_admin");
   if (!canAdmin(user, capability)) redirect("/admin");

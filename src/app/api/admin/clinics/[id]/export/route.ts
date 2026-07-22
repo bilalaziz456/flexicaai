@@ -13,7 +13,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "super_admin" || !canAdmin(user, "clinics:manage")) {
+  if (!user || user.role !== "super_admin" || !canAdmin(user, "clinics:view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

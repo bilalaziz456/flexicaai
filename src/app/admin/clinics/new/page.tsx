@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { SPECIALTY_CATALOG } from "@/config/modules";
+import { requireAdminCapability } from "@/core/auth/user";
 import { CreateClinicForm } from "./create-clinic-form";
 
 /** Super Admin: create a clinic, pick its specialties, create its Clinic Admin. */
-export default function NewClinicPage() {
+export default async function NewClinicPage() {
+  await requireAdminCapability("clinics:create");
   return (
     <div className="space-y-6">
       <div>

@@ -25,7 +25,7 @@ export async function createAnnouncementAction(
   _prev: AnnouncementActionState,
   formData: FormData,
 ): Promise<AnnouncementActionState> {
-  const admin = await requireAdminCapability("announcements:manage");
+  const admin = await requireAdminCapability("announcements:create");
   const parsed = schema.safeParse({
     clinicId: formData.get("clinicId") ?? undefined,
     level: formData.get("level") ?? "info",
@@ -61,7 +61,7 @@ export async function createAnnouncementAction(
 
 /** Activates / deactivates an announcement. */
 export async function toggleAnnouncementAction(id: string, active: boolean): Promise<void> {
-  await requireAdminCapability("announcements:manage");
+  await requireAdminCapability("announcements:edit");
   await setAnnouncementActive(id, active);
   await logActivity({
     action: "update",
@@ -75,7 +75,7 @@ export async function toggleAnnouncementAction(id: string, active: boolean): Pro
 
 /** Deletes an announcement (super-admin platform content, not clinic data). */
 export async function deleteAnnouncementAction(id: string): Promise<void> {
-  await requireAdminCapability("announcements:manage");
+  await requireAdminCapability("announcements:delete");
   await deleteAnnouncement(id);
   await logActivity({ action: "delete", entity: "clinic", entityId: id, summary: "Deleted an announcement" });
   revalidatePath("/admin/announcements");

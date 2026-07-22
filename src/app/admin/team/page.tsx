@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { CreateSuperAdminForm } from "./create-form";
+import { AddTeamMember } from "./add-team";
 import { TeamList } from "./team-list";
 
 /** Owner-only: manage the company super-admin team + sub-roles (Feature 9). */
@@ -43,18 +43,7 @@ export default async function TeamPage() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Add team member</CardTitle>
-          <CardDescription>
-            Creates a company account with the chosen role. They set their own password on
-            first login.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <CreateSuperAdminForm />
-        </CardContent>
-      </Card>
+      <AddTeamMember />
 
       <Card>
         <CardHeader>
