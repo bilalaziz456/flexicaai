@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import {
   recordClinicPaymentAction,
   setClinicPrice,
@@ -94,6 +94,10 @@ export function ClinicBilling({
     {},
   );
   const [voiding, startVoid] = useTransition();
+  // Controlled so Base UI's FieldControl doesn't warn when the card re-renders
+  // after an action (uncontrolled defaultValue re-initialising).
+  const [priceVal, setPriceVal] = useState(String(monthlyPrice));
+  const [graceVal, setGraceVal] = useState(String(graceDays));
 
   return (
     <div className="space-y-6">
@@ -162,7 +166,7 @@ export function ClinicBilling({
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="monthlyPrice">Monthly price (PKR)</Label>
-            <Input id="monthlyPrice" name="monthlyPrice" type="number" min={0} defaultValue={monthlyPrice} />
+            <Input id="monthlyPrice" name="monthlyPrice" type="number" min={0} value={priceVal} onChange={(e) => setPriceVal(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="billingCycle">Expected cycle</Label>
@@ -174,7 +178,7 @@ export function ClinicBilling({
           </div>
           <div className="space-y-2">
             <Label htmlFor="graceDays">Grace days</Label>
-            <Input id="graceDays" name="graceDays" type="number" min={0} defaultValue={graceDays} />
+            <Input id="graceDays" name="graceDays" type="number" min={0} value={graceVal} onChange={(e) => setGraceVal(e.target.value)} />
           </div>
         </div>
         {priceState.error ? <p className="text-sm text-destructive" role="alert">{priceState.error}</p> : null}
