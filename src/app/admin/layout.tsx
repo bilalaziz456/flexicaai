@@ -25,6 +25,7 @@ export default async function AdminLayout({
       identityLabel="Super admin"
       userName={displayStaffName(user.prefix, user.fullName, user.username)}
       userInitials={staffInitials(user.fullName, user.username)}
+      accountHref="/admin/account"
       avatarVersion={user.avatarKey ?? "none"}
       theme={theme}
       adminCapabilities={[...adminCapabilitySet(user)]}
