@@ -1,17 +1,19 @@
 import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
-import { and, count, desc, eq, ilike, isNull } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { clinics, users } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
 import { CLINIC_STATUSES, CLINIC_STATUS_LABEL, isClinicStatus } from "@/core/clinics/status";
 import { requireRole } from "@/core/auth/user";
-import { canAdmin, canSeeBilling } from "@/core/auth/admin-permissions";
+import { canAdmin, canManageTeam, canSeeBilling } from "@/core/auth/admin-permissions";
 import { listDueClinics } from "@/core/admin/billing";
+import { listAssignableTeam } from "@/core/admin/assignment";
 import { getCompanyMetrics } from "@/core/admin/metrics";
 import { ClinicStatusBadge } from "./clinics/status-badge";
 import { CompanyMetricsPanel } from "./company-metrics";
+import { AssigneeFilter } from "./assignee-filter";
 import { buttonVariants } from "@/core/ui/button";
 import { Badge } from "@/core/ui/badge";
 import { cn } from "@/core/lib/utils";
@@ -44,14 +46,22 @@ export default async function AdminHome({
     updated?: string;
     deleted?: string;
     assigned?: string;
+    billing?: string;
   }>;
 }) {
   const user = await requireRole("super_admin");
   const sp = await searchParams;
   const query = sp.q?.trim();
   const statusFilter = sp.status && isClinicStatus(sp.status) ? sp.status : undefined;
-  // Assigned-to filter: "me" · "unassigned" · a team-member id.
-  const assignedFilter = sp.assigned?.trim() || undefined;
+
+  // VISIBILITY SCOPE: owner + super_admin see every clinic; other team members
+  // (sales / support / billing) see ONLY clinics assigned to them.
+  const seesAll = canManageTeam(user);
+  const scopeWhere = seesAll ? undefined : eq(clinics.assignedTo, user.id);
+
+  // Assigned-to filter: "me" · "unassigned" · a team-member id. (Full-access only —
+  // scoped users already see only their own.)
+  const assignedFilter = seesAll ? sp.assigned?.trim() || undefined : undefined;
   const assignedWhere =
     assignedFilter === "unassigned"
       ? isNull(clinics.assignedTo)
@@ -60,6 +70,9 @@ export default async function AdminHome({
         : assignedFilter
           ? eq(clinics.assignedTo, assignedFilter)
           : undefined;
+
+  // Billing filter: due | overdue — filters the list by computed billing health.
+  const billingFilter = sp.billing === "due" || sp.billing === "overdue" ? sp.billing : undefined;
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
   const toastMessage = sp.created
@@ -70,18 +83,36 @@ export default async function AdminHome({
         ? "Clinic deleted."
         : null;
 
+  // The full financial panel is `metrics:view`; the due/overdue list is billing
+  // VISIBILITY (owner + sales + billing + support see it). Feature 9.
+  const showMetrics = canAdmin(user, "metrics:view");
+  const showBilling = canSeeBilling(user);
+
+  // Due/overdue is fetched first — it feeds the panel AND the billing filter, and is
+  // scoped to what this user may see.
+  const dueAll = showBilling ? await listDueClinics() : [];
+  const dueClinics = dueAll.filter((c) => seesAll || c.assignedTo === user.id);
+
+  // Billing filter → the set of clinic ids matching that billing status.
+  const billingIds = billingFilter
+    ? dueClinics.filter((c) => c.balance.billingStatus === billingFilter).map((c) => c.id)
+    : undefined;
+  const billingWhere = billingFilter
+    ? billingIds && billingIds.length
+      ? inArray(clinics.id, billingIds)
+      : sql`false` // filter set but nothing matches → empty
+    : undefined;
+
   // Super-admin clinic list excludes trashed clinics (they live in the admin Trash).
   const where = and(
     notDeleted(clinics.deletedAt),
     query ? ilike(clinics.name, `%${query}%`) : undefined,
     statusFilter ? eq(clinics.status, statusFilter) : undefined,
     assignedWhere,
+    scopeWhere,
+    billingWhere,
   );
-  // The full financial panel is `metrics:view`; the due/overdue list is billing
-  // VISIBILITY (owner + sales + billing + support see it). Feature 9.
-  const showMetrics = canAdmin(user, "metrics:view");
-  const showBilling = canSeeBilling(user);
-  const [clinicRows, [{ total }], dueClinics, metrics] = await Promise.all([
+  const [clinicRows, [{ total }], metrics, team] = await Promise.all([
     db
       .select({ clinic: clinics, assigneeName: users.fullName, assigneeUsername: users.username })
       .from(clinics)
@@ -91,13 +122,27 @@ export default async function AdminHome({
       .limit(pageSize)
       .offset(pageOffset(page, pageSize)),
     db.select({ total: count() }).from(clinics).where(where),
-    showBilling ? listDueClinics() : Promise.resolve([]),
     showMetrics ? getCompanyMetrics() : Promise.resolve(null),
+    seesAll ? listAssignableTeam() : Promise.resolve([]),
   ]);
   const allClinics = clinicRows.map((r) => ({
     ...r.clinic,
     assigneeName: r.assigneeName ?? r.assigneeUsername,
   }));
+
+  // Build an /admin href preserving the current filters, applying `overrides`.
+  const filterHref = (overrides: Record<string, string | undefined>) => {
+    const merged: Record<string, string | undefined> = {
+      q: query,
+      status: statusFilter,
+      assigned: assignedFilter,
+      billing: billingFilter,
+      ...overrides,
+    };
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(merged)) if (v) params.set(k, v);
+    return params.toString() ? `/admin?${params.toString()}` : "/admin";
+  };
 
   return (
     <div className="space-y-6">
@@ -161,16 +206,12 @@ export default async function AdminHome({
 
       <ClinicsSearch initial={query ?? ""} />
 
-      {/* Status filter — preserves the current search query + assignee filter. */}
-      <div className="flex flex-wrap gap-1.5">
+      {/* Status filter (lifecycle) — preserves the other filters. */}
+      <div className="flex flex-wrap items-center gap-1.5">
         {[{ id: undefined, label: "All" }, ...CLINIC_STATUSES.map((s) => ({ id: s, label: CLINIC_STATUS_LABEL[s] }))].map(
           (opt) => {
             const active = statusFilter === opt.id || (!statusFilter && opt.id === undefined);
-            const params = new URLSearchParams();
-            if (query) params.set("q", query);
-            if (opt.id) params.set("status", opt.id);
-            if (assignedFilter) params.set("assigned", assignedFilter);
-            const href = params.toString() ? `/admin?${params.toString()}` : "/admin";
+            const href = filterHref({ status: opt.id });
             return (
               <Link
                 key={opt.label}
@@ -187,32 +228,42 @@ export default async function AdminHome({
         )}
       </div>
 
-      {/* Assigned-to filter (account manager). */}
-      <div className="flex flex-wrap gap-1.5">
-        {[
-          { id: undefined, label: "Any manager" },
-          { id: "me", label: "My clinics" },
-          { id: "unassigned", label: "Unassigned" },
-        ].map((opt) => {
-          const active = assignedFilter === opt.id || (!assignedFilter && opt.id === undefined);
-          const params = new URLSearchParams();
-          if (query) params.set("q", query);
-          if (statusFilter) params.set("status", statusFilter);
-          if (opt.id) params.set("assigned", opt.id);
-          const href = params.toString() ? `/admin?${params.toString()}` : "/admin";
-          return (
-            <Link
-              key={opt.label}
-              href={href}
-              className={cn(
-                buttonVariants({ variant: active ? "default" : "outline", size: "sm" }),
-                "h-7 px-2.5 text-xs",
-              )}
-            >
-              {opt.label}
-            </Link>
-          );
-        })}
+      {/* Billing filter (by computed health) + account-manager filter. */}
+      <div className="flex flex-wrap items-center gap-3">
+        {showBilling ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Billing:</span>
+            {[
+              { id: undefined, label: "All" },
+              { id: "due", label: "Due" },
+              { id: "overdue", label: "Overdue" },
+            ].map((opt) => {
+              const active = billingFilter === opt.id || (!billingFilter && opt.id === undefined);
+              const href = filterHref({ billing: opt.id });
+              return (
+                <Link
+                  key={opt.label}
+                  href={href}
+                  className={cn(
+                    buttonVariants({ variant: active ? "default" : "outline", size: "sm" }),
+                    "h-7 px-2.5 text-xs",
+                  )}
+                >
+                  {opt.label}
+                </Link>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {seesAll ? (
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Manager:</span>
+            <AssigneeFilter team={team} value={assignedFilter ?? ""} />
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground">Showing your assigned clinics.</span>
+        )}
       </div>
 
       <Pagination
