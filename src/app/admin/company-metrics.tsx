@@ -34,10 +34,20 @@ function Kpi({
  * view at the top of /admin. Pure server component (the sparkline is server-rendered
  * SVG). AI/WhatsApp cost + margin await Feature 7's unit-cost config.
  */
-export function CompanyMetricsPanel({ metrics }: { metrics: CompanyMetrics }) {
+export function CompanyMetricsPanel({
+  metrics,
+  scoped = false,
+}: {
+  metrics: CompanyMetrics;
+  /** True for a scoped team member — the figures cover only their assigned clinics. */
+  scoped?: boolean;
+}) {
   const m = metrics;
   return (
     <section className="space-y-4">
+      {scoped ? (
+        <p className="text-xs text-muted-foreground">Figures below cover your assigned clinics only.</p>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi
           label="MRR (active plans)"

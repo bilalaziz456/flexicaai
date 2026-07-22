@@ -126,7 +126,9 @@ export default async function AdminHome({
       .limit(pageSize)
       .offset(pageOffset(page, pageSize)),
     db.select({ total: count() }).from(clinics).where(where),
-    showMetrics ? getCompanyMetrics() : Promise.resolve(null),
+    // Scope the financial panel like the list: full access → company-wide; a
+    // scoped team member → only the clinics assigned to them.
+    showMetrics ? getCompanyMetrics(seesAll ? {} : { assignedTo: user.id }) : Promise.resolve(null),
     seesAll ? listAssignableTeam() : Promise.resolve([]),
   ]);
   const allClinics = clinicRows.map((r) => ({
@@ -156,7 +158,7 @@ export default async function AdminHome({
         </Link>
       </div>
 
-      {metrics ? <CompanyMetricsPanel metrics={metrics} /> : null}
+      {metrics ? <CompanyMetricsPanel metrics={metrics} scoped={!seesAll} /> : null}
 
       {dueClinics.length > 0 ? (
         <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-4">
