@@ -10,6 +10,7 @@ import {
   type AdminSubRole,
 } from "@/core/auth/admin-permissions";
 import { db } from "@/core/db";
+import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import { sessions, users } from "@/core/db/schema";
 import { logActivity } from "@/core/audit/log";
 import { USERNAME_REGEX } from "@/core/types/auth";
@@ -31,7 +32,7 @@ const createSchema = z.object({
     .transform((s) => s.toLowerCase())
     .refine((s) => USERNAME_REGEX.test(s), { message: "Invalid username." }),
   password: z.string().min(8, "Password must be at least 8 characters."),
-  subRole: z.enum(["owner", "support", "billing"]),
+  subRole: z.enum(["owner", "support", "sales", "billing"]),
 });
 
 /** Creates another super-admin with a sub-role (owner-only). */
@@ -116,6 +117,29 @@ export async function setSuperAdminActiveAction(
     entity: "staff",
     entityId: userId,
     summary: isActive ? "Reactivated a super-admin" : "Suspended a super-admin",
+  });
+  revalidatePath("/admin/team");
+  return { saved: true };
+}
+
+/** Deletes a super-admin (owner-only). SOFT delete + revoke sessions; frees the
+ *  username. Can't delete yourself (guarantees at least one owner remains). */
+export async function deleteSuperAdminAction(userId: string): Promise<TeamActionState> {
+  const owner = await requireAdminOwner();
+  if (userId === owner.id) return { error: "You can't delete your own account." };
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(users)
+      .set(softDeleteValues(owner.id, newDeleteGroup()))
+      .where(eq(users.id, userId));
+    await tx.delete(sessions).where(eq(sessions.userId, userId));
+  });
+  await logActivity({
+    action: "delete",
+    entity: "staff",
+    entityId: userId,
+    summary: "Deleted a super-admin",
   });
   revalidatePath("/admin/team");
   return { saved: true };

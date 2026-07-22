@@ -1,7 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { setSuperAdminActiveAction, setSuperAdminSubRoleAction } from "./actions";
+import {
+  deleteSuperAdminAction,
+  setSuperAdminActiveAction,
+  setSuperAdminSubRoleAction,
+} from "./actions";
 import type { AdminSubRole } from "@/core/auth/admin-permissions";
 import { Button } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
@@ -43,18 +47,35 @@ export function TeamRowActions({
       >
         <option value="owner">Owner</option>
         <option value="support">Support</option>
+        <option value="sales">Sales</option>
         <option value="billing">Billing</option>
       </select>
       {!isSelf ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={pending}
-          onClick={() => run(() => setSuperAdminActiveAction(userId, !isActive))}
-        >
-          {isActive ? "Suspend" : "Reactivate"}
-        </Button>
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={pending}
+            onClick={() => run(() => setSuperAdminActiveAction(userId, !isActive))}
+          >
+            {isActive ? "Suspend" : "Reactivate"}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            disabled={pending}
+            onClick={() => {
+              if (confirm("Delete this team member? Their access is removed immediately.")) {
+                run(() => deleteSuperAdminAction(userId));
+              }
+            }}
+          >
+            Delete
+          </Button>
+        </>
       ) : null}
       {error ? <span className="text-xs text-destructive">{error}</span> : null}
     </div>

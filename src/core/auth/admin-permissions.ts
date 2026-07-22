@@ -22,13 +22,23 @@ export type AdminCapability = (typeof ADMIN_CAPABILITIES)[number]["id"];
 export const ADMIN_CAPABILITY_IDS = ADMIN_CAPABILITIES.map((c) => c.id) as AdminCapability[];
 const ALL = new Set<string>(ADMIN_CAPABILITY_IDS);
 
-export type AdminSubRole = "owner" | "support" | "billing";
+export type AdminSubRole = "owner" | "support" | "sales" | "billing";
 
 /** Sub-role → capability preset (the UI assigns these; stored expanded on the user). */
 export const ADMIN_SUBROLE_PRESETS: Record<AdminSubRole, AdminCapability[]> = {
   owner: [...ADMIN_CAPABILITY_IDS],
   support: ["clinics:manage", "impersonate", "announcements:manage", "metrics:view"],
+  // Sales: onboard + manage clinics and see the company numbers (no billing/impersonate/delete).
+  sales: ["clinics:manage", "metrics:view"],
   billing: ["billing:manage", "metrics:view"],
+};
+
+/** Human labels + one-line descriptions for the sub-roles (UI). */
+export const ADMIN_SUBROLE_META: Record<AdminSubRole, { label: string; desc: string }> = {
+  owner: { label: "Owner", desc: "Full access — the only role that manages the team." },
+  support: { label: "Support", desc: "Manage clinics, impersonate, post announcements, view metrics." },
+  sales: { label: "Sales", desc: "Add & manage clinics and view metrics." },
+  billing: { label: "Billing", desc: "Record clinic payments and view metrics." },
 };
 
 /** Keep only recognised admin capability slugs. */

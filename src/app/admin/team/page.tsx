@@ -4,7 +4,6 @@ import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { users } from "@/core/db/schema";
 import { adminSubRoleOf } from "@/core/auth/admin-permissions";
-import { Badge } from "@/core/ui/badge";
 import {
   Card,
   CardContent,
@@ -13,7 +12,7 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { CreateSuperAdminForm } from "./create-form";
-import { TeamRowActions } from "./team-actions";
+import { TeamList } from "./team-list";
 
 /** Owner-only: manage the company super-admin team + sub-roles (Feature 9). */
 export default async function TeamPage() {
@@ -37,15 +36,20 @@ export default async function TeamPage() {
       <div>
         <h1 className="text-xl font-semibold">Team</h1>
         <p className="text-sm text-muted-foreground">
-          Company super-admins and their sub-roles. Owner = full access; Support =
-          clinics + impersonate + announcements + metrics; Billing = payments + metrics.
+          Company team members and their roles. <strong>Owner</strong> — full access;{" "}
+          <strong>Support</strong> — clinics, impersonate, announcements, metrics;{" "}
+          <strong>Sales</strong> — add &amp; manage clinics + metrics;{" "}
+          <strong>Billing</strong> — payments + metrics.
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Add super-admin</CardTitle>
-          <CardDescription>They set their own password on first login.</CardDescription>
+          <CardTitle>Add team member</CardTitle>
+          <CardDescription>
+            Creates a company account with the chosen role. They set their own password on
+            first login.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <CreateSuperAdminForm />
@@ -54,34 +58,19 @@ export default async function TeamPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Super-admins ({rows.length})</CardTitle>
+          <CardTitle>Team members ({rows.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          <ul className="divide-y">
-            {rows.map((u) => {
-              const role = adminSubRoleOf(u);
-              const isSelf = u.id === owner.id;
-              return (
-                <li key={u.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{u.fullName ?? u.username}</span>
-                      <span className="text-sm text-muted-foreground">@{u.username}</span>
-                      <Badge variant="secondary" className="capitalize">{role}</Badge>
-                      {isSelf ? <Badge variant="outline">you</Badge> : null}
-                      {!u.isActive ? <span className="text-xs text-muted-foreground">suspended</span> : null}
-                    </div>
-                  </div>
-                  <TeamRowActions
-                    userId={u.id}
-                    currentRole={role === "custom" ? "support" : role}
-                    isActive={u.isActive}
-                    isSelf={isSelf}
-                  />
-                </li>
-              );
-            })}
-          </ul>
+          <TeamList
+            members={rows.map((u) => ({
+              id: u.id,
+              username: u.username,
+              fullName: u.fullName,
+              isActive: u.isActive,
+              subRole: adminSubRoleOf(u),
+              isSelf: u.id === owner.id,
+            }))}
+          />
         </CardContent>
       </Card>
     </div>

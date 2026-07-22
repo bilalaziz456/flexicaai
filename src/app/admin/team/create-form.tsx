@@ -26,7 +26,7 @@ export function CreateSuperAdminForm() {
 
   return (
     <form ref={formRef} action={action} className="space-y-3">
-      {state.saved ? <Toast message="Super-admin added." /> : null}
+      {state.saved ? <Toast message="Team member added." /> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>
@@ -43,14 +43,15 @@ export function CreateSuperAdminForm() {
         <div className="space-y-2">
           <Label htmlFor="subRole">Sub-role</Label>
           <select id="subRole" name="subRole" defaultValue="support" className={selectClass}>
-            <option value="owner">Owner (full access)</option>
-            <option value="support">Support</option>
-            <option value="billing">Billing</option>
+            <option value="owner">Owner — full access</option>
+            <option value="support">Support — clinics, impersonate, announcements</option>
+            <option value="sales">Sales — add & manage clinics</option>
+            <option value="billing">Billing — record payments</option>
           </select>
         </div>
       </div>
       {state.error ? <p className="text-sm text-destructive" role="alert">{state.error}</p> : null}
-      <Button type="submit" disabled={pending}>{pending ? "Adding…" : "Add super-admin"}</Button>
+      <Button type="submit" disabled={pending}>{pending ? "Adding…" : "Add team member"}</Button>
     </form>
   );
 }
