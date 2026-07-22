@@ -481,13 +481,22 @@ softDelete + timestamps`. Index (`clinic_id`,`occurred_at`).
   unit-cost config (env/const: `$ per scribe`, `$ per WA msg`).
 - **UI:** a **Usage & cost card** on clinic detail (this-month + trend).
 
-## Feature 8 — Company financial dashboard ("how much are WE earning")
-- **Core:** `core/admin/metrics.ts` — `getCompanyMetrics(range)` = clinics by status · new/churned ·
-  **MRR** (Σ active `monthly_price`) + **collected this month** (Σ `clinic_payments`) · **total
-  AI + WhatsApp cost** · **gross margin** (collected − variable cost) · top clinics by usage · overdue total.
-- **UI:** the `/admin` **home dashboard** — KPI cards (MRR · collected · cost · margin · clinics
-  by status) + charts (reuse `sparkline`/chart components) + overdue + churn-risk lists.
-- **Scale note:** these are cross-tenant aggregates — bound by date + index (scale-plan §2b).
+## Feature 8 — Company financial dashboard ("how much are WE earning")   ✅ SHIPPED (2026-07-22)
+- **Core:** `core/admin/metrics.ts` — `getCompanyMetrics(now)` (all cross-tenant aggregates inside
+  ONE `unscoped`): clinics by status · new-this-month · **MRR** (Σ active `monthly_price`) ·
+  **collected this month / this year** (Σ `clinic_payments`) · **overdue total/count** (reuses the
+  billing balance math) · **6-month collection trend** · **top clinics by revenue**. ✅
+- **UI:** `CompanyMetricsPanel` at the top of the `/admin` home — KPI cards (MRR · collected +
+  trend sparkline · overdue · total clinics) + clinics-by-status breakdown + top-clinics list
+  (the Feature-6 due/overdue list sits just below). ✅
+- **Deferred (needs Feature 7):** AI + WhatsApp **cost** and **gross margin** require the unit-cost
+  config from Feature 7 (not built) — omitted for now, noted in the module.
+- **Scale note:** cross-tenant aggregates bound by date + index (scale-plan §2b); grouped/summed in
+  SQL, not per-clinic loops.
+- **Verified** over HTTP: seeded one active priced clinic (5000) + two payments (5000 + 15000 this
+  month) → dashboard shows **MRR Rs 5,000**, **Collected this month Rs 20,000**, the clinic in Top
+  clinics, status breakdown + sparkline; nested `unscoped` (metrics → listDueClinics) runs clean.
+  tsc clean.
 
 ## Feature 9 — Internal super-admin RBAC   [v2]
 - Reuse the per-user ACL: a super-admin **permission catalog** (`clinics:manage`,

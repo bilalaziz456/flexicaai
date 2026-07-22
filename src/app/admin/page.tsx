@@ -7,7 +7,9 @@ import { clinics } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
 import { CLINIC_STATUSES, CLINIC_STATUS_LABEL, isClinicStatus } from "@/core/clinics/status";
 import { listDueClinics } from "@/core/admin/billing";
+import { getCompanyMetrics } from "@/core/admin/metrics";
 import { ClinicStatusBadge } from "./clinics/status-badge";
+import { CompanyMetricsPanel } from "./company-metrics";
 import { buttonVariants } from "@/core/ui/button";
 import { Badge } from "@/core/ui/badge";
 import { cn } from "@/core/lib/utils";
@@ -60,7 +62,7 @@ export default async function AdminHome({
     query ? ilike(clinics.name, `%${query}%`) : undefined,
     statusFilter ? eq(clinics.status, statusFilter) : undefined,
   );
-  const [allClinics, [{ total }], dueClinics] = await Promise.all([
+  const [allClinics, [{ total }], dueClinics, metrics] = await Promise.all([
     db
       .select()
       .from(clinics)
@@ -70,6 +72,7 @@ export default async function AdminHome({
       .offset(pageOffset(page, pageSize)),
     db.select({ total: count() }).from(clinics).where(where),
     listDueClinics(),
+    getCompanyMetrics(),
   ]);
 
   return (
@@ -91,6 +94,8 @@ export default async function AdminHome({
           New clinic
         </Link>
       </div>
+
+      <CompanyMetricsPanel metrics={metrics} />
 
       {dueClinics.length > 0 ? (
         <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-4">
