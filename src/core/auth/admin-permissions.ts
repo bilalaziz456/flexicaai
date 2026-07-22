@@ -25,7 +25,11 @@ export const ADMIN_RESOURCES: PermResource[] = [
   { id: "team", label: "Team", actions: ["view", "create", "edit", "delete"] },
   // Single-action resources (matrix shows only their column).
   { id: "impersonate", label: "Impersonation", actions: ["view"] }, // view = may impersonate
-  { id: "metrics", label: "Company metrics", actions: ["view"] },
+  { id: "metrics", label: "Company metrics", actions: ["view"] }, // the dashboard panel (collected/overdue/totals)
+  // The recurring-revenue figures specifically (MRR + ARR) — the most sensitive
+  // company financials. Separate from `metrics` so a scoped user can see the panel
+  // without seeing headline revenue. Owner + super_admin by default; grantable.
+  { id: "revenue", label: "Revenue (MRR / ARR)", actions: ["view"] },
   { id: "purge", label: "Data purge", actions: ["delete"] }, // delete = may legal-purge
 ];
 

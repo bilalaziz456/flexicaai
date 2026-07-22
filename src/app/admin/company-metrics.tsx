@@ -37,23 +37,27 @@ function Kpi({
 export function CompanyMetricsPanel({
   metrics,
   scoped = false,
+  showRevenue = false,
 }: {
   metrics: CompanyMetrics;
   /** True for a scoped team member — the figures cover only their assigned clinics. */
   scoped?: boolean;
+  /** Gate the headline recurring-revenue figures (MRR + ARR) on `revenue:view`.
+   *  When false the card is not rendered at all (server component — value never
+   *  reaches the browser). */
+  showRevenue?: boolean;
 }) {
   const m = metrics;
+  const arr = m.mrr * 12; // Annual Recurring Revenue = MRR × 12.
   return (
     <section className="space-y-4">
       {scoped ? (
         <p className="text-xs text-muted-foreground">Figures below cover your assigned clinics only.</p>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi
-          label="MRR (active plans)"
-          value={rs(m.mrr)}
-          sub={`${m.clinicsByStatus.active ?? 0} active · ${m.newThisMonth} new this month`}
-        />
+        {showRevenue ? (
+          <Kpi label="MRR (active plans)" value={rs(m.mrr)} sub={`${rs(arr)} / year (ARR) · ${m.newThisMonth} new this month`} />
+        ) : null}
         <Kpi label="Collected this month" value={rs(m.collectedThisMonth)} sub={`${rs(m.collectedThisYear)} this year`}>
           <div className="mt-2">
             <Sparkline values={m.collectionTrend} color="var(--brand-teal)" ariaLabel="Collected — last 6 months" />

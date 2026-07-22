@@ -85,6 +85,9 @@ export default async function AdminHome({
   // The full financial panel is `metrics:view`; the due/overdue list is billing
   // VISIBILITY (owner + sales + billing + support see it). Feature 9.
   const showMetrics = canAdmin(user, "metrics:view");
+  // MRR + ARR are gated tighter than the rest of the panel (owner + super_admin by
+  // default; grantable via `revenue:view`).
+  const showRevenue = canAdmin(user, "revenue:view");
   const showBilling = canSeeBilling(user);
 
   // Due/overdue is fetched first — it feeds the panel AND the billing filter, and is
@@ -158,7 +161,7 @@ export default async function AdminHome({
         </Link>
       </div>
 
-      {metrics ? <CompanyMetricsPanel metrics={metrics} scoped={!seesAll} /> : null}
+      {metrics ? <CompanyMetricsPanel metrics={metrics} scoped={!seesAll} showRevenue={showRevenue} /> : null}
 
       {dueClinics.length > 0 ? (
         <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-4">
