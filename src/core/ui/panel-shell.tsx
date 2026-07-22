@@ -115,7 +115,14 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; nodes: NavNode[] }> = {
       { href: "/admin/logs", label: "Activity log", Icon: ScrollText },
       { href: "/admin/announcements", label: "Announcements", Icon: Megaphone, cap: "announcements:view" },
       { href: "/admin/team", label: "Team", Icon: Users, cap: "team:view" },
-      { href: "/admin/finance/costs", label: "Company finance", Icon: Wallet, cap: "finance:view" },
+      {
+        group: "Company finance",
+        Icon: Wallet,
+        items: [
+          { href: "/admin/finance/costs", label: "Serving cost", Icon: Wallet, cap: "finance:view" },
+          { href: "/admin/finance/expenses", label: "Operating expenses", Icon: Receipt, cap: "finance:view" },
+        ],
+      },
       { href: "/admin/security", label: "Security", Icon: ShieldCheck },
       { href: "/admin/account", label: "Account settings", Icon: UserCog, cap: "account:view" },
       { href: "/admin/trash", label: "Trash", Icon: Trash2, cap: "clinics:edit" },

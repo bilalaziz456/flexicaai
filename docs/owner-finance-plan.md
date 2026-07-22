@@ -135,11 +135,19 @@ grantable (e.g. to a finance/accountant team member).
    (view/create/edit/delete); nav item on `finance:view`. *The deferred "Feature 7."*
    Verified over HTTP: ACL (owner/full · finance:view read-only · no-finance bounced),
    save action writes a new rate version, compute matches counts×rates per clinic.
-2. **Company opex ledger** — `company_expenses` + `company_expense_categories` +
-   `core/admin/company-expenses.ts` + `/admin/finance/expenses` + recurring cron.
+2. **Company opex ledger** ✅ — `company_expenses` + `company_expense_categories`
+   (migration 0058) + `core/admin/company-expenses.ts` + `/admin/finance/expenses`
+   (filters: period/category/method/search/Trash · **graphs:** monthly trend
+   MultiBarChart + by-category HBarChart · add/edit/delete-soft + restore · category
+   mgmt) + recurring cron (`/api/cron/company-expenses`, vercel.json). Gated
+   `finance:view` (page) / `finance:create|edit|delete` (mutations). Verified over
+   HTTP: ACL 4 roles, period/category/method/search filters, both graphs, soft-delete
+   → Trash → restore, recurring cron generates a copy.
 3. **Company P&L dashboard** — `core/admin/pnl.ts` + `/admin/finance` (net profit,
    margins, trend) + per-clinic margin card + CSV export; fold cost/margin into
-   `getCompanyMetrics`.
+   `getCompanyMetrics`. **Filters:** period selector (reuse `resolveSalesRange`).
+   **Graph:** revenue-vs-cost trend (MultiBarChart) + margin. Same as the other
+   phases — filters + a graph are standard on every finance screen.
 4. **(Optional) Company invoices/receipts to clinics** — `clinic_invoices` + PDF +
    optional clinic refund/credit.
 

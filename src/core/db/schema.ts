@@ -1179,6 +1179,60 @@ export const platformCostRates = pgTable(
 );
 
 /**
+ * Company expense categories (Owner Finance — the COMPANY's opex). Klenic's own
+ * cost buckets (Payroll, Rent, …). NOT a tenant table (no `clinic_id`). Deactivate
+ * with `is_active` (kept for history). See core/admin/company-expenses.ts.
+ */
+export const companyExpenseCategories = pgTable("company_expense_categories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Company expenses (Owner Finance — the COMPANY's operating costs: payroll, rent,
+ * software, marketing, …). Feeds the company P&L (net profit = collected revenue −
+ * serving cost − these). NOT a tenant table (no `clinic_id` — it's Klenic's own
+ * cost, so the tenant guard ignores it). Soft-deletable (recoverable); `recurring`
+ * tags a repeating cost the cron materialises each period (reusing the clinic
+ * recurring date math). ACL + audit live in the action layer.
+ */
+export const companyExpenses = pgTable(
+  "company_expenses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    categoryId: uuid("category_id").references(() => companyExpenseCategories.id, {
+      onDelete: "set null",
+    }),
+    amount: integer("amount").notNull().default(0), // PKR
+    incurredOn: date("incurred_on").notNull(),
+    vendor: text("vendor"),
+    method: text("method"), // cash | bank | cheque | other
+    reference: text("reference"),
+    note: text("note"),
+    recurring: boolean("recurring").notNull().default(false),
+    recurrence: text("recurrence"), // 'monthly' | 'weekly' when recurring
+    nextRunOn: date("next_run_on"),
+    createdBy: uuid("created_by"),
+    createdByName: text("created_by_name"),
+    ...softDeleteColumns(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("company_expenses_incurred_idx").on(t.incurredOn),
+    index("company_expenses_category_idx").on(t.categoryId),
+    index("company_expenses_deleted_idx")
+      .on(t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
+    index("company_expenses_recurring_due_idx")
+      .on(t.nextRunOn)
+      .where(sql`${t.recurring} = true and ${t.deletedAt} is null`),
+  ],
+);
+
+/**
  * Invoices (Finance — patient billing). One per completed appointment. The bill
  * amount is derived live from `computeBill` (not stored), so a later edit flows
  * through; the invoice just records that a numbered document was issued.
@@ -1588,6 +1642,8 @@ export type Notification = typeof notifications.$inferSelect;
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type ClinicPayment = typeof clinicPayments.$inferSelect;
 export type PlatformCostRate = typeof platformCostRates.$inferSelect;
+export type CompanyExpense = typeof companyExpenses.$inferSelect;
+export type CompanyExpenseCategory = typeof companyExpenseCategories.$inferSelect;
 export type Announcement = typeof announcements.$inferSelect;
 export type Procedure = typeof procedures.$inferSelect;
 export type DoctorProcedureShare = typeof doctorProcedureShares.$inferSelect;
