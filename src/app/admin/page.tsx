@@ -113,7 +113,12 @@ export default async function AdminHome({
   );
   const [clinicRows, [{ total }], metrics, team] = await Promise.all([
     db
-      .select({ clinic: clinics, assigneeName: users.fullName, assigneeUsername: users.username })
+      .select({
+        clinic: clinics,
+        assigneeName: users.fullName,
+        assigneeUsername: users.username,
+        assigneeActive: users.isActive,
+      })
       .from(clinics)
       .leftJoin(users, and(eq(clinics.assignedTo, users.id), isNull(users.deletedAt)))
       .where(where)
@@ -127,6 +132,7 @@ export default async function AdminHome({
   const allClinics = clinicRows.map((r) => ({
     ...r.clinic,
     assigneeName: r.assigneeName ?? r.assigneeUsername,
+    assigneeSuspended: r.assigneeActive === false,
   }));
 
 
@@ -175,6 +181,9 @@ export default async function AdminHome({
                       : c.assigneeName
                         ? `👤 ${c.assigneeName}`
                         : "unassigned"}
+                    {c.assigneeSuspended ? (
+                      <span className="ml-1 text-amber-600 dark:text-amber-400">(suspended)</span>
+                    ) : null}
                   </span>
                   {c.commitmentAt ? (
                     <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs text-amber-700 dark:text-amber-400">
@@ -242,10 +251,13 @@ export default async function AdminHome({
                   <ClinicStatusBadge status={clinic.status} />
                 </TableCell>
                 <TableCell className="text-sm">
-                  {clinic.assignedTo === user.id ? (
-                    <span className="font-medium">You</span>
-                  ) : clinic.assigneeName ? (
-                    clinic.assigneeName
+                  {clinic.assigneeName ? (
+                    <span>
+                      {clinic.assignedTo === user.id ? <span className="font-medium">You</span> : clinic.assigneeName}
+                      {clinic.assigneeSuspended ? (
+                        <span className="ml-1 text-xs text-amber-600 dark:text-amber-400">(suspended)</span>
+                      ) : null}
+                    </span>
                   ) : (
                     <span className="text-muted-foreground">—</span>
                   )}

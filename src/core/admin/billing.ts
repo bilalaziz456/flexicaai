@@ -295,6 +295,7 @@ export type OverdueClinic = {
   /** Account manager (team member) assigned to this clinic. */
   assignedTo: string | null;
   assigneeName: string | null;
+  assigneeSuspended: boolean;
 };
 
 /**
@@ -318,6 +319,7 @@ export async function listDueClinics(): Promise<OverdueClinic[]> {
         assignedTo: clinics.assignedTo,
         assigneeName: users.fullName,
         assigneeUsername: users.username,
+        assigneeActive: users.isActive,
       })
       .from(clinics)
       .leftJoin(users, and(eq(clinics.assignedTo, users.id), isNull(users.deletedAt)))
@@ -348,6 +350,7 @@ export async function listDueClinics(): Promise<OverdueClinic[]> {
           id: c.id, name: c.name, status: c.status, balance,
           commitmentAt: c.commitmentAt, commitmentNote: c.commitmentNote,
           assignedTo: c.assignedTo, assigneeName: c.assigneeName ?? c.assigneeUsername,
+          assigneeSuspended: c.assigneeActive === false,
         });
       }
     }
