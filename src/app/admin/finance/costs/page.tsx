@@ -1,0 +1,131 @@
+import { requireAdminCapability } from "@/core/auth/user";
+import { canAdmin } from "@/core/auth/admin-permissions";
+import { computeServingCost, getCostRates } from "@/core/admin/cost";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/core/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/core/ui/table";
+import { CostRatesForm } from "./cost-rates-form";
+
+const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
+
+/**
+ * Owner Finance — serving-cost tracking (Phase 1). Klenic's estimated variable cost
+ * (AI scribe + WhatsApp) this month, per clinic + total, driven by the configurable
+ * unit rates. Gated by `finance:view`; rate editing by `finance:edit`.
+ */
+export default async function CostsPage() {
+  const user = await requireAdminCapability("finance:view");
+  const canEdit = canAdmin(user, "finance:edit");
+
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth(), 1);
+  const [rates, cost] = await Promise.all([
+    getCostRates(),
+    computeServingCost({ from, to: now }),
+  ]);
+  const monthLabel = from.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const notConfigured = rates.effectiveFrom === null || rates.usdToPkr === 0;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl font-semibold">Company finance — serving cost</h1>
+        <p className="text-sm text-muted-foreground">
+          Klenic&apos;s estimated variable cost of serving clinics (AI scribe + WhatsApp).
+          Counts × your unit rates — {monthLabel}.
+        </p>
+      </div>
+
+      {notConfigured ? (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
+          Cost rates aren&apos;t set yet, so estimated cost shows Rs 0. {canEdit ? "Set them below." : "An admin with finance access can set them."}
+        </div>
+      ) : null}
+
+      {/* This-month cost KPIs */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2"><CardDescription>Estimated cost ({monthLabel})</CardDescription></CardHeader>
+          <CardContent><div className="text-2xl font-semibold tabular-nums">{rs(cost.totalCostPkr)}</div></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardDescription>Scribe calls (voice visits)</CardDescription></CardHeader>
+          <CardContent><div className="text-2xl font-semibold tabular-nums">{cost.totalScribeCalls.toLocaleString("en-PK")}</div></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardDescription>WhatsApp messages (outbound)</CardDescription></CardHeader>
+          <CardContent><div className="text-2xl font-semibold tabular-nums">{cost.totalWhatsappMsgs.toLocaleString("en-PK")}</div></CardContent>
+        </Card>
+      </div>
+
+      {/* Rates */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Unit cost rates</CardTitle>
+          <CardDescription>
+            {rates.effectiveFrom
+              ? `Current since ${rates.effectiveFrom.toLocaleDateString()}. Editing saves a new version (history kept).`
+              : "Not configured yet."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {canEdit ? (
+            <CostRatesForm scribeCallCost={rates.scribeCallCost} whatsappMsgCost={rates.whatsappMsgCost} usdToPkr={rates.usdToPkr} />
+          ) : (
+            <dl className="grid gap-3 sm:grid-cols-3 text-sm">
+              <div><dt className="text-muted-foreground">Scribe call</dt><dd className="font-medium">{rates.currency} {rates.scribeCallCost}</dd></div>
+              <div><dt className="text-muted-foreground">WhatsApp message</dt><dd className="font-medium">{rates.currency} {rates.whatsappMsgCost}</dd></div>
+              <div><dt className="text-muted-foreground">USD → PKR</dt><dd className="font-medium">{rates.usdToPkr}</dd></div>
+            </dl>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Per-clinic breakdown */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Cost by clinic ({monthLabel})</CardTitle>
+          <CardDescription>Highest cost first. Estimate — counts × the current rates.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {cost.perClinic.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">No scribe or WhatsApp usage this month yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Clinic</TableHead>
+                  <TableHead className="text-right">Scribe calls</TableHead>
+                  <TableHead className="text-right">WhatsApp</TableHead>
+                  <TableHead className="text-right">Est. cost</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {cost.perClinic.map((c) => (
+                  <TableRow key={c.clinicId}>
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell className="text-right tabular-nums">{c.scribeCalls.toLocaleString("en-PK")}</TableCell>
+                    <TableCell className="text-right tabular-nums">{c.whatsappMsgs.toLocaleString("en-PK")}</TableCell>
+                    <TableCell className="text-right tabular-nums">{rs(c.costPkr)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

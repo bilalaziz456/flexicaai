@@ -6,6 +6,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   text,
@@ -1150,6 +1151,34 @@ export const clinicPayments = pgTable(
 );
 
 /**
+ * Platform cost rates (Owner Finance — the COMPANY's serving-cost config). NOT a
+ * tenant table (no `clinic_id`): these are Klenic's own unit costs for the metered
+ * dependencies. Every rate change inserts a NEW row (history) with `effectiveFrom`
+ * — the latest row is the current rate; past periods can later be costed at the
+ * rate that was live then. Unit costs are stored in `currency` (USD by default) as
+ * decimals; `usdToPkr` converts to the PKR the rest of the app shows. v1 is a
+ * count×rate estimate (scribe calls from `visits`, WhatsApp from `whatsapp_messages`)
+ * — precise token/minute metering is a later add. See core/admin/cost.ts.
+ */
+export const platformCostRates = pgTable(
+  "platform_cost_rates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Estimated cost per scribe call (Whisper + Claude, bundled) and per WhatsApp
+    // message, in `currency`. Decimals (e.g. 0.006000) — money math rounds to PKR.
+    scribeCallCost: numeric("scribe_call_cost", { precision: 12, scale: 6 }).notNull().default("0"),
+    whatsappMsgCost: numeric("whatsapp_msg_cost", { precision: 12, scale: 6 }).notNull().default("0"),
+    currency: text("currency").notNull().default("USD"),
+    usdToPkr: numeric("usd_to_pkr", { precision: 12, scale: 4 }).notNull().default("0"),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+    createdBy: uuid("created_by"),
+    createdByName: text("created_by_name"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("platform_cost_rates_effective_idx").on(t.effectiveFrom)],
+);
+
+/**
  * Invoices (Finance — patient billing). One per completed appointment. The bill
  * amount is derived live from `computeBill` (not stored), so a later edit flows
  * through; the invoice just records that a numbered document was issued.
@@ -1558,6 +1587,7 @@ export type ActivityLog = typeof activityLogs.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type ClinicPayment = typeof clinicPayments.$inferSelect;
+export type PlatformCostRate = typeof platformCostRates.$inferSelect;
 export type Announcement = typeof announcements.$inferSelect;
 export type Procedure = typeof procedures.$inferSelect;
 export type DoctorProcedureShare = typeof doctorProcedureShares.$inferSelect;

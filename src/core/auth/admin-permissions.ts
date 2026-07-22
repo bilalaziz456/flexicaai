@@ -30,6 +30,11 @@ export const ADMIN_RESOURCES: PermResource[] = [
   // company financials. Separate from `metrics` so a scoped user can see the panel
   // without seeing headline revenue. Owner + super_admin by default; grantable.
   { id: "revenue", label: "Revenue (MRR / ARR)", actions: ["view"] },
+  // Owner Finance — the COMPANY's P&L (serving cost, operating expenses, net profit).
+  // view=see cost/margin/P&L; create=record a company expense; edit=edit cost rates /
+  // an expense; delete=void an expense. Owner + super_admin by default; grantable
+  // (e.g. to an accountant login). See docs/owner-finance-plan.md.
+  { id: "finance", label: "Company finance (P&L)", actions: ["view", "create", "edit", "delete"] },
   { id: "purge", label: "Data purge", actions: ["delete"] }, // delete = may legal-purge
 ];
 
