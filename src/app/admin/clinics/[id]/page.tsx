@@ -152,12 +152,16 @@ export default async function ClinicDetailPage({
               monthlyPrice={billing.clinic.monthlyPrice}
               billingCycle={billing.clinic.billingCycle}
               graceDays={billing.clinic.graceDays}
+              commitmentAt={billing.clinic.commitmentAt ? billing.clinic.commitmentAt.toISOString() : null}
+              commitmentNote={billing.clinic.commitmentNote}
               balance={{
                 billingStatus: billing.balance.billingStatus,
                 paidThrough: billing.balance.paidThrough.toISOString(),
                 monthsPaid: billing.balance.monthsPaid,
                 totalPaid: billing.balance.totalPaid,
+                accrued: billing.balance.accrued,
                 owed: billing.balance.owed,
+                credit: billing.balance.credit,
                 daysRemaining: billing.balance.daysRemaining,
                 daysOverdue: billing.balance.daysOverdue,
               }}

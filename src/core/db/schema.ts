@@ -147,6 +147,11 @@ export const clinics = pgTable(
     monthlyPrice: integer("monthly_price").notNull().default(0), // PKR
     billingCycle: text("billing_cycle").notNull().default("monthly"), // monthly|2m|quarter|half|annual
     graceDays: integer("grace_days").notNull().default(7),
+    // Follow-up on an OUTSTANDING balance: when a clinic partly pays and commits to
+    // pay the rest by a date, we save it here so the super admin knows when to chase.
+    // Cleared automatically once the balance settles. (core/admin/billing.ts)
+    paymentCommitmentAt: timestamp("payment_commitment_at", { withTimezone: true }),
+    paymentCommitmentNote: text("payment_commitment_note"),
     capabilities: text("capabilities").array(), // NULL = all resource:action allowed
     notes: text("notes"), // internal CRM notes
     ...softDeleteColumns(),

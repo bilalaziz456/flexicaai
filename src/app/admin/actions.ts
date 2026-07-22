@@ -674,11 +674,13 @@ export async function setClinicPrice(
 
 const clinicPaymentSchema = z.object({
   amount: z.coerce.number().int("Whole PKR only.").positive("Amount must be positive."),
-  monthsCovered: z.coerce.number().int().min(0).max(120),
   method: z.enum(["bank", "cash", "cheque", "other"]).optional(),
   reference: z.string().trim().max(120).optional(),
   note: z.string().trim().max(500).optional(),
   occurredAt: z.string().trim().optional(),
+  // Follow-up: when the clinic promised to clear any REMAINING balance.
+  commitmentAt: z.string().trim().optional(),
+  commitmentNote: z.string().trim().max(300).optional(),
 });
 
 /** Records a manual clinic→Klenic payment (extends paid-through) — Feature 6. */
@@ -690,27 +692,31 @@ export async function recordClinicPaymentAction(
   const admin = await requireAdminCapability("billing:create");
   const parsed = clinicPaymentSchema.safeParse({
     amount: formData.get("amount"),
-    monthsCovered: formData.get("monthsCovered") ?? 1,
     method: formData.get("method") || undefined,
     reference: formData.get("reference") || undefined,
     note: formData.get("note") || undefined,
     occurredAt: formData.get("occurredAt") || undefined,
+    commitmentAt: formData.get("commitmentAt") || undefined,
+    commitmentNote: formData.get("commitmentNote") || undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
 
   const occurredAt = parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : undefined;
   if (occurredAt && Number.isNaN(occurredAt.getTime())) return { error: "Invalid date." };
+  const commitmentAt = parsed.data.commitmentAt ? new Date(parsed.data.commitmentAt) : null;
+  if (commitmentAt && Number.isNaN(commitmentAt.getTime())) return { error: "Invalid follow-up date." };
 
   const res = await recordClinicPayment({
     clinicId,
     amount: parsed.data.amount,
-    monthsCovered: parsed.data.monthsCovered,
     method: parsed.data.method,
     reference: parsed.data.reference,
     note: parsed.data.note,
     occurredAt,
     recordedBy: admin.id,
     recordedByName: admin.username,
+    commitmentAt,
+    commitmentNote: parsed.data.commitmentNote,
   });
   if ("error" in res) return { error: res.error };
 
@@ -719,7 +725,7 @@ export async function recordClinicPaymentAction(
     entity: "clinic",
     entityId: clinicId,
     clinicId,
-    summary: `Recorded clinic payment ${parsed.data.amount} PKR (${parsed.data.monthsCovered} month${parsed.data.monthsCovered === 1 ? "" : "s"})`,
+    summary: `Recorded clinic payment ${parsed.data.amount} PKR`,
   });
   revalidatePath(`/admin/clinics/${clinicId}`);
   revalidatePath("/admin");

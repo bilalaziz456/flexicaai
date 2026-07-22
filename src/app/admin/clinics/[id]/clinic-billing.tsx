@@ -35,7 +35,9 @@ export type BillingBalance = {
   paidThrough: string;
   monthsPaid: number;
   totalPaid: number;
+  accrued: number;
   owed: number;
+  credit: number;
   daysRemaining: number;
   daysOverdue: number;
 };
@@ -68,12 +70,16 @@ export function ClinicBilling({
   graceDays,
   balance,
   payments,
+  commitmentAt,
+  commitmentNote,
   canManage = true,
 }: {
   clinicId: string;
   monthlyPrice: number;
   billingCycle: string;
   graceDays: number;
+  commitmentAt: string | null;
+  commitmentNote: string | null;
   balance: BillingBalance;
   payments: BillingPayment[];
   /** False = read-only (billing:view): show status + history, hide the edit forms. */
@@ -112,10 +118,20 @@ export function ClinicBilling({
           </div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Owed (carried forward)</div>
-          <div className={cn("mt-1 text-sm font-semibold", balance.owed > 0 ? "text-destructive" : "")}>
-            {rs(balance.owed)}
+          <div className="text-xs text-muted-foreground">
+            {balance.credit > 0 ? "Credit (paid ahead)" : "Owed (remaining)"}
           </div>
+          <div
+            className={cn(
+              "mt-1 text-sm font-semibold",
+              balance.owed > 0 ? "text-destructive" : balance.credit > 0 ? "text-emerald-600" : "",
+            )}
+          >
+            {rs(balance.credit > 0 ? balance.credit : balance.owed)}
+          </div>
+          {balance.billingStatus !== "free" ? (
+            <div className="text-xs text-muted-foreground">billed {rs(balance.accrued)}</div>
+          ) : null}
         </div>
         <div>
           <div className="text-xs text-muted-foreground">Total collected</div>
@@ -123,6 +139,16 @@ export function ClinicBilling({
           <div className="text-xs text-muted-foreground">{balance.monthsPaid} months paid</div>
         </div>
       </div>
+
+      {/* Follow-up commitment on an outstanding balance. */}
+      {commitmentAt && balance.owed > 0 ? (
+        <div className="flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+          <span className="font-medium">Follow up {fmtDate(commitmentAt)}</span>
+          <span className="text-muted-foreground">
+            — {rs(balance.owed)} promised{commitmentNote ? ` · ${commitmentNote}` : ""}
+          </span>
+        </div>
+      ) : null}
 
       {!canManage ? (
         <p className="text-xs text-muted-foreground">
@@ -166,10 +192,9 @@ export function ClinicBilling({
           <div className="space-y-2">
             <Label htmlFor="amount">Amount (PKR)</Label>
             <Input id="amount" name="amount" type="number" min={1} required />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="monthsCovered">Months covered</Label>
-            <Input id="monthsCovered" name="monthsCovered" type="number" min={0} max={120} defaultValue={1} />
+            <p className="text-[11px] text-muted-foreground">
+              Partial ok — any remaining balance carries forward.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="method">Method</Label>
@@ -193,6 +218,22 @@ export function ClinicBilling({
             <Input id="note" name="note" />
           </div>
         </div>
+
+        {/* Follow-up on any remaining balance (partial payment). */}
+        <div className="grid gap-3 rounded-md border border-dashed p-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="commitmentAt">Follow-up date (if balance remains)</Label>
+            <Input id="commitmentAt" name="commitmentAt" type="date" />
+            <p className="text-[11px] text-muted-foreground">
+              When they promised to pay the rest — cleared once settled.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="commitmentNote">Follow-up note</Label>
+            <Input id="commitmentNote" name="commitmentNote" placeholder="e.g. will pay rest after 10 days" />
+          </div>
+        </div>
+
         {payState.error ? <p className="text-sm text-destructive" role="alert">{payState.error}</p> : null}
         <Button type="submit" disabled={paying}>{paying ? "Recording…" : "Record payment"}</Button>
       </form>

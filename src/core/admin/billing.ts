@@ -23,24 +23,35 @@ function addMonths(d: Date, n: number): Date {
   return r;
 }
 
+/** Whole months elapsed from `start` to `now` (0 until the first month completes). */
+function wholeMonthsBetween(start: Date, now: Date): number {
+  let m = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+  if (now.getDate() < start.getDate()) m -= 1; // current month not yet complete
+  return Math.max(0, m);
+}
+
 const MS_DAY = 86_400_000;
 
 export type ClinicBalance = {
   monthlyPrice: number;
   /** When billing began (activation, else clinic creation). */
   billingStart: Date;
-  /** Σ months_covered across live payments. */
+  /** Whole months the money paid fully covers (Σ amount ÷ price). */
   monthsPaid: number;
-  /** Subscription valid-until = billingStart + monthsPaid. */
+  /** Subscription valid-until = billingStart + monthsPaid whole months. */
   paidThrough: Date;
-  /** Σ payment amounts (revenue view). */
+  /** Σ payment amounts. */
   totalPaid: number;
+  /** Billed to date — advance: (whole months elapsed + 1) × price. */
+  accrued: number;
   billingStatus: "free" | "active" | "due" | "overdue";
-  /** Carried-forward money owed (0 when paid ahead / free). */
+  /** MONEY owed right now = max(0, accrued − paid). Supports partial payments. */
   owed: number;
+  /** MONEY paid ahead = max(0, paid − accrued). */
+  credit: number;
   /** Days until paid_through (0 if overdue). */
   daysRemaining: number;
-  /** Days past paid_through (0 if ahead). */
+  /** Days the outstanding balance has been due (0 if none). */
   daysOverdue: number;
 };
 
@@ -51,39 +62,51 @@ type BalanceClinic = {
   createdAt: Date;
 };
 
-/** PURE: derive a clinic's billing balance/status from its clinic + live payments. */
+/**
+ * PURE: a clinic's billing balance/status — MONEY-BASED, ADVANCE billing (the
+ * month's fee is due at the start of the month). Supports arbitrary PARTIAL
+ * payments: `owed = accrued − Σ paid`, so paying 2,000 of a 5,000 month leaves
+ * 3,000 owed; overpaying leaves a `credit`. `months_covered` on payments is
+ * ignored here (kept only as a record).
+ */
 export function computeClinicBalance(
   clinic: BalanceClinic,
-  payments: { amount: number; monthsCovered: number }[],
+  payments: { amount: number; monthsCovered?: number }[],
   now: Date = new Date(),
 ): ClinicBalance {
   const billingStart = clinic.activatedAt ?? clinic.createdAt;
-  const monthsPaid = payments.reduce((s, p) => s + p.monthsCovered, 0);
-  const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
-  const paidThrough = addMonths(billingStart, monthsPaid);
   const price = clinic.monthlyPrice;
-
-  const ahead = paidThrough.getTime() - now.getTime();
-  const daysRemaining = ahead > 0 ? Math.ceil(ahead / MS_DAY) : 0;
-  const daysOverdue = ahead < 0 ? Math.ceil(-ahead / MS_DAY) : 0;
+  const paid = payments.reduce((s, p) => s + p.amount, 0);
 
   // A free clinic (no price) is never billed.
   if (price <= 0) {
     return {
-      monthlyPrice: 0, billingStart, monthsPaid, paidThrough, totalPaid,
-      billingStatus: "free", owed: 0, daysRemaining, daysOverdue,
+      monthlyPrice: 0, billingStart, monthsPaid: 0, paidThrough: billingStart, totalPaid: paid,
+      accrued: 0, billingStatus: "free", owed: 0, credit: 0, daysRemaining: 0, daysOverdue: 0,
     };
   }
 
-  // Carry-forward: each ~month past paid_through accrues one more month's price.
-  const monthsOverdue = daysOverdue > 0 ? Math.ceil(daysOverdue / 30) : 0;
-  const owed = monthsOverdue * price;
+  // Advance billing: at billingStart month 1 is already due, so accrued counts the
+  // current (started) month too.
+  const monthsBilled = wholeMonthsBetween(billingStart, now) + 1;
+  const accrued = monthsBilled * price;
+  const owed = Math.max(0, accrued - paid);
+  const credit = Math.max(0, paid - accrued);
+
+  // Whole months the money fully covers → the paid-through date + the overdue anchor.
+  const monthsPaid = Math.floor(paid / price);
+  const paidThrough = addMonths(billingStart, monthsPaid);
+  const anchorMs = paidThrough.getTime();
+
+  const daysRemaining = owed <= 0 ? Math.max(0, Math.ceil((anchorMs - now.getTime()) / MS_DAY)) : 0;
+  const daysOverdue = owed > 0 ? Math.max(0, Math.ceil((now.getTime() - anchorMs) / MS_DAY)) : 0;
+
   const billingStatus =
-    daysOverdue === 0 ? "active" : daysOverdue <= clinic.graceDays ? "due" : "overdue";
+    owed <= 0 ? "active" : daysOverdue <= clinic.graceDays ? "due" : "overdue";
 
   return {
-    monthlyPrice: price, billingStart, monthsPaid, paidThrough, totalPaid,
-    billingStatus, owed, daysRemaining, daysOverdue,
+    monthlyPrice: price, billingStart, monthsPaid, paidThrough, totalPaid: paid,
+    accrued, billingStatus, owed, credit, daysRemaining, daysOverdue,
   };
 }
 
@@ -100,7 +123,13 @@ export type ClinicPaymentRow = {
 
 /** Reads a clinic + its live payment ledger and derives the balance. */
 export async function getClinicBilling(clinicId: string): Promise<{
-  clinic: BalanceClinic & { id: string; status: string; billingCycle: string };
+  clinic: BalanceClinic & {
+    id: string;
+    status: string;
+    billingCycle: string;
+    commitmentAt: Date | null;
+    commitmentNote: string | null;
+  };
   payments: ClinicPaymentRow[];
   balance: ClinicBalance;
 } | null> {
@@ -113,6 +142,8 @@ export async function getClinicBilling(clinicId: string): Promise<{
       graceDays: clinics.graceDays,
       activatedAt: clinics.activatedAt,
       createdAt: clinics.createdAt,
+      commitmentAt: clinics.paymentCommitmentAt,
+      commitmentNote: clinics.paymentCommitmentNote,
     })
     .from(clinics)
     .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
@@ -176,29 +207,32 @@ export async function syncClinicBillingStatus(clinicId: string): Promise<void> {
   }
 }
 
-/** Records a clinic payment (extends paid_through by monthsCovered) + syncs status. */
+/**
+ * Records a clinic payment (money-based, partial-friendly) + syncs status. When a
+ * `commitmentAt` (follow-up date the clinic promised to clear the rest) is given
+ * it's saved on the clinic; and whenever the resulting balance is fully settled we
+ * clear any commitment (nothing left to chase).
+ */
 export async function recordClinicPayment(input: {
   clinicId: string;
   amount: number;
-  monthsCovered: number;
+  monthsCovered?: number;
   method?: string | null;
   reference?: string | null;
   note?: string | null;
   occurredAt?: Date;
   recordedBy?: string | null;
   recordedByName?: string | null;
+  commitmentAt?: Date | null;
+  commitmentNote?: string | null;
 }): Promise<{ error: string } | { ok: true }> {
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     return { error: "Amount must be positive." };
   }
-  const months = Math.trunc(input.monthsCovered);
-  if (!Number.isFinite(months) || months < 0 || months > 120) {
-    return { error: "Months covered must be 0–120." };
-  }
   await db.insert(clinicPayments).values({
     clinicId: input.clinicId,
     amount: Math.round(input.amount),
-    monthsCovered: months,
+    monthsCovered: Math.max(0, Math.trunc(input.monthsCovered ?? 0)),
     method: input.method || null,
     reference: input.reference || null,
     note: input.note || null,
@@ -207,6 +241,25 @@ export async function recordClinicPayment(input: {
     recordedByName: input.recordedByName ?? null,
   });
   await syncClinicBillingStatus(input.clinicId);
+
+  // Follow-up commitment: set when there's still a balance, clear once settled.
+  const after = await getClinicBilling(input.clinicId);
+  const settled = !after || after.balance.owed <= 0;
+  if (settled) {
+    await db
+      .update(clinics)
+      .set({ paymentCommitmentAt: null, paymentCommitmentNote: null, updatedAt: new Date() })
+      .where(eq(clinics.id, input.clinicId));
+  } else if (input.commitmentAt !== undefined) {
+    await db
+      .update(clinics)
+      .set({
+        paymentCommitmentAt: input.commitmentAt,
+        paymentCommitmentNote: input.commitmentNote?.trim() || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(clinics.id, input.clinicId));
+  }
   return { ok: true };
 }
 
