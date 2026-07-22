@@ -119,6 +119,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; nodes: NavNode[] }> = {
         group: "Company finance",
         Icon: Wallet,
         items: [
+          { href: "/admin/finance", label: "P&L", Icon: TrendingUp, exact: true, cap: "finance:view" },
           { href: "/admin/finance/costs", label: "Serving cost", Icon: Wallet, cap: "finance:view" },
           { href: "/admin/finance/expenses", label: "Operating expenses", Icon: Receipt, cap: "finance:view" },
         ],

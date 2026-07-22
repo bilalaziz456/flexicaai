@@ -143,11 +143,18 @@ grantable (e.g. to a finance/accountant team member).
    `finance:view` (page) / `finance:create|edit|delete` (mutations). Verified over
    HTTP: ACL 4 roles, period/category/method/search filters, both graphs, soft-delete
    → Trash → restore, recurring cron generates a copy.
-3. **Company P&L dashboard** — `core/admin/pnl.ts` + `/admin/finance` (net profit,
-   margins, trend) + per-clinic margin card + CSV export; fold cost/margin into
-   `getCompanyMetrics`. **Filters:** period selector (reuse `resolveSalesRange`).
-   **Graph:** revenue-vs-cost trend (MultiBarChart) + margin. Same as the other
-   phases — filters + a graph are standard on every finance screen.
+3. **Company P&L dashboard** ✅ — `core/admin/pnl.ts#getCompanyPnl` (collected
+   revenue − serving cost − opex = net profit, on the cash basis; gross margin,
+   margin %, per-clinic margin, and a zipped revenue/cost/profit trend; MRR/ARR
+   run-rate alongside) + `/admin/finance` (headline net profit + component KPIs +
+   `MultiBarChart` trend with a status-coloured profit series + per-clinic margin
+   table, lowest first) + **CSV export** (`/api/admin/finance/pnl/export`, BOM,
+   summary + per-clinic + trend, 403 without `finance:view`). Period filter (reuse
+   `CostFilters`); MRR/ARR gated on `revenue:view`. **Verified over HTTP:** net
+   profit matches DB totals (Rs 19,654 = 30,000 − 346 − 10,000, 65.5% margin);
+   per-clinic margins (negatives first); MRR gate; CSV + 403; page bounces without
+   finance:view. Folding serving cost/margin into `getCompanyMetrics` (the main
+   dashboard) is a later nicety.
 4. **(Optional) Company invoices/receipts to clinics** — `clinic_invoices` + PDF +
    optional clinic refund/credit.
 
