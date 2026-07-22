@@ -109,16 +109,25 @@ export default async function AdminHome({
           <div className="mb-2 text-sm font-medium text-amber-700 dark:text-amber-400">
             {dueClinics.length} clinic{dueClinics.length === 1 ? "" : "s"} due or overdue
           </div>
-          <ul className="space-y-1 text-sm">
+          <ul className="space-y-1.5 text-sm">
             {dueClinics.slice(0, 8).map((c) => (
-              <li key={c.id} className="flex items-center justify-between gap-3">
+              <li key={c.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
                 <Link href={`/admin/clinics/${c.id}`} className="font-medium hover:underline">
                   {c.name}
                 </Link>
-                <span className="text-muted-foreground">
-                  {c.balance.billingStatus === "overdue"
-                    ? `Rs ${c.balance.owed.toLocaleString("en-PK")} owed · ${c.balance.daysOverdue}d overdue`
-                    : `due in grace · ${c.balance.daysOverdue}d past`}
+                <span className="flex flex-wrap items-center gap-x-2 text-muted-foreground">
+                  <span>
+                    {c.balance.billingStatus === "overdue"
+                      ? `Rs ${c.balance.owed.toLocaleString("en-PK")} owed · ${c.balance.daysOverdue}d overdue`
+                      : `due in grace · ${c.balance.daysOverdue}d past`}
+                  </span>
+                  {c.commitmentAt ? (
+                    <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs text-amber-700 dark:text-amber-400">
+                      follow up{" "}
+                      {new Date(c.commitmentAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                      {c.commitmentNote ? ` · ${c.commitmentNote}` : ""}
+                    </span>
+                  ) : null}
                 </span>
               </li>
             ))}

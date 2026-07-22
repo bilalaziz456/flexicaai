@@ -289,6 +289,9 @@ export type OverdueClinic = {
   name: string;
   status: string;
   balance: ClinicBalance;
+  /** Follow-up the clinic promised for the remaining balance (if any). */
+  commitmentAt: Date | null;
+  commitmentNote: string | null;
 };
 
 /**
@@ -307,6 +310,8 @@ export async function listDueClinics(): Promise<OverdueClinic[]> {
         graceDays: clinics.graceDays,
         activatedAt: clinics.activatedAt,
         createdAt: clinics.createdAt,
+        commitmentAt: clinics.paymentCommitmentAt,
+        commitmentNote: clinics.paymentCommitmentNote,
       })
       .from(clinics)
       .where(and(notDeleted(clinics.deletedAt), gt(clinics.monthlyPrice, 0)));
@@ -332,7 +337,10 @@ export async function listDueClinics(): Promise<OverdueClinic[]> {
     for (const c of cs) {
       const balance = computeClinicBalance(c, byClinicId.get(c.id) ?? []);
       if (balance.billingStatus === "due" || balance.billingStatus === "overdue") {
-        out.push({ id: c.id, name: c.name, status: c.status, balance });
+        out.push({
+          id: c.id, name: c.name, status: c.status, balance,
+          commitmentAt: c.commitmentAt, commitmentNote: c.commitmentNote,
+        });
       }
     }
     return out.sort((a, b) => b.balance.owed - a.balance.owed || b.balance.daysOverdue - a.balance.daysOverdue);
