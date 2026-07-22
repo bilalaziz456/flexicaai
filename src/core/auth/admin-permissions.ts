@@ -10,7 +10,8 @@
 export const ADMIN_CAPABILITIES = [
   { id: "clinics:manage", label: "Manage clinics", desc: "Create/edit clinics, lifecycle status, staff, contact." },
   { id: "capabilities:manage", label: "Per-clinic capabilities", desc: "Toggle each clinic's allowed actions." },
-  { id: "billing:manage", label: "Billing", desc: "Set price, record/void clinic payments." },
+  { id: "billing:view", label: "View billing", desc: "See clinic billing status + the due/overdue list (read-only)." },
+  { id: "billing:manage", label: "Manage billing", desc: "Set price, record/void clinic payments." },
   { id: "impersonate", label: "Impersonate", desc: "Open a clinic's workspace read-only." },
   { id: "announcements:manage", label: "Announcements", desc: "Post notices to clinics." },
   { id: "delete", label: "Delete clinics", desc: "Move a clinic to Trash." },
@@ -27,18 +28,19 @@ export type AdminSubRole = "owner" | "support" | "sales" | "billing";
 /** Sub-role → capability preset (the UI assigns these; stored expanded on the user). */
 export const ADMIN_SUBROLE_PRESETS: Record<AdminSubRole, AdminCapability[]> = {
   owner: [...ADMIN_CAPABILITY_IDS],
-  support: ["clinics:manage", "impersonate", "announcements:manage", "metrics:view"],
-  // Sales: onboard + manage clinics and see the company numbers (no billing/impersonate/delete).
-  sales: ["clinics:manage", "metrics:view"],
-  billing: ["billing:manage", "metrics:view"],
+  support: ["clinics:manage", "impersonate", "announcements:manage", "metrics:view", "billing:view"],
+  // Sales: onboard + manage clinics, see the numbers, and see which clinics are due/overdue
+  // (read-only billing) — but not record payments, impersonate, or delete.
+  sales: ["clinics:manage", "metrics:view", "billing:view"],
+  billing: ["billing:manage", "billing:view", "metrics:view"],
 };
 
 /** Human labels + one-line descriptions for the sub-roles (UI). */
 export const ADMIN_SUBROLE_META: Record<AdminSubRole, { label: string; desc: string }> = {
   owner: { label: "Owner", desc: "Full access — the only role that manages the team." },
-  support: { label: "Support", desc: "Manage clinics, impersonate, post announcements, view metrics." },
-  sales: { label: "Sales", desc: "Add & manage clinics and view metrics." },
-  billing: { label: "Billing", desc: "Record clinic payments and view metrics." },
+  support: { label: "Support", desc: "Manage clinics, impersonate, post announcements, view metrics + overdue." },
+  sales: { label: "Sales", desc: "Add & manage clinics, view metrics + which clinics are overdue." },
+  billing: { label: "Billing", desc: "Record clinic payments, view metrics + overdue." },
 };
 
 /** Keep only recognised admin capability slugs. */
@@ -64,6 +66,12 @@ export function canAdmin(user: AdminUser, capability: AdminCapability): boolean 
 /** An OWNER super-admin holds every capability — the only one who manages the team. */
 export function isAdminOwner(user: AdminUser): boolean {
   return adminCapabilitySet(user).size === ADMIN_CAPABILITY_IDS.length;
+}
+
+/** Can this super-admin SEE billing (the due/overdue list + a clinic's billing status)?
+ *  Managing billing implies seeing it. */
+export function canSeeBilling(user: AdminUser): boolean {
+  return canAdmin(user, "billing:view") || canAdmin(user, "billing:manage");
 }
 
 /** Best-effort label of a super-admin's sub-role from their stored capabilities. */

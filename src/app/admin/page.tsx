@@ -7,7 +7,7 @@ import { clinics } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
 import { CLINIC_STATUSES, CLINIC_STATUS_LABEL, isClinicStatus } from "@/core/clinics/status";
 import { requireRole } from "@/core/auth/user";
-import { canAdmin } from "@/core/auth/admin-permissions";
+import { canAdmin, canSeeBilling } from "@/core/auth/admin-permissions";
 import { listDueClinics } from "@/core/admin/billing";
 import { getCompanyMetrics } from "@/core/admin/metrics";
 import { ClinicStatusBadge } from "./clinics/status-badge";
@@ -65,9 +65,10 @@ export default async function AdminHome({
     query ? ilike(clinics.name, `%${query}%`) : undefined,
     statusFilter ? eq(clinics.status, statusFilter) : undefined,
   );
-  // Metrics + the due list are money views — only for a super-admin with the
-  // `metrics:view` capability (Feature 9). Others just get the clinics list.
+  // The full financial panel is `metrics:view`; the due/overdue list is billing
+  // VISIBILITY (owner + sales + billing + support see it). Feature 9.
   const showMetrics = canAdmin(user, "metrics:view");
+  const showBilling = canSeeBilling(user);
   const [allClinics, [{ total }], dueClinics, metrics] = await Promise.all([
     db
       .select()
@@ -77,7 +78,7 @@ export default async function AdminHome({
       .limit(pageSize)
       .offset(pageOffset(page, pageSize)),
     db.select({ total: count() }).from(clinics).where(where),
-    showMetrics ? listDueClinics() : Promise.resolve([]),
+    showBilling ? listDueClinics() : Promise.resolve([]),
     showMetrics ? getCompanyMetrics() : Promise.resolve(null),
   ]);
 

@@ -68,6 +68,7 @@ export function ClinicBilling({
   graceDays,
   balance,
   payments,
+  canManage = true,
 }: {
   clinicId: string;
   monthlyPrice: number;
@@ -75,6 +76,8 @@ export function ClinicBilling({
   graceDays: number;
   balance: BillingBalance;
   payments: BillingPayment[];
+  /** False = read-only (billing:view): show status + history, hide the edit forms. */
+  canManage?: boolean;
 }) {
   const [priceState, priceAction, savingPrice] = useActionState<AdminActionState, FormData>(
     setClinicPrice.bind(null, clinicId),
@@ -121,7 +124,14 @@ export function ClinicBilling({
         </div>
       </div>
 
-      {/* ---- Price / cycle / grace ---- */}
+      {!canManage ? (
+        <p className="text-xs text-muted-foreground">
+          Read-only — you can see billing status but not change price or record payments.
+        </p>
+      ) : null}
+
+      {/* ---- Price / cycle / grace (manage only) ---- */}
+      {canManage ? (
       <form action={priceAction} className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-2">
@@ -146,8 +156,10 @@ export function ClinicBilling({
           {savingPrice ? "Saving…" : "Save billing settings"}
         </Button>
       </form>
+      ) : null}
 
-      {/* ---- Record a payment ---- */}
+      {/* ---- Record a payment (manage only) ---- */}
+      {canManage ? (
       <form action={payAction} className="space-y-3 rounded-md border p-4">
         <div className="text-sm font-medium">Record a payment</div>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -184,6 +196,7 @@ export function ClinicBilling({
         {payState.error ? <p className="text-sm text-destructive" role="alert">{payState.error}</p> : null}
         <Button type="submit" disabled={paying}>{paying ? "Recording…" : "Record payment"}</Button>
       </form>
+      ) : null}
 
       {/* ---- History ---- */}
       {payments.length > 0 ? (
@@ -212,20 +225,22 @@ export function ClinicBilling({
                     <td className="py-1.5 text-muted-foreground">{p.reference ?? "—"}</td>
                     <td className="py-1.5 text-right text-muted-foreground">{p.recordedByName ?? "—"}</td>
                     <td className="py-1.5 text-right">
-                      <button
-                        type="button"
-                        disabled={voiding}
-                        onClick={() => {
-                          if (confirm("Void this payment? Paid-through will shrink.")) {
-                            startVoid(async () => {
-                              await voidClinicPaymentAction(clinicId, p.id);
-                            });
-                          }
-                        }}
-                        className="text-xs text-destructive underline-offset-2 hover:underline disabled:opacity-50"
-                      >
-                        Void
-                      </button>
+                      {canManage ? (
+                        <button
+                          type="button"
+                          disabled={voiding}
+                          onClick={() => {
+                            if (confirm("Void this payment? Paid-through will shrink.")) {
+                              startVoid(async () => {
+                                await voidClinicPaymentAction(clinicId, p.id);
+                              });
+                            }
+                          }}
+                          className="text-xs text-destructive underline-offset-2 hover:underline disabled:opacity-50"
+                        >
+                          Void
+                        </button>
+                      ) : null}
                     </td>
                   </tr>
                 ))}
