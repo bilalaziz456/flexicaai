@@ -7,11 +7,12 @@ import {
   ADMIN_RESOURCES,
   ADMIN_SUBROLE_META,
   ADMIN_SUBROLE_PRESETS,
-  type AdminSubRole,
+  ASSIGNABLE_SUBROLES,
+  type AssignableSubRole,
 } from "@/core/auth/admin-permissions";
 import { Button } from "@/core/ui/button";
 
-const PRESETS: AdminSubRole[] = ["owner", "support", "sales", "billing"];
+const PRESETS: AssignableSubRole[] = ASSIGNABLE_SUBROLES;
 
 /** Owner-only granular ACL editor for a team member — the SAME View/Create/Edit/
  *  Delete matrix as clinic staff. Apply a role preset or toggle any cell. Saving
@@ -34,7 +35,7 @@ export function CapabilityEditor({
   const dirty =
     granted.size !== initialSet.size || [...granted].some((s) => !initialSet.has(s));
 
-  const applyPreset = (role: AdminSubRole) => setGranted(new Set(ADMIN_SUBROLE_PRESETS[role]));
+  const applyPreset = (role: AssignableSubRole) => setGranted(new Set(ADMIN_SUBROLE_PRESETS[role]));
 
   const save = () =>
     start(async () => {

@@ -1,9 +1,9 @@
-import { and, eq } from "drizzle-orm";
-import { requireAdminOwner } from "@/core/auth/user";
+import { and, eq, isNotNull } from "drizzle-orm";
+import { requireTeamManager } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { users } from "@/core/db/schema";
-import { adminSubRoleOf } from "@/core/auth/admin-permissions";
+import { adminSubRoleOf, isOwner } from "@/core/auth/admin-permissions";
 import {
   Card,
   CardContent,
@@ -14,9 +14,11 @@ import {
 import { AddTeamMember } from "./add-team";
 import { TeamList } from "./team-list";
 
-/** Owner-only: manage the company super-admin team + sub-roles (Feature 9). */
+/** Team management (owner or super_admin). The OWNER account is hidden from
+ *  non-owner viewers — only the owner sees/manages the owner (Feature 9). */
 export default async function TeamPage() {
-  const owner = await requireAdminOwner();
+  const viewer = await requireTeamManager();
+  const viewerIsOwner = isOwner(viewer);
 
   const rows = await db
     .select({
@@ -28,7 +30,14 @@ export default async function TeamPage() {
       role: users.role,
     })
     .from(users)
-    .where(and(eq(users.role, "super_admin"), notDeleted(users.deletedAt)))
+    .where(
+      and(
+        eq(users.role, "super_admin"),
+        notDeleted(users.deletedAt),
+        // Non-owners never see the owner account (NULL permissions = owner).
+        viewerIsOwner ? undefined : isNotNull(users.permissions),
+      ),
+    )
     .orderBy(users.username);
 
   return (
@@ -36,7 +45,7 @@ export default async function TeamPage() {
       <div>
         <h1 className="text-xl font-semibold">Team</h1>
         <p className="text-sm text-muted-foreground">
-          Company team members and their roles. <strong>Owner</strong> — full access;{" "}
+          Company team members and their roles. <strong>Super admin</strong> — full access;{" "}
           <strong>Support</strong> — clinics, impersonate, announcements, metrics;{" "}
           <strong>Sales</strong> — add &amp; manage clinics + metrics;{" "}
           <strong>Billing</strong> — payments + metrics.
@@ -57,7 +66,7 @@ export default async function TeamPage() {
               fullName: u.fullName,
               isActive: u.isActive,
               subRole: adminSubRoleOf(u),
-              isSelf: u.id === owner.id,
+              isSelf: u.id === viewer.id,
             }))}
           />
         </CardContent>

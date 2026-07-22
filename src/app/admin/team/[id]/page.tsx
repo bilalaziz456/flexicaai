@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
-import { requireAdminOwner } from "@/core/auth/user";
+import { requireTeamManager } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { users } from "@/core/db/schema";
@@ -9,6 +9,7 @@ import {
   ADMIN_SUBROLE_META,
   adminCapabilitySet,
   adminSubRoleOf,
+  isOwner,
 } from "@/core/auth/admin-permissions";
 import { Badge } from "@/core/ui/badge";
 import {
@@ -28,7 +29,7 @@ export default async function TeamMemberPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const owner = await requireAdminOwner();
+  const viewer = await requireTeamManager();
   const { id } = await params;
 
   const [member] = await db
@@ -46,7 +47,11 @@ export default async function TeamMemberPage({
 
   if (!member) notFound();
 
-  const isSelf = member.id === owner.id;
+  // Owner protection: only the owner may open an owner's profile.
+  const memberIsOwner = isOwner(member);
+  if (memberIsOwner && !isOwner(viewer)) notFound();
+
+  const isSelf = member.id === viewer.id;
   const subRole = adminSubRoleOf(member);
   const caps = [...adminCapabilitySet(member)];
 
@@ -79,14 +84,22 @@ export default async function TeamMemberPage({
         <CardHeader>
           <CardTitle>Access (capabilities)</CardTitle>
           <CardDescription>
-            Apply a role preset or toggle individual capabilities. All capabilities = Owner.
-            Current: <span className="font-medium">{ADMIN_SUBROLE_META[subRole === "custom" ? "support" : subRole]?.label ?? subRole}</span>{" "}
-            ({caps.length} capabilit{caps.length === 1 ? "y" : "ies"}).
+            {memberIsOwner ? (
+              <>The owner always has full access — not editable.</>
+            ) : (
+              <>
+                Apply a role preset or toggle individual capabilities. All capabilities = Super admin.
+                Current: <span className="font-medium">{ADMIN_SUBROLE_META[subRole === "custom" ? "support" : subRole]?.label ?? subRole}</span>{" "}
+                ({caps.length} capabilit{caps.length === 1 ? "y" : "ies"}).
+              </>
+            )}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <CapabilityEditor userId={member.id} initial={caps} isSelf={isSelf} />
-        </CardContent>
+        {!memberIsOwner ? (
+          <CardContent>
+            <CapabilityEditor userId={member.id} initial={caps} isSelf={isSelf} />
+          </CardContent>
+        ) : null}
       </Card>
 
       {!isSelf ? (

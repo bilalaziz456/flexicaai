@@ -5,7 +5,7 @@ import { getSession, getSessionUser } from "@/core/auth/session";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { isClinicUsable } from "@/core/clinics/status";
 import { can, VIEW_ONLY_CAPABILITIES, type PermAction } from "@/core/auth/permissions";
-import { canAdmin, isAdminOwner } from "@/core/auth/admin-permissions";
+import { canAdmin, canManageTeam } from "@/core/auth/admin-permissions";
 import {
   ROLE_HOME_ROUTE,
   type CurrentUser,
@@ -143,10 +143,10 @@ export async function requireAdminCapability(
   return user;
 }
 
-/** Guards an owner-only super-admin action/page (managing the company team). */
-export async function requireAdminOwner(): Promise<CurrentUser> {
+/** Guards a team-management action/page — owner OR super_admin (Feature 9). */
+export async function requireTeamManager(): Promise<CurrentUser> {
   const user = await requireRole("super_admin");
-  if (!isAdminOwner(user)) redirect("/admin");
+  if (!canManageTeam(user)) redirect("/admin");
   return user;
 }
 

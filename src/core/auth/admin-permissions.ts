@@ -27,11 +27,23 @@ export const ADMIN_CAPABILITY_IDS: string[] = ADMIN_RESOURCES.flatMap((r) =>
 );
 const ALL = new Set(ADMIN_CAPABILITY_IDS);
 
-export type AdminSubRole = "owner" | "support" | "sales" | "billing";
+/**
+ * Team hierarchy (top → bottom):
+ *  - `owner`      — THE founder account (no explicit permission list = all). The
+ *                   only one who can see/manage the owner account. Not assignable.
+ *  - `super_admin`— full capabilities (everything the owner can do operationally,
+ *                   incl. managing the team) but the OWNER is invisible/untouchable.
+ *  - support / sales / billing — scoped; can't manage the team.
+ */
+export type AdminSubRole = "owner" | "super_admin" | "support" | "sales" | "billing";
+
+/** Roles that can be ASSIGNED via the team UI (owner is the NULL-perms founder). */
+export type AssignableSubRole = "super_admin" | "support" | "sales" | "billing";
+export const ASSIGNABLE_SUBROLES: AssignableSubRole[] = ["super_admin", "support", "sales", "billing"];
 
 /** Sub-role → capability preset (the UI assigns these; stored expanded on the user). */
-export const ADMIN_SUBROLE_PRESETS: Record<AdminSubRole, string[]> = {
-  owner: [...ADMIN_CAPABILITY_IDS],
+export const ADMIN_SUBROLE_PRESETS: Record<AssignableSubRole, string[]> = {
+  super_admin: [...ADMIN_CAPABILITY_IDS],
   support: [
     "clinics:view", "clinics:create", "clinics:edit",
     "billing:view",
@@ -47,7 +59,8 @@ export const ADMIN_SUBROLE_PRESETS: Record<AdminSubRole, string[]> = {
 
 /** Human labels + one-line descriptions for the sub-roles (UI). */
 export const ADMIN_SUBROLE_META: Record<AdminSubRole, { label: string; desc: string }> = {
-  owner: { label: "Owner", desc: "Full access — the only role that manages the team." },
+  owner: { label: "Owner", desc: "The account owner — full access; only the owner manages the owner." },
+  super_admin: { label: "Super admin", desc: "Full access — clinics, billing, announcements and the team (can't touch the owner)." },
   support: { label: "Support", desc: "Manage clinics, impersonate, announcements, metrics + overdue." },
   sales: { label: "Sales", desc: "Add & manage clinics, metrics + which clinics are overdue." },
   billing: { label: "Billing", desc: "Record clinic payments, view metrics + overdue." },
@@ -73,8 +86,14 @@ export function canAdmin(user: AdminUser, capability: string): boolean {
   return adminCapabilitySet(user).has(capability);
 }
 
-/** An OWNER super-admin holds every capability — the only one who manages the team. */
-export function isAdminOwner(user: AdminUser): boolean {
+/** THE owner — the founder account (no explicit permission list = all). Only the
+ *  owner may see/manage the owner account. */
+export function isOwner(user: AdminUser): boolean {
+  return user.role === "super_admin" && user.permissions == null;
+}
+
+/** May manage the company team — owner OR super_admin (i.e. holds every capability). */
+export function canManageTeam(user: AdminUser): boolean {
   return adminCapabilitySet(user).size === ADMIN_CAPABILITY_IDS.length;
 }
 
@@ -97,7 +116,9 @@ export function canManageBilling(user: AdminUser): boolean {
 export function adminSubRoleOf(user: AdminUser): AdminSubRole | "custom" {
   if (user.permissions == null) return "owner";
   const have = new Set(sanitizeAdminCapabilities(user.permissions));
-  for (const [role, caps] of Object.entries(ADMIN_SUBROLE_PRESETS) as [AdminSubRole, string[]][]) {
+  if (have.size === ADMIN_CAPABILITY_IDS.length) return "super_admin";
+  for (const [role, caps] of Object.entries(ADMIN_SUBROLE_PRESETS) as [AssignableSubRole, string[]][]) {
+    if (role === "super_admin") continue;
     if (caps.length === have.size && caps.every((c) => have.has(c))) return role;
   }
   return "custom";

@@ -43,7 +43,7 @@ export function CreateSuperAdminForm() {
         <div className="space-y-2">
           <Label htmlFor="subRole">Sub-role</Label>
           <select id="subRole" name="subRole" defaultValue="support" className={selectClass}>
-            <option value="owner">Owner — full access</option>
+            <option value="super_admin">Super admin — full access</option>
             <option value="support">Support — clinics, impersonate, announcements</option>
             <option value="sales">Sales — add & manage clinics</option>
             <option value="billing">Billing — record payments</option>
