@@ -1,12 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { requireAdminOwner } from "@/core/auth/user";
 import { hashPassword } from "@/core/auth/password";
 import {
+  ADMIN_CAPABILITY_IDS,
   ADMIN_SUBROLE_PRESETS,
+  sanitizeAdminCapabilities,
   type AdminSubRole,
 } from "@/core/auth/admin-permissions";
 import { db } from "@/core/db";
@@ -74,29 +76,6 @@ export async function createSuperAdminAction(
   return { saved: true };
 }
 
-/** Changes a super-admin's sub-role (owner-only). Can't demote the last owner. */
-export async function setSuperAdminSubRoleAction(
-  userId: string,
-  subRole: AdminSubRole,
-): Promise<TeamActionState> {
-  const owner = await requireAdminOwner();
-  if (userId === owner.id && subRole !== "owner") {
-    return { error: "You can't remove your own owner access." };
-  }
-  await db
-    .update(users)
-    .set({ permissions: permsForSubRole(subRole), updatedAt: new Date() })
-    .where(eq(users.id, userId));
-  await logActivity({
-    action: "update",
-    entity: "staff",
-    entityId: userId,
-    summary: `Set super-admin sub-role → ${subRole}`,
-  });
-  revalidatePath("/admin/team");
-  return { saved: true };
-}
-
 /** Suspends / reactivates a super-admin (owner-only). Can't suspend yourself. */
 export async function setSuperAdminActiveAction(
   userId: string,
@@ -119,6 +98,101 @@ export async function setSuperAdminActiveAction(
     summary: isActive ? "Reactivated a super-admin" : "Suspended a super-admin",
   });
   revalidatePath("/admin/team");
+  return { saved: true };
+}
+
+const profileSchema = z.object({
+  fullName: z.string().trim().min(2, "Name is required.").max(120),
+  username: z
+    .string()
+    .trim()
+    .min(3, "Username must be at least 3 characters.")
+    .max(32)
+    .transform((s) => s.toLowerCase())
+    .refine((s) => USERNAME_REGEX.test(s), { message: "Invalid username." }),
+});
+
+/** Edits a team member's name + login username (owner-only). */
+export async function editTeamMemberProfileAction(
+  userId: string,
+  _prev: TeamActionState,
+  formData: FormData,
+): Promise<TeamActionState> {
+  await requireAdminOwner();
+  const parsed = profileSchema.safeParse({
+    fullName: formData.get("fullName"),
+    username: formData.get("username"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+
+  try {
+    await db
+      .update(users)
+      .set({ fullName: parsed.data.fullName, username: parsed.data.username, updatedAt: new Date() })
+      .where(and(eq(users.id, userId), eq(users.role, "super_admin")));
+  } catch {
+    return { error: "That username is already in use." };
+  }
+  await logActivity({
+    action: "update",
+    entity: "staff",
+    entityId: userId,
+    summary: `Edited team member profile (@${parsed.data.username})`,
+  });
+  revalidatePath("/admin/team");
+  revalidatePath(`/admin/team/${userId}`);
+  return { saved: true };
+}
+
+/** Resets a team member's password to a temporary one (owner-only). Use /account
+ *  for your OWN password (this would log you out). */
+export async function resetTeamMemberPasswordAction(
+  userId: string,
+  _prev: TeamActionState,
+  formData: FormData,
+): Promise<TeamActionState> {
+  const owner = await requireAdminOwner();
+  if (userId === owner.id) return { error: "Change your own password in Account settings." };
+
+  const password = String(formData.get("password") ?? "");
+  if (password.length < 8) return { error: "Password must be at least 8 characters." };
+
+  const passwordHash = await hashPassword(password);
+  await db.transaction(async (tx) => {
+    await tx
+      .update(users)
+      .set({ passwordHash, mustChangePassword: true, updatedAt: new Date() })
+      .where(and(eq(users.id, userId), eq(users.role, "super_admin")));
+    await tx.delete(sessions).where(eq(sessions.userId, userId));
+  });
+  await logActivity({ action: "update", entity: "staff", entityId: userId, summary: "Reset a team member's password" });
+  return { saved: true };
+}
+
+/** Sets a team member's GRANULAR admin capabilities (owner-only). Storing exactly
+ *  the full set = owner (stored as NULL). You can't reduce your own access. */
+export async function setSuperAdminCapabilitiesAction(
+  userId: string,
+  slugs: string[],
+): Promise<TeamActionState> {
+  const owner = await requireAdminOwner();
+  const caps = sanitizeAdminCapabilities(slugs);
+  const isFull = caps.length === ADMIN_CAPABILITY_IDS.length;
+  if (userId === owner.id && !isFull) {
+    return { error: "You can't reduce your own access." };
+  }
+  await db
+    .update(users)
+    .set({ permissions: isFull ? null : caps, updatedAt: new Date() })
+    .where(and(eq(users.id, userId), eq(users.role, "super_admin")));
+  await logActivity({
+    action: "update",
+    entity: "staff",
+    entityId: userId,
+    summary: `Set team member capabilities (${isFull ? "owner / all" : `${caps.length} caps`})`,
+  });
+  revalidatePath("/admin/team");
+  revalidatePath(`/admin/team/${userId}`);
   return { saved: true };
 }
 

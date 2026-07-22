@@ -1,0 +1,127 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { and, eq } from "drizzle-orm";
+import { requireAdminOwner } from "@/core/auth/user";
+import { db } from "@/core/db";
+import { notDeleted } from "@/core/db/tenant";
+import { users } from "@/core/db/schema";
+import {
+  ADMIN_SUBROLE_META,
+  adminCapabilitySet,
+  adminSubRoleOf,
+} from "@/core/auth/admin-permissions";
+import { Badge } from "@/core/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/core/ui/card";
+import { CapabilityEditor } from "./capability-editor";
+import { DangerActions, PasswordResetForm, ProfileForm } from "./profile-forms";
+
+/** Owner-only: a team member's profile — edit name/username, reset password,
+ *  granular capability ACL, and suspend/delete. */
+export default async function TeamMemberPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const owner = await requireAdminOwner();
+  const { id } = await params;
+
+  const [member] = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      fullName: users.fullName,
+      isActive: users.isActive,
+      permissions: users.permissions,
+      role: users.role,
+    })
+    .from(users)
+    .where(and(eq(users.id, id), eq(users.role, "super_admin"), notDeleted(users.deletedAt)))
+    .limit(1);
+
+  if (!member) notFound();
+
+  const isSelf = member.id === owner.id;
+  const subRole = adminSubRoleOf(member);
+  const caps = [...adminCapabilitySet(member)];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <Link href="/admin/team" className="text-sm text-muted-foreground underline underline-offset-4">
+          ← Back to team
+        </Link>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <h1 className="text-xl font-semibold">{member.fullName ?? member.username}</h1>
+          <span className="text-muted-foreground">@{member.username}</span>
+          <Badge variant="secondary" className="capitalize">{subRole}</Badge>
+          {isSelf ? <Badge variant="outline">you</Badge> : null}
+          {!member.isActive ? <span className="text-xs text-muted-foreground">suspended</span> : null}
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Profile</CardTitle>
+          <CardDescription>Display name and login username.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ProfileForm userId={member.id} fullName={member.fullName ?? ""} username={member.username} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Access (capabilities)</CardTitle>
+          <CardDescription>
+            Apply a role preset or toggle individual capabilities. All capabilities = Owner.
+            Current: <span className="font-medium">{ADMIN_SUBROLE_META[subRole === "custom" ? "support" : subRole]?.label ?? subRole}</span>{" "}
+            ({caps.length} capabilit{caps.length === 1 ? "y" : "ies"}).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CapabilityEditor userId={member.id} initial={caps} isSelf={isSelf} />
+        </CardContent>
+      </Card>
+
+      {!isSelf ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Password</CardTitle>
+            <CardDescription>Set a temporary password; they must change it on next login.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PasswordResetForm userId={member.id} />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Password</CardTitle>
+            <CardDescription>
+              Change your own password in{" "}
+              <Link href="/account" className="text-primary underline underline-offset-2">Account settings</Link>.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
+
+      {!isSelf ? (
+        <Card className="border-destructive/40">
+          <CardHeader>
+            <CardTitle className="text-destructive">Danger zone</CardTitle>
+            <CardDescription>Suspend cuts access immediately; delete removes the account.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DangerActions userId={member.id} isActive={member.isActive} />
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
+  );
+}

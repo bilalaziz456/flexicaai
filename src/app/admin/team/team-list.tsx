@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { TeamRowActions } from "./team-actions";
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import type { AdminSubRole } from "@/core/auth/admin-permissions";
 import { Badge } from "@/core/ui/badge";
 import { Input } from "@/core/ui/input";
@@ -67,8 +68,11 @@ export function TeamList({ members }: { members: TeamMember[] }) {
       ) : (
         <ul className="divide-y">
           {filtered.map((m) => (
-            <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-              <div className="min-w-0">
+            <li key={m.id}>
+              <Link
+                href={`/admin/team/${m.id}`}
+                className="flex flex-wrap items-center justify-between gap-3 py-3 hover:bg-accent/40"
+              >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{m.fullName ?? m.username}</span>
                   <span className="text-sm text-muted-foreground">@{m.username}</span>
@@ -76,13 +80,8 @@ export function TeamList({ members }: { members: TeamMember[] }) {
                   {m.isSelf ? <Badge variant="outline">you</Badge> : null}
                   {!m.isActive ? <span className="text-xs text-muted-foreground">suspended</span> : null}
                 </div>
-              </div>
-              <TeamRowActions
-                userId={m.id}
-                currentRole={m.subRole === "custom" ? "support" : m.subRole}
-                isActive={m.isActive}
-                isSelf={m.isSelf}
-              />
+                <ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
+              </Link>
             </li>
           ))}
         </ul>
