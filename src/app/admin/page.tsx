@@ -226,8 +226,8 @@ export default async function AdminHome({
 
       {allClinics.length === 0 ? (
         <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {query
-            ? `No clinics match “${query}”.`
+          {query || statusFilter || assignedFilter
+            ? "No clinics match the current filters."
             : "No clinics yet. Create the first one to enable its specialties and add its admin."}
         </div>
       ) : (
