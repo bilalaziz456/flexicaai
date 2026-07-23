@@ -58,6 +58,17 @@ export function CompanyMetricsPanel({
         {showRevenue ? (
           <Kpi label="MRR (active plans)" value={rs(m.mrr)} sub={`${rs(arr)} / year (ARR) · ${m.newThisMonth} new this month`} />
         ) : null}
+        {showRevenue && m.hasCost ? (
+          <>
+            <Kpi label="Serving cost (this month)" value={rs(m.servingCostThisMonth)} sub="AI scribe + WhatsApp" />
+            <Kpi
+              label="Gross margin (this month)"
+              value={`${m.grossMarginThisMonth < 0 ? "−" : ""}${rs(Math.abs(m.grossMarginThisMonth))}`}
+              sub="Collected − serving cost"
+              tone={m.grossMarginThisMonth < 0 ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"}
+            />
+          </>
+        ) : null}
         <Kpi label="Collected this month" value={rs(m.collectedThisMonth)} sub={`${rs(m.collectedThisYear)} this year`}>
           <div className="mt-2">
             <Sparkline values={m.collectionTrend} color="var(--brand-teal)" ariaLabel="Collected — last 6 months" />

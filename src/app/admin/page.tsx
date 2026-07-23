@@ -130,8 +130,11 @@ export default async function AdminHome({
       .offset(pageOffset(page, pageSize)),
     db.select({ total: count() }).from(clinics).where(where),
     // Scope the financial panel like the list: full access → company-wide; a
-    // scoped team member → only the clinics assigned to them.
-    showMetrics ? getCompanyMetrics(seesAll ? {} : { assignedTo: user.id }) : Promise.resolve(null),
+    // scoped team member → only the clinics assigned to them. Serving cost + margin
+    // are folded in only for viewers who may see the money figures (revenue:view).
+    showMetrics
+      ? getCompanyMetrics(seesAll ? { withCost: showRevenue } : { assignedTo: user.id, withCost: showRevenue })
+      : Promise.resolve(null),
     seesAll ? listAssignableTeam() : Promise.resolve([]),
   ]);
   const allClinics = clinicRows.map((r) => ({

@@ -1,17 +1,19 @@
 import "server-only";
 
-import { and, count, desc, eq, gte, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { unscoped } from "@/core/db/tenant-guard";
 import { notDeleted } from "@/core/db/tenant";
-import { clinics, clinicPayments } from "@/core/db/schema";
+import { clinics, clinicPayments, visits, whatsappMessages } from "@/core/db/schema";
+import { getCostRates } from "./cost";
 import { listDueClinics } from "./billing";
 
 /**
  * Company financial metrics — CORE, super-admin control plane (Feature 8, "how much
  * are WE earning"). Cross-tenant aggregates (bounded by date + index), so the whole
- * thing runs inside ONE `unscoped` opt-out of the tenant guard. AI/WhatsApp cost +
- * gross margin need the Feature-7 unit-cost config (not built) and are omitted here.
+ * thing runs inside ONE `unscoped` opt-out of the tenant guard. Serving cost + gross
+ * margin (this month) are folded in when `withCost` is set (Feature 7 built); they're
+ * computed only then to save the cost queries for viewers who won't see them.
  * See docs/super-admin-plan.md §11 Feature 8.
  */
 
@@ -25,6 +27,12 @@ export type CompanyMetrics = {
   collectedThisYear: number;
   overdueTotal: number;
   overdueCount: number;
+  /** Estimated variable serving cost (AI + WhatsApp) this month — 0 unless `withCost`. */
+  servingCostThisMonth: number;
+  /** Collected this month − serving cost this month. Meaningful only with `withCost`. */
+  grossMarginThisMonth: number;
+  /** Whether the cost/margin figures were computed (gated on `withCost`). */
+  hasCost: boolean;
   /** Collected per month, last 6 months (oldest→newest) for a sparkline. */
   collectionTrend: number[];
   trendLabels: string[];
@@ -40,7 +48,7 @@ const num = (v: unknown): number => Number(v ?? 0);
  *   scoped clinic list. Omit for the owner / full super-admin → company-wide.
  */
 export async function getCompanyMetrics(
-  { assignedTo, now = new Date() }: { assignedTo?: string; now?: Date } = {},
+  { assignedTo, now = new Date(), withCost = false }: { assignedTo?: string; now?: Date; withCost?: boolean } = {},
 ): Promise<CompanyMetrics> {
   return unscoped("admin: company metrics", async () => {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -128,6 +136,27 @@ export async function getCompanyMetrics(
     const due = assignedTo ? dueAll.filter((c) => c.assignedTo === assignedTo) : dueAll;
     const overdueTotal = due.reduce((s, c) => s + c.balance.owed, 0);
 
+    // Serving cost (this month) + gross margin — only when the viewer will see them
+    // (Feature 7). Counts × rates, scoped to the assignee's clinics like the rest.
+    let servingCostThisMonth = 0;
+    if (withCost) {
+      const rates = await getCostRates();
+      const scopeExists = (col: typeof visits.clinicId | typeof whatsappMessages.clinicId) =>
+        assignedTo
+          ? sql`exists (select 1 from ${clinics} where ${clinics.id} = ${col} and ${clinics.assignedTo} = ${assignedTo} and ${clinics.deletedAt} is null)`
+          : undefined;
+      const [{ sc }] = await db
+        .select({ sc: count() })
+        .from(visits)
+        .where(and(isNotNull(visits.audioKey), gte(visits.createdAt, monthStart), scopeExists(visits.clinicId)));
+      const [{ wa }] = await db
+        .select({ wa: count() })
+        .from(whatsappMessages)
+        .where(and(eq(whatsappMessages.direction, "outbound"), isNotNull(whatsappMessages.clinicId), gte(whatsappMessages.createdAt, monthStart), scopeExists(whatsappMessages.clinicId)));
+      servingCostThisMonth = Math.round((num(sc) * rates.scribeCallCost + num(wa) * rates.whatsappMsgCost) * rates.usdToPkr);
+    }
+    const grossMarginThisMonth = num(collectedThisMonth) - servingCostThisMonth;
+
     return {
       totalClinics,
       clinicsByStatus,
@@ -137,6 +166,9 @@ export async function getCompanyMetrics(
       collectedThisYear: num(collectedThisYear),
       overdueTotal,
       overdueCount: due.length,
+      servingCostThisMonth,
+      grossMarginThisMonth,
+      hasCost: withCost,
       collectionTrend,
       trendLabels,
       topClinics: topRows.map((r) => ({ id: r.id, name: r.name, total: num(r.total) })),

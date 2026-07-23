@@ -153,8 +153,13 @@ grantable (e.g. to a finance/accountant team member).
    `CostFilters`); MRR/ARR gated on `revenue:view`. **Verified over HTTP:** net
    profit matches DB totals (Rs 19,654 = 30,000 − 346 − 10,000, 65.5% margin);
    per-clinic margins (negatives first); MRR gate; CSV + 403; page bounces without
-   finance:view. Folding serving cost/margin into `getCompanyMetrics` (the main
-   dashboard) is a later nicety.
+   finance:view. **Serving cost + gross margin folded into the main `/admin`
+   dashboard** ✅ — `getCompanyMetrics({ withCost })` adds this-month serving cost +
+   gross margin (collected − serving cost) KPIs, computed only when the viewer holds
+   `revenue:view` (same gate as MRR/ARR; skipped otherwise to save the queries),
+   scoped to the assignee like the rest. Verified: owner sees Serving cost Rs 382 /
+   Gross margin Rs 19,618 (= collected 20,000 − 382); a metrics-only user sees neither
+   (no leak).
 4. **Company invoices/receipts to clinics** ✅ — `clinic_invoices` + `company_settings`
    (company-global invoice counter + prefix, migration 0059) + `core/admin/clinic-invoices.ts`
    (issue under a row lock, list/void/restore, invoiced total + trend, print) +
