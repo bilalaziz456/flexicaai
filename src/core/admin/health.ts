@@ -38,12 +38,29 @@ export type HealthRow = {
   ownerPhone: string | null;
   ownerEmail: string | null;
   assigneeName: string | null; // account manager
+  /** Usage/cost anomaly flags (only when `withCost`). See ANOMALY_META. */
+  flags: AnomalyFlag[];
 };
+
+/** Usage/cost anomalies surfaced on the Overview so outliers raise their hand. */
+export type AnomalyFlag = "loss" | "thin_margin" | "usage_spike";
+export const ANOMALY_META: Record<AnomalyFlag, { label: string; severity: "high" | "warn"; hint: string }> = {
+  loss: { label: "Cost > MRR", severity: "high", hint: "Serving cost exceeds the monthly price — losing money on this clinic." },
+  thin_margin: { label: "High cost", severity: "warn", hint: "Serving cost is ≥ 50% of the monthly price — thin margin." },
+  usage_spike: { label: "Usage spike", severity: "warn", hint: "Serving cost is ≥ 3× the previous period — runaway usage, abuse, or an upsell." },
+};
+
+// Anomaly thresholds (v1, fixed).
+const THIN_MARGIN_RATIO = 0.5; // serving cost ≥ 50% of MRR
+const SPIKE_MULTIPLE = 3; // this period ≥ 3× the prior period
+const SPIKE_FLOOR_PKR = 200; // ignore tiny absolute costs (0→30 isn't a "spike")
 
 export type ClinicHealth = {
   rows: HealthRow[];
   /** Active/trial clinics with no activity for ≥ `inactiveDays` (or never) — churn risk. */
   atRisk: HealthRow[];
+  /** Clinics with any usage/cost anomaly flag, worst (loss) first. */
+  flagged: HealthRow[];
   inactiveDays: number;
 };
 
@@ -54,10 +71,12 @@ export async function getClinicHealth(
   { assignedTo, inactiveDays = 21, withCost = true }: { assignedTo?: string; inactiveDays?: number; withCost?: boolean } = {},
 ): Promise<ClinicHealth> {
   const { start, end } = range;
+  // Prior equal-length window (immediately before this one) — the spike baseline.
+  const priorRange: ResolvedRange = { ...range, start: new Date(start.getTime() - (end.getTime() - start.getTime())), end: start };
   return unscoped("admin: clinic health", async () => {
     const scope = assignedTo ? eq(clinics.assignedTo, assignedTo) : undefined;
 
-    const [clinicRows, serving, apptRows, patientRows, paidRows, lastRows] = await Promise.all([
+    const [clinicRows, serving, priorServing, apptRows, patientRows, paidRows, lastRows] = await Promise.all([
       db
         .select({
           id: clinics.id,
@@ -73,6 +92,7 @@ export async function getClinicHealth(
         .leftJoin(users, and(eq(clinics.assignedTo, users.id), isNull(users.deletedAt)))
         .where(and(notDeleted(clinics.deletedAt), scope)),
       withCost ? computeServingCost(range) : Promise.resolve(null),
+      withCost ? computeServingCost(priorRange) : Promise.resolve(null),
       db
         .select({ clinicId: appointments.clinicId, c: sql<number>`count(*)::int` })
         .from(appointments)
@@ -104,6 +124,7 @@ export async function getClinicHealth(
     ]);
 
     const servingByClinic = new Map((serving?.perClinic ?? []).map((c) => [c.clinicId, c]));
+    const priorCostByClinic = new Map((priorServing?.perClinic ?? []).map((c) => [c.clinicId, c.costPkr]));
     const apptBy = new Map(apptRows.map((r) => [r.clinicId, num(r.c)]));
     const patientBy = new Map(patientRows.map((r) => [r.clinicId, num(r.c)]));
     const paidBy = new Map(paidRows.map((r) => [r.clinicId, num(r.t)]));
@@ -119,6 +140,17 @@ export async function getClinicHealth(
       const daysInactive = lastActivityAt ? Math.floor((now - lastActivityAt.getTime()) / MS_DAY) : null;
       const servingCost = sc?.costPkr ?? 0;
       const collected = paidBy.get(c.id) ?? 0;
+      const mrr = num(c.mrr);
+
+      // Usage/cost anomaly flags (cost side → only when metering is in view).
+      const flags: AnomalyFlag[] = [];
+      if (withCost && servingCost > 0) {
+        if (mrr > 0 && servingCost > mrr) flags.push("loss");
+        else if (mrr > 0 && servingCost >= THIN_MARGIN_RATIO * mrr) flags.push("thin_margin");
+        const prior = priorCostByClinic.get(c.id) ?? 0;
+        if (servingCost >= SPIKE_FLOOR_PKR && prior > 0 && servingCost >= SPIKE_MULTIPLE * prior) flags.push("usage_spike");
+      }
+
       return {
         clinicId: c.id,
         name: c.name,
@@ -132,10 +164,11 @@ export async function getClinicHealth(
         servingCost,
         collected,
         margin: collected - servingCost,
-        mrr: num(c.mrr),
+        mrr,
         ownerPhone: c.ownerPhone,
         ownerEmail: c.ownerEmail,
         assigneeName: c.assigneeFullName ?? c.assigneeUsername ?? null,
+        flags,
       };
     });
 
@@ -145,7 +178,16 @@ export async function getClinicHealth(
       .filter((r) => (r.status === "active" || r.status === "trial") && (r.daysInactive === null || r.daysInactive >= inactiveDays))
       .sort((a, b) => (b.daysInactive ?? 1e9) - (a.daysInactive ?? 1e9));
 
+    // Usage/cost anomalies — a loss (high severity) sorts above warnings, then by
+    // how far serving cost overshoots the monthly price.
+    const flagged = rows
+      .filter((r) => r.flags.length > 0)
+      .sort((a, b) => {
+        const sev = (r: HealthRow) => (r.flags.includes("loss") ? 2 : 1);
+        return sev(b) - sev(a) || (b.servingCost - b.mrr) - (a.servingCost - a.mrr);
+      });
+
     rows.sort((a, b) => (b.daysInactive ?? 1e9) - (a.daysInactive ?? 1e9));
-    return { rows, atRisk, inactiveDays };
+    return { rows, atRisk, flagged, inactiveDays };
   });
 }

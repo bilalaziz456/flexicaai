@@ -3,7 +3,7 @@ import { ChevronRight } from "lucide-react";
 import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin, canManageTeam, canSeeBilling } from "@/core/auth/admin-permissions";
 import { getCompanyMetrics } from "@/core/admin/metrics";
-import { getClinicHealth } from "@/core/admin/health";
+import { getClinicHealth, ANOMALY_META, type AnomalyFlag } from "@/core/admin/health";
 import { getChurnInactiveDays, CHURN_DAYS_OPTIONS } from "@/core/admin/company-settings";
 import { listDueClinics } from "@/core/admin/billing";
 import { resolveSalesRange } from "@/core/sales/report";
@@ -31,6 +31,29 @@ const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 const signed = (n: number) => `${n < 0 ? "−" : ""}Rs ${Math.abs(n).toLocaleString("en-PK")}`;
 const ago = (d: Date | null, days: number | null) =>
   d === null || days === null ? "never" : days === 0 ? "today" : days === 1 ? "1 day ago" : `${days} days ago`;
+
+function FlagBadges({ flags }: { flags: AnomalyFlag[] }) {
+  return (
+    <>
+      {flags.map((f) => {
+        const m = ANOMALY_META[f];
+        return (
+          <Badge
+            key={f}
+            variant="outline"
+            title={m.hint}
+            className={cn(
+              "border-transparent",
+              m.severity === "high" ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+            )}
+          >
+            {m.label}
+          </Badge>
+        );
+      })}
+    </>
+  );
+}
 
 function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: string }) {
   return (
@@ -134,6 +157,12 @@ export default async function OverviewPage({
               sub="Collected − serving cost"
               tone={metrics.grossMarginThisMonth < 0 ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"}
             />
+            <Kpi
+              label="Usage flags"
+              value={String(health.flagged.length)}
+              sub="cost / usage anomalies"
+              tone={health.flagged.some((f) => f.flags.includes("loss")) ? "text-destructive" : health.flagged.length > 0 ? "text-amber-600 dark:text-amber-400" : undefined}
+            />
           </>
         ) : null}
       </div>
@@ -209,6 +238,50 @@ export default async function OverviewPage({
         </CardContent>
       </Card>
 
+      {/* Usage / cost anomaly flags (cost-side → revenue:view) */}
+      {showRevenue && health.flagged.length > 0 ? (
+        <Card className="border-destructive/30">
+          <CardHeader>
+            <CardTitle>Usage flags ({health.flagged.length})</CardTitle>
+            <CardDescription>
+              Cost / usage anomalies over {rangeLabel} — a clinic that costs more than it pays, or a sudden spike vs the prior period.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Clinic</TableHead>
+                    <TableHead>Flags</TableHead>
+                    <TableHead>Account manager</TableHead>
+                    <TableHead className="text-right">MRR</TableHead>
+                    <TableHead className="text-right">Serving cost</TableHead>
+                    <TableHead className="text-right">Margin</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {health.flagged.map((c) => (
+                    <TableRow key={c.clinicId}>
+                      <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell><div className="flex flex-wrap gap-1"><FlagBadges flags={c.flags} /></div></TableCell>
+                      <TableCell className="text-sm">{c.assigneeName ?? <span className="text-muted-foreground">unassigned</span>}</TableCell>
+                      <TableCell className="text-right tabular-nums">{rs(c.mrr)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{rs(c.servingCost)}</TableCell>
+                      <TableCell className={cn("text-right tabular-nums", c.margin < 0 ? "text-destructive" : "")}>{signed(c.margin)}</TableCell>
+                      <TableCell className="text-right">
+                        <Link href={`/admin/clinics/${c.clinicId}`} className="text-muted-foreground hover:text-foreground"><ChevronRight className="size-4" aria-hidden="true" /></Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {/* Per-clinic health / usage / cost */}
       <Card>
         <CardHeader>
@@ -241,7 +314,12 @@ export default async function OverviewPage({
                     const stale = (c.status === "active" || c.status === "trial") && (c.daysInactive === null || c.daysInactive >= health.inactiveDays);
                     return (
                       <TableRow key={c.clinicId}>
-                        <TableCell className="font-medium">{c.name}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {c.name}
+                            {showRevenue ? <FlagBadges flags={c.flags} /> : null}
+                          </div>
+                        </TableCell>
                         <TableCell><ClinicStatusBadge status={c.status} /></TableCell>
                         <TableCell className="whitespace-nowrap text-sm">
                           {ago(c.lastActivityAt, c.daysInactive)}
