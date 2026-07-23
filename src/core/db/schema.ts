@@ -1286,6 +1286,12 @@ export const companySettings = pgTable("company_settings", {
   // Company-wide default for the Owner Overview churn threshold: a live clinic quiet
   // for ≥ this many days is "at risk". The Overview dropdown overrides it per-view.
   churnInactiveDays: integer("churn_inactive_days").notNull().default(21),
+  // Usage/cost anomaly-flag thresholds (Overview). thin_margin = serving cost ≥ this
+  // % of MRR; usage_spike = serving cost ≥ this × the prior period, ignoring costs
+  // below the floor. See core/admin/health.ts.
+  thinMarginPct: integer("thin_margin_pct").notNull().default(50),
+  spikeMultiple: integer("spike_multiple").notNull().default(3),
+  spikeFloorPkr: integer("spike_floor_pkr").notNull().default(200),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

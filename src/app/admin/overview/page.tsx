@@ -4,8 +4,9 @@ import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin, canManageTeam, canSeeBilling } from "@/core/auth/admin-permissions";
 import { getCompanyMetrics } from "@/core/admin/metrics";
 import { getClinicHealth, ANOMALY_META, type AnomalyFlag } from "@/core/admin/health";
-import { getChurnInactiveDays, CHURN_DAYS_OPTIONS } from "@/core/admin/company-settings";
+import { getChurnInactiveDays, getAnomalyThresholds, CHURN_DAYS_OPTIONS } from "@/core/admin/company-settings";
 import { listDueClinics } from "@/core/admin/billing";
+import { FlagRulesForm } from "./flag-rules-form";
 import { resolveSalesRange } from "@/core/sales/report";
 import { OverviewFilters } from "./overview-filters";
 import {
@@ -91,13 +92,13 @@ export default async function OverviewPage({
 
   // Churn threshold: the company DEFAULT (persisted in company_settings), overridden
   // by the `days` query param for this view. Only a full admin can save the default.
-  const defaultDays = await getChurnInactiveDays();
+  const [defaultDays, anomaly] = await Promise.all([getChurnInactiveDays(), getAnomalyThresholds()]);
   const inactiveDays = (CHURN_DAYS_OPTIONS as readonly number[]).includes(Number(sp.days)) ? Number(sp.days) : defaultDays;
   const canSetDefault = seesAll; // full admins (owner/super_admin) set company-wide
 
   const [metrics, health, dueAll] = await Promise.all([
     getCompanyMetrics({ ...scope, withCost: showRevenue }),
-    getClinicHealth(range, { ...scope, withCost: showRevenue, inactiveDays }),
+    getClinicHealth(range, { ...scope, withCost: showRevenue, inactiveDays, anomaly }),
     showBilling ? listDueClinics() : Promise.resolve([]),
   ]);
   const due = seesAll ? dueAll : dueAll.filter((c) => c.assignedTo === user.id);
@@ -238,13 +239,26 @@ export default async function OverviewPage({
         </CardContent>
       </Card>
 
+      {/* Flag rules (full admins) — always available so you can tune the thresholds. */}
+      {showRevenue && canSetDefault ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Flag rules</CardTitle>
+            <CardDescription>Company-wide thresholds for the usage/cost flags. The &ldquo;Cost &gt; MRR&rdquo; loss flag isn&apos;t tunable.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FlagRulesForm thinMarginPct={anomaly.thinMarginPct} spikeMultiple={anomaly.spikeMultiple} spikeFloorPkr={anomaly.spikeFloorPkr} />
+          </CardContent>
+        </Card>
+      ) : null}
+
       {/* Usage / cost anomaly flags (cost-side → revenue:view) */}
       {showRevenue && health.flagged.length > 0 ? (
         <Card className="border-destructive/30">
           <CardHeader>
             <CardTitle>Usage flags ({health.flagged.length})</CardTitle>
             <CardDescription>
-              Cost / usage anomalies over {rangeLabel} — a clinic that costs more than it pays, or a sudden spike vs the prior period.
+              Cost / usage anomalies over {rangeLabel} — cost ≥ {anomaly.thinMarginPct}% of MRR (high), &gt; MRR (loss), or ≥ {anomaly.spikeMultiple}× the prior period (spike).
             </CardDescription>
           </CardHeader>
           <CardContent>

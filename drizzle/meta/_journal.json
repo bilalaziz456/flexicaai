@@ -442,6 +442,13 @@
       "when": 1784768937666,
       "tag": "0062_skinny_caretaker",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1784770109449,
+      "tag": "0063_skinny_nehzno",
+      "breakpoints": true
     }
   ]
 }

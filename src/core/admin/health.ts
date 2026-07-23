@@ -6,6 +6,7 @@ import { unscoped } from "@/core/db/tenant-guard";
 import { notDeleted } from "@/core/db/tenant";
 import { appointments, clinicPayments, clinics, patients, users } from "@/core/db/schema";
 import { computeServingCost } from "@/core/admin/cost";
+import { DEFAULT_ANOMALY, type AnomalyThresholds } from "@/core/admin/company-settings";
 import type { ResolvedRange } from "@/core/sales/report";
 
 /**
@@ -50,11 +51,6 @@ export const ANOMALY_META: Record<AnomalyFlag, { label: string; severity: "high"
   usage_spike: { label: "Usage spike", severity: "warn", hint: "Serving cost is ≥ 3× the previous period — runaway usage, abuse, or an upsell." },
 };
 
-// Anomaly thresholds (v1, fixed).
-const THIN_MARGIN_RATIO = 0.5; // serving cost ≥ 50% of MRR
-const SPIKE_MULTIPLE = 3; // this period ≥ 3× the prior period
-const SPIKE_FLOOR_PKR = 200; // ignore tiny absolute costs (0→30 isn't a "spike")
-
 export type ClinicHealth = {
   rows: HealthRow[];
   /** Active/trial clinics with no activity for ≥ `inactiveDays` (or never) — churn risk. */
@@ -68,7 +64,12 @@ const cashSum = sql<number>`coalesce(sum(case when ${clinicPayments.kind} = 'ref
 
 export async function getClinicHealth(
   range: ResolvedRange,
-  { assignedTo, inactiveDays = 21, withCost = true }: { assignedTo?: string; inactiveDays?: number; withCost?: boolean } = {},
+  {
+    assignedTo,
+    inactiveDays = 21,
+    withCost = true,
+    anomaly = DEFAULT_ANOMALY,
+  }: { assignedTo?: string; inactiveDays?: number; withCost?: boolean; anomaly?: AnomalyThresholds } = {},
 ): Promise<ClinicHealth> {
   const { start, end } = range;
   // Prior equal-length window (immediately before this one) — the spike baseline.
@@ -146,9 +147,9 @@ export async function getClinicHealth(
       const flags: AnomalyFlag[] = [];
       if (withCost && servingCost > 0) {
         if (mrr > 0 && servingCost > mrr) flags.push("loss");
-        else if (mrr > 0 && servingCost >= THIN_MARGIN_RATIO * mrr) flags.push("thin_margin");
+        else if (mrr > 0 && servingCost >= (anomaly.thinMarginPct / 100) * mrr) flags.push("thin_margin");
         const prior = priorCostByClinic.get(c.id) ?? 0;
-        if (servingCost >= SPIKE_FLOOR_PKR && prior > 0 && servingCost >= SPIKE_MULTIPLE * prior) flags.push("usage_spike");
+        if (servingCost >= anomaly.spikeFloorPkr && prior > 0 && servingCost >= anomaly.spikeMultiple * prior) flags.push("usage_spike");
       }
 
       return {
