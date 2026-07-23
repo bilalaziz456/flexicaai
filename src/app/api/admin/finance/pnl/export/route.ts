@@ -13,7 +13,7 @@ import { toCsv } from "@/core/lib/csv";
  */
 export async function GET(request: Request) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "super_admin" || !canAdmin(user, "finance:view")) {
+  if (!user || user.role !== "super_admin" || !canAdmin(user, "pnl:view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

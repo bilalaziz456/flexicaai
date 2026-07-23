@@ -28,13 +28,13 @@ const schema = z.object({
   recurrence: z.enum(["monthly", "weekly"]).optional(),
 });
 
-/** Create (id null) or edit a company expense. finance:create / finance:edit. */
+/** Create (id null) or edit a company expense. expenses:create / expenses:edit. */
 export async function saveCompanyExpense(
   expenseId: string | null,
   _prev: ExpenseActionState,
   formData: FormData,
 ): Promise<ExpenseActionState> {
-  const user = await requireAdminCapability(expenseId ? "finance:edit" : "finance:create");
+  const user = await requireAdminCapability(expenseId ? "expenses:edit" : "expenses:create");
   const parsed = schema.safeParse({
     categoryId: formData.get("categoryId") || undefined,
     amount: formData.get("amount"),
@@ -73,7 +73,7 @@ export async function saveCompanyExpense(
 }
 
 export async function deleteCompanyExpenseAction(expenseId: string): Promise<ExpenseActionState> {
-  const user = await requireAdminCapability("finance:delete");
+  const user = await requireAdminCapability("expenses:delete");
   const ok = await softDeleteCompanyExpense(expenseId, user.id);
   if (!ok) return { error: "Expense not found." };
   await logActivity({ action: "delete", entity: "settings", entityId: expenseId, clinicId: null, summary: "Moved a company expense to Trash" });
@@ -82,7 +82,7 @@ export async function deleteCompanyExpenseAction(expenseId: string): Promise<Exp
 }
 
 export async function restoreCompanyExpenseAction(expenseId: string): Promise<ExpenseActionState> {
-  await requireAdminCapability("finance:delete");
+  await requireAdminCapability("expenses:delete");
   const ok = await restoreCompanyExpense(expenseId);
   if (!ok) return { error: "Expense not found." };
   await logActivity({ action: "update", entity: "settings", entityId: expenseId, clinicId: null, summary: "Restored a company expense" });
@@ -94,7 +94,7 @@ export async function addCompanyCategoryAction(
   _prev: ExpenseActionState,
   formData: FormData,
 ): Promise<ExpenseActionState> {
-  await requireAdminCapability("finance:edit");
+  await requireAdminCapability("expenses:edit");
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "Enter a category name." };
   await createCompanyCategory(name);
@@ -104,7 +104,7 @@ export async function addCompanyCategoryAction(
 }
 
 export async function toggleCompanyCategoryAction(categoryId: string, isActive: boolean): Promise<ExpenseActionState> {
-  await requireAdminCapability("finance:edit");
+  await requireAdminCapability("expenses:edit");
   await setCompanyCategoryActive(categoryId, isActive);
   revalidatePath("/admin/finance/expenses");
   return { saved: true };

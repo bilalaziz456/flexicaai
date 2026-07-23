@@ -30,11 +30,13 @@ export const ADMIN_RESOURCES: PermResource[] = [
   // company financials. Separate from `metrics` so a scoped user can see the panel
   // without seeing headline revenue. Owner + super_admin by default; grantable.
   { id: "revenue", label: "Revenue (MRR / ARR)", actions: ["view"] },
-  // Owner Finance — the COMPANY's P&L (serving cost, operating expenses, net profit).
-  // view=see cost/margin/P&L; create=record a company expense; edit=edit cost rates /
-  // an expense; delete=void an expense. Owner + super_admin by default; grantable
-  // (e.g. to an accountant login). See docs/owner-finance-plan.md.
-  { id: "finance", label: "Company finance (P&L)", actions: ["view", "create", "edit", "delete"] },
+  // Owner Finance — split into FOUR independently-grantable areas so, e.g., a
+  // bookkeeper can manage expenses without seeing the P&L. Owner + super_admin by
+  // default; grantable. See docs/owner-finance-plan.md.
+  { id: "pnl", label: "Company P&L", actions: ["view"] }, // /admin/finance dashboard + CSV export
+  { id: "serving_cost", label: "Serving cost", actions: ["view", "edit"] }, // /admin/finance/costs; edit = unit rates
+  { id: "expenses", label: "Operating expenses", actions: ["view", "create", "edit", "delete"] }, // /admin/finance/expenses
+  { id: "sub_invoices", label: "Subscription invoices", actions: ["view", "create", "delete"] }, // /admin/finance/invoices; create=issue, delete=void
   { id: "purge", label: "Data purge", actions: ["delete"] }, // delete = may legal-purge
 ];
 

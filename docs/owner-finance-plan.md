@@ -107,17 +107,22 @@ soft-deletable where money-bearing (→ admin Trash), audit-logged.
 Company financials are the most sensitive data in the platform → gate tight, but
 grantable (e.g. to a finance/accountant team member).
 
-- **New `finance` admin resource** (view/create/edit/delete):
-  - `finance:view` — the P&L dashboard, costs, margins, per-clinic margin, opex list.
-  - `finance:create` — record a company expense.
-  - `finance:edit` — edit unit-cost rates / an expense.
-  - `finance:delete` — void/soft-delete an expense.
-- **Default:** owner + super_admin hold it; support/sales/billing do **not** (but the
-  owner can grant `finance:view` to, say, an accountant login). Same **data backfill**
-  note as `team`/`revenue` — append `finance:*` to explicitly-full super_admins.
-- `revenue:view` (MRR/ARR on the main dashboard) stays as-is; `finance:view` gates the
-  deeper P&L module. Nav item `cap: "finance:view"`. Everything audit-logged; company
-  expenses soft-delete to the admin Trash.
+**Split into FOUR independently-grantable admin resources** (originally one `finance`
+resource; split so, e.g., a bookkeeper can manage expenses without seeing the P&L):
+- **`pnl`** (view) — the P&L dashboard (`/admin/finance`) + CSV export.
+- **`serving_cost`** (view, edit) — the cost page (`/admin/finance/costs`); edit = unit rates.
+- **`expenses`** (view, create, edit, delete) — operating expenses (`/admin/finance/expenses`).
+- **`sub_invoices`** (view, create, delete) — subscription invoices (`/admin/finance/invoices`);
+  create = issue, delete = void.
+
+- **Default:** owner + super_admin hold all four; support/sales/billing do **not** (but
+  the owner can grant, say, just `expenses:*` to an accountant login). Each finance nav
+  subtab gates on its own `*:view`. Same **data backfill** as `team`/`revenue` — the
+  split mapped every explicitly-full super_admin's old `finance:*` to the four new
+  resources.
+- `revenue:view` (MRR/ARR + serving-cost/margin KPIs on the main dashboard/Overview)
+  is separate and unchanged. Everything audit-logged; company expenses soft-delete to
+  their own ledger/Trash.
 
 ## 7. Decisions to confirm at build
 

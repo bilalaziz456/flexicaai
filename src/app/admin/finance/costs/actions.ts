@@ -23,7 +23,7 @@ export async function saveCostRatesAction(
   _prev: CostRatesActionState,
   formData: FormData,
 ): Promise<CostRatesActionState> {
-  const actor = await requireAdminCapability("finance:edit");
+  const actor = await requireAdminCapability("serving_cost:edit");
   const parsed = schema.safeParse({
     scribeCallCost: formData.get("scribeCallCost"),
     whatsappMsgCost: formData.get("whatsappMsgCost"),

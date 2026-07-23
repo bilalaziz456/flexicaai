@@ -40,17 +40,17 @@ const fmtDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", mon
  * Owner Finance — clinic subscription invoices (Phase 4). Invoices Klenic issues to
  * clinics for their subscription: filters (clinic/period/Trash), an invoiced-total
  * KPI + monthly trend graph, an issue form (pre-fills the clinic's monthly price),
- * and a ledger with a printable receipt + void/restore. Gated by `finance:view`;
- * issue `finance:create`, void `finance:delete`.
+ * and a ledger with a printable receipt + void/restore. Gated by `sub_invoices:view`;
+ * issue `sub_invoices:create`, void `sub_invoices:delete`.
  */
 export default async function ClinicInvoicesPage({
   searchParams,
 }: {
   searchParams: Promise<{ period?: string; from?: string; to?: string; clinicId?: string; deleted?: string; page?: string; size?: string }>;
 }) {
-  const user = await requireAdminCapability("finance:view");
-  const canCreate = canAdmin(user, "finance:create");
-  const canDelete = canAdmin(user, "finance:delete");
+  const user = await requireAdminCapability("sub_invoices:view");
+  const canCreate = canAdmin(user, "sub_invoices:create");
+  const canDelete = canAdmin(user, "sub_invoices:delete");
 
   const sp = await searchParams;
   const range = resolveSalesRange(sp.period ?? "year", sp.from, sp.to);

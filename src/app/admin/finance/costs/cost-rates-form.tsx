@@ -7,7 +7,7 @@ import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { Toast } from "@/core/ui/toast";
 
-/** Edit the platform unit-cost rates (Owner Finance, Phase 1). Gated by `finance:edit`. */
+/** Edit the platform unit-cost rates (Owner Finance, Phase 1). Gated by `serving_cost:edit`. */
 export function CostRatesForm({
   scribeCallCost,
   whatsappMsgCost,

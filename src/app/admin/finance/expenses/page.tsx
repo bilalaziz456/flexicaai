@@ -39,7 +39,7 @@ const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
  * Owner Finance — company operating expenses (Phase 2). Klenic's own costs (payroll,
  * rent, software, …) with period/category/method/search filters, a monthly trend +
  * by-category breakdown graph, add/edit/delete (soft) + a Trash view, and category
- * management. Gated by `finance:view`; create/edit/delete by `finance:*`.
+ * management. Gated by `expenses:view`; create/edit/delete by `expenses:*`.
  */
 export default async function CompanyExpensesPage({
   searchParams,
@@ -56,10 +56,10 @@ export default async function CompanyExpensesPage({
     size?: string;
   }>;
 }) {
-  const user = await requireAdminCapability("finance:view");
-  const canCreate = canAdmin(user, "finance:create");
-  const canEdit = canAdmin(user, "finance:edit");
-  const canDelete = canAdmin(user, "finance:delete");
+  const user = await requireAdminCapability("expenses:view");
+  const canCreate = canAdmin(user, "expenses:create");
+  const canEdit = canAdmin(user, "expenses:edit");
+  const canDelete = canAdmin(user, "expenses:delete");
 
   await ensureDefaultCompanyCategories();
 

@@ -10,10 +10,10 @@ const fmtDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", mon
 /**
  * Printable subscription invoice (Owner Finance, Phase 4) — Klenic (issuer) → clinic
  * (bill-to). Reuses the shared InvoicePrintFrame (thermal / A5 / A4). Gated by
- * `finance:view`.
+ * `sub_invoices:view`.
  */
 export default async function ClinicInvoicePrintPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireAdminCapability("finance:view");
+  await requireAdminCapability("sub_invoices:view");
   const { id } = await params;
   const inv = await getClinicInvoiceForPrint(id);
   if (!inv) notFound();

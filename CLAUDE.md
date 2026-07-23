@@ -333,7 +333,8 @@ are in `.env.example`.
   (`clinics.assigned_to`) with scoped visibility, **impersonation** (read-only "view
   as clinic"), **announcements**, 2FA/security, and per-clinic **capabilities**/features.
 - **Owner Finance** — "how much are WE (Klenic) earning?" (`docs/owner-finance-plan.md`),
-  all **core** under a `finance` admin capability + the `revenue:view` gate:
+  all **core**, each area under its own admin capability (`pnl` · `serving_cost` ·
+  `expenses` · `sub_invoices`, independently grantable) + the `revenue:view` gate:
   **serving cost** (AI + WhatsApp, **metered** per Whisper-minute / Claude-token via
   `ai_usage`, flat estimate fallback; `platform_cost_rates`), a company **operating-
   expenses** ledger (`company_expenses`), the **P&L** (collected − serving cost − opex

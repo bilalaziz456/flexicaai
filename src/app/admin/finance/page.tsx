@@ -32,14 +32,14 @@ const signed = (n: number) => `${n < 0 ? "−" : ""}Rs ${Math.abs(n).toLocaleStr
  * Owner Finance — company P&L dashboard (Phase 3). "How much are WE earning?":
  * Collected revenue − serving cost − operating expenses = net profit, with gross
  * margin, per-clinic margin, a revenue-vs-cost-vs-profit trend, and a CSV export.
- * MRR/ARR run-rate shown alongside (gated on `revenue:view`). Gated by `finance:view`.
+ * MRR/ARR run-rate shown alongside (gated on `revenue:view`). Gated by `pnl:view`.
  */
 export default async function CompanyPnlPage({
   searchParams,
 }: {
   searchParams: Promise<{ period?: string; from?: string; to?: string }>;
 }) {
-  const user = await requireAdminCapability("finance:view");
+  const user = await requireAdminCapability("pnl:view");
   const showRevenue = canAdmin(user, "revenue:view");
 
   const sp = await searchParams;

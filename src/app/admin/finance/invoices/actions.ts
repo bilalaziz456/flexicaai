@@ -21,12 +21,12 @@ const schema = z.object({
   note: z.string().trim().max(500).optional(),
 });
 
-/** Issue a subscription invoice to a clinic (finance:create). */
+/** Issue a subscription invoice to a clinic (sub_invoices:create). */
 export async function issueClinicInvoiceAction(
   _prev: InvoiceActionState,
   formData: FormData,
 ): Promise<InvoiceActionState> {
-  const user = await requireAdminCapability("finance:create");
+  const user = await requireAdminCapability("sub_invoices:create");
   const parsed = schema.safeParse({
     clinicId: formData.get("clinicId"),
     amount: formData.get("amount"),
@@ -60,7 +60,7 @@ export async function issueClinicInvoiceAction(
 }
 
 export async function voidClinicInvoiceAction(id: string): Promise<InvoiceActionState> {
-  const user = await requireAdminCapability("finance:delete");
+  const user = await requireAdminCapability("sub_invoices:delete");
   const ok = await voidClinicInvoice(id, user.id);
   if (!ok) return { error: "Invoice not found." };
   await logActivity({ action: "delete", entity: "settings", entityId: id, clinicId: null, summary: "Voided a subscription invoice" });
@@ -69,7 +69,7 @@ export async function voidClinicInvoiceAction(id: string): Promise<InvoiceAction
 }
 
 export async function restoreClinicInvoiceAction(id: string): Promise<InvoiceActionState> {
-  await requireAdminCapability("finance:delete");
+  await requireAdminCapability("sub_invoices:delete");
   const ok = await restoreClinicInvoice(id);
   if (!ok) return { error: "Invoice not found." };
   await logActivity({ action: "update", entity: "settings", entityId: id, clinicId: null, summary: "Restored a subscription invoice" });

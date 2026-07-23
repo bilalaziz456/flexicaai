@@ -20,7 +20,7 @@ const inputCls =
 
 export type InvoiceClinic = { id: string; name: string; monthlyPrice: number };
 
-/** Issue a subscription invoice to a clinic (finance:create). */
+/** Issue a subscription invoice to a clinic (sub_invoices:create). */
 export function IssueInvoiceForm({ clinics }: { clinics: InvoiceClinic[] }) {
   const [state, formAction, pending] = useActionState<InvoiceActionState, FormData>(issueClinicInvoiceAction, {});
   const [nonce, setNonce] = useState(0);

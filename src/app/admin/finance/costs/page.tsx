@@ -27,15 +27,15 @@ const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
  * Owner Finance — serving-cost tracking (Phase 1). Klenic's estimated variable cost
  * (AI scribe + WhatsApp) over a chosen period, with a scribe-vs-WhatsApp cost trend
  * and a per-clinic breakdown, driven by the configurable unit rates. Gated by
- * `finance:view`; rate editing by `finance:edit`.
+ * `serving_cost:view`; rate editing by `serving_cost:edit`.
  */
 export default async function CostsPage({
   searchParams,
 }: {
   searchParams: Promise<{ period?: string; from?: string; to?: string }>;
 }) {
-  const user = await requireAdminCapability("finance:view");
-  const canEdit = canAdmin(user, "finance:edit");
+  const user = await requireAdminCapability("serving_cost:view");
+  const canEdit = canAdmin(user, "serving_cost:edit");
 
   const sp = await searchParams;
   const range = resolveSalesRange(sp.period ?? "30d", sp.from, sp.to);
