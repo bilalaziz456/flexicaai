@@ -4,6 +4,7 @@ import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin, canManageTeam, canSeeBilling } from "@/core/auth/admin-permissions";
 import { getCompanyMetrics } from "@/core/admin/metrics";
 import { getClinicHealth } from "@/core/admin/health";
+import { getChurnInactiveDays, CHURN_DAYS_OPTIONS } from "@/core/admin/company-settings";
 import { listDueClinics } from "@/core/admin/billing";
 import { resolveSalesRange } from "@/core/sales/report";
 import { OverviewFilters } from "./overview-filters";
@@ -64,8 +65,12 @@ export default async function OverviewPage({
   const sp = await searchParams;
   const range = resolveSalesRange(sp.period ?? "30d", sp.from, sp.to);
   const rangeLabel = `${range.from} → ${range.to}`;
-  // Configurable churn threshold (days a live clinic can be quiet before "at risk").
-  const inactiveDays = [7, 14, 21, 30, 45, 60, 90].includes(Number(sp.days)) ? Number(sp.days) : 21;
+
+  // Churn threshold: the company DEFAULT (persisted in company_settings), overridden
+  // by the `days` query param for this view. Only a full admin can save the default.
+  const defaultDays = await getChurnInactiveDays();
+  const inactiveDays = (CHURN_DAYS_OPTIONS as readonly number[]).includes(Number(sp.days)) ? Number(sp.days) : defaultDays;
+  const canSetDefault = seesAll; // full admins (owner/super_admin) set company-wide
 
   const [metrics, health, dueAll] = await Promise.all([
     getCompanyMetrics({ ...scope, withCost: showRevenue }),
@@ -88,7 +93,14 @@ export default async function OverviewPage({
         </Link>
       </div>
 
-      <OverviewFilters period={range.period} from={range.from} to={range.to} days={String(inactiveDays)} />
+      <OverviewFilters
+        period={range.period}
+        from={range.from}
+        to={range.to}
+        days={String(inactiveDays)}
+        defaultDays={defaultDays}
+        canSetDefault={canSetDefault}
+      />
 
       {/* Money + health KPIs */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

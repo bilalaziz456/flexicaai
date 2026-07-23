@@ -435,6 +435,13 @@
       "when": 1784766601088,
       "tag": "0061_clever_komodo",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1784768937666,
+      "tag": "0062_skinny_caretaker",
+      "breakpoints": true
     }
   ]
 }

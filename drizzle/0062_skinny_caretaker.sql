@@ -1,0 +1,1 @@
+ALTER TABLE "company_settings" ADD COLUMN "churn_inactive_days" integer DEFAULT 21 NOT NULL;

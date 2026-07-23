@@ -1283,6 +1283,9 @@ export const companySettings = pgTable("company_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
   nextInvoiceNo: integer("next_invoice_no").notNull().default(1),
   invoicePrefix: text("invoice_prefix").notNull().default("KL-INV-"),
+  // Company-wide default for the Owner Overview churn threshold: a live clinic quiet
+  // for ≥ this many days is "at risk". The Overview dropdown overrides it per-view.
+  churnInactiveDays: integer("churn_inactive_days").notNull().default(21),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

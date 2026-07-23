@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   FilterSelect,
@@ -8,6 +8,9 @@ import {
   PERIOD_OPTIONS,
 } from "@/app/clinic/sales/sales-filters";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
+import { Button } from "@/core/ui/button";
+import { Toast } from "@/core/ui/toast";
+import { setChurnDefaultAction } from "./actions";
 
 const DAYS_OPTIONS = [
   { value: "7", label: "7 days" },
@@ -30,11 +33,17 @@ export function OverviewFilters({
   from,
   to,
   days,
+  defaultDays,
+  canSetDefault = false,
 }: {
   period: string;
   from: string;
   to: string;
   days: string;
+  /** The persisted company default — the "Save as default" button appears when the
+   *  current selection differs from it (and the user may set it). */
+  defaultDays: number;
+  canSetDefault?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -42,6 +51,8 @@ export function OverviewFilters({
   const [fromD, setFromD] = useState(from);
   const [toD, setToD] = useState(to);
   const [daysV, setDaysV] = useState(days);
+  const [saving, startSave] = useTransition();
+  const [savedTok, setSavedTok] = useState(0);
 
   function push(next: Partial<{ period: string; from: string; to: string; days: string }>) {
     const pr = next.period ?? periodV;
@@ -81,6 +92,19 @@ export function OverviewFilters({
           push({ days: v });
         }}
       />
+      {canSetDefault && Number(daysV) !== defaultDays ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={saving}
+          onClick={() => startSave(async () => { await setChurnDefaultAction(Number(daysV)); setSavedTok((n) => n + 1); })}
+          title={`Currently defaults to ${defaultDays} days for everyone`}
+        >
+          {saving ? "Saving…" : "Save as company default"}
+        </Button>
+      ) : null}
+      <Toast message={savedTok ? "Company default saved." : null} token={savedTok} />
       <DateRangeFields
         from={fromD}
         to={toD}
