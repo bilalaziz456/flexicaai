@@ -72,8 +72,10 @@ export const ADMIN_SUBROLE_PRESETS: Record<AssignableSubRole, string[]> = {
   // Sales: onboard + manage clinics, see the numbers + which clinics are overdue
   // (read-only billing) — no record payments, impersonate, delete or purge.
   sales: ["clinics:view", "clinics:create", "clinics:edit", "billing:view", "metrics:view", "account:view", "account:edit"],
-  // Billing: full billing (view/record/price/void) + see clinics + metrics.
-  billing: ["clinics:view", "billing:view", "billing:create", "billing:edit", "billing:delete", "metrics:view", "account:view", "account:edit"],
+  // Billing: full clinic billing (view/record/price/void) + issue/void subscription
+  // invoices (the document side of the same bill-a-clinic cycle) + clinics + metrics.
+  // NOT the P&L / serving cost / opex (owner-level "what WE earn/spend").
+  billing: ["clinics:view", "billing:view", "billing:create", "billing:edit", "billing:delete", "sub_invoices:view", "sub_invoices:create", "sub_invoices:delete", "metrics:view", "account:view", "account:edit"],
 };
 
 /** Human labels + one-line descriptions for the sub-roles (UI). */
@@ -82,7 +84,7 @@ export const ADMIN_SUBROLE_META: Record<AdminSubRole, { label: string; desc: str
   super_admin: { label: "Super admin", desc: "Full access — clinics, billing, announcements and the team (can't touch the owner)." },
   support: { label: "Support", desc: "Manage clinics, impersonate, announcements, metrics + overdue." },
   sales: { label: "Sales", desc: "Add & manage clinics, metrics + which clinics are overdue." },
-  billing: { label: "Billing", desc: "Record clinic payments, view metrics + overdue." },
+  billing: { label: "Billing", desc: "Record clinic payments, issue/void subscription invoices, view metrics + overdue." },
 };
 
 /** Keep only recognised admin capability slugs. */
