@@ -7,6 +7,7 @@ import {
   ensureDefaultCompanyCategories,
   listCompanyCategories,
   listCompanyExpenses,
+  listRecurringCompanyExpenses,
 } from "@/core/admin/company-expenses";
 import { resolveSalesRange } from "@/core/sales/report";
 import { MultiBarChart } from "@/app/clinic/sales/multi-bar-chart";
@@ -30,7 +31,7 @@ import {
 } from "@/core/ui/table";
 import { Badge } from "@/core/ui/badge";
 import { ExpensesFilters } from "./expenses-filters";
-import { AddCompanyExpenseForm, CompanyCategoryManager, CompanyExpenseRowActions } from "./expense-ui";
+import { AddCompanyExpenseForm, CompanyCategoryManager, CompanyExpenseRowActions, RecurringExpensesManager } from "./expense-ui";
 
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 
@@ -58,6 +59,7 @@ export default async function CompanyExpensesPage({
   const user = await requireAdminCapability("finance:view");
   const canCreate = canAdmin(user, "finance:create");
   const canEdit = canAdmin(user, "finance:edit");
+  const canDelete = canAdmin(user, "finance:delete");
 
   await ensureDefaultCompanyCategories();
 
@@ -67,7 +69,7 @@ export default async function CompanyExpensesPage({
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
 
-  const [{ rows, total }, rangeTotal, byCategory, trend, categories] = await Promise.all([
+  const [{ rows, total }, rangeTotal, byCategory, trend, categories, recurring] = await Promise.all([
     listCompanyExpenses({
       from: range.start,
       toExclusive: range.end,
@@ -82,6 +84,7 @@ export default async function CompanyExpensesPage({
     companyExpensesByCategory(range.start, range.end),
     companyExpensesTrend(range),
     listCompanyCategories(true),
+    listRecurringCompanyExpenses(),
   ]);
 
   const rangeLabel = `${range.from} → ${range.to}`;
@@ -140,6 +143,19 @@ export default async function CompanyExpensesPage({
           )}
         </CardContent>
       </Card>
+
+      {/* Recurring expenses — always shown (ongoing config, not a dated row). */}
+      {(canEdit || recurring.length > 0) ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Recurring expenses ({recurring.length})</CardTitle>
+            <CardDescription>Ongoing costs — always shown regardless of the period. The cron materialises each into a dated expense per interval; edit or stop one here.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RecurringExpensesManager templates={recurring} categories={activeCategories} canEdit={canEdit} canDelete={canDelete} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Add expense */}
       {canCreate ? (

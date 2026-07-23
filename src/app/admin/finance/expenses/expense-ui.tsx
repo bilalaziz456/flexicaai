@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { RotateCcw, Trash2 } from "lucide-react";
+import { Pencil, RotateCcw, Trash2 } from "lucide-react";
 import {
   saveCompanyExpense,
   deleteCompanyExpenseAction,
@@ -20,6 +20,7 @@ import { SearchableSelect } from "@/core/ui/searchable-select";
 const inputCls =
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 const selectCls = `${inputCls} select-chevron pr-8`;
+const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 
 const todayStr = () => {
   const d = new Date();
@@ -27,20 +28,53 @@ const todayStr = () => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 };
 
-/** Record a new company expense. */
-export function AddCompanyExpenseForm({ categories }: { categories: { id: string; name: string }[] }) {
-  const [state, formAction, pending] = useActionState<ExpenseActionState, FormData>(saveCompanyExpense.bind(null, null), {});
+/** The fields an edit prefills (a superset of RecurringExpense from the core layer). */
+export type EditableExpense = {
+  id: string;
+  categoryId: string | null;
+  amount: number;
+  incurredOn: string;
+  vendor: string | null;
+  method: string | null;
+  reference: string | null;
+  note: string | null;
+  recurrence: string | null; // non-null = recurring
+};
+
+/**
+ * Create or EDIT a company expense. Pass `expense` to edit (prefilled; the recurring
+ * toggle + interval reflect the existing row); omit it to record a new one. On save
+ * an edit calls `onDone` (to collapse an inline editor) while a create resets.
+ */
+export function CompanyExpenseForm({
+  categories,
+  expense,
+  onDone,
+}: {
+  categories: { id: string; name: string }[];
+  expense?: EditableExpense;
+  onDone?: () => void;
+}) {
+  const isEdit = !!expense;
+  const [state, formAction, pending] = useActionState<ExpenseActionState, FormData>(
+    saveCompanyExpense.bind(null, expense?.id ?? null),
+    {},
+  );
   const [nonce, setNonce] = useState(0);
-  const [date, setDate] = useState(todayStr());
-  const [amount, setAmount] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  const [date, setDate] = useState(expense?.incurredOn ?? todayStr());
+  const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
+  const [categoryId, setCategoryId] = useState(expense?.categoryId ?? "");
   useEffect(() => {
     if (state.saved) {
-      setAmount("");
-      setDate(todayStr());
-      setCategoryId("");
+      if (isEdit) onDone?.();
+      else {
+        setAmount("");
+        setDate(todayStr());
+        setCategoryId("");
+      }
     }
     if (state.saved || state.error) setNonce((n) => n + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
   const categoryOptions = [{ value: "", label: "Uncategorized" }, ...categories.map((c) => ({ value: c.id, label: c.name }))];
@@ -79,7 +113,7 @@ export function AddCompanyExpenseForm({ categories }: { categories: { id: string
         </div>
         <div className="space-y-1">
           <Label htmlFor="ex-method" className="text-xs text-muted-foreground">Method</Label>
-          <select id="ex-method" name="method" defaultValue="bank" className={selectCls}>
+          <select id="ex-method" name="method" defaultValue={expense?.method ?? "bank"} className={selectCls}>
             <option value="cash">Cash</option>
             <option value="bank">Bank transfer</option>
             <option value="cheque">Cheque</option>
@@ -88,35 +122,101 @@ export function AddCompanyExpenseForm({ categories }: { categories: { id: string
         </div>
         <div className="space-y-1">
           <Label htmlFor="ex-vendor" className="text-xs text-muted-foreground">Vendor / payee</Label>
-          <Input id="ex-vendor" name="vendor" className="h-8" />
+          <Input id="ex-vendor" name="vendor" defaultValue={expense?.vendor ?? ""} className="h-8" />
         </div>
         <div className="space-y-1">
           <Label htmlFor="ex-ref" className="text-xs text-muted-foreground">Reference</Label>
-          <Input id="ex-ref" name="reference" className="h-8" />
+          <Input id="ex-ref" name="reference" defaultValue={expense?.reference ?? ""} className="h-8" />
         </div>
         <div className="space-y-1 sm:col-span-2">
           <Label htmlFor="ex-note" className="text-xs text-muted-foreground">Note</Label>
-          <Input id="ex-note" name="note" className="h-8" />
+          <Input id="ex-note" name="note" defaultValue={expense?.note ?? ""} className="h-8" />
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-4">
-        <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Add expense"}</Button>
+        <Button type="submit" disabled={pending}>{pending ? "Saving…" : isEdit ? "Save changes" : "Add expense"}</Button>
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="recurring" className="size-4 accent-[var(--color-primary)]" />
+          <input type="checkbox" name="recurring" defaultChecked={!!expense?.recurrence} className="size-4 accent-[var(--color-primary)]" />
           Recurring cost
         </label>
         <select
           name="recurrence"
-          defaultValue="monthly"
+          defaultValue={expense?.recurrence ?? "monthly"}
           aria-label="Recurrence interval"
           className="h-8 rounded-lg border border-input bg-[var(--input-bg)] px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <option value="monthly">Monthly</option>
           <option value="weekly">Weekly</option>
         </select>
+        {isEdit && onDone ? (
+          <Button type="button" variant="ghost" size="sm" onClick={onDone}>Cancel</Button>
+        ) : null}
       </div>
-      <Toast message={state.saved ? "Expense added." : state.error ?? null} variant={state.error ? "error" : "success"} token={nonce} />
+      <Toast message={state.saved ? (isEdit ? "Expense updated." : "Expense added.") : state.error ?? null} variant={state.error ? "error" : "success"} token={nonce} />
     </form>
+  );
+}
+
+/** Backwards-compatible alias — the create form on the page. */
+export function AddCompanyExpenseForm({ categories }: { categories: { id: string; name: string }[] }) {
+  return <CompanyExpenseForm categories={categories} />;
+}
+
+/**
+ * Recurring templates manager — always shown (a recurring cost is ongoing config, not
+ * a dated transaction), so it's never hidden by the period filter. Each row edits
+ * inline (reusing CompanyExpenseForm) or deletes.
+ */
+export function RecurringExpensesManager({
+  templates,
+  categories,
+  canEdit,
+  canDelete,
+}: {
+  templates: (EditableExpense & { categoryName: string | null; nextRunOn: string | null })[];
+  categories: { id: string; name: string }[];
+  canEdit: boolean;
+  canDelete: boolean;
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  if (templates.length === 0) {
+    return <p className="text-sm text-muted-foreground">No recurring expenses yet. Record one below and tick &ldquo;Recurring cost&rdquo;.</p>;
+  }
+  return (
+    <ul className="space-y-2">
+      {templates.map((t) => (
+        <li key={t.id} className="rounded-md border p-3">
+          {editingId === t.id ? (
+            <CompanyExpenseForm categories={categories} expense={t} onDone={() => setEditingId(null)} />
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="text-sm">
+                <span className="font-medium tabular-nums">{rs(t.amount)}</span>
+                <span className="ml-1.5 text-muted-foreground">
+                  {t.categoryName ?? "Uncategorized"} · {t.recurrence ?? "monthly"}
+                  {t.nextRunOn ? ` · next ${t.nextRunOn}` : ""}
+                </span>
+                {t.vendor || t.note ? (
+                  <div className="text-xs text-muted-foreground">{[t.vendor, t.note].filter(Boolean).join(" · ")}</div>
+                ) : null}
+              </div>
+              <div className="flex items-center gap-3">
+                {canEdit ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditingId(t.id)}
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                  >
+                    <Pencil className="size-3.5" aria-hidden="true" /> Edit
+                  </button>
+                ) : null}
+                {canDelete ? <CompanyExpenseRowActions id={t.id} deleted={false} /> : null}
+              </div>
+            </div>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 

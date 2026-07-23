@@ -131,6 +131,43 @@ export async function listCompanyExpenses(
   return { rows: rows.map((r) => ({ ...r, deleted: r.deletedAt !== null })), total: Number(total) };
 }
 
+export type RecurringExpense = {
+  id: string;
+  categoryId: string | null;
+  categoryName: string | null;
+  amount: number;
+  incurredOn: string;
+  vendor: string | null;
+  method: string | null;
+  reference: string | null;
+  note: string | null;
+  recurrence: string | null;
+  nextRunOn: string | null;
+};
+
+/** All LIVE recurring templates (regardless of date) — an ongoing config the cron
+ *  materialises each period; shown/edited outside the dated ledger. */
+export async function listRecurringCompanyExpenses(): Promise<RecurringExpense[]> {
+  return db
+    .select({
+      id: companyExpenses.id,
+      categoryId: companyExpenses.categoryId,
+      categoryName: companyExpenseCategories.name,
+      amount: companyExpenses.amount,
+      incurredOn: companyExpenses.incurredOn,
+      vendor: companyExpenses.vendor,
+      method: companyExpenses.method,
+      reference: companyExpenses.reference,
+      note: companyExpenses.note,
+      recurrence: companyExpenses.recurrence,
+      nextRunOn: companyExpenses.nextRunOn,
+    })
+    .from(companyExpenses)
+    .leftJoin(companyExpenseCategories, eq(companyExpenseCategories.id, companyExpenses.categoryId))
+    .where(and(notDeleted(companyExpenses.deletedAt), eq(companyExpenses.recurring, true)))
+    .orderBy(desc(companyExpenses.nextRunOn));
+}
+
 /** Σ live expenses in a range — for the summary + the company P&L (Phase 3). */
 export async function companyExpensesTotal(from: Date, toExclusive: Date): Promise<number> {
   const [row] = await db
