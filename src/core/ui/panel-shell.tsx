@@ -110,7 +110,7 @@ export type PanelId = "admin" | "clinic" | "doctor" | "reception";
  */
 const NAV_BY_PANEL: Record<PanelId, { brand: string; nodes: NavNode[] }> = {
   admin: {
-    brand: "/admin",
+    brand: "/admin/overview",
     nodes: [
       { href: "/admin/overview", label: "Overview", Icon: LayoutDashboard, exact: true, cap: "metrics:view" },
       { href: "/admin", label: "Clinics", Icon: Building2, exact: true, cap: "clinics:view" },

@@ -90,7 +90,10 @@ export function staffInitials(
  * middleware and post-login redirects never drift apart.
  */
 export const ROLE_HOME_ROUTE: Record<UserRole, string> = {
-  super_admin: "/admin",
+  // The Owner Overview is the super-admin's landing page (company at a glance);
+  // the clinics working list lives at /admin. Every admin sub-role holds
+  // `metrics:view`, so the Overview is reachable by all of them.
+  super_admin: "/admin/overview",
   // All clinic staff share the unified permission-driven workspace; their nav +
   // page access come from their per-user permissions.
   clinic_admin: "/clinic",
