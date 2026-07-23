@@ -35,7 +35,9 @@
   exactly that batch), `deleted_by_cascade` bool (true = hidden only because a
   parent was trashed; the Trash list shows only the non-cascade rows). Tables with
   soft delete: `clinics`, `users`, `patients`, `appointments`, `visits`, `recalls`,
-  `procedures`, `doctor_leaves`, `expenses`, `patient_payments`, `invoices`. The
+  `procedures`, `doctor_leaves`, `expenses`, `patient_payments`, `invoices`,
+  `clinic_payments`, `company_expenses`, `clinic_invoices` (the last three are
+  managed in their own ledgers, not the central Trash UI). The
   central Trash UI (`core/trash`, `/clinic/trash` + `/admin/trash`) currently lists +
   restores `clinics`/`users`/`patients`/`appointments`/`visits`/`recalls`/`procedures`/
   `expenses`/`doctor_leaves` (payments/invoices soft-delete but are managed in their
@@ -348,6 +350,81 @@ unchanged). Indexes: (`appointment_id`); (`clinic_id`,`status`);
 
 ---
 
+## 3b. Super-admin control plane & Owner Finance
+
+Company-side tables — how KLENIC runs its business (bill clinics, track its own
+cost/profit). Some carry `clinic_id` (a tenant reference the super admin reads
+cross-tenant via `unscoped`); several are **company-level (no `clinic_id`)** — Klenic's
+own data, which the tenant guard therefore ignores. See `docs/super-admin-plan.md`,
+`docs/finance-plan.md` and `docs/owner-finance-plan.md`.
+
+**Clinic/user columns added by this layer** (not new tables): `clinics` gained
+subscription **billing** (`monthly_price`, `billing_cycle`, `grace_days`,
+`activated_at`, `status`, invoice counter `next_invoice_no`/`invoice_prefix`/
+`invoice_paper`), **account-manager** `assigned_to` → users (self-ref FK), a
+**payment-commitment** follow-up (`payment_commitment_at`/`_note`), and **owner
+contact** (`owner_name`/`_email`/`_phone`, `city`, `country`). `users` gained
+`deactivated_at` (NULL+inactive = suspended · set+inactive = deactivated),
+`permissions` (admin `resource:action` slugs — a NULL list on a super_admin = the
+`owner`), `prefix`, `avatar_key`, and the doctor revenue-share `%` columns.
+
+### `clinic_payments` — clinic → Klenic subscription payments
+`id`, `clinic_id` → clinics (`cascade`), `amount` int (PKR, always positive),
+`kind` (`payment` = money in / `refund` = money out / `credit` = non-cash goodwill;
+sign for the balance + cash-collected math comes from this), `method`, `reference`,
+`months_covered`, `note`, `occurred_at`, `recorded_by(+name)` snapshot, soft-delete,
+timestamps. Balance/status math in `core/admin/billing.ts` (advance/partial-payment,
+`computeClinicBalance`); a refund subtracts from paid, a credit adds without cash.
+Indexes: (`clinic_id`,`occurred_at`); partial trash index.
+
+### `announcements` — super-admin → clinic notices
+`id`, `clinic_id` → clinics (`cascade`, **nullable** — NULL = broadcast to ALL
+clinics, else targeted), `level` (info|warning), `title`, `body`, `active` bool,
+`starts_at`/`ends_at` (optional window), `created_by(+name)`, timestamps. Shown in the
+clinic notice bar. `core/admin/announcements.ts` (cross-clinic reads `unscoped`).
+
+### `platform_cost_rates` — company serving-cost config (Owner Finance) · NO clinic_id
+`id`, ESTIMATE rates `scribe_call_cost` (fallback) + `whatsapp_msg_cost`, METERED rates
+`whisper_minute_cost` + `claude_input_cost`/`claude_output_cost` (per 1M tokens), all
+`numeric` USD; `currency`, `usd_to_pkr` FX, `effective_from` (a NEW row per change =
+rate history; latest = current), `created_by(+name)`, `created_at`. Drives
+`core/admin/cost.ts#computeServingCost`. Index: `effective_from`.
+
+### `ai_usage` — precise AI metering (Owner Finance)
+`id`, `clinic_id` → clinics (`cascade`), `visit_id` → visits (`set null`), `provider`
+('whisper'|'claude'), `model`, `audio_seconds` (Whisper), `input_tokens`/`output_tokens`
+(Claude), `cost_pkr` int (**snapshot** at record-time rates), `occurred_at`. One
+whisper + one claude row per scribe run (`core/ai/usage.ts#recordScribeUsage`,
+best-effort). `computeServingCost` sums these (falls back to the flat estimate for an
+audio visit with no metered row). Indexes: (`clinic_id`,`occurred_at`); (`occurred_at`);
+(`visit_id`).
+
+### `company_expense_categories` + `company_expenses` — Klenic's own opex · NO clinic_id
+Company operating costs (payroll/rent/software/…). `company_expense_categories`:
+`id`, `name`, `is_active`. `company_expenses`: `id`, `category_id` → categories
+(`set null`), `amount` int, `incurred_on` date, `vendor`, `method`, `reference`,
+`note`, `recurring` + `recurrence` + `next_run_on` (cron `GET /api/cron/company-expenses`),
+`created_by(+name)`, **soft-delete**, timestamps. `core/admin/company-expenses.ts`.
+Indexes: `incurred_on`; `category_id`; partial trash + recurring-due indexes.
+
+### `clinic_invoices` — Klenic → clinic subscription invoices (Owner Finance)
+`id`, `clinic_id` → clinics (`cascade`), `invoice_no` int (**company-global**
+sequence, allocated by locking `company_settings` + bumping its counter — distinct
+from patient `invoices`), `period_start`/`period_end` date, `amount` int, `note`,
+`issued_at`, `issued_by(+name)`, **soft-delete** (a void keeps the number), `created_at`.
+Printable receipt reuses the invoice frame. `core/admin/clinic-invoices.ts`. Indexes:
+unique `invoice_no`; `clinic_id`; `issued_at`; partial trash index.
+
+### `company_settings` — singleton company config · NO clinic_id
+`id`, `next_invoice_no` + `invoice_prefix` (the `clinic_invoices` counter),
+`churn_inactive_days` (Overview churn threshold default, 21), `thin_margin_pct` (50) +
+`spike_multiple` (3) + `spike_floor_pkr` (200) (the Overview anomaly-flag rules),
+timestamps. One row, seeded lazily. `core/admin/company-settings.ts`. The Owner
+Overview (`/admin/overview`, `core/admin/health.ts` + `metrics.ts` + `pnl.ts`) reads
+these for churn-risk + usage/cost anomaly flags.
+
+---
+
 ## 4. Notes
 
 - **Inferred types** are exported from `schema.ts` (`Clinic`, `User`, `Patient`,
@@ -407,3 +484,18 @@ unchanged). Indexes: (`appointment_id`); (`clinic_id`,`status`);
   revenue-share v1. `0038` (Phase 7) switches payouts to an AMOUNT-based running
   balance: drops `sale_shares.payout_id`, adds `doctor_payouts.method`/`reference`
   — arbitrary/partial payments + a printable statement.)
+- Migrations **`0044`–`0063`** — the **super-admin control plane + Owner Finance**
+  (see §3b; `docs/super-admin-plan.md`, `docs/owner-finance-plan.md`). Roughly:
+  `0044`–`0053` build the super-admin panel — clinic subscription **billing**
+  (`clinic_payments` + the `clinics` billing columns), **2FA/security**, the admin
+  **ACL** (`users.permissions` admin slugs), clinic **capabilities**/features,
+  owner **contact** columns, **impersonation**, company **metrics**, and
+  **`announcements`** (`0053`). `0054` adds `clinics.payment_commitment_at/_note`;
+  `0055` adds `clinics.assigned_to` (account manager, self-ref FK); `0056` adds
+  `users.deactivated_at` (suspend vs deactivate). Owner Finance: `0057`
+  `platform_cost_rates`; `0058` `company_expenses` + `company_expense_categories`;
+  `0059` `company_settings` + `clinic_invoices`; `0060` `clinic_payments.kind`
+  (payment/refund/credit → cash-aware collected); `0061` `ai_usage` + the metered
+  Whisper/Claude rate columns on `platform_cost_rates`; `0062`
+  `company_settings.churn_inactive_days`; `0063` `company_settings` anomaly-flag
+  thresholds (`thin_margin_pct`/`spike_multiple`/`spike_floor_pkr`).

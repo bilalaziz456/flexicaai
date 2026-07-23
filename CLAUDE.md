@@ -325,6 +325,27 @@ are in `.env.example`.
   default 30) and `/admin/trash` (all clinics, no window) list + **Restore**
   (`core/trash`), gated by the `trash` permission. The ONLY physical delete is a
   super-admin legal **purge**. Search + type/actor/date/clinic filters on both.
+- **Super-admin control plane** (`/admin`) — the COMPANY's panel (`docs/super-admin-plan.md`):
+  clinic subscription **billing** (`clinic_payments`, advance/partial + overdue +
+  follow-up), a two-tier **admin ACL** (`users.permissions` admin `resource:action`
+  slugs; NULL = the `owner`), **team** management (suspend/deactivate + a `team`
+  capability + password step-up on delete), account-manager **assignment**
+  (`clinics.assigned_to`) with scoped visibility, **impersonation** (read-only "view
+  as clinic"), **announcements**, 2FA/security, and per-clinic **capabilities**/features.
+- **Owner Finance** — "how much are WE (Klenic) earning?" (`docs/owner-finance-plan.md`),
+  all **core** under a `finance` admin capability + the `revenue:view` gate:
+  **serving cost** (AI + WhatsApp, **metered** per Whisper-minute / Claude-token via
+  `ai_usage`, flat estimate fallback; `platform_cost_rates`), a company **operating-
+  expenses** ledger (`company_expenses`), the **P&L** (collected − serving cost − opex
+  = net profit; cash-aware for refunds/credits), **subscription invoices** to clinics
+  (`clinic_invoices`, company-global numbering), and a CSV export. `core/admin/cost.ts`
+  / `pnl.ts` / `company-expenses.ts` / `clinic-invoices.ts`.
+- **Owner Overview** (`/admin/overview`, the super-admin's landing page) — company at a
+  glance: money KPIs (`getCompanyMetrics`), **churn risk** (a live clinic quiet ≥ N
+  days — visits/appointments/WhatsApp/logins — threshold persisted in
+  `company_settings`), per-clinic **activity/usage/margin**, and **usage/cost anomaly
+  flags** (loss / high-cost / spike, tunable thresholds). `core/admin/health.ts`,
+  `core/admin/company-settings.ts`.
 
 Still NOT to build without instruction (§11/§12 unchanged): derma, hair, mobile apps,
 advanced analytics.
