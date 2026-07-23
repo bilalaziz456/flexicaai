@@ -11,6 +11,7 @@ import {
   type ExpenseActionState,
 } from "./actions";
 import { Button } from "@/core/ui/button";
+import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { DatePicker } from "@/core/ui/date-picker";
@@ -245,14 +246,18 @@ export function CompanyExpenseRowActions({ id, deleted }: { id: string; deleted:
           <RotateCcw className="size-3.5" aria-hidden="true" /> Restore
         </button>
       ) : (
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => run(() => deleteCompanyExpenseAction(id))}
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-destructive disabled:opacity-50"
-        >
-          <Trash2 className="size-3.5" aria-hidden="true" /> Delete
-        </button>
+        // Styled confirm dialog (no password — an expense soft-deletes and is restorable).
+        <ConfirmDialog
+          triggerLabel="Delete"
+          triggerIcon={<Trash2 className="size-3.5" aria-hidden="true" />}
+          triggerVariant="ghost"
+          triggerClassName="h-auto gap-1 px-0 text-xs text-muted-foreground hover:bg-transparent hover:text-destructive"
+          title="Delete expense"
+          description="This moves the expense to Trash — you can restore it. A recurring template will also stop generating new copies."
+          confirmLabel="Delete expense"
+          confirmVariant="destructive"
+          onConfirm={() => deleteCompanyExpenseAction(id)}
+        />
       )}
       <Toast message={err} variant="error" token={nonce} />
     </>
