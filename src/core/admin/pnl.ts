@@ -71,9 +71,10 @@ export async function getCompanyPnl(range: ResolvedRange): Promise<CompanyPnl> {
   ]);
 
   return unscoped("admin: company P&L", async () => {
-    // Collected revenue rows (money clinics paid Klenic) in the window.
+    // Collected revenue rows (CASH clinics paid Klenic) in the window — payment counts
+    // in, refund out, a non-cash credit is excluded.
     const payRows = await db
-      .select({ clinicId: clinicPayments.clinicId, amount: clinicPayments.amount, at: clinicPayments.occurredAt })
+      .select({ clinicId: clinicPayments.clinicId, amount: clinicPayments.amount, kind: clinicPayments.kind, at: clinicPayments.occurredAt })
       .from(clinicPayments)
       .where(and(notDeleted(clinicPayments.deletedAt), gte(clinicPayments.occurredAt, start), lt(clinicPayments.occurredAt, end)));
 
@@ -82,6 +83,10 @@ export async function getCompanyPnl(range: ResolvedRange): Promise<CompanyPnl> {
       .select({ mrr: sql<number>`coalesce(sum(${clinics.monthlyPrice}),0)` })
       .from(clinics)
       .where(and(notDeleted(clinics.deletedAt), eq(clinics.status, "active")));
+
+    // Clinic names — so a revenue-only clinic (no serving cost) still shows its name.
+    const clinicRows = await db.select({ id: clinics.id, name: clinics.name }).from(clinics).where(notDeleted(clinics.deletedAt));
+    const nameOf = new Map(clinicRows.map((c) => [c.id, c.name]));
 
     // Per-clinic + per-bucket revenue in one pass (local time, matching the cost/opex trends).
     const revByClinic = new Map<string, number>();
@@ -93,10 +98,13 @@ export async function getCompanyPnl(range: ResolvedRange): Promise<CompanyPnl> {
     }
     let revenue = 0;
     for (const r of payRows) {
-      revenue += r.amount;
-      revByClinic.set(r.clinicId, (revByClinic.get(r.clinicId) ?? 0) + r.amount);
+      // Cash: payment + / refund − / credit 0 (non-cash).
+      const cash = r.kind === "refund" ? -r.amount : r.kind === "credit" ? 0 : r.amount;
+      if (cash === 0) continue;
+      revenue += cash;
+      revByClinic.set(r.clinicId, (revByClinic.get(r.clinicId) ?? 0) + cash);
       const idx = bucketIndex.get(startOfBucket(r.at, granularity).getTime());
-      if (idx !== undefined) revBuckets[idx] += r.amount;
+      if (idx !== undefined) revBuckets[idx] += cash;
     }
 
     const servingCost = serving.totalCostPkr;
@@ -111,7 +119,7 @@ export async function getCompanyPnl(range: ResolvedRange): Promise<CompanyPnl> {
     const perClinic: PnlClinic[] = [...clinicIds].map((id) => {
       const rev = revByClinic.get(id) ?? 0;
       const sc = costByClinic.get(id)?.costPkr ?? 0;
-      const name = costByClinic.get(id)?.name ?? "—";
+      const name = nameOf.get(id) ?? costByClinic.get(id)?.name ?? "—";
       return { clinicId: id, name, revenue: rev, servingCost: sc, margin: rev - sc };
     });
     perClinic.sort((a, b) => a.margin - b.margin);

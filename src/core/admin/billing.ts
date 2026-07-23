@@ -69,14 +69,20 @@ type BalanceClinic = {
  * 3,000 owed; overpaying leaves a `credit`. `months_covered` on payments is
  * ignored here (kept only as a record).
  */
+/** Signed contribution of a ledger entry to the clinic's paid balance: a refund
+ *  subtracts (money returned); payments and credits add. */
+export function signedBalanceAmount(kind: string | undefined, amount: number): number {
+  return kind === "refund" ? -amount : amount;
+}
+
 export function computeClinicBalance(
   clinic: BalanceClinic,
-  payments: { amount: number; monthsCovered?: number }[],
+  payments: { amount: number; monthsCovered?: number; kind?: string }[],
   now: Date = new Date(),
 ): ClinicBalance {
   const billingStart = clinic.activatedAt ?? clinic.createdAt;
   const price = clinic.monthlyPrice;
-  const paid = payments.reduce((s, p) => s + p.amount, 0);
+  const paid = payments.reduce((s, p) => s + signedBalanceAmount(p.kind, p.amount), 0);
 
   // A free clinic (no price) is never billed.
   if (price <= 0) {
@@ -113,6 +119,7 @@ export function computeClinicBalance(
 export type ClinicPaymentRow = {
   id: string;
   amount: number;
+  kind: string;
   method: string | null;
   reference: string | null;
   monthsCovered: number;
@@ -154,6 +161,7 @@ export async function getClinicBilling(clinicId: string): Promise<{
     .select({
       id: clinicPayments.id,
       amount: clinicPayments.amount,
+      kind: clinicPayments.kind,
       method: clinicPayments.method,
       reference: clinicPayments.reference,
       monthsCovered: clinicPayments.monthsCovered,
@@ -179,12 +187,14 @@ export async function getClinicBalanceSummary(
   const [agg] = await db
     .select({
       months: sql<number>`coalesce(sum(${clinicPayments.monthsCovered}),0)`,
-      amount: sql<number>`coalesce(sum(${clinicPayments.amount}),0)`,
+      // Sign-aware: a refund subtracts from the paid balance.
+      amount: sql<number>`coalesce(sum(case when ${clinicPayments.kind} = 'refund' then -${clinicPayments.amount} else ${clinicPayments.amount} end),0)`,
     })
     .from(clinicPayments)
     .where(and(eq(clinicPayments.clinicId, clinic.id), notDeleted(clinicPayments.deletedAt)));
+  // The signed sum is already the net paid; pass it as a single 'payment' entry.
   return computeClinicBalance(clinic, [
-    { amount: Number(agg?.amount ?? 0), monthsCovered: Number(agg?.months ?? 0) },
+    { amount: Number(agg?.amount ?? 0), monthsCovered: Number(agg?.months ?? 0), kind: "payment" },
   ]);
 }
 
@@ -216,6 +226,8 @@ export async function syncClinicBillingStatus(clinicId: string): Promise<void> {
 export async function recordClinicPayment(input: {
   clinicId: string;
   amount: number;
+  /** 'payment' (default) | 'refund' (money out) | 'credit' (non-cash goodwill). */
+  kind?: "payment" | "refund" | "credit";
   monthsCovered?: number;
   method?: string | null;
   reference?: string | null;
@@ -229,10 +241,13 @@ export async function recordClinicPayment(input: {
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     return { error: "Amount must be positive." };
   }
+  const kind = input.kind ?? "payment";
   await db.insert(clinicPayments).values({
     clinicId: input.clinicId,
     amount: Math.round(input.amount),
-    monthsCovered: Math.max(0, Math.trunc(input.monthsCovered ?? 0)),
+    kind,
+    // A refund/credit doesn't "cover" billing months; only a payment does.
+    monthsCovered: kind === "payment" ? Math.max(0, Math.trunc(input.monthsCovered ?? 0)) : 0,
     method: input.method || null,
     reference: input.reference || null,
     note: input.note || null,

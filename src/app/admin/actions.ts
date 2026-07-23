@@ -674,6 +674,7 @@ export async function setClinicPrice(
 
 const clinicPaymentSchema = z.object({
   amount: z.coerce.number().int("Whole PKR only.").positive("Amount must be positive."),
+  kind: z.enum(["payment", "refund", "credit"]).optional(),
   method: z.enum(["bank", "cash", "cheque", "other"]).optional(),
   reference: z.string().trim().max(120).optional(),
   note: z.string().trim().max(500).optional(),
@@ -692,6 +693,7 @@ export async function recordClinicPaymentAction(
   const admin = await requireAdminCapability("billing:create");
   const parsed = clinicPaymentSchema.safeParse({
     amount: formData.get("amount"),
+    kind: formData.get("kind") || undefined,
     method: formData.get("method") || undefined,
     reference: formData.get("reference") || undefined,
     note: formData.get("note") || undefined,
@@ -705,27 +707,31 @@ export async function recordClinicPaymentAction(
   if (occurredAt && Number.isNaN(occurredAt.getTime())) return { error: "Invalid date." };
   const commitmentAt = parsed.data.commitmentAt ? new Date(parsed.data.commitmentAt) : null;
   if (commitmentAt && Number.isNaN(commitmentAt.getTime())) return { error: "Invalid follow-up date." };
+  const kind = parsed.data.kind ?? "payment";
 
   const res = await recordClinicPayment({
     clinicId,
     amount: parsed.data.amount,
+    kind,
     method: parsed.data.method,
     reference: parsed.data.reference,
     note: parsed.data.note,
     occurredAt,
     recordedBy: admin.id,
     recordedByName: admin.username,
-    commitmentAt,
-    commitmentNote: parsed.data.commitmentNote,
+    // A refund/credit isn't a promise to pay — only carry a follow-up on a payment.
+    commitmentAt: kind === "payment" ? commitmentAt : null,
+    commitmentNote: kind === "payment" ? parsed.data.commitmentNote : undefined,
   });
   if ("error" in res) return { error: res.error };
 
+  const verb = kind === "refund" ? "Refunded" : kind === "credit" ? "Credited" : "Recorded payment";
   await logActivity({
     action: "create",
     entity: "clinic",
     entityId: clinicId,
     clinicId,
-    summary: `Recorded clinic payment ${parsed.data.amount} PKR`,
+    summary: `${verb} clinic ${parsed.data.amount} PKR`,
   });
   revalidatePath(`/admin/clinics/${clinicId}`);
   revalidatePath("/admin");

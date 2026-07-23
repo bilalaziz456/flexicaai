@@ -1,0 +1,1 @@
+ALTER TABLE "clinic_payments" ADD COLUMN "kind" text DEFAULT 'payment' NOT NULL;

@@ -164,7 +164,12 @@ grantable (e.g. to a finance/accountant team member).
    `finance:create` (issue) / `finance:delete` (void). Verified over HTTP: ACL 4 roles,
    sequential numbering (KL-INV-1/2, counter→3), list+total+trend, print (bill-to clinic
    + owner, Klenic issuer) + print gated, clinic filter, void→Trash→restore. **Clinic
-   refund/credit deferred** (optional; add if a clinic overpays/cancels).
+   refund/credit** ✅ (migration 0060) — `clinic_payments.kind` (`payment` +balance
+   +cash · `refund` −balance −cash · `credit` +balance non-cash); balance math +
+   `recordClinicPayment` are sign/kind-aware (refund/credit carry 0 months); the clinic
+   Billing card gains a Type select + refund/credit history badges + signed amounts.
+   **Collected revenue is now CASH-aware everywhere** — `getCompanyPnl` +
+   `getCompanyMetrics` count payment − refund and exclude non-cash credit.
 
 **Deferred:** precise token/minute AI metering (`ai_usage`), plans/tiers +
 entitlements + automated dunning (v3), multi-currency beyond one FX rate, automated

@@ -44,6 +44,7 @@ export type BillingBalance = {
 export type BillingPayment = {
   id: string;
   amount: number;
+  kind: string;
   method: string | null;
   reference: string | null;
   monthsCovered: number;
@@ -98,11 +99,14 @@ export function ClinicBilling({
   // after an action (uncontrolled defaultValue re-initialising).
   const [priceVal, setPriceVal] = useState(String(monthlyPrice));
   const [graceVal, setGraceVal] = useState(String(graceDays));
+  // Payment / refund (money out) / credit (non-cash adjustment).
+  const [kind, setKind] = useState("payment");
+  const isPayment = kind === "payment";
 
   return (
     <div className="space-y-6">
       {priceState.saved ? <Toast message="Billing settings saved." /> : null}
-      {payState.saved ? <Toast message="Payment recorded." /> : null}
+      {payState.saved ? <Toast message="Recorded." /> : null}
 
       {/* ---- Balance summary ---- */}
       <div className="grid gap-3 rounded-md border p-4 sm:grid-cols-4">
@@ -191,13 +195,26 @@ export function ClinicBilling({
       {/* ---- Record a payment (manage only) ---- */}
       {canManage ? (
       <form action={payAction} className="space-y-3 rounded-md border p-4">
-        <div className="text-sm font-medium">Record a payment</div>
+        <input type="hidden" name="kind" value={kind} />
+        <div className="text-sm font-medium">Record payment / refund / credit</div>
         <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-2">
+            <Label htmlFor="kind">Type</Label>
+            <select id="kind" value={kind} onChange={(e) => setKind(e.target.value)} className={selectClass}>
+              <option value="payment">Payment (money in)</option>
+              <option value="refund">Refund (money out)</option>
+              <option value="credit">Credit (non-cash adjustment)</option>
+            </select>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="amount">Amount (PKR)</Label>
             <Input id="amount" name="amount" type="number" min={1} required />
             <p className="text-[11px] text-muted-foreground">
-              Partial ok — any remaining balance carries forward.
+              {isPayment
+                ? "Partial ok — any remaining balance carries forward."
+                : kind === "refund"
+                  ? "Money returned to the clinic — reduces their balance & our revenue."
+                  : "Non-cash credit — reduces their balance without cash."}
             </p>
           </div>
           <div className="space-y-2">
@@ -223,23 +240,27 @@ export function ClinicBilling({
           </div>
         </div>
 
-        {/* Follow-up on any remaining balance (partial payment). */}
-        <div className="grid gap-3 rounded-md border border-dashed p-3 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="commitmentAt">Follow-up date (if balance remains)</Label>
-            <Input id="commitmentAt" name="commitmentAt" type="date" />
-            <p className="text-[11px] text-muted-foreground">
-              When they promised to pay the rest — cleared once settled.
-            </p>
+        {/* Follow-up on any remaining balance (payment only). */}
+        {isPayment ? (
+          <div className="grid gap-3 rounded-md border border-dashed p-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="commitmentAt">Follow-up date (if balance remains)</Label>
+              <Input id="commitmentAt" name="commitmentAt" type="date" />
+              <p className="text-[11px] text-muted-foreground">
+                When they promised to pay the rest — cleared once settled.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="commitmentNote">Follow-up note</Label>
+              <Input id="commitmentNote" name="commitmentNote" placeholder="e.g. will pay rest after 10 days" />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="commitmentNote">Follow-up note</Label>
-            <Input id="commitmentNote" name="commitmentNote" placeholder="e.g. will pay rest after 10 days" />
-          </div>
-        </div>
+        ) : null}
 
         {payState.error ? <p className="text-sm text-destructive" role="alert">{payState.error}</p> : null}
-        <Button type="submit" disabled={paying}>{paying ? "Recording…" : "Record payment"}</Button>
+        <Button type="submit" disabled={paying}>
+          {paying ? "Saving…" : isPayment ? "Record payment" : kind === "refund" ? "Record refund" : "Record credit"}
+        </Button>
       </form>
       ) : null}
 
@@ -248,12 +269,12 @@ export function ClinicBilling({
         <div className="space-y-2">
           <div className="text-sm font-medium">Payment history</div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[36rem] text-sm">
+            <table className="w-full min-w-[38rem] text-sm">
               <thead>
                 <tr className="border-b text-left text-xs text-muted-foreground">
                   <th className="py-1.5 font-normal">Date</th>
+                  <th className="py-1.5 font-normal">Type</th>
                   <th className="py-1.5 font-normal">Amount</th>
-                  <th className="py-1.5 font-normal">Months</th>
                   <th className="py-1.5 font-normal">Method</th>
                   <th className="py-1.5 font-normal">Reference</th>
                   <th className="py-1.5 text-right font-normal">By</th>
@@ -261,34 +282,48 @@ export function ClinicBilling({
                 </tr>
               </thead>
               <tbody>
-                {payments.map((p) => (
-                  <tr key={p.id} className="border-b last:border-0">
-                    <td className="py-1.5">{fmtDate(p.occurredAt)}</td>
-                    <td className="py-1.5 font-medium">{rs(p.amount)}</td>
-                    <td className="py-1.5">{p.monthsCovered}</td>
-                    <td className="py-1.5 capitalize">{p.method ?? "—"}</td>
-                    <td className="py-1.5 text-muted-foreground">{p.reference ?? "—"}</td>
-                    <td className="py-1.5 text-right text-muted-foreground">{p.recordedByName ?? "—"}</td>
-                    <td className="py-1.5 text-right">
-                      {canManage ? (
-                        <button
-                          type="button"
-                          disabled={voiding}
-                          onClick={() => {
-                            if (confirm("Void this payment? Paid-through will shrink.")) {
-                              startVoid(async () => {
-                                await voidClinicPaymentAction(clinicId, p.id);
-                              });
-                            }
-                          }}
-                          className="text-xs text-destructive underline-offset-2 hover:underline disabled:opacity-50"
-                        >
-                          Void
-                        </button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
+                {payments.map((p) => {
+                  const isRefund = p.kind === "refund";
+                  const isCredit = p.kind === "credit";
+                  return (
+                    <tr key={p.id} className="border-b last:border-0">
+                      <td className="py-1.5">{fmtDate(p.occurredAt)}</td>
+                      <td className="py-1.5">
+                        {isRefund ? (
+                          <Badge variant="outline" className="border-transparent bg-destructive/10 text-destructive">Refund</Badge>
+                        ) : isCredit ? (
+                          <Badge variant="outline" className="border-transparent bg-amber-500/10 text-amber-600 dark:text-amber-400">Credit</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">Payment</span>
+                        )}
+                      </td>
+                      <td className={cn("py-1.5 font-medium tabular-nums", isRefund ? "text-destructive" : "")}>
+                        {isRefund ? `−${rs(p.amount)}` : rs(p.amount)}
+                      </td>
+                      <td className="py-1.5 capitalize">{p.method ?? "—"}</td>
+                      <td className="py-1.5 text-muted-foreground">{p.reference ?? "—"}</td>
+                      <td className="py-1.5 text-right text-muted-foreground">{p.recordedByName ?? "—"}</td>
+                      <td className="py-1.5 text-right">
+                        {canManage ? (
+                          <button
+                            type="button"
+                            disabled={voiding}
+                            onClick={() => {
+                              if (confirm("Void this entry? The clinic's balance will be recomputed.")) {
+                                startVoid(async () => {
+                                  await voidClinicPaymentAction(clinicId, p.id);
+                                });
+                              }
+                            }}
+                            className="text-xs text-destructive underline-offset-2 hover:underline disabled:opacity-50"
+                          >
+                            Void
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

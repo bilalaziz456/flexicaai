@@ -174,6 +174,7 @@ export default async function ClinicDetailPage({
               payments={billing.payments.map((p) => ({
                 id: p.id,
                 amount: p.amount,
+                kind: p.kind,
                 method: p.method,
                 reference: p.reference,
                 monthsCovered: p.monthsCovered,

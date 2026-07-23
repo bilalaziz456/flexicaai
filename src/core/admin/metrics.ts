@@ -53,6 +53,9 @@ export async function getCompanyMetrics(
     const paymentScope = assignedTo
       ? sql`exists (select 1 from ${clinics} where ${clinics.id} = ${clinicPayments.clinicId} and ${clinics.assignedTo} = ${assignedTo} and ${clinics.deletedAt} is null)`
       : undefined;
+    // CASH collected: a payment counts in, a refund out, a non-cash credit is excluded.
+    const cashSum = sql<number>`coalesce(sum(case when ${clinicPayments.kind} = 'refund' then -${clinicPayments.amount} when ${clinicPayments.kind} = 'credit' then 0 else ${clinicPayments.amount} end),0)`;
+    const cashOrder = sql`sum(case when ${clinicPayments.kind} = 'refund' then -${clinicPayments.amount} when ${clinicPayments.kind} = 'credit' then 0 else ${clinicPayments.amount} end)`;
 
     // Clinics by lifecycle status.
     const statusRows = await db
@@ -77,13 +80,13 @@ export async function getCompanyMetrics(
       .from(clinics)
       .where(and(notDeleted(clinics.deletedAt), gte(clinics.createdAt, monthStart), clinicScope));
 
-    // Collected (money in from clinics) this month / year.
+    // Collected CASH (money in − refunds; credits excluded) this month / year.
     const [{ m: collectedThisMonth }] = await db
-      .select({ m: sql<number>`coalesce(sum(${clinicPayments.amount}),0)` })
+      .select({ m: cashSum })
       .from(clinicPayments)
       .where(and(notDeleted(clinicPayments.deletedAt), gte(clinicPayments.occurredAt, monthStart), paymentScope));
     const [{ y: collectedThisYear }] = await db
-      .select({ y: sql<number>`coalesce(sum(${clinicPayments.amount}),0)` })
+      .select({ y: cashSum })
       .from(clinicPayments)
       .where(and(notDeleted(clinicPayments.deletedAt), gte(clinicPayments.occurredAt, yearStart), paymentScope));
 
@@ -91,7 +94,7 @@ export async function getCompanyMetrics(
     const trendRows = await db
       .select({
         m: sql<string>`to_char(date_trunc('month', ${clinicPayments.occurredAt}), 'YYYY-MM')`,
-        s: sql<number>`coalesce(sum(${clinicPayments.amount}),0)`,
+        s: cashSum,
       })
       .from(clinicPayments)
       .where(and(notDeleted(clinicPayments.deletedAt), gte(clinicPayments.occurredAt, trendStart), paymentScope))
@@ -111,13 +114,13 @@ export async function getCompanyMetrics(
       .select({
         id: clinicPayments.clinicId,
         name: clinics.name,
-        total: sql<number>`coalesce(sum(${clinicPayments.amount}),0)`,
+        total: cashSum,
       })
       .from(clinicPayments)
       .innerJoin(clinics, eq(clinicPayments.clinicId, clinics.id))
       .where(and(notDeleted(clinicPayments.deletedAt), gte(clinicPayments.occurredAt, yearStart), clinicScope))
       .groupBy(clinicPayments.clinicId, clinics.name)
-      .orderBy(desc(sql`sum(${clinicPayments.amount})`))
+      .orderBy(desc(cashOrder))
       .limit(5);
 
     // Overdue total (reuse the billing balance math) — scoped to this manager's clinics.

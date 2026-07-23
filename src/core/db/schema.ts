@@ -1130,7 +1130,11 @@ export const clinicPayments = pgTable(
     clinicId: uuid("clinic_id")
       .notNull()
       .references(() => clinics.id, { onDelete: "cascade" }),
-    amount: integer("amount").notNull().default(0), // PKR
+    amount: integer("amount").notNull().default(0), // PKR (always positive; sign from kind)
+    // 'payment' = money IN from the clinic (+balance, +cash revenue); 'refund' =
+    // money OUT to the clinic (−balance, −cash revenue); 'credit' = non-cash account
+    // credit / goodwill (+balance, NOT cash revenue). See core/admin/billing.ts.
+    kind: text("kind").notNull().default("payment"),
     method: text("method"), // bank | cash | cheque | other
     reference: text("reference"),
     monthsCovered: integer("months_covered").notNull().default(1), // pushes paid_through
