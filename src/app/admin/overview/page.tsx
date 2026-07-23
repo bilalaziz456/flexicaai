@@ -6,7 +6,7 @@ import { getCompanyMetrics } from "@/core/admin/metrics";
 import { getClinicHealth } from "@/core/admin/health";
 import { listDueClinics } from "@/core/admin/billing";
 import { resolveSalesRange } from "@/core/sales/report";
-import { CostFilters } from "../finance/costs/cost-filters";
+import { OverviewFilters } from "./overview-filters";
 import {
   Card,
   CardContent,
@@ -53,7 +53,7 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: 
 export default async function OverviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ period?: string; from?: string; to?: string; days?: string }>;
 }) {
   const user = await requireAdminCapability("metrics:view");
   const seesAll = canManageTeam(user);
@@ -64,10 +64,12 @@ export default async function OverviewPage({
   const sp = await searchParams;
   const range = resolveSalesRange(sp.period ?? "30d", sp.from, sp.to);
   const rangeLabel = `${range.from} → ${range.to}`;
+  // Configurable churn threshold (days a live clinic can be quiet before "at risk").
+  const inactiveDays = [7, 14, 21, 30, 45, 60, 90].includes(Number(sp.days)) ? Number(sp.days) : 21;
 
   const [metrics, health, dueAll] = await Promise.all([
     getCompanyMetrics({ ...scope, withCost: showRevenue }),
-    getClinicHealth(range, { ...scope, withCost: showRevenue }),
+    getClinicHealth(range, { ...scope, withCost: showRevenue, inactiveDays }),
     showBilling ? listDueClinics() : Promise.resolve([]),
   ]);
   const due = seesAll ? dueAll : dueAll.filter((c) => c.assignedTo === user.id);
@@ -86,7 +88,7 @@ export default async function OverviewPage({
         </Link>
       </div>
 
-      <CostFilters period={range.period} from={range.from} to={range.to} />
+      <OverviewFilters period={range.period} from={range.from} to={range.to} days={String(inactiveDays)} />
 
       {/* Money + health KPIs */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -124,52 +126,76 @@ export default async function OverviewPage({
         ) : null}
       </div>
 
-      {/* Alerts: payments due + churn risk */}
-      <div className="grid gap-3 lg:grid-cols-2">
-        {showBilling ? (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Payments due / overdue ({due.length})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {due.length === 0 ? (
-                <p className="py-3 text-sm text-muted-foreground">Nothing due — all clear.</p>
-              ) : (
-                <ul className="space-y-1.5 text-sm">
-                  {due.slice(0, 6).map((c) => (
-                    <li key={c.id} className="flex items-center justify-between gap-3">
-                      <Link href={`/admin/clinics/${c.id}`} className="truncate font-medium hover:underline">{c.name}</Link>
-                      <span className={cn("shrink-0 tabular-nums", c.balance.billingStatus === "overdue" ? "text-destructive" : "text-amber-600 dark:text-amber-400")}>
-                        {c.balance.billingStatus === "overdue" ? `${rs(c.balance.owed)} · ${c.balance.daysOverdue}d` : `due · ${c.balance.daysOverdue}d`}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        ) : null}
-
+      {/* Payments due / overdue */}
+      {showBilling && due.length > 0 ? (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Churn risk — quiet clinics ({health.atRisk.length})</CardTitle>
+            <CardTitle className="text-base">Payments due / overdue ({due.length})</CardTitle>
           </CardHeader>
           <CardContent>
-            {health.atRisk.length === 0 ? (
-              <p className="py-3 text-sm text-muted-foreground">Every live clinic is active. 🎉</p>
-            ) : (
-              <ul className="space-y-1.5 text-sm">
-                {health.atRisk.slice(0, 6).map((c) => (
-                  <li key={c.clinicId} className="flex items-center justify-between gap-3">
-                    <Link href={`/admin/clinics/${c.clinicId}`} className="truncate font-medium hover:underline">{c.name}</Link>
-                    <span className="shrink-0 text-amber-600 dark:text-amber-400">{ago(c.lastActivityAt, c.daysInactive)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <ul className="grid gap-1.5 text-sm sm:grid-cols-2">
+              {due.slice(0, 8).map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-3">
+                  <Link href={`/admin/clinics/${c.id}`} className="truncate font-medium hover:underline">{c.name}</Link>
+                  <span className={cn("shrink-0 tabular-nums", c.balance.billingStatus === "overdue" ? "text-destructive" : "text-amber-600 dark:text-amber-400")}>
+                    {c.balance.billingStatus === "overdue" ? `${rs(c.balance.owed)} · ${c.balance.daysOverdue}d` : `due · ${c.balance.daysOverdue}d`}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
-      </div>
+      ) : null}
+
+      {/* At-risk clinics — the actionable churn list (who to contact) */}
+      <Card className={health.atRisk.length > 0 ? "border-amber-500/40" : undefined}>
+        <CardHeader>
+          <CardTitle>At-risk clinics ({health.atRisk.length})</CardTitle>
+          <CardDescription>
+            Live clinics quiet for ≥ {health.inactiveDays} days (or never active) — activity counts visits, appointments, WhatsApp &amp; staff logins.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {health.atRisk.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">Every live clinic is active. 🎉</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Clinic</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Last active</TableHead>
+                    <TableHead>Account manager</TableHead>
+                    <TableHead>Contact</TableHead>
+                    {showRevenue ? <TableHead className="text-right">MRR</TableHead> : null}
+                    <TableHead className="text-right">Appts</TableHead>
+                    <TableHead className="text-right">Scribe</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {health.atRisk.map((c) => (
+                    <TableRow key={c.clinicId}>
+                      <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell><ClinicStatusBadge status={c.status} /></TableCell>
+                      <TableCell className="whitespace-nowrap text-amber-600 dark:text-amber-400">{ago(c.lastActivityAt, c.daysInactive)}</TableCell>
+                      <TableCell className="text-sm">{c.assigneeName ?? <span className="text-muted-foreground">unassigned</span>}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{c.ownerPhone ?? c.ownerEmail ?? "—"}</TableCell>
+                      {showRevenue ? <TableCell className="text-right tabular-nums">{rs(c.mrr)}</TableCell> : null}
+                      <TableCell className="text-right tabular-nums">{c.appointments}</TableCell>
+                      <TableCell className="text-right tabular-nums">{c.scribeCalls}</TableCell>
+                      <TableCell className="text-right">
+                        <Link href={`/admin/clinics/${c.clinicId}`} className="text-muted-foreground hover:text-foreground"><ChevronRight className="size-4" aria-hidden="true" /></Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Per-clinic health / usage / cost */}
       <Card>

@@ -1,10 +1,10 @@
 import "server-only";
 
-import { and, eq, gte, lt, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { unscoped } from "@/core/db/tenant-guard";
 import { notDeleted } from "@/core/db/tenant";
-import { appointments, clinicPayments, clinics, patients } from "@/core/db/schema";
+import { appointments, clinicPayments, clinics, patients, users } from "@/core/db/schema";
 import { computeServingCost } from "@/core/admin/cost";
 import type { ResolvedRange } from "@/core/sales/report";
 
@@ -33,6 +33,11 @@ export type HealthRow = {
   servingCost: number;
   collected: number;
   margin: number; // collected − serving cost
+  // Actionable clinic data — who to contact about an at-risk clinic.
+  mrr: number; // monthly_price
+  ownerPhone: string | null;
+  ownerEmail: string | null;
+  assigneeName: string | null; // account manager
 };
 
 export type ClinicHealth = {
@@ -53,7 +58,20 @@ export async function getClinicHealth(
     const scope = assignedTo ? eq(clinics.assignedTo, assignedTo) : undefined;
 
     const [clinicRows, serving, apptRows, patientRows, paidRows, lastRows] = await Promise.all([
-      db.select({ id: clinics.id, name: clinics.name, status: clinics.status }).from(clinics).where(and(notDeleted(clinics.deletedAt), scope)),
+      db
+        .select({
+          id: clinics.id,
+          name: clinics.name,
+          status: clinics.status,
+          mrr: clinics.monthlyPrice,
+          ownerPhone: clinics.ownerPhone,
+          ownerEmail: clinics.ownerEmail,
+          assigneeFullName: users.fullName,
+          assigneeUsername: users.username,
+        })
+        .from(clinics)
+        .leftJoin(users, and(eq(clinics.assignedTo, users.id), isNull(users.deletedAt)))
+        .where(and(notDeleted(clinics.deletedAt), scope)),
       withCost ? computeServingCost(range) : Promise.resolve(null),
       db
         .select({ clinicId: appointments.clinicId, c: sql<number>`count(*)::int` })
@@ -70,8 +88,8 @@ export async function getClinicHealth(
         .from(clinicPayments)
         .where(and(notDeleted(clinicPayments.deletedAt), gte(clinicPayments.occurredAt, start), lt(clinicPayments.occurredAt, end)))
         .groupBy(clinicPayments.clinicId),
-      // Global last activity per clinic — the most recent of a visit, appointment or
-      // WhatsApp message (any time, not range-bound) → drives churn risk.
+      // Global last activity per clinic — the most recent of a visit, appointment,
+      // WhatsApp message, or STAFF LOGIN (any time, not range-bound) → churn risk.
       db.execute(sql`
         select clinic_id, max(at) as last_at from (
           select clinic_id, created_at as at from visits where deleted_at is null
@@ -79,6 +97,8 @@ export async function getClinicHealth(
           select clinic_id, created_at as at from appointments where deleted_at is null
           union all
           select clinic_id, created_at as at from whatsapp_messages where clinic_id is not null
+          union all
+          select clinic_id, created_at as at from activity_logs where action = 'login' and clinic_id is not null
         ) a group by clinic_id
       `),
     ]);
@@ -112,6 +132,10 @@ export async function getClinicHealth(
         servingCost,
         collected,
         margin: collected - servingCost,
+        mrr: num(c.mrr),
+        ownerPhone: c.ownerPhone,
+        ownerEmail: c.ownerEmail,
+        assigneeName: c.assigneeFullName ?? c.assigneeUsername ?? null,
       };
     });
 
