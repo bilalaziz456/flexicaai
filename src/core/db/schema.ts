@@ -1168,10 +1168,15 @@ export const platformCostRates = pgTable(
   "platform_cost_rates",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    // Estimated cost per scribe call (Whisper + Claude, bundled) and per WhatsApp
-    // message, in `currency`. Decimals (e.g. 0.006000) — money math rounds to PKR.
+    // ESTIMATE rates (count × rate) — a flat cost per scribe call (fallback for a
+    // visit with no metered usage) and per WhatsApp message, in `currency`.
     scribeCallCost: numeric("scribe_call_cost", { precision: 12, scale: 6 }).notNull().default("0"),
     whatsappMsgCost: numeric("whatsapp_msg_cost", { precision: 12, scale: 6 }).notNull().default("0"),
+    // METERED rates (accurate) — Whisper per audio MINUTE, Claude per 1M input /
+    // output TOKENS. Used when a scribe call logs real usage (see ai_usage). USD.
+    whisperMinuteCost: numeric("whisper_minute_cost", { precision: 12, scale: 6 }).notNull().default("0"),
+    claudeInputCost: numeric("claude_input_cost", { precision: 12, scale: 6 }).notNull().default("0"),
+    claudeOutputCost: numeric("claude_output_cost", { precision: 12, scale: 6 }).notNull().default("0"),
     currency: text("currency").notNull().default("USD"),
     usdToPkr: numeric("usd_to_pkr", { precision: 12, scale: 4 }).notNull().default("0"),
     effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
@@ -1180,6 +1185,38 @@ export const platformCostRates = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("platform_cost_rates_effective_idx").on(t.effectiveFrom)],
+);
+
+/**
+ * AI usage meter (Owner Finance — precise serving cost). One row per PAID AI call in
+ * a scribe run: a `whisper` row (audio seconds) + a `claude` row (input/output
+ * tokens). `cost_pkr` is SNAPSHOTTED at the rates live when recorded (so a later rate
+ * change never rewrites history), computed by `core/ai/usage.ts` from
+ * `platform_cost_rates`. Lets `computeServingCost` use metered cost instead of the
+ * flat per-call estimate. Carries `clinic_id` (cross-tenant reads run `unscoped`).
+ */
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    visitId: uuid("visit_id").references(() => visits.id, { onDelete: "set null" }),
+    provider: text("provider").notNull(), // 'whisper' | 'claude'
+    model: text("model"),
+    audioSeconds: integer("audio_seconds").notNull().default(0),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    costPkr: integer("cost_pkr").notNull().default(0), // snapshot at record-time rates
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ai_usage_clinic_occurred_idx").on(t.clinicId, t.occurredAt),
+    index("ai_usage_occurred_idx").on(t.occurredAt),
+    index("ai_usage_visit_idx").on(t.visitId),
+  ],
 );
 
 /**
@@ -1696,6 +1733,7 @@ export type Notification = typeof notifications.$inferSelect;
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type ClinicPayment = typeof clinicPayments.$inferSelect;
 export type PlatformCostRate = typeof platformCostRates.$inferSelect;
+export type AiUsage = typeof aiUsage.$inferSelect;
 export type CompanyExpense = typeof companyExpenses.$inferSelect;
 export type CompanyExpenseCategory = typeof companyExpenseCategories.$inferSelect;
 export type CompanySettings = typeof companySettings.$inferSelect;

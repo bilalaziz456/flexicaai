@@ -64,11 +64,14 @@ function extractJson(text: string): string {
  * Run a JSON prompt and return the parsed object plus the raw model text (kept
  * for the accuracy flywheel — CLAUDE.md §8).
  */
+/** Token usage of a Claude call — for precise cost metering (core/ai/usage.ts). */
+export type ClaudeUsage = { model: string; inputTokens: number; outputTokens: number };
+
 export async function runJsonPrompt<T = Record<string, unknown>>(args: {
   system: string;
   user: string;
   maxTokens?: number;
-}): Promise<{ data: T; raw: string }> {
+}): Promise<{ data: T; raw: string; usage: ClaudeUsage }> {
   const message = await getClient().messages.create({
     model: SCRIBE_MODEL,
     max_tokens: args.maxTokens ?? 4096,
@@ -82,6 +85,12 @@ export async function runJsonPrompt<T = Record<string, unknown>>(args: {
     .join("")
     .trim();
 
+  const usage: ClaudeUsage = {
+    model: message.model ?? SCRIBE_MODEL,
+    inputTokens: message.usage?.input_tokens ?? 0,
+    outputTokens: message.usage?.output_tokens ?? 0,
+  };
+
   let data: T;
   try {
     data = JSON.parse(extractJson(raw)) as T;
@@ -89,5 +98,5 @@ export async function runJsonPrompt<T = Record<string, unknown>>(args: {
     if (e instanceof AiParseError) throw e;
     throw new AiParseError("Model returned malformed JSON", raw);
   }
-  return { data, raw };
+  return { data, raw, usage };
 }

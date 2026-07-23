@@ -1,7 +1,10 @@
 import "server-only";
 
-import { runJsonPrompt, MissingApiKeyError } from "@/core/ai/prompt-runner";
+import { runJsonPrompt, MissingApiKeyError, type ClaudeUsage } from "@/core/ai/prompt-runner";
 import { serverEnv } from "@/core/lib/env";
+
+/** Metered usage of one scribe run — for precise serving cost (core/ai/usage.ts). */
+export type ScribeUsage = { audioSeconds: number; claude: ClaudeUsage };
 
 /**
  * Scribe engine — CORE and GENERIC (CLAUDE.md §8). It turns audio into a
@@ -15,11 +18,12 @@ import { serverEnv } from "@/core/lib/env";
 
 export { MissingApiKeyError } from "@/core/ai/prompt-runner";
 
-/** Whisper transcription — separate from Claude. Throws MissingApiKeyError if unset. */
+/** Whisper transcription — separate from Claude. Returns the text + audio duration
+ *  (seconds, for cost metering). Throws MissingApiKeyError if unset. */
 export async function transcribeAudio(
   audio: Buffer,
   filename: string,
-): Promise<string> {
+): Promise<{ text: string; durationSeconds: number }> {
   if (!serverEnv.OPENAI_API_KEY) {
     throw new MissingApiKeyError(
       "OPENAI_API_KEY is not set — add it to .env.local to transcribe audio.",
@@ -30,7 +34,8 @@ export async function transcribeAudio(
   // Node Buffer -> Blob for multipart upload.
   form.append("file", new Blob([new Uint8Array(audio)]), filename);
   form.append("model", "whisper-1");
-  form.append("response_format", "json");
+  // verbose_json so the response carries `duration` (audio seconds) for metering.
+  form.append("response_format", "verbose_json");
 
   const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
     method: "POST",
@@ -42,35 +47,35 @@ export async function transcribeAudio(
     const detail = await res.text().catch(() => "");
     throw new Error(`Whisper transcription failed (${res.status}): ${detail}`);
   }
-  const json = (await res.json()) as { text?: string };
-  return (json.text ?? "").trim();
+  const json = (await res.json()) as { text?: string; duration?: number };
+  return { text: (json.text ?? "").trim(), durationSeconds: Math.max(0, json.duration ?? 0) };
 }
 
 /** Turn a transcript into a module-shaped JSON note (draft). */
 export async function generateNote(args: {
   scribePrompt: string;
   transcript: string;
-}): Promise<{ note: Record<string, unknown>; raw: string }> {
-  const { data, raw } = await runJsonPrompt<Record<string, unknown>>({
+}): Promise<{ note: Record<string, unknown>; raw: string; usage: ClaudeUsage }> {
+  const { data, raw, usage } = await runJsonPrompt<Record<string, unknown>>({
     system: args.scribePrompt,
     user: args.transcript,
   });
-  return { note: data, raw };
+  return { note: data, raw, usage };
 }
 
-/** Full run: audio -> transcript -> draft note. */
+/** Full run: audio -> transcript -> draft note, with metered usage. */
 export async function runScribe(args: {
   audio: Buffer;
   filename: string;
   scribePrompt: string;
-}): Promise<{ transcript: string; note: Record<string, unknown>; raw: string }> {
-  const transcript = await transcribeAudio(args.audio, args.filename);
+}): Promise<{ transcript: string; note: Record<string, unknown>; raw: string; usage: ScribeUsage }> {
+  const { text: transcript, durationSeconds } = await transcribeAudio(args.audio, args.filename);
   if (!transcript) {
     throw new Error("Transcription was empty — please record again.");
   }
-  const { note, raw } = await generateNote({
+  const { note, raw, usage: claude } = await generateNote({
     scribePrompt: args.scribePrompt,
     transcript,
   });
-  return { transcript, note, raw };
+  return { transcript, note, raw, usage: { audioSeconds: durationSeconds, claude } };
 }

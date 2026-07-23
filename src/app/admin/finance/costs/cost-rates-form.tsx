@@ -11,64 +11,56 @@ import { Toast } from "@/core/ui/toast";
 export function CostRatesForm({
   scribeCallCost,
   whatsappMsgCost,
+  whisperMinuteCost,
+  claudeInputCost,
+  claudeOutputCost,
   usdToPkr,
 }: {
   scribeCallCost: number;
   whatsappMsgCost: number;
+  whisperMinuteCost: number;
+  claudeInputCost: number;
+  claudeOutputCost: number;
   usdToPkr: number;
 }) {
   const [state, action, pending] = useActionState<CostRatesActionState, FormData>(saveCostRatesAction, {});
   const [scribe, setScribe] = useState(String(scribeCallCost));
   const [wa, setWa] = useState(String(whatsappMsgCost));
+  const [whisper, setWhisper] = useState(String(whisperMinuteCost));
+  const [claudeIn, setClaudeIn] = useState(String(claudeInputCost));
+  const [claudeOut, setClaudeOut] = useState(String(claudeOutputCost));
   const [fx, setFx] = useState(String(usdToPkr));
 
+  const numField = (id: string, label: string, hint: string, value: string, set: (v: string) => void, step = "0.000001") => (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Input id={id} name={id} type="number" step={step} min="0" value={value} onChange={(e) => set(e.target.value)} required />
+      <p className="text-xs text-muted-foreground">{hint}</p>
+    </div>
+  );
+
   return (
-    <form action={action} className="space-y-4">
+    <form action={action} className="space-y-5">
       {state.saved ? <Toast message="Cost rates saved." /> : null}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="space-y-2">
-          <Label htmlFor="scribeCallCost">Scribe call (USD)</Label>
-          <Input
-            id="scribeCallCost"
-            name="scribeCallCost"
-            type="number"
-            step="0.000001"
-            min="0"
-            value={scribe}
-            onChange={(e) => setScribe(e.target.value)}
-            required
-          />
-          <p className="text-xs text-muted-foreground">Whisper + Claude, per voice visit.</p>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="whatsappMsgCost">WhatsApp message (USD)</Label>
-          <Input
-            id="whatsappMsgCost"
-            name="whatsappMsgCost"
-            type="number"
-            step="0.000001"
-            min="0"
-            value={wa}
-            onChange={(e) => setWa(e.target.value)}
-            required
-          />
-          <p className="text-xs text-muted-foreground">Per outbound message sent.</p>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="usdToPkr">USD → PKR</Label>
-          <Input
-            id="usdToPkr"
-            name="usdToPkr"
-            type="number"
-            step="0.0001"
-            min="0"
-            value={fx}
-            onChange={(e) => setFx(e.target.value)}
-            required
-          />
-          <p className="text-xs text-muted-foreground">Exchange rate to show cost in PKR.</p>
+
+      <div className="space-y-3">
+        <div className="text-sm font-medium">Metered rates (accurate — used when a scribe call logs real usage)</div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {numField("whisperMinuteCost", "Whisper (USD / audio min)", "OpenAI transcription per minute.", whisper, setWhisper)}
+          {numField("claudeInputCost", "Claude input (USD / 1M tokens)", "e.g. 3 for Sonnet.", claudeIn, setClaudeIn, "0.0001")}
+          {numField("claudeOutputCost", "Claude output (USD / 1M tokens)", "e.g. 15 for Sonnet.", claudeOut, setClaudeOut, "0.0001")}
         </div>
       </div>
+
+      <div className="space-y-3">
+        <div className="text-sm font-medium">Fallback / other rates</div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {numField("scribeCallCost", "Scribe call estimate (USD)", "Fallback for a visit with no metered usage.", scribe, setScribe)}
+          {numField("whatsappMsgCost", "WhatsApp message (USD)", "Per outbound message sent.", wa, setWa)}
+          {numField("usdToPkr", "USD → PKR", "Exchange rate to show cost in PKR.", fx, setFx, "0.0001")}
+        </div>
+      </div>
+
       {state.error ? <p className="text-sm text-destructive" role="alert">{state.error}</p> : null}
       <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save rates"}</Button>
     </form>

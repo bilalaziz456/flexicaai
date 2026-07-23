@@ -1,10 +1,11 @@
 import "server-only";
 
 import { and, count, desc, eq, gte, isNotNull, sql } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/core/db";
 import { unscoped } from "@/core/db/tenant-guard";
 import { notDeleted } from "@/core/db/tenant";
-import { clinics, clinicPayments, visits, whatsappMessages } from "@/core/db/schema";
+import { aiUsage, clinics, clinicPayments, visits, whatsappMessages } from "@/core/db/schema";
 import { getCostRates } from "./cost";
 import { listDueClinics } from "./billing";
 
@@ -141,19 +142,30 @@ export async function getCompanyMetrics(
     let servingCostThisMonth = 0;
     if (withCost) {
       const rates = await getCostRates();
-      const scopeExists = (col: typeof visits.clinicId | typeof whatsappMessages.clinicId) =>
+      const scopeExists = (col: AnyPgColumn) =>
         assignedTo
           ? sql`exists (select 1 from ${clinics} where ${clinics.id} = ${col} and ${clinics.assignedTo} = ${assignedTo} and ${clinics.deletedAt} is null)`
           : undefined;
+      // METERED AI cost this month (Whisper + Claude, snapshotted) + estimate for any
+      // audio visit with no metered usage + WhatsApp (count × rate).
+      const [{ metered }] = await db
+        .select({ metered: sql<number>`coalesce(sum(${aiUsage.costPkr}),0)` })
+        .from(aiUsage)
+        .where(and(gte(aiUsage.occurredAt, monthStart), scopeExists(aiUsage.clinicId)));
       const [{ sc }] = await db
         .select({ sc: count() })
         .from(visits)
-        .where(and(isNotNull(visits.audioKey), gte(visits.createdAt, monthStart), scopeExists(visits.clinicId)));
+        .where(and(
+          isNotNull(visits.audioKey),
+          gte(visits.createdAt, monthStart),
+          scopeExists(visits.clinicId),
+          sql`not exists (select 1 from ${aiUsage} where ${aiUsage.visitId} = ${visits.id})`,
+        ));
       const [{ wa }] = await db
         .select({ wa: count() })
         .from(whatsappMessages)
         .where(and(eq(whatsappMessages.direction, "outbound"), isNotNull(whatsappMessages.clinicId), gte(whatsappMessages.createdAt, monthStart), scopeExists(whatsappMessages.clinicId)));
-      servingCostThisMonth = Math.round((num(sc) * rates.scribeCallCost + num(wa) * rates.whatsappMsgCost) * rates.usdToPkr);
+      servingCostThisMonth = num(metered) + Math.round((num(sc) * rates.scribeCallCost + num(wa) * rates.whatsappMsgCost) * rates.usdToPkr);
     }
     const grossMarginThisMonth = num(collectedThisMonth) - servingCostThisMonth;
 

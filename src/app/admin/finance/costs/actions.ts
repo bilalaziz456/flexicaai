@@ -12,6 +12,9 @@ export type CostRatesActionState = { error?: string; saved?: boolean };
 const schema = z.object({
   scribeCallCost: z.coerce.number().min(0, "Must be ≥ 0.").max(1000),
   whatsappMsgCost: z.coerce.number().min(0, "Must be ≥ 0.").max(1000),
+  whisperMinuteCost: z.coerce.number().min(0, "Must be ≥ 0.").max(1000),
+  claudeInputCost: z.coerce.number().min(0, "Must be ≥ 0.").max(100000),
+  claudeOutputCost: z.coerce.number().min(0, "Must be ≥ 0.").max(100000),
   usdToPkr: z.coerce.number().min(0, "Must be ≥ 0.").max(100000),
 });
 
@@ -24,6 +27,9 @@ export async function saveCostRatesAction(
   const parsed = schema.safeParse({
     scribeCallCost: formData.get("scribeCallCost"),
     whatsappMsgCost: formData.get("whatsappMsgCost"),
+    whisperMinuteCost: formData.get("whisperMinuteCost"),
+    claudeInputCost: formData.get("claudeInputCost"),
+    claudeOutputCost: formData.get("claudeOutputCost"),
     usdToPkr: formData.get("usdToPkr"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
@@ -35,7 +41,7 @@ export async function saveCostRatesAction(
   await logActivity({
     action: "update",
     entity: "settings",
-    summary: `Updated platform cost rates (scribe $${parsed.data.scribeCallCost} · WhatsApp $${parsed.data.whatsappMsgCost} · FX ${parsed.data.usdToPkr})`,
+    summary: `Updated platform cost rates (Whisper $${parsed.data.whisperMinuteCost}/min · Claude $${parsed.data.claudeInputCost}/$${parsed.data.claudeOutputCost} per 1M · WhatsApp $${parsed.data.whatsappMsgCost} · FX ${parsed.data.usdToPkr})`,
   });
   revalidatePath("/admin/finance/costs");
   return { saved: true };

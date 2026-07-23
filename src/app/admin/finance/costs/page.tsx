@@ -114,11 +114,20 @@ export default async function CostsPage({
         </CardHeader>
         <CardContent>
           {canEdit ? (
-            <CostRatesForm scribeCallCost={rates.scribeCallCost} whatsappMsgCost={rates.whatsappMsgCost} usdToPkr={rates.usdToPkr} />
+            <CostRatesForm
+              scribeCallCost={rates.scribeCallCost}
+              whatsappMsgCost={rates.whatsappMsgCost}
+              whisperMinuteCost={rates.whisperMinuteCost}
+              claudeInputCost={rates.claudeInputCost}
+              claudeOutputCost={rates.claudeOutputCost}
+              usdToPkr={rates.usdToPkr}
+            />
           ) : (
             <dl className="grid gap-3 sm:grid-cols-3 text-sm">
-              <div><dt className="text-muted-foreground">Scribe call</dt><dd className="font-medium">{rates.currency} {rates.scribeCallCost}</dd></div>
+              <div><dt className="text-muted-foreground">Whisper / audio min</dt><dd className="font-medium">{rates.currency} {rates.whisperMinuteCost}</dd></div>
+              <div><dt className="text-muted-foreground">Claude in / out (1M)</dt><dd className="font-medium">{rates.currency} {rates.claudeInputCost} / {rates.claudeOutputCost}</dd></div>
               <div><dt className="text-muted-foreground">WhatsApp message</dt><dd className="font-medium">{rates.currency} {rates.whatsappMsgCost}</dd></div>
+              <div><dt className="text-muted-foreground">Scribe call (fallback)</dt><dd className="font-medium">{rates.currency} {rates.scribeCallCost}</dd></div>
               <div><dt className="text-muted-foreground">USD → PKR</dt><dd className="font-medium">{rates.usdToPkr}</dd></div>
             </dl>
           )}

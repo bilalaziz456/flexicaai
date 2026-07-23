@@ -8,6 +8,7 @@ import { clinics, patients, visits } from "@/core/db/schema";
 import { getClinicWorkspace } from "@/config/modules";
 import { saveClinicFile } from "@/core/integrations/storage";
 import { runScribe } from "@/core/ai/scribe-engine";
+import { recordScribeUsage } from "@/core/ai/usage";
 import { MissingApiKeyError, AiParseError } from "@/core/ai/prompt-runner";
 import { getPatientAllergies } from "@/core/patients/medical-history";
 import { allergyConflicts } from "@/core/lib/medical-history";
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
     // Keep the audio for the accuracy flywheel / re-transcription.
     const audioKey = await saveClinicFile(clinicId, "audio", buffer, ext);
 
-    const { transcript, note } = await runScribe({
+    const { transcript, note, usage } = await runScribe({
       audio: buffer,
       filename: audio.name || `recording.${ext}`,
       scribePrompt,
@@ -150,6 +151,9 @@ export async function POST(request: Request) {
         audioKey,
       })
       .returning({ id: visits.id });
+
+    // Meter the paid AI calls for precise serving cost (best-effort, never blocks).
+    await recordScribeUsage({ clinicId, visitId: visit.id, usage });
 
     return NextResponse.json({
       visitId: visit.id,

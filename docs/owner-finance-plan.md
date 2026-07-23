@@ -176,9 +176,20 @@ grantable (e.g. to a finance/accountant team member).
    **Collected revenue is now CASH-aware everywhere** — `getCompanyPnl` +
    `getCompanyMetrics` count payment − refund and exclude non-cash credit.
 
-**Deferred:** precise token/minute AI metering (`ai_usage`), plans/tiers +
-entitlements + automated dunning (v3), multi-currency beyond one FX rate, automated
-tax computation, QBO/Xero-specific export templates (generic CSV ships first).
+**Precise token/minute AI metering** ✅ (migration 0061) — `ai_usage` (one whisper
+row [audio seconds] + one claude row [in/out tokens] per scribe run, `cost_pkr`
+snapshotted at record time); the scribe engine now returns Whisper `duration`
+(verbose_json) + Claude `message.usage`, and the scribe route records it best-effort
+(`core/ai/usage.ts`). `platform_cost_rates` gained `whisper_minute_cost` /
+`claude_input_cost` / `claude_output_cost` (per 1M). `computeServingCost` + the
+dashboard now use **metered** AI cost (Σ `ai_usage.cost_pkr`), falling back to the flat
+`scribe_call_cost` estimate only for an audio visit with no metered row. Verified:
+rate form saves the metered rates; a metered visit (whisper 3 + claude 13) + an
+un-metered one = Rs 19 on the costs page; dashboard metered-aware.
+
+**Deferred:** plans/tiers + entitlements + automated dunning (v3), multi-currency
+beyond one FX rate, automated tax computation, QBO/Xero-specific export templates
+(generic CSV ships first).
 
 ## 9. Definition of done
 
