@@ -5,6 +5,7 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, patients, treatmentPlanItems, treatmentPlans } from "@/core/db/schema";
 import { formatPkr } from "@/core/appointments/fee";
+import { formatMrn } from "@/core/patients/mrn";
 import { InvoicePrintFrame } from "@/app/reception/invoice-print";
 
 /**
@@ -38,17 +39,18 @@ export async function TreatmentEstimate({
   if (!plan) notFound();
 
   const [patient] = await db
-    .select({ fullName: patients.fullName, phone: patients.phone })
+    .select({ fullName: patients.fullName, phone: patients.phone, mrn: patients.mrn, createdAt: patients.createdAt })
     .from(patients)
     .where(byClinic(patients.clinicId, clinicId, eq(patients.id, patientId)))
     .limit(1);
   if (!patient) notFound();
 
   const [clinic] = await db
-    .select({ name: clinics.name, invoicePaper: clinics.invoicePaper, signature: clinics.whatsappSignature })
+    .select({ name: clinics.name, invoicePaper: clinics.invoicePaper, signature: clinics.whatsappSignature, mrnPrefix: clinics.mrnPrefix })
     .from(clinics)
     .where(eq(clinics.id, clinicId))
     .limit(1);
+  const mrnLabel = formatMrn(clinic?.mrnPrefix, patient.mrn, patient.createdAt);
 
   const items = await db
     .select()
@@ -84,6 +86,12 @@ export async function TreatmentEstimate({
           <span className="font-medium">{patient.fullName}</span>
           {patient.phone ? <span className="opacity-70"> · {patient.phone}</span> : null}
         </div>
+        {mrnLabel ? (
+          <div className="text-[0.95em]">
+            <span className="opacity-70">MRN#: </span>
+            <span className="tabular-nums">{mrnLabel}</span>
+          </div>
+        ) : null}
 
         {items.length > 0 ? (
           <table className="mt-3 w-full border-collapse text-[0.95em]">

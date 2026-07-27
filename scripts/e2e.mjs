@@ -143,6 +143,32 @@ async function seed() {
   await q("insert into whatsapp_messages (clinic_id, patient_id, direction, phone, status, body) values ($1,$2,'inbound','+923009990001','received','Hello, I need an appointment')", [cA.id, patA1.id]);
   await q("insert into whatsapp_messages (clinic_id, patient_id, direction, phone, status, template_name, body, external_id) values ($1,$2,'outbound','+923009990001','sent','recall_reminder','Your recall is due','E2E-EXT-1')", [cA.id, patA1.id]);
 
+  // --- Data for the CSV-export + live-queue sections ---
+  // A completed visit that realised a sale + a cash payment, plus a procedure, so the
+  // sales/payments/procedures CSV exports have real rows. Uses patA2 (a 'pending'
+  // recall, NOT 'sent') so it can't skew the "1 return visit" revenue-recovered count.
+  const saleAppt = await q(
+    "insert into appointments (clinic_id, patient_id, doctor_id, scheduled_at, status) values ($1,$2,$3, now()-interval '1 day','completed') returning id",
+    [cA.id, patA2.id, docA.id],
+  );
+  await q(
+    "insert into sales (clinic_id, appointment_id, doctor_id, doctor_name, gross_amount, discount_amount, net_amount, occurred_at) values ($1,$2,$3,'Dr E2E',5000,0,5000, now()-interval '1 day')",
+    [cA.id, saleAppt.id, docA.id],
+  );
+  await q(
+    "insert into patient_payments (clinic_id, patient_id, appointment_id, kind, amount, method, occurred_at, created_by, created_by_name) values ($1,$2,$3,'payment',5000,'cash', now()-interval '1 day', $4,'Recep E2E')",
+    [cA.id, patA2.id, saleAppt.id, recepA.id],
+  );
+  await q("insert into procedures (clinic_id, name, price, module) values ($1,'Scaling & polishing',3000,'dental')", [cA.id]);
+  // A patient in the doctor's live queue TODAY (token #1) to drive Arrived → in-room → done.
+  const todayStr = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD (local)
+  ids.queueAppt = (
+    await q(
+      "insert into appointments (clinic_id, patient_id, doctor_id, scheduled_at, status, queue_session, queue_number) values ($1,$2,$3, now(), 'scheduled', $4, 1) returning id",
+      [cA.id, patA2.id, docA.id, `${docA.id}:${todayStr}:day`],
+    )
+  ).id;
+
   ids.sessions = {
     sadmin: await mintSession(sadmin.id),
     adminA: await mintSession(adminA.id),
@@ -437,6 +463,86 @@ async function run() {
     {
       const r = await req("/clinic/patients", { cookie: S.adminA });
       record("trash: after restore, patient returns to the list", r.status === 200 && r.text.includes("ZZE2ETrashed"));
+    }
+  }
+
+  console.log("\n== LIVE QUEUE (doctor: Arrived → Call in → Complete) ==");
+  {
+    // Reception checks the patient in; the doctor's queue should offer "Call in".
+    await pool.query("update appointments set status='arrived', arrived_at=now() where id=$1", [ids.queueAppt]);
+    {
+      const r = await req("/clinic/scribe", { cookie: S.docA });
+      const ok = r.status === 200 && r.text.includes("Bilal NoPhone") && r.text.includes("Call in") && r.text.includes("Arrived");
+      record("doctor queue: Arrived patient shows a 'Call in' control", ok, ok ? "" : `status=${r.status} ${snip(r.text)}`);
+    }
+    // Call in → in the room. "Call in" gives way to "Complete"; now-serving shows the token.
+    await pool.query("update appointments set status='in_progress' where id=$1", [ids.queueAppt]);
+    {
+      const r = await req("/clinic/scribe", { cookie: S.docA });
+      const ok = r.status === 200 && r.text.includes("In progress") && !r.text.includes("Call in");
+      record("doctor queue: In progress patient — 'Call in' gone (now 'Complete')", ok, ok ? "" : `status=${r.status}`);
+    }
+    // Complete → done. No advance control remains for that patient.
+    await pool.query("update appointments set status='completed' where id=$1", [ids.queueAppt]);
+    {
+      const r = await req("/clinic/scribe", { cookie: S.docA });
+      const ok = r.status === 200 && r.text.includes("Completed") && !r.text.includes("Call in") && !r.text.includes("In progress");
+      record("doctor queue: Completed patient — no advance controls left", ok, ok ? "" : `status=${r.status}`);
+    }
+  }
+
+  console.log("\n== CSV EXPORTS (auth + text/csv + BOM + brand footer) ==");
+  {
+    const okCsv = (r, header) =>
+      r.status === 200 &&
+      r.ct.includes("text/csv") &&
+      r.text.includes("Powered by www.klenic.com") &&
+      r.text.includes(header);
+
+    // Exports that need no billing feature (patients / staff / appointments).
+    {
+      const r = await req("/api/patients/export", { cookie: S.adminA });
+      record("patients CSV → text/csv + footer + header", okCsv(r, "MRN,Name,Phone"), okCsv(r, "MRN,Name,Phone") ? "" : `status=${r.status} ct=${r.ct}`);
+      record("patients CSV is clinic-scoped (has A patient, not B)", r.text.includes("Ayesha Recovered") && !r.text.includes("ClinicB Patient"));
+    }
+    {
+      const r = await req("/api/staff/export", { cookie: S.adminA });
+      record("staff CSV → text/csv + footer + header", okCsv(r, "Name,Username,Role"), okCsv(r, "Name,Username,Role") ? "" : `status=${r.status} ct=${r.ct}`);
+    }
+    {
+      const r = await req("/api/appointments/export?period=year", { cookie: S.adminA });
+      record("appointments CSV → text/csv + footer + header", okCsv(r, "Date,Token,Patient"), okCsv(r, "Date,Token,Patient") ? "" : `status=${r.status} ct=${r.ct}`);
+    }
+
+    // Raw-byte BOM check (fetch's text() decode strips a leading BOM, so read bytes).
+    {
+      const raw = await fetch(BASE + "/api/patients/export", { headers: { Cookie: `klenic_session=${S.adminA}` } });
+      const buf = Buffer.from(await raw.arrayBuffer());
+      const hasBom = buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf;
+      record("patients CSV begins with a UTF-8 BOM (EF BB BF)", hasBom, hasBom ? "" : `first bytes ${buf.subarray(0, 3).toString("hex")}`);
+    }
+
+    // Billing-gated + STREAMED exports: enable the sales + finance features on Clinic A.
+    await pool.query("update clinics set features_enabled = ARRAY['revenue_dashboard','sales','finance'] where id = $1", [ids.clinics[0]]);
+    {
+      const r = await req("/api/finance/export?type=sales&period=year", { cookie: S.adminA });
+      record("sales CSV (streamed) → text/csv + footer + header", okCsv(r, "Date,Patient,Phone,Doctor,Gross"), okCsv(r, "Date,Patient,Phone,Doctor,Gross") ? "" : `status=${r.status} ct=${r.ct}`);
+      record("sales CSV contains the seeded sale row (5000)", r.text.includes("5000"));
+    }
+    {
+      const r = await req("/api/finance/export?type=payments&period=year", { cookie: S.adminA });
+      record("payments CSV (streamed) → text/csv + footer + header", okCsv(r, "Date,Patient,Phone,Doctor,Type,Method"), okCsv(r, "Date,Patient,Phone,Doctor,Type,Method") ? "" : `status=${r.status} ct=${r.ct}`);
+      record("payments CSV contains the seeded payment (cash 5000)", r.text.includes("cash") && r.text.includes("5000"));
+    }
+    {
+      const r = await req("/api/procedures/export", { cookie: S.adminA });
+      record("procedures CSV → text/csv + footer + header", okCsv(r, "Procedure,Price"), okCsv(r, "Procedure,Price") ? "" : `status=${r.status} ct=${r.ct}`);
+      record("procedures CSV contains seeded procedure", r.text.includes("Scaling & polishing"));
+    }
+    // Negative: Clinic B lacks the sales feature → sales export is forbidden.
+    {
+      const r = await req("/api/finance/export?type=sales", { cookie: S.adminB });
+      record("sales CSV forbidden without the sales feature (clinic B) → 403", r.status === 403, `status=${r.status}`);
     }
   }
 }

@@ -20,6 +20,7 @@ import { HBarChart } from "@/app/clinic/sales/h-bar-chart";
 import { WaterfallChart } from "@/app/clinic/sales/waterfall-chart";
 import { SalesFilters } from "@/app/clinic/sales/sales-filters";
 import { PrintButton } from "@/app/clinic/shares/payout-ui";
+import { BRAND_POWERED_BY } from "@/core/lib/brand";
 
 const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
 const dayFmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -337,6 +338,10 @@ export default async function OverviewPage({
           </CardContent>
         </Card>
       ) : null}
+
+      <div className="border-t pt-4 text-center text-xs text-muted-foreground">
+        {BRAND_POWERED_BY}
+      </div>
     </div>
   );
 }

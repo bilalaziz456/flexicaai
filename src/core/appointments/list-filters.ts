@@ -9,6 +9,8 @@ export type StatusFilter =
   | ""
   | "scheduled"
   | "confirmed"
+  | "arrived"
+  | "in_progress"
   | "completed"
   | "cancelled"
   | "no_show";
@@ -16,6 +18,8 @@ export type StatusFilter =
 const STATUSES: StatusFilter[] = [
   "scheduled",
   "confirmed",
+  "arrived",
+  "in_progress",
   "completed",
   "cancelled",
   "no_show",

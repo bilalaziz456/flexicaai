@@ -110,6 +110,13 @@ export const clinics = pgTable(
     invoicePaper: text("invoice_paper").notNull().default("a4"),
     invoicePrefix: text("invoice_prefix").notNull().default("INV-"),
     nextInvoiceNo: integer("next_invoice_no").notNull().default(1),
+    // Patient MRN (Medical Record Number) — a per-clinic, human-friendly patient
+    // number formatted as `<mrnPrefix><YYYYMMDD registration><7-digit nextMrn>`, e.g.
+    // "KL-202607270000042" (see core/patients/mrn.ts#formatMrn). `nextMrn` is the
+    // running counter atomically bumped when a patient is registered (the clinic row
+    // is locked, the same collision-free scheme as `nextInvoiceNo`).
+    mrnPrefix: text("mrn_prefix").notNull().default("KL-"),
+    nextMrn: integer("next_mrn").notNull().default(1),
     // When true, a CLINIC-borne discount needs approval (from a `discount_approval`
     // grantee) before it applies. Per-doctor discounts use users.discountNeedsApproval.
     // See docs/doctor-shares-plan.md §6.
@@ -351,6 +358,11 @@ export const patients = pgTable(
     clinicId: uuid("clinic_id")
       .notNull()
       .references(() => clinics.id, { onDelete: "cascade" }),
+    // Per-clinic Medical Record Number — a human-friendly patient number allocated
+    // sequentially on registration (see core/patients/mrn.ts) and shown with the
+    // clinic's `mrnPrefix`. Nullable only so the column can be added + backfilled;
+    // every live patient has one. Unique per clinic (index below).
+    mrn: integer("mrn"),
     fullName: text("full_name").notNull(),
     // E.164 WhatsApp number (e.g. +9230…). Primary contact for reminders.
     phone: text("phone"),
@@ -377,6 +389,11 @@ export const patients = pgTable(
   },
   (t) => [
     index("patients_clinic_id_idx").on(t.clinicId),
+    // MRN is unique per clinic and this is the exact-lookup index for "open the
+    // patient by MRN" (partial: only rows that have a number).
+    uniqueIndex("patients_clinic_mrn_idx")
+      .on(t.clinicId, t.mrn)
+      .where(sql`${t.mrn} is not null`),
     // Tenant-scoped lookups by phone / name are common in reception search.
     index("patients_clinic_phone_idx").on(t.clinicId, t.phone),
     index("patients_clinic_name_idx").on(t.clinicId, t.fullName),
@@ -394,6 +411,11 @@ export const patients = pgTable(
 export const appointmentStatus = pgEnum("appointment_status", [
   "scheduled",
   "confirmed",
+  // Live-queue states between confirmed and completed: `arrived` = checked in and
+  // waiting in the room; `in_progress` = called in / with the doctor now (the real
+  // "now serving"). See core/appointments/status.ts.
+  "arrived",
+  "in_progress",
   "completed",
   "cancelled",
   "no_show",
@@ -421,6 +443,9 @@ export const appointments = pgTable(
     scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
     durationMinutes: integer("duration_minutes").notNull().default(30),
     status: appointmentStatus("status").notNull().default("scheduled"),
+    // When the patient checked in (status → 'arrived'). Drives the "waiting N min"
+    // read-out in the live queue; cleared if the visit reverts to scheduled/confirmed.
+    arrivedAt: timestamp("arrived_at", { withTimezone: true }),
     reason: text("reason"),
     // Optional discount off the doctor's consultation fee for this appointment.
     // `discountType` is 'amount' (flat PKR, the default) or 'percent' (of the

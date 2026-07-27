@@ -13,7 +13,8 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx scripts/seed.ts",
     "db:seed-demo": "tsx --env-file=.env.local --tsconfig scripts/_seed/tsconfig.json scripts/seed-demo.ts",
-    "test:unit": "tsx scripts/test-discount-bearing.ts && tsx scripts/test-dental-chart.ts && tsx scripts/test-medical-history.ts",
+    "test:unit": "tsx scripts/test-discount-bearing.ts && tsx scripts/test-dental-chart.ts && tsx scripts/test-medical-history.ts && tsx --tsconfig scripts/_seed/tsconfig.json scripts/test-session-work.ts",
+    "test:stream": "tsx --env-file=.env.local --tsconfig scripts/_seed/tsconfig.json scripts/test-streaming-export.ts",
     "test:e2e": "node scripts/e2e.mjs"
   },
   "dependencies": {

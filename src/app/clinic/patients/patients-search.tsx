@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { Input } from "@/core/ui/input";
 
-/** Live, URL-driven search over the clinic's patients (name or phone). */
+/** Live, URL-driven search over the clinic's patients (name, phone or MRN). */
 export function PatientsSearch({ initial }: { initial: string }) {
   const router = useRouter();
   const [value, setValue] = useState(initial);
@@ -32,7 +32,7 @@ export function PatientsSearch({ initial }: { initial: string }) {
       <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         className="pl-8"
-        placeholder="Search name or phone…"
+        placeholder="Search name, phone or MRN…"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         aria-label="Search patients"

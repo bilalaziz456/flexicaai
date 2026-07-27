@@ -1,10 +1,13 @@
 import { desc } from "drizzle-orm";
+import { Download } from "lucide-react";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { procedures } from "@/core/db/schema";
 import { procedureTemplatesFor } from "@/config/modules";
 import { getCurrentUser } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
+import { buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
 import { ProceduresManager } from "./procedures-manager";
 
 /**
@@ -49,12 +52,22 @@ export async function ProceduresPanel({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Procedures</h1>
-        <p className="text-sm text-muted-foreground">
-          Priced services patients can book — these feed appointment totals and
-          the Sales report. {list.length} procedure{list.length === 1 ? "" : "s"}.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Procedures</h1>
+          <p className="text-sm text-muted-foreground">
+            Priced services patients can book — these feed appointment totals and
+            the Sales report. {list.length} procedure{list.length === 1 ? "" : "s"}.
+          </p>
+        </div>
+        {list.length > 0 ? (
+          <a
+            href="/api/procedures/export"
+            className={cn(buttonVariants({ variant: "outline" }))}
+          >
+            <Download className="size-4" aria-hidden="true" /> CSV
+          </a>
+        ) : null}
       </div>
       <ProceduresManager
         procedures={list}

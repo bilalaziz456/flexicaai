@@ -18,6 +18,21 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // Don't advertise the framework/version.
   poweredByHeader: false,
+  experimental: {
+    // WHY: in `next dev`, opening a dynamic-segment route ([id]/[slug] — staff
+    // profiles, appointment/patient details, any dynamic list) makes Next fork a
+    // separate "static-paths" Node child process to load that page's full server
+    // module graph (db pool, schema, Anthropic SDK, pdf-lib…) just to look for
+    // generateStaticParams. On Windows that cold fork is fragile and dies under
+    // memory pressure, surfacing as "Jest worker encountered N child process
+    // exceptions, exceeding retry limit". Running the worker as a THREAD (shares
+    // the parent heap, no cold fork) removes the crash; all our deps are pure JS
+    // (pg/bcryptjs/pdf-lib/nodemailer) so worker_threads is safe.
+    workerThreads: true,
+    // WHY: don't preload every page's modules into memory at server start — keeps
+    // the baseline footprint low so the worker has headroom. (Next dev-memory doc.)
+    preloadEntriesOnStart: false,
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

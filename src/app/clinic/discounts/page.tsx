@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
+import { Download } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
@@ -67,6 +68,16 @@ export default async function DiscountsPage({
     getSalesDoctors(clinicId),
   ]);
 
+  // Preserve the active filters on the CSV export link.
+  const exportParams = new URLSearchParams({ type: "discounts", period: range.period });
+  if (range.period === "custom") {
+    exportParams.set("from", range.from);
+    exportParams.set("to", range.to);
+  }
+  if (doctorId) exportParams.set("doctorId", doctorId);
+  if (borneBy) exportParams.set("borneBy", borneBy);
+  if (status) exportParams.set("status", status);
+
   const dayFmt = (d: Date) =>
     d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   const discLabel = (r: (typeof report.rows)[number]) =>
@@ -74,11 +85,21 @@ export default async function DiscountsPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Discounts</h1>
-        <p className="text-sm text-muted-foreground">
-          Every discount given — who got it, who bears it, and whether it&apos;s applied.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Discounts</h1>
+          <p className="text-sm text-muted-foreground">
+            Every discount given — who got it, who bears it, and whether it&apos;s applied.
+          </p>
+        </div>
+        {report.rows.length > 0 ? (
+          <a
+            href={`/api/finance/export?${exportParams.toString()}`}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium hover:bg-accent"
+          >
+            <Download className="size-3.5" aria-hidden="true" /> CSV
+          </a>
+        ) : null}
       </div>
 
       <DiscountFilters

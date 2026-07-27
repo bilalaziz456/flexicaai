@@ -10,6 +10,7 @@ import { clinicHasFeature } from "@/core/lib/features";
 import { getAppointmentBill } from "@/core/billing/bill";
 import { listAppointmentPayments } from "@/core/billing/payments";
 import { formatPkr } from "@/core/appointments/fee";
+import { formatMrn } from "@/core/patients/mrn";
 import { InvoicePrintFrame } from "@/app/reception/invoice-print";
 
 /**
@@ -32,6 +33,8 @@ export default async function ReceiptPage({
       scheduledAt: appointments.scheduledAt,
       patientName: patients.fullName,
       patientPhone: patients.phone,
+      patientMrn: patients.mrn,
+      patientCreatedAt: patients.createdAt,
     })
     .from(appointments)
     .innerJoin(patients, eq(patients.id, appointments.patientId))
@@ -52,6 +55,7 @@ export default async function ReceiptPage({
       featuresEnabled: clinics.featuresEnabled,
       invoicePaper: clinics.invoicePaper,
       signature: clinics.whatsappSignature,
+      mrnPrefix: clinics.mrnPrefix,
     })
     .from(clinics)
     .where(eq(clinics.id, clinicId))
@@ -59,6 +63,7 @@ export default async function ReceiptPage({
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales") || !can(user, "billing", "view")) {
     notFound();
   }
+  const mrnLabel = formatMrn(clinic?.mrnPrefix, row.patientMrn, row.patientCreatedAt);
 
   const [aBill, ledger] = await Promise.all([
     getAppointmentBill(clinicId, id),
@@ -106,6 +111,12 @@ export default async function ReceiptPage({
             <span className="font-medium">{row.patientName}</span>
             {row.patientPhone ? <span className="opacity-70"> · {row.patientPhone}</span> : null}
           </div>
+          {mrnLabel ? (
+            <div>
+              <span className="opacity-70">MRN#: </span>
+              <span className="tabular-nums">{mrnLabel}</span>
+            </div>
+          ) : null}
         </div>
 
         {/* Payments received */}

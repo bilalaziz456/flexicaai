@@ -19,6 +19,8 @@ import {
 import { ViewLogger } from "@/core/ui/view-logger";
 import { AllergyBanner } from "@/core/ui/allergy-banner";
 import { ageFromDob } from "@/core/lib/age";
+import { formatMrn } from "@/core/patients/mrn";
+import { APPOINTMENT_STATUS_VARIANT, statusLabel } from "@/core/appointments/status";
 import { getPatientAccount } from "@/core/billing/account";
 import { getMedicalHistory, getPatientAllergies } from "@/core/patients/medical-history";
 import type { MedicalHistoryData } from "@/core/lib/medical-history";
@@ -33,14 +35,6 @@ import { LabTrackerCard, type LabCaseRow } from "./lab-tracker-card";
 import { DeletePatientButton, EditPatientForm } from "./[id]/patient-admin";
 import { PatientChartCard } from "./patient-chart-card";
 import { PerioChartCard } from "./perio-chart-card";
-
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive"> = {
-  confirmed: "default",
-  completed: "default",
-  scheduled: "secondary",
-  cancelled: "destructive",
-  no_show: "destructive",
-};
 
 /**
  * Shared patient detail — used by the clinic-admin panel and any panel that
@@ -218,11 +212,12 @@ export async function PatientDetail({
   // The clinic's enabled modules — drives every module-agnostic clinical section
   // (chart / perio / plans / lab), resolved via the contract (core never knows dental).
   const [clinicModulesRow] = await db
-    .select({ modulesEnabled: clinics.modulesEnabled })
+    .select({ modulesEnabled: clinics.modulesEnabled, mrnPrefix: clinics.mrnPrefix })
     .from(clinics)
     .where(eq(clinics.id, clinicId))
     .limit(1);
   const modulesEnabled: string[] = clinicModulesRow?.modulesEnabled ?? [];
+  const mrnLabel = formatMrn(clinicModulesRow?.mrnPrefix, patient.mrn, patient.createdAt);
 
   let clinicalRecord: ReturnType<typeof clinicalRecordFor> = undefined;
   let currentChart: unknown = null;
@@ -331,6 +326,9 @@ export async function PatientDetail({
             ← Back to patients
           </Link>
           <h1 className="mt-2 text-xl font-semibold">{patient.fullName}</h1>
+          {mrnLabel ? (
+            <p className="text-sm font-medium tabular-nums text-muted-foreground">{mrnLabel}</p>
+          ) : null}
           <p className="text-sm text-muted-foreground">{patient.phone ?? "No phone"}</p>
           {patient.reference ? (
             <p className="text-sm text-muted-foreground">
@@ -769,8 +767,8 @@ export async function PatientDetail({
                       {a.doctorName ?? a.doctorUsername ?? "Any doctor"}
                     </span>
                   </span>
-                  <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"}>
-                    {a.status.replace("_", " ")}
+                  <Badge variant={APPOINTMENT_STATUS_VARIANT[a.status] ?? "secondary"}>
+                    {statusLabel(a.status)}
                   </Badge>
                 </li>
               ))}

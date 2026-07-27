@@ -9,6 +9,7 @@ import { getDoctorBalance, listPayouts } from "@/core/sales/payouts";
 import { listDoctorEarnings, listDoctorSettlements } from "@/core/sales/share-report";
 import { listSettlementActions } from "@/core/sales/settlement-actions";
 import { displayStaffName } from "@/core/types/auth";
+import { BRAND_POWERED_BY } from "@/core/lib/brand";
 import { PrintButton } from "../payout-ui";
 import { SETTLEMENT_LABEL } from "../settlement-ui";
 
@@ -253,6 +254,10 @@ export default async function ShareStatementPage({
         <span className={`tabular-nums ${owes ? "text-destructive" : ""}`}>
           {money.format(Math.abs(balance.outstanding))}
         </span>
+      </div>
+
+      <div className="border-t pt-4 text-center text-xs text-muted-foreground">
+        {BRAND_POWERED_BY}
       </div>
     </div>
   );

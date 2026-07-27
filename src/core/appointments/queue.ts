@@ -104,8 +104,8 @@ export async function withQueueNumber<T>(
   }
 }
 
-/** Statuses that count as "still to be seen" in the live queue. */
-const WAITING_STATUSES = new Set(["scheduled", "confirmed"]);
+/** Not-yet-arrived statuses (booked, patient hasn't checked in). */
+const NOT_ARRIVED = new Set(["scheduled", "confirmed"]);
 
 export type QueueItem = {
   appointmentId: string;
@@ -113,6 +113,7 @@ export type QueueItem = {
   patientName: string;
   status: string;
   scheduledAt: Date;
+  arrivedAt: Date | null;
 };
 
 export type QueueSession = {
@@ -122,9 +123,12 @@ export type QueueSession = {
   /** "9:00 AM – 12:00 PM" for the window, or "Any time" for a flexible session. */
   windowLabel: string;
   windowStart: string | null; // "HH:MM", for sorting sessions by time
-  nowServing: number | null; // lowest waiting token = who's up next
-  waiting: number;
-  done: number;
+  nowServing: number | null; // lowest in_progress token = who's in the room now
+  notArrived: number; // scheduled/confirmed (haven't checked in)
+  waiting: number; // arrived (checked in, in the waiting room)
+  inRoom: number; // in_progress (with the doctor)
+  done: number; // completed
+  missed: number; // cancelled/no_show
   total: number;
   items: QueueItem[];
 };
@@ -174,6 +178,7 @@ export async function getDayQueue(
       session: appointments.queueSession,
       status: appointments.status,
       scheduledAt: appointments.scheduledAt,
+      arrivedAt: appointments.arrivedAt,
       doctorId: appointments.doctorId,
       doctorName: users.fullName,
       doctorUsername: users.username,
@@ -216,8 +221,11 @@ export async function getDayQueue(
         windowLabel: label,
         windowStart: wStart,
         nowServing: null,
+        notArrived: 0,
         waiting: 0,
+        inRoom: 0,
         done: 0,
+        missed: 0,
         total: 0,
         items: [],
       };
@@ -229,13 +237,22 @@ export async function getDayQueue(
       patientName: r.patientName,
       status: r.status,
       scheduledAt: r.scheduledAt,
+      arrivedAt: r.arrivedAt,
     });
     s.total += 1;
-    if (WAITING_STATUSES.has(r.status)) {
-      s.waiting += 1;
+    // Bucket by live state. "Now serving" is the lowest token actually in the room
+    // (in_progress) — so late patients who were skipped don't masquerade as serving.
+    if (r.status === "in_progress") {
+      s.inRoom += 1;
       if (s.nowServing === null || r.number < s.nowServing) s.nowServing = r.number;
-    } else {
+    } else if (r.status === "arrived") {
+      s.waiting += 1;
+    } else if (NOT_ARRIVED.has(r.status)) {
+      s.notArrived += 1;
+    } else if (r.status === "completed") {
       s.done += 1;
+    } else {
+      s.missed += 1; // cancelled / no_show
     }
   }
 

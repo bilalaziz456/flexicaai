@@ -5,9 +5,12 @@ import { revalidatePath } from "next/cache";
 import { requireRole } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { db } from "@/core/db";
-import { notDeleted } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
-import { clinics, patients, visits } from "@/core/db/schema";
+import { appointments, clinics, patients, visits } from "@/core/db/schema";
+import { applyAppointmentStatus } from "@/core/appointments/set-status";
+import type { AppointmentStatus } from "@/core/appointments/status";
+import { revalidateFinance } from "@/app/clinic/finance-revalidate";
 import { serverEnv } from "@/core/lib/env";
 import { isPublicLinkingEnabled, signToken } from "@/core/lib/signed-link";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
@@ -18,6 +21,44 @@ import { clinicalRecordFor } from "@/config/modules";
  * Doctor actions on scribe drafts — CLAUDE.md §8: AI output is a DRAFT until the
  * doctor approves it. All queries are scoped to the doctor's own clinic_id.
  */
+
+/**
+ * Advance the doctor's OWN queue patient: Call in (→ in_progress) or Complete
+ * (→ completed). Authorization is ownership — the appointment must belong to the
+ * signed-in doctor — so no extra `appointments:edit` grant is needed to run their
+ * own room. The shared transition records the sale on completion. Clinic-scoped.
+ */
+export async function advanceMyQueue(
+  appointmentId: string,
+  status: AppointmentStatus,
+): Promise<void> {
+  const user = await requireRole("doctor");
+  if (!user.clinicId) return;
+  // A doctor may only push a patient forward through the two in-room states.
+  if (status !== "in_progress" && status !== "completed") return;
+
+  const [appt] = await db
+    .select({ doctorId: appointments.doctorId })
+    .from(appointments)
+    .where(
+      byClinic(
+        appointments.clinicId,
+        user.clinicId,
+        notDeleted(appointments.deletedAt),
+        eq(appointments.id, appointmentId),
+      ),
+    )
+    .limit(1);
+  if (!appt || appt.doctorId !== user.id) return; // only your own patients
+
+  const changed = await applyAppointmentStatus(user.clinicId, appointmentId, status);
+  if (changed) {
+    revalidatePath("/doctor");
+    revalidatePath("/clinic");
+    // Completing a visit realises revenue + shares — refresh the finance views.
+    if (status === "completed") revalidateFinance();
+  }
+}
 
 /**
  * The patient's current specialty chart (e.g. the dental odontogram), for the

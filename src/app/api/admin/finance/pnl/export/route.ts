@@ -4,6 +4,7 @@ import { canAdmin } from "@/core/auth/admin-permissions";
 import { getCompanyPnl } from "@/core/admin/pnl";
 import { resolveSalesRange } from "@/core/sales/report";
 import { toCsv } from "@/core/lib/csv";
+import { BRAND_POWERED_BY } from "@/core/lib/brand";
 
 /**
  * GET /api/admin/finance/pnl/export?period=…&from=…&to=… — the company P&L for the
@@ -49,7 +50,8 @@ export async function GET(request: Request) {
 
   const csv =
     `Company P&L,${range.from} to ${range.to}\r\n\r\n` +
-    `${summary}\r\n\r\nPer-clinic margin\r\n${perClinic}\r\n\r\nTrend\r\n${trend}\r\n`;
+    `${summary}\r\n\r\nPer-clinic margin\r\n${perClinic}\r\n\r\nTrend\r\n${trend}\r\n` +
+    `\r\n${BRAND_POWERED_BY}\r\n`;
 
   return new Response("﻿" + csv, {
     headers: {

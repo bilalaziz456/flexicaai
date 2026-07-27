@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
+import { Download } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
@@ -53,6 +54,13 @@ export default async function ProfitLossPage({
     getOutstandingTotal(clinicId),
   ]);
 
+  // Preserve the active period on the CSV export link.
+  const exportParams = new URLSearchParams({ type: "pl", period: range.period });
+  if (range.period === "custom") {
+    exportParams.set("from", range.from);
+    exportParams.set("to", range.to);
+  }
+
   const loss = pl.netProfit < 0;
   const cards = [
     { title: "Collected revenue", value: money.format(pl.revenue), note: "Money received" },
@@ -68,11 +76,19 @@ export default async function ProfitLossPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Profit &amp; Loss</h1>
-        <p className="text-sm text-muted-foreground">
-          What the clinic kept after doctor shares and expenses — on collected revenue.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Profit &amp; Loss</h1>
+          <p className="text-sm text-muted-foreground">
+            What the clinic kept after doctor shares and expenses — on collected revenue.
+          </p>
+        </div>
+        <a
+          href={`/api/finance/export?${exportParams.toString()}`}
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium hover:bg-accent"
+        >
+          <Download className="size-3.5" aria-hidden="true" /> CSV
+        </a>
       </div>
 
       <SalesFilters

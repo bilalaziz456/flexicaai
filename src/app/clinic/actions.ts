@@ -673,21 +673,39 @@ export async function createPatient(
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
-  const [createdPatient] = await db
-    .insert(patients)
-    .values({
-      clinicId,
-      fullName: parsed.data.fullName,
-      phone: emptyToNull(formData.get("phone")),
-      email: emptyToNull(formData.get("email")),
-      // Patients are entered by age; we store the derived birth date (see age.ts).
-      dateOfBirth: dobFromAgeField(formData.get("age")),
-      gender: emptyToNull(formData.get("gender")),
-      address: emptyToNull(formData.get("address")),
-      reference: emptyToNull(formData.get("reference")),
-      dataConsent: formData.get("dataConsent") === "on",
-    })
-    .returning({ id: patients.id });
+  const createdPatient = await db.transaction(async (tx) => {
+    // Allocate the next per-clinic MRN by locking the clinic row so concurrent
+    // registrations can't collide (mirrors invoice numbering — core/patients/mrn.ts).
+    const [c] = await tx
+      .select({ nextMrn: clinics.nextMrn })
+      .from(clinics)
+      .where(eq(clinics.id, clinicId))
+      .for("update")
+      .limit(1);
+    const mrn = c?.nextMrn ?? 1;
+    await tx
+      .update(clinics)
+      .set({ nextMrn: mrn + 1, updatedAt: new Date() })
+      .where(eq(clinics.id, clinicId));
+
+    const [row] = await tx
+      .insert(patients)
+      .values({
+        clinicId,
+        mrn,
+        fullName: parsed.data.fullName,
+        phone: emptyToNull(formData.get("phone")),
+        email: emptyToNull(formData.get("email")),
+        // Patients are entered by age; we store the derived birth date (see age.ts).
+        dateOfBirth: dobFromAgeField(formData.get("age")),
+        gender: emptyToNull(formData.get("gender")),
+        address: emptyToNull(formData.get("address")),
+        reference: emptyToNull(formData.get("reference")),
+        dataConsent: formData.get("dataConsent") === "on",
+      })
+      .returning({ id: patients.id });
+    return row;
+  });
 
   await logActivity({
     action: "create",

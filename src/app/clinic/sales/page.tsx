@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
+import { Download } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
@@ -60,6 +61,14 @@ export default async function ClinicSalesPage({
     getSalesDoctors(clinicId),
   ]);
 
+  // Preserve the active filters on the CSV export link.
+  const exportParams = new URLSearchParams({ type: "sales", period: range.period });
+  if (range.period === "custom") {
+    exportParams.set("from", range.from);
+    exportParams.set("to", range.to);
+  }
+  if (doctorId) exportParams.set("doctorId", doctorId);
+
   const summary = [
     { title: "Collected", value: money.format(report.netTotal), note: "Money received (after discounts)" },
     { title: "Paying visits", value: String(report.count), note: "Completed visits with a payment" },
@@ -69,21 +78,31 @@ export default async function ClinicSalesPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Sales</h1>
-        <p className="text-sm text-muted-foreground">
-          Revenue <strong>collected</strong> from completed visits — consultation +
-          procedures, after discounts. A visit appears here once it&apos;s paid; what
-          patients still owe is in{" "}
-          <Link href="/clinic/appointments?status=completed&payment=unpaid" className="underline underline-offset-4">
-            receivables
-          </Link>
-          , and the full discounts granted are in{" "}
-          <Link href="/clinic/discounts" className="underline underline-offset-4">
-            Discounts
-          </Link>
-          .
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Sales</h1>
+          <p className="text-sm text-muted-foreground">
+            Revenue <strong>collected</strong> from completed visits — consultation +
+            procedures, after discounts. A visit appears here once it&apos;s paid; what
+            patients still owe is in{" "}
+            <Link href="/clinic/appointments?status=completed&payment=unpaid" className="underline underline-offset-4">
+              receivables
+            </Link>
+            , and the full discounts granted are in{" "}
+            <Link href="/clinic/discounts" className="underline underline-offset-4">
+              Discounts
+            </Link>
+            .
+          </p>
+        </div>
+        {report.count > 0 ? (
+          <a
+            href={`/api/finance/export?${exportParams.toString()}`}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium hover:bg-accent"
+          >
+            <Download className="size-3.5" aria-hidden="true" /> CSV
+          </a>
+        ) : null}
       </div>
 
       <SalesFilters

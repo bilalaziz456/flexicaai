@@ -1,9 +1,9 @@
 import "server-only";
 
-import { and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lt, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointmentProcedures, sales, users } from "@/core/db/schema";
+import { appointmentProcedures, appointments, patients, sales, users } from "@/core/db/schema";
 import { procedureRowNetSql } from "@/core/appointments/procedures";
 
 export type SalesGranularity = "hour" | "day" | "week" | "month";
@@ -304,6 +304,121 @@ export async function getSalesSummary(
       ),
     );
   return { netTotal: Number(row?.net ?? 0), count: Number(row?.count ?? 0) };
+}
+
+export type SalesLedgerRow = {
+  occurredAt: Date;
+  patientName: string | null;
+  patientPhone: string | null;
+  doctorName: string | null;
+  gross: number;
+  discount: number;
+  net: number;
+};
+
+/**
+ * Row-level sale ledger for a range (one row per completed, paid visit) — powers the
+ * Sales CSV export. Joins the appointment's patient for the name/phone; the doctor is
+ * the ledger's snapshot. Same range + doctor filter as `getSalesReport`, clinic-scoped,
+ * ordered oldest-first. The (`clinic_id`,`occurred_at`) index bounds the scan.
+ */
+export async function listSalesRows(
+  clinicId: string,
+  range: ResolvedRange,
+  doctorId?: string | null,
+): Promise<SalesLedgerRow[]> {
+  const doctorFilter = doctorId ? eq(sales.doctorId, doctorId) : undefined;
+  return db
+    .select({
+      occurredAt: sales.occurredAt,
+      patientName: patients.fullName,
+      patientPhone: patients.phone,
+      doctorName: sales.doctorName,
+      gross: sales.grossAmount,
+      discount: sales.discountAmount,
+      net: sales.netAmount,
+    })
+    .from(sales)
+    .innerJoin(appointments, eq(appointments.id, sales.appointmentId))
+    .innerJoin(patients, eq(patients.id, appointments.patientId))
+    .where(
+      byClinic(
+        sales.clinicId,
+        clinicId,
+        and(gte(sales.occurredAt, range.start), lt(sales.occurredAt, range.end), doctorFilter),
+      ),
+    )
+    .orderBy(asc(sales.occurredAt));
+}
+
+/**
+ * Streaming variant of `listSalesRows` — yields the same rows in creation order but
+ * pages through them with a KEYSET cursor (`(occurred_at, id)`), one bounded batch
+ * at a time, so a huge export never loads the whole table into memory. Used by the
+ * streaming CSV export. Clinic-scoped; the (`clinic_id`,`occurred_at`) index serves
+ * each page.
+ */
+export async function* iterateSalesRows(
+  clinicId: string,
+  range: ResolvedRange,
+  doctorId?: string | null,
+  batchSize = 5000,
+): AsyncGenerator<SalesLedgerRow> {
+  const doctorFilter = doctorId ? eq(sales.doctorId, doctorId) : undefined;
+  // Kept as its own function so its (concrete) result type doesn't depend on the
+  // loop's cursor — otherwise the batch/cursor types infer circularly.
+  const page = (keyset: SQL | undefined) =>
+    db
+      .select({
+        id: sales.id,
+        occurredAt: sales.occurredAt,
+        // Full-precision timestamp as text for the cursor: a JS Date only has
+        // millisecond precision, so a truncated cursor would skip rows that share a
+        // millisecond. The text round-trips losslessly through `::timestamptz`.
+        cursorTs: sql<string>`${sales.occurredAt}::text`,
+        patientName: patients.fullName,
+        patientPhone: patients.phone,
+        doctorName: sales.doctorName,
+        gross: sales.grossAmount,
+        discount: sales.discountAmount,
+        net: sales.netAmount,
+      })
+      .from(sales)
+      .innerJoin(appointments, eq(appointments.id, sales.appointmentId))
+      .innerJoin(patients, eq(patients.id, appointments.patientId))
+      .where(
+        byClinic(
+          sales.clinicId,
+          clinicId,
+          and(gte(sales.occurredAt, range.start), lt(sales.occurredAt, range.end), doctorFilter, keyset),
+        ),
+      )
+      .orderBy(asc(sales.occurredAt), asc(sales.id))
+      .limit(batchSize);
+
+  let cursor: { ts: string; id: string } | null = null;
+  for (;;) {
+    const keyset: SQL | undefined = cursor
+      ? sql`(${sales.occurredAt} > ${cursor.ts}::timestamptz or (${sales.occurredAt} = ${cursor.ts}::timestamptz and ${sales.id} > ${cursor.id}::uuid))`
+      : undefined;
+
+    const batch = await page(keyset);
+
+    for (const r of batch) {
+      yield {
+        occurredAt: r.occurredAt,
+        patientName: r.patientName,
+        patientPhone: r.patientPhone,
+        doctorName: r.doctorName,
+        gross: r.gross,
+        discount: r.discount,
+        net: r.net,
+      };
+    }
+    if (batch.length < batchSize) break;
+    const lastRow = batch[batch.length - 1];
+    cursor = { ts: lastRow.cursorTs, id: lastRow.id };
+  }
 }
 
 /** Clinic's doctors for the report's doctor filter (id + display name). */

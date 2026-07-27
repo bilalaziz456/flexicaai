@@ -4,21 +4,17 @@ import { useTransition } from "react";
 import { Select } from "@base-ui/react/select";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { setAppointmentStatus } from "./actions";
+import {
+  APPOINTMENT_STATUSES,
+  APPOINTMENT_STATUS_LABEL,
+  nextQueueAction,
+  type AppointmentStatus,
+} from "@/core/appointments/status";
 
-type Status = "scheduled" | "confirmed" | "completed" | "cancelled" | "no_show";
-
-const STATUSES: { value: Status; label: string }[] = [
-  { value: "scheduled", label: "Scheduled" },
-  { value: "confirmed", label: "Confirmed" },
-  { value: "completed", label: "Completed" },
-  { value: "cancelled", label: "Cancelled" },
-  { value: "no_show", label: "No-show" },
-];
+type Status = AppointmentStatus;
 
 // Value → label map so <Select.Value /> renders the label for the current status.
-const LABELS: Record<string, string> = Object.fromEntries(
-  STATUSES.map((s) => [s.value, s.label]),
-);
+const LABELS: Record<string, string> = APPOINTMENT_STATUS_LABEL;
 
 const triggerCls =
   "inline-flex h-8 items-center gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-3.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-ring disabled:pointer-events-none disabled:opacity-50";
@@ -46,42 +42,61 @@ export function AppointmentActions({
   status: Status;
 }) {
   const [pending, startTransition] = useTransition();
+  const setStatus = (value: Status) => {
+    if (value === status) return;
+    startTransition(() => {
+      void setAppointmentStatus(id, value);
+    });
+  };
+  // The primary one-tap step through the live queue: Arrived → Call in → Complete.
+  const advance = nextQueueAction(status);
 
   return (
-    <Select.Root
-      items={LABELS}
-      value={status}
-      disabled={pending}
-      onValueChange={(next) => {
-        const value = next as Status | null;
-        if (!value || value === status) return;
-        startTransition(() => {
-          void setAppointmentStatus(id, value);
-        });
-      }}
-    >
-      <Select.Trigger aria-label="Appointment status" className={triggerCls}>
-        <Select.Value />
-        <Select.Icon>
-          <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" aria-hidden="true" />
-        </Select.Icon>
-      </Select.Trigger>
-      <Select.Portal>
-        <Select.Positioner side="bottom" align="start" sideOffset={4} className="z-50">
-          <Select.Popup className={popupCls}>
-            {STATUSES.map((s) => (
-              <Select.Item key={s.value} value={s.value} className={itemCls}>
-                <span className="flex w-4 shrink-0 items-center justify-center">
-                  <Select.ItemIndicator>
-                    <Check className="size-3.5" aria-hidden="true" />
-                  </Select.ItemIndicator>
-                </span>
-                <Select.ItemText>{s.label}</Select.ItemText>
-              </Select.Item>
-            ))}
-          </Select.Popup>
-        </Select.Positioner>
-      </Select.Portal>
-    </Select.Root>
+    <div className="flex items-center gap-1.5">
+      {advance ? (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => setStatus(advance.status)}
+          className="inline-flex h-8 items-center rounded-lg border border-primary bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
+        >
+          {advance.label}
+        </button>
+      ) : null}
+
+      <Select.Root
+        items={LABELS}
+        value={status}
+        disabled={pending}
+        onValueChange={(next) => {
+          const value = next as Status | null;
+          if (!value || value === status) return;
+          setStatus(value);
+        }}
+      >
+        <Select.Trigger aria-label="Appointment status" className={triggerCls}>
+          <Select.Value />
+          <Select.Icon>
+            <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" aria-hidden="true" />
+          </Select.Icon>
+        </Select.Trigger>
+        <Select.Portal>
+          <Select.Positioner side="bottom" align="start" sideOffset={4} className="z-50">
+            <Select.Popup className={popupCls}>
+              {APPOINTMENT_STATUSES.map((value) => (
+                <Select.Item key={value} value={value} className={itemCls}>
+                  <span className="flex w-4 shrink-0 items-center justify-center">
+                    <Select.ItemIndicator>
+                      <Check className="size-3.5" aria-hidden="true" />
+                    </Select.ItemIndicator>
+                  </span>
+                  <Select.ItemText>{APPOINTMENT_STATUS_LABEL[value]}</Select.ItemText>
+                </Select.Item>
+              ))}
+            </Select.Popup>
+          </Select.Positioner>
+        </Select.Portal>
+      </Select.Root>
+    </div>
   );
 }

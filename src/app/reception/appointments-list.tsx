@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, Download, Plus } from "lucide-react";
 import { and, asc, count, eq, gte, ilike, lt, or, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
@@ -35,14 +35,7 @@ import {
   TableRow,
 } from "@/core/ui/table";
 import { AppointmentActions } from "./appointment-actions";
-
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive"> = {
-  confirmed: "default",
-  completed: "default",
-  scheduled: "secondary",
-  cancelled: "destructive",
-  no_show: "destructive",
-};
+import { APPOINTMENT_STATUS_VARIANT, statusLabel as statusText } from "@/core/appointments/status";
 
 export type AppointmentsListSearchParams = {
   created?: string;
@@ -107,6 +100,18 @@ export async function AppointmentsList({
     .limit(1);
   const billingOn = clinicHasFeature(clinicRow?.featuresEnabled, "sales");
   const payment = billingOn && typeof sp.payment === "string" ? sp.payment : "";
+
+  // Carry the active filters onto the CSV export link so the download matches the list.
+  const exportParams = new URLSearchParams();
+  if (session) exportParams.set("session", session);
+  else {
+    exportParams.set("from", fromStr);
+    exportParams.set("to", toStr);
+  }
+  if (q) exportParams.set("q", q);
+  if (status) exportParams.set("status", status);
+  if (type) exportParams.set("type", type);
+  if (payment) exportParams.set("payment", payment);
 
   // SQL for the visit's net bill: (consultation if charged) + procedures − the
   // approval-gated appointment discount. Mirrors computeAppointmentTotal.
@@ -260,11 +265,21 @@ export async function AppointmentsList({
             {total} appointment{total === 1 ? "" : "s"} · {contextLabel}.
           </p>
         </div>
-        {canCreate ? (
-          <Link href={newHref} className={cn(buttonVariants(), "hidden sm:inline-flex")}>
-            New appointment
-          </Link>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {total > 0 ? (
+            <a
+              href={`/api/appointments/export?${exportParams.toString()}`}
+              className={cn(buttonVariants({ variant: "outline" }))}
+            >
+              <Download className="size-4" aria-hidden="true" /> CSV
+            </a>
+          ) : null}
+          {canCreate ? (
+            <Link href={newHref} className={cn(buttonVariants(), "hidden sm:inline-flex")}>
+              New appointment
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       <QueueSummary sessions={queue} pathname={listPath} activeSession={session} />
@@ -370,8 +385,8 @@ export async function AppointmentsList({
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"}>
-                          {a.status.replace("_", " ")}
+                        <Badge variant={APPOINTMENT_STATUS_VARIANT[a.status] ?? "secondary"}>
+                          {statusText(a.status)}
                         </Badge>
                         {(() => {
                           const p = payLabel(a);
@@ -415,8 +430,8 @@ export async function AppointmentsList({
                     {a.patientName}
                   </span>
                   <div className="flex flex-wrap items-center justify-end gap-1.5">
-                    <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"}>
-                      {a.status.replace("_", " ")}
+                    <Badge variant={APPOINTMENT_STATUS_VARIANT[a.status] ?? "secondary"}>
+                      {statusText(a.status)}
                     </Badge>
                     {(() => {
                       const p = payLabel(a);

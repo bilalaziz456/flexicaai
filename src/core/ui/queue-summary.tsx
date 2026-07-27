@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { QueueSession } from "@/core/appointments/queue";
+import { statusLabel } from "@/core/appointments/status";
 import { cn } from "@/core/lib/utils";
 
 /**
@@ -54,7 +55,7 @@ export function QueueSummary({
                   <div className="text-xs text-muted-foreground">{s.windowLabel}</div>
                 </div>
                 <div className="shrink-0 text-right">
-                  <div className="text-xs text-muted-foreground">Now serving</div>
+                  <div className="text-xs text-muted-foreground">In the room</div>
                   <div className="text-lg font-semibold text-primary">
                     {s.nowServing != null ? `#${s.nowServing}` : "—"}
                   </div>
@@ -62,25 +63,30 @@ export function QueueSummary({
               </div>
 
               <div className="mt-1.5 text-xs text-muted-foreground">
-                {s.waiting} waiting · {s.done} done · {s.total} total
+                {s.inRoom} in room · {s.waiting} waiting · {s.notArrived} to arrive · {s.done} done
               </div>
 
               <ul className="mt-2 flex flex-wrap gap-1">
                 {s.items.map((it) => {
+                  const inRoom = it.status === "in_progress";
+                  const waiting = it.status === "arrived";
                   const done = it.status === "completed";
-                  const cancelled =
-                    it.status === "cancelled" || it.status === "no_show";
-                  const serving = s.nowServing != null && it.number === s.nowServing;
+                  const missed = it.status === "cancelled" || it.status === "no_show";
+                  const notArrived = it.status === "scheduled" || it.status === "confirmed";
+                  // A booked patient whose slot time has passed but who hasn't checked in.
+                  const late = notArrived && it.scheduledAt.getTime() < Date.now();
                   return (
                     <li
                       key={it.appointmentId}
-                      title={`${it.patientName} · ${it.status.replace("_", " ")}`}
+                      title={`${it.patientName} · ${statusLabel(it.status)}`}
                       className={cn(
                         "inline-flex min-w-6 items-center justify-center rounded-md border px-1.5 py-0.5 text-xs",
-                        serving && "border-primary bg-primary font-semibold text-primary-foreground",
-                        !serving && done && "border-transparent bg-accent text-accent-foreground",
-                        !serving && cancelled && "border-transparent text-muted-foreground line-through",
-                        !serving && !done && !cancelled && "border-input",
+                        inRoom && "border-primary bg-primary font-semibold text-primary-foreground",
+                        waiting && "border-primary text-primary",
+                        done && "border-transparent bg-accent text-accent-foreground",
+                        missed && "border-transparent text-muted-foreground line-through",
+                        notArrived && !late && "border-input",
+                        notArrived && late && "border-amber-500 text-amber-600 dark:text-amber-400",
                       )}
                     >
                       #{it.number}

@@ -9,6 +9,7 @@ import { clinics, patients } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { getPatientAccount } from "@/core/billing/account";
 import { formatPkr } from "@/core/appointments/fee";
+import { formatMrn } from "@/core/patients/mrn";
 import { InvoicePrintFrame } from "@/app/reception/invoice-print";
 
 /**
@@ -27,7 +28,7 @@ export default async function PatientStatementPage({
   const { id } = await params;
 
   const [patient] = await db
-    .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })
+    .select({ id: patients.id, mrn: patients.mrn, createdAt: patients.createdAt, fullName: patients.fullName, phone: patients.phone })
     .from(patients)
     .where(
       byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt), eq(patients.id, id)),
@@ -41,6 +42,7 @@ export default async function PatientStatementPage({
       featuresEnabled: clinics.featuresEnabled,
       invoicePaper: clinics.invoicePaper,
       signature: clinics.whatsappSignature,
+      mrnPrefix: clinics.mrnPrefix,
     })
     .from(clinics)
     .where(eq(clinics.id, clinicId))
@@ -48,6 +50,7 @@ export default async function PatientStatementPage({
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales") || !can(user, "billing", "view")) {
     notFound();
   }
+  const mrnLabel = formatMrn(clinic?.mrnPrefix, patient.mrn, patient.createdAt);
 
   const account = await getPatientAccount(clinicId, patient.id);
   const fmtDate = (d: Date) =>
@@ -90,6 +93,12 @@ export default async function PatientStatementPage({
             <span className="font-medium">{patient.fullName}</span>
             {patient.phone ? <span className="opacity-70"> · {patient.phone}</span> : null}
           </div>
+          {mrnLabel ? (
+            <div>
+              <span className="opacity-70">MRN#: </span>
+              <span className="tabular-nums">{mrnLabel}</span>
+            </div>
+          ) : null}
         </div>
 
         {/* Visits */}

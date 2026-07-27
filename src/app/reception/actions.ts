@@ -46,16 +46,10 @@ import {
   notifyAppointmentsCancelled,
 } from "@/core/notifications/appointment";
 import { logActivity } from "@/core/audit/log";
+import { APPOINTMENT_STATUSES, type AppointmentStatus } from "@/core/appointments/status";
+import { applyAppointmentStatus } from "@/core/appointments/set-status";
 
 export type ReceptionActionState = { error?: string; saved?: boolean };
-
-const APPT_STATUSES = [
-  "scheduled",
-  "confirmed",
-  "completed",
-  "cancelled",
-  "no_show",
-] as const;
 
 /**
  * Appointment management is shared by the receptionist AND the clinic admin, so
@@ -491,58 +485,17 @@ export async function deleteAppointment(
  */
 export async function setAppointmentStatus(
   appointmentId: string,
-  status: (typeof APPT_STATUSES)[number],
+  status: AppointmentStatus,
 ): Promise<void> {
   const { user, clinicId, home } = await requireAppointmentsAccess();
   // Changing status is an edit; silently no-op when not permitted (the UI hides
   // the control too).
   if (!can(user, "appointments", "edit")) return;
-  if (!APPT_STATUSES.includes(status)) return;
+  if (!APPOINTMENT_STATUSES.includes(status)) return;
 
-  // Source + prior status decide whether/what to message the patient.
-  const [prior] = await db
-    .select({ source: appointments.source, status: appointments.status })
-    .from(appointments)
-    .where(
-      byClinic(
-        appointments.clinicId,
-        clinicId,
-        notDeleted(appointments.deletedAt),
-        eq(appointments.id, appointmentId),
-      ),
-    )
-    .limit(1);
-  if (!prior || prior.status === status) return; // nothing to change
+  const changed = await applyAppointmentStatus(clinicId, appointmentId, status);
+  if (!changed) return;
 
-  await db
-    .update(appointments)
-    .set({ status, updatedAt: new Date() })
-    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)));
-
-  if (status === "cancelled") {
-    // Tell the patient (with doctor + time) their appointment is cancelled.
-    await notifyAppointmentsCancelled(clinicId, [appointmentId]);
-  } else if (status === "confirmed" && prior.source === "whatsapp") {
-    // A WhatsApp self-booking is confirmed by staff → send the confirmation
-    // (slot, timing, doctor, fee).
-    await notifyAppointmentBooked(clinicId, appointmentId);
-  }
-
-  // Sales ledger: a completed appointment is a realised sale; leaving "completed"
-  // (e.g. an accidental mark, or moved back to scheduled) voids it. Best-effort —
-  // never blocks the status change.
-  if (status === "completed") {
-    await recordSaleForAppointment(clinicId, appointmentId);
-  } else if (prior.status === "completed") {
-    await voidSaleForAppointment(clinicId, appointmentId);
-  }
-
-  await logActivity({
-    action: "status",
-    entity: "appointment",
-    entityId: appointmentId,
-    summary: `Marked an appointment ${status.replace("_", " ")}`,
-  });
   revalidatePath(home);
   revalidatePath(`/clinic/appointments/${appointmentId}`);
   revalidatePath(`/reception/appointments/${appointmentId}`);

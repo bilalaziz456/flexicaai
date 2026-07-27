@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, Download, Plus } from "lucide-react";
 import { and, count, desc, ilike, inArray, or } from "drizzle-orm";
 import { requireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
@@ -96,15 +96,25 @@ export default async function ClinicStaffPage({
             {query ? ` matching “${query}”` : ""}.
           </p>
         </div>
-        {/* Desktop/tablet: inline button. Hidden on mobile (see FAB below). */}
-        {canCreate ? (
-          <Link
-            href="/clinic/staff/new"
-            className={cn(buttonVariants(), "hidden sm:inline-flex")}
-          >
-            Add staff
-          </Link>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {total > 0 ? (
+            <a
+              href={`/api/staff/export${query ? `?q=${encodeURIComponent(query)}` : ""}`}
+              className={cn(buttonVariants({ variant: "outline" }))}
+            >
+              <Download className="size-4" aria-hidden="true" /> CSV
+            </a>
+          ) : null}
+          {/* Desktop/tablet: inline button. Hidden on mobile (see FAB below). */}
+          {canCreate ? (
+            <Link
+              href="/clinic/staff/new"
+              className={cn(buttonVariants(), "hidden sm:inline-flex")}
+            >
+              Add staff
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       <StaffSearch initial={query ?? ""} />

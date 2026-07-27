@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Printer } from "lucide-react";
 import { Button } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
+import { BRAND_POWERED_BY } from "@/core/lib/brand";
 
 /** Paper formats: browser `@page` size + on-screen sheet width/scale. */
 const FORMATS = {
@@ -67,6 +68,10 @@ export function InvoicePrintFrame({
         style={{ width: `min(100%, ${f.width})`, fontSize: f.font }}
       >
         {children}
+        {/* Brand credit — printed at the foot of every document that uses this frame. */}
+        <div className="mt-4 border-t border-black/10 pt-2 text-center text-[0.7em] opacity-60">
+          {BRAND_POWERED_BY}
+        </div>
       </div>
     </div>
   );

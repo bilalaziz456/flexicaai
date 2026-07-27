@@ -88,6 +88,8 @@ export function describeAvailability(availability: DayAvailability[]): string {
 export const ACTIVE_APPT_STATUSES = [
   "scheduled",
   "confirmed",
+  "arrived",
+  "in_progress",
   "completed",
 ] as const;
 

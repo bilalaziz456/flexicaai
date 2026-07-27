@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { CalendarPlus, ChevronRight, Plus } from "lucide-react";
-import { count, desc, ilike, or } from "drizzle-orm";
+import { CalendarPlus, ChevronRight, Download, Plus } from "lucide-react";
+import { count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { patients } from "@/core/db/schema";
+import { clinics, patients } from "@/core/db/schema";
+import { formatMrn, mrnDigits } from "@/core/patients/mrn";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
@@ -70,9 +71,20 @@ export async function PatientsList({
         ? "Patient deleted."
         : null;
 
-  const search = query
-    ? or(ilike(patients.fullName, `%${query}%`), ilike(patients.phone, `%${query}%`))
-    : undefined;
+  // Search matches name, phone, or MRN. For MRN we match the digits of the term
+  // (so "MRN-42", "42" and "#42" all find patient 42) against `mrn::text`.
+  let search;
+  if (query) {
+    const conds = [ilike(patients.fullName, `%${query}%`), ilike(patients.phone, `%${query}%`)];
+    const digits = mrnDigits(query);
+    // Match the MRN's digits (registration date + padded counter) so "42",
+    // "0000042", or a pasted "KL-202607270000042" all resolve to the patient.
+    if (digits)
+      conds.push(
+        sql`(to_char(${patients.createdAt}, 'YYYYMMDD') || lpad(${patients.mrn}::text, 7, '0')) ilike ${`%${digits}%`}`,
+      );
+    search = or(...conds);
+  }
 
   const where = byClinic(
     patients.clinicId,
@@ -80,10 +92,13 @@ export async function PatientsList({
     notDeleted(patients.deletedAt),
     search,
   );
-  const [rows, [{ total }]] = await Promise.all([
+  const [clinicRow, rows, [{ total }]] = await Promise.all([
+    db.select({ mrnPrefix: clinics.mrnPrefix }).from(clinics).where(eq(clinics.id, clinicId)).limit(1),
     db
       .select({
         id: patients.id,
+        mrn: patients.mrn,
+        createdAt: patients.createdAt,
         fullName: patients.fullName,
         phone: patients.phone,
         gender: patients.gender,
@@ -97,6 +112,7 @@ export async function PatientsList({
       .offset(pageOffset(page, pageSize)),
     db.select({ total: count() }).from(patients).where(where),
   ]);
+  const mrnPrefix = clinicRow[0]?.mrnPrefix ?? "";
 
   return (
     <div className="space-y-6">
@@ -109,11 +125,21 @@ export async function PatientsList({
             {query ? ` matching “${query}”` : ""}.
           </p>
         </div>
-        {canCreate ? (
-          <Link href={newHref} className={cn(buttonVariants(), "hidden sm:inline-flex")}>
-            Add patient
-          </Link>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {total > 0 ? (
+            <a
+              href={`/api/patients/export${query ? `?q=${encodeURIComponent(query)}` : ""}`}
+              className={cn(buttonVariants({ variant: "outline" }))}
+            >
+              <Download className="size-4" aria-hidden="true" /> CSV
+            </a>
+          ) : null}
+          {canCreate ? (
+            <Link href={newHref} className={cn(buttonVariants(), "hidden sm:inline-flex")}>
+              Add patient
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       <PatientsSearch initial={query ?? ""} />
@@ -137,6 +163,7 @@ export async function PatientsList({
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>MRN</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Gender</TableHead>
@@ -148,6 +175,9 @@ export async function PatientsList({
               <TableBody>
                 {rows.map((p) => (
                   <RowLink key={p.id} href={`${detailBase}/${p.id}`} className="border-b">
+                    <TableCell className="tabular-nums text-muted-foreground">
+                      {formatMrn(mrnPrefix, p.mrn, p.createdAt) ?? "—"}
+                    </TableCell>
                     <TableCell className="font-medium">{p.fullName}</TableCell>
                     <TableCell>{p.phone ?? "—"}</TableCell>
                     <TableCell className="capitalize">{p.gender ?? "—"}</TableCell>
@@ -187,7 +217,14 @@ export async function PatientsList({
                 href={`${detailBase}/${p.id}`}
                 className="block space-y-2 rounded-md border p-3"
               >
-                <div className="font-medium">{p.fullName}</div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-medium">{p.fullName}</div>
+                  {formatMrn(mrnPrefix, p.mrn, p.createdAt) ? (
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {formatMrn(mrnPrefix, p.mrn, p.createdAt)}
+                    </span>
+                  ) : null}
+                </div>
                 <div className="text-sm text-muted-foreground">
                   {p.phone ?? "No phone"}
                   {p.gender ? ` · ${p.gender}` : ""}

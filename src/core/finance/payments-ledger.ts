@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, gte, ilike, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, patientPayments, patients, users } from "@/core/db/schema";
@@ -50,7 +50,7 @@ export type PaymentLedger = {
 /** `refund` is money OUT; everything else is money in. Kept in sync with daybook. */
 const OUT_KINDS = new Set(["refund"]);
 
-function conds(clinicId: string, f: PaymentLedgerFilters) {
+function conds(clinicId: string, f: PaymentLedgerFilters, extra?: SQL) {
   const parts = [notDeleted(patientPayments.deletedAt)];
   if (f.from) parts.push(gte(patientPayments.occurredAt, f.from));
   if (f.toExclusive) parts.push(lt(patientPayments.occurredAt, f.toExclusive));
@@ -61,6 +61,7 @@ function conds(clinicId: string, f: PaymentLedgerFilters) {
     const like = `%${f.q}%`;
     parts.push(or(ilike(patients.fullName, like), ilike(patients.phone, like))!);
   }
+  if (extra) parts.push(extra);
   return byClinic(patientPayments.clinicId, clinicId, and(...parts));
 }
 
@@ -140,6 +141,83 @@ export async function getPaymentsLedger(
     total: Number(total),
     totals: { in: moneyIn, out: moneyOut, net: moneyIn - moneyOut },
   };
+}
+
+/**
+ * Streaming variant of `getPaymentsLedger` — yields the same rows (newest first) but
+ * pages with a KEYSET cursor (`(occurred_at, id)` descending), one bounded batch at a
+ * time, so a huge export never buffers the whole ledger. Used by the streaming CSV
+ * export. Clinic-scoped; honours every list filter.
+ */
+export async function* iteratePaymentsLedger(
+  clinicId: string,
+  filters: PaymentLedgerFilters = {},
+  batchSize = 5000,
+): AsyncGenerator<PaymentLedgerRow> {
+  // Kept as its own function so its (concrete) result type doesn't depend on the
+  // loop's cursor — otherwise the batch/cursor types infer circularly.
+  const page = (keyset: SQL | undefined) =>
+    db
+      .select({
+        id: patientPayments.id,
+        kind: patientPayments.kind,
+        amount: patientPayments.amount,
+        method: patientPayments.method,
+        reference: patientPayments.reference,
+        note: patientPayments.note,
+        occurredAt: patientPayments.occurredAt,
+        // Full-precision timestamp text for the cursor (see the sales iterator): a JS
+        // Date truncates to milliseconds, which would skip same-millisecond rows.
+        cursorTs: sql<string>`${patientPayments.occurredAt}::text`,
+        createdByName: patientPayments.createdByName,
+        patientId: patients.id,
+        patientName: patients.fullName,
+        patientPhone: patients.phone,
+        appointmentId: patientPayments.appointmentId,
+        doctorPrefix: users.prefix,
+        doctorFullName: users.fullName,
+        doctorUsername: users.username,
+      })
+      .from(patientPayments)
+      .innerJoin(patients, eq(patients.id, patientPayments.patientId))
+      .leftJoin(appointments, eq(appointments.id, patientPayments.appointmentId))
+      .leftJoin(users, eq(users.id, appointments.doctorId))
+      .where(conds(clinicId, filters, keyset))
+      .orderBy(desc(patientPayments.occurredAt), desc(patientPayments.id))
+      .limit(batchSize);
+
+  let cursor: { ts: string; id: string } | null = null;
+  for (;;) {
+    const keyset: SQL | undefined = cursor
+      ? sql`(${patientPayments.occurredAt} < ${cursor.ts}::timestamptz or (${patientPayments.occurredAt} = ${cursor.ts}::timestamptz and ${patientPayments.id} < ${cursor.id}::uuid))`
+      : undefined;
+
+    const batch = await page(keyset);
+
+    for (const r of batch) {
+      yield {
+        id: r.id,
+        kind: r.kind,
+        amount: r.amount,
+        method: r.method,
+        reference: r.reference,
+        note: r.note,
+        occurredAt: r.occurredAt,
+        createdByName: r.createdByName,
+        patientId: r.patientId,
+        patientName: r.patientName,
+        patientPhone: r.patientPhone,
+        appointmentId: r.appointmentId,
+        doctorName:
+          r.doctorFullName || r.doctorUsername
+            ? displayStaffName(r.doctorPrefix, r.doctorFullName, r.doctorUsername ?? "")
+            : null,
+      };
+    }
+    if (batch.length < batchSize) break;
+    const lastRow = batch[batch.length - 1];
+    cursor = { ts: lastRow.cursorTs, id: lastRow.id };
+  }
 }
 
 /** Is this ledger kind money-out (a refund)? Exposed so the UI signs the amount. */

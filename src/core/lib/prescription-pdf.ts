@@ -1,6 +1,7 @@
 import "server-only";
 
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { BRAND_POWERED_BY } from "./brand";
 
 /**
  * Prescription PDF generator — CORE, specialty-agnostic. It renders whatever
@@ -23,6 +24,7 @@ export type RxItem = {
 export type PrescriptionInput = {
   clinicName: string;
   patientName: string;
+  patientMrn?: string | null;
   doctorName?: string | null;
   date: Date;
   diagnosis?: string | null;
@@ -119,7 +121,12 @@ export async function generatePrescriptionPdf(
   );
   y -= 15;
   text(input.patientName, MARGIN, y, { font: bold, size: 13, color: INK });
-  y -= 20;
+  y -= 18;
+  // MRN on its own labelled line under the name (omitted when the patient has none).
+  if (input.patientMrn) {
+    text(`MRN#: ${input.patientMrn}`, MARGIN, y, { size: 10, color: MUTED });
+    y -= 16;
+  }
   if (input.doctorName) {
     text(`Prescribed by: Dr. ${input.doctorName}`, MARGIN, y, {
       size: 10,
@@ -190,17 +197,21 @@ export async function generatePrescriptionPdf(
   rightText("Doctor's signature", footY - 12, { size: 9, color: MUTED });
 
   page.drawLine({
-    start: { x: MARGIN, y: MARGIN + 20 },
-    end: { x: PAGE_W - MARGIN, y: MARGIN + 20 },
+    start: { x: MARGIN, y: MARGIN + 26 },
+    end: { x: PAGE_W - MARGIN, y: MARGIN + 26 },
     thickness: 0.5,
     color: rgb(0.85, 0.85, 0.85),
   });
   text(
     "This prescription was generated with Klenic. Review by the prescribing doctor.",
     MARGIN,
-    MARGIN + 8,
+    MARGIN + 14,
     { size: 8, color: MUTED },
   );
+  // Brand credit, centered on the last line.
+  const brand = safe(BRAND_POWERED_BY);
+  const brandW = reg.widthOfTextAtSize(brand, 8);
+  text(brand, (PAGE_W - brandW) / 2, MARGIN + 2, { size: 8, color: MUTED });
 
   return doc.save();
 }

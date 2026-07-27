@@ -1,0 +1,167 @@
+import { and, asc, eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
+import { getCurrentUser } from "@/core/auth/user";
+import { can } from "@/core/auth/permissions";
+import { db } from "@/core/db";
+import { byClinic, notDeleted } from "@/core/db/tenant";
+import { appointments, clinics, patients, users } from "@/core/db/schema";
+import { clinicHasFeature } from "@/core/lib/features";
+import { streamCsvResponse } from "@/core/lib/csv-stream";
+import {
+  computeAppointmentTotal,
+  effectiveDiscountValue,
+} from "@/core/appointments/fee";
+import {
+  appointmentHasProceduresSql,
+  appointmentProceduresNetSql,
+} from "@/core/appointments/procedures";
+import { parseListFilters } from "@/core/appointments/list-filters";
+import { statusLabel } from "@/core/appointments/status";
+import { displayStaffName } from "@/core/types/auth";
+
+/**
+ * GET /api/appointments/export?from=&to=&q=&status=&type=&payment=&session= — the
+ * appointments list as a CSV, honouring the SAME filters as the list page. It STREAMS
+ * via a keyset cursor (`(scheduled_at, id)`), one bounded batch at a time, so server
+ * memory stays flat however many appointments match. Auth + clinic-scoped +
+ * `appointments:view`. Amounts are raw numbers so Excel can sum them.
+ */
+export async function GET(req: Request) {
+  const user = await getCurrentUser();
+  if (!user?.clinicId || !can(user, "appointments", "view")) {
+    return new Response("Forbidden", { status: 403 });
+  }
+  const clinicId = user.clinicId;
+  const sp = Object.fromEntries(new URL(req.url).searchParams.entries());
+
+  const { q, status, type, start, endExclusive, fromStr, toStr } = parseListFilters(sp);
+  const session = typeof sp.session === "string" ? sp.session : "";
+
+  const [clinicRow] = await db
+    .select({ featuresEnabled: clinics.featuresEnabled })
+    .from(clinics)
+    .where(eq(clinics.id, clinicId))
+    .limit(1);
+  const billingOn = clinicHasFeature(clinicRow?.featuresEnabled, "sales");
+  const payment = billingOn && typeof sp.payment === "string" ? sp.payment : "";
+
+  // Net-bill SQL (mirrors the list) — only needed for the payment filter.
+  const effDiscount = sql`(case when ${appointments.discountStatus} in ('pending','rejected') then 0 else ${appointments.discountValue} end)`;
+  const subtotalSql = sql`((case when ${appointments.chargeConsultation} then coalesce(${users.consultationFee}, 0) else 0 end) + ${appointmentProceduresNetSql()})`;
+  const netSql = sql`(${subtotalSql} - least(greatest(case when ${appointments.discountType} = 'percent' then round(${subtotalSql} * ${effDiscount} / 100.0) else ${effDiscount} end, 0), ${subtotalSql}))`;
+
+  // Every filter except the keyset cursor (added per batch below).
+  const baseConds = (): SQL[] => {
+    const conds: SQL[] = session
+      ? [eq(appointments.queueSession, session)]
+      : [gte(appointments.scheduledAt, start), lt(appointments.scheduledAt, endExclusive)];
+    if (q) conds.push(or(ilike(patients.fullName, `%${q}%`), ilike(patients.phone, `%${q}%`))!);
+    if (status) conds.push(eq(appointments.status, status));
+    if (type) {
+      const hasProc = appointmentHasProceduresSql();
+      if (type === "both") conds.push(sql`${appointments.chargeConsultation} = true and ${hasProc}`);
+      else if (type === "procedure") conds.push(sql`${appointments.chargeConsultation} = false and ${hasProc}`);
+      else if (type === "consultation") conds.push(sql`not ${hasProc}`);
+    }
+    if (payment === "paid") {
+      conds.push(sql`${appointments.status} = 'completed' and (${netSql} <= 0 or ${appointments.amountCollected} >= ${netSql})`);
+    } else if (payment === "partial") {
+      conds.push(sql`${appointments.status} = 'completed' and ${netSql} > 0 and ${appointments.amountCollected} > 0 and ${appointments.amountCollected} < ${netSql}`);
+    } else if (payment === "unpaid") {
+      conds.push(sql`${appointments.status} = 'completed' and ${netSql} > 0 and ${appointments.amountCollected} = 0`);
+    }
+    return conds;
+  };
+
+  const typeLabel = (charge: boolean, hasProc: boolean): string => {
+    if (charge && hasProc) return "Consultation + procedure";
+    if (!charge && hasProc) return "Procedure";
+    return "Consultation";
+  };
+
+  const BATCH = 5000;
+  const rows = async function* () {
+    let cursor: { ts: string; id: string } | null = null;
+    for (;;) {
+      const conds = baseConds();
+      if (cursor) {
+        // Full-precision text cursor (a JS Date truncates microseconds → skipped rows).
+        conds.push(
+          sql`(${appointments.scheduledAt} > ${cursor.ts}::timestamptz or (${appointments.scheduledAt} = ${cursor.ts}::timestamptz and ${appointments.id} > ${cursor.id}::uuid))`,
+        );
+      }
+      const batch = await db
+        .select({
+          id: appointments.id,
+          scheduledAt: appointments.scheduledAt,
+          cursorTs: sql<string>`${appointments.scheduledAt}::text`,
+          status: appointments.status,
+          reason: appointments.reason,
+          discountType: appointments.discountType,
+          discountValue: appointments.discountValue,
+          discountStatus: appointments.discountStatus,
+          chargeConsultation: appointments.chargeConsultation,
+          amountCollected: appointments.amountCollected,
+          queueNumber: appointments.queueNumber,
+          patientName: patients.fullName,
+          patientPhone: patients.phone,
+          doctorName: users.fullName,
+          doctorUsername: users.username,
+          doctorPrefix: users.prefix,
+          consultationFee: users.consultationFee,
+          proceduresTotal: appointmentProceduresNetSql(),
+          hasProcedures: appointmentHasProceduresSql(),
+        })
+        .from(appointments)
+        .innerJoin(patients, eq(appointments.patientId, patients.id))
+        .leftJoin(users, eq(appointments.doctorId, users.id))
+        .where(byClinic(appointments.clinicId, clinicId, notDeleted(appointments.deletedAt), and(...conds)))
+        .orderBy(asc(appointments.scheduledAt), asc(appointments.id))
+        .limit(BATCH);
+
+      for (const r of batch) {
+        const { net } = computeAppointmentTotal(
+          r.chargeConsultation ? (r.consultationFee ?? 0) : 0,
+          Number(r.proceduresTotal),
+          r.discountType === "percent" ? "percent" : "amount",
+          effectiveDiscountValue(r.discountStatus, r.discountValue),
+        );
+        const doctor =
+          r.doctorName || r.doctorUsername
+            ? displayStaffName(r.doctorPrefix, r.doctorName, r.doctorUsername ?? "")
+            : "Any doctor";
+        let pay = "";
+        if (billingOn && r.status === "completed") {
+          const collected = r.amountCollected ?? 0;
+          pay = net <= 0 || collected >= net ? "Paid" : collected > 0 ? "Partial" : "Unpaid";
+        }
+        yield [
+          dt(r.scheduledAt),
+          r.queueNumber ?? "",
+          r.patientName,
+          r.patientPhone ?? "",
+          doctor,
+          statusLabel(r.status),
+          typeLabel(r.chargeConsultation, Boolean(r.hasProcedures)),
+          r.reason ?? "",
+          net,
+          r.amountCollected ?? 0,
+          pay,
+        ];
+      }
+      if (batch.length < BATCH) break;
+      const lastRow = batch[batch.length - 1];
+      cursor = { ts: lastRow.cursorTs, id: lastRow.id };
+    }
+  };
+
+  return streamCsvResponse({
+    filename: session ? "appointments-queue" : `appointments-${fromStr}_to_${toStr}`,
+    headers: ["Date", "Token", "Patient", "Phone", "Doctor", "Status", "Type", "Reason", "Bill", "Collected", "Payment"],
+    rows: rows(),
+  });
+}
+
+function dt(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}

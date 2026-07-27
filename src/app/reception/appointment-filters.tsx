@@ -12,6 +12,8 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "All statuses" },
   { value: "scheduled", label: "Scheduled" },
   { value: "confirmed", label: "Confirmed" },
+  { value: "arrived", label: "Arrived" },
+  { value: "in_progress", label: "In progress" },
   { value: "completed", label: "Completed" },
   { value: "cancelled", label: "Cancelled" },
   { value: "no_show", label: "No-show" },

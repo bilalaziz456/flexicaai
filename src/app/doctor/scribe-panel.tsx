@@ -5,7 +5,7 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, patients, visits } from "@/core/db/schema";
 import { getDayQueue } from "@/core/appointments/queue";
-import { QueueSummary } from "@/core/ui/queue-summary";
+import { DoctorQueue } from "./doctor-queue";
 import { Badge } from "@/core/ui/badge";
 import {
   Card,
@@ -71,11 +71,7 @@ export async function ScribePanel({
         </p>
       </div>
 
-      <QueueSummary
-        sessions={queue}
-        title="Your queue today"
-        emptyHint="No booked patients in your queue today."
-      />
+      <DoctorQueue sessions={queue} />
 
       {canCreateClinical ? (
         <ScribeWorkspace

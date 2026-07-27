@@ -35,14 +35,8 @@ import {
 import { AppointmentActions } from "./appointment-actions";
 import { DeleteAppointmentButton } from "./edit-appointment-form";
 import { NewAppointmentForm } from "./new-appointment-form";
+import { APPOINTMENT_STATUS_VARIANT, statusLabel } from "@/core/appointments/status";
 
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive"> = {
-  confirmed: "default",
-  completed: "default",
-  scheduled: "secondary",
-  cancelled: "destructive",
-  no_show: "destructive",
-};
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /**
@@ -214,8 +208,8 @@ export async function AppointmentDetail({
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="text-xl font-semibold">{appt.patientName}</h1>
-          <Badge variant={STATUS_VARIANT[appt.status] ?? "secondary"}>
-            {appt.status.replace("_", " ")}
+          <Badge variant={APPOINTMENT_STATUS_VARIANT[appt.status] ?? "secondary"}>
+            {statusLabel(appt.status)}
           </Badge>
           {appt.source === "whatsapp" ? (
             <Badge variant="outline">via WhatsApp</Badge>

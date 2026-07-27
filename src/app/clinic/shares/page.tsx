@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Download } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { getSalesDoctors, resolveSalesRange } from "@/core/sales/report";
@@ -65,6 +66,11 @@ export default async function ClinicSharesPage({
         outstanding: balances.reduce((s, b) => s + b.outstanding, 0),
       };
 
+  // Lifetime per-doctor balances CSV (mirrors the "By doctor" table); scoped when a
+  // single doctor is in view.
+  const exportParams = new URLSearchParams({ type: "shares" });
+  if (doctorId) exportParams.set("doctorId", doctorId);
+
   // Discount bearing + waives net (so Earned + this − Paid = Outstanding).
   const netAdjust = scoped.borne + scoped.adjustments;
   const owes = scoped.outstanding < 0;
@@ -98,14 +104,24 @@ export default async function ClinicSharesPage({
               : "What each doctor has earned from completed visits, and what's owed."}
           </p>
         </div>
-        {singleDoctor ? (
-          <Link
-            href={selfOnly ? "/clinic/shares/statement" : `/clinic/shares/statement?doctorId=${doctorId}`}
-            className="rounded-md border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent"
-          >
-            View statement
-          </Link>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {balances.length > 0 ? (
+            <a
+              href={`/api/finance/export?${exportParams.toString()}`}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium hover:bg-accent"
+            >
+              <Download className="size-3.5" aria-hidden="true" /> CSV
+            </a>
+          ) : null}
+          {singleDoctor ? (
+            <Link
+              href={selfOnly ? "/clinic/shares/statement" : `/clinic/shares/statement?doctorId=${doctorId}`}
+              className="inline-flex h-8 items-center rounded-lg border px-3 text-sm font-medium transition-colors hover:bg-accent"
+            >
+              View statement
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       {/* Balance (lifetime) */}

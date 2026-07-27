@@ -5,6 +5,7 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, patients } from "@/core/db/schema";
 import { clinicalRecordFor } from "@/config/modules";
+import { formatMrn } from "@/core/patients/mrn";
 import { InvoicePrintFrame } from "@/app/reception/invoice-print";
 
 /**
@@ -22,17 +23,18 @@ export async function ClinicalChartPrint({
   backHref: string;
 }) {
   const [patient] = await db
-    .select({ fullName: patients.fullName, phone: patients.phone })
+    .select({ fullName: patients.fullName, phone: patients.phone, mrn: patients.mrn, createdAt: patients.createdAt })
     .from(patients)
     .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt), eq(patients.id, patientId)))
     .limit(1);
   if (!patient) notFound();
 
   const [clinic] = await db
-    .select({ name: clinics.name, modulesEnabled: clinics.modulesEnabled, invoicePaper: clinics.invoicePaper, signature: clinics.whatsappSignature })
+    .select({ name: clinics.name, modulesEnabled: clinics.modulesEnabled, invoicePaper: clinics.invoicePaper, signature: clinics.whatsappSignature, mrnPrefix: clinics.mrnPrefix })
     .from(clinics)
     .where(eq(clinics.id, clinicId))
     .limit(1);
+  const mrnLabel = formatMrn(clinic?.mrnPrefix, patient.mrn, patient.createdAt);
 
   const clinicalRecord = clinicalRecordFor(clinic?.modulesEnabled ?? []);
   if (!clinicalRecord) notFound();
@@ -65,6 +67,12 @@ export async function ClinicalChartPrint({
           <span className="font-medium">{patient.fullName}</span>
           {patient.phone ? <span className="opacity-70"> · {patient.phone}</span> : null}
         </div>
+        {mrnLabel ? (
+          <div className="text-[0.95em]">
+            <span className="opacity-70">MRN#: </span>
+            <span className="tabular-nums">{mrnLabel}</span>
+          </div>
+        ) : null}
 
         <div className="mt-3">
           <ChartView chart={chart} />
