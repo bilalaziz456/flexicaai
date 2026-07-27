@@ -15,6 +15,7 @@ import {
   applyAdvance,
   refund,
   voidPayment,
+  settleOpeningBalance,
 } from "@/core/billing/payments";
 import { issueInvoice } from "@/core/billing/invoice";
 import { sendInvoiceWhatsApp } from "@/core/notifications/billing";
@@ -115,6 +116,48 @@ export async function collectPayment(
     summary: `Collected Rs ${res.paid + res.credited}${res.credited ? ` (Rs ${res.credited} to credit)` : ""}`,
   });
   revalidateAppt(appointmentId, patientId);
+  return { saved: true };
+}
+
+/** Record a payment against a patient's imported OPENING balance (not a visit). */
+export async function recordOpeningPayment(
+  patientId: string,
+  _prev: BillingActionState,
+  formData: FormData,
+): Promise<BillingActionState> {
+  const guard = await requireBilling("create");
+  if ("error" in guard) return guard;
+  const { user, clinicId } = guard;
+
+  const parsed = z
+    .object({ amount: amountSchema, method: methodSchema, reference: refSchema, note: noteSchema })
+    .safeParse({
+      amount: formData.get("amount"),
+      method: formData.get("method") || undefined,
+      reference: formData.get("reference") || undefined,
+      note: formData.get("note") || undefined,
+    });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+
+  const res = await settleOpeningBalance(clinicId, {
+    patientId,
+    amount: parsed.data.amount,
+    method: parsed.data.method ?? null,
+    reference: parsed.data.reference ?? null,
+    note: parsed.data.note ?? null,
+    actor: actorOf(user),
+  });
+  if ("error" in res) return { error: res.error };
+
+  await logActivity({
+    action: "create",
+    entity: "patient",
+    entityId: patientId,
+    summary: `Opening balance payment Rs ${res.paid}`,
+  });
+  revalidatePath(`/clinic/patients/${patientId}`);
+  revalidatePath(`/doctor/patients/${patientId}`);
+  revalidateFinance();
   return { saved: true };
 }
 

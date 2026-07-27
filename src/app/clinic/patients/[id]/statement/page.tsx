@@ -61,6 +61,7 @@ export default async function PatientStatementPage({
     advance: "Advance",
     advance_applied: "Advance applied",
     refund: "Refund",
+    opening: "Opening balance payment",
   };
 
   return (

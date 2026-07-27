@@ -14,6 +14,7 @@ import { byClinic, notDeleted } from "../src/core/db/tenant";
 import { parseCsv, parseXlsx } from "../src/core/admin/import/parse";
 import { previewImport, commitImport, undoBatch, listBatches } from "../src/core/admin/import";
 import { getOutstandingTotal, getReceivablesReport } from "../src/core/finance/receivables";
+import { getOpeningBalanceOwed, settleOpeningBalance } from "../src/core/billing/payments";
 import { formatMrn } from "../src/core/patients/mrn";
 
 let failures = 0;
@@ -80,6 +81,21 @@ async function main() {
       check("receivables total = 7500", rep.total, 7500);
       check("2 patients owe (opening only)", rep.patientCount, 2);
       check("each carries an openingBalance", rep.patients.every((p) => p.openingBalance > 0), true);
+    }
+
+    console.log("Settle opening balance:");
+    {
+      const [ay] = await db
+        .select({ id: patients.id })
+        .from(patients)
+        .where(byClinic(patients.clinicId, cid, notDeleted(patients.deletedAt), eq(patients.openingBalance, 5000)))
+        .limit(1);
+      const r = await settleOpeningBalance(cid, { patientId: ay.id, amount: 2000, method: "cash", reference: null, note: null, actor });
+      check("settle returns ok", "ok" in r && r.ok === true, true);
+      check("owed drops 5000 → 3000", await getOpeningBalanceOwed(cid, ay.id), 3000);
+      check("receivables total drops 7500 → 5500", (await getReceivablesReport(cid)).total, 5500);
+      const over = await settleOpeningBalance(cid, { patientId: ay.id, amount: 99999, method: null, reference: null, note: null, actor });
+      check("over-payment rejected", "error" in over, true);
     }
 
     console.log("Undo:");

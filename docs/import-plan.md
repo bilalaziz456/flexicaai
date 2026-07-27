@@ -6,8 +6,10 @@ new admin capability. Built in phases so a clinic is usable fast.
 > Status: **Phases 1 & 2 BUILT.** Phase 1 = patients + procedures + opening balances
 > (migration `0067`). Phase 2 = clinical-notes history — freeform, imported, approved
 > `visits` with patient (external_ref → phone → name) + doctor-by-name matching,
-> rendered in the clinical timeline with an "Imported" badge (migration `0068`). Phase
-> 3 pending. The admin capability slug shipped as `import:create` (single-action
+> rendered in the clinical timeline with an "Imported" badge (migration `0068`).
+> Opening balances are now **settleable** — a `Settle opening balance` form on the
+> patient's Account card records an `opening` payment (billing:create) that reduces
+> what's owed. Phase 3 pending. The admin capability slug shipped as `import:create` (single-action
 > resource) rather than `import:run`, to fit the existing view/create/edit/delete ACL
 > matrix. Recording an `opening` payment to *settle* an imported balance is the one
 > deferred piece of the opening-balance flow (the balance imports + shows as owed;

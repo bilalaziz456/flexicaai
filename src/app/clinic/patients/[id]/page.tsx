@@ -48,6 +48,7 @@ export default async function PatientDetailPage({
       canEditLab={can(user, "lab", "edit")}
       canDeleteLab={can(user, "lab", "delete")}
       showFinancials={showFinancials}
+      canRecordPayment={showFinancials && can(user, "billing", "create")}
     />
   );
 }

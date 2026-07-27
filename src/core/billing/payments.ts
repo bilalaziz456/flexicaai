@@ -73,6 +73,59 @@ export async function getPatientCredit(
   return Math.max(0, Number(row?.credit ?? 0));
 }
 
+/** Net imported opening balance a patient still owes (opening_balance − Σ 'opening' payments). */
+export async function getOpeningBalanceOwed(clinicId: string, patientId: string): Promise<number> {
+  const [p] = await db
+    .select({ opening: patients.openingBalance })
+    .from(patients)
+    .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt), eq(patients.id, patientId)))
+    .limit(1);
+  if (!p) return 0;
+  const [paid] = await db
+    .select({ v: sql<number>`coalesce(sum(${patientPayments.amount}), 0)::int` })
+    .from(patientPayments)
+    .where(
+      byClinic(
+        patientPayments.clinicId,
+        clinicId,
+        notDeleted(patientPayments.deletedAt),
+        and(eq(patientPayments.patientId, patientId), eq(patientPayments.kind, "opening")),
+      ),
+    );
+  return Math.max(0, p.opening - Number(paid?.v ?? 0));
+}
+
+/**
+ * Settle (part of) a patient's imported OPENING balance — a standalone money-in row
+ * (kind `opening`, no appointment), validated `0 < amount ≤ owed`. Not tied to a
+ * visit, so no `amount_collected`/sales recompute. Clinic-scoped.
+ */
+export async function settleOpeningBalance(
+  clinicId: string,
+  input: { patientId: string; amount: number; method: string | null; reference: string | null; note: string | null; actor: Actor },
+): Promise<PayResult> {
+  const amount = Math.round(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) return { error: "Enter an amount greater than zero." };
+  if (!(await patientInClinic(clinicId, input.patientId))) return { error: "Patient not found." };
+  const owed = await getOpeningBalanceOwed(clinicId, input.patientId);
+  if (owed <= 0) return { error: "No opening balance outstanding." };
+  if (amount > owed) return { error: `Can't pay more than the opening balance (Rs ${owed}).` };
+
+  await db.insert(patientPayments).values({
+    clinicId,
+    patientId: input.patientId,
+    appointmentId: null,
+    kind: "opening",
+    amount,
+    method: input.method?.slice(0, 40) || null,
+    reference: input.reference?.slice(0, 120) || null,
+    note: input.note?.slice(0, 500) ?? null,
+    createdBy: input.actor.id,
+    createdByName: input.actor.name,
+  });
+  return { ok: true, paid: amount, credited: 0 };
+}
+
 export type LedgerEntry = {
   id: string;
   kind: string;

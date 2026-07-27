@@ -35,6 +35,7 @@ import { LabTrackerCard, type LabCaseRow } from "./lab-tracker-card";
 import { DeletePatientButton, EditPatientForm } from "./[id]/patient-admin";
 import { PatientChartCard } from "./patient-chart-card";
 import { PerioChartCard } from "./perio-chart-card";
+import { OpeningBalanceForm } from "./opening-balance-form";
 
 /**
  * Shared patient detail — used by the clinic-admin panel and any panel that
@@ -65,6 +66,7 @@ export async function PatientDetail({
   canEditLab = false,
   canDeleteLab = false,
   showFinancials = false,
+  canRecordPayment = false,
 }: {
   clinicId: string;
   patientId: string;
@@ -98,6 +100,8 @@ export async function PatientDetail({
   canDeleteLab?: boolean;
   /** Show the Finance account card (sales feature + billing:view). */
   showFinancials?: boolean;
+  /** Allow recording an opening-balance payment (billing:create). */
+  canRecordPayment?: boolean;
 }) {
   const [patient] = await db
     .select()
@@ -299,6 +303,7 @@ export async function PatientDetail({
     advance: "Advance",
     advance_applied: "Advance applied",
     refund: "Refund",
+    opening: "Opening balance payment",
   };
 
   const fmt = (d: Date) =>
@@ -368,6 +373,9 @@ export async function PatientDetail({
               {[
                 { label: "Billed", value: money(account.totals.billed) },
                 { label: "Collected", value: money(account.totals.collected) },
+                ...(account.openingBalance > 0
+                  ? [{ label: "Opening balance", value: money(account.openingBalance) }]
+                  : []),
                 { label: "Outstanding", value: money(account.totals.outstanding) },
                 { label: "Advance credit", value: money(account.credit) },
               ].map((s) => (
@@ -377,6 +385,13 @@ export async function PatientDetail({
                 </div>
               ))}
             </div>
+
+            {canRecordPayment && account.openingBalance > 0 ? (
+              <div className="rounded-lg border p-3">
+                <p className="mb-2 text-sm font-medium">Settle opening balance (pre-Klenic dues)</p>
+                <OpeningBalanceForm key={account.openingBalance} patientId={patient.id} owed={account.openingBalance} />
+              </div>
+            ) : null}
 
             {account.visits.some((v) => v.outstanding > 0) ? (
               <div>
