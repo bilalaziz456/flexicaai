@@ -470,6 +470,13 @@
       "when": 1785178832569,
       "tag": "0066_spooky_frightful_four",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1785188986037,
+      "tag": "0067_dapper_mauler",
+      "breakpoints": true
     }
   ]
 }

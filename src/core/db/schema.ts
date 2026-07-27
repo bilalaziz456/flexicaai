@@ -374,6 +374,18 @@ export const patients = pgTable(
     // How the patient was referred (free text) — e.g. "Dr. Khan", "Instagram",
     // another patient's name. Optional; for referral tracking.
     reference: text("reference"),
+    // The clinic's OLD-system patient number, captured at data import so the front
+    // desk can still search by it (kept distinct from `reference` = how referred).
+    // See docs/import-plan.md.
+    externalRef: text("external_ref"),
+    // Pre-Klenic dues carried in at import (whole PKR, ≥ 0). Added to the patient's
+    // outstanding in receivables + the statement; settled by an `opening` payment
+    // (patient_payments.kind = 'opening'). NULL/0 = none.
+    openingBalance: integer("opening_balance").notNull().default(0),
+    // The import batch this row came from (NULL = registered in-app). Enables a
+    // one-click "undo import" (soft-delete the whole batch). No FK — batches are a
+    // company-side record.
+    importBatchId: uuid("import_batch_id"),
     // Consent for data use (CLAUDE.md §10). Photo consent added by modules that need it.
     dataConsent: boolean("data_consent").notNull().default(false),
     // Consent to take/store clinical PHOTOS (gates `is_photo` attachments — §10).
@@ -394,6 +406,10 @@ export const patients = pgTable(
     uniqueIndex("patients_clinic_mrn_idx")
       .on(t.clinicId, t.mrn)
       .where(sql`${t.mrn} is not null`),
+    // Lookup by the clinic's old patient number (only rows that carry one).
+    index("patients_clinic_external_ref_idx")
+      .on(t.clinicId, t.externalRef)
+      .where(sql`${t.externalRef} is not null`),
     // Tenant-scoped lookups by phone / name are common in reception search.
     index("patients_clinic_phone_idx").on(t.clinicId, t.phone),
     index("patients_clinic_name_idx").on(t.clinicId, t.fullName),
@@ -775,6 +791,8 @@ export const procedures = pgTable(
     module: text("module"),
     // Inactive procedures are hidden from booking but kept for history.
     isActive: boolean("is_active").notNull().default(true),
+    // The import batch this row came from (NULL = added in-app) — for undo. See patients.
+    importBatchId: uuid("import_batch_id"),
     ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -792,6 +810,31 @@ export const procedures = pgTable(
       .on(t.clinicId, t.deletedAt)
       .where(sql`${t.deletedAt} is not null`),
   ],
+);
+
+/**
+ * Import batches — one row per data-import run (super-admin clinic onboarding). Rows
+ * it created carry `import_batch_id` so a whole import can be undone in one action
+ * (soft-delete the batch). Company-side record of a per-clinic action. See
+ * docs/import-plan.md.
+ */
+export const importBatches = pgTable(
+  "import_batches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    entity: text("entity").notNull(), // patients | procedures
+    filename: text("filename"),
+    // {imported, skipped, warnings, ...} snapshot for the summary.
+    counts: jsonb("counts").$type<Record<string, number>>().notNull().default({}),
+    status: text("status").notNull().default("active"), // active | undone
+    createdBy: uuid("created_by"),
+    createdByName: text("created_by_name"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("import_batches_clinic_idx").on(t.clinicId, t.createdAt)],
 );
 
 /**

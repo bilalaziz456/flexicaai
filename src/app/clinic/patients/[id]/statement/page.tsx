@@ -137,6 +137,12 @@ export default async function PatientStatementPage({
             <span className="opacity-70">Total collected</span>
             <span className="tabular-nums">{formatPkr(account.totals.collected)}</span>
           </div>
+          {account.openingBalance > 0 ? (
+            <div className="flex justify-between">
+              <span className="opacity-70">Opening balance (pre-Klenic)</span>
+              <span className="tabular-nums">{formatPkr(account.openingBalance)}</span>
+            </div>
+          ) : null}
           <div className="flex justify-between border-t border-black/20 pt-1 text-[1.05em] font-bold">
             <span>Outstanding</span>
             <span className="tabular-nums">{formatPkr(account.totals.outstanding)}</span>

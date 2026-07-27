@@ -1,9 +1,9 @@
 import "server-only";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, patientPayments, users } from "@/core/db/schema";
+import { appointments, patientPayments, patients, users } from "@/core/db/schema";
 import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import {
   computeAppointmentTotal,
@@ -36,6 +36,8 @@ export type PatientLedgerEntry = {
 
 export type PatientAccount = {
   credit: number;
+  /** Net imported opening balance still owed (0 if none). Included in totals.outstanding. */
+  openingBalance: number;
   totals: { billed: number; collected: number; outstanding: number };
   visits: PatientVisit[];
   payments: PatientLedgerEntry[];
@@ -89,7 +91,7 @@ export async function getPatientAccount(
     { billed: 0, collected: 0, outstanding: 0 },
   );
 
-  const [credit, payments] = await Promise.all([
+  const [credit, payments, patRow, openPaidRow] = await Promise.all([
     getPatientCredit(clinicId, patientId),
     db
       .select({
@@ -110,7 +112,27 @@ export async function getPatientAccount(
       )
       .orderBy(desc(patientPayments.occurredAt))
       .limit(50),
+    db
+      .select({ opening: patients.openingBalance })
+      .from(patients)
+      .where(byClinic(patients.clinicId, clinicId, eq(patients.id, patientId)))
+      .limit(1),
+    db
+      .select({ v: sql<number>`coalesce(sum(${patientPayments.amount}), 0)::int` })
+      .from(patientPayments)
+      .where(
+        byClinic(
+          patientPayments.clinicId,
+          clinicId,
+          notDeleted(patientPayments.deletedAt),
+          and(eq(patientPayments.patientId, patientId), eq(patientPayments.kind, "opening")),
+        ),
+      ),
   ]);
 
-  return { credit, totals, visits, payments };
+  // Imported pre-Klenic dues, net of any 'opening' payments — added to what's owed.
+  const openingBalance = Math.max(0, Number(patRow[0]?.opening ?? 0) - Number(openPaidRow[0]?.v ?? 0));
+  totals.outstanding += openingBalance;
+
+  return { credit, openingBalance, totals, visits, payments };
 }

@@ -144,7 +144,8 @@ export default async function ReceivablesPage({
                         </Link>
                         <span className="block text-xs text-muted-foreground">
                           {p.phone ? `${p.phone} · ` : ""}
-                          {p.visits.length} unpaid {p.visits.length === 1 ? "visit" : "visits"} ·
+                          {p.visits.length} unpaid {p.visits.length === 1 ? "visit" : "visits"}
+                          {p.openingBalance > 0 ? ` · opening ${money.format(p.openingBalance)}` : ""} ·
                           {" "}collected {money.format(p.collected)} of {money.format(p.billed)}
                         </span>
                       </div>
@@ -187,6 +188,14 @@ export default async function ReceivablesPage({
                               </td>
                             </tr>
                           ))}
+                          {p.openingBalance > 0 ? (
+                            <tr className="border-b last:border-0">
+                              <td className="py-1.5" colSpan={4}>Opening balance (pre-Klenic dues)</td>
+                              <td className="py-1.5 text-right font-medium tabular-nums text-amber-600 dark:text-amber-400">
+                                {money.format(p.openingBalance)}
+                              </td>
+                            </tr>
+                          ) : null}
                         </tbody>
                       </table>
                     </div>

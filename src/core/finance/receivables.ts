@@ -3,9 +3,26 @@ import "server-only";
 import { and, desc, eq, gte, ilike, lt, or, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, patients, users } from "@/core/db/schema";
+import { appointments, patientPayments, patients, users } from "@/core/db/schema";
 import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import { displayStaffName } from "@/core/types/auth";
+
+/**
+ * Net opening balance (imported pre-Klenic dues) still owed for a clinic — the sum
+ * of `patients.opening_balance` minus any `opening` payments recorded against it.
+ * Floored at 0. Shared by the KPI + the receivables report.
+ */
+async function openingOwed(clinicId: string): Promise<number> {
+  const [open] = await db
+    .select({ v: sql<number>`coalesce(sum(${patients.openingBalance}), 0)::int` })
+    .from(patients)
+    .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt)));
+  const [paid] = await db
+    .select({ v: sql<number>`coalesce(sum(${patientPayments.amount}), 0)::int` })
+    .from(patientPayments)
+    .where(byClinic(patientPayments.clinicId, clinicId, notDeleted(patientPayments.deletedAt), eq(patientPayments.kind, "opening")));
+  return Math.max(0, Number(open?.v ?? 0) - Number(paid?.v ?? 0));
+}
 
 /**
  * Receivables (Finance) — what patients OWE the clinic: the outstanding balance on
@@ -34,7 +51,7 @@ export async function getOutstandingTotal(clinicId: string): Promise<number> {
     .from(appointments)
     .leftJoin(users, eq(users.id, appointments.doctorId))
     .where(byClinic(appointments.clinicId, clinicId, notDeleted(appointments.deletedAt), eq(appointments.status, "completed")));
-  return Number(row?.v ?? 0);
+  return Number(row?.v ?? 0) + (await openingOwed(clinicId));
 }
 
 export type ReceivableVisit = {
@@ -52,6 +69,8 @@ export type ReceivablePatient = {
   billed: number;
   collected: number;
   outstanding: number;
+  /** Net imported opening balance owed (part of `outstanding`), 0 if none. */
+  openingBalance: number;
   visits: ReceivableVisit[];
 };
 export type ReceivablesReport = {
@@ -104,7 +123,7 @@ export async function getReceivablesReport(
     if (outstanding <= 0) continue;
     let p = map.get(r.patientId);
     if (!p) {
-      p = { patientId: r.patientId, name: r.patientName, phone: r.patientPhone, billed: 0, collected: 0, outstanding: 0, visits: [] };
+      p = { patientId: r.patientId, name: r.patientName, phone: r.patientPhone, billed: 0, collected: 0, outstanding: 0, openingBalance: 0, visits: [] };
       map.set(r.patientId, p);
     }
     p.billed += bill;
@@ -121,6 +140,34 @@ export async function getReceivablesReport(
       collected: r.collected,
       outstanding,
     });
+  }
+
+  // Merge in imported opening balances (net of any `opening` payments). These aren't
+  // tied to a visit/doctor/date, so only when the view is unfiltered by doctor/date.
+  if (!filters.doctorId && !filters.from && !filters.toExclusive) {
+    const openConds = [sql`${patients.openingBalance} > 0`];
+    if (filters.q) openConds.push(or(ilike(patients.fullName, `%${filters.q}%`), ilike(patients.phone, `%${filters.q}%`))!);
+    const openRows = await db
+      .select({ id: patients.id, name: patients.fullName, phone: patients.phone, opening: patients.openingBalance })
+      .from(patients)
+      .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt), and(...openConds)));
+    const payRows = await db
+      .select({ pid: patientPayments.patientId, paid: sql<number>`coalesce(sum(${patientPayments.amount}), 0)::int` })
+      .from(patientPayments)
+      .where(byClinic(patientPayments.clinicId, clinicId, notDeleted(patientPayments.deletedAt), eq(patientPayments.kind, "opening")))
+      .groupBy(patientPayments.patientId);
+    const paidByPatient = new Map(payRows.map((r) => [r.pid, Number(r.paid)]));
+    for (const o of openRows) {
+      const net = Math.max(0, o.opening - (paidByPatient.get(o.id) ?? 0));
+      if (net <= 0) continue;
+      let p = map.get(o.id);
+      if (!p) {
+        p = { patientId: o.id, name: o.name, phone: o.phone, billed: 0, collected: 0, outstanding: 0, openingBalance: 0, visits: [] };
+        map.set(o.id, p);
+      }
+      p.openingBalance = net;
+      p.outstanding += net;
+    }
   }
 
   const patientsList = [...map.values()].sort((a, b) => b.outstanding - a.outstanding);

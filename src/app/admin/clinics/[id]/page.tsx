@@ -8,7 +8,7 @@ import { SPECIALTY_CATALOG } from "@/config/modules";
 import { CLINIC_FEATURES } from "@/core/lib/features";
 import { resourcesForClinic } from "@/core/auth/permissions";
 import { requireAdminCapability } from "@/core/auth/user";
-import { canManageBilling, canManageTeam, canSeeBilling } from "@/core/auth/admin-permissions";
+import { canAdmin, canManageBilling, canManageTeam, canSeeBilling } from "@/core/auth/admin-permissions";
 import { getClinicBilling } from "@/core/admin/billing";
 import { listAssignableTeam } from "@/core/admin/assignment";
 import { Badge } from "@/core/ui/badge";
@@ -88,12 +88,22 @@ export default async function ClinicDetailPage({
         </Link>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-xl font-semibold">{clinic.name}</h1>
-          <a
-            href={`/api/admin/clinics/${clinic.id}/export`}
-            className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
-          >
-            Export data (JSON)
-          </a>
+          <div className="flex items-center gap-4">
+            {canAdmin(admin, "import:create") ? (
+              <Link
+                href={`/admin/clinics/${clinic.id}/import`}
+                className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+              >
+                Import data
+              </Link>
+            ) : null}
+            <a
+              href={`/api/admin/clinics/${clinic.id}/export`}
+              className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            >
+              Export data (JSON)
+            </a>
+          </div>
         </div>
       </div>
 

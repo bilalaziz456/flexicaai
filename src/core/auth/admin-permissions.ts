@@ -13,6 +13,9 @@ import { permId, type PermResource } from "@/core/auth/permissions";
 export const ADMIN_RESOURCES: PermResource[] = [
   // view=see clinics; create=add clinic; edit=settings/status/contact/capabilities/staff; delete=trash.
   { id: "clinics", label: "Clinics", actions: ["view", "create", "edit", "delete"] },
+  // Data import (clinic onboarding) — create = run an import for a clinic. Owner +
+  // super_admin by default; grantable. See docs/import-plan.md.
+  { id: "import", label: "Data import", actions: ["create"], createLabel: "Run" },
   // view=billing status+overdue; create=record payment; edit=set price; delete=void payment.
   { id: "billing", label: "Billing", actions: ["view", "create", "edit", "delete"], createLabel: "Record" },
   { id: "announcements", label: "Announcements", actions: ["view", "create", "edit", "delete"] },
