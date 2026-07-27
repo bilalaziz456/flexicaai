@@ -6,6 +6,7 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, importBatches, patients } from "@/core/db/schema";
 import { dobFromAge } from "@/core/lib/age";
 import { parseImportFile, pick, type ImportRow } from "./parse";
+import { applyMapping, resolveMapping } from "./fields";
 import {
   normalizePhone,
   parseAmount,
@@ -92,15 +93,23 @@ async function analyze(
   clinicId: string,
   filename: string,
   buf: ArrayBuffer,
-): Promise<{ headers: string[]; total: number; results: { row: number; res: RowResult<PatientInput> }[] }> {
+  override?: Record<string, string> | null,
+): Promise<{
+  headers: string[];
+  mapping: Record<string, string>;
+  total: number;
+  results: { row: number; res: RowResult<PatientInput> }[];
+}> {
   const { rows, headers } = await parseImportFile(filename, buf);
+  const mapping = resolveMapping("patients", headers, override);
+  const mapped = applyMapping(rows, mapping);
   const existing = await db
     .select({ phone: patients.phone })
     .from(patients)
     .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt)));
   const seen = new Set(existing.map((r) => r.phone).filter(Boolean) as string[]);
 
-  const results = rows.map((row, i) => {
+  const results = mapped.map((row, i) => {
     let res = validateRow(row);
     if (res.kind === "ready" && res.data.phone) {
       if (seen.has(res.data.phone)) {
@@ -112,12 +121,17 @@ async function analyze(
     return { row: i + 2, res }; // +2: 1-based rows + the header line
   });
 
-  return { headers, total: rows.length, results };
+  return { headers, mapping, total: mapped.length, results };
 }
 
-export async function previewPatients(clinicId: string, filename: string, buf: ArrayBuffer): Promise<ImportPreview> {
-  const { headers, total, results } = await analyze(clinicId, filename, buf);
-  return summarize("patients", headers, total, results);
+export async function previewPatients(
+  clinicId: string,
+  filename: string,
+  buf: ArrayBuffer,
+  override?: Record<string, string> | null,
+): Promise<ImportPreview> {
+  const { headers, mapping, total, results } = await analyze(clinicId, filename, buf, override);
+  return summarize("patients", headers, mapping, total, results);
 }
 
 export async function commitPatients(
@@ -125,8 +139,9 @@ export async function commitPatients(
   filename: string,
   buf: ArrayBuffer,
   actor: { id: string; name: string },
+  override?: Record<string, string> | null,
 ): Promise<ImportResult> {
-  const { results } = await analyze(clinicId, filename, buf);
+  const { results } = await analyze(clinicId, filename, buf, override);
   const ready = results.flatMap((r) => (r.res.kind === "ready" ? [r.res.data] : []));
   const skipped = results.filter((r) => r.res.kind === "duplicate").length;
   const errored = results.filter((r) => r.res.kind === "error").length;

@@ -6,6 +6,7 @@ import { Download, Upload } from "lucide-react";
 import { Button } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import { IMPORT_TEMPLATES, templateCsv } from "@/core/admin/import/templates";
+import { FIELDS } from "@/core/admin/import/fields";
 import type { ImportEntity, ImportPreview, ImportResult } from "@/core/admin/import/types";
 import { commitImportAction, previewImportAction, undoImportAction } from "./actions";
 
@@ -31,12 +32,14 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
   const [entity, setEntity] = useState<ImportEntity>("patients");
   const [fileName, setFileName] = useState<string>("");
   const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const [mapping, setMapping] = useState<Record<string, string> | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const reset = () => {
     setPreview(null);
+    setMapping(null);
     setResult(null);
     setError(null);
   };
@@ -57,6 +60,7 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
     const fd = new FormData();
     fd.append("entity", entity);
     fd.append("file", file);
+    if (mapping) fd.append("mapping", JSON.stringify(mapping));
     return fd;
   };
 
@@ -71,9 +75,15 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
     startTransition(async () => {
       const r = await previewImportAction(clinicId, fd);
       if ("error" in r) setError(r.error);
-      else setPreview(r);
+      else {
+        setPreview(r);
+        setMapping(r.mapping); // reflect what the server auto-detected / resolved
+      }
     });
   };
+
+  const setField = (key: string, header: string) =>
+    setMapping((m) => ({ ...(m ?? {}), [key]: header }));
 
   const runImport = () => {
     const fd = formData();
@@ -147,6 +157,45 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
       {error ? (
         <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">
           {error}
+        </div>
+      ) : null}
+
+      {/* Column mapping — match the file's columns to Klenic fields, then re-check. */}
+      {preview ? (
+        <div className="rounded-lg border p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-medium">Column mapping</p>
+            <span className="text-xs text-muted-foreground">Fix any wrong match, then re-check.</span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {FIELDS[entity].map((f) => {
+              const val = mapping?.[f.key] ?? "";
+              const missingReq = f.required && !val;
+              return (
+                <label key={f.key} className="flex items-center justify-between gap-2 text-sm">
+                  <span className={missingReq ? "font-medium text-destructive" : "text-muted-foreground"}>
+                    {f.label}
+                    {f.required ? " *" : ""}
+                  </span>
+                  <select
+                    value={val}
+                    onChange={(e) => setField(f.key, e.target.value)}
+                    className="h-8 min-w-[9rem] max-w-[12rem] rounded-lg border border-input bg-[var(--input-bg)] px-2 text-sm outline-none focus-visible:border-ring"
+                  >
+                    <option value="">— none —</option>
+                    {preview.headers.map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </select>
+                </label>
+              );
+            })}
+          </div>
+          <div className="mt-3">
+            <Button size="sm" variant="outline" onClick={runPreview} disabled={pending}>
+              {pending ? "Checking…" : "Re-check with this mapping"}
+            </Button>
+          </div>
         </div>
       ) : null}
 

@@ -9,6 +9,8 @@ export type RowIssue = { row: number; level: "error" | "warning"; message: strin
 export type ImportPreview = {
   entity: ImportEntity;
   headers: string[];
+  /** The resolved column mapping (target field → the file header used). */
+  mapping: Record<string, string>;
   totalRows: number;
   ready: number; // will be imported
   duplicates: number; // skipped (already exist / in-file dup)
@@ -58,6 +60,7 @@ export function normalizePhone(raw: string, defaultCc = "92"): { phone: string |
 export function summarize<T>(
   entity: ImportEntity,
   headers: string[],
+  mapping: Record<string, string>,
   totalRows: number,
   results: { row: number; res: RowResult<T> }[],
 ): ImportPreview {
@@ -84,7 +87,7 @@ export function summarize<T>(
       push({ row, level: "error", message: res.reason });
     }
   }
-  return { entity, headers, totalRows, ready, duplicates, errored, warnings, issues };
+  return { entity, headers, mapping, totalRows, ready, duplicates, errored, warnings, issues };
 }
 
 /** A `YYYY-MM-DD` from common date spellings (ISO, DD/MM/YYYY, DD-MM-YYYY). */

@@ -12,6 +12,16 @@ function entityOf(v: FormDataEntryValue | null): ImportEntity {
   return v === "procedures" ? "procedures" : v === "visits" ? "visits" : "patients";
 }
 
+function mappingOf(v: FormDataEntryValue | null): Record<string, string> | null {
+  if (typeof v !== "string" || !v) return null;
+  try {
+    const o = JSON.parse(v);
+    return o && typeof o === "object" && !Array.isArray(o) ? (o as Record<string, string>) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function fileFrom(
   formData: FormData,
 ): Promise<{ name: string; buf: ArrayBuffer } | { error: string }> {
@@ -31,7 +41,7 @@ export async function previewImportAction(
   const file = await fileFrom(formData);
   if ("error" in file) return file;
   try {
-    return await previewImport(clinicId, entity, file.name, file.buf);
+    return await previewImport(clinicId, entity, file.name, file.buf, mappingOf(formData.get("mapping")));
   } catch (e) {
     return { error: e instanceof Error ? `Couldn't read the file: ${e.message}` : "Couldn't read the file." };
   }
@@ -48,7 +58,7 @@ export async function commitImportAction(
   if ("error" in file) return file;
   try {
     const name = displayStaffName(admin.prefix, admin.fullName, admin.username);
-    const result = await commitImport(clinicId, entity, file.name, file.buf, { id: admin.id, name });
+    const result = await commitImport(clinicId, entity, file.name, file.buf, { id: admin.id, name }, mappingOf(formData.get("mapping")));
     revalidatePath(`/admin/clinics/${clinicId}/import`);
     return result;
   } catch (e) {

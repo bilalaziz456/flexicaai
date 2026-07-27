@@ -95,12 +95,16 @@ app/admin/clinics/[id]/import/   # page + actions, gated by import:run
 
 ## 5. Flow (every entity)
 
-1. Pick entity (Patients / Procedures / Balances) → **download template**.
+1. Pick entity (Patients / Procedures / Clinical notes) → **download template**.
 2. **Upload** CSV or `.xlsx`.
 3. **Dry-run preview** — server validates every row and returns counts + the offending rows:
    **ready / warnings / duplicates / errors**. Nothing is written yet.
-4. **Confirm** → one transaction, tagged with a new `import_batch_id`.
-5. **Summary** — "312 imported, 4 skipped (duplicate phone), 2 flagged (bad phone)" + an
+4. **Column mapping** — the preview also returns the auto-detected column mapping and the
+   file's headers; a panel lets the user correct any wrong match (target field → their
+   column) and **re-check**. So a clinic's sheet never has to match our exact headers.
+   Fields + aliases live in `core/admin/import/fields.ts` (`resolveMapping`/`applyMapping`).
+5. **Confirm** → one transaction, tagged with a new `import_batch_id`.
+6. **Summary** — "312 imported, 4 skipped (duplicate phone), 2 flagged (bad phone)" + an
    **Undo import** button.
 
 Re-running the same file is idempotent (dedup catches it). Undo is one click.

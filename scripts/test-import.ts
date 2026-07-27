@@ -176,6 +176,27 @@ async function main() {
       const liveV = await db.select({ id: visits.id }).from(visits).where(byClinic(visits.clinicId, cid, notDeleted(visits.deletedAt)));
       check("visits undone (soft-deleted)", liveV.length, 0);
     }
+    console.log("Column mapping (non-standard headers):");
+    {
+      // Headers our aliases do NOT catch → nothing auto-detects, so 0 ready.
+      const csv = "Patient Full Name,Cell No,Old File,Amount Due\r\nMahnoor Test,03119998877,X-1,5000\r\n";
+      const noMap = await previewImport(cid, "patients", "nm.csv", toBuf(csv));
+      check("without mapping → 0 ready (name column not detected)", noMap.ready, 0);
+      check("suggested mapping has no full_name", noMap.mapping.full_name ?? "", "");
+
+      const mapping = { full_name: "patient_full_name", phone: "cell_no", external_ref: "old_file", opening_balance: "amount_due" };
+      const withMap = await previewImport(cid, "patients", "nm.csv", toBuf(csv), mapping);
+      check("with mapping → 1 ready", withMap.ready, 1);
+
+      const res = await commitImport(cid, "patients", "nm.csv", toBuf(csv), actor, mapping);
+      check("committed 1 via mapping", res.imported, 1);
+      const [p] = await db
+        .select({ name: patients.fullName, phone: patients.phone, ext: patients.externalRef, opening: patients.openingBalance })
+        .from(patients)
+        .where(byClinic(patients.clinicId, cid, notDeleted(patients.deletedAt), eq(patients.externalRef, "X-1")))
+        .limit(1);
+      check("mapped fields landed correctly", { name: p?.name, phone: p?.phone, ext: p?.ext, opening: p?.opening }, { name: "Mahnoor Test", phone: "+923119998877", ext: "X-1", opening: 5000 });
+    }
   } finally {
     await db.delete(clinics).where(eq(clinics.id, cid)); // cascade cleans patients/procedures/visits/batches
   }
