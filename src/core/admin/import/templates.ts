@@ -1,3 +1,4 @@
+import { csvLine } from "@/core/lib/csv";
 import type { ImportEntity } from "./types";
 
 /**
@@ -23,8 +24,12 @@ export const IMPORT_TEMPLATES: Record<ImportEntity, { columns: string[]; sample:
   },
 };
 
-/** A ready-to-fill CSV (header + one sample row). */
+/**
+ * A ready-to-fill CSV (header + one sample row). Uses the RFC-4180 escaper so a
+ * sample value containing a comma (e.g. an address) can't shift the columns, and a
+ * UTF-8 BOM so Excel opens it cleanly.
+ */
 export function templateCsv(entity: ImportEntity): string {
   const t = IMPORT_TEMPLATES[entity];
-  return `${t.columns.join(",")}\r\n${t.sample.join(",")}\r\n`;
+  return `﻿${csvLine(t.columns)}\r\n${csvLine(t.sample)}\r\n`;
 }
