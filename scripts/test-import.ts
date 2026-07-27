@@ -9,7 +9,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { db } from "../src/core/db";
-import { clinics, patients, procedures } from "../src/core/db/schema";
+import { clinics, patients, procedures, users, visits } from "../src/core/db/schema";
 import { byClinic, notDeleted } from "../src/core/db/tenant";
 import { parseCsv, parseXlsx } from "../src/core/admin/import/parse";
 import { previewImport, commitImport, undoBatch, listBatches } from "../src/core/admin/import";
@@ -115,8 +115,53 @@ async function main() {
       check("2 live procedures", live.length, 2);
       check("prices parsed", live.map((p) => p.price).sort((a, b) => a - b), [2500, 3000]);
     }
+    console.log("Clinical notes (visits):");
+    {
+      // Fresh live patients to match against + a doctor to map by name.
+      const [doc] = await db
+        .insert(users)
+        .values({ clinicId: cid, username: `e2edoc${Date.now()}`, passwordHash: "x", role: "doctor", fullName: "Bilal Aziz" })
+        .returning({ id: users.id });
+      await commitImport(
+        cid,
+        "patients",
+        "p2.csv",
+        toBuf("full_name,phone,external_ref\r\nAyesha Khan,03001234567,P-100\r\nSara Ali,03007654321,P-200\r\n"),
+        actor,
+      );
+
+      const visitCsv =
+        "external_ref,visit_date,doctor,diagnosis,treatment,note\r\n" +
+        "P-100,2024-03-15,Dr Bilal Aziz,Caries 26,Composite filling,Review in 2 weeks\r\n" +
+        "P-200,2024-01-10,,Gingivitis,Scaling,Better brushing\r\n" +
+        "P-999,2024-01-10,,X,Y,Z\r\n" + // patient not found → error
+        "P-100,2024-03-15,Dr Bilal Aziz,Caries 26,Composite filling,Review in 2 weeks\r\n"; // dup → skip
+
+      const pre = await previewImport(cid, "visits", "v.csv", toBuf(visitCsv));
+      check("visits ready = 2", pre.ready, 2);
+      check("visits errored = 1 (patient not found)", pre.errored, 1);
+      check("visits dup = 1", pre.duplicates, 1);
+
+      const vr = await commitImport(cid, "visits", "v.csv", toBuf(visitCsv), actor);
+      check("visits imported = 2", vr.imported, 2);
+
+      const vrows = await db
+        .select({ doctorId: visits.doctorId, status: visits.status, imported: visits.imported, note: visits.note })
+        .from(visits)
+        .where(byClinic(visits.clinicId, cid, notDeleted(visits.deletedAt)));
+      check("2 visits live", vrows.length, 2);
+      check("all approved + imported", vrows.every((v) => v.status === "approved" && v.imported === true), true);
+      check("doctor mapped by name", vrows.some((v) => v.doctorId === doc.id), true);
+      const mapped = vrows.find((v) => v.doctorId === doc.id);
+      check("summary combines diagnosis + treatment + note", (mapped?.note as { summary?: string })?.summary?.includes("Diagnosis: Caries 26") && (mapped?.note as { summary?: string })?.summary?.includes("Review in 2 weeks"), true);
+
+      const vbatch = (await listBatches(cid)).find((b) => b.entity === "visits")!;
+      await undoBatch(cid, vbatch.id, actor);
+      const liveV = await db.select({ id: visits.id }).from(visits).where(byClinic(visits.clinicId, cid, notDeleted(visits.deletedAt)));
+      check("visits undone (soft-deleted)", liveV.length, 0);
+    }
   } finally {
-    await db.delete(clinics).where(eq(clinics.id, cid)); // cascade cleans patients/procedures/batches
+    await db.delete(clinics).where(eq(clinics.id, cid)); // cascade cleans patients/procedures/visits/batches
   }
 
   console.log(failures === 0 ? "\nALL PASSED" : `\n${failures} FAILED`);

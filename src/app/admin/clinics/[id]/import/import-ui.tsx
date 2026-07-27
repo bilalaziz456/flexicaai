@@ -22,6 +22,7 @@ type BatchView = {
 const ENTITIES: { id: ImportEntity; label: string }[] = [
   { id: "patients", label: "Patients" },
   { id: "procedures", label: "Procedures" },
+  { id: "visits", label: "Clinical notes" },
 ];
 
 export function ImportUI({ clinicId, batches }: { clinicId: string; batches: BatchView[] }) {

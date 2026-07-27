@@ -587,6 +587,12 @@ export const visits = pgTable(
     aiDraft: jsonb("ai_draft").$type<Record<string, unknown>>(),
     // Storage key of the source audio (for the flywheel / re-transcription).
     audioKey: text("audio_key"),
+    // True when this note was IMPORTED from a clinic's old system (not authored in
+    // Klenic) — freeform text lives in `note.summary`, shown as "Imported" in the
+    // clinical timeline. See docs/import-plan.md (Phase 2).
+    imported: boolean("imported").notNull().default(false),
+    // Import batch this row came from (NULL = created in-app) — enables undo.
+    importBatchId: uuid("import_batch_id"),
     visitDate: timestamp("visit_date", { withTimezone: true })
       .notNull()
       .defaultNow(),

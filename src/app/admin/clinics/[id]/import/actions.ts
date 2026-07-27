@@ -9,7 +9,7 @@ import type { ImportEntity, ImportPreview, ImportResult } from "@/core/admin/imp
 const MAX_BYTES = 15 * 1024 * 1024; // 15 MB
 
 function entityOf(v: FormDataEntryValue | null): ImportEntity {
-  return v === "procedures" ? "procedures" : "patients";
+  return v === "procedures" ? "procedures" : v === "visits" ? "visits" : "patients";
 }
 
 async function fileFrom(

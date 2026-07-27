@@ -2,7 +2,7 @@
  * Shared import types + helpers — CORE (client-safe: no server-only, no DB). See
  * docs/import-plan.md.
  */
-export type ImportEntity = "patients" | "procedures";
+export type ImportEntity = "patients" | "procedures" | "visits";
 
 export type RowIssue = { row: number; level: "error" | "warning"; message: string };
 

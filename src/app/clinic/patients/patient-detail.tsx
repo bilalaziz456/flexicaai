@@ -630,6 +630,9 @@ export async function PatientDetail({
                     findings?: { tooth?: string | null; finding?: string }[];
                     treatmentPerformed?: string[];
                     treatmentPlan?: string[];
+                    imported?: boolean;
+                    summary?: string | null;
+                    doctorName?: string | null;
                   };
                   const findings = Array.isArray(note.findings) ? note.findings : [];
                   const performed = Array.isArray(note.treatmentPerformed)
@@ -638,7 +641,7 @@ export async function PatientDetail({
                   const doctor =
                     v.doctorName || v.doctorUsername
                       ? `${v.doctorPrefix ? `${v.doctorPrefix}. ` : ""}${v.doctorName ?? v.doctorUsername}`
-                      : "—";
+                      : note.doctorName || "—";
                   return (
                     <li
                       key={v.id}
@@ -649,10 +652,13 @@ export async function PatientDetail({
                           {v.visitDate ? dayFmt(v.visitDate) : "—"}
                           <span className="text-muted-foreground"> · {doctor}</span>
                         </span>
-                        <Badge variant={v.status === "approved" ? "default" : "secondary"}>
-                          {v.status === "approved" ? "Approved" : "Draft"}
+                        <Badge variant={note.imported ? "outline" : v.status === "approved" ? "default" : "secondary"}>
+                          {note.imported ? "Imported" : v.status === "approved" ? "Approved" : "Draft"}
                         </Badge>
                       </div>
+                      {note.imported && note.summary ? (
+                        <p className="whitespace-pre-line">{note.summary}</p>
+                      ) : null}
                       {note.chiefComplaint ? (
                         <p>
                           <span className="text-muted-foreground">Chief complaint: </span>
@@ -688,6 +694,7 @@ export async function PatientDetail({
                       ) : null}
                       {!note.chiefComplaint &&
                       !note.diagnosis &&
+                      !note.summary &&
                       findings.length === 0 &&
                       performed.length === 0 ? (
                         <p className="text-muted-foreground">Clinical note recorded.</p>

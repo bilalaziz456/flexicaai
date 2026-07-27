@@ -16,6 +16,11 @@ export const IMPORT_TEMPLATES: Record<ImportEntity, { columns: string[]; sample:
     sample: ["Scaling & polishing", "3000", "dental", "yes"],
     note: "name is required. price in PKR. is_active yes/no (default yes).",
   },
+  visits: {
+    columns: ["external_ref", "patient_name", "phone", "visit_date", "doctor", "diagnosis", "treatment", "note"],
+    sample: ["OLD-1001", "Ayesha Khan", "03001234567", "2024-03-15", "Dr Bilal", "Caries 26", "Composite filling on 26", "Advised soft diet; review in 2 weeks"],
+    note: "Identify the patient by external_ref (old number), phone, OR exact name. visit_date is optional (defaults to today). doctor is matched to staff by name if it exists. The note text is diagnosis + treatment + note combined; at least one is required.",
+  },
 };
 
 /** A ready-to-fill CSV (header + one sample row). */
