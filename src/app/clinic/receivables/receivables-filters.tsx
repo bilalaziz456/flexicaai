@@ -14,7 +14,9 @@ import { SearchableSelect } from "@/core/ui/searchable-select";
 
 // Receivables is a point-in-time balance, so it defaults to ALL TIME (no date
 // bound) — the presets narrow it to visits within a window when needed.
-const RECV_PERIOD_OPTIONS = [{ value: "all", label: "All time" }, ...PERIOD_OPTIONS];
+// "All time" leads (it's the default for a point-in-time balance); filter the shared
+// list's own "all" so it isn't duplicated.
+const RECV_PERIOD_OPTIONS = [{ value: "all", label: "All time" }, ...PERIOD_OPTIONS.filter((o) => o.value !== "all")];
 const RECV_PERIOD_LABELS = Object.fromEntries(RECV_PERIOD_OPTIONS.map((o) => [o.value, o.label]));
 
 const inputCls =

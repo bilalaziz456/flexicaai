@@ -56,7 +56,7 @@ export default async function ExpensesPage({
   const { clinicId } = user;
 
   const [clinic] = await db
-    .select({ featuresEnabled: clinics.featuresEnabled })
+    .select({ featuresEnabled: clinics.featuresEnabled, createdAt: clinics.createdAt })
     .from(clinics)
     .where(eq(clinics.id, clinicId))
     .limit(1);
@@ -65,7 +65,7 @@ export default async function ExpensesPage({
   await ensureDefaultCategories(clinicId);
 
   const sp = await searchParams;
-  const range = resolveSalesRange(sp.period, sp.from, sp.to);
+  const range = resolveSalesRange(sp.period, sp.from, sp.to, clinic?.createdAt);
   const deleted = sp.deleted === "1";
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);

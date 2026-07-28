@@ -1,4 +1,5 @@
 import { requireWorkspace } from "@/core/auth/user";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { resolveSalesRange } from "@/core/sales/report";
 import { getNoShowStats } from "@/core/appointments/no-shows";
 import {
@@ -22,7 +23,7 @@ export default async function NoShowsPage({
 }) {
   const user = await requireWorkspace("appointments");
   const sp = await searchParams;
-  const range = resolveSalesRange(sp.period, sp.from, sp.to);
+  const range = resolveSalesRange(sp.period, sp.from, sp.to, (await getClinic(user.clinicId))?.createdAt);
   const stats = await getNoShowStats(user.clinicId, range);
 
   const pct = (n: number) => `${(n * 100).toFixed(1)}%`;

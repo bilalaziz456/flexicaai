@@ -7,7 +7,13 @@ import { appointmentProcedures, appointments, patients, sales, users } from "@/c
 import { procedureRowNetSql } from "@/core/appointments/procedures";
 
 export type SalesGranularity = "hour" | "day" | "week" | "month";
-export type SalesPeriod = "today" | "30d" | "quarter" | "half" | "year" | "custom";
+export type SalesPeriod = "today" | "30d" | "quarter" | "half" | "year" | "all" | "custom";
+
+/** Floor for an "all time" range when the caller can't supply the real earliest
+ *  date (e.g. a cross-clinic admin view). Safely before any Klenic data (the app
+ *  launched mid-2026) while keeping the monthly bucket count reasonable. Per-clinic
+ *  callers pass the clinic's `createdAt` for an exact, chart-clean start. */
+const ALL_TIME_FLOOR = new Date(2024, 0, 1);
 
 export type SalesBucket = { label: string; value: number };
 export type DoctorSales = {
@@ -76,6 +82,7 @@ export function resolveSalesRange(
   period: string | undefined,
   fromStr: string | undefined,
   toStr: string | undefined,
+  earliest?: Date,
 ): ResolvedRange {
   const p = (period ?? "30d") as SalesPeriod;
   const today = startOfDay(new Date());
@@ -102,6 +109,20 @@ export function resolveSalesRange(
       return preset(180, "week");
     case "year":
       return preset(365, "month");
+    case "all": {
+      // Everything to date. Start at the caller's earliest known date (e.g. the
+      // clinic's creation) so charts don't show years of empty buckets; fall back to
+      // a safe floor. Monthly buckets keep even a multi-year span readable.
+      const start = startOfDay(earliest && earliest < today ? earliest : ALL_TIME_FLOOR);
+      return {
+        period: "all",
+        start,
+        end: tomorrow,
+        granularity: "month",
+        from: ymd(start),
+        to: ymd(today),
+      };
+    }
     case "custom": {
       const okFrom = fromStr && /^\d{4}-\d{2}-\d{2}$/.test(fromStr);
       const okTo = toStr && /^\d{4}-\d{2}-\d{2}$/.test(toStr);

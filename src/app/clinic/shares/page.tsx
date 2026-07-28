@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Download } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { getSalesDoctors, resolveSalesRange } from "@/core/sales/report";
 import { getSharesReport } from "@/core/sales/share-report";
 import { getDoctorBalances, listPayouts } from "@/core/sales/payouts";
@@ -42,7 +43,7 @@ export default async function ClinicSharesPage({
   const isAdmin = user.role === "clinic_admin";
 
   const sp = await searchParams;
-  const range = resolveSalesRange(sp.period, sp.from, sp.to);
+  const range = resolveSalesRange(sp.period, sp.from, sp.to, (await getClinic(clinicId))?.createdAt);
   const doctorId = selfOnly ? user.id : sp.doctorId?.trim() || null;
   const singleDoctor = selfOnly || Boolean(doctorId);
 

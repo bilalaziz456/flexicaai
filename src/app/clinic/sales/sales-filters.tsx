@@ -14,6 +14,7 @@ export const PERIOD_OPTIONS: { value: string; label: string }[] = [
   { value: "quarter", label: "Last quarter" },
   { value: "half", label: "Last 6 months" },
   { value: "year", label: "Last year" },
+  { value: "all", label: "All time" },
   { value: "custom", label: "Custom range" },
 ];
 export const PERIOD_LABELS: Record<string, string> = Object.fromEntries(

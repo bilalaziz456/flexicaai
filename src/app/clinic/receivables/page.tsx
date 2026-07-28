@@ -40,7 +40,7 @@ export default async function ReceivablesPage({
   const { clinicId } = user;
 
   const [clinic] = await db
-    .select({ featuresEnabled: clinics.featuresEnabled })
+    .select({ featuresEnabled: clinics.featuresEnabled, createdAt: clinics.createdAt })
     .from(clinics)
     .where(eq(clinics.id, clinicId))
     .limit(1);
@@ -48,7 +48,7 @@ export default async function ReceivablesPage({
 
   const sp = await searchParams;
   const hasRange = Boolean(sp.period) && sp.period !== "all";
-  const range = hasRange ? resolveSalesRange(sp.period, sp.from, sp.to) : null;
+  const range = hasRange ? resolveSalesRange(sp.period, sp.from, sp.to, clinic?.createdAt) : null;
   const doctorId = sp.doctorId?.trim() || "";
   const q = sp.q?.trim() || "";
 

@@ -40,14 +40,14 @@ export default async function ProfitLossPage({
   const { clinicId } = user;
 
   const [clinic] = await db
-    .select({ featuresEnabled: clinics.featuresEnabled })
+    .select({ featuresEnabled: clinics.featuresEnabled, createdAt: clinics.createdAt })
     .from(clinics)
     .where(eq(clinics.id, clinicId))
     .limit(1);
   if (!clinicHasFeature(clinic?.featuresEnabled, "finance")) notFound();
 
   const sp = await searchParams;
-  const range = resolveSalesRange(sp.period, sp.from, sp.to);
+  const range = resolveSalesRange(sp.period, sp.from, sp.to, clinic?.createdAt);
   const [pl, outstanding] = await Promise.all([
     getProfitAndLoss(clinicId, range),
     // All-time (point-in-time) receivable — a memo, deliberately NOT in the P&L math.

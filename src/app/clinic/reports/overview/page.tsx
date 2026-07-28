@@ -45,14 +45,14 @@ export default async function OverviewPage({
 }) {
   const { clinicId } = await requireWorkspace("finance");
   const [clinic] = await db
-    .select({ featuresEnabled: clinics.featuresEnabled, name: clinics.name })
+    .select({ featuresEnabled: clinics.featuresEnabled, name: clinics.name, createdAt: clinics.createdAt })
     .from(clinics)
     .where(eq(clinics.id, clinicId))
     .limit(1);
   if (!clinicHasFeature(clinic?.featuresEnabled, "finance")) notFound();
 
   const sp = await searchParams;
-  const range = resolveSalesRange(sp.period ?? "today", sp.from, sp.to);
+  const range = resolveSalesRange(sp.period ?? "today", sp.from, sp.to, clinic?.createdAt);
   const doctorId = sp.doctorId?.trim() || null;
 
   const [ov, doctors, noShow] = await Promise.all([

@@ -12,7 +12,7 @@ import {
 } from "@/app/clinic/sales/sales-filters";
 
 // The register defaults to ALL TIME (no date bound); presets narrow by issued date.
-const INV_PERIOD_OPTIONS = [{ value: "all", label: "All time" }, ...PERIOD_OPTIONS];
+const INV_PERIOD_OPTIONS = [{ value: "all", label: "All time" }, ...PERIOD_OPTIONS.filter((o) => o.value !== "all")];
 const INV_PERIOD_LABELS = Object.fromEntries(INV_PERIOD_OPTIONS.map((o) => [o.value, o.label]));
 
 const inputCls =

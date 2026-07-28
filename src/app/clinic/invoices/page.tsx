@@ -38,7 +38,7 @@ export default async function InvoicesPage({
 }) {
   const { clinicId } = await requireWorkspace("billing");
   const [clinic] = await db
-    .select({ featuresEnabled: clinics.featuresEnabled })
+    .select({ featuresEnabled: clinics.featuresEnabled, createdAt: clinics.createdAt })
     .from(clinics)
     .where(eq(clinics.id, clinicId))
     .limit(1);
@@ -46,7 +46,7 @@ export default async function InvoicesPage({
 
   const sp = await searchParams;
   const hasRange = Boolean(sp.period) && sp.period !== "all";
-  const range = hasRange ? resolveSalesRange(sp.period, sp.from, sp.to) : null;
+  const range = hasRange ? resolveSalesRange(sp.period, sp.from, sp.to, clinic?.createdAt) : null;
   const q = sp.q?.trim() || "";
 
   const list = await getInvoicesList(clinicId, {
