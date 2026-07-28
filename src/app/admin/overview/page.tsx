@@ -7,6 +7,8 @@ import { getClinicHealth, ANOMALY_META, type AnomalyFlag } from "@/core/admin/he
 import { getChurnInactiveDays, getAnomalyThresholds, CHURN_DAYS_OPTIONS } from "@/core/admin/company-settings";
 import { listDueClinics } from "@/core/admin/billing";
 import { FlagRulesForm } from "./flag-rules-form";
+import { FollowupModal } from "./followup-modal";
+import { setHealthFollowupAction, setPaymentCommitmentAction } from "../actions";
 import { resolveSalesRange } from "@/core/sales/report";
 import { OverviewFilters } from "./overview-filters";
 import {
@@ -25,6 +27,7 @@ import {
   TableRow,
 } from "@/core/ui/table";
 import { Badge } from "@/core/ui/badge";
+import { RowLink } from "@/core/ui/row-link";
 import { ClinicStatusBadge } from "../clinics/status-badge";
 import { cn } from "@/core/lib/utils";
 
@@ -32,6 +35,8 @@ const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 const signed = (n: number) => `${n < 0 ? "−" : ""}Rs ${Math.abs(n).toLocaleString("en-PK")}`;
 const ago = (d: Date | null, days: number | null) =>
   d === null || days === null ? "never" : days === 0 ? "today" : days === 1 ? "1 day ago" : `${days} days ago`;
+const fmtDate = (d: Date | null) =>
+  d ? d.toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" }) : "—";
 
 function FlagBadges({ flags }: { flags: AnomalyFlag[] }) {
   return (
@@ -65,6 +70,32 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: 
         {sub ? <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div> : null}
       </CardContent>
     </Card>
+  );
+}
+
+type FollowupProps = { clinicId: string; clinicName: string; followupAt: string | null; followupNote: string | null };
+
+/** Health-alert follow-up (churn / usage flag) — a snooze that parks the clinic. */
+function HealthFollowup(props: FollowupProps) {
+  return (
+    <FollowupModal
+      {...props}
+      action={setHealthFollowupAction}
+      description="Snooze this clinic’s alert until a date you’ll check back. It moves to “Following up” until then, then re-surfaces."
+      notePlaceholder="e.g. owner travelling, back next week"
+    />
+  );
+}
+
+/** Payment-due follow-up — the promised-payment date; shown alongside, never hides. */
+function PaymentFollowup(props: FollowupProps) {
+  return (
+    <FollowupModal
+      {...props}
+      action={setPaymentCommitmentAction}
+      description="When did the clinic promise to clear the balance? It’s shown on the dues list — it does not hide the clinic."
+      notePlaceholder="e.g. will pay after salary, ~5th"
+    />
   );
 }
 
@@ -168,23 +199,62 @@ export default async function OverviewPage({
         ) : null}
       </div>
 
-      {/* Payments due / overdue */}
+      {/* Payments due / overdue — the actionable subscription-dues list */}
       {showBilling && due.length > 0 ? (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Payments due / overdue ({due.length})</CardTitle>
+        <Card className={due.some((c) => c.balance.billingStatus === "overdue") ? "border-destructive/30" : "border-amber-500/40"}>
+          <CardHeader>
+            <CardTitle>Payments due / overdue ({due.length})</CardTitle>
+            <CardDescription>Clinics with an unpaid subscription balance, worst first. Record a follow-up when they promise to pay.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ul className="grid gap-1.5 text-sm sm:grid-cols-2">
-              {due.slice(0, 8).map((c) => (
-                <li key={c.id} className="flex items-center justify-between gap-3">
-                  <Link href={`/admin/clinics/${c.id}`} className="truncate font-medium hover:underline">{c.name}</Link>
-                  <span className={cn("shrink-0 tabular-nums", c.balance.billingStatus === "overdue" ? "text-destructive" : "text-amber-600 dark:text-amber-400")}>
-                    {c.balance.billingStatus === "overdue" ? `${rs(c.balance.owed)} · ${c.balance.daysOverdue}d` : `due · ${c.balance.daysOverdue}d`}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Clinic</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Owed</TableHead>
+                    <TableHead>Follow up</TableHead>
+                    <TableHead>Note</TableHead>
+                    <TableHead>Account manager</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {due.map((c) => {
+                    const overdue = c.balance.billingStatus === "overdue";
+                    return (
+                      <RowLink key={c.id} href={`/admin/clinics/${c.id}`} className="border-b">
+                        <TableCell className="font-medium">{c.name}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "border-transparent",
+                              overdue ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+                            )}
+                          >
+                            {overdue ? `Overdue · ${c.balance.daysOverdue}d` : `Due · ${c.balance.daysOverdue}d`}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{rs(c.balance.owed)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-sm">{fmtDate(c.commitmentAt)}</TableCell>
+                        <TableCell className="max-w-52 truncate text-sm text-muted-foreground">{c.commitmentNote ?? "—"}</TableCell>
+                        <TableCell className="text-sm">{c.assigneeName ?? <span className="text-muted-foreground">unassigned</span>}</TableCell>
+                        <TableCell className="text-right">
+                          <PaymentFollowup
+                            clinicId={c.id}
+                            clinicName={c.name}
+                            followupAt={c.commitmentAt ? c.commitmentAt.toISOString() : null}
+                            followupNote={c.commitmentNote}
+                          />
+                        </TableCell>
+                      </RowLink>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       ) : null}
@@ -218,7 +288,7 @@ export default async function OverviewPage({
                 </TableHeader>
                 <TableBody>
                   {health.atRisk.map((c) => (
-                    <TableRow key={c.clinicId}>
+                    <RowLink key={c.clinicId} href={`/admin/clinics/${c.clinicId}`} className="border-b">
                       <TableCell className="font-medium">{c.name}</TableCell>
                       <TableCell><ClinicStatusBadge status={c.status} /></TableCell>
                       <TableCell className="whitespace-nowrap text-amber-600 dark:text-amber-400">{ago(c.lastActivityAt, c.daysInactive)}</TableCell>
@@ -228,9 +298,12 @@ export default async function OverviewPage({
                       <TableCell className="text-right tabular-nums">{c.appointments}</TableCell>
                       <TableCell className="text-right tabular-nums">{c.scribeCalls}</TableCell>
                       <TableCell className="text-right">
-                        <Link href={`/admin/clinics/${c.clinicId}`} className="text-muted-foreground hover:text-foreground"><ChevronRight className="size-4" aria-hidden="true" /></Link>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <HealthFollowup clinicId={c.clinicId} clinicName={c.name} followupAt={null} followupNote={null} />
+                          <ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
+                        </div>
                       </TableCell>
-                    </TableRow>
+                    </RowLink>
                   ))}
                 </TableBody>
               </Table>
@@ -238,6 +311,60 @@ export default async function OverviewPage({
           )}
         </CardContent>
       </Card>
+
+      {/* Following up — at-risk / flagged clinics someone has snoozed with a date. */}
+      {health.followingUp.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Following up ({health.followingUp.length})</CardTitle>
+            <CardDescription>
+              Snoozed clinics — parked out of the alert lists until their follow-up date, then they re-surface.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Clinic</TableHead>
+                    <TableHead>Why</TableHead>
+                    <TableHead>Follow up</TableHead>
+                    <TableHead>Note</TableHead>
+                    <TableHead>Account manager</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {health.followingUp.map((c) => (
+                    <TableRow key={c.clinicId}>
+                      <TableCell className="font-medium">
+                        <Link href={`/admin/clinics/${c.clinicId}`} className="hover:underline">{c.name}</Link>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-1">
+                          {c.isAtRisk ? <Badge variant="outline" className="border-transparent bg-amber-500/10 text-amber-600 dark:text-amber-400">Churn risk</Badge> : null}
+                          {showRevenue ? <FlagBadges flags={c.flags} /> : null}
+                        </div>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm">{fmtDate(c.followupAt)}</TableCell>
+                      <TableCell className="max-w-52 truncate text-sm text-muted-foreground">{c.followupNote ?? "—"}</TableCell>
+                      <TableCell className="text-sm">{c.assigneeName ?? <span className="text-muted-foreground">unassigned</span>}</TableCell>
+                      <TableCell className="text-right">
+                        <HealthFollowup
+                          clinicId={c.clinicId}
+                          clinicName={c.name}
+                          followupAt={c.followupAt ? c.followupAt.toISOString() : null}
+                          followupNote={c.followupNote}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Flag rules (full admins) — always available so you can tune the thresholds. */}
       {showRevenue && canSetDefault ? (
@@ -277,7 +404,7 @@ export default async function OverviewPage({
                 </TableHeader>
                 <TableBody>
                   {health.flagged.map((c) => (
-                    <TableRow key={c.clinicId}>
+                    <RowLink key={c.clinicId} href={`/admin/clinics/${c.clinicId}`} className="border-b">
                       <TableCell className="font-medium">{c.name}</TableCell>
                       <TableCell><div className="flex flex-wrap gap-1"><FlagBadges flags={c.flags} /></div></TableCell>
                       <TableCell className="text-sm">{c.assigneeName ?? <span className="text-muted-foreground">unassigned</span>}</TableCell>
@@ -285,9 +412,12 @@ export default async function OverviewPage({
                       <TableCell className="text-right tabular-nums">{rs(c.servingCost)}</TableCell>
                       <TableCell className={cn("text-right tabular-nums", c.margin < 0 ? "text-destructive" : "")}>{signed(c.margin)}</TableCell>
                       <TableCell className="text-right">
-                        <Link href={`/admin/clinics/${c.clinicId}`} className="text-muted-foreground hover:text-foreground"><ChevronRight className="size-4" aria-hidden="true" /></Link>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <HealthFollowup clinicId={c.clinicId} clinicName={c.name} followupAt={null} followupNote={null} />
+                          <ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
+                        </div>
                       </TableCell>
-                    </TableRow>
+                    </RowLink>
                   ))}
                 </TableBody>
               </Table>
@@ -327,7 +457,7 @@ export default async function OverviewPage({
                   {health.rows.map((c) => {
                     const stale = (c.status === "active" || c.status === "trial") && (c.daysInactive === null || c.daysInactive >= health.inactiveDays);
                     return (
-                      <TableRow key={c.clinicId}>
+                      <RowLink key={c.clinicId} href={`/admin/clinics/${c.clinicId}`} className="border-b">
                         <TableCell className="font-medium">
                           <div className="flex flex-wrap items-center gap-1.5">
                             {c.name}
@@ -347,9 +477,9 @@ export default async function OverviewPage({
                         <TableCell className="text-right tabular-nums">{rs(c.collected)}</TableCell>
                         {showRevenue ? <TableCell className={cn("text-right tabular-nums", c.margin < 0 ? "text-destructive" : "")}>{signed(c.margin)}</TableCell> : null}
                         <TableCell className="text-right">
-                          <Link href={`/admin/clinics/${c.clinicId}`} className="text-muted-foreground hover:text-foreground"><ChevronRight className="size-4" aria-hidden="true" /></Link>
+                          <ChevronRight className="ml-auto size-4 text-muted-foreground" aria-hidden="true" />
                         </TableCell>
-                      </TableRow>
+                      </RowLink>
                     );
                   })}
                 </TableBody>

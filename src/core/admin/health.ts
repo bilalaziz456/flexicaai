@@ -41,6 +41,13 @@ export type HealthRow = {
   assigneeName: string | null; // account manager
   /** Usage/cost anomaly flags (only when `withCost`). See ANOMALY_META. */
   flags: AnomalyFlag[];
+  /** Whether this clinic would trip the churn (at-risk) rule, ignoring the snooze. */
+  isAtRisk: boolean;
+  /** Active health follow-up / snooze (future date) + note — set when someone has
+   *  actioned an alert. While set, the clinic is parked in `followingUp`. */
+  followupAt: Date | null;
+  followupNote: string | null;
+  snoozed: boolean; // followupAt is in the future
 };
 
 /** Usage/cost anomalies surfaced on the Overview so outliers raise their hand. */
@@ -53,10 +60,15 @@ export const ANOMALY_META: Record<AnomalyFlag, { label: string; severity: "high"
 
 export type ClinicHealth = {
   rows: HealthRow[];
-  /** Active/trial clinics with no activity for ≥ `inactiveDays` (or never) — churn risk. */
+  /** Active/trial clinics with no activity for ≥ `inactiveDays` (or never) — churn
+   *  risk. Excludes clinics with an active follow-up (they're in `followingUp`). */
   atRisk: HealthRow[];
-  /** Clinics with any usage/cost anomaly flag, worst (loss) first. */
+  /** Clinics with any usage/cost anomaly flag, worst (loss) first. Excludes
+   *  clinics with an active follow-up. */
   flagged: HealthRow[];
+  /** At-risk / flagged clinics with an active follow-up (snoozed) — someone is on
+   *  it, so they're parked here instead of nagging in the alert lists. */
+  followingUp: HealthRow[];
   inactiveDays: number;
 };
 
@@ -86,6 +98,8 @@ export async function getClinicHealth(
           mrr: clinics.monthlyPrice,
           ownerPhone: clinics.ownerPhone,
           ownerEmail: clinics.ownerEmail,
+          followupAt: clinics.healthFollowupAt,
+          followupNote: clinics.healthFollowupNote,
           assigneeFullName: users.fullName,
           assigneeUsername: users.username,
         })
@@ -152,6 +166,11 @@ export async function getClinicHealth(
         if (servingCost >= anomaly.spikeFloorPkr && prior > 0 && servingCost >= anomaly.spikeMultiple * prior) flags.push("usage_spike");
       }
 
+      const isAtRisk =
+        (c.status === "active" || c.status === "trial") && (daysInactive === null || daysInactive >= inactiveDays);
+      const followupAt = c.followupAt ?? null;
+      const snoozed = followupAt !== null && followupAt.getTime() > now;
+
       return {
         clinicId: c.id,
         name: c.name,
@@ -170,25 +189,53 @@ export async function getClinicHealth(
         ownerEmail: c.ownerEmail,
         assigneeName: c.assigneeFullName ?? c.assigneeUsername ?? null,
         flags,
+        isAtRisk,
+        followupAt,
+        followupNote: c.followupNote ?? null,
+        snoozed,
       };
     });
 
-    // Churn risk: a LIVE (active/trial) clinic that's gone quiet — never active, or
-    // no activity for ≥ inactiveDays. Most-stale first.
-    const atRisk = rows
-      .filter((r) => (r.status === "active" || r.status === "trial") && (r.daysInactive === null || r.daysInactive >= inactiveDays))
-      .sort((a, b) => (b.daysInactive ?? 1e9) - (a.daysInactive ?? 1e9));
+    const byStale = (a: HealthRow, b: HealthRow) => (b.daysInactive ?? 1e9) - (a.daysInactive ?? 1e9);
+    // A loss (high severity) sorts above warnings, then by how far serving cost
+    // overshoots the monthly price.
+    const byFlagSeverity = (a: HealthRow, b: HealthRow) => {
+      const sev = (r: HealthRow) => (r.flags.includes("loss") ? 2 : 1);
+      return sev(b) - sev(a) || b.servingCost - b.mrr - (a.servingCost - a.mrr);
+    };
 
-    // Usage/cost anomalies — a loss (high severity) sorts above warnings, then by
-    // how far serving cost overshoots the monthly price.
-    const flagged = rows
-      .filter((r) => r.flags.length > 0)
-      .sort((a, b) => {
-        const sev = (r: HealthRow) => (r.flags.includes("loss") ? 2 : 1);
-        return sev(b) - sev(a) || (b.servingCost - b.mrr) - (a.servingCost - a.mrr);
-      });
+    // Churn risk: a LIVE clinic gone quiet — but a clinic someone is actively
+    // following up (snoozed) drops out of the nagging list into `followingUp`.
+    const atRisk = rows.filter((r) => r.isAtRisk && !r.snoozed).sort(byStale);
+    // Usage/cost anomalies — same snooze suppression.
+    const flagged = rows.filter((r) => r.flags.length > 0 && !r.snoozed).sort(byFlagSeverity);
+    // Parked: anything that WOULD alert (churn or cost) but has an active follow-up.
+    const followingUp = rows
+      .filter((r) => r.snoozed && (r.isAtRisk || r.flags.length > 0))
+      .sort((a, b) => (a.followupAt?.getTime() ?? 0) - (b.followupAt?.getTime() ?? 0));
 
-    rows.sort((a, b) => (b.daysInactive ?? 1e9) - (a.daysInactive ?? 1e9));
-    return { rows, atRisk, flagged, inactiveDays };
+    rows.sort(byStale);
+    return { rows, atRisk, flagged, followingUp, inactiveDays };
   });
+}
+
+/**
+ * Set or clear a clinic's health follow-up (the churn/usage-flag "snooze"). A future
+ * `at` parks the clinic in `followingUp` until then; `at = null` clears it (the
+ * clinic re-surfaces in the alert lists immediately). Mirrors the payment-commitment
+ * follow-up. Updates a clinic by its own id, so it needs no tenant scope.
+ */
+export async function setHealthFollowup(
+  clinicId: string,
+  at: Date | null,
+  note: string | null,
+): Promise<void> {
+  await db
+    .update(clinics)
+    .set({
+      healthFollowupAt: at,
+      healthFollowupNote: at ? note?.trim() || null : null,
+      updatedAt: new Date(),
+    })
+    .where(eq(clinics.id, clinicId));
 }

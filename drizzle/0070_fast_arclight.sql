@@ -1,0 +1,1 @@
+ALTER TABLE "clinics" ADD COLUMN "payment_notice_enabled" boolean DEFAULT true NOT NULL;

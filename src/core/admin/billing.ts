@@ -278,6 +278,41 @@ export async function recordClinicPayment(input: {
   return { ok: true };
 }
 
+/**
+ * Set or clear a clinic's payment follow-up (`payment_commitment_at`/`_note`) on its
+ * OUTSTANDING subscription balance, WITHOUT recording a payment — the standalone
+ * counterpart to the follow-up that `recordClinicPayment` sets inline. A future date
+ * is "clinic promised to clear the balance by X"; `at = null` clears it. Unlike the
+ * health-alert follow-up this does NOT hide the clinic from the dues list (unpaid is
+ * unpaid) — it's shown alongside. Updates a clinic by id, so no tenant scope needed.
+ */
+export async function setPaymentCommitment(
+  clinicId: string,
+  at: Date | null,
+  note: string | null,
+): Promise<void> {
+  await db
+    .update(clinics)
+    .set({
+      paymentCommitmentAt: at,
+      paymentCommitmentNote: at ? note?.trim() || null : null,
+      updatedAt: new Date(),
+    })
+    .where(eq(clinics.id, clinicId));
+}
+
+/**
+ * Toggle whether the SOFT payment-due/overdue notice is shown to this clinic's own
+ * staff (the workspace pill). Does NOT touch the super-admin dues dashboard or the
+ * hard `past_due` access lock. Updates a clinic by id → no tenant scope needed.
+ */
+export async function setPaymentNoticeEnabled(clinicId: string, enabled: boolean): Promise<void> {
+  await db
+    .update(clinics)
+    .set({ paymentNoticeEnabled: enabled, updatedAt: new Date() })
+    .where(eq(clinics.id, clinicId));
+}
+
 /** Voids (soft-deletes) a clinic payment + syncs status (paid_through shrinks). */
 export async function voidClinicPayment(
   clinicId: string,

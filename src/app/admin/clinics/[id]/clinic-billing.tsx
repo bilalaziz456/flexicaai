@@ -4,6 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 import {
   recordClinicPaymentAction,
   setClinicPrice,
+  setPaymentNoticeEnabledAction,
   voidClinicPaymentAction,
   type AdminActionState,
 } from "@/app/admin/actions";
@@ -74,6 +75,8 @@ export function ClinicBilling({
   commitmentAt,
   commitmentNote,
   canManage = true,
+  paymentNoticeEnabled,
+  canToggleNotice = false,
 }: {
   clinicId: string;
   monthlyPrice: number;
@@ -85,6 +88,10 @@ export function ClinicBilling({
   payments: BillingPayment[];
   /** False = read-only (billing:view): show status + history, hide the edit forms. */
   canManage?: boolean;
+  /** Whether the clinic-facing payment-due notice is on (shown to clinic staff). */
+  paymentNoticeEnabled: boolean;
+  /** May flip the notice — owner/super-admin or the account manager (not billing-gated). */
+  canToggleNotice?: boolean;
 }) {
   const [priceState, priceAction, savingPrice] = useActionState<AdminActionState, FormData>(
     setClinicPrice.bind(null, clinicId),
@@ -95,6 +102,22 @@ export function ClinicBilling({
     {},
   );
   const [voiding, startVoid] = useTransition();
+  // Clinic-facing payment-due notice toggle (optimistic; reverts on error).
+  const [noticeOn, setNoticeOn] = useState(paymentNoticeEnabled);
+  const [togglingNotice, startNotice] = useTransition();
+  const [noticeErr, setNoticeErr] = useState<string | null>(null);
+  const toggleNotice = () => {
+    const next = !noticeOn;
+    setNoticeOn(next);
+    setNoticeErr(null);
+    startNotice(async () => {
+      const r = await setPaymentNoticeEnabledAction(clinicId, next);
+      if (r.error) {
+        setNoticeOn(!next);
+        setNoticeErr(r.error);
+      }
+    });
+  };
   // Controlled so Base UI's FieldControl doesn't warn when the card re-renders
   // after an action (uncontrolled defaultValue re-initialising).
   const [priceVal, setPriceVal] = useState(String(monthlyPrice));
@@ -147,6 +170,40 @@ export function ClinicBilling({
           <div className="text-xs text-muted-foreground">{balance.monthsPaid} months paid</div>
         </div>
       </div>
+
+      {/* Clinic-facing payment-due notice toggle (owner/super-admin/account manager). */}
+      {canToggleNotice && monthlyPrice > 0 ? (
+        <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+          <div>
+            <div className="text-sm font-medium">Show payment-due notice to clinic staff</div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              When on, every user in this clinic sees a due/overdue reminder in their workspace.
+              Turn it off to stop reminding (e.g. a clinic on a payment plan) — this does not affect
+              the dues dashboard or the hard past-due lock.
+            </p>
+            {noticeErr ? <p className="mt-1 text-xs text-destructive" role="alert">{noticeErr}</p> : null}
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={noticeOn}
+            aria-label="Show payment-due notice to clinic staff"
+            disabled={togglingNotice}
+            onClick={toggleNotice}
+            className={cn(
+              "relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60",
+              noticeOn ? "bg-primary" : "bg-input",
+            )}
+          >
+            <span
+              className={cn(
+                "inline-block size-5 rounded-full bg-white shadow transition-transform",
+                noticeOn ? "translate-x-5" : "translate-x-0.5",
+              )}
+            />
+          </button>
+        </div>
+      ) : null}
 
       {/* Follow-up commitment on an outstanding balance. */}
       {commitmentAt && balance.owed > 0 ? (

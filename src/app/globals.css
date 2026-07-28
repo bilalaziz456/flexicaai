@@ -145,6 +145,15 @@
   }
   html {
     @apply font-sans;
+    /* Keep the viewport width constant across pages so nothing shifts sideways when
+       you navigate from a short page (no scrollbar) to a tall one (scrollbar appears).
+       Without this, that width change nudges every centered `fixed` element (the
+       bottom pill stack) AND the centered page content a few px left/right.
+       `overflow-y: scroll` = a permanently-present scrollbar → works on EVERY browser
+       (incl. older iPad Safari). `scrollbar-gutter: stable` is the cleaner modern
+       equivalent (no empty track) and layers on top where supported. */
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
   }
 }
 

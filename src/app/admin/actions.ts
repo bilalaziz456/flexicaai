@@ -31,7 +31,9 @@ import { availableSpecialtyIds } from "@/config/modules";
 import { CLINIC_FEATURE_IDS } from "@/core/lib/features";
 import { isClinicStatus, isClinicUsable, type ClinicStatus } from "@/core/clinics/status";
 import { permId, resourcesForClinic, sanitizePermissions } from "@/core/auth/permissions";
-import { recordClinicPayment, syncClinicBillingStatus, voidClinicPayment } from "@/core/admin/billing";
+import { recordClinicPayment, setPaymentCommitment, setPaymentNoticeEnabled, syncClinicBillingStatus, voidClinicPayment } from "@/core/admin/billing";
+import { setHealthFollowup } from "@/core/admin/health";
+import { canManageTeam } from "@/core/auth/admin-permissions";
 import { backfillClinicSales } from "@/core/sales/ledger";
 import { logActivity } from "@/core/audit/log";
 import { sanitizeLogAccess } from "@/core/audit/access";
@@ -816,6 +818,118 @@ export async function setClinicAssigneeAction(
   });
   revalidatePath(`/admin/clinics/${clinicId}`);
   revalidatePath("/admin");
+  return { saved: true };
+}
+
+/**
+ * Set or clear a clinic's health follow-up (the churn / usage-flag snooze on the
+ * Owner Overview). A future date parks the clinic under "Following up"; an empty
+ * date clears it. Gated by `metrics:view` (whoever sees the alerts); a scoped team
+ * member may only action clinics assigned to them.
+ */
+export async function setHealthFollowupAction(
+  clinicId: string,
+  input: { at?: string | null; note?: string | null },
+): Promise<AdminActionState> {
+  const admin = await requireAdminCapability("metrics:view");
+
+  // Scope: a non-full admin (account manager) may only action their own clinics.
+  const [c] = await db
+    .select({ name: clinics.name, assignedTo: clinics.assignedTo })
+    .from(clinics)
+    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
+    .limit(1);
+  if (!c) return { error: "Clinic not found." };
+  if (!canManageTeam(admin) && c.assignedTo !== admin.id) {
+    return { error: "You can only follow up on clinics assigned to you." };
+  }
+
+  const at = input.at ? new Date(input.at) : null;
+  if (at && Number.isNaN(at.getTime())) return { error: "Invalid follow-up date." };
+  const note = input.note?.trim() || null;
+
+  await setHealthFollowup(clinicId, at, note);
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: at ? `Set health follow-up for ${c.name}` : `Cleared health follow-up for ${c.name}`,
+  });
+  revalidatePath("/admin/overview");
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  return { saved: true };
+}
+
+/**
+ * Set or clear a clinic's PAYMENT follow-up (the promised-payment date + note on an
+ * overdue subscription) from the Overview dues list — no payment recorded. Gated by
+ * `billing:edit`; a scoped team member may only action clinics assigned to them.
+ */
+export async function setPaymentCommitmentAction(
+  clinicId: string,
+  input: { at?: string | null; note?: string | null },
+): Promise<AdminActionState> {
+  const admin = await requireAdminCapability("billing:edit");
+
+  const [c] = await db
+    .select({ name: clinics.name, assignedTo: clinics.assignedTo })
+    .from(clinics)
+    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
+    .limit(1);
+  if (!c) return { error: "Clinic not found." };
+  if (!canManageTeam(admin) && c.assignedTo !== admin.id) {
+    return { error: "You can only follow up on clinics assigned to you." };
+  }
+
+  const at = input.at ? new Date(input.at) : null;
+  if (at && Number.isNaN(at.getTime())) return { error: "Invalid follow-up date." };
+  const note = input.note?.trim() || null;
+
+  await setPaymentCommitment(clinicId, at, note);
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: at ? `Set payment follow-up for ${c.name}` : `Cleared payment follow-up for ${c.name}`,
+  });
+  revalidatePath("/admin/overview");
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  return { saved: true };
+}
+
+/**
+ * Enable/disable the SOFT payment-due/overdue notice shown to a clinic's own staff.
+ * Available to the owner / full super-admin and the clinic's ACCOUNT MANAGER (scoped),
+ * mirroring the follow-up actions. Does not affect the super-admin dues list or the
+ * hard `past_due` lock. Gated by `metrics:view` (every admin sub-role holds it).
+ */
+export async function setPaymentNoticeEnabledAction(
+  clinicId: string,
+  enabled: boolean,
+): Promise<AdminActionState> {
+  const admin = await requireAdminCapability("metrics:view");
+
+  const [c] = await db
+    .select({ name: clinics.name, assignedTo: clinics.assignedTo })
+    .from(clinics)
+    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
+    .limit(1);
+  if (!c) return { error: "Clinic not found." };
+  if (!canManageTeam(admin) && c.assignedTo !== admin.id) {
+    return { error: "You can only change clinics assigned to you." };
+  }
+
+  await setPaymentNoticeEnabled(clinicId, enabled);
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: `${enabled ? "Enabled" : "Disabled"} the payment-due notice for ${c.name}`,
+  });
+  revalidatePath(`/admin/clinics/${clinicId}`);
   return { saved: true };
 }
 

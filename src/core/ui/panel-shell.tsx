@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConnectionStatus } from "@/core/ui/connection-status";
@@ -229,6 +229,7 @@ export function PanelShell({
   accessibleResources,
   adminCapabilities,
   banner,
+  bottomPill,
   children,
 }: {
   panel: PanelId;
@@ -264,6 +265,9 @@ export function PanelShell({
   adminCapabilities?: readonly string[];
   /** A full-width bar rendered above the content (e.g. the impersonation banner). */
   banner?: React.ReactNode;
+  /** Optional floating pill stacked ABOVE the connectivity indicator, bottom-centre
+   *  (e.g. the clinic payment-due notice). Shares one stack so the two never clash. */
+  bottomPill?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const { brand, nodes } = NAV_BY_PANEL[panel];
@@ -320,6 +324,24 @@ export function PanelShell({
       return merged;
     });
   const isGroupOpen = (g: NavGroup) => expandedGroups[g.group] ?? groupHasActive(g);
+
+  // Reserve just enough bottom space to clear the floating pill stack — grows with the
+  // NUMBER of pills actually showing (payment-due + a transient no-internet toast, …).
+  // Measured at runtime (a ResizeObserver on the stack) so it tracks pills that pop in
+  // client-side too; 0 when nothing shows → the page keeps its normal padding.
+  const stackRef = useRef<HTMLDivElement>(null);
+  const [pillPad, setPillPad] = useState(0);
+  useEffect(() => {
+    const el = stackRef.current;
+    if (!el) return;
+    // Stack sits `bottom-4` (16px) up; clear its height + that offset + a gap
+    // (~65px for one pill, growing as more stack).
+    const measure = () => setPillPad(el.offsetHeight > 0 ? el.offsetHeight + 16 + 17 : 0);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const navLink = (item: NavItem, onClick?: () => void) => (
     <Link
@@ -498,8 +520,25 @@ export function PanelShell({
       </div>
 
       {banner ? <div className="sticky top-0 z-40">{banner}</div> : null}
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">{children}</main>
-      <ConnectionStatus />
+      {/* Bottom padding grows with the pill stack (measured below) so the last content
+          never hides under the floating pills, no matter how many are showing. */}
+      <main
+        className="mx-auto max-w-5xl px-4 pt-8 sm:px-6"
+        style={{ paddingBottom: pillPad || 32 }}
+      >
+        {children}
+      </main>
+      {/* Bottom-centre pill stack: connectivity sits at the very bottom, any
+          `bottomPill` (e.g. payment-due notice) stacks directly above it. When one is
+          absent the other drops to the bottom. `col-reverse` keeps the connection pill
+          (first child) lowest. Its measured height drives the main padding above. */}
+      <div
+        ref={stackRef}
+        className="fixed bottom-4 left-1/2 z-[60] flex -translate-x-1/2 flex-col-reverse items-center gap-2"
+      >
+        <ConnectionStatus />
+        {bottomPill}
+      </div>
     </div>
   );
 }

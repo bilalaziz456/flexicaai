@@ -194,6 +194,8 @@ export default async function ClinicDetailPage({
                 recordedByName: p.recordedByName,
               }))}
               canManage={canManageBillingCard}
+              paymentNoticeEnabled={clinic.paymentNoticeEnabled}
+              canToggleNotice
             />
           </CardContent>
         </Card>

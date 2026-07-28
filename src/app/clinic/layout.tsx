@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { AlertTriangle, Megaphone, ShieldAlert } from "lucide-react";
+import { Megaphone, ShieldAlert } from "lucide-react";
+import { PaymentNoticePill } from "@/core/ui/payment-notice-pill";
 import { requireWorkspace } from "@/core/auth/user";
 import { endImpersonation } from "@/app/admin/actions";
 import { getClinic } from "@/core/clinics/get-clinic";
@@ -73,38 +74,17 @@ export default async function ClinicLayout({
     );
   }
 
-  // Payment-due notice (Feature 6 toolkit): warn ALL staff while the subscription
-  // is past its paid-through date but the clinic is still usable (within grace, or
-  // overdue-but-not-yet-locked). Priced clinics only; skipped during impersonation.
-  if (!user.impersonation && clinic && clinic.monthlyPrice > 0) {
+  // Payment-due notice (Feature 6 toolkit): warn ALL staff while the subscription is
+  // past its paid-through date but the clinic is still usable (within grace, or
+  // overdue-but-not-yet-locked). Priced clinics only; skipped during impersonation;
+  // and suppressible per clinic by the super-admin / account manager via
+  // `payment_notice_enabled`. Rendered as a floating bottom pill (PaymentNoticePill),
+  // matching the connectivity indicator — NOT a top banner.
+  let paymentPill: ReactNode = null;
+  if (!user.impersonation && clinic && clinic.monthlyPrice > 0 && clinic.paymentNoticeEnabled) {
     const bal = await getClinicBalanceSummary(clinic);
     if (bal.billingStatus === "due" || bal.billingStatus === "overdue") {
-      const overdue = bal.billingStatus === "overdue";
-      notices.push(
-        <div
-          key="payment"
-          className={
-            "flex items-center gap-2 border-b px-4 py-2 text-sm " +
-            (overdue
-              ? "border-destructive/40 bg-destructive/15 text-destructive"
-              : "border-amber-500/40 bg-amber-500/15 text-amber-900 dark:text-amber-100")
-          }
-        >
-          <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
-          {overdue ? (
-            <span>
-              <span className="font-semibold">Payment overdue.</span> Rs{" "}
-              {bal.owed.toLocaleString("en-PK")} due — access may be suspended soon. Please
-              contact your clinic admin.
-            </span>
-          ) : (
-            <span>
-              <span className="font-semibold">Payment due.</span> Your subscription has
-              lapsed — please settle it to avoid interruption.
-            </span>
-          )}
-        </div>,
-      );
+      paymentPill = <PaymentNoticePill status={bal.billingStatus} />;
     }
   }
 
@@ -148,6 +128,7 @@ export default async function ClinicLayout({
       financeEnabled={clinicHasFeature(clinic?.featuresEnabled, "finance")}
       approvalsEnabled={approvalsEnabled}
       accessibleResources={navResources}
+      bottomPill={paymentPill}
     >
       {children}
     </PanelShell>

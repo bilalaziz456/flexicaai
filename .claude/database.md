@@ -362,7 +362,10 @@ own data, which the tenant guard therefore ignores. See `docs/super-admin-plan.m
 subscription **billing** (`monthly_price`, `billing_cycle`, `grace_days`,
 `activated_at`, `status`, invoice counter `next_invoice_no`/`invoice_prefix`/
 `invoice_paper`), **account-manager** `assigned_to` → users (self-ref FK), a
-**payment-commitment** follow-up (`payment_commitment_at`/`_note`), and **owner
+**payment-commitment** follow-up (`payment_commitment_at`/`_note`), a **health
+follow-up / snooze** for churn/usage-flag alerts (`health_followup_at`/`_note` — a
+future date parks the clinic under "Following up" on the Owner Overview instead of
+nagging in the at-risk/usage-flag lists; `core/admin/health.ts`), and **owner
 contact** (`owner_name`/`_email`/`_phone`, `city`, `country`). `users` gained
 `deactivated_at` (NULL+inactive = suspended · set+inactive = deactivated),
 `permissions` (admin `resource:action` slugs — a NULL list on a super_admin = the
@@ -499,3 +502,13 @@ these for churn-risk + usage/cost anomaly flags.
   Whisper/Claude rate columns on `platform_cost_rates`; `0062`
   `company_settings.churn_inactive_days`; `0063` `company_settings` anomaly-flag
   thresholds (`thin_margin_pct`/`spike_multiple`/`spike_floor_pkr`).
+- Migration **`0069`** adds `clinics.health_followup_at`/`health_followup_note` —
+  the Owner Overview churn/usage-flag follow-up (snooze). A future date moves the
+  clinic to the "Following up" list and out of the at-risk/usage-flag alerts until
+  it passes. `core/admin/health.ts` (`getClinicHealth` + `setHealthFollowup`).
+- Migration **`0070`** adds `clinics.payment_notice_enabled` (bool, default true) —
+  whether the SOFT payment-due/overdue reminder is shown to the clinic's own staff
+  (a bottom pill in the workspace). Owner / super-admin / the account manager toggle
+  it per clinic; it does not affect the super-admin dues dashboard or the hard
+  `past_due` lock. `core/admin/billing.ts#setPaymentNoticeEnabled`, gated in
+  `src/app/clinic/layout.tsx`.

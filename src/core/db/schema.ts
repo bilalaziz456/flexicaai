@@ -156,11 +156,23 @@ export const clinics = pgTable(
     monthlyPrice: integer("monthly_price").notNull().default(0), // PKR
     billingCycle: text("billing_cycle").notNull().default("monthly"), // monthly|2m|quarter|half|annual
     graceDays: integer("grace_days").notNull().default(7),
+    // Whether the SOFT payment-due/overdue notice is shown to this clinic's own staff
+    // (the workspace pill). Owner / super-admin / the account manager can turn it off
+    // for a clinic (e.g. one on a payment plan) without affecting the super-admin dues
+    // dashboard or the hard `past_due` access lock. (src/app/clinic/layout.tsx)
+    paymentNoticeEnabled: boolean("payment_notice_enabled").notNull().default(true),
     // Follow-up on an OUTSTANDING balance: when a clinic partly pays and commits to
     // pay the rest by a date, we save it here so the super admin knows when to chase.
     // Cleared automatically once the balance settles. (core/admin/billing.ts)
     paymentCommitmentAt: timestamp("payment_commitment_at", { withTimezone: true }),
     paymentCommitmentNote: text("payment_commitment_note"),
+    // Health follow-up / snooze: when a super-admin (or the account manager) has
+    // actioned a churn-risk / usage-cost alert ("contacted them, they'll be back by
+    // X"), we park it here. While `health_followup_at` is in the FUTURE the clinic is
+    // suppressed from the at-risk + usage-flag alert lists (moved to "Following up")
+    // so it stops nagging; once the date passes it re-surfaces. (core/admin/health.ts)
+    healthFollowupAt: timestamp("health_followup_at", { withTimezone: true }),
+    healthFollowupNote: text("health_followup_note"),
     capabilities: text("capabilities").array(), // NULL = all resource:action allowed
     // Account manager — the TEAM MEMBER (super-admin) who owns this clinic on our
     // side. NULL = unassigned. Drives "my clinics" + who to update on dues/follow-ups.
