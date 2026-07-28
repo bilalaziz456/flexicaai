@@ -121,6 +121,7 @@ export default async function ClinicDetailPage({
             clinicId={clinic.id}
             status={clinic.status}
             trialEndsAt={clinic.trialEndsAt ? clinic.trialEndsAt.toISOString() : null}
+            canPause={canManageTeam(admin)}
           />
           <div className="mt-4 border-t pt-4">
             <ImpersonateClinic clinicId={clinic.id} />

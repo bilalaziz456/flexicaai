@@ -307,8 +307,9 @@ export async function setClinicStatus(
   clinicId: string,
   status: string,
   reason?: string,
+  password?: string,
 ): Promise<AdminActionState> {
-  await requireAdminCapability("clinics:edit");
+  const admin = await requireAdminCapability("clinics:edit");
   if (!isClinicStatus(status)) return { error: "Unknown status." };
   const target = status as ClinicStatus;
 
@@ -321,6 +322,19 @@ export async function setClinicStatus(
 
   const now = new Date();
   const nowUnusable = !isClinicUsable({ status: target, trialEndsAt: null });
+
+  // PAUSING access (any transition to an unusable status — suspend / past_due /
+  // cancel) is deliberately restricted: only the owner / a full super-admin may do
+  // it (NOT an account manager), and it requires a password step-up. Overdue clinics
+  // are never auto-paused — this is the only path that locks a clinic out.
+  if (nowUnusable) {
+    if (!canManageTeam(admin)) {
+      return { error: "Only the owner or a super admin can pause a clinic’s access." };
+    }
+    if (!(await verifyCurrentUserPassword(password ?? ""))) {
+      return { error: "Incorrect password." };
+    }
+  }
 
   // Field bookkeeping: record when suspended (+ why), and when (re)activated.
   const patch: Record<string, unknown> = { status: target, updatedAt: now };

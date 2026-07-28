@@ -199,17 +199,18 @@ export async function getClinicBalanceSummary(
 }
 
 /**
- * Auto-status hook (Feature 2 ↔ 6): flips `clinics.status` between `active` and
- * `past_due` from the derived billing health. Only ever touches those two states —
- * trial / suspended / cancelled are the super-admin's manual call and untouched.
+ * Auto-status hook (Feature 2 ↔ 6). Overdue NO LONGER auto-pauses a clinic —
+ * pausing access is a deliberate, owner/super-admin-only MANUAL action (with a
+ * password step-up); an overdue clinic just shows the dues/notice, it keeps working
+ * until a human pauses it. See `setClinicStatus`. This hook now only ever GRANTS
+ * access back: a legacy `past_due` clinic (auto-locked before this policy) that has
+ * since cleared its balance is auto-resumed to `active`. It never locks a clinic.
  */
 export async function syncClinicBillingStatus(clinicId: string): Promise<void> {
   const b = await getClinicBilling(clinicId);
   if (!b) return;
   const { clinic, balance } = b;
-  if (balance.billingStatus === "overdue" && clinic.status === "active") {
-    await db.update(clinics).set({ status: "past_due", updatedAt: new Date() }).where(eq(clinics.id, clinicId));
-  } else if (balance.billingStatus !== "overdue" && clinic.status === "past_due") {
+  if (balance.billingStatus !== "overdue" && clinic.status === "past_due") {
     await db
       .update(clinics)
       .set({ status: "active", activatedAt: clinic.activatedAt ?? new Date(), updatedAt: new Date() })
@@ -409,8 +410,9 @@ export async function listDueClinics(): Promise<OverdueClinic[]> {
 }
 
 /**
- * Daily sweep (cron): recompute every priced clinic and flip active↔past_due as
- * time passes (the time-based downgrade a payment event can't trigger).
+ * Daily sweep (cron): recompute every priced clinic. Since overdue no longer
+ * auto-pauses, this now only auto-RESUMES a legacy `past_due` clinic once its
+ * balance clears (see `syncClinicBillingStatus`); it never locks anyone out.
  */
 export async function sweepClinicBillingStatus(): Promise<{ scanned: number; changed: number }> {
   return unscoped("cron: clinic billing sweep", async () => {
