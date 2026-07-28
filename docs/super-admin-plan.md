@@ -204,8 +204,10 @@ subscription's valid-until) that each payment PUSHES forward.
   - `paid_through < today` → **overdue**; the gap **accrues/carries forward** automatically
     (owed grows each month it stays unpaid — no data to "re-bill", it's derived).
 - **Status → lifecycle:** `active` (paid ahead) · `due` (within grace) · `overdue` (past
-  grace) → feeds **§1 clinic status** (a configurable grace period, then prompt or
-  auto-suspend — your call).
+  grace) → surfaced on the dues list + a clinic-facing notice. **Decided policy (2026-07-28):
+  overdue NEVER auto-suspends** — pausing access is a manual owner/super-admin action with a
+  password step-up (see Feature 2). (Auto-dunning stays a possible v3 item below, but off by
+  default.)
 - **Revenue view** (`/admin`): Σ payments → **MRR / this-month collected**, **paid-through
   per clinic**, and an **overdue list with the carried-forward amount owed**.
 - **Optional:** a printable company invoice/receipt PDF (reuse the invoice PDF frame).
@@ -379,8 +381,8 @@ softDelete + timestamps`. Index (`clinic_id`,`occurred_at`).
 
 ## Feature 2 — Clinic lifecycle & status   ✅ SHIPPED (2026-07-22)
 - **Core:** `core/clinics/status.ts` — `isClinicUsable(clinic)` (active, OR trial not expired) + `CLINIC_STATUSES`/labels/`unusableReason`. **Login-block:** enforced in **`requireRole`** (the single chokepoint every panel page + clinic mutation passes through) — a clinic-staff user whose clinic isn't usable is redirected to **`/paused`** (message + reason + sign-out). `getClinic` is request-cached so it adds no query the layout wasn't already running; super_admin (no clinic) is exempt; `/paused` uses `requireUser` so it never loops. ✅
-- **Actions:** `setClinicStatus(clinicId, status, reason)` — moving to a non-usable status revokes all staff sessions (immediate lock-out; the block is the real gate, revoke is defense-in-depth), moving to active clears the suspend fields · `extendTrial(clinicId, days)` (base = later of now / current trial end, so it never shortens; re-enables a suspended clinic). Auto-derive `past_due` from billing → Feature 6. ✅
-- **UI:** `ClinicLifecycle` on clinic detail — status badge + Suspend (with reason) / Resume / Activate / Cancel / Reactivate + "Extend trial +30 days"; shared `ClinicStatusBadge` + a **status filter** on the clinics list (+ Status column). ✅
+- **Actions:** `setClinicStatus(clinicId, status, reason, password)` — moving to a non-usable status revokes all staff sessions (immediate lock-out; the block is the real gate, revoke is defense-in-depth), moving to active clears the suspend fields · `extendTrial(clinicId, days)` (base = later of now / current trial end, so it never shortens; re-enables a suspended clinic). **Pausing gate (2026-07-28):** moving to any UNUSABLE status (suspend / cancel / past_due) now requires a FULL admin (owner/super_admin — NOT an account manager, via `canManageTeam`) AND a password step-up (`verifyCurrentUserPassword`). Overdue no longer auto-derives `past_due` (Feature 6). ✅
+- **UI:** `ClinicLifecycle` on clinic detail — status badge + **Pause access** (reason + password step-up) / Resume / Activate / Cancel (password) / Reactivate + "Extend trial +30 days". **Pause / Resume / Cancel render only for a full admin (`canPause`)** — an account manager doesn't see them (trial extend/activate stay available). Shared `ClinicStatusBadge` + a **status filter** on the clinics list (+ Status column). ✅
 - **Audit + gate:** every change logged; super-admin only (no clinic-staff ACL — this is the platform control plane). ✅
 - **Verified** end-to-end over HTTP: staff blocked → /paused for suspended / past_due / cancelled / expired-trial; usable for active + future-trial; super_admin exempt; /paused bounces a usable-clinic user home; list filter + detail controls render. tsc clean.
 
@@ -459,9 +461,13 @@ softDelete + timestamps`. Index (`clinic_id`,`occurred_at`).
   `recordClinicPayment` (extends paid-through, then syncs status) · `voidClinicPayment` (soft-delete +
   sync) · `listDueClinics()` (cross-tenant, `unscoped`) · `sweepClinicBillingStatus()` (the daily
   time-based downgrade). Mirrors `core/billing/*`. ✅
-- **Auto-status:** `syncClinicBillingStatus` flips `clinics.status` **active↔past_due** ONLY (trial/
-  suspended/cancelled untouched) — feeds the Feature-2 login-block. Recovery fires on a payment;
-  the time-based downgrade rides the new **`/api/cron/billing`** daily sweep (vercel.json 03:00). ✅
+- **Auto-status:** `syncClinicBillingStatus` — **⚠️ POLICY UPDATE (2026-07-28): overdue NO LONGER
+  auto-pauses.** The old `active→past_due` auto-lock was removed. The hook now only ever
+  auto-RESUMES a legacy `past_due` clinic to `active` once its balance clears — it never locks a
+  clinic out. The **`/api/cron/billing`** daily sweep (vercel.json 03:00) therefore only *heals*,
+  never downgrades. Pausing access is now a deliberate MANUAL owner/super-admin action with a
+  password step-up (see Feature 2). (The "Verified" entry below records the ORIGINAL auto-flip
+  behaviour, since superseded.)
 - **Actions:** `setClinicPrice(clinicId, monthly, cycle, grace)` · `recordClinicPaymentAction` ·
   `voidClinicPaymentAction`. super-admin only, audited. ✅
 - **UI:** a **Billing card** on clinic detail — price/cycle/grace form, balance summary (status ·
@@ -518,8 +524,9 @@ softDelete + timestamps`. Index (`clinic_id`,`occurred_at`).
 
 ## Feature 10 — Platform ops   (partially SHIPPED 2026-07-22)
 - **Announcements** ✅ — `announcements` table (0053, `clinic_id` NULL = broadcast), super-admin
-  `/admin/announcements` CRUD, shown in the **clinic notice bar** (with the payment-due +
-  impersonation notices). Optional WA/email blast — deferred.
+  `/admin/announcements` CRUD, shown in the **clinic notice bar** (alongside the impersonation
+  notice; the payment-due notice is now the separate bottom pill — see the Clinic status toolkit).
+  Optional WA/email blast — deferred.
 - **Per-clinic data export** ✅ — `GET /api/admin/clinics/[id]/export` (super-admin +
   `clinics:manage`) downloads a full JSON dump (clinic + staff [no auth secrets] + patients /
   appointments / visits / recalls / procedures / payments / invoices / expenses / leave);
@@ -533,9 +540,13 @@ softDelete + timestamps`. Index (`clinic_id`,`occurred_at`).
 ## Clinic status toolkit   ✅ SHIPPED (2026-07-22, owner request)
 - **Connectivity indicator** — `ConnectionStatus` in PanelShell (browser online/offline +
   `/api/ping` probe every 20s); silent while healthy, red pill offline / green on recovery.
-- **Payment-due banner** — the clinic notice bar warns ALL staff while the subscription is past
-  paid-through but still usable (amber "due" within grace, red "overdue" pre-lock); priced
-  clinics only, via `getClinicBalanceSummary`.
+- **Payment-due notice** — warns ALL clinic staff while the subscription is past paid-through but
+  still usable (amber "due" within grace, red "overdue" pre-lock, **no amount shown**); priced
+  clinics only, via `getClinicBalanceSummary`. **(2026-07-28) Rendered as a bottom-centre pill**
+  (`core/ui/payment-notice-pill.tsx`) sharing the PanelShell stack with the connectivity indicator
+  (was a top banner), and **toggleable per clinic** by owner/super-admin/account-manager
+  (`clinics.payment_notice_enabled`) — off suppresses only this soft pill, not the dues dashboard
+  or the hard past-due lock.
 
 ## Feature 11 — Admin scale-safety   [v2, before clinic count climbs]
 Pagination + date bounds + indexes on `/admin/logs` and `listAllTrash` (`collect({kind:"all"})`)
