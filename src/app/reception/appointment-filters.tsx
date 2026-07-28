@@ -7,6 +7,31 @@ import { Check, ChevronsUpDown } from "lucide-react";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
+import { PeriodTabs } from "@/app/clinic/sales/sales-filters";
+
+// Appointment period pills = FORWARD windows from today (the schedule ahead), unlike
+// the reports' backward ranges. Each maps to a from/to the list already understands.
+const APPT_PERIOD_PRESETS = [
+  { value: "today", label: "Today", title: "Today" },
+  { value: "7d", label: "7d", title: "Next 7 days" },
+  { value: "15d", label: "15d", title: "Next 15 days" },
+  { value: "30d", label: "30d", title: "Next 30 days" },
+  { value: "quarter", label: "Quarter", title: "Next quarter" },
+  { value: "half", label: "6mo", title: "Next 6 months" },
+  { value: "year", label: "Year", title: "Next year" },
+];
+const APPT_PERIOD_DAYS: Record<string, number> = {
+  today: 1, "7d": 7, "15d": 15, "30d": 30, quarter: 90, half: 180, year: 365,
+};
+const ymd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+/** from = today, to = today + (N−1) days (inclusive window). */
+function apptWindow(period: string, today: string): { from: string; to: string } {
+  const [y, m, d] = today.split("-").map(Number);
+  const end = new Date(y, m - 1, d);
+  end.setDate(end.getDate() + (APPT_PERIOD_DAYS[period] ?? 1) - 1);
+  return { from: today, to: ymd(end) };
+}
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "All statuses" },
@@ -124,10 +149,18 @@ export function AppointmentFilters({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
-  const resetToday = () => {
-    setFromD(today);
-    setToD(today);
-    push({ from: today, to: today });
+  // Which period pill is lit: all windows start at `today`, so match the current
+  // to-date against each window's end. A hand-edited range matches none (custom).
+  const activePeriod =
+    fromD === today
+      ? APPT_PERIOD_PRESETS.find((p) => apptWindow(p.value, today).to === toD)?.value ?? ""
+      : "";
+
+  const pickPeriod = (v: string) => {
+    const w = apptWindow(v, today);
+    setFromD(w.from);
+    setToD(w.to);
+    push({ from: w.from, to: w.to });
   };
 
   // One consistent field wrapper (label above control), matching the log filter
@@ -137,6 +170,9 @@ export function AppointmentFilters({
 
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
+      {!session ? (
+        <PeriodTabs presets={APPT_PERIOD_PRESETS} value={activePeriod} onChange={pickPeriod} />
+      ) : null}
       {!session ? (
         <DateRangeFields
           from={fromD}
@@ -293,21 +329,6 @@ export function AppointmentFilters({
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
-      {!session ? (
-        <div className={fieldCls}>
-          {/* Invisible label keeps the button column the same height as the others. */}
-          <Label className={`${labelCls} invisible`} aria-hidden="true">
-            Today
-          </Label>
-          <button
-            type="button"
-            onClick={resetToday}
-            className="h-8 rounded-lg border border-input bg-[var(--input-bg)] px-4 text-sm font-medium outline-none transition-colors hover:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            Today
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }

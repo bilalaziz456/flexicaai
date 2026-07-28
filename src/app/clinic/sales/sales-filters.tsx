@@ -34,10 +34,13 @@ export function PeriodTabs({
   value,
   onChange,
   label = "Period",
+  presets = PERIOD_PRESETS,
 }: {
   value: string;
   onChange: (v: string) => void;
   label?: string;
+  /** Override the preset pills (e.g. the appointments list uses forward windows). */
+  presets?: { value: string; label: string; title: string }[];
 }) {
   return (
     <div className={fieldCls}>
@@ -47,7 +50,7 @@ export function PeriodTabs({
         aria-label="Filter by period"
         className="inline-flex flex-wrap items-center gap-0.5 rounded-lg border border-input bg-[var(--input-bg)] p-0.5"
       >
-        {PERIOD_PRESETS.map((o) => {
+        {presets.map((o) => {
           const active = value === o.value;
           return (
             <button
