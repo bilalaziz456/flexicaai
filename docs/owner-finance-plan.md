@@ -1,7 +1,9 @@
 # Owner Finance — Company P&L (Revenue · Cost · Expenses · Net Profit)
 
-> Status: **PLAN (not built)**. This is the **COMPANY's** finance — "how much are
-> *we* (Klenic) earning?" — the super-admin control plane. It is **distinct from the
+> Status: **SHIPPED** (built 2026-07-23 → 2026-07-27; every §8 build phase is ✅ +
+> verified over HTTP, and the Owner Overview built on top of it). Dated change log in
+> `PROGRESS.md`; schema reference in `.claude/database.md`. This is the **COMPANY's**
+> finance — "how much are *we* (Klenic) earning?" — the super-admin control plane. It is **distinct from the
 > clinic-side Finance v1** (`docs/finance-plan.md`, which is patient billing for a
 > clinic). Everything here is **core** (`core/admin/*`, cross-tenant `unscoped`
 > reads), gated by new admin ACL capabilities.
@@ -41,9 +43,10 @@ Company Net Profit  =  Subscription Revenue          (what clinics pay Klenic)
 
 - Per-clinic subscription billing (price/cycle/grace/activation, partial payments,
   overdue + follow-ups) — `core/admin/billing.ts`, `clinic_payments`.
-- `getCompanyMetrics` — MRR/ARR, collected month/year, collection trend, top clinics,
-  overdue (already scoped per team member). **Cost + margin slots are stubbed here**
-  awaiting this build.
+- `getCompanyMetrics` — MRR/ARR, collected month/year, top clinics, overdue (already
+  scoped per team member). *(The monthly "collection trend" sparkline it used to return
+  was later removed.)* Cost + margin are now folded in via `withCost` (see §8 phase 3),
+  no longer stubbed.
 - Clinic-side `expenses` / `expense_categories` + recurring-expense cron — the
   **pattern** to mirror for company opex (not the same tables).
 
@@ -125,6 +128,15 @@ resource; split so, e.g., a bookkeeper can manage expenses without seeing the P&
   their own ledger/Trash.
 
 ## 7. Decisions to confirm at build
+
+> **All resolved during the build:**
+> 1. Net profit on the **cash / Collected** basis (cash-aware: payment +, refund −,
+>    credit non-cash); MRR/ARR shown as a run-rate alongside.
+> 2. **Both** — shipped the count-based estimate first, then added `ai_usage`
+>    token/minute metering (migration 0061); `computeServingCost` uses metered cost
+>    and falls back to the estimate only for an audio visit with no metered row.
+> 3. A new **`finance` ACL resource** (later split into the four grantable
+>    capabilities `pnl` · `serving_cost` · `expenses` · `sub_invoices`).
 
 1. **Net-profit basis** — cash (Collected) vs accrual (MRR). *Recommend:* actuals on
    Collected, MRR shown as run-rate.
