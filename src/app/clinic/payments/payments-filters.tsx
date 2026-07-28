@@ -5,8 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 import {
   FilterSelect,
-  PERIOD_OPTIONS,
-  PERIOD_LABELS,
+  PeriodTabs,
 } from "@/app/clinic/sales/sales-filters";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 
@@ -96,12 +95,8 @@ export function PaymentsFilters({
 
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
-      <FilterSelect
-        label="Period"
-        ariaLabel="Filter by period"
+      <PeriodTabs
         value={periodV}
-        items={PERIOD_LABELS}
-        options={PERIOD_OPTIONS}
         onChange={(v) => {
           setPeriodV(v);
           push({ period: v });

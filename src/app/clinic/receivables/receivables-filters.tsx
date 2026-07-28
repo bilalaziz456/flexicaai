@@ -5,8 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Label } from "@/core/ui/label";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 import {
-  FilterSelect,
-  PERIOD_OPTIONS,
+  PeriodTabs,
   filterFieldCls,
   filterLabelCls,
 } from "@/app/clinic/sales/sales-filters";
@@ -14,11 +13,6 @@ import { SearchableSelect } from "@/core/ui/searchable-select";
 
 // Receivables is a point-in-time balance, so it defaults to ALL TIME (no date
 // bound) — the presets narrow it to visits within a window when needed.
-// "All time" leads (it's the default for a point-in-time balance); filter the shared
-// list's own "all" so it isn't duplicated.
-const RECV_PERIOD_OPTIONS = [{ value: "all", label: "All time" }, ...PERIOD_OPTIONS.filter((o) => o.value !== "all")];
-const RECV_PERIOD_LABELS = Object.fromEntries(RECV_PERIOD_OPTIONS.map((o) => [o.value, o.label]));
-
 const inputCls =
   "h-8 w-56 rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
@@ -67,12 +61,8 @@ export function ReceivablesFilters({
 
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
-      <FilterSelect
-        label="Period"
-        ariaLabel="Filter by period"
+      <PeriodTabs
         value={periodV || "all"}
-        items={RECV_PERIOD_LABELS}
-        options={RECV_PERIOD_OPTIONS}
         onChange={(v) => {
           setPeriodV(v);
           push({ period: v });

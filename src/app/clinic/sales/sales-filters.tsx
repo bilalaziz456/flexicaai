@@ -7,24 +7,70 @@ import { Check, ChevronsUpDown } from "lucide-react";
 import { Label } from "@/core/ui/label";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 import { SearchableSelect } from "@/core/ui/searchable-select";
-
-export const PERIOD_OPTIONS: { value: string; label: string }[] = [
-  { value: "today", label: "Today" },
-  { value: "30d", label: "Last 30 days" },
-  { value: "quarter", label: "Last quarter" },
-  { value: "half", label: "Last 6 months" },
-  { value: "year", label: "Last year" },
-  { value: "all", label: "All time" },
-  { value: "custom", label: "Custom range" },
-];
-export const PERIOD_LABELS: Record<string, string> = Object.fromEntries(
-  PERIOD_OPTIONS.map((o) => [o.value, o.label]),
-);
+import { cn } from "@/core/lib/utils";
 
 export const filterFieldCls = "flex flex-col gap-1.5";
 export const filterLabelCls = "text-xs font-normal text-muted-foreground";
 const fieldCls = filterFieldCls;
 const labelCls = filterLabelCls;
+
+/** Preset ranges as one-tap pills (short labels). "Custom" is NOT here — editing the
+ *  date fields is the custom path (it auto-switches, lighting no pill). */
+export const PERIOD_PRESETS: { value: string; label: string; title: string }[] = [
+  { value: "today", label: "Today", title: "Today" },
+  { value: "30d", label: "30d", title: "Last 30 days" },
+  { value: "quarter", label: "Quarter", title: "Last quarter" },
+  { value: "half", label: "6mo", title: "Last 6 months" },
+  { value: "year", label: "Year", title: "Last year" },
+  { value: "all", label: "All", title: "All time" },
+];
+
+/**
+ * Segmented period picker — one-tap pills instead of a dropdown. The active preset is
+ * filled; when the range is "custom" (the user edited a date) NO pill is lit. Wraps on
+ * narrow screens. Pairs with the always-visible date fields, which own the custom path.
+ */
+export function PeriodTabs({
+  value,
+  onChange,
+  label = "Period",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  label?: string;
+}) {
+  return (
+    <div className={fieldCls}>
+      <Label className={labelCls}>{label}</Label>
+      <div
+        role="group"
+        aria-label="Filter by period"
+        className="inline-flex flex-wrap items-center gap-0.5 rounded-lg border border-input bg-[var(--input-bg)] p-0.5"
+      >
+        {PERIOD_PRESETS.map((o) => {
+          const active = value === o.value;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              title={o.title}
+              aria-pressed={active}
+              onClick={() => onChange(o.value)}
+              className={cn(
+                "h-7 rounded-md px-2.5 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                active
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
+              )}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 const triggerCls =
   "inline-flex h-8 items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-3.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-ring";
 
@@ -141,12 +187,8 @@ export function SalesFilters({
 
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
-      <FilterSelect
-        label="Period"
-        ariaLabel="Filter by period"
+      <PeriodTabs
         value={periodV}
-        items={PERIOD_LABELS}
-        options={PERIOD_OPTIONS}
         onChange={(v) => {
           setPeriodV(v);
           push({ period: v });

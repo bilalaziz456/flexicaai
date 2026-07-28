@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   FilterSelect,
-  PERIOD_LABELS,
-  PERIOD_OPTIONS,
+  PeriodTabs,
   filterFieldCls,
   filterLabelCls,
 } from "@/app/clinic/sales/sales-filters";
@@ -90,12 +89,8 @@ export function ExpensesFilters({
 
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
-      <FilterSelect
-        label="Period"
-        ariaLabel="Filter by period"
+      <PeriodTabs
         value={periodV}
-        items={PERIOD_LABELS}
-        options={PERIOD_OPTIONS}
         onChange={(v) => {
           setPeriodV(v);
           push({ period: v });

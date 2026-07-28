@@ -4,8 +4,7 @@ import { useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   FilterSelect,
-  PERIOD_LABELS,
-  PERIOD_OPTIONS,
+  PeriodTabs,
 } from "@/app/clinic/sales/sales-filters";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 import { Button } from "@/core/ui/button";
@@ -70,12 +69,9 @@ export function OverviewFilters({
 
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
-      <FilterSelect
+      <PeriodTabs
         label="Activity period"
-        ariaLabel="Filter by period"
         value={periodV}
-        items={PERIOD_LABELS}
-        options={PERIOD_OPTIONS}
         onChange={(v) => {
           setPeriodV(v);
           push({ period: v });

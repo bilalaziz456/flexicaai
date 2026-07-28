@@ -2,11 +2,7 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  FilterSelect,
-  PERIOD_LABELS,
-  PERIOD_OPTIONS,
-} from "@/app/clinic/sales/sales-filters";
+import { PeriodTabs } from "@/app/clinic/sales/sales-filters";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 
 /**
@@ -36,12 +32,8 @@ export function CostFilters({ period, from, to }: { period: string; from: string
 
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
-      <FilterSelect
-        label="Period"
-        ariaLabel="Filter by period"
+      <PeriodTabs
         value={periodV}
-        items={PERIOD_LABELS}
-        options={PERIOD_OPTIONS}
         onChange={(v) => {
           setPeriodV(v);
           push({ period: v });

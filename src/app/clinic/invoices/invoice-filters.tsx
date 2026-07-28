@@ -5,16 +5,12 @@ import { usePathname, useRouter } from "next/navigation";
 import { Label } from "@/core/ui/label";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 import {
-  FilterSelect,
-  PERIOD_OPTIONS,
+  PeriodTabs,
   filterFieldCls,
   filterLabelCls,
 } from "@/app/clinic/sales/sales-filters";
 
 // The register defaults to ALL TIME (no date bound); presets narrow by issued date.
-const INV_PERIOD_OPTIONS = [{ value: "all", label: "All time" }, ...PERIOD_OPTIONS.filter((o) => o.value !== "all")];
-const INV_PERIOD_LABELS = Object.fromEntries(INV_PERIOD_OPTIONS.map((o) => [o.value, o.label]));
-
 const inputCls =
   "h-8 w-56 rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
@@ -54,12 +50,8 @@ export function InvoiceFilters({
 
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
-      <FilterSelect
-        label="Period"
-        ariaLabel="Filter by period"
+      <PeriodTabs
         value={periodV || "all"}
-        items={INV_PERIOD_LABELS}
-        options={INV_PERIOD_OPTIONS}
         onChange={(v) => {
           setPeriodV(v);
           push({ period: v });
