@@ -7,6 +7,7 @@ import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Badge } from "@/core/ui/badge";
 import { Toast } from "@/core/ui/toast";
+import { SearchableSelect } from "@/core/ui/searchable-select";
 import {
   addPlanItemAction,
   createPlanAction,
@@ -26,7 +27,7 @@ const PLAN_STATUSES = ["proposed", "active", "completed", "cancelled"];
 const ITEM_STATUSES = ["planned", "in_progress", "done", "cancelled"];
 const PLAN_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = { proposed: "secondary", active: "default", completed: "outline", cancelled: "destructive" };
 
-const selectCls = "h-8 rounded-lg border border-input bg-[var(--input-bg)] px-2 text-sm outline-none";
+const selectCls = "h-8 rounded-lg border border-input bg-[var(--input-bg)] pl-2 pr-8 text-sm outline-none select-chevron";
 
 export function TreatmentPlansCard({
   plans,
@@ -148,10 +149,14 @@ export function TreatmentPlansCard({
             <div className="flex items-end gap-2">
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">From template</label>
-                <select value={tmpl} onChange={(e) => setTmpl(e.target.value)} className={`${selectCls} w-48`}>
-                  <option value="">Choose…</option>
-                  {templates.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
+                <SearchableSelect
+                  ariaLabel="Treatment template"
+                  value={tmpl}
+                  onChange={setTmpl}
+                  options={[{ value: "", label: "Choose…" }, ...templates.map((t) => ({ value: t, label: t }))]}
+                  placeholder="Choose…"
+                  className="w-48"
+                />
               </div>
               <Button size="sm" variant="outline" disabled={pending || !tmpl} onClick={() => run(async () => { const r = await createPlanFromTemplateAction(patientId, tmpl); if (r.ok) setTmpl(""); return r; }, "Plan created.")}>
                 Add
@@ -178,10 +183,14 @@ function AddItem({ planId, patientId, procedures, pending, onRun }: { planId: st
   };
   return (
     <div className="flex flex-wrap items-center gap-2 pt-1">
-      <select value={procId} onChange={(e) => setProcId(e.target.value)} className={`${selectCls} h-7 max-w-52`}>
-        <option value="">Add procedure…</option>
-        {procedures.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-      </select>
+      <SearchableSelect
+        ariaLabel="Add procedure"
+        value={procId}
+        onChange={setProcId}
+        options={[{ value: "", label: "Add procedure…" }, ...procedures.map((p) => ({ value: p.id, label: p.name }))]}
+        placeholder="Add procedure…"
+        className="w-52"
+      />
       <Input value={tooth} onChange={(e) => setTooth(e.target.value)} placeholder="Tooth" className="h-7 w-16" />
       <Input value={qty} onChange={(e) => setQty(e.target.value.replace(/[^\d]/g, ""))} className="h-7 w-12" />
       <Button size="sm" variant="outline" disabled={pending || !procId} onClick={add}>Add</Button>

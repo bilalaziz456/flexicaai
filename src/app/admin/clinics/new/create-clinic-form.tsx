@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import type { SpecialtyCatalogEntry } from "@/core/types/module";
+import type { TeamMemberOption } from "@/core/admin/assignment";
 import {
   createClinicWithAdmin,
   type AdminActionState,
@@ -20,16 +21,20 @@ import {
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { PasswordInput } from "@/core/ui/password-input";
+import { SearchableSelect } from "@/core/ui/searchable-select";
 
 export function CreateClinicForm({
   catalog,
+  team,
 }: {
   catalog: SpecialtyCatalogEntry[];
+  team: TeamMemberOption[];
 }) {
   const [state, formAction, pending] = useActionState<
     AdminActionState,
     FormData
   >(createClinicWithAdmin, {});
+  const [assignee, setAssignee] = useState("");
   // Success redirects to the clinics list (flash toast); a failed create pops an
   // error toast here, re-triggered per attempt.
   const [errorNonce, setErrorNonce] = useState(0);
@@ -52,6 +57,24 @@ export function CreateClinicForm({
           <div className="space-y-2">
             <Label>Specialties</Label>
             <SpecialtyCheckboxes catalog={catalog} />
+          </div>
+          <div className="space-y-2">
+            <Label>Account manager (optional)</Label>
+            <SearchableSelect
+              ariaLabel="Account manager"
+              name="assignedTo"
+              value={assignee}
+              onChange={setAssignee}
+              options={[
+                { value: "", label: "Unassigned" },
+                ...team.map((m) => ({ value: m.id, label: m.name })),
+              ]}
+              placeholder="Unassigned"
+              className="w-full max-w-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              The team member who owns this clinic on our side. Can be changed later.
+            </p>
           </div>
         </CardContent>
       </Card>

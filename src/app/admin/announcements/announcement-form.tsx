@@ -1,16 +1,17 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { createAnnouncementAction, type AnnouncementActionState } from "./actions";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { Toast } from "@/core/ui/toast";
+import { SearchableSelect } from "@/core/ui/searchable-select";
 import { cn } from "@/core/lib/utils";
 
 const selectClass = cn(
-  "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none",
-  "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+  "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none",
+  "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron",
 );
 
 export function AnnouncementForm({ clinics }: { clinics: { id: string; name: string }[] }) {
@@ -19,6 +20,7 @@ export function AnnouncementForm({ clinics }: { clinics: { id: string; name: str
     {},
   );
   const formRef = useRef<HTMLFormElement>(null);
+  const [clinicId, setClinicId] = useState("");
   useEffect(() => {
     if (state.saved) formRef.current?.reset();
   }, [state.saved]);
@@ -28,13 +30,16 @@ export function AnnouncementForm({ clinics }: { clinics: { id: string; name: str
       {state.saved ? <Toast message="Announcement posted." /> : null}
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="space-y-2">
-          <Label htmlFor="clinicId">Clinic</Label>
-          <select id="clinicId" name="clinicId" defaultValue="" className={selectClass}>
-            <option value="">All clinics</option>
-            {clinics.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          <Label>Clinic</Label>
+          <SearchableSelect
+            ariaLabel="Clinic"
+            name="clinicId"
+            value={clinicId}
+            onChange={setClinicId}
+            options={[{ value: "", label: "All clinics" }, ...clinics.map((c) => ({ value: c.id, label: c.name }))]}
+            placeholder="All clinics"
+            className="w-full"
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="level">Level</Label>

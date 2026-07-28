@@ -125,7 +125,7 @@ export function MedicalHistoryCard({
                 onChange={(e) => set("allergies", replace(data.allergies, i, { ...a, reaction: e.target.value }))}
               />
               <select
-                className="h-8 rounded-lg border border-input bg-[var(--input-bg)] px-2 text-sm outline-none"
+                className="h-8 rounded-lg border border-input bg-[var(--input-bg)] pl-2 pr-8 text-sm outline-none select-chevron"
                 value={a.severity ?? ""}
                 onChange={(e) => set("allergies", replace(data.allergies, i, { ...a, severity: e.target.value }))}
               >

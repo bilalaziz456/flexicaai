@@ -34,9 +34,6 @@ export type CompanyMetrics = {
   grossMarginThisMonth: number;
   /** Whether the cost/margin figures were computed (gated on `withCost`). */
   hasCost: boolean;
-  /** Collected per month, last 6 months (oldest→newest) for a sparkline. */
-  collectionTrend: number[];
-  trendLabels: string[];
   topClinics: { id: string; name: string; total: number }[];
 };
 
@@ -54,7 +51,6 @@ export async function getCompanyMetrics(
   return unscoped("admin: company metrics", async () => {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const yearStart = new Date(now.getFullYear(), 0, 1);
-    const trendStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
     // Scope conditions. Clinic-based queries filter on `assigned_to`; payment-based
     // queries filter via EXISTS on the owning clinic (payments carry no assignee).
@@ -98,25 +94,6 @@ export async function getCompanyMetrics(
       .select({ y: cashSum })
       .from(clinicPayments)
       .where(and(notDeleted(clinicPayments.deletedAt), gte(clinicPayments.occurredAt, yearStart), paymentScope));
-
-    // Monthly collection for the last 6 months → sparkline (fill gaps with 0).
-    const trendRows = await db
-      .select({
-        m: sql<string>`to_char(date_trunc('month', ${clinicPayments.occurredAt}), 'YYYY-MM')`,
-        s: cashSum,
-      })
-      .from(clinicPayments)
-      .where(and(notDeleted(clinicPayments.deletedAt), gte(clinicPayments.occurredAt, trendStart), paymentScope))
-      .groupBy(sql`date_trunc('month', ${clinicPayments.occurredAt})`);
-    const trendMap = new Map(trendRows.map((r) => [r.m, num(r.s)]));
-    const collectionTrend: number[] = [];
-    const trendLabels: string[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      collectionTrend.push(trendMap.get(key) ?? 0);
-      trendLabels.push(d.toLocaleDateString(undefined, { month: "short" }));
-    }
 
     // Top clinics by revenue this year.
     const topRows = await db
@@ -181,8 +158,6 @@ export async function getCompanyMetrics(
       servingCostThisMonth,
       grossMarginThisMonth,
       hasCost: withCost,
-      collectionTrend,
-      trendLabels,
       topClinics: topRows.map((r) => ({ id: r.id, name: r.name, total: num(r.total) })),
     };
   });

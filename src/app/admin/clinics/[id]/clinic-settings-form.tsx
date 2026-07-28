@@ -4,7 +4,6 @@ import { useActionState, useEffect, useState } from "react";
 import type { SpecialtyCatalogEntry } from "@/core/types/module";
 import type { ClinicFeature } from "@/core/lib/features";
 import { updateClinic, type AdminActionState } from "@/app/admin/actions";
-import { LOG_ACTIONS } from "@/core/audit/access";
 import { Badge } from "@/core/ui/badge";
 import { Button } from "@/core/ui/button";
 import { Checkbox } from "@/core/ui/checkbox";
@@ -13,10 +12,11 @@ import { Label } from "@/core/ui/label";
 import { Toast } from "@/core/ui/toast";
 
 /**
- * All of a clinic's super-admin settings in ONE save — name, specialties,
- * optional features, and activity-log access. Each checkbox group emits its own
- * hidden inputs (`modules` / `features` / `actions`) so the single server action
- * reads them from FormData. The Staff list and Delete stay separate.
+ * A clinic's core super-admin settings in ONE save — name, specialties, optional
+ * features, trash retention, and the WhatsApp sender. Each checkbox group emits its
+ * own hidden inputs (`modules` / `features`) so the single server action reads them
+ * from FormData. Access control (capabilities + activity-log access) lives in its own
+ * section; the Staff list and Delete stay separate.
  */
 export function ClinicSettingsForm({
   clinicId,
@@ -25,7 +25,6 @@ export function ClinicSettingsForm({
   features,
   modulesEnabled,
   featuresEnabled,
-  logAccess,
   trashRetentionDays,
   whatsappPhoneNumberId,
   whatsappDisplayNumber,
@@ -37,7 +36,6 @@ export function ClinicSettingsForm({
   features: readonly ClinicFeature[];
   modulesEnabled: string[];
   featuresEnabled: string[];
-  logAccess: string[];
   trashRetentionDays: number;
   whatsappPhoneNumberId: string | null;
   whatsappDisplayNumber: string | null;
@@ -55,7 +53,6 @@ export function ClinicSettingsForm({
 
   const [modules, setModules] = useState<Set<string>>(() => new Set(modulesEnabled));
   const [feats, setFeats] = useState<Set<string>>(() => new Set(featuresEnabled));
-  const [logs, setLogs] = useState<Set<string>>(() => new Set(logAccess));
   const toggler =
     (setFn: React.Dispatch<React.SetStateAction<Set<string>>>) =>
     (id: string, on: boolean) =>
@@ -67,7 +64,6 @@ export function ClinicSettingsForm({
       });
   const toggleModule = toggler(setModules);
   const toggleFeat = toggler(setFeats);
-  const toggleLog = toggler(setLogs);
 
   return (
     <form action={formAction} className="space-y-6">
@@ -138,33 +134,6 @@ export function ClinicSettingsForm({
         ))}
         {[...feats].map((id) => (
           <input key={id} type="hidden" name="features" value={id} />
-        ))}
-      </section>
-
-      <section className="space-y-2 border-t pt-4">
-        <div>
-          <p className="text-sm font-medium">Activity-log access</p>
-          <p className="text-xs text-muted-foreground">
-            Which activity the clinic admin can see. Uncheck everything to remove
-            their log access.
-          </p>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {LOG_ACTIONS.map((a) => (
-            <label
-              key={a.id}
-              className="flex items-center gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/50"
-            >
-              <Checkbox
-                checked={logs.has(a.id)}
-                onCheckedChange={(v) => toggleLog(a.id, Boolean(v))}
-              />
-              <span className="text-sm font-medium">{a.label}</span>
-            </label>
-          ))}
-        </div>
-        {[...logs].map((id) => (
-          <input key={id} type="hidden" name="actions" value={id} />
         ))}
       </section>
 

@@ -25,7 +25,7 @@ export function OpeningBalanceForm({ patientId, owed }: { patientId: string; owe
         <span className="mb-1 block text-xs text-muted-foreground">Method</span>
         <select
           name="method"
-          className="h-9 rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm capitalize outline-none focus-visible:border-ring"
+          className="h-9 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm capitalize outline-none focus-visible:border-ring select-chevron"
         >
           {METHODS.map((m) => (
             <option key={m} value={m}>{m}</option>

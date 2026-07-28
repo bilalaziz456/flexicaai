@@ -23,8 +23,8 @@ const TIMEZONES = [
 const REGIONS = ["Pakistan", "GCC", "Other"];
 
 const selectClass = cn(
-  "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none",
-  "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+  "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none",
+  "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron",
 );
 
 export type ClinicContact = {

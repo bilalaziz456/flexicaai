@@ -58,8 +58,8 @@ function FlagBadges({ flags }: { flags: AnomalyFlag[] }) {
 
 function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: string }) {
   return (
-    <Card>
-      <CardHeader className="pb-2"><CardDescription>{label}</CardDescription></CardHeader>
+    <Card className="gap-2">
+      <CardHeader><CardDescription>{label}</CardDescription></CardHeader>
       <CardContent>
         <div className={cn("text-2xl font-semibold tabular-nums", tone)}>{value}</div>
         {sub ? <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div> : null}

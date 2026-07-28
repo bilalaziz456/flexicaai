@@ -34,6 +34,7 @@ import { ImpersonateClinic } from "./impersonate-clinic";
 import { ClinicContactForm } from "./clinic-contact-form";
 import { ClinicBilling } from "./clinic-billing";
 import { ClinicCapabilities } from "./clinic-capabilities";
+import { ClinicLogAccess } from "./clinic-log-access";
 import { StaffActions } from "./staff-actions";
 import { DeleteClinic } from "./delete-clinic";
 
@@ -129,10 +130,11 @@ export default async function ClinicDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Settings</CardTitle>
+          <CardTitle>Plan &amp; features</CardTitle>
           <CardDescription>
-            Name, specialties, optional features and activity-log access — all
-            saved together.
+            Name, specialties, the optional features included for this clinic, and its
+            configuration — what the clinic <span className="font-medium">has</span>.
+            Access control (who can do what) is below.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -143,7 +145,6 @@ export default async function ClinicDetailPage({
             features={CLINIC_FEATURES}
             modulesEnabled={clinic.modulesEnabled}
             featuresEnabled={clinic.featuresEnabled}
-            logAccess={clinic.logAccess}
             trashRetentionDays={clinic.trashRetentionDays}
             whatsappPhoneNumberId={clinic.whatsappPhoneNumberId}
             whatsappDisplayNumber={clinic.whatsappDisplayNumber}
@@ -241,22 +242,45 @@ export default async function ClinicDetailPage({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Capabilities</CardTitle>
-          <CardDescription>
-            Granular per-clinic control — which actions this clinic&apos;s staff may
-            perform. Disabling one turns off that button for every user here.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ClinicCapabilities
-            clinicId={clinic.id}
-            resources={resourcesForClinic(clinic.featuresEnabled)}
-            capabilities={clinic.capabilities}
-          />
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">Access control</h2>
+          <p className="text-sm text-muted-foreground">
+            The ceiling on what this clinic&apos;s staff can <span className="font-medium">do</span>{" "}
+            and <span className="font-medium">see</span> — independent of the plan features above.
+          </p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Capabilities</CardTitle>
+            <CardDescription>
+              Which actions this clinic&apos;s staff may perform. Disabling one turns off
+              that button for every user here (the ceiling their own per-user permissions
+              sit within).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ClinicCapabilities
+              clinicId={clinic.id}
+              resources={resourcesForClinic(clinic.featuresEnabled)}
+              capabilities={clinic.capabilities}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Activity-log access</CardTitle>
+            <CardDescription>
+              Which parts of the audit log the clinic admin can see on their Logs page.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ClinicLogAccess clinicId={clinic.id} logAccess={clinic.logAccess} />
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>

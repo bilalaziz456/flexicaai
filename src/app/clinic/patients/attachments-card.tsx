@@ -142,7 +142,7 @@ export function AttachmentsCard({
               name="kind"
               value={kind}
               onChange={(e) => setKind(e.target.value)}
-              className="h-9 rounded-lg border border-input bg-[var(--input-bg)] px-2 text-sm outline-none"
+              className="h-9 rounded-lg border border-input bg-[var(--input-bg)] pl-2 pr-8 text-sm outline-none select-chevron"
             >
               <option value="xray">X-ray</option>
               <option value="photo" disabled={!photoConsent}>Photo{!photoConsent ? " (needs consent)" : ""}</option>

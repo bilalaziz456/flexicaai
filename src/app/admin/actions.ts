@@ -104,6 +104,19 @@ export async function createClinicWithAdmin(
     .map(String)
     .filter((id) => allowed.has(id));
 
+  // Optional account manager (a valid, non-deleted super-admin).
+  const assigneeId = String(formData.get("assignedTo") ?? "").trim() || null;
+  let assignedTo: string | null = null;
+  if (assigneeId) {
+    const [m] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.id, assigneeId), eq(users.role, "super_admin"), notDeleted(users.deletedAt)))
+      .limit(1);
+    if (!m) return { error: "Not a valid team member for account manager." };
+    assignedTo = m.id;
+  }
+
   const passwordHash = await hashPassword(parsed.data.adminPassword);
 
   let newClinicId: string | undefined;
@@ -111,7 +124,7 @@ export async function createClinicWithAdmin(
     await db.transaction(async (tx) => {
       const [clinic] = await tx
         .insert(clinics)
-        .values({ name: parsed.data.clinicName, modulesEnabled })
+        .values({ name: parsed.data.clinicName, modulesEnabled, assignedTo })
         .returning({ id: clinics.id });
       newClinicId = clinic.id;
 
@@ -160,10 +173,10 @@ const clinicSettingsSchema = z.object({
 });
 
 /**
- * Saves ALL of a clinic's super-admin settings in one call — name, specialties
- * (`modules`), optional features (`features`), and activity-log access
- * (`actions`). Unknown ids in any group are dropped. Only the super admin can
- * change these. Redirects back to the clinics list with a success flash.
+ * Saves a clinic's core super-admin settings in one call — name, specialties
+ * (`modules`), optional features (`features`), trash retention and the WhatsApp
+ * sender. Unknown ids in any group are dropped. Access control (capabilities +
+ * log access) has its own saves. Only the super admin can change these.
  */
 export async function updateClinic(
   clinicId: string,
@@ -194,8 +207,6 @@ export async function updateClinic(
     .getAll("features")
     .map(String)
     .filter((id) => featureAllowed.has(id));
-
-  const logAccess = sanitizeLogAccess(formData.getAll("actions").map(String));
 
   // Was the sales feature off before this save? If so, and it's on now, we backfill
   // the ledger below so the report shows history the moment the feature is enabled.
@@ -233,7 +244,6 @@ export async function updateClinic(
         modulesEnabled,
         featuresEnabled,
         capabilities,
-        logAccess,
         trashRetentionDays: parsed.data.trashRetentionDays,
         // Per-clinic WhatsApp sender (empty → cleared). phone_number_id is unique
         // across clinics (the inbound routing key) — a duplicate is rejected below.
@@ -445,6 +455,44 @@ export async function setClinicCapabilities(
   });
   revalidatePath(`/admin/clinics/${clinicId}`);
   // Capabilities change what every staff member's nav + buttons show.
+  revalidatePath("/clinic", "layout");
+  return { saved: true };
+}
+
+/**
+ * Sets a clinic's ACTIVITY-LOG ACCESS — the log ACTION categories the clinic admin
+ * may see on /clinic/logs. Empty = no log access at all. Part of "Access control"
+ * alongside capabilities. super-admin only; audited.
+ */
+export async function setClinicLogAccess(
+  clinicId: string,
+  ids: string[],
+): Promise<AdminActionState> {
+  await requireAdminCapability("clinics:edit");
+
+  const [before] = await db
+    .select({ name: clinics.name })
+    .from(clinics)
+    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
+    .limit(1);
+  if (!before) return { error: "Clinic not found." };
+
+  const logAccess = sanitizeLogAccess(ids);
+  await db
+    .update(clinics)
+    .set({ logAccess, updatedAt: new Date() })
+    .where(eq(clinics.id, clinicId));
+
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: logAccess.length
+      ? `Set clinic “${before.name}” log access (${logAccess.length} categor${logAccess.length === 1 ? "y" : "ies"})`
+      : `Removed clinic “${before.name}” log access`,
+  });
+  revalidatePath(`/admin/clinics/${clinicId}`);
   revalidatePath("/clinic", "layout");
   return { saved: true };
 }

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { CompanyMetrics } from "@/core/admin/metrics";
 import { CLINIC_STATUSES, CLINIC_STATUS_LABEL } from "@/core/clinics/status";
-import { Sparkline } from "@/core/ui/sparkline";
 import { cn } from "@/core/lib/utils";
 
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
@@ -69,12 +68,7 @@ export function CompanyMetricsPanel({
             />
           </>
         ) : null}
-        <Kpi label="Collected this month" value={rs(m.collectedThisMonth)} sub={`${rs(m.collectedThisYear)} this year`}>
-          <div className="mt-2">
-            <Sparkline values={m.collectionTrend} color="var(--brand-teal)" ariaLabel="Collected — last 6 months" />
-            <div className="mt-0.5 text-[10px] text-muted-foreground">Collected · last 6 months</div>
-          </div>
-        </Kpi>
+        <Kpi label="Collected this month" value={rs(m.collectedThisMonth)} sub={`${rs(m.collectedThisYear)} this year`} />
         <Kpi
           label="Overdue"
           value={rs(m.overdueTotal)}

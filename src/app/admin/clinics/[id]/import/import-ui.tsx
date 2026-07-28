@@ -180,7 +180,7 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
                   <select
                     value={val}
                     onChange={(e) => setField(f.key, e.target.value)}
-                    className="h-8 min-w-[9rem] max-w-[12rem] rounded-lg border border-input bg-[var(--input-bg)] px-2 text-sm outline-none focus-visible:border-ring"
+                    className="h-8 min-w-[9rem] max-w-[12rem] rounded-lg border border-input bg-[var(--input-bg)] pl-2 pr-8 text-sm outline-none focus-visible:border-ring select-chevron"
                   >
                     <option value="">— none —</option>
                     {preview.headers.map((h) => (

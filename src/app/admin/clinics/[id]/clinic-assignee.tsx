@@ -1,14 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { setClinicAssigneeAction } from "@/app/admin/actions";
 import type { TeamMemberOption } from "@/core/admin/assignment";
-import { cn } from "@/core/lib/utils";
-
-const selectClass = cn(
-  "h-8 max-w-xs rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none",
-  "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
-);
+import { SearchableSelect } from "@/core/ui/searchable-select";
 
 /** Assigns a clinic to a team member (account manager). Saves on change. */
 export function ClinicAssignee({
@@ -25,6 +20,11 @@ export function ClinicAssignee({
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const options = useMemo(
+    () => [{ value: "", label: "Unassigned" }, ...team.map((m) => ({ value: m.id, label: m.name }))],
+    [team],
+  );
+
   const change = (next: string) => {
     setValue(next);
     start(async () => {
@@ -38,17 +38,15 @@ export function ClinicAssignee({
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <select
+      <SearchableSelect
+        ariaLabel="Account manager"
         value={value}
-        disabled={pending}
-        className={selectClass}
-        onChange={(e) => change(e.target.value)}
-      >
-        <option value="">Unassigned</option>
-        {team.map((m) => (
-          <option key={m.id} value={m.id}>{m.name}</option>
-        ))}
-      </select>
+        options={options}
+        onChange={change}
+        placeholder="Unassigned"
+        className="w-56"
+      />
+      {pending ? <span className="text-sm text-muted-foreground">Saving…</span> : null}
       {msg ? <span className="text-sm text-emerald-600">{msg}</span> : null}
       {error ? <span className="text-sm text-destructive" role="alert">{error}</span> : null}
     </div>

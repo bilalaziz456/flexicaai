@@ -25,7 +25,7 @@ export type LabCaseRow = {
 };
 
 const money = (n: number) => new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 }).format(n);
-const selectCls = "h-8 rounded-lg border border-input bg-[var(--input-bg)] px-2 text-sm outline-none";
+const selectCls = "h-8 rounded-lg border border-input bg-[var(--input-bg)] pl-2 pr-8 text-sm outline-none select-chevron";
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = { sent: "secondary", in_lab: "secondary", received: "default", fitted: "outline", remake: "destructive" };
 
 export function LabTrackerCard({
