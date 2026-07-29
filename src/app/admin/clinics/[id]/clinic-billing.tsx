@@ -237,14 +237,16 @@ export function ClinicBilling({
         </div>
       ) : null}
 
-      {/* "Payment coming up" reminder window (owner/super-admin/account manager). */}
-      {canToggleNotice && monthlyPrice > 0 ? (
+      {/* "Payment coming up" reminder window (owner/super-admin/account manager). Shown
+          regardless of price for discoverability; it only takes effect once a price is set. */}
+      {canToggleNotice ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
           <div>
             <div className="text-sm font-medium">Remind me before the payment is due</div>
             <p className="mt-0.5 text-xs text-muted-foreground">
               Show this clinic in “Payments coming up” on the Clinics + Overview pages this
               many days before its paid-through date. 0 turns the heads-up off.
+              {monthlyPrice > 0 ? "" : " Set a monthly price above for it to take effect."}
             </p>
             {reminderErr ? <p className="mt-1 text-xs text-destructive" role="alert">{reminderErr}</p> : null}
           </div>
