@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { requireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { users } from "@/core/db/schema";
+import { getClinic } from "@/core/clinics/get-clinic";
 import {
   Card,
   CardContent,
@@ -14,6 +15,7 @@ import {
   ProfileForm,
   PasswordForm,
 } from "@/app/account/account-forms";
+import { PrintingForm } from "./printing-form";
 
 function initialsOf(name: string): string {
   return name
@@ -45,6 +47,10 @@ export default async function ClinicSettingsPage() {
   if (!u) return null;
 
   const displayName = u.fullName ?? u.username;
+  // Clinic-wide printing default — clinic admin only (an operational choice that
+  // depends on the clinic's own printer).
+  const clinic =
+    current.role === "clinic_admin" && current.clinicId ? await getClinic(current.clinicId) : null;
 
   return (
     <div className="space-y-6">
@@ -91,6 +97,18 @@ export default async function ClinicSettingsPage() {
           <PasswordForm />
         </CardContent>
       </Card>
+
+      {clinic ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Printing</CardTitle>
+            <CardDescription>The clinic&apos;s default paper size for printed documents.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PrintingForm paper={clinic.invoicePaper ?? "a4"} />
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }
