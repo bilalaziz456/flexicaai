@@ -5,6 +5,7 @@ import {
   recordClinicPaymentAction,
   setClinicPrice,
   setPaymentNoticeEnabledAction,
+  setPaymentReminderDaysAction,
   voidClinicPaymentAction,
   type AdminActionState,
 } from "@/app/admin/actions";
@@ -76,6 +77,7 @@ export function ClinicBilling({
   commitmentNote,
   canManage = true,
   paymentNoticeEnabled,
+  paymentReminderDays,
   canToggleNotice = false,
 }: {
   clinicId: string;
@@ -90,7 +92,9 @@ export function ClinicBilling({
   canManage?: boolean;
   /** Whether the clinic-facing payment-due notice is on (shown to clinic staff). */
   paymentNoticeEnabled: boolean;
-  /** May flip the notice — owner/super-admin or the account manager (not billing-gated). */
+  /** Days before the paid-through date the clinic shows in "payment coming up". */
+  paymentReminderDays: number;
+  /** May flip the notice + reminder — owner/super-admin or the account manager. */
   canToggleNotice?: boolean;
 }) {
   const [priceState, priceAction, savingPrice] = useActionState<AdminActionState, FormData>(
@@ -115,6 +119,34 @@ export function ClinicBilling({
       if (r.error) {
         setNoticeOn(!next);
         setNoticeErr(r.error);
+      }
+    });
+  };
+  // "Payment coming up" reminder window (days before the paid-through date). Saves on
+  // blur; reverts to the last saved value on error.
+  const [reminderVal, setReminderVal] = useState(String(paymentReminderDays));
+  const [savedReminder, setSavedReminder] = useState(paymentReminderDays);
+  const [savingReminder, startReminder] = useTransition();
+  const [reminderErr, setReminderErr] = useState<string | null>(null);
+  const [reminderOk, setReminderOk] = useState(false);
+  const saveReminder = () => {
+    const n = Math.trunc(Number(reminderVal));
+    if (!Number.isFinite(n) || n < 0 || n > 90) {
+      setReminderErr("Enter 0–90 days.");
+      setReminderVal(String(savedReminder));
+      return;
+    }
+    if (n === savedReminder) return;
+    setReminderErr(null);
+    startReminder(async () => {
+      const r = await setPaymentReminderDaysAction(clinicId, n);
+      if (r.error) {
+        setReminderErr(r.error);
+        setReminderVal(String(savedReminder));
+      } else {
+        setSavedReminder(n);
+        setReminderOk(true);
+        setTimeout(() => setReminderOk(false), 2000);
       }
     });
   };
@@ -202,6 +234,43 @@ export function ClinicBilling({
               )}
             />
           </button>
+        </div>
+      ) : null}
+
+      {/* "Payment coming up" reminder window (owner/super-admin/account manager). */}
+      {canToggleNotice && monthlyPrice > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+          <div>
+            <div className="text-sm font-medium">Remind me before the payment is due</div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Show this clinic in “Payments coming up” on the Clinics + Overview pages this
+              many days before its paid-through date. 0 turns the heads-up off.
+            </p>
+            {reminderErr ? <p className="mt-1 text-xs text-destructive" role="alert">{reminderErr}</p> : null}
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min={0}
+              max={90}
+              inputMode="numeric"
+              aria-label="Reminder days before due"
+              value={reminderVal}
+              disabled={savingReminder}
+              onChange={(e) => setReminderVal(e.target.value)}
+              onBlur={saveReminder}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+              }}
+              className="h-9 w-20 text-sm"
+            />
+            <span className="text-sm text-muted-foreground">days</span>
+            {savingReminder ? (
+              <span className="text-xs text-muted-foreground">Saving…</span>
+            ) : reminderOk ? (
+              <span className="text-xs text-emerald-600 dark:text-emerald-400">Saved</span>
+            ) : null}
+          </div>
         </div>
       ) : null}
 

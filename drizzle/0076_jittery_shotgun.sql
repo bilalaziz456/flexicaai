@@ -1,0 +1,1 @@
+ALTER TABLE "clinics" ADD COLUMN "payment_reminder_days" integer DEFAULT 5 NOT NULL;

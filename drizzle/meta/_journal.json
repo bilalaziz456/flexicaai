@@ -533,6 +533,13 @@
       "when": 1785359167688,
       "tag": "0075_steep_wrecker",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1785359713527,
+      "tag": "0076_jittery_shotgun",
+      "breakpoints": true
     }
   ]
 }

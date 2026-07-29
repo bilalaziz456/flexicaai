@@ -174,6 +174,10 @@ export const clinics = pgTable(
     monthlyPrice: integer("monthly_price").notNull().default(0), // PKR
     billingCycle: text("billing_cycle").notNull().default("monthly"), // monthly|2m|quarter|half|annual
     graceDays: integer("grace_days").notNull().default(7),
+    // How many days BEFORE the paid-through date to surface a "payment coming up"
+    // reminder on the admin clinics + overview pages (a soft, pre-due heads-up; distinct
+    // from the due/overdue lists). Per-clinic, default 5. See core/admin/billing.ts.
+    paymentReminderDays: integer("payment_reminder_days").notNull().default(5),
     // Whether the SOFT payment-due/overdue notice is shown to this clinic's own staff
     // (the workspace pill). Owner / super-admin / the account manager can turn it off
     // for a clinic (e.g. one on a payment plan) without affecting the super-admin dues

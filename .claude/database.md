@@ -389,10 +389,11 @@ own data, which the tenant guard therefore ignores. See `docs/super-admin-plan.m
 
 **Clinic/user columns added by this layer** (not new tables): `clinics` gained
 subscription **billing** (`monthly_price`, `billing_cycle` = the package
-monthly/2m/quarter/half/annual, `grace_days`, lifecycle dates `trial_start_at` /
-`trial_ends_at` / `activated_at` [= subscription/active start] + `status`, invoice
-counter `next_invoice_no`/`invoice_prefix`/`invoice_paper`), **account-manager**
-`assigned_to` → users (self-ref FK), a
+monthly/2m/quarter/half/annual, `grace_days`, `payment_reminder_days` [days before the
+paid-through date to show a "payment coming up" heads-up, default 5], lifecycle dates
+`trial_start_at` / `trial_ends_at` / `activated_at` [= subscription/active start] +
+`status`, invoice counter `next_invoice_no`/`invoice_prefix`/`invoice_paper`),
+**account-manager** `assigned_to` → users (self-ref FK), a
 **payment-commitment** follow-up (`payment_commitment_at`/`_note`), a **health
 follow-up / snooze** for churn/usage-flag alerts (`health_followup_at`/`_note` — a
 future date parks the clinic under "Following up" on the Owner Overview instead of
@@ -581,3 +582,9 @@ these for churn-risk + usage/cost anomaly flags.
   now shows trial-start / active-start / **first payment** (earliest `clinic_payments`
   payment via `getFirstPaymentDates`) / **package** (`billing_cycle`); the two billing
   columns are billing-viewer-only, and the wide table scrolls horizontally.
+- Migration **`0076`** adds `clinics.payment_reminder_days` (int, default 5) — how many
+  days before the paid-through date a still-paid clinic surfaces in **"Payments coming
+  up"** on `/admin` + `/admin/overview` (a pre-due heads-up, distinct from due/overdue).
+  Set per clinic on the billing card (owner/super-admin/account-manager, `setPayment
+  ReminderDaysAction`); `listDueClinics({ includeUpcoming })` adds the `upcoming` alert
+  bucket (an `active` clinic with `daysRemaining ≤ payment_reminder_days`). 0 disables it.

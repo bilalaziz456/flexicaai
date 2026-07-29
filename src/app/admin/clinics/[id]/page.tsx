@@ -214,6 +214,7 @@ export default async function ClinicDetailPage({
               }))}
               canManage={canManageBillingCard}
               paymentNoticeEnabled={clinic.paymentNoticeEnabled}
+              paymentReminderDays={clinic.paymentReminderDays}
               canToggleNotice
             />
           </CardContent>

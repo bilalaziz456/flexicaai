@@ -314,6 +314,14 @@ export async function setPaymentNoticeEnabled(clinicId: string, enabled: boolean
     .where(eq(clinics.id, clinicId));
 }
 
+/** How many days before the paid-through date to show the "payment coming up" heads-up. */
+export async function setPaymentReminderDays(clinicId: string, days: number): Promise<void> {
+  await db
+    .update(clinics)
+    .set({ paymentReminderDays: days, updatedAt: new Date() })
+    .where(eq(clinics.id, clinicId));
+}
+
 /** Voids (soft-deletes) a clinic payment + syncs status (paid_through shrinks). */
 export async function voidClinicPayment(
   clinicId: string,
@@ -339,6 +347,8 @@ export type OverdueClinic = {
   id: string;
   name: string;
   status: string;
+  /** Which alert bucket this row is in: past-grace, in-grace, or a pre-due heads-up. */
+  alert: "overdue" | "due" | "upcoming";
   balance: ClinicBalance;
   /** Follow-up the clinic promised for the remaining balance (if any). */
   commitmentAt: Date | null;
@@ -350,11 +360,14 @@ export type OverdueClinic = {
 };
 
 /**
- * Cross-tenant: every priced clinic that is `due` or `overdue`, worst first —
- * for the /admin overdue list. One clinics scan + one payments scan, grouped in
- * memory (fleet-scale note: paginate/aggregate in SQL when clinic count climbs).
+ * Cross-tenant: priced clinics needing billing attention, worst first — for the
+ * /admin + overview lists. Always includes `due`/`overdue`; with
+ * `{ includeUpcoming: true }` it also returns **upcoming** rows — a still-paid clinic
+ * whose paid-through date falls within its own `payment_reminder_days` window (a
+ * pre-due heads-up). One clinics scan + one payments scan, grouped in memory
+ * (fleet-scale note: paginate/aggregate in SQL when clinic count climbs).
  */
-export async function listDueClinics(): Promise<OverdueClinic[]> {
+export async function listDueClinics(opts: { includeUpcoming?: boolean } = {}): Promise<OverdueClinic[]> {
   return unscoped("admin: due/overdue clinics", async () => {
     const cs = await db
       .select({
@@ -363,6 +376,7 @@ export async function listDueClinics(): Promise<OverdueClinic[]> {
         status: clinics.status,
         monthlyPrice: clinics.monthlyPrice,
         graceDays: clinics.graceDays,
+        paymentReminderDays: clinics.paymentReminderDays,
         activatedAt: clinics.activatedAt,
         createdAt: clinics.createdAt,
         commitmentAt: clinics.paymentCommitmentAt,
@@ -382,30 +396,47 @@ export async function listDueClinics(): Promise<OverdueClinic[]> {
         clinicId: clinicPayments.clinicId,
         amount: clinicPayments.amount,
         monthsCovered: clinicPayments.monthsCovered,
+        kind: clinicPayments.kind,
       })
       .from(clinicPayments)
       .where(notDeleted(clinicPayments.deletedAt));
 
-    const byClinicId = new Map<string, { amount: number; monthsCovered: number }[]>();
+    const byClinicId = new Map<string, { amount: number; monthsCovered: number; kind: string }[]>();
     for (const p of pays) {
       const list = byClinicId.get(p.clinicId) ?? [];
-      list.push({ amount: p.amount, monthsCovered: p.monthsCovered });
+      list.push({ amount: p.amount, monthsCovered: p.monthsCovered, kind: p.kind });
       byClinicId.set(p.clinicId, list);
     }
 
     const out: OverdueClinic[] = [];
     for (const c of cs) {
       const balance = computeClinicBalance(c, byClinicId.get(c.id) ?? []);
-      if (balance.billingStatus === "due" || balance.billingStatus === "overdue") {
-        out.push({
-          id: c.id, name: c.name, status: c.status, balance,
-          commitmentAt: c.commitmentAt, commitmentNote: c.commitmentNote,
-          assignedTo: c.assignedTo, assigneeName: c.assigneeName ?? c.assigneeUsername,
-          assigneeSuspended: c.assigneeActive === false,
-        });
-      }
+      const st = balance.billingStatus;
+      // A paid clinic whose subscription runs out within its reminder window.
+      const upcoming =
+        opts.includeUpcoming &&
+        st === "active" &&
+        balance.owed <= 0 &&
+        balance.daysRemaining <= (c.paymentReminderDays ?? 5);
+      const alert = st === "overdue" ? "overdue" : st === "due" ? "due" : upcoming ? "upcoming" : null;
+      if (!alert) continue;
+      out.push({
+        id: c.id, name: c.name, status: c.status, alert, balance,
+        commitmentAt: c.commitmentAt, commitmentNote: c.commitmentNote,
+        assignedTo: c.assignedTo, assigneeName: c.assigneeName ?? c.assigneeUsername,
+        assigneeSuspended: c.assigneeActive === false,
+      });
     }
-    return out.sort((a, b) => b.balance.owed - a.balance.owed || b.balance.daysOverdue - a.balance.daysOverdue);
+    // Overdue → due → upcoming; within due/overdue by amount owed, within upcoming by
+    // soonest to lapse.
+    const rank = { overdue: 0, due: 1, upcoming: 2 } as const;
+    return out.sort(
+      (a, b) =>
+        rank[a.alert] - rank[b.alert] ||
+        (a.alert === "upcoming"
+          ? a.balance.daysRemaining - b.balance.daysRemaining
+          : b.balance.owed - a.balance.owed || b.balance.daysOverdue - a.balance.daysOverdue),
+    );
   });
 }
 

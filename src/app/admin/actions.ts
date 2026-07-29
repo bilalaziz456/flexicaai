@@ -31,7 +31,7 @@ import { availableSpecialtyIds } from "@/config/modules";
 import { CLINIC_FEATURE_IDS } from "@/core/lib/features";
 import { isClinicStatus, isClinicUsable, type ClinicStatus } from "@/core/clinics/status";
 import { permId, resourcesForClinic, sanitizePermissions } from "@/core/auth/permissions";
-import { recordClinicPayment, setPaymentCommitment, setPaymentNoticeEnabled, syncClinicBillingStatus, voidClinicPayment } from "@/core/admin/billing";
+import { recordClinicPayment, setPaymentCommitment, setPaymentNoticeEnabled, setPaymentReminderDays, syncClinicBillingStatus, voidClinicPayment } from "@/core/admin/billing";
 import { setHealthFollowup } from "@/core/admin/health";
 import { canManageTeam } from "@/core/auth/admin-permissions";
 import { saveClinicFile, deleteFileByKey } from "@/core/integrations/storage";
@@ -961,6 +961,44 @@ export async function setPaymentNoticeEnabledAction(
     clinicId,
     summary: `${enabled ? "Enabled" : "Disabled"} the payment-due notice for ${c.name}`,
   });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  return { saved: true };
+}
+
+/**
+ * Set how many days before the paid-through date a clinic shows in the "payment coming
+ * up" list. Same audience/scope as the payment-notice toggle (owner / full super-admin /
+ * the clinic's account manager). 0 disables the pre-due heads-up for the clinic.
+ */
+export async function setPaymentReminderDaysAction(
+  clinicId: string,
+  days: number,
+): Promise<AdminActionState> {
+  const admin = await requireAdminCapability("metrics:view");
+
+  const [c] = await db
+    .select({ name: clinics.name, assignedTo: clinics.assignedTo })
+    .from(clinics)
+    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
+    .limit(1);
+  if (!c) return { error: "Clinic not found." };
+  if (!canManageTeam(admin) && c.assignedTo !== admin.id) {
+    return { error: "You can only change clinics assigned to you." };
+  }
+
+  const n = Math.trunc(Number(days));
+  if (!Number.isFinite(n) || n < 0 || n > 90) return { error: "Enter 0–90 days." };
+
+  await setPaymentReminderDays(clinicId, n);
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: `Set payment reminder to ${n} day${n === 1 ? "" : "s"} before due for ${c.name}`,
+  });
+  revalidatePath("/admin/overview");
+  revalidatePath("/admin");
   revalidatePath(`/admin/clinics/${clinicId}`);
   return { saved: true };
 }

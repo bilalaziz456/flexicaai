@@ -92,8 +92,10 @@ export default async function AdminHome({
 
   // Due/overdue is fetched first — it feeds the panel AND the billing filter, and is
   // scoped to what this user may see.
-  const dueAll = showBilling ? await listDueClinics() : [];
-  const dueClinics = dueAll.filter((c) => seesAll || c.assignedTo === user.id);
+  const dueAll = showBilling ? await listDueClinics({ includeUpcoming: true }) : [];
+  const visibleAlerts = dueAll.filter((c) => seesAll || c.assignedTo === user.id);
+  const dueClinics = visibleAlerts.filter((c) => c.alert !== "upcoming");
+  const upcomingClinics = visibleAlerts.filter((c) => c.alert === "upcoming");
 
   // Billing filter → the set of clinic ids matching that billing status.
   const billingIds = billingFilter
@@ -208,6 +210,33 @@ export default async function AdminHome({
                       {c.commitmentNote ? ` · ${c.commitmentNote}` : ""}
                     </span>
                   ) : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {upcomingClinics.length > 0 ? (
+        <div className="rounded-md border border-sky-500/40 bg-sky-500/5 p-4">
+          <div className="mb-2 text-sm font-medium text-sky-700 dark:text-sky-400">
+            {upcomingClinics.length} payment{upcomingClinics.length === 1 ? "" : "s"} coming up
+          </div>
+          <ul className="space-y-1.5 text-sm">
+            {upcomingClinics.slice(0, 8).map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
+                <Link href={`/admin/clinics/${c.id}`} className="font-medium hover:underline">
+                  {c.name}
+                </Link>
+                <span className="flex flex-wrap items-center gap-x-2 text-muted-foreground">
+                  <span>
+                    due {c.balance.paidThrough.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                    {" · "}
+                    {c.balance.daysRemaining === 0 ? "today" : `in ${c.balance.daysRemaining}d`}
+                  </span>
+                  <span className="text-xs">
+                    {c.assignedTo === user.id ? "👤 you" : c.assigneeName ? `👤 ${c.assigneeName}` : "unassigned"}
+                  </span>
                 </span>
               </li>
             ))}

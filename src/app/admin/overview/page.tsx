@@ -130,9 +130,11 @@ export default async function OverviewPage({
   const [metrics, health, dueAll] = await Promise.all([
     getCompanyMetrics({ ...scope, withCost: showRevenue }),
     getClinicHealth(range, { ...scope, withCost: showRevenue, inactiveDays, anomaly }),
-    showBilling ? listDueClinics() : Promise.resolve([]),
+    showBilling ? listDueClinics({ includeUpcoming: true }) : Promise.resolve([]),
   ]);
-  const due = seesAll ? dueAll : dueAll.filter((c) => c.assignedTo === user.id);
+  const visibleAlerts = seesAll ? dueAll : dueAll.filter((c) => c.assignedTo === user.id);
+  const due = visibleAlerts.filter((c) => c.alert !== "upcoming");
+  const upcoming = visibleAlerts.filter((c) => c.alert === "upcoming");
 
   return (
     <div className="space-y-6">
@@ -252,6 +254,48 @@ export default async function OverviewPage({
                       </RowLink>
                     );
                   })}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Payments coming up — a pre-due heads-up (still paid; lapses within N days) */}
+      {showBilling && upcoming.length > 0 ? (
+        <Card className="border-sky-500/40">
+          <CardHeader>
+            <CardTitle>Payments coming up ({upcoming.length})</CardTitle>
+            <CardDescription>
+              Paid clinics whose subscription lapses soon (within each clinic&apos;s reminder window) — reach out before they fall due.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Clinic</TableHead>
+                    <TableHead>Due date</TableHead>
+                    <TableHead>In</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Account manager</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {upcoming.map((c) => (
+                    <RowLink key={c.id} href={`/admin/clinics/${c.id}`} className="border-b">
+                      <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell className="whitespace-nowrap text-sm">{fmtDate(c.balance.paidThrough)}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="border-transparent bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                          {c.balance.daysRemaining === 0 ? "Due today" : `${c.balance.daysRemaining}d`}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{rs(c.balance.monthlyPrice)}</TableCell>
+                      <TableCell className="text-sm">{c.assigneeName ?? <span className="text-muted-foreground">unassigned</span>}</TableCell>
+                    </RowLink>
+                  ))}
                 </TableBody>
               </Table>
             </div>
