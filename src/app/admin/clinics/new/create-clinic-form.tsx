@@ -22,6 +22,7 @@ import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { PasswordInput } from "@/core/ui/password-input";
 import { SearchableSelect } from "@/core/ui/searchable-select";
+import { MAX_LOGO_BYTES } from "@/core/clinics/logo-limits";
 
 export function CreateClinicForm({
   catalog,
@@ -35,6 +36,7 @@ export function CreateClinicForm({
     FormData
   >(createClinicWithAdmin, {});
   const [assignee, setAssignee] = useState("");
+  const [logoError, setLogoError] = useState<string | null>(null);
   // Success redirects to the clinics list (flash toast); a failed create pops an
   // error toast here, re-triggered per attempt.
   const [errorNonce, setErrorNonce] = useState(0);
@@ -75,6 +77,35 @@ export function CreateClinicForm({
             <p className="text-xs text-muted-foreground">
               The team member who owns this clinic on our side. Can be changed later.
             </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="logo">Logo (optional)</Label>
+            <input
+              id="logo"
+              type="file"
+              name="logo"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                // Block an oversized logo before submit (else the whole create request
+                // trips Next's 1 MB body limit and crashes).
+                if (file && file.size > MAX_LOGO_BYTES) {
+                  setLogoError("Logo is too large — please use an image under 1 MB.");
+                  e.target.value = "";
+                } else {
+                  setLogoError(null);
+                }
+              }}
+              className="block text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-[var(--input-bg)] file:px-3 file:py-1.5 file:text-sm hover:file:bg-accent"
+            />
+            {logoError ? (
+              <p className="text-xs text-destructive">{logoError}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Printed at the top of invoices &amp; receipts (a B&amp;W/thermal printer renders it in
+                black &amp; white). Under 1 MB. Can be added or changed later.
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>

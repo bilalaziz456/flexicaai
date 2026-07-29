@@ -110,6 +110,10 @@ export const clinics = pgTable(
     invoicePaper: text("invoice_paper").notNull().default("a4"),
     invoicePrefix: text("invoice_prefix").notNull().default("INV-"),
     nextInvoiceNo: integer("next_invoice_no").notNull().default(1),
+    // Clinic logo (branding) — an opaque storage key (local FS, per-clinic). Uploaded
+    // by the owner/super-admin/account-manager (not the clinic). Printed in B&W at the
+    // top of documents; NULL = show nothing. See core/clinics/logo.ts.
+    logoKey: text("logo_key"),
     // Patient MRN (Medical Record Number) — a per-clinic, human-friendly patient
     // number formatted as `<mrnPrefix><YYYYMMDD registration><7-digit nextMrn>`, e.g.
     // "KL-202607270000042" (see core/patients/mrn.ts#formatMrn). `nextMrn` is the

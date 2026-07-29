@@ -512,3 +512,10 @@ these for churn-risk + usage/cost anomaly flags.
   it per clinic; it does not affect the super-admin dues dashboard or the hard
   `past_due` lock. `core/admin/billing.ts#setPaymentNoticeEnabled`, gated in
   `src/app/clinic/layout.tsx`.
+- Migration **`0071`** adds `clinics.logo_key` (text, nullable) — the clinic's logo
+  (opaque local-FS storage key, per-clinic `logo/` subdir; cap 1 MB, see
+  `core/clinics/logo-limits.ts`). Uploaded by owner/super-admin/account-manager (clinic
+  detail "Logo" card + optionally the new-clinic form); printed **as uploaded** at the
+  top of invoices/receipts (a B&W/thermal printer renders it mono), inlined as a base64
+  data URI for print reliability (`core/clinics/logo.ts#getClinicLogoDataUri`); the admin
+  preview is served via `GET /api/admin/clinics/[id]/logo`. NULL = print nothing.

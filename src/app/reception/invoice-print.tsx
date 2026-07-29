@@ -6,11 +6,11 @@ import { Button } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
 
-/** Paper formats: browser `@page` size + on-screen sheet width/scale. */
+/** Paper formats: browser `@page` size + on-screen sheet width/scale + logo height. */
 const FORMATS = {
-  thermal: { label: "Thermal", page: "80mm auto", margin: "3mm", width: "80mm", font: "11px" },
-  a5: { label: "A5", page: "A5", margin: "10mm", width: "148mm", font: "12px" },
-  a4: { label: "A4", page: "A4", margin: "14mm", width: "210mm", font: "13px" },
+  thermal: { label: "Thermal", page: "80mm auto", margin: "3mm", width: "80mm", font: "11px", logoH: "40px" },
+  a5: { label: "A5", page: "A5", margin: "10mm", width: "148mm", font: "12px", logoH: "52px" },
+  a4: { label: "A4", page: "A4", margin: "14mm", width: "210mm", font: "13px", logoH: "64px" },
 } as const;
 type Fmt = keyof typeof FORMATS;
 
@@ -22,9 +22,12 @@ type Fmt = keyof typeof FORMATS;
  */
 export function InvoicePrintFrame({
   defaultFormat = "a4",
+  logo = null,
   children,
 }: {
   defaultFormat?: string;
+  /** Clinic logo as a `data:` URI (server-inlined). Printed in B&W at the top; null = none. */
+  logo?: string | null;
   children: React.ReactNode;
 }) {
   const [fmt, setFmt] = useState<Fmt>(
@@ -67,6 +70,27 @@ export function InvoicePrintFrame({
         className="invoice-sheet mx-auto rounded-md border bg-white p-5 text-black shadow-sm"
         style={{ width: `min(100%, ${f.width})`, fontSize: f.font }}
       >
+        {/* Clinic logo — always black & white; sized to the paper format. */}
+        {logo ? (
+          <div className="mb-2 flex justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={logo}
+              alt=""
+              className="object-contain"
+              style={{
+                maxHeight: f.logoH,
+                maxWidth: "70%",
+                // Print the logo AS UPLOADED — the printer handles B&W conversion
+                // (thermal/mono renders it black & white with proper dithering; a
+                // colour printer keeps colour). Forcing a CSS filter either muddies
+                // it (grayscale) or destroys detail (brightness 0).
+                WebkitPrintColorAdjust: "exact",
+                printColorAdjust: "exact",
+              }}
+            />
+          </div>
+        ) : null}
         {children}
         {/* Brand credit — printed at the foot of every document that uses this frame. */}
         <div className="mt-4 border-t border-black/10 pt-2 text-center text-[0.7em] opacity-60">

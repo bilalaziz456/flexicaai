@@ -18,6 +18,7 @@ import {
 } from "@/core/appointments/fee";
 import { displayStaffName } from "@/core/types/auth";
 import { formatMrn } from "@/core/patients/mrn";
+import { getClinicLogoDataUri } from "@/core/clinics/logo";
 import { InvoicePrintFrame } from "@/app/reception/invoice-print";
 
 /**
@@ -73,6 +74,7 @@ export default async function InvoicePage({
       invoicePaper: clinics.invoicePaper,
       signature: clinics.whatsappSignature,
       mrnPrefix: clinics.mrnPrefix,
+      logoKey: clinics.logoKey,
     })
     .from(clinics)
     .where(eq(clinics.id, clinicId))
@@ -81,6 +83,7 @@ export default async function InvoicePage({
     notFound();
   }
   const mrnLabel = formatMrn(clinic?.mrnPrefix, row.patientMrn, row.patientCreatedAt);
+  const logo = await getClinicLogoDataUri(clinic?.logoKey);
 
   const [items, aBill, invoice] = await Promise.all([
     getAppointmentProcedureItems(clinicId, id),
@@ -120,7 +123,7 @@ export default async function InvoicePage({
         </Link>
       </div>
 
-      <InvoicePrintFrame defaultFormat={clinic?.invoicePaper ?? "a4"}>
+      <InvoicePrintFrame defaultFormat={clinic?.invoicePaper ?? "a4"} logo={logo}>
         {/* Header */}
         <div className="flex items-start justify-between gap-3 border-b border-black/20 pb-2">
           <div>

@@ -34,6 +34,8 @@ import { permId, resourcesForClinic, sanitizePermissions } from "@/core/auth/per
 import { recordClinicPayment, setPaymentCommitment, setPaymentNoticeEnabled, syncClinicBillingStatus, voidClinicPayment } from "@/core/admin/billing";
 import { setHealthFollowup } from "@/core/admin/health";
 import { canManageTeam } from "@/core/auth/admin-permissions";
+import { saveClinicFile, deleteFileByKey } from "@/core/integrations/storage";
+import { LOGO_EXT, MAX_LOGO_BYTES } from "@/core/clinics/logo-limits";
 import { backfillClinicSales } from "@/core/sales/ledger";
 import { logActivity } from "@/core/audit/log";
 import { sanitizeLogAccess } from "@/core/audit/access";
@@ -145,6 +147,18 @@ export async function createClinicWithAdmin(
       return { error: "That username is already in use." };
     }
     throw err;
+  }
+
+  // Optional logo picked at creation — save it now the clinic has an id. Invalid
+  // files are skipped silently (the clinic is already created; it can be fixed on
+  // the clinic's Logo card).
+  const logoFile = formData.get("logo");
+  if (newClinicId && logoFile instanceof File && logoFile.size > 0) {
+    const ext = LOGO_EXT[logoFile.type];
+    if (ext && logoFile.size <= MAX_LOGO_BYTES) {
+      const key = await saveClinicFile(newClinicId, "logo", Buffer.from(await logoFile.arrayBuffer()), ext);
+      await db.update(clinics).set({ logoKey: key }).where(eq(clinics.id, newClinicId));
+    }
   }
 
   await logActivity({
@@ -943,6 +957,60 @@ export async function setPaymentNoticeEnabledAction(
     clinicId,
     summary: `${enabled ? "Enabled" : "Disabled"} the payment-due notice for ${c.name}`,
   });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  return { saved: true };
+}
+
+/** Owner/super-admin/account-manager: shared access check for editing a clinic's
+ *  logo — full admin OR the clinic's assigned account manager. */
+async function assertCanEditClinicLogo(
+  clinicId: string,
+): Promise<{ error: string } | { logoKey: string | null }> {
+  const admin = await requireAdminCapability("clinics:edit");
+  const [c] = await db
+    .select({ assignedTo: clinics.assignedTo, logoKey: clinics.logoKey })
+    .from(clinics)
+    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
+    .limit(1);
+  if (!c) return { error: "Clinic not found." };
+  if (!canManageTeam(admin) && c.assignedTo !== admin.id) {
+    return { error: "You can only change clinics assigned to you." };
+  }
+  return { logoKey: c.logoKey };
+}
+
+/** Upload / replace a clinic's logo (owner/super-admin/account-manager). B&W in print. */
+export async function uploadClinicLogo(
+  clinicId: string,
+  _prev: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  const gate = await assertCanEditClinicLogo(clinicId);
+  if ("error" in gate) return gate;
+
+  const file = formData.get("logo");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose an image to upload." };
+  const ext = LOGO_EXT[file.type];
+  if (!ext) return { error: "Use a JPG, PNG or WebP image." };
+  if (file.size > MAX_LOGO_BYTES) return { error: "Image must be under 2 MB." };
+
+  const data = Buffer.from(await file.arrayBuffer());
+  const key = await saveClinicFile(clinicId, "logo", data, ext);
+  await db.update(clinics).set({ logoKey: key, updatedAt: new Date() }).where(eq(clinics.id, clinicId));
+  if (gate.logoKey && gate.logoKey !== key) await deleteFileByKey(gate.logoKey);
+
+  await logActivity({ action: "update", entity: "clinic", entityId: clinicId, clinicId, summary: "Updated the clinic logo" });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  return { saved: true };
+}
+
+/** Remove a clinic's logo (prints revert to no logo). */
+export async function removeClinicLogo(clinicId: string): Promise<AdminActionState> {
+  const gate = await assertCanEditClinicLogo(clinicId);
+  if ("error" in gate) return gate;
+  await db.update(clinics).set({ logoKey: null, updatedAt: new Date() }).where(eq(clinics.id, clinicId));
+  if (gate.logoKey) await deleteFileByKey(gate.logoKey);
+  await logActivity({ action: "update", entity: "clinic", entityId: clinicId, clinicId, summary: "Removed the clinic logo" });
   revalidatePath(`/admin/clinics/${clinicId}`);
   return { saved: true };
 }

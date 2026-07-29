@@ -28,6 +28,7 @@ import {
   TableRow,
 } from "@/core/ui/table";
 import { ClinicSettingsForm } from "./clinic-settings-form";
+import { ClinicLogoForm } from "./clinic-logo-form";
 import { ClinicLifecycle } from "./clinic-lifecycle";
 import { ClinicAssignee } from "./clinic-assignee";
 import { ImpersonateClinic } from "./impersonate-clinic";
@@ -64,6 +65,11 @@ export default async function ClinicDetailPage({
   const showBilling = canSeeBilling(admin);
   const canManageBillingCard = canManageBilling(admin);
   const billing = showBilling ? await getClinicBilling(clinic.id) : null;
+  // Serve the preview via a route (not a data URI) so the large image isn't a prop on
+  // the server-action-using logo form. `v` busts the cache after an upload.
+  const logo = clinic.logoKey
+    ? `/api/admin/clinics/${clinic.id}/logo?v=${clinic.updatedAt.getTime()}`
+    : null;
   const team = await listAssignableTeam();
 
   // Tenant-scoped: this clinic's staff only (byClinic = the isolation boundary).
@@ -126,6 +132,18 @@ export default async function ClinicDetailPage({
           <div className="mt-4 border-t pt-4">
             <ImpersonateClinic clinicId={clinic.id} />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Logo</CardTitle>
+          <CardDescription>
+            Printed at the top of this clinic&apos;s invoices &amp; receipts (in black &amp; white).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ClinicLogoForm clinicId={clinic.id} logo={logo} />
         </CardContent>
       </Card>
 
