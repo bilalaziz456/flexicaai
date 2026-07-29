@@ -1,6 +1,7 @@
 # Financial-history archive — plan (lean, admin-run)
 
-> **Status: DISCUSSION DRAFT.** Nothing built yet. This is the **lean** design — a single
+> **Status: PLAN AGREED, not built.** The design and all §10 decisions are resolved; ready to
+> build when scheduled. This is the **lean** design — a single
 > generic archive table, one reusable import pass, uploaded by the **owner / super admin /
 > account manager** at onboarding, read-only for the clinic afterwards. It supersedes the
 > earlier five-table per-entity draft (kept in git history) — that was more machine than the
@@ -103,9 +104,9 @@ manager**, not a clinic receptionist.
 imported_transactions
   id                uuid pk
   clinic_id         → clinics (cascade)                 -- every read byClinic
-  type              text    -- 'invoice' | 'payment' | 'expense' | 'doctor_payout'
-                            --   (+ 'doctor_earning' if §7.2b is taken). Free text, not an
-                            --   enum, so a new kind needs no migration.
+  type              text    -- 'invoice' | 'payment' | 'refund' | 'expense' | 'doctor_payout'
+                            --   (+ optional 'doctor_earning', §7.2). Free text, not an enum,
+                            --   so a new kind needs no migration.
   txn_date          date    -- the historical date (parseImportDate; no time → no TZ drift)
   amount            int     -- PKR snapshot, as given. Sign by `type` in totals (see below)
   -- who it concerns (snapshot name ALWAYS set; id only when matched) --
@@ -129,9 +130,11 @@ imported_transactions
   specialised report is recoverable without a re-import.
 - **Amounts are int PKR snapshots** — "facts as given"; `parseAmount` strips `Rs`/commas; a
   decimal rounds with a warning.
-- **Sign convention:** amounts stored positive; totals interpret by `type` (invoice + payment
-  are money the *clinic* billed/received; a refund is a `payment` with a `refund` marker in
-  `raw`/`description`, or a negative — decided in §11). Expenses & payouts are money out.
+- **Sign convention (resolved §10.1):** amounts are ALWAYS stored positive; `type` carries the
+  direction. Money in = `payment`; money out to a patient = `refund` (a first-class type — a
+  negative amount in a payments sheet is auto-classified as a `refund` row with a warning, so
+  no `direction` column is needed). Expenses & payouts are money out. Invoices are *billed*
+  (not cash) and total separately.
 - **Snapshot names** (`patient_name`/`doctor_name`) always set, so a row survives the person
   being renamed/trashed — same instinct as `sales.doctor_name`, `activity_logs.actor_name`.
 
@@ -140,8 +143,8 @@ scans; `patient_id`; `doctor_id`; `import_batch_id`; GIN pg_trgm on `patient_nam
 `doctor_name` and a b-tree on `reference` for search.
 
 **Migration:** one additive migration creating the table + indexes, and adding
-`imported_transactions` to `batches.ts#TABLE` so `undoBatch` covers it. No live-table change
-(unless §7.2b is chosen).
+`imported_transactions` to `batches.ts#TABLE` so `undoBatch` covers it. **No live-table
+change** (§7.2a resolved — no `users` column).
 
 ### What is **not** a table (derived, on purpose)
 - **Sales / revenue** = Σ(`type='invoice'`) by day/doctor/period — the invoices *are* the
@@ -205,7 +208,8 @@ double cash expense isn't dropped, but a re-uploaded file is flagged.
 ## 7. The one bridge to live data: opening balances (double-count-proof)
 
 ### 7.1 Patient dues (collectible) — reconcile with the built flat balance
-Today `patients.opening_balance` is set **directly** by the patient import (a flat "old dues"
+**Resolved (§10.2): the derive-from-history toggle defaults OFF.** Today
+`patients.opening_balance` is set **directly** by the patient import (a flat "old dues"
 column), collectible via an `opening` `patient_payment`, and already feeds `receivables.ts`
 and `billing/account.ts`. The archive gives a *more precise* way to the same number: per
 patient, `max(0, Σ invoice net − Σ payments)`.
@@ -223,17 +227,17 @@ To avoid double-counting the dues (once flat, once derived):
 - Existing `opening` payments stay valid — outstanding re-derives net of them
   (`receivables.ts`, `billing/payments.ts#openingOwed`).
 
-### 7.2 Doctor balance (carry-forward) — a decision, flagged
-Klenic's doctor balance is amount-based: Earned (Σ`sale_shares`) − Paid (Σ`doctor_payouts`)
-(`core/sales/payouts.ts`). A clinic can migrate owing a doctor money.
-- **(a) Archive-only (recommended default):** record the history + show it in the viewer;
-  don't touch the live payout balance. The clinic settles the old balance outside Klenic.
-- **(b) Seed a live opening:** add `users.opening_share_balance` (int, default 0) = Σ earnings
-  − Σ payouts, folded into `getDoctorBalances` as opening "Earned". Faithful but touches the
-  live shares report — must be excluded from *period* views (it's an opening, not a dated
-  earning). Needs a `doctor_earning` type in the archive too.
-
-Ship (a); offer (b) only if a clinic asks.
+### 7.2 Doctor balance (carry-forward) — resolved: archive-only
+**Resolved (§10.3): (a) archive-only.** Klenic's doctor balance is amount-based: Earned
+(Σ`sale_shares`) − Paid (Σ`doctor_payouts`) (`core/sales/payouts.ts`). A clinic can migrate
+owing a doctor money — we **record the history** (`doctor_payout`, and the optional
+`doctor_earning` type) and show it in the viewer's doctor-outstanding figure, but do **not**
+touch the live payout balance or add any `users` column. The clinic settles the old balance
+outside Klenic.
+- Future option (only if a clinic asks): seed a live opening via `users.opening_share_balance`
+  = Σ earnings − Σ payouts, folded into `getDoctorBalances`. Deferred — it touches the live
+  shares report and must be excluded from *period* views (it's an opening, not a dated
+  earning), so it isn't worth the risk until there's real demand.
 
 ---
 
@@ -272,19 +276,25 @@ so a future change doesn't casually `UNION` it in.
 
 ---
 
-## 10. Open decisions (need a call before building)
+## 10. Resolved decisions
 
-1. **Refunds in payment history** — a negative amount vs a `refund` marker in `raw`?
-   (Recommend: a small `direction`/marker so totals net correctly, amounts stay positive.)
-2. **Patient-dues path** — default the "derive opening_balance from history" toggle **off**
-   (keep the flat patient-sheet path)? (Recommend yes.)
-3. **Doctor carry-forward** — archive-only (7.2a) vs seed `users.opening_share_balance`
-   (7.2b)? (Recommend 7.2a default.)
-4. **Line-item invoices** — total-only first, per-line (grouped by invoice no into `raw`)
-   later? (Recommend yes.)
-5. **Clinic view** — confirm the clinic gets a read-only viewer (recommended) vs archive
-   visible only to the company. (Recommend clinic-visible — it's the point of "they keep
-   their records".)
+1. **Refunds** — amounts are always stored **positive**; `refund` is a first-class `type`
+   (§5 sign convention). A negative amount in a payments sheet is auto-classified as a
+   `refund` row with a warning. No `direction` column, no marker buried in `raw`.
+2. **Patient-dues path** — the "derive `opening_balance` from history" toggle defaults
+   **OFF** (§7.1). The flat patient-sheet `opening_balance` (already built) stays the primary
+   path; deriving from imported invoices−payments is an explicit opt-in on the payments commit
+   step, and always **sets** (never adds), so the two paths can't stack or double-count.
+3. **Doctor carry-forward** — **archive-only** (§7.2). No `users.opening_share_balance` and no
+   change to the live shares report; `doctor_earning` is an optional archive type feeding only
+   the viewer's doctor-outstanding figure. Seeding a live opening stays a deferred future
+   option.
+4. **Invoices** — **total-only first.** One row per invoice with a net total; any per-line
+   detail present in the sheet is preserved verbatim in `raw` for a later grouped-line view.
+   No per-line modelling in v1.
+5. **Clinic view** — the clinic gets a **read-only** History viewer (§8) so it keeps its
+   records; **upload stays company-only** (owner / super admin / account manager, §4). Company
+   staff view the same data from the clinic detail page + impersonation.
 
 ## 11. Things you might be missing (kept from the deep dive)
 
