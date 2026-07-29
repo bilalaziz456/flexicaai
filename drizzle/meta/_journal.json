@@ -526,6 +526,13 @@
       "when": 1785357017256,
       "tag": "0074_conscious_skreet",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1785359167688,
+      "tag": "0075_steep_wrecker",
+      "breakpoints": true
     }
   ]
 }

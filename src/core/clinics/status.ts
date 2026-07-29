@@ -21,6 +21,19 @@ export function isClinicStatus(v: string): v is ClinicStatus {
   return (CLINIC_STATUSES as readonly string[]).includes(v);
 }
 
+/** Billing-cycle (subscription package) values + human labels. Mirrors the
+ *  `billingCycle` enum on `clinics` (monthly|2m|quarter|half|annual). */
+export const BILLING_CYCLE_LABEL: Record<string, string> = {
+  monthly: "Monthly",
+  "2m": "2-monthly",
+  quarter: "Quarterly",
+  half: "Half-yearly",
+  annual: "Annual",
+};
+export function billingCycleLabel(cycle: string | null | undefined): string {
+  return (cycle && BILLING_CYCLE_LABEL[cycle]) || cycle || "—";
+}
+
 /** Human label for a status badge. */
 export const CLINIC_STATUS_LABEL: Record<ClinicStatus, string> = {
   trial: "Trial",

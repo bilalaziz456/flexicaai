@@ -150,7 +150,12 @@ export const clinics = pgTable(
     // staff from logging in (enforced server-side). Default `active` so existing clinics
     // stay usable; NEW clinics may be created as `trial`.
     status: text("status").notNull().default("active"), // trial|active|suspended|past_due|cancelled
+    // When the clinic's trial began (set when it first enters `trial`; open-ended until
+    // `trial_ends_at`). NULL = never trialled. Distinct from `created_at`.
+    trialStartAt: timestamp("trial_start_at", { withTimezone: true }),
     trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+    // When the clinic became a paying/active tenant (the subscription start). Set on the
+    // status → active transition; also the billing-cycle anchor (see core/admin/billing.ts).
     activatedAt: timestamp("activated_at", { withTimezone: true }),
     suspendedAt: timestamp("suspended_at", { withTimezone: true }),
     suspendReason: text("suspend_reason"),

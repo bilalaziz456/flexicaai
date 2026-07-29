@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { unscoped } from "@/core/db/tenant-guard";
@@ -428,5 +428,33 @@ export async function sweepClinicBillingStatus(): Promise<{ scanned: number; cha
       if (before[0]?.s !== after[0]?.s) changed++;
     }
     return { scanned: cs.length, changed };
+  });
+}
+
+/**
+ * First real payment date per clinic — the earliest `payment` (money in, not a
+ * refund/credit) in `clinic_payments`, for a set of clinic ids. Powers the "First
+ * payment" column on the admin clinics list. Cross-tenant (super-admin), so `unscoped`.
+ */
+export async function getFirstPaymentDates(clinicIds: string[]): Promise<Map<string, Date>> {
+  const out = new Map<string, Date>();
+  if (clinicIds.length === 0) return out;
+  return unscoped("admin: first-payment dates", async () => {
+    const rows = await db
+      .select({
+        clinicId: clinicPayments.clinicId,
+        firstAt: sql<Date>`min(${clinicPayments.occurredAt})`,
+      })
+      .from(clinicPayments)
+      .where(
+        and(
+          inArray(clinicPayments.clinicId, clinicIds),
+          eq(clinicPayments.kind, "payment"),
+          notDeleted(clinicPayments.deletedAt),
+        ),
+      )
+      .groupBy(clinicPayments.clinicId);
+    for (const r of rows) if (r.firstAt) out.set(r.clinicId, new Date(r.firstAt));
+    return out;
   });
 }

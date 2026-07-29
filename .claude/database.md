@@ -388,9 +388,11 @@ own data, which the tenant guard therefore ignores. See `docs/super-admin-plan.m
 `docs/finance-plan.md` and `docs/owner-finance-plan.md`.
 
 **Clinic/user columns added by this layer** (not new tables): `clinics` gained
-subscription **billing** (`monthly_price`, `billing_cycle`, `grace_days`,
-`activated_at`, `status`, invoice counter `next_invoice_no`/`invoice_prefix`/
-`invoice_paper`), **account-manager** `assigned_to` → users (self-ref FK), a
+subscription **billing** (`monthly_price`, `billing_cycle` = the package
+monthly/2m/quarter/half/annual, `grace_days`, lifecycle dates `trial_start_at` /
+`trial_ends_at` / `activated_at` [= subscription/active start] + `status`, invoice
+counter `next_invoice_no`/`invoice_prefix`/`invoice_paper`), **account-manager**
+`assigned_to` → users (self-ref FK), a
 **payment-commitment** follow-up (`payment_commitment_at`/`_note`), a **health
 follow-up / snooze** for churn/usage-flag alerts (`health_followup_at`/`_note` — a
 future date parks the clinic under "Following up" on the Owner Overview instead of
@@ -572,3 +574,10 @@ these for churn-risk + usage/cost anomaly flags.
   undo via `import_batches`), viewed read-only at `/clinic/history`. Excluded from every
   live report by construction; the only bridge is the opt-in `opening_balance` derivation.
   See docs/financial-archive-plan.md.
+- Migration **`0075`** adds `clinics.trial_start_at` (timestamptz) — when a clinic first
+  enters `trial` (stamped by `setClinicStatus`/`extendTrial`, never overwritten; existing
+  trial clinics backfilled from `created_at`). Distinct from `created_at`; pairs with
+  `activated_at` (active/subscription start). The super-admin **clinics list** (`/admin`)
+  now shows trial-start / active-start / **first payment** (earliest `clinic_payments`
+  payment via `getFirstPaymentDates`) / **package** (`billing_cycle`); the two billing
+  columns are billing-viewer-only, and the wide table scrolls horizontally.

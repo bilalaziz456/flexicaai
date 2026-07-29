@@ -328,7 +328,7 @@ export async function setClinicStatus(
   const target = status as ClinicStatus;
 
   const [before] = await db
-    .select({ name: clinics.name, status: clinics.status })
+    .select({ name: clinics.name, status: clinics.status, trialStartAt: clinics.trialStartAt })
     .from(clinics)
     .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
     .limit(1);
@@ -352,6 +352,8 @@ export async function setClinicStatus(
 
   // Field bookkeeping: record when suspended (+ why), and when (re)activated.
   const patch: Record<string, unknown> = { status: target, updatedAt: now };
+  // First time it enters trial → stamp the trial start (never overwrite an earlier one).
+  if (target === "trial" && !before.trialStartAt) patch.trialStartAt = now;
   if (target === "suspended") {
     patch.suspendedAt = now;
     patch.suspendReason = reason?.trim() || null;
@@ -399,7 +401,7 @@ export async function extendTrial(
   }
 
   const [before] = await db
-    .select({ name: clinics.name, trialEndsAt: clinics.trialEndsAt })
+    .select({ name: clinics.name, trialEndsAt: clinics.trialEndsAt, trialStartAt: clinics.trialStartAt })
     .from(clinics)
     .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
     .limit(1);
@@ -413,6 +415,8 @@ export async function extendTrial(
     .update(clinics)
     .set({
       status: "trial",
+      // Stamp the trial start the first time (starting or extending a fresh trial).
+      trialStartAt: before.trialStartAt ?? new Date(),
       trialEndsAt: newEnd,
       // Extending re-enables access — clear any suspension.
       suspendedAt: null,

@@ -5,10 +5,10 @@ import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { clinics, users } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
-import { CLINIC_STATUSES, CLINIC_STATUS_LABEL, isClinicStatus } from "@/core/clinics/status";
+import { CLINIC_STATUSES, CLINIC_STATUS_LABEL, billingCycleLabel, isClinicStatus } from "@/core/clinics/status";
 import { requireRole } from "@/core/auth/user";
 import { canAdmin, canManageTeam, canSeeBilling } from "@/core/auth/admin-permissions";
-import { listDueClinics } from "@/core/admin/billing";
+import { getFirstPaymentDates, listDueClinics } from "@/core/admin/billing";
 import { listAssignableTeam } from "@/core/admin/assignment";
 import { getCompanyMetrics } from "@/core/admin/metrics";
 import { ClinicStatusBadge } from "./clinics/status-badge";
@@ -143,6 +143,14 @@ export default async function AdminHome({
     assigneeSuspended: r.assigneeActive === false,
   }));
 
+  // First real payment per clinic (billing viewers only) — one grouped query over the
+  // page's clinics, so the list stays a single round-trip regardless of clinic count.
+  const firstPayments = showBilling
+    ? await getFirstPaymentDates(allClinics.map((c) => c.id))
+    : new Map<string, Date>();
+  const fmtDate = (d: Date | null | undefined) =>
+    d ? d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+
 
   return (
     <div className="space-y-6">
@@ -240,11 +248,15 @@ export default async function AdminHome({
             : "No clinics yet. Create the first one to enable its specialties and add its admin."}
         </div>
       ) : (
-        <Table>
+        <Table className="min-w-[68rem]">
           <TableHeader>
             <TableRow>
               <TableHead>Clinic</TableHead>
               <TableHead>Status</TableHead>
+              {showBilling ? <TableHead>Package</TableHead> : null}
+              <TableHead>Trial start</TableHead>
+              <TableHead>Active start</TableHead>
+              {showBilling ? <TableHead>First payment</TableHead> : null}
               <TableHead>Assigned to</TableHead>
               <TableHead>Specialties</TableHead>
               <TableHead>Created</TableHead>
@@ -258,6 +270,22 @@ export default async function AdminHome({
                 <TableCell>
                   <ClinicStatusBadge status={clinic.status} />
                 </TableCell>
+                {showBilling ? (
+                  <TableCell className="whitespace-nowrap text-sm">
+                    {billingCycleLabel(clinic.billingCycle)}
+                  </TableCell>
+                ) : null}
+                <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                  {fmtDate(clinic.trialStartAt)}
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                  {fmtDate(clinic.activatedAt)}
+                </TableCell>
+                {showBilling ? (
+                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                    {fmtDate(firstPayments.get(clinic.id))}
+                  </TableCell>
+                ) : null}
                 <TableCell className="text-sm">
                   {clinic.assigneeName ? (
                     <span>
