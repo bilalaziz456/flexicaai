@@ -9,6 +9,8 @@ import { appointments, clinics, patients, users } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { getAppointmentProcedureItems } from "@/core/appointments/procedures";
 import { getAppointmentBill } from "@/core/billing/bill";
+import { listAppointmentPayments } from "@/core/billing/payments";
+import { formatReceiptNo } from "@/core/billing/invoice";
 import {
   computeBill,
   effectiveDiscountValue,
@@ -39,6 +41,8 @@ export default async function ReceiptPage({
     .select({
       scheduledAt: appointments.scheduledAt,
       queueNumber: appointments.queueNumber,
+      receiptNo: appointments.receiptNo,
+      receiptYear: appointments.receiptYear,
       chargeConsultation: appointments.chargeConsultation,
       discountType: appointments.discountType,
       discountValue: appointments.discountValue,
@@ -73,6 +77,7 @@ export default async function ReceiptPage({
       invoicePaper: clinics.invoicePaper,
       signature: clinics.whatsappSignature,
       mrnPrefix: clinics.mrnPrefix,
+      receiptPrefix: clinics.receiptPrefix,
       logoKey: clinics.logoKey,
     })
     .from(clinics)
@@ -84,10 +89,23 @@ export default async function ReceiptPage({
   const mrnLabel = formatMrn(clinic?.mrnPrefix, row.patientMrn, row.patientCreatedAt);
   const logo = await getClinicLogoDataUri(clinic?.logoKey);
 
-  const [aBill, items] = await Promise.all([
+  const [aBill, items, ledger] = await Promise.all([
     getAppointmentBill(clinicId, id),
     getAppointmentProcedureItems(clinicId, id),
+    listAppointmentPayments(clinicId, id),
   ]);
+  // The receipt number (RCP series) + the per-payment breakdown so a partial-payment
+  // receipt is self-explanatory under its one number.
+  const rcpLabel =
+    row.receiptNo != null
+      ? formatReceiptNo(clinic?.receiptPrefix, row.receiptYear ?? row.scheduledAt.getFullYear(), row.receiptNo)
+      : null;
+  const received = ledger.filter((e) => e.kind !== "advance"); // money in/out on THIS visit
+  const KIND_LABEL: Record<string, string> = {
+    payment: "Payment",
+    advance_applied: "Advance applied",
+    refund: "Refund",
+  };
   // Bill breakdown (consultation + procedures), mirroring the invoice.
   const discountType = normalizeDiscountType(row.discountType);
   const doctorFee = row.chargeConsultation ? (row.doctorFee ?? 0) : 0;
@@ -134,6 +152,7 @@ export default async function ReceiptPage({
             <div className="text-[0.9em] opacity-70">Payment receipt</div>
           </div>
           <div className="text-right text-[0.9em]">
+            {rcpLabel ? <div className="font-semibold">{rcpLabel}</div> : null}
             {row.queueNumber != null ? (
               <div className="opacity-70">Appointment #{row.queueNumber}</div>
             ) : null}
@@ -189,6 +208,37 @@ export default async function ReceiptPage({
             )}
           </tbody>
         </table>
+
+        {/* Payments received — each installment under this one receipt number. */}
+        {received.length > 0 ? (
+          <>
+            <div className="mt-3 text-[0.9em] font-semibold opacity-80">Payments received</div>
+            <table className="mt-1 w-full border-collapse text-[0.95em]">
+              <thead>
+                <tr className="border-y border-black/20 text-left">
+                  <th className="py-1 font-normal opacity-70">Date</th>
+                  <th className="py-1 font-normal opacity-70">Type</th>
+                  <th className="py-1 text-right font-normal opacity-70">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {received.map((e) => (
+                  <tr key={e.id}>
+                    <td className="py-1">{fmtDate(e.occurredAt)}</td>
+                    <td className="py-1">
+                      {KIND_LABEL[e.kind] ?? e.kind}
+                      {e.method ? <span className="opacity-70"> · {e.method}</span> : null}
+                    </td>
+                    <td className="py-1 text-right tabular-nums">
+                      {e.kind === "refund" ? "−" : ""}
+                      {formatPkr(e.amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        ) : null}
 
         {/* Summary — one money column: charged → paid → due */}
         <div className="mt-3 space-y-1 border-t border-black/20 pt-2 text-[0.95em]">

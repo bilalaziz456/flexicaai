@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Printer } from "lucide-react";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { requireWorkspace } from "@/core/auth/user";
@@ -152,6 +153,7 @@ export default async function PaymentsPage({
               <table className="hidden w-full text-sm md:table">
                 <thead>
                   <tr className="border-b text-left text-xs text-muted-foreground">
+                    <th className="pb-2 font-normal">Payment #</th>
                     <th className="pb-2 font-normal">Date</th>
                     <th className="pb-2 font-normal">Patient</th>
                     <th className="pb-2 font-normal">Doctor</th>
@@ -159,11 +161,13 @@ export default async function PaymentsPage({
                     <th className="pb-2 font-normal">Method</th>
                     <th className="pb-2 font-normal">By</th>
                     <th className="pb-2 text-right font-normal">Amount</th>
+                    <th className="pb-2 text-right font-normal">Receipt</th>
                   </tr>
                 </thead>
                 <tbody>
                   {ledger.rows.map((r) => (
                     <tr key={r.id} className="border-b last:border-0">
+                      <td className="py-2 font-medium tabular-nums">{r.receiptLabel ?? "—"}</td>
                       <td className="py-2">{dayFmt(r.occurredAt)}</td>
                       <td className="py-2">
                         <Link
@@ -178,6 +182,18 @@ export default async function PaymentsPage({
                       <td className="py-2">{r.method ?? "—"}</td>
                       <td className="py-2 text-muted-foreground">{r.createdByName ?? "—"}</td>
                       <td className="py-2 text-right font-medium tabular-nums">{signed(r)}</td>
+                      <td className="py-2 text-right">
+                        {r.appointmentId ? (
+                          <Link
+                            href={`/clinic/appointments/${r.appointmentId}/receipt`}
+                            className="inline-flex items-center gap-1 text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                          >
+                            <Printer className="size-3.5" aria-hidden="true" /> Print
+                          </Link>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -196,12 +212,21 @@ export default async function PaymentsPage({
                       <span className="font-medium tabular-nums">{signed(r)}</span>
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                      {r.receiptLabel ? <span className="font-medium tabular-nums text-foreground">{r.receiptLabel}</span> : null}
                       <span>{dayFmt(r.occurredAt)}</span>
                       <span>· {KIND_LABEL[r.kind] ?? r.kind}</span>
                       {r.method ? <span>· {r.method}</span> : null}
                       {r.doctorName ? <span>· {r.doctorName}</span> : null}
                       {r.createdByName ? <span>· by {r.createdByName}</span> : null}
                     </div>
+                    {r.appointmentId ? (
+                      <Link
+                        href={`/clinic/appointments/${r.appointmentId}/receipt`}
+                        className="mt-2 inline-flex items-center gap-1 text-xs font-medium underline underline-offset-4"
+                      >
+                        <Printer className="size-3.5" aria-hidden="true" /> Print receipt
+                      </Link>
+                    ) : null}
                   </li>
                 ))}
               </ul>

@@ -512,6 +512,13 @@
       "when": 1785288788748,
       "tag": "0072_wet_dreaming_celestial",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1785291079564,
+      "tag": "0073_medical_warstar",
+      "breakpoints": true
     }
   ]
 }

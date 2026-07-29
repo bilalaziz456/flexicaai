@@ -3,8 +3,20 @@ import "server-only";
 import { and, desc, eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, patientPayments, patients, users } from "@/core/db/schema";
+import { appointments, clinics, patientPayments, patients, users } from "@/core/db/schema";
 import { displayStaffName } from "@/core/types/auth";
+import { formatReceiptNo } from "@/core/billing/invoice";
+
+/** Clinic prefixes needed to reconstruct the searchable RCP receipt # + MRN #. */
+type SearchPrefixes = { receiptPrefix: string; mrnPrefix: string };
+async function getSearchPrefixes(clinicId: string): Promise<SearchPrefixes> {
+  const [c] = await db
+    .select({ receiptPrefix: clinics.receiptPrefix, mrnPrefix: clinics.mrnPrefix })
+    .from(clinics)
+    .where(eq(clinics.id, clinicId))
+    .limit(1);
+  return { receiptPrefix: c?.receiptPrefix ?? "", mrnPrefix: c?.mrnPrefix ?? "" };
+}
 
 /**
  * Payments ledger (Finance) — CORE read of the money-in/out subledger across the
@@ -28,6 +40,7 @@ export type PaymentLedgerRow = {
   patientPhone: string | null;
   appointmentId: string | null;
   doctorName: string | null;
+  receiptLabel: string | null; // the RCP # of the payment's visit (null for unallocated advances)
 };
 
 export type PaymentLedgerFilters = {
@@ -50,7 +63,7 @@ export type PaymentLedger = {
 /** `refund` is money OUT; everything else is money in. Kept in sync with daybook. */
 const OUT_KINDS = new Set(["refund"]);
 
-function conds(clinicId: string, f: PaymentLedgerFilters, extra?: SQL) {
+function conds(clinicId: string, f: PaymentLedgerFilters, px: SearchPrefixes, extra?: SQL) {
   const parts = [notDeleted(patientPayments.deletedAt)];
   if (f.from) parts.push(gte(patientPayments.occurredAt, f.from));
   if (f.toExclusive) parts.push(lt(patientPayments.occurredAt, f.toExclusive));
@@ -59,7 +72,18 @@ function conds(clinicId: string, f: PaymentLedgerFilters, extra?: SQL) {
   if (f.doctorId) parts.push(eq(appointments.doctorId, f.doctorId));
   if (f.q) {
     const like = `%${f.q}%`;
-    parts.push(or(ilike(patients.fullName, like), ilike(patients.phone, like))!);
+    // Match the SQL date to formatMrn's server-local rendering (see invoice search).
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    parts.push(
+      or(
+        ilike(patients.fullName, like),
+        ilike(patients.phone, like),
+        // Payment # = the RCP receipt number on the payment's appointment.
+        sql`(${px.receiptPrefix} || ${appointments.receiptYear}::text || '-' || lpad(${appointments.receiptNo}::text, 7, '0')) ilike ${like}`,
+        // MRN # of the patient.
+        sql`(${px.mrnPrefix} || to_char(${patients.createdAt} AT TIME ZONE ${tz}, 'YYYYMMDD') || lpad(${patients.mrn}::text, 7, '0')) ilike ${like}`,
+      )!,
+    );
   }
   if (extra) parts.push(extra);
   return byClinic(patientPayments.clinicId, clinicId, and(...parts));
@@ -69,7 +93,9 @@ export async function getPaymentsLedger(
   clinicId: string,
   filters: PaymentLedgerFilters = {},
 ): Promise<PaymentLedger> {
-  const where = conds(clinicId, filters);
+  // Always needed now (the RCP # is shown on every row), and reused for search.
+  const px = await getSearchPrefixes(clinicId);
+  const where = conds(clinicId, filters, px);
 
   const [rows, [{ total }], [sums]] = await Promise.all([
     db
@@ -86,6 +112,8 @@ export async function getPaymentsLedger(
         patientName: patients.fullName,
         patientPhone: patients.phone,
         appointmentId: patientPayments.appointmentId,
+        receiptNo: appointments.receiptNo,
+        receiptYear: appointments.receiptYear,
         doctorPrefix: users.prefix,
         doctorFullName: users.fullName,
         doctorUsername: users.username,
@@ -137,6 +165,10 @@ export async function getPaymentsLedger(
         r.doctorFullName || r.doctorUsername
           ? displayStaffName(r.doctorPrefix, r.doctorFullName, r.doctorUsername ?? "")
           : null,
+      receiptLabel:
+        r.receiptNo != null
+          ? formatReceiptNo(px.receiptPrefix, r.receiptYear ?? r.occurredAt.getFullYear(), r.receiptNo)
+          : null,
     })),
     total: Number(total),
     totals: { in: moneyIn, out: moneyOut, net: moneyIn - moneyOut },
@@ -154,6 +186,7 @@ export async function* iteratePaymentsLedger(
   filters: PaymentLedgerFilters = {},
   batchSize = 5000,
 ): AsyncGenerator<PaymentLedgerRow> {
+  const px = await getSearchPrefixes(clinicId);
   // Kept as its own function so its (concrete) result type doesn't depend on the
   // loop's cursor — otherwise the batch/cursor types infer circularly.
   const page = (keyset: SQL | undefined) =>
@@ -174,6 +207,8 @@ export async function* iteratePaymentsLedger(
         patientName: patients.fullName,
         patientPhone: patients.phone,
         appointmentId: patientPayments.appointmentId,
+        receiptNo: appointments.receiptNo,
+        receiptYear: appointments.receiptYear,
         doctorPrefix: users.prefix,
         doctorFullName: users.fullName,
         doctorUsername: users.username,
@@ -182,7 +217,7 @@ export async function* iteratePaymentsLedger(
       .innerJoin(patients, eq(patients.id, patientPayments.patientId))
       .leftJoin(appointments, eq(appointments.id, patientPayments.appointmentId))
       .leftJoin(users, eq(users.id, appointments.doctorId))
-      .where(conds(clinicId, filters, keyset))
+      .where(conds(clinicId, filters, px, keyset))
       .orderBy(desc(patientPayments.occurredAt), desc(patientPayments.id))
       .limit(batchSize);
 
@@ -211,6 +246,10 @@ export async function* iteratePaymentsLedger(
         doctorName:
           r.doctorFullName || r.doctorUsername
             ? displayStaffName(r.doctorPrefix, r.doctorFullName, r.doctorUsername ?? "")
+            : null,
+        receiptLabel:
+          r.receiptNo != null
+            ? formatReceiptNo(px.receiptPrefix, r.receiptYear ?? r.occurredAt.getFullYear(), r.receiptNo)
             : null,
       };
     }

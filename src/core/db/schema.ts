@@ -113,6 +113,12 @@ export const clinics = pgTable(
     // The calendar year `next_invoice_no` currently belongs to. Invoice numbers RESET
     // to 1 each new year → the label is `<prefix><YYYY>-<7-digit>` (e.g. INV-2026-0000005).
     invoiceYear: integer("invoice_year"),
+    // Payment-receipt numbering — a per-clinic series distinct from invoices, allocated
+    // once per appointment on first money-in (`core/billing/payments.ts`), also RESET per
+    // year. Label `<receipt_prefix><YYYY>-<7-digit>` (e.g. RCP-2026-0000012).
+    receiptPrefix: text("receipt_prefix").notNull().default("RCP-"),
+    nextReceiptNo: integer("next_receipt_no").notNull().default(1),
+    receiptYear: integer("receipt_year"),
     // Clinic logo (branding) — an opaque storage key (local FS, per-clinic). Uploaded
     // by the owner/super-admin/account-manager (not the clinic). Printed in B&W at the
     // top of documents; NULL = show nothing. See core/clinics/logo.ts.
@@ -539,6 +545,11 @@ export const appointments = pgTable(
     // core/appointments/queue.ts.
     queueSession: text("queue_session"),
     queueNumber: integer("queue_number"),
+    // Payment-receipt number (RCP series), allocated ONCE on the first money-in for
+    // this visit (`core/billing/payments.ts`) — NULL until then. Resets per year; the
+    // label is `<clinics.receipt_prefix><receipt_year>-<7-digit receipt_no>`.
+    receiptNo: integer("receipt_no"),
+    receiptYear: integer("receipt_year"),
     ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -549,6 +560,10 @@ export const appointments = pgTable(
   },
   (t) => [
     index("appointments_clinic_id_idx").on(t.clinicId),
+    // Receipt numbers are unique per clinic per year (they reset each year).
+    uniqueIndex("appointments_receipt_unique")
+      .on(t.clinicId, t.receiptYear, t.receiptNo)
+      .where(sql`${t.receiptNo} is not null`),
     index("appointments_patient_id_idx").on(t.patientId),
     // Calendar/day views query by clinic + time window.
     index("appointments_clinic_scheduled_idx").on(t.clinicId, t.scheduledAt),

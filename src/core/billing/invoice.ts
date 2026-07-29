@@ -26,6 +26,9 @@ export function formatInvoiceNo(
   return `${prefix ?? ""}${year}-${String(no).padStart(7, "0")}`;
 }
 
+/** Payment-receipt number — same shape as an invoice number, different series/prefix. */
+export const formatReceiptNo = formatInvoiceNo;
+
 export type IssuedInvoice = {
   id: string;
   invoiceNo: number;

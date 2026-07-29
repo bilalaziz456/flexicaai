@@ -527,3 +527,11 @@ these for churn-risk + usage/cost anomaly flags.
   clinic row and resets on a year rollover. Existing invoices backfilled (`invoice_year`
   from `issued_at`) and re-rendered in the new format. (Distinct from the company-side
   `clinic_invoices`, which keeps its own global numbering.)
+- Migration **`0073`** — **payment-receipt numbering** (RCP series, distinct from
+  invoices). Adds `clinics.receipt_prefix`/`next_receipt_no`/`receipt_year` +
+  `appointments.receipt_no`/`receipt_year` (partial-unique per clinic+year). The number
+  is allocated ONCE on the first money-in for a visit (`core/billing/payments.ts#ensureReceiptNumber`,
+  clinic-row-locked, resets per year) → label `<receipt_prefix><YYYY>-<7-digit>` (e.g.
+  `RCP-2026-0000012`, `formatReceiptNo`). Existing paid visits backfilled. The receipt
+  prints the RCP # + a per-payment breakdown; the `/clinic/payments` ledger is searchable
+  by payment # (RCP) and MRN #.

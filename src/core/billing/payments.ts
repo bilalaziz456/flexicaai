@@ -4,7 +4,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
-import { appointments, patientPayments, patients } from "@/core/db/schema";
+import { appointments, clinics, patientPayments, patients } from "@/core/db/schema";
 import { getAppointmentBill } from "@/core/billing/bill";
 import { recordSaleForAppointment } from "@/core/sales/ledger";
 
@@ -19,6 +19,39 @@ import { recordSaleForAppointment } from "@/core/sales/ledger";
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Actor = { id: string; name: string };
 type PayResult = { error: string } | { ok: true; paid: number; credited: number };
+
+/**
+ * Allocate a per-visit payment-receipt number (RCP series) the FIRST time money is
+ * received on an appointment — idempotent (skips if it already has one). Resets to 1
+ * each new year, allocated under a clinic-row lock so concurrent receptionists never
+ * collide (mirrors invoice numbering). Never cleared once set (like an invoice #).
+ */
+async function ensureReceiptNumber(tx: Tx, clinicId: string, appointmentId: string): Promise<void> {
+  const [a] = await tx
+    .select({ receiptNo: appointments.receiptNo })
+    .from(appointments)
+    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
+    .limit(1);
+  if (!a || a.receiptNo != null) return;
+
+  const [c] = await tx
+    .select({ next: clinics.nextReceiptNo, year: clinics.receiptYear })
+    .from(clinics)
+    .where(eq(clinics.id, clinicId))
+    .for("update")
+    .limit(1);
+  if (!c) return;
+  const currentYear = new Date().getFullYear();
+  const allocated = c.year === currentYear ? c.next : 1;
+  await tx
+    .update(clinics)
+    .set({ nextReceiptNo: allocated + 1, receiptYear: currentYear, updatedAt: new Date() })
+    .where(eq(clinics.id, clinicId));
+  await tx
+    .update(appointments)
+    .set({ receiptNo: allocated, receiptYear: currentYear })
+    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)));
+}
 
 /** Recompute an appointment's collected cache from its live ledger rows. */
 async function recomputeCollected(
@@ -42,10 +75,13 @@ async function recomputeCollected(
         ),
       ),
     );
+  const collected = Math.max(0, Number(row?.c ?? 0));
   await tx
     .update(appointments)
-    .set({ amountCollected: Math.max(0, Number(row?.c ?? 0)), updatedAt: new Date() })
+    .set({ amountCollected: collected, updatedAt: new Date() })
     .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)));
+  // Stamp the receipt number on the first money-in for this visit.
+  if (collected > 0) await ensureReceiptNumber(tx, clinicId, appointmentId);
 }
 
 /** A patient's unallocated advance credit = Σadvance − Σadvance_applied − Σrefund(unallocated). */

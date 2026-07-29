@@ -71,12 +71,12 @@ export async function GET(req: Request) {
     };
     const rows = async function* () {
       for await (const r of iteratePaymentsLedger(clinicId, filters)) {
-        yield [ymd(r.occurredAt), r.patientName, r.patientPhone ?? "", r.doctorName ?? "", r.kind, r.method ?? "", r.reference ?? "", r.amount, isMoneyOut(r.kind) ? "out" : "in", r.createdByName ?? "", r.note ?? ""];
+        yield [r.receiptLabel ?? "", ymd(r.occurredAt), r.patientName, r.patientPhone ?? "", r.doctorName ?? "", r.kind, r.method ?? "", r.reference ?? "", r.amount, isMoneyOut(r.kind) ? "out" : "in", r.createdByName ?? "", r.note ?? ""];
       }
     };
     return streamCsvResponse({
       filename: `payments-${range.from}_to_${range.to}`,
-      headers: ["Date", "Patient", "Phone", "Doctor", "Type", "Method", "Reference", "Amount", "Direction", "By", "Note"],
+      headers: ["Payment #", "Date", "Patient", "Phone", "Doctor", "Type", "Method", "Reference", "Amount", "Direction", "By", "Note"],
       rows: rows(),
     });
   }
