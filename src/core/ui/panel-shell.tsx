@@ -13,6 +13,7 @@ import {
   ChevronRight,
   ClipboardList,
   Contact,
+  Archive,
   FileSpreadsheet,
   FileText,
   HandCoins,
@@ -153,6 +154,7 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; nodes: NavNode[] }> = {
           { href: "/clinic/expenses", label: "Expenses", Icon: Receipt, resource: "expenses" },
           { href: "/clinic/pl", label: "Profit & Loss", Icon: Wallet, resource: "finance" },
           { href: "/clinic/reports", label: "Reports", Icon: FileSpreadsheet },
+          { href: "/clinic/history", label: "History", Icon: Archive, resource: "billing" },
           { href: "/clinic/approvals", label: "Discount approvals", Icon: BadgeCheck },
         ],
       },
@@ -206,6 +208,7 @@ const SALES_HREFS = new Set([
   "/clinic/discounts",
   "/clinic/payments",
   "/clinic/invoices",
+  "/clinic/history",
 ]);
 
 /**

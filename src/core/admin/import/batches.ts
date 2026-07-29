@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/core/db";
-import { importBatches, patients, procedures, visits } from "@/core/db/schema";
+import { importBatches, importedTransactions, patients, procedures, visits } from "@/core/db/schema";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import type { ImportEntity } from "./types";
 
@@ -33,7 +33,17 @@ export async function listBatches(clinicId: string): Promise<BatchRow[]> {
     .orderBy(desc(importBatches.createdAt));
 }
 
-const TABLE = { patients, procedures, visits } as const;
+// Each import entity → the table its rows live in. The four financial-archive passes
+// all write the ONE `imported_transactions` table, so undo soft-deletes by batch there.
+const TABLE = {
+  patients,
+  procedures,
+  visits,
+  fin_invoice: importedTransactions,
+  fin_payment: importedTransactions,
+  fin_expense: importedTransactions,
+  fin_payout: importedTransactions,
+} as const;
 
 /**
  * Undo an import — soft-deletes every LIVE row the batch created (one delete group)

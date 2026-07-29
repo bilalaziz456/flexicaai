@@ -15,6 +15,7 @@ import { getDayBookLines } from "@/core/finance/daybook";
 import { getReceivablesReport } from "@/core/finance/receivables";
 import { iteratePaymentsLedger, isMoneyOut } from "@/core/finance/payments-ledger";
 import { getInvoicesList } from "@/core/billing/invoice";
+import { listImportedTransactions, HISTORY_TABS } from "@/core/finance/imported-history";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
 
 /**
@@ -183,6 +184,24 @@ export async function GET(req: Request) {
       pl.plBuckets.map((b) => [b.label, b.revenue, b.share + b.expense, b.profit]),
     );
     csv = `Profit & Loss,${range.from} to ${range.to}\r\n\r\n${summary}\r\n\r\nBy period\r\n${byPeriod}`;
+  } else if (type === "history") {
+    // Imported financial-history archive (read-only). Same gate as the viewer.
+    if (!hasSales || !can(user, "billing", "view")) return new Response("Forbidden", { status: 403 });
+    const tab = HISTORY_TABS.find((t) => t.id === url.searchParams.get("htype")) ?? HISTORY_TABS[0];
+    const period = url.searchParams.get("period") ?? "all";
+    const range = period && period !== "all" ? resolveSalesRange(period, url.searchParams.get("from") ?? undefined, url.searchParams.get("to") ?? undefined) : null;
+    const { rows } = await listImportedTransactions(clinicId, {
+      types: tab.types,
+      from: range ? ymd(range.start) : undefined,
+      toExclusive: range ? ymd(range.end) : undefined,
+      q: url.searchParams.get("q") || undefined,
+      limit: 10000,
+    });
+    name = range ? `history-${tab.id}-${range.from}_to_${range.to}` : `history-${tab.id}`;
+    csv = toCsv(
+      ["Date", "Reference", "Patient", "Doctor", "Details", "Method", "Type", "Amount"],
+      rows.map((r) => [r.txnDate ?? "", r.reference ?? "", r.patientName ?? "", r.doctorName ?? "", r.description ?? "", r.method ?? "", r.type, r.type === "refund" ? -r.amount : r.amount]),
+    );
   } else {
     return new Response("Unknown report", { status: 400 });
   }

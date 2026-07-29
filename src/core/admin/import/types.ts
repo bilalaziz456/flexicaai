@@ -2,7 +2,23 @@
  * Shared import types + helpers — CORE (client-safe: no server-only, no DB). See
  * docs/import-plan.md.
  */
-export type ImportEntity = "patients" | "procedures" | "visits";
+export type ImportEntity =
+  | "patients"
+  | "procedures"
+  | "visits"
+  // Financial-history archive (read-only, per-transaction). See
+  // docs/financial-archive-plan.md. One generic `imported_transactions` table; the
+  // entity picks the transaction TYPE + column catalog for that upload pass.
+  | "fin_invoice"
+  | "fin_payment"
+  | "fin_expense"
+  | "fin_payout";
+
+/** The financial-archive import passes (money history), grouped apart from records. */
+export const FINANCIAL_ENTITIES: ImportEntity[] = ["fin_invoice", "fin_payment", "fin_expense", "fin_payout"];
+export function isFinancialEntity(e: ImportEntity): boolean {
+  return FINANCIAL_ENTITIES.includes(e);
+}
 
 export type RowIssue = { row: number; level: "error" | "warning"; message: string };
 
@@ -17,6 +33,9 @@ export type ImportPreview = {
   errored: number; // excluded (missing required field)
   warnings: number; // imported, but flagged
   issues: RowIssue[]; // capped for display
+  // Financial imports only: money totals of the READY rows, so the operator can
+  // reconcile against the old system before committing (e.g. "billed Rs 3,120,000").
+  totals?: { label: string; amount: number }[];
 };
 
 export type ImportResult = {

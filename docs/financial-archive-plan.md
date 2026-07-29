@@ -1,7 +1,7 @@
 # Financial-history archive — plan (lean, admin-run)
 
-> **Status: PLAN AGREED, not built.** The design and all §10 decisions are resolved; ready to
-> build when scheduled. This is the **lean** design — a single
+> **Status: BUILT (migration `0074`).** Shipped as designed, with two implementation notes
+> below. This is the **lean** design — a single
 > generic archive table, one reusable import pass, uploaded by the **owner / super admin /
 > account manager** at onboarding, read-only for the clinic afterwards. It supersedes the
 > earlier five-table per-entity draft (kept in git history) — that was more machine than the
@@ -334,3 +334,32 @@ so a future change doesn't casually `UNION` it in.
    doc → "Built".
 
 Each step is independently shippable; a clinic that only wants old bills can stop after step 3.
+
+---
+
+## 13. As-built notes (deviations from the plan)
+
+Two things changed once the code was in front of us; both make the feature *more*
+consistent with the existing codebase, not less:
+
+1. **No new `import_financial` ACL slug — reused `import:create`.** The plan (§4/§10) assumed
+   the built importer was clinic-self-service, so a separate money-import capability looked
+   like real least-privilege. It isn't: `import:create` is already an **admin-side**
+   capability that gates importing patients (PII) *and* clinical notes (medical data) for a
+   clinic. Financial history is no more sensitive than clinical notes, and a separate slug
+   added a per-entity capability branch + preset churn for no real gain. So the four
+   financial passes ride the **same** `import:create` gate and the **same** assignment scope
+   (owner/super-admin all clinics; account manager only assigned). An owner who wants an AM
+   to run imports grants `import:create` exactly as before.
+2. **Extended the existing importer rather than a parallel page.** The upload lives in the
+   existing `/admin/clinics/[id]/import` wizard as a second entity group ("Financial history
+   (read-only archive)") — four passes (`fin_invoice`/`fin_payment`/`fin_expense`/
+   `fin_payout`) that all commit to the one `imported_transactions` table. This reuses the
+   whole preview/commit/undo/mapping UI; the archive-only bits (the reconciliation **totals
+   footer** and the opt-in **opening-balance** toggle, payments pass only) render just for
+   the financial entities. The clinic-side **read-only viewer** is the new `/clinic/history`.
+
+Everything else shipped as written: one generic table, `raw` verbatim, refunds as a
+first-class type, doctor-carry-forward archive-only, total-only invoices, clinic-visible
+viewer, and the double-count-proof opening-balance bridge (verified end-to-end:
+5000 billed − 2000 paid + 500 refund → opening balance 3500).

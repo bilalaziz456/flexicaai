@@ -348,6 +348,35 @@ doctor) that must sign off before an appointment's discount applies. Rows are
 unchanged). Indexes: (`appointment_id`); (`clinic_id`,`status`);
 (`approver_doctor_id`,`status`).
 
+### `imported_transactions` — read-only financial-history archive (financial-archive-plan.md)
+A clinic migrating off its old PMS uploads its old **bills / receipts / expenses /
+doctor-payouts** as per-transaction rows so the past is searchable inside Klenic forever.
+**READ-ONLY archive — NEVER joined by a live report.** Klenic's money
+(sales/shares/receivables/P&L) is DERIVED from completed appointments; these rows never
+happened *in Klenic*, so they must not enter those ledgers (a separate table, not an
+`imported` flag, makes exclusion the default). ONE generic table with a `type`
+discriminator (not five per-entity tables): `id`, `clinic_id` → clinics (cascade), `type`
+(free text — 'invoice'|'payment'|'refund'|'expense'|'doctor_payout'), `txn_date` date
+(as given, nullable → a warning), `amount` int (PKR, **always positive**; `type` carries
+direction — money in = payment, out to a patient = refund, expense/payout = out),
+`patient_id` → patients (set null; matched by old-ref → phone → exact name, else archived
+UNLINKED) + `patient_name`/`external_patient_ref` snapshots, `doctor_id` → users (set
+null; matched by name) + `doctor_name` snapshot, `description`/`reference`/`method`, `raw`
+jsonb (**the ENTIRE original row verbatim** — nothing lost, a future specialised report
+recoverable without re-import), `import_batch_id` (undo group, no FK), soft-delete,
+timestamps. Uploaded ADMIN-side (owner/super-admin/account-manager) via the clinic-detail
+importer (`/admin/clinics/[id]/import`, gated by `import:create` + assignment scope),
+reusing the whole import machinery (parse → map → dry-run preview **with a reconciliation
+totals footer** → batch commit → undo). The clinic gets a READ-ONLY viewer
+(`/clinic/history`, gated by the `sales` feature + `billing:view`) with a "Historical —
+read-only" banner + type/period/text filters + CSV; `core/finance/imported-history.ts` is
+the ONLY reader. The one sanctioned bridge to live data: an **opt-in** (default off) toggle
+on the payments commit **SETS** (never adds) each affected patient's
+`patients.opening_balance` = max(0, Σ imported invoices − Σ payments + Σ refunds), so the
+flat and derived dues paths can't stack. Indexes: (`clinic_id`,`type`,`txn_date`);
+`patient_id`; `doctor_id`; `import_batch_id`; pg_trgm on `patient_name`/`doctor_name`;
+(`clinic_id`,`reference`); partial trash index. (Migration `0074`.)
+
 ---
 
 ## 3b. Super-admin control plane & Owner Finance
@@ -535,3 +564,11 @@ these for churn-risk + usage/cost anomaly flags.
   `RCP-2026-0000012`, `formatReceiptNo`). Existing paid visits backfilled. The receipt
   prints the RCP # + a per-payment breakdown; the `/clinic/payments` ledger is searchable
   by payment # (RCP) and MRN #.
+- Migration **`0074`** — the **read-only financial-history archive**: adds the
+  `imported_transactions` table (see §3). One generic table (type discriminator + `raw`
+  jsonb) for a clinic's pre-Klenic bills/receipts/expenses/doctor-payouts, uploaded
+  admin-side via the existing clinic-detail importer (four new `ImportEntity` passes —
+  `fin_invoice`/`fin_payment`/`fin_expense`/`fin_payout` — all writing this one table,
+  undo via `import_batches`), viewed read-only at `/clinic/history`. Excluded from every
+  live report by construction; the only bridge is the opt-in `opening_balance` derivation.
+  See docs/financial-archive-plan.md.

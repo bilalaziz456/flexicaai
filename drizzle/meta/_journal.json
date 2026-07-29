@@ -519,6 +519,13 @@
       "when": 1785291079564,
       "tag": "0073_medical_warstar",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1785357017256,
+      "tag": "0074_conscious_skreet",
+      "breakpoints": true
     }
   ]
 }

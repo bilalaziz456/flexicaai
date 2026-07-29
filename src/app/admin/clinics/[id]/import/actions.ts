@@ -8,8 +8,12 @@ import type { ImportEntity, ImportPreview, ImportResult } from "@/core/admin/imp
 
 const MAX_BYTES = 15 * 1024 * 1024; // 15 MB
 
+const ENTITIES: ImportEntity[] = [
+  "patients", "procedures", "visits",
+  "fin_invoice", "fin_payment", "fin_expense", "fin_payout",
+];
 function entityOf(v: FormDataEntryValue | null): ImportEntity {
-  return v === "procedures" ? "procedures" : v === "visits" ? "visits" : "patients";
+  return typeof v === "string" && (ENTITIES as string[]).includes(v) ? (v as ImportEntity) : "patients";
 }
 
 function mappingOf(v: FormDataEntryValue | null): Record<string, string> | null {
@@ -58,7 +62,8 @@ export async function commitImportAction(
   if ("error" in file) return file;
   try {
     const name = displayStaffName(admin.prefix, admin.fullName, admin.username);
-    const result = await commitImport(clinicId, entity, file.name, file.buf, { id: admin.id, name }, mappingOf(formData.get("mapping")));
+    const deriveOpeningBalance = formData.get("deriveOpeningBalance") === "1";
+    const result = await commitImport(clinicId, entity, file.name, file.buf, { id: admin.id, name }, mappingOf(formData.get("mapping")), { deriveOpeningBalance });
     revalidatePath(`/admin/clinics/${clinicId}/import`);
     return result;
   } catch (e) {

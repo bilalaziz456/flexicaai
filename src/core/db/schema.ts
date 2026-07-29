@@ -878,6 +878,77 @@ export const importBatches = pgTable(
 );
 
 /**
+ * Imported financial-history archive (Feature: financial-archive-plan.md). A clinic
+ * migrating off its old PMS uploads its old bills/receipts/expenses/doctor-payouts as
+ * per-transaction rows so the past is searchable inside Klenic forever.
+ *
+ * READ-ONLY archive — NEVER joined by a live report. Klenic's money (sales/shares/
+ * receivables/P&L) is derived from completed appointments through the billing engine;
+ * these rows never happened *in Klenic*, so they must not enter those ledgers or they
+ * would double-count revenue and distort every metric. The ONLY sanctioned bridge to
+ * live data is the collectible remainder → `patients.opening_balance` (opt-in on the
+ * payments commit). One generic table (not five per-entity) with a `type` discriminator
+ * and a `raw` jsonb keeping the original row verbatim, so nothing is lost.
+ *
+ * Uploaded admin-side (owner/super-admin/account-manager) via the clinic-detail
+ * importer, gated by `import:create`; the clinic gets a read-only viewer. Reuses the
+ * import machinery: `import_batch_id` groups a batch, undone by soft-deleting the group.
+ */
+export const importedTransactions = pgTable(
+  "imported_transactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    // 'invoice' | 'payment' | 'refund' | 'expense' | 'doctor_payout' (+ optional
+    // 'doctor_earning'). Free text, not an enum, so a new kind needs no migration.
+    type: text("type").notNull(),
+    // The historical date, as given (date-only → no timezone drift). Nullable: a row
+    // with no parseable date is a data-quality warning, not a silent now().
+    txnDate: date("txn_date"),
+    // Whole-PKR snapshot, ALWAYS positive; `type` carries the direction (money in =
+    // payment; money out to a patient = refund; expense/doctor_payout = money out).
+    amount: integer("amount").notNull().default(0),
+    // Who it concerns. Snapshot name ALWAYS set; the *_id only when matched to a live
+    // record (both nullable — a money sheet may reference people not in Klenic).
+    patientId: uuid("patient_id").references(() => patients.id, { onDelete: "set null" }),
+    patientName: text("patient_name"),
+    externalPatientRef: text("external_patient_ref"), // their old patient no. (match + display)
+    doctorId: uuid("doctor_id").references(() => users.id, { onDelete: "set null" }),
+    doctorName: text("doctor_name"),
+    // Descriptive, all as given.
+    description: text("description"), // line summary / category / memo
+    reference: text("reference"), // their old invoice / receipt / voucher no.
+    method: text("method"), // cash | bank | cheque | card | other (payments)
+    // The ENTIRE original row, verbatim — so nothing is lost and a future specialised
+    // report is recoverable without a re-import.
+    raw: jsonb("raw").$type<Record<string, string>>(),
+    // The import batch this row came from (undo group). No FK — batches are a
+    // company-side record (matches patients.importBatchId).
+    importBatchId: uuid("import_batch_id"),
+    ...softDeleteColumns(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // The viewer scans "this clinic's rows of this type, by date".
+    index("imported_txn_clinic_type_date_idx").on(t.clinicId, t.type, t.txnDate),
+    index("imported_txn_patient_idx").on(t.patientId),
+    index("imported_txn_doctor_idx").on(t.doctorId),
+    index("imported_txn_batch_idx").on(t.importBatchId),
+    // Contains-search on the person + their old document number.
+    index("imported_txn_patient_trgm_idx").using("gin", t.patientName.op("gin_trgm_ops")),
+    index("imported_txn_doctor_trgm_idx").using("gin", t.doctorName.op("gin_trgm_ops")),
+    index("imported_txn_reference_idx").on(t.clinicId, t.reference),
+    // Trash listing (undo) per clinic: only trashed rows.
+    index("imported_txn_deleted_idx")
+      .on(t.clinicId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
+  ],
+);
+
+/**
  * Per-(doctor, procedure) revenue-share OVERRIDE (percent 0-100). A row = a
  * specific rate for that doctor on that procedure (a stored `0` means "0% — all to
  * the clinic", which is DIFFERENT from having no row → fall back to the doctor's
@@ -1883,3 +1954,4 @@ export type Appointment = typeof appointments.$inferSelect;
 export type Visit = typeof visits.$inferSelect;
 export type Recall = typeof recalls.$inferSelect;
 export type WhatsappMessage = typeof whatsappMessages.$inferSelect;
+export type ImportedTransaction = typeof importedTransactions.$inferSelect;
