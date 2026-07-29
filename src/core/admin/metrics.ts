@@ -28,6 +28,10 @@ export type CompanyMetrics = {
   collectedThisYear: number;
   overdueTotal: number;
   overdueCount: number;
+  /** Paid clinics whose subscription lapses within their reminder window ("coming up"). */
+  upcomingCount: number;
+  /** Σ monthly_price of those upcoming clinics (the revenue about to renew). */
+  upcomingTotal: number;
   /** Estimated variable serving cost (AI + WhatsApp) this month — 0 unless `withCost`. */
   servingCostThisMonth: number;
   /** Collected this month − serving cost this month. Meaningful only with `withCost`. */
@@ -109,10 +113,13 @@ export async function getCompanyMetrics(
       .orderBy(desc(cashOrder))
       .limit(5);
 
-    // Overdue total (reuse the billing balance math) — scoped to this manager's clinics.
-    const dueAll = await listDueClinics();
-    const due = assignedTo ? dueAll.filter((c) => c.assignedTo === assignedTo) : dueAll;
+    // Overdue + upcoming (reuse the billing balance math) — scoped to this manager's clinics.
+    const alertsAll = await listDueClinics({ includeUpcoming: true });
+    const scopedAlerts = assignedTo ? alertsAll.filter((c) => c.assignedTo === assignedTo) : alertsAll;
+    const due = scopedAlerts.filter((c) => c.alert !== "upcoming");
+    const upcoming = scopedAlerts.filter((c) => c.alert === "upcoming");
     const overdueTotal = due.reduce((s, c) => s + c.balance.owed, 0);
+    const upcomingTotal = upcoming.reduce((s, c) => s + c.balance.monthlyPrice, 0);
 
     // Serving cost (this month) + gross margin — only when the viewer will see them
     // (Feature 7). Counts × rates, scoped to the assignee's clinics like the rest.
@@ -155,6 +162,8 @@ export async function getCompanyMetrics(
       collectedThisYear: num(collectedThisYear),
       overdueTotal,
       overdueCount: due.length,
+      upcomingCount: upcoming.length,
+      upcomingTotal,
       servingCostThisMonth,
       grossMarginThisMonth,
       hasCost: withCost,

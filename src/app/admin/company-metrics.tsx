@@ -90,6 +90,20 @@ export function CompanyMetricsPanel({
               </div>
             ))}
           </div>
+          {/* Billing heads-up: payments coming up soon + amounts due/overdue. */}
+          <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 border-t pt-3 text-sm">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sky-600 dark:text-sky-400">Payments coming up</span>
+              <span className="font-semibold tabular-nums">{m.upcomingCount}</span>
+              {m.upcomingTotal > 0 ? (
+                <span className="text-xs text-muted-foreground">({rs(m.upcomingTotal)})</span>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-amber-600 dark:text-amber-400">Due / overdue</span>
+              <span className="font-semibold tabular-nums">{m.overdueCount}</span>
+            </div>
+          </div>
         </div>
 
         {/* Top clinics by revenue */}
