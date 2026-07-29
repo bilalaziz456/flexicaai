@@ -9,28 +9,40 @@ import { Label } from "@/core/ui/label";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 import { PeriodTabs } from "@/app/clinic/sales/sales-filters";
 
-// Appointment period pills = FORWARD windows from today (the schedule ahead), unlike
-// the reports' backward ranges. Each maps to a from/to the list already understands.
+type ApptDir = "upcoming" | "past";
+// Direction toggle: the same period pills window FORWARD (the schedule ahead) or
+// BACKWARD (review the past). Reused as a PeriodTabs group.
+const APPT_DIRECTIONS = [
+  { value: "upcoming", label: "Upcoming", title: "Appointments from today onward" },
+  { value: "past", label: "Past", title: "Past appointments up to today" },
+];
+// Appointment period pills — each maps to a from/to the list already understands; the
+// direction toggle decides whether they extend forward or backward from today.
 const APPT_PERIOD_PRESETS = [
   { value: "today", label: "Today", title: "Today" },
-  { value: "7d", label: "7d", title: "Next 7 days" },
-  { value: "15d", label: "15d", title: "Next 15 days" },
-  { value: "30d", label: "30d", title: "Next 30 days" },
-  { value: "quarter", label: "Quarter", title: "Next quarter" },
-  { value: "half", label: "6mo", title: "Next 6 months" },
-  { value: "year", label: "Year", title: "Next year" },
+  { value: "7d", label: "7d", title: "7 days" },
+  { value: "15d", label: "15d", title: "15 days" },
+  { value: "30d", label: "30d", title: "30 days" },
+  { value: "quarter", label: "Quarter", title: "90 days" },
+  { value: "half", label: "6mo", title: "180 days" },
+  { value: "year", label: "Year", title: "365 days" },
 ];
 const APPT_PERIOD_DAYS: Record<string, number> = {
   today: 1, "7d": 7, "15d": 15, "30d": 30, quarter: 90, half: 180, year: 365,
 };
 const ymd = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-/** from = today, to = today + (N−1) days (inclusive window). */
-function apptWindow(period: string, today: string): { from: string; to: string } {
+/** An inclusive N-day window from `today`, forward (upcoming) or backward (past). */
+function apptWindow(period: string, today: string, dir: ApptDir): { from: string; to: string } {
   const [y, m, d] = today.split("-").map(Number);
-  const end = new Date(y, m - 1, d);
-  end.setDate(end.getDate() + (APPT_PERIOD_DAYS[period] ?? 1) - 1);
-  return { from: today, to: ymd(end) };
+  const span = (APPT_PERIOD_DAYS[period] ?? 1) - 1;
+  const edge = new Date(y, m - 1, d);
+  edge.setDate(edge.getDate() + (dir === "past" ? -span : span));
+  return dir === "past" ? { from: ymd(edge), to: today } : { from: today, to: ymd(edge) };
+}
+/** Infer the toggle direction from an incoming range (a range ending today = past). */
+function dirFromRange(from: string, to: string, today: string): ApptDir {
+  return to === today && from !== today ? "past" : "upcoming";
 }
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -101,6 +113,7 @@ export function AppointmentFilters({
   const pathname = usePathname();
   const [fromD, setFromD] = useState(from);
   const [toD, setToD] = useState(to);
+  const [direction, setDirection] = useState<ApptDir>(dirFromRange(from, to, today));
   const [query, setQuery] = useState(q);
   const [statusV, setStatusV] = useState(status);
   const [typeV, setTypeV] = useState(type);
@@ -149,18 +162,31 @@ export function AppointmentFilters({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
-  // Which period pill is lit: all windows start at `today`, so match the current
-  // to-date against each window's end. A hand-edited range matches none (custom).
+  // Which period pill is lit: the range matches one of the windows in the current
+  // direction. A hand-edited range matches none (custom).
   const activePeriod =
-    fromD === today
-      ? APPT_PERIOD_PRESETS.find((p) => apptWindow(p.value, today).to === toD)?.value ?? ""
-      : "";
+    APPT_PERIOD_PRESETS.find((p) => {
+      const w = apptWindow(p.value, today, direction);
+      return w.from === fromD && w.to === toD;
+    })?.value ?? "";
 
   const pickPeriod = (v: string) => {
-    const w = apptWindow(v, today);
+    const w = apptWindow(v, today, direction);
     setFromD(w.from);
     setToD(w.to);
     push({ from: w.from, to: w.to });
+  };
+
+  // Flip Upcoming↔Past: re-apply the active preset in the new direction so the list
+  // updates immediately (a custom range just changes what the next pill click means).
+  const switchDirection = (dir: ApptDir) => {
+    setDirection(dir);
+    if (activePeriod) {
+      const w = apptWindow(activePeriod, today, dir);
+      setFromD(w.from);
+      setToD(w.to);
+      push({ from: w.from, to: w.to });
+    }
   };
 
   // One consistent field wrapper (label above control), matching the log filter
@@ -170,6 +196,14 @@ export function AppointmentFilters({
 
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
+      {!session ? (
+        <PeriodTabs
+          label="Direction"
+          presets={APPT_DIRECTIONS}
+          value={direction}
+          onChange={(v) => switchDirection(v as ApptDir)}
+        />
+      ) : null}
       {!session ? (
         <PeriodTabs presets={APPT_PERIOD_PRESETS} value={activePeriod} onChange={pickPeriod} />
       ) : null}

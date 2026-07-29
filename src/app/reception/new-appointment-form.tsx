@@ -192,8 +192,10 @@ export function NewAppointmentForm({
   // object each time the action settles, so this bumps even for an identical
   // error message on a second attempt.
   const [errorNonce, setErrorNonce] = useState(0);
+  const [savedNonce, setSavedNonce] = useState(0);
   useEffect(() => {
     if (state.error) setErrorNonce((n) => n + 1);
+    else if (state.saved) setSavedNonce((n) => n + 1);
   }, [state]);
 
   async function runSearch(q: string) {
@@ -802,6 +804,12 @@ export function NewAppointmentForm({
 
       {/* Failed create/edit → error toast (re-triggered per attempt via nonce). */}
       <Toast message={state.error ?? null} variant="error" token={errorNonce} />
+      {/* Edit success → stay on the edit form, show a saved toast (re-triggered per
+          save). Create instead redirects to the new appointment's detail page. */}
+      <Toast
+        message={state.saved ? "Changes saved." : null}
+        token={savedNonce}
+      />
     </form>
   );
 }

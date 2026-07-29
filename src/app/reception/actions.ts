@@ -265,8 +265,10 @@ export async function createAppointment(
     summary: `Scheduled an appointment for ${when.toLocaleString("en-GB")}`,
   });
   revalidatePath(home);
-  // Land on the list with a flash flag so it can show a success toast.
-  redirect(`${home}?created=1`);
+  // Land on the NEW appointment's detail page — the payment panel + "Print bill /
+  // receipt" are there, so staff can collect the fee and print right away instead of
+  // going back to the list to find the appointment they just created.
+  redirect(`${home}/${created.id}?created=1`);
 }
 
 const updateSchema = z.object({
@@ -434,10 +436,8 @@ export async function updateAppointment(
   revalidatePath(`/clinic/appointments/${appointmentId}`);
   revalidatePath(`/reception/appointments/${appointmentId}`);
   revalidateFinance(); // an edit can change the bill/discount → revenue/shares
-  // Redirect back to the list (not stay on the edit form) so React 19's
-  // post-action form reset can't blank the controlled fields, and show a
-  // success toast there via the flash flag.
-  redirect(`${home}?updated=1`);
+  // Stay on the edit form and show a success toast (no redirect).
+  return { saved: true };
 }
 
 /** Trashes an appointment (step-up password). SOFT delete + voids its sale row;
