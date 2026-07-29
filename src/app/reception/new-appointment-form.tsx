@@ -24,7 +24,7 @@ import {
   type DiscountType,
 } from "@/core/appointments/fee";
 
-type Patient = { id: string; fullName: string; phone: string | null };
+type Patient = { id: string; fullName: string; phone: string | null; mrn?: string | null };
 type Doctor = {
   id: string;
   fullName: string | null;
@@ -311,10 +311,15 @@ export function NewAppointmentForm({
                     <button
                       type="button"
                       onClick={() => setPatient(p)}
-                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-accent"
+                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-accent"
                     >
-                      <span className="font-medium">{p.fullName}</span>
-                      <span className="text-muted-foreground">{p.phone ?? ""}</span>
+                      <span className="min-w-0">
+                        <span className="font-medium">{p.fullName}</span>
+                        {p.mrn ? (
+                          <span className="ml-2 text-xs tabular-nums text-muted-foreground">{p.mrn}</span>
+                        ) : null}
+                      </span>
+                      <span className="shrink-0 text-muted-foreground">{p.phone ?? ""}</span>
                     </button>
                   </li>
                 ))

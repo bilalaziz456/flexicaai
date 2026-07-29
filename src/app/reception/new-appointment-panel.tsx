@@ -3,6 +3,8 @@ import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { patients, users } from "@/core/db/schema";
+import { getClinic } from "@/core/clinics/get-clinic";
+import { formatMrn } from "@/core/patients/mrn";
 import {
   Card,
   CardContent,
@@ -29,9 +31,30 @@ export async function NewAppointmentPanel({
   /** Start with this patient chosen (from "Book" on a patient row). */
   preselectedPatientId?: string;
 }) {
-  const [recentPatients, doctors, bookingProcedures, preselectedPatient] = await Promise.all([
+  const clinic = await getClinic(clinicId);
+  const toPatient = (p: {
+    id: string;
+    fullName: string;
+    phone: string | null;
+    mrn: number | null;
+    createdAt: Date;
+  }) => ({
+    id: p.id,
+    fullName: p.fullName,
+    phone: p.phone,
+    mrn: formatMrn(clinic?.mrnPrefix, p.mrn, p.createdAt),
+  });
+  const patientCols = {
+    id: patients.id,
+    fullName: patients.fullName,
+    phone: patients.phone,
+    mrn: patients.mrn,
+    createdAt: patients.createdAt,
+  };
+
+  const [recentRows, doctors, bookingProcedures, preselectedRow] = await Promise.all([
     db
-      .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })
+      .select(patientCols)
       .from(patients)
       .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt)))
       .orderBy(desc(patients.createdAt))
@@ -57,7 +80,7 @@ export async function NewAppointmentPanel({
     getBookingProcedures(clinicId),
     preselectedPatientId
       ? db
-          .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })
+          .select(patientCols)
           .from(patients)
           .where(
             byClinic(
@@ -71,6 +94,8 @@ export async function NewAppointmentPanel({
           .then((r) => r[0] ?? null)
       : Promise.resolve(null),
   ]);
+  const recentPatients = recentRows.map(toPatient);
+  const preselectedPatient = preselectedRow ? toPatient(preselectedRow) : null;
 
   return (
     <div className="space-y-6">

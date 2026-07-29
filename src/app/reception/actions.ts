@@ -9,6 +9,8 @@ import { can } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { db } from "@/core/db";
+import { getClinic } from "@/core/clinics/get-clinic";
+import { formatMrn } from "@/core/patients/mrn";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import {
@@ -505,24 +507,40 @@ export async function setAppointmentStatus(
 /** Patient typeahead for the new-appointment picker (clinic-scoped). */
 export async function searchClinicPatients(
   query: string,
-): Promise<{ id: string; fullName: string; phone: string | null }[]> {
+): Promise<{ id: string; fullName: string; phone: string | null; mrn: string | null }[]> {
   const { clinicId } = await requireAppointmentsAccess();
   const q = query.trim();
 
-  return db
-    .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })
-    .from(patients)
-    .where(
-      q
-        ? and(
-            eq(patients.clinicId, clinicId),
-            notDeleted(patients.deletedAt),
-            or(ilike(patients.fullName, `%${q}%`), ilike(patients.phone, `%${q}%`)),
-          )
-        : and(eq(patients.clinicId, clinicId), notDeleted(patients.deletedAt)),
-    )
-    .orderBy(desc(patients.createdAt))
-    .limit(20);
+  const [clinic, rows] = await Promise.all([
+    getClinic(clinicId),
+    db
+      .select({
+        id: patients.id,
+        fullName: patients.fullName,
+        phone: patients.phone,
+        mrn: patients.mrn,
+        createdAt: patients.createdAt,
+      })
+      .from(patients)
+      .where(
+        q
+          ? and(
+              eq(patients.clinicId, clinicId),
+              notDeleted(patients.deletedAt),
+              or(ilike(patients.fullName, `%${q}%`), ilike(patients.phone, `%${q}%`)),
+            )
+          : and(eq(patients.clinicId, clinicId), notDeleted(patients.deletedAt)),
+      )
+      .orderBy(desc(patients.createdAt))
+      .limit(20),
+  ]);
+
+  return rows.map((p) => ({
+    id: p.id,
+    fullName: p.fullName,
+    phone: p.phone,
+    mrn: formatMrn(clinic?.mrnPrefix, p.mrn, p.createdAt),
+  }));
 }
 
 export type DoctorDaySlots = {
