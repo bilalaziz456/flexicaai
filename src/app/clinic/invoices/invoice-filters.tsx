@@ -63,7 +63,7 @@ export function InvoiceFilters({
           id="inv-q"
           type="search"
           value={qV}
-          placeholder="Invoice no. or patient"
+          placeholder="Invoice #, patient, phone, MRN or patient no."
           onChange={(e) => setQV(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") push({ q: qV });

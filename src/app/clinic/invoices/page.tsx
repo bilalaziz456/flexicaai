@@ -27,9 +27,9 @@ const dayFmt = (d: Date) =>
 
 /**
  * Invoice register (Finance) — every issued invoice, newest number first, for lookup
- * and reprint (search by number or patient). The invoice number links to its
- * printable page. Gated by the `sales` feature + the `billing` permission; reached
- * from the Reports hub (no separate nav item). Clinic-scoped.
+ * and reprint (search by invoice #, patient name/phone/MRN, or the old patient number).
+ * The invoice number links to its printable page. Gated by the `sales` feature + the
+ * `billing` permission; a Finance nav item + a Reports-hub card. Clinic-scoped.
  */
 export default async function InvoicesPage({
   searchParams,
@@ -71,7 +71,8 @@ export default async function InvoicesPage({
         <div>
           <h1 className="text-xl font-semibold">Invoices</h1>
           <p className="text-sm text-muted-foreground">
-            The numbered invoice register — search by number or patient, and reprint any invoice.
+            The numbered invoice register — search by invoice #, patient name, phone, MRN or patient
+            number, and reprint any invoice.
           </p>
         </div>
         {list.rows.length > 0 ? (

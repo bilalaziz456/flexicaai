@@ -519,3 +519,11 @@ these for churn-risk + usage/cost anomaly flags.
   top of invoices/receipts (a B&W/thermal printer renders it mono), inlined as a base64
   data URI for print reliability (`core/clinics/logo.ts#getClinicLogoDataUri`); the admin
   preview is served via `GET /api/admin/clinics/[id]/logo`. NULL = print nothing.
+- Migration **`0072`** — patient-invoice numbers **reset per year**. Adds
+  `clinics.invoice_year` (the year `next_invoice_no` belongs to) + `invoices.invoice_year`,
+  and swaps the invoice unique index to (`clinic_id`,`invoice_year`,`invoice_no`) since the
+  number restarts at 1 each January. Label is now `<invoice_prefix><YYYY>-<7-digit>` (e.g.
+  `INV-2026-0000005`, `core/billing/invoice.ts#formatInvoiceNo`); allocation locks the
+  clinic row and resets on a year rollover. Existing invoices backfilled (`invoice_year`
+  from `issued_at`) and re-rendered in the new format. (Distinct from the company-side
+  `clinic_invoices`, which keeps its own global numbering.)

@@ -110,6 +110,9 @@ export const clinics = pgTable(
     invoicePaper: text("invoice_paper").notNull().default("a4"),
     invoicePrefix: text("invoice_prefix").notNull().default("INV-"),
     nextInvoiceNo: integer("next_invoice_no").notNull().default(1),
+    // The calendar year `next_invoice_no` currently belongs to. Invoice numbers RESET
+    // to 1 each new year → the label is `<prefix><YYYY>-<7-digit>` (e.g. INV-2026-0000005).
+    invoiceYear: integer("invoice_year"),
     // Clinic logo (branding) — an opaque storage key (local FS, per-clinic). Uploaded
     // by the owner/super-admin/account-manager (not the clinic). Printed in B&W at the
     // top of documents; NULL = show nothing. See core/clinics/logo.ts.
@@ -1444,6 +1447,10 @@ export const invoices = pgTable(
       .notNull()
       .references(() => patients.id, { onDelete: "cascade" }),
     invoiceNo: integer("invoice_no").notNull(),
+    // The invoice's calendar year — part of the label and the uniqueness key (numbers
+    // reset per year, so `invoice_no` alone repeats across years). Backfilled from
+    // `issued_at` for pre-existing invoices (migration 0072).
+    invoiceYear: integer("invoice_year"),
     issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
     issuedBy: uuid("issued_by"),
     issuedByName: text("issued_by_name"),
@@ -1455,7 +1462,8 @@ export const invoices = pgTable(
     uniqueIndex("invoices_appointment_unique")
       .on(t.appointmentId)
       .where(sql`${t.deletedAt} is null`),
-    uniqueIndex("invoices_clinic_no_unique").on(t.clinicId, t.invoiceNo),
+    // Numbers are unique per clinic PER YEAR (they reset each year).
+    uniqueIndex("invoices_clinic_year_no_unique").on(t.clinicId, t.invoiceYear, t.invoiceNo),
     index("invoices_clinic_issued_idx").on(t.clinicId, t.issuedAt),
     index("invoices_patient_idx").on(t.patientId),
   ],
