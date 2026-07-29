@@ -12,8 +12,9 @@ import {
   sendInvoiceWhatsAppAction,
   type BillingActionState,
 } from "./payment-actions";
-import { Button } from "@/core/ui/button";
+import { Button, buttonVariants } from "@/core/ui/button";
 import { Toast } from "@/core/ui/toast";
+import { cn } from "@/core/lib/utils";
 import { MessageCircle } from "lucide-react";
 
 const money = new Intl.NumberFormat("en-PK", {
@@ -294,43 +295,53 @@ export function PaymentPanel({
         )
       ) : null}
 
-      {/* Invoice: issue a number (assigns INV-N) and/or print (thermal/A5/A4). */}
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        {invoiceLabel ? (
-          <span className="text-muted-foreground">
-            Invoice <span className="font-medium text-foreground">{invoiceLabel}</span>
-          </span>
-        ) : canInvoice ? (
-          <Button type="button" size="sm" variant="outline" disabled={busy} onClick={doInvoice}>
-            Issue invoice
-          </Button>
-        ) : null}
+      {/* Invoice / receipt: create a number + print (thermal/A5/A4), all as
+          consistent buttons so it's clear each is a clickable action. */}
+      <div className="space-y-1.5">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          {invoiceLabel ? (
+            <span className="text-muted-foreground">
+              Invoice <span className="font-medium text-foreground">{invoiceLabel}</span>
+            </span>
+          ) : canInvoice ? (
+            <Button type="button" size="sm" variant="outline" disabled={busy} onClick={doInvoice}>
+              Create invoice #
+            </Button>
+          ) : null}
+          {invoiceHref ? (
+            <Link
+              href={invoiceHref}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
+              <Printer className="size-3.5" aria-hidden="true" /> Print bill
+            </Link>
+          ) : null}
+          {receiptHref && collected > 0 ? (
+            <Link
+              href={receiptHref}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
+              <Printer className="size-3.5" aria-hidden="true" /> Print receipt
+            </Link>
+          ) : null}
+          {canSendWhatsapp && billTotal > 0 ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={doSendWhatsapp}
+            >
+              <MessageCircle className="size-3.5" aria-hidden="true" /> Send on WhatsApp
+            </Button>
+          ) : null}
+        </div>
         {invoiceHref ? (
-          <Link
-            href={invoiceHref}
-            className="inline-flex items-center gap-1 font-medium underline underline-offset-4"
-          >
-            <Printer className="size-3.5" aria-hidden="true" /> Print invoice
-          </Link>
-        ) : null}
-        {receiptHref && collected > 0 ? (
-          <Link
-            href={receiptHref}
-            className="inline-flex items-center gap-1 font-medium underline underline-offset-4"
-          >
-            <Printer className="size-3.5" aria-hidden="true" /> Print receipt
-          </Link>
-        ) : null}
-        {canSendWhatsapp && billTotal > 0 ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onClick={doSendWhatsapp}
-          >
-            <MessageCircle className="size-3.5" aria-hidden="true" /> Send on WhatsApp
-          </Button>
+          <p className="text-xs text-muted-foreground">
+            <span className="font-medium">Bill</span> = what the patient owes ·{" "}
+            <span className="font-medium">Receipt</span> = proof of payment
+            {collected > 0 ? "" : " (available once money is collected)"}.
+          </p>
         ) : null}
       </div>
 
