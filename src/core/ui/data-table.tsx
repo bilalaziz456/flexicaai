@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/core/lib/utils";
+import { RowLink } from "@/core/ui/row-link";
 
 /**
  * Shared data table — CORE. One consistent implementation for the app's list/ledger
@@ -55,6 +56,7 @@ export function DataTable<T>({
   stickyHeader = false,
   initialSort,
   minWidthClassName,
+  rowHref,
   className,
 }: {
   rows: T[];
@@ -65,6 +67,9 @@ export function DataTable<T>({
   initialSort?: SortState;
   /** e.g. "min-w-[48rem]" to force horizontal scroll before columns crush. */
   minWidthClassName?: string;
+  /** When set, the whole row (and mobile card) navigates here on click — clicks on
+   *  inner links/buttons still work (via RowLink). Keyboard: Enter/Space opens. */
+  rowHref?: (row: T) => string;
   className?: string;
 }) {
   const [sort, setSort] = useState<SortState | undefined>(initialSort);
@@ -152,34 +157,52 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody>
-            {sorted.map((row, i) => (
-              <tr key={getRowKey(row, i)} className="border-b transition-colors last:border-0 hover:bg-muted/40">
-                {columns.map((c) => (
-                  <td key={c.id} className={cn("py-2 align-middle", c.align && alignClass[c.align], c.cellClassName)}>
-                    {c.cell(row)}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {sorted.map((row, i) => {
+              const cells = columns.map((c) => (
+                <td key={c.id} className={cn("py-2 align-middle", c.align && alignClass[c.align], c.cellClassName)}>
+                  {c.cell(row)}
+                </td>
+              ));
+              return rowHref ? (
+                <RowLink key={getRowKey(row, i)} as="tr" href={rowHref(row)} className="border-b last:border-0">
+                  {cells}
+                </RowLink>
+              ) : (
+                <tr key={getRowKey(row, i)} className="border-b transition-colors last:border-0 hover:bg-muted/40">
+                  {cells}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
       {/* Mobile: each row as a card */}
       <ul className="space-y-2 md:hidden">
-        {sorted.map((row, i) => (
-          <li key={getRowKey(row, i)} className="rounded-lg border p-3 text-sm">
-            {titleCol ? <div className="mb-1 font-medium">{titleCol.cell(row)}</div> : null}
-            <dl className="grid gap-y-1 text-xs">
-              {cardCols.map((c) => (
-                <div key={c.id} className="flex items-center justify-between gap-3">
-                  <dt className="text-muted-foreground">{labelOf(c)}</dt>
-                  <dd className="text-right">{c.cell(row)}</dd>
-                </div>
-              ))}
-            </dl>
-          </li>
-        ))}
+        {sorted.map((row, i) => {
+          const inner = (
+            <>
+              {titleCol ? <div className="mb-1 font-medium">{titleCol.cell(row)}</div> : null}
+              <dl className="grid gap-y-1 text-xs">
+                {cardCols.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between gap-3">
+                    <dt className="text-muted-foreground">{labelOf(c)}</dt>
+                    <dd className="text-right">{c.cell(row)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </>
+          );
+          return rowHref ? (
+            <RowLink key={getRowKey(row, i)} as="li" href={rowHref(row)} className="block rounded-lg border p-3 text-sm">
+              {inner}
+            </RowLink>
+          ) : (
+            <li key={getRowKey(row, i)} className="rounded-lg border p-3 text-sm">
+              {inner}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

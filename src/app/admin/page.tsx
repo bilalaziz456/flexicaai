@@ -1,34 +1,24 @@
 import Link from "next/link";
-import { ChevronRight, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { and, count, desc, eq, ilike, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { clinics, users } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
-import { CLINIC_STATUSES, CLINIC_STATUS_LABEL, billingCycleLabel, isClinicStatus } from "@/core/clinics/status";
+import { CLINIC_STATUSES, CLINIC_STATUS_LABEL, isClinicStatus } from "@/core/clinics/status";
 import { requireRole } from "@/core/auth/user";
 import { canAdmin, canManageTeam, canSeeBilling } from "@/core/auth/admin-permissions";
 import { getFirstPaymentDates, listDueClinics } from "@/core/admin/billing";
 import { listAssignableTeam } from "@/core/admin/assignment";
 import { getCompanyMetrics } from "@/core/admin/metrics";
-import { ClinicStatusBadge } from "./clinics/status-badge";
 import { CompanyMetricsPanel } from "./company-metrics";
 import { ClinicsFilters } from "./clinics-filters";
+import { ClinicsTable } from "./clinics-table";
 import { buttonVariants } from "@/core/ui/button";
-import { Badge } from "@/core/ui/badge";
 import { cn } from "@/core/lib/utils";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { Pagination } from "@/core/ui/pagination";
 import { FlashToast } from "@/core/ui/toast";
-import { RowLink } from "@/core/ui/row-link";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/core/ui/table";
 
 const SPECIALTY_NAME = new Map(SPECIALTY_CATALOG.map((s) => [s.id, s.name]));
 
@@ -150,9 +140,6 @@ export default async function AdminHome({
   const firstPayments = showBilling
     ? await getFirstPaymentDates(allClinics.map((c) => c.id))
     : new Map<string, Date>();
-  const fmtDate = (d: Date | null | undefined) =>
-    d ? d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
-
 
   return (
     <div className="space-y-6">
@@ -270,93 +257,28 @@ export default async function AdminHome({
         unit="clinic"
       />
 
-      {allClinics.length === 0 ? (
-        <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {query || statusFilter || assignedFilter
+      <ClinicsTable
+        showBilling={showBilling}
+        empty={
+          query || statusFilter || assignedFilter
             ? "No clinics match the current filters."
-            : "No clinics yet. Create the first one to enable its specialties and add its admin."}
-        </div>
-      ) : (
-        <Table className="min-w-[68rem]">
-          <TableHeader>
-            <TableRow>
-              <TableHead>Clinic</TableHead>
-              <TableHead>Status</TableHead>
-              {showBilling ? <TableHead>Package</TableHead> : null}
-              <TableHead>Trial start</TableHead>
-              <TableHead>Active start</TableHead>
-              {showBilling ? <TableHead>First payment</TableHead> : null}
-              <TableHead>Assigned to</TableHead>
-              <TableHead>Specialties</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead className="text-right">Manage</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {allClinics.map((clinic) => (
-              <RowLink key={clinic.id} href={`/admin/clinics/${clinic.id}`} className="border-b">
-                <TableCell className="font-medium">{clinic.name}</TableCell>
-                <TableCell>
-                  <ClinicStatusBadge status={clinic.status} />
-                </TableCell>
-                {showBilling ? (
-                  <TableCell className="whitespace-nowrap text-sm">
-                    {billingCycleLabel(clinic.billingCycle)}
-                  </TableCell>
-                ) : null}
-                <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                  {fmtDate(clinic.trialStartAt)}
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                  {fmtDate(clinic.activatedAt)}
-                </TableCell>
-                {showBilling ? (
-                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                    {fmtDate(firstPayments.get(clinic.id))}
-                  </TableCell>
-                ) : null}
-                <TableCell className="text-sm">
-                  {clinic.assigneeName ? (
-                    <span>
-                      {clinic.assignedTo === user.id ? <span className="font-medium">You</span> : clinic.assigneeName}
-                      {clinic.assigneeSuspended ? (
-                        <span className="ml-1 text-xs text-amber-600 dark:text-amber-400">(suspended)</span>
-                      ) : null}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1">
-                    {clinic.modulesEnabled.length === 0 ? (
-                      <span className="text-muted-foreground">None</span>
-                    ) : (
-                      clinic.modulesEnabled.map((id) => (
-                        <Badge key={id} variant="secondary">
-                          {SPECIALTY_NAME.get(id) ?? id}
-                        </Badge>
-                      ))
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {clinic.createdAt.toLocaleDateString()}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Link
-                    href={`/admin/clinics/${clinic.id}`}
-                    className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-                  >
-                    Open
-                    <ChevronRight className="size-4" aria-hidden="true" />
-                  </Link>
-                </TableCell>
-              </RowLink>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+            : "No clinics yet. Create the first one to enable its specialties and add its admin."
+        }
+        rows={allClinics.map((c) => ({
+          id: c.id,
+          name: c.name,
+          status: c.status,
+          isYou: c.assignedTo === user.id,
+          assigneeName: c.assigneeName,
+          assigneeSuspended: c.assigneeSuspended,
+          specialties: c.modulesEnabled.map((id) => SPECIALTY_NAME.get(id) ?? id),
+          trialStartAt: c.trialStartAt,
+          activatedAt: c.activatedAt,
+          billingCycle: c.billingCycle,
+          firstPaymentAt: firstPayments.get(c.id) ?? null,
+          createdAt: c.createdAt,
+        }))}
+      />
 
       {/* Mobile: floating "+" action to add a clinic (replaces the header button). */}
       <Link
