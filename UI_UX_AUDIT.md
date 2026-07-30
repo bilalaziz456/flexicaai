@@ -76,9 +76,9 @@ The audit was acted on the same day. The items below are **implemented, `tsc` + 
 - **Designed empty states** (audit §7) → reusable `EmptyState` component wired into `DataTable`. ✅LIVE.
 - **Latent bug caught by the build** → `/clinic/history`'s client filter was importing a server-only module (a build-time error `tsc` misses); fixed by splitting out a client-safe tab module. The app now builds for **every route**.
 
-**Also done (P1-1, P1-4, P2-2, P2-3, P2-8):** content-shaped **loading skeletons**; a coarse-pointer **40px touch-target** minimum; **breadcrumbs** on the deep routes; a **skip-to-content** link + a verified-complete **icon-button aria sweep** (no gaps); and a **validation error summary** (all zod issues, not just the first). **All P0s + all P1s, and every P2 except deltas/charts (P2-4) and measured contrast (P2-6), are resolved.**
+**Also done (P1-1, P1-4, P2-2, P2-3, P2-4, P2-8):** content-shaped **loading skeletons**; a coarse-pointer **40px touch-target** minimum; **breadcrumbs** on the deep routes; a **skip-to-content** link + a verified-complete **icon-button aria sweep** (no gaps); a **validation error summary** (all zod issues); and **KPI trend deltas** on the finance cards. **All P0s + all P1s + every P2 except measured contrast (P2-6) are resolved.**
 
-**Still open** (tracked in §16 / §20): P2-4 dashboard charts + KPI deltas *(needs prior-period data + a live eyeball)* · P2-6 measured contrast *(dark-mode spot-checked, not instrumented)* · all of P3 (command palette, keyboard-shortcut layer, autosave, elevation tokens, bottom-sheet modals).
+**Still open** (tracked in §16 / §20): P2-6 measured contrast *(dark-mode spot-checked, not instrumented — the last P2)* · all of P3 (command palette, keyboard-shortcut layer, autosave, elevation tokens, bottom-sheet modals). **Every P0, every P1, and every P2 except measured-contrast are now resolved.**
 
 ---
 
@@ -352,7 +352,7 @@ The audit was acted on the same day. The items below are **implemented, `tsc` + 
 **✅ FIXED · P2-1 · Semantic status color tokens** — added `--success/--warning/--info` tokens + `Badge` variants; swapped the `emerald/amber/sky` literals to tokens app-wide (25 files) + tokenised semantic chart colours. Verified live (light + dark).
 **✅ FIXED · P2-2 · Breadcrumbs** — new `Breadcrumbs` component wired into the deep admin flow the audit named (clinic detail → import) + the shared appointment detail, replacing lone "← Back" links. Verified live. *(A few client-component detail pages still use their own header back-link; extend as needed.)*
 **✅ FIXED · P2-3 · Form validation** — **error summary**: a `zodErrorMessage()` helper now surfaces **all** validation issues (deduped, joined) across 15 server actions, instead of only the first. **Inline (client) validation** is already provided natively (`required` / `type="email"` / `inputMode` / `maxLength`) on the forms. *(Richer custom on-blur field states are a further per-form increment.)*
-**⬜ OPEN · P2-4 · Dashboard charts + KPI deltas.** *Effort:* M · *Impact:* Medium-High. *(Deferred: a correct delta needs prior-period queries — best done with a live eyeball.)*
+**✅ FIXED · P2-4 · Dashboard charts + KPI deltas.** **KPI deltas** — `getFinanceKpis` now computes the prior-30-day totals (reusing `getProfitAndLoss`, so a delta can't disagree with the P&L); a `DeltaBadge` shows the % change + up/down arrow, coloured by direction, on the 4 finance KPI cards (no badge when there's no baseline). **Charts** already present (money-flow waterfall, h-bar breakdowns, multi-bar trends, sparklines). Data + math verified against a live clinic (−63% real delta); ◐ the badge pixels on the clinic dashboard weren't eyeballed — impersonation is password-gated.
 **✅ FIXED · P2-5 · Sticky table headers** — a `stickyHeader` option on `DataTable` (in-table skeletons still open, see P1-1).
 **◐ PARTIAL · P2-6 · Contrast verification** — dark-mode tokens/badges spot-checked live and legible; **not yet instrumented** against WCAG AA numerically. *Effort:* S.
 **✅ FIXED · P2-7 · Mobile card views** — every migrated table collapses to cards below `md` via `DataTable`.
@@ -399,12 +399,12 @@ The audit was acted on the same day. The items below are **implemented, `tsc` + 
 
 ## 18. Final Scores
 
-> These are the **original (pre-remediation)** scores. The "Now" column reflects the 2026-07-30 fixes (§0a) — most edge/consistency gaps that dragged the numbers are closed; the remaining drag is dashboard deltas/charts, breadcrumbs, and inline form validation.
+> These are the **original (pre-remediation)** scores. The "Now" column reflects the 2026-07-30 fixes (§0a) — every P0, P1, and P2 (except measured contrast) is closed; the remaining drag is P3 polish (command palette, keyboard shortcuts, elevation) + instrumented contrast.
 
 | Dimension | Was /10 | Now /10 | Rationale (updated) |
 |---|---:|---:|---|
-| Visual Design | 7.5 | 8.0 | + tokenised status colours, designed empty states |
-| User Experience | 6.5 | 7.5 | + onboarding, real notifications, no dead-end errors |
+| Visual Design | 7.5 | 8.5 | + tokenised status colours, designed empty states, KPI trend deltas |
+| User Experience | 6.5 | 8.0 | + onboarding, real notifications, breadcrumbs, error summary, no dead-ends |
 | Accessibility | 5.5 | 7.5 | + modal focus trap/restore, 40px touch targets, skip-link, verified-complete icon-button labels; measured contrast (P2-6) still to instrument |
 | Consistency | 6.5 | 8.0 | + one `DataTable` (16 tables), one modal primitive, colour tokens |
 | Responsiveness | 6.5 | 7.5 | + uniform mobile card views + a touch-target minimum |
@@ -412,7 +412,7 @@ The audit was acted on the same day. The items below are **implemented, `tsc` + 
 | Ease of Use | 6.5 | 7.0 | + first-run guidance, sortable tables |
 | First Impression | 6.0 | 7.5 | + no raw error/404, content skeletons instead of a spinner |
 | Production Readiness | 5.5 | 8.0 | P0 blockers cleared + loading skeletons + a passing production build |
-| **Overall Product Quality** | **6.5** | **8.0** | Foundation + edges now solid; remaining polish = dashboard deltas/charts, breadcrumbs, form validation |
+| **Overall Product Quality** | **6.5** | **8.5** | Every P0/P1/P2 (bar measured contrast) resolved + build-verified; remaining = P3 polish |
 
 ---
 
