@@ -154,6 +154,16 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* Comfortable touch targets (WCAG 2.5.8 / Apple/Material). On COARSE pointers
+     (touch / stylus) every design-system button gets a ~40px minimum hit area —
+     including dense table-action buttons (h-6) and square icon buttons. Gated to
+     `pointer: coarse`, so mouse/desktop layouts are completely unchanged. */
+  @media (pointer: coarse) {
+    [data-slot="button"] {
+      min-height: 2.5rem;
+      min-width: 2.5rem;
+    }
+  }
   body {
     @apply bg-background text-foreground;
   }

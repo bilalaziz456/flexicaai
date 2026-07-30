@@ -1,11 +1,10 @@
-import { PanelLoader } from "@/core/ui/panel-loader";
+import { PanelSkeleton } from "@/core/ui/panel-skeleton";
 
 /**
- * Loading boundary for /admin and its sub-routes (clinics list, clinic detail,
- * new clinic). Shows the spinner in the content area while a route loads, so
- * navigation never lingers on the previous screen. The PanelShell layout
- * (sidebar/header) persists around it.
+ * Loading boundary for /admin and its sub-routes — a content-shaped skeleton (not a
+ * spinner) shown the instant you navigate, so the content area never lingers on the
+ * previous screen. The PanelShell (sidebar/header) persists around it.
  */
 export default function AdminLoading() {
-  return <PanelLoader />;
+  return <PanelSkeleton />;
 }

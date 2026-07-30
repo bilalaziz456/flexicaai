@@ -1,6 +1,10 @@
-import { PanelLoader } from "@/core/ui/panel-loader";
+import { PanelSkeleton } from "@/core/ui/panel-skeleton";
 
-/** Loading boundary for /reception — spinner in the content area during nav. */
+/**
+ * Loading boundary for /reception and its sub-routes — a content-shaped skeleton (not a
+ * spinner) shown the instant you navigate, so the content area never lingers on the
+ * previous screen. The PanelShell (sidebar/header) persists around it.
+ */
 export default function ReceptionLoading() {
-  return <PanelLoader />;
+  return <PanelSkeleton />;
 }
