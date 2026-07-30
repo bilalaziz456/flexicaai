@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { DataTable, type Column } from "@/core/ui/data-table";
-import type { HistoryType, ImportedHistoryRow } from "@/core/finance/imported-history";
+import type { HistoryType } from "@/core/finance/imported-history-tabs";
+import type { ImportedHistoryRow } from "@/core/finance/imported-history";
 
 const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
 const TYPE_BADGE: Record<string, string> = {

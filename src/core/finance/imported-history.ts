@@ -12,15 +12,9 @@ import { importedTransactions } from "@/core/db/schema";
  * that table, so the archive can never pollute live figures. Clinic-scoped.
  */
 
-export type HistoryType = "invoice" | "payment" | "expense" | "doctor_payout";
-
-/** A tab → the stored `type` value(s) it covers (Payments folds in refunds). */
-export const HISTORY_TABS: { id: HistoryType; label: string; types: string[] }[] = [
-  { id: "invoice", label: "Invoices", types: ["invoice"] },
-  { id: "payment", label: "Payments", types: ["payment", "refund"] },
-  { id: "expense", label: "Expenses", types: ["expense"] },
-  { id: "doctor_payout", label: "Doctor payouts", types: ["doctor_payout"] },
-];
+// The tab config lives in a client-safe module (this file is server-only). Re-exported
+// so server callers keep a single import site.
+export { HISTORY_TABS, type HistoryType } from "./imported-history-tabs";
 
 export type ImportedHistoryRow = {
   id: string;
