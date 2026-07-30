@@ -11,6 +11,7 @@ import {
 } from "@/app/admin/actions";
 import { Badge } from "@/core/ui/badge";
 import { Button } from "@/core/ui/button";
+import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { Toast } from "@/core/ui/toast";
@@ -105,7 +106,6 @@ export function ClinicBilling({
     recordClinicPaymentAction.bind(null, clinicId),
     {},
   );
-  const [voiding, startVoid] = useTransition();
   // Clinic-facing payment-due notice toggle (optimistic; reverts on error).
   const [noticeOn, setNoticeOn] = useState(paymentNoticeEnabled);
   const [togglingNotice, startNotice] = useTransition();
@@ -433,20 +433,18 @@ export function ClinicBilling({
                       <td className="py-1.5 text-right text-muted-foreground">{p.recordedByName ?? "—"}</td>
                       <td className="py-1.5 text-right">
                         {canManage ? (
-                          <button
-                            type="button"
-                            disabled={voiding}
-                            onClick={() => {
-                              if (confirm("Void this entry? The clinic's balance will be recomputed.")) {
-                                startVoid(async () => {
-                                  await voidClinicPaymentAction(clinicId, p.id);
-                                });
-                              }
+                          <ConfirmDialog
+                            triggerLabel="Void"
+                            triggerVariant="ghost"
+                            triggerClassName="h-6 px-2 text-xs text-destructive hover:text-destructive"
+                            title="Void this entry?"
+                            description="The clinic's balance will be recomputed. This can't be undone."
+                            confirmLabel="Void"
+                            confirmVariant="destructive"
+                            onConfirm={async () => {
+                              await voidClinicPaymentAction(clinicId, p.id);
                             }}
-                            className="text-xs text-destructive underline-offset-2 hover:underline disabled:opacity-50"
-                          >
-                            Void
-                          </button>
+                          />
                         ) : null}
                       </td>
                     </tr>

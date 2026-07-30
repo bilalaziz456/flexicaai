@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { deleteAnnouncementAction, toggleAnnouncementAction } from "./actions";
 import { Button } from "@/core/ui/button";
+import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 
 /** Per-row activate/deactivate + delete for an announcement. */
 export function AnnouncementRowActions({ id, active }: { id: string; active: boolean }) {
@@ -18,20 +19,19 @@ export function AnnouncementRowActions({ id, active }: { id: string; active: boo
       >
         {active ? "Deactivate" : "Activate"}
       </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="text-destructive hover:text-destructive"
-        disabled={pending}
-        onClick={() => {
-          if (confirm("Delete this announcement?")) {
-            start(async () => { await deleteAnnouncementAction(id); });
-          }
+      <ConfirmDialog
+        triggerLabel="Delete"
+        triggerVariant="ghost"
+        triggerClassName="text-destructive hover:text-destructive"
+        triggerDisabled={pending}
+        title="Delete this announcement?"
+        description="It will be removed from the clinics that see it. This can't be undone."
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={async () => {
+          await deleteAnnouncementAction(id);
         }}
-      >
-        Delete
-      </Button>
+      />
     </div>
   );
 }

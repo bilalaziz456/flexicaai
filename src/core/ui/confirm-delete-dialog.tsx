@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import { useState } from "react";
+import { Dialog } from "@base-ui/react/dialog";
 import { Eye, EyeOff } from "lucide-react";
 import type { VariantProps } from "class-variance-authority";
 import { Button, buttonVariants } from "@/core/ui/button";
@@ -16,10 +16,12 @@ type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];
  * and requires the signed-in user to re-type their password. The action
  * (`onConfirm`) re-verifies that password server-side before deleting.
  *
- * The password field is hardened against browser / password-manager autofill —
- * the user must actually type it: autoComplete off, a non-standard field name,
- * the manager-ignore data attributes, and a readOnly-until-focus toggle that
- * stops Chrome from filling it on open.
+ * Built on Base UI `Dialog` (modal): focus is trapped + restored to the trigger on
+ * close, background scroll is locked, Escape / backdrop dismiss (WCAG 2.4.3). The
+ * password field is hardened against browser / password-manager autofill — the user
+ * must actually type it: `type="text"` (never `password`) masked via CSS, a
+ * non-standard field name, manager-ignore data attributes, and a readOnly-until-focus
+ * toggle that stops Chrome filling it on open.
  */
 export function ConfirmDeleteDialog({
   triggerLabel,
@@ -49,8 +51,7 @@ export function ConfirmDeleteDialog({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  function close() {
-    setOpen(false);
+  function reset() {
     setPassword("");
     setShow(false);
     setReadonly(true);
@@ -58,15 +59,11 @@ export function ConfirmDeleteDialog({
     setPending(false);
   }
 
-  // Escape closes the modal.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  function handleOpenChange(next: boolean) {
+    if (pending) return; // don't let a backdrop/Escape close mid-delete
+    setOpen(next);
+    if (!next) reset();
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -80,7 +77,8 @@ export function ConfirmDeleteDialog({
         setPending(false);
         return;
       }
-      close(); // success — the action revalidated (or redirected)
+      setOpen(false); // success — the action revalidated (or redirected)
+      reset();
     } catch {
       // A server redirect throws here — navigation happens, treat as success.
       setPending(false);
@@ -98,29 +96,17 @@ export function ConfirmDeleteDialog({
         onClick={() => setOpen(true)}
       >
         {triggerIcon}
-        <span className={triggerIcon ? "hidden md:inline" : undefined}>
-          {triggerLabel}
-        </span>
+        <span className={triggerIcon ? "hidden md:inline" : undefined}>{triggerLabel}</span>
       </Button>
 
-      {open && typeof document !== "undefined"
-        ? createPortal(
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-              <div
-                className="absolute inset-0 bg-black/50"
-                onClick={close}
-                aria-hidden="true"
-              />
-              <div
-                role="dialog"
-                aria-modal="true"
-                aria-label={title}
-                className="relative max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-xl border bg-card p-5 shadow-xl"
-              >
-                <h2 className="text-base font-semibold break-words">{title}</h2>
-                <p className="mt-1 text-sm break-words text-muted-foreground">
-                  {description}
-                </p>
+      <Dialog.Root open={open} onOpenChange={handleOpenChange}>
+        <Dialog.Portal>
+          <Dialog.Backdrop className="fixed inset-0 z-[100] bg-black/50 transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
+          <Dialog.Popup className="fixed left-1/2 top-1/2 z-[100] max-h-[90vh] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border bg-card p-5 text-card-foreground shadow-xl outline-none transition-all duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
+            <Dialog.Title className="text-base font-semibold break-words">{title}</Dialog.Title>
+            <Dialog.Description className="mt-1 text-sm break-words text-muted-foreground">
+              {description}
+            </Dialog.Description>
 
             <form onSubmit={submit} autoComplete="off" className="mt-4 space-y-2">
               <Label htmlFor="reauth-password" className="text-sm">
@@ -176,19 +162,17 @@ export function ConfirmDeleteDialog({
               ) : null}
 
               <div className="mt-4 flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={close}>
+                <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={pending}>
                   Cancel
                 </Button>
                 <Button type="submit" variant="destructive" disabled={pending || !password}>
                   {pending ? "Deleting…" : confirmLabel}
                 </Button>
               </div>
-              </form>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+            </form>
+          </Dialog.Popup>
+        </Dialog.Portal>
+      </Dialog.Root>
     </>
   );
 }

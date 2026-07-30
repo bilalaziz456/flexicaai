@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import { useState } from "react";
+import { Dialog } from "@base-ui/react/dialog";
 import type { VariantProps } from "class-variance-authority";
 import { Button, buttonVariants } from "@/core/ui/button";
 
@@ -11,8 +11,11 @@ type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];
  * Reusable confirmation modal — CORE. A styled in-app replacement for the browser
  * `confirm()` popup: click the trigger → a modal opens asking to confirm/cancel an
  * action. Unlike {@link ConfirmDeleteDialog} it takes NO password — use it for
- * consequential-but-reversible actions (suspend, deactivate, cancel, …). For
- * destructive/irreversible deletes use ConfirmDeleteDialog (password step-up).
+ * consequential-but-reversible actions (suspend, deactivate, cancel, undo, void…).
+ *
+ * Built on Base UI `Dialog` (modal), so focus is trapped inside, moved in on open and
+ * RESTORED to the trigger on close, background scroll is locked, and Escape / backdrop
+ * click dismiss — none of which a hand-rolled portal gets right (a11y: WCAG 2.4.3).
  */
 export function ConfirmDialog({
   triggerLabel,
@@ -42,21 +45,11 @@ export function ConfirmDialog({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  function close() {
-    setOpen(false);
-    setError(null);
-    setPending(false);
+  function handleOpenChange(next: boolean) {
+    if (pending) return; // don't let a backdrop/Escape close mid-action
+    setOpen(next);
+    if (!next) setError(null);
   }
-
-  // Escape closes the modal.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
 
   async function confirm() {
     if (pending) return;
@@ -69,7 +62,9 @@ export function ConfirmDialog({
         setPending(false);
         return;
       }
-      close(); // success — the action revalidated (or redirected)
+      setPending(false);
+      setError(null);
+      setOpen(false); // success — the action revalidated (or redirected)
     } catch {
       // A server redirect throws here — navigation happens, treat as success.
       setPending(false);
@@ -88,54 +83,35 @@ export function ConfirmDialog({
         onClick={() => setOpen(true)}
       >
         {triggerIcon}
-        <span className={triggerIcon ? "hidden md:inline" : undefined}>
-          {triggerLabel}
-        </span>
+        <span className={triggerIcon ? "hidden md:inline" : undefined}>{triggerLabel}</span>
       </Button>
 
-      {open && typeof document !== "undefined"
-        ? createPortal(
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-              <div
-                className="absolute inset-0 bg-black/50"
-                onClick={close}
-                aria-hidden="true"
-              />
-              <div
-                role="dialog"
-                aria-modal="true"
-                aria-label={title}
-                className="relative max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-xl border bg-card p-5 shadow-xl"
-              >
-                <h2 className="text-base font-semibold break-words">{title}</h2>
-                <p className="mt-1 text-sm break-words text-muted-foreground">
-                  {description}
-                </p>
+      <Dialog.Root open={open} onOpenChange={handleOpenChange}>
+        <Dialog.Portal>
+          <Dialog.Backdrop className="fixed inset-0 z-[100] bg-black/50 transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
+          <Dialog.Popup className="fixed left-1/2 top-1/2 z-[100] max-h-[90vh] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border bg-card p-5 text-card-foreground shadow-xl outline-none transition-all duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
+            <Dialog.Title className="text-base font-semibold break-words">{title}</Dialog.Title>
+            <Dialog.Description className="mt-1 text-sm break-words text-muted-foreground">
+              {description}
+            </Dialog.Description>
 
-                {error ? (
-                  <p className="mt-3 text-sm text-destructive" role="alert">
-                    {error}
-                  </p>
-                ) : null}
+            {error ? (
+              <p className="mt-3 text-sm text-destructive" role="alert">
+                {error}
+              </p>
+            ) : null}
 
-                <div className="mt-5 flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={close}>
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={confirmVariant}
-                    onClick={confirm}
-                    disabled={pending}
-                  >
-                    {pending ? "Working…" : confirmLabel}
-                  </Button>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={pending}>
+                Cancel
+              </Button>
+              <Button type="button" variant={confirmVariant} onClick={confirm} disabled={pending}>
+                {pending ? "Working…" : confirmLabel}
+              </Button>
+            </div>
+          </Dialog.Popup>
+        </Dialog.Portal>
+      </Dialog.Root>
     </>
   );
 }

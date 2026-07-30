@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Upload } from "lucide-react";
 import { Button } from "@/core/ui/button";
+import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { cn } from "@/core/lib/utils";
 import { IMPORT_TEMPLATES, templateCsv } from "@/core/admin/import/templates";
 import { FIELDS } from "@/core/admin/import/fields";
@@ -360,15 +361,7 @@ function Stat({ label, value, tone = "" }: { label: string; value: number; tone?
 
 function BatchRow({ clinicId, batch }: { clinicId: string; batch: BatchView }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
   const undone = batch.status !== "active";
-  const undo = () => {
-    if (!confirm("Undo this import? It soft-deletes every record it created.")) return;
-    startTransition(async () => {
-      await undoImportAction(clinicId, batch.id);
-      router.refresh();
-    });
-  };
   return (
     <tr className={cn("border-b last:border-0", undone && "opacity-60")}>
       <td className="px-3 py-2">{new Date(batch.createdAt).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
@@ -386,14 +379,19 @@ function BatchRow({ clinicId, batch }: { clinicId: string; batch: BatchView }) {
       <td className="px-3 py-2 text-muted-foreground">{batch.createdByName ?? "—"}</td>
       <td className="px-3 py-2 text-right">
         {undone ? null : (
-          <button
-            type="button"
-            onClick={undo}
-            disabled={pending}
-            className="text-sm text-destructive underline underline-offset-4 disabled:opacity-50"
-          >
-            {pending ? "Undoing…" : "Undo"}
-          </button>
+          <ConfirmDialog
+            triggerLabel="Undo"
+            triggerVariant="ghost"
+            triggerClassName="h-6 px-2 text-xs text-destructive hover:text-destructive"
+            title="Undo this import?"
+            description="It soft-deletes every record this batch created. You can fix the file and re-import afterwards."
+            confirmLabel="Undo import"
+            confirmVariant="destructive"
+            onConfirm={async () => {
+              await undoImportAction(clinicId, batch.id);
+              router.refresh();
+            }}
+          />
         )}
       </td>
     </tr>
