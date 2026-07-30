@@ -1,5 +1,3 @@
-import Link from "next/link";
-import { Printer } from "lucide-react";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { requireWorkspace } from "@/core/auth/user";
@@ -7,7 +5,7 @@ import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { getSalesDoctors, resolveSalesRange } from "@/core/sales/report";
-import { getPaymentsLedger, isMoneyOut } from "@/core/finance/payments-ledger";
+import { getPaymentsLedger } from "@/core/finance/payments-ledger";
 import {
   Card,
   CardContent,
@@ -16,19 +14,13 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { PaymentsFilters } from "./payments-filters";
+import { PaymentsTable } from "./payments-table";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
   currency: "PKR",
   maximumFractionDigits: 0,
 });
-
-const KIND_LABEL: Record<string, string> = {
-  payment: "Payment",
-  advance: "Advance",
-  advance_applied: "Advance applied",
-  refund: "Refund",
-};
 
 /**
  * Payments ledger (Finance) — the clinic-wide money in/out register, filterable by
@@ -89,10 +81,6 @@ export default async function PaymentsPage({
   if (kind) exportParams.set("kind", kind);
   if (q) exportParams.set("q", q);
 
-  const dayFmt = (d: Date) =>
-    d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-  const signed = (r: (typeof ledger.rows)[number]) =>
-    `${isMoneyOut(r.kind) ? "−" : ""}${money.format(r.amount)}`;
 
   return (
     <div className="space-y-6">
@@ -145,93 +133,7 @@ export default async function PaymentsPage({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {ledger.rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No payments in this period.</p>
-          ) : (
-            <>
-              {/* Desktop */}
-              <table className="hidden w-full text-sm md:table">
-                <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="pb-2 font-normal">Payment #</th>
-                    <th className="pb-2 font-normal">Date</th>
-                    <th className="pb-2 font-normal">Patient</th>
-                    <th className="pb-2 font-normal">Doctor</th>
-                    <th className="pb-2 font-normal">Type</th>
-                    <th className="pb-2 font-normal">Method</th>
-                    <th className="pb-2 font-normal">By</th>
-                    <th className="pb-2 text-right font-normal">Amount</th>
-                    <th className="pb-2 text-right font-normal">Receipt</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ledger.rows.map((r) => (
-                    <tr key={r.id} className="border-b last:border-0">
-                      <td className="py-2 font-medium tabular-nums">{r.receiptLabel ?? "—"}</td>
-                      <td className="py-2">{dayFmt(r.occurredAt)}</td>
-                      <td className="py-2">
-                        <Link
-                          href={`/clinic/patients/${r.patientId}`}
-                          className="underline underline-offset-4"
-                        >
-                          {r.patientName}
-                        </Link>
-                      </td>
-                      <td className="py-2">{r.doctorName ?? "—"}</td>
-                      <td className="py-2">{KIND_LABEL[r.kind] ?? r.kind}</td>
-                      <td className="py-2">{r.method ?? "—"}</td>
-                      <td className="py-2 text-muted-foreground">{r.createdByName ?? "—"}</td>
-                      <td className="py-2 text-right font-medium tabular-nums">{signed(r)}</td>
-                      <td className="py-2 text-right">
-                        {r.appointmentId ? (
-                          <Link
-                            href={`/clinic/appointments/${r.appointmentId}/receipt`}
-                            className="inline-flex items-center gap-1 text-muted-foreground underline underline-offset-4 hover:text-foreground"
-                          >
-                            <Printer className="size-3.5" aria-hidden="true" /> Print
-                          </Link>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {/* Mobile */}
-              <ul className="space-y-2 md:hidden">
-                {ledger.rows.map((r) => (
-                  <li key={r.id} className="rounded-md border p-3 text-sm">
-                    <div className="flex items-center justify-between gap-2">
-                      <Link
-                        href={`/clinic/patients/${r.patientId}`}
-                        className="font-medium underline underline-offset-4"
-                      >
-                        {r.patientName}
-                      </Link>
-                      <span className="font-medium tabular-nums">{signed(r)}</span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                      {r.receiptLabel ? <span className="font-medium tabular-nums text-foreground">{r.receiptLabel}</span> : null}
-                      <span>{dayFmt(r.occurredAt)}</span>
-                      <span>· {KIND_LABEL[r.kind] ?? r.kind}</span>
-                      {r.method ? <span>· {r.method}</span> : null}
-                      {r.doctorName ? <span>· {r.doctorName}</span> : null}
-                      {r.createdByName ? <span>· by {r.createdByName}</span> : null}
-                    </div>
-                    {r.appointmentId ? (
-                      <Link
-                        href={`/clinic/appointments/${r.appointmentId}/receipt`}
-                        className="mt-2 inline-flex items-center gap-1 text-xs font-medium underline underline-offset-4"
-                      >
-                        <Printer className="size-3.5" aria-hidden="true" /> Print receipt
-                      </Link>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
+          <PaymentsTable rows={ledger.rows} empty="No payments in this period." />
         </CardContent>
       </Card>
     </div>

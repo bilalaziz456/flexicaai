@@ -20,11 +20,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { Badge } from "@/core/ui/badge";
 import { Pagination } from "@/core/ui/pagination";
 import { parsePage, parsePageSize, pageOffset } from "@/core/lib/pagination";
 import { ExpenseFilters } from "./expenses-filters";
-import { AddExpenseForm, CategoryManager, ExpenseRowActions } from "./expense-ui";
+import { AddExpenseForm, CategoryManager } from "./expense-ui";
+import { ExpensesTable } from "./expenses-table";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -156,72 +156,11 @@ export default async function ExpensesPage({
 
       <Pagination page={page} pageSize={pageSize} total={total} basePath="/clinic/expenses" searchParams={sp} unit="expense" />
 
-      {rows.length === 0 ? (
-        <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-          No expenses{deleted ? " in the Trash" : " match these filters"}.
-        </p>
-      ) : (
-        <>
-          {/* Desktop */}
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-xs text-muted-foreground">
-                  <th className="pb-2 font-normal">Date</th>
-                  <th className="pb-2 font-normal">Category</th>
-                  <th className="pb-2 font-normal">Vendor</th>
-                  <th className="pb-2 font-normal">Method</th>
-                  <th className="pb-2 text-right font-normal">Amount</th>
-                  <th className="pb-2 text-right font-normal" />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((e) => (
-                  <tr key={e.id} className="border-b last:border-0">
-                    <td className="py-2 whitespace-nowrap">{e.incurredOn}</td>
-                    <td className="py-2">
-                      {e.categoryName ?? "—"}
-                      {e.recurring ? <Badge variant="outline" className="ml-1.5">Recurring</Badge> : null}
-                    </td>
-                    <td className="py-2">
-                      {e.vendor ?? "—"}
-                      {e.note ? <span className="block text-xs text-muted-foreground">{e.note}</span> : null}
-                    </td>
-                    <td className="py-2 capitalize">{e.method ?? "—"}</td>
-                    <td className="py-2 text-right font-medium tabular-nums">{money.format(e.amount)}</td>
-                    <td className="py-2 text-right">
-                      {canManage ? <ExpenseRowActions id={e.id} deleted={e.deleted} /> : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {/* Mobile */}
-          <ul className="space-y-2 md:hidden">
-            {rows.map((e) => (
-              <li key={e.id} className="rounded-md border p-3 text-sm">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">{e.categoryName ?? "Uncategorized"}</span>
-                  <span className="font-medium tabular-nums">{money.format(e.amount)}</span>
-                </div>
-                <div className="mt-0.5 text-xs text-muted-foreground">
-                  {e.incurredOn}
-                  {e.vendor ? ` · ${e.vendor}` : ""}
-                  {e.method ? ` · ${e.method}` : ""}
-                  {e.recurring ? " · recurring" : ""}
-                </div>
-                {e.note ? <div className="text-xs">{e.note}</div> : null}
-                {canManage ? (
-                  <div className="mt-1">
-                    <ExpenseRowActions id={e.id} deleted={e.deleted} />
-                  </div>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+      <ExpensesTable
+        rows={rows}
+        canManage={canManage}
+        empty={`No expenses${deleted ? " in the Trash" : " match these filters"}.`}
+      />
 
       {!deleted && canManage ? (
         <Card>

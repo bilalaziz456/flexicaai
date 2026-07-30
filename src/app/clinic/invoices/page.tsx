@@ -1,7 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { Download, Printer } from "lucide-react";
+import { Download } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
@@ -16,14 +15,13 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { InvoiceFilters } from "./invoice-filters";
+import { InvoicesTable } from "./invoices-table";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
   currency: "PKR",
   maximumFractionDigits: 0,
 });
-const dayFmt = (d: Date) =>
-  d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
 /**
  * Invoice register (Finance) — every issued invoice, newest number first, for lookup
@@ -109,74 +107,10 @@ export default async function InvoicesPage({
           <CardTitle className="text-base">Register</CardTitle>
         </CardHeader>
         <CardContent>
-          {list.rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {q ? "No invoices match your search." : "No invoices issued yet."}
-            </p>
-          ) : (
-            <>
-              {/* Desktop */}
-              <table className="hidden w-full text-sm md:table">
-                <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="pb-2 font-normal">Invoice</th>
-                    <th className="pb-2 font-normal">Date</th>
-                    <th className="pb-2 font-normal">Patient</th>
-                    <th className="pb-2 font-normal">Issued by</th>
-                    <th className="pb-2 text-right font-normal">Amount</th>
-                    <th className="pb-2 text-right font-normal">Print</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {list.rows.map((r) => (
-                    <tr key={r.id} className="border-b last:border-0">
-                      <td className="py-2 font-medium">{r.label}</td>
-                      <td className="py-2">{dayFmt(r.issuedAt)}</td>
-                      <td className="py-2">
-                        <Link href={`/clinic/patients/${r.patientId}`} className="underline underline-offset-4">
-                          {r.patientName}
-                        </Link>
-                      </td>
-                      <td className="py-2 text-muted-foreground">{r.issuedByName ?? "—"}</td>
-                      <td className="py-2 text-right tabular-nums">{money.format(r.amount)}</td>
-                      <td className="py-2 text-right">
-                        <Link
-                          href={`/clinic/appointments/${r.appointmentId}/invoice`}
-                          className="inline-flex items-center gap-1 text-muted-foreground underline underline-offset-4 hover:text-foreground"
-                        >
-                          <Printer className="size-3.5" aria-hidden="true" /> Print
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {/* Mobile */}
-              <ul className="space-y-2 md:hidden">
-                {list.rows.map((r) => (
-                  <li key={r.id} className="rounded-md border p-3 text-sm">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">{r.label}</span>
-                      <span className="font-medium tabular-nums">{money.format(r.amount)}</span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                      <Link href={`/clinic/patients/${r.patientId}`} className="underline underline-offset-4">
-                        {r.patientName}
-                      </Link>
-                      <span>· {dayFmt(r.issuedAt)}</span>
-                      {r.issuedByName ? <span>· {r.issuedByName}</span> : null}
-                    </div>
-                    <Link
-                      href={`/clinic/appointments/${r.appointmentId}/invoice`}
-                      className="mt-2 inline-flex items-center gap-1 text-xs font-medium underline underline-offset-4"
-                    >
-                      <Printer className="size-3.5" aria-hidden="true" /> Print invoice
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
+          <InvoicesTable
+            rows={list.rows}
+            empty={q ? "No invoices match your search." : "No invoices issued yet."}
+          />
         </CardContent>
       </Card>
     </div>
