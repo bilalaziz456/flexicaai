@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { getThemeCookie } from "@/core/theme/server";
+import { Toaster } from "@/core/ui/toast";
 import "./globals.css";
 
 // App font. Exposed as the CSS var globals.css maps `--font-sans` to.
@@ -49,6 +50,8 @@ export default async function RootLayout({
           dangerouslySetInnerHTML={{ __html: themeScript }}
         />
         {children}
+        {/* Single global toast host — stacks + dismisses notifications app-wide. */}
+        <Toaster />
       </body>
     </html>
   );

@@ -25,6 +25,7 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { Sparkline } from "@/core/ui/sparkline";
+import { OnboardingChecklist } from "@/core/ui/onboarding-checklist";
 import { AvgVisitValueForm } from "./avg-visit-value-form";
 import { DoctorLeaves } from "@/app/reception/doctor-leaves";
 import { CLINIC_STAFF_ROLES, CLINIC_STAFF_SUMMARY } from "@/core/types/auth";
@@ -102,7 +103,7 @@ export default async function ClinicDashboard() {
     ? getNoShowStats(clinicId, resolveSalesRange("30d", undefined, undefined))
     : Promise.resolve(null);
 
-  const [[staff], [patientRows], [recallsSent], [upcoming], recoveredRes, recoveredTrendRes] =
+  const [[staff], [patientRows], [recallsSent], [upcoming], recoveredRes, recoveredTrendRes, [apptTotal]] =
     await Promise.all([
       db
         .select({ value: count() })
@@ -184,7 +185,23 @@ export default async function ClinicDashboard() {
             GROUP BY m ORDER BY m
           `)
         : Promise.resolve({ rows: [] as { m: string; n: number }[] }),
+      // Total appointments ever (for the first-run onboarding checklist).
+      db
+        .select({ value: count() })
+        .from(appointments)
+        .where(byClinic(appointments.clinicId, clinicId, notDeleted(appointments.deletedAt))),
     ]);
+
+  // First-run setup guide — shown to the clinic admin until the three essentials are
+  // in place, then it hides itself (no manual dismiss needed).
+  const onboardingSteps = isAdmin
+    ? [
+        { label: "Add your team", description: "Invite doctors and receptionists.", href: "/clinic/staff", cta: "Add staff", done: staff.value > 0 },
+        { label: "Add your first patient", description: "Register a patient to start booking.", href: "/clinic/patients", cta: "Add patient", done: patientRows.value > 0 },
+        { label: "Book the first appointment", description: "Schedule a visit for a patient.", href: "/clinic/appointments/new", cta: "Book", done: apptTotal.value > 0 },
+      ]
+    : [];
+  const showOnboarding = onboardingSteps.length > 0 && onboardingSteps.some((s) => !s.done);
 
   const recovered = Number(
     (recoveredRes.rows[0] as { recovered?: number } | undefined)?.recovered ?? 0,
@@ -284,6 +301,8 @@ export default async function ClinicDashboard() {
           </Link>
         ) : null}
       </div>
+
+      {showOnboarding ? <OnboardingChecklist steps={onboardingSteps} /> : null}
 
       {/* Hero: Revenue Recovered — the top metric when the super admin enabled it. */}
       {revenueEnabled ? (
