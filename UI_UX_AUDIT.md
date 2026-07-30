@@ -76,7 +76,9 @@ The audit was acted on the same day. The items below are **implemented, `tsc` + 
 - **Designed empty states** (audit §7) → reusable `EmptyState` component wired into `DataTable`. ✅LIVE.
 - **Latent bug caught by the build** → `/clinic/history`'s client filter was importing a server-only module (a build-time error `tsc` misses); fixed by splitting out a client-safe tab module. The app now builds for **every route**.
 
-**Still open** (tracked in §16 / §20): P1-1 loading skeletons · P1-4 touch targets · P2-2 breadcrumbs · P2-3 inline form validation · P2-4 dashboard charts + KPI deltas · P2-6 measured contrast (dark-mode spot-checked, not instrumented) · P2-8 skip-to-content + icon-button aria sweep · all of P3.
+**Also done (P1-1, P1-4):** content-shaped **loading skeletons** in all 4 panels (replacing the spinner) and a coarse-pointer **40px touch-target** minimum on every design-system button.
+
+**Still open** (tracked in §16 / §20): P2-2 breadcrumbs · P2-3 inline form validation · P2-4 dashboard charts + KPI deltas · P2-6 measured contrast (dark-mode spot-checked, not instrumented) · P2-8 skip-to-content + icon-button aria sweep · all of P3.
 
 ---
 
@@ -295,7 +297,7 @@ The audit was acted on the same day. The items below are **implemented, `tsc` + 
 | Voice scribe (doctor) | **Needs review (live)** | Recorder UX must be tested on a real tablet |
 | Marketing / landing | **Needs review (live)** | Not audited in depth (static; verify SEO + hero) |
 | **Error pages (404/500)** | ✅ **Production Ready** | ~~don't exist~~ → branded 404 + error/global-error boundaries added |
-| **Global loading states** | **Needs Significant Work** | Spinner-only, 4 routes — **still open (P1-1)** |
+| **Global loading states** | ✅ **Production Ready** | ~~spinner-only~~ → content-shaped `PanelSkeleton` in all 4 panels |
 | **Notification system** | ✅ **Production Ready** | ~~no stacking~~ → queue with stacking / dismiss / pause-on-hover |
 | **Modal a11y** | ✅ **Production Ready** | ~~no focus trap~~ → rebuilt on Base UI `Dialog` (trap/restore/scroll-lock) |
 
@@ -333,13 +335,13 @@ The audit was acted on the same day. The items below are **implemented, `tsc` + 
 
 ### P1 — High Priority
 
-**⬜ OPEN · P1-1 · Loading skeletons + boundaries** — *Location:* app-wide (4 `loading.tsx`, 0 skeletons). *Fix:* add `loading.tsx` per major segment rendering content-shaped skeletons (list rows, card grids), not a spinner. *Principle:* perceived performance. *Effort:* M · *Impact:* High.
+**✅ FIXED · P1-1 · Loading skeletons + boundaries** — the 4 panel `loading.tsx` boundaries now render a content-shaped `PanelSkeleton` (title → KPI cards → list rows) instead of a spinner (new `Skeleton`/`PanelSkeleton` primitives). *(In-table skeleton rows during data refetch are still a nice-to-have.)*
 
 **✅ FIXED · P1-2 · Notification system (stack + dismiss + global API)** — one `<Toaster/>` + queue (`toast-store.ts`): stacking, ×-dismiss, pause-on-hover, imperative `toast()`; compat wrappers kept. Verified live.
 
 **✅ FIXED · P1-3 · Table consistency + sorting** — one `DataTable` (sorting, sticky-header option, empty state, mobile cards, whole-row link, totals footer); **16 tables migrated**. Verified live. (Also delivers P2-5 + P2-7.)
 
-**⬜ OPEN · P1-4 · Touch targets** — *Location:* `button.tsx` sizes; table action links. *Fix:* raise default interactive min-height to ~36–40px on touch (`@media (pointer:coarse)`), enlarge row-action hit areas. *Principle:* WCAG 2.5.8. *Effort:* S–M · *Impact:* Medium-High.
+**✅ FIXED · P1-4 · Touch targets** — a `@media (pointer: coarse)` rule enforces a **40px minimum** on every design-system button (incl. dense table actions + square icon buttons) on touch/stylus devices; mouse/desktop layouts are unchanged. *(Raw `<button>` pills — e.g. period tabs — not yet covered; minor.)* WCAG 2.5.8.
 
 **✅ FIXED · P1-5 · Replace native `confirm()`** — the 3 calls (announcements/billing-void/import-undo) now use the styled `ConfirmDialog`.
 
@@ -397,20 +399,20 @@ The audit was acted on the same day. The items below are **implemented, `tsc` + 
 
 ## 18. Final Scores
 
-> These are the **original (pre-remediation)** scores. The "Now" column reflects the 2026-07-30 fixes (§0a) — most edge/consistency gaps that dragged the numbers are closed; the remaining drag is loading skeletons (P1-1), touch targets (P1-4), and breadcrumbs/deltas.
+> These are the **original (pre-remediation)** scores. The "Now" column reflects the 2026-07-30 fixes (§0a) — most edge/consistency gaps that dragged the numbers are closed; the remaining drag is dashboard deltas/charts, breadcrumbs, and inline form validation.
 
 | Dimension | Was /10 | Now /10 | Rationale (updated) |
 |---|---:|---:|---|
 | Visual Design | 7.5 | 8.0 | + tokenised status colours, designed empty states |
 | User Experience | 6.5 | 7.5 | + onboarding, real notifications, no dead-end errors |
-| Accessibility | 5.5 | 6.5 | + modal focus trap/restore fixed; touch targets (P1-4) + skip-link (P2-8) still open |
+| Accessibility | 5.5 | 7.0 | + modal focus trap/restore **and** 40px touch targets; skip-link (P2-8) still open |
 | Consistency | 6.5 | 8.0 | + one `DataTable` (16 tables), one modal primitive, colour tokens |
-| Responsiveness | 6.5 | 7.0 | + uniform mobile card views; touch targets still weak |
+| Responsiveness | 6.5 | 7.5 | + uniform mobile card views + a touch-target minimum |
 | Professional Appearance | 7.0 | 8.0 | + branded error/404, stacking toasts |
 | Ease of Use | 6.5 | 7.0 | + first-run guidance, sortable tables |
-| First Impression | 6.0 | 7.0 | + no stray raw error/404 |
-| Production Readiness | 5.5 | 7.5 | P0 blockers cleared + a passing production build; skeletons remain |
-| **Overall Product Quality** | **6.5** | **7.5** | Foundation + edges now solid; polish (skeletons, deltas, breadcrumbs, touch) remains |
+| First Impression | 6.0 | 7.5 | + no raw error/404, content skeletons instead of a spinner |
+| Production Readiness | 5.5 | 8.0 | P0 blockers cleared + loading skeletons + a passing production build |
+| **Overall Product Quality** | **6.5** | **8.0** | Foundation + edges now solid; remaining polish = dashboard deltas/charts, breadcrumbs, form validation |
 
 ---
 
