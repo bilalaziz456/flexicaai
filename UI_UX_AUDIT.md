@@ -76,9 +76,9 @@ The audit was acted on the same day. The items below are **implemented, `tsc` + 
 - **Designed empty states** (audit §7) → reusable `EmptyState` component wired into `DataTable`. ✅LIVE.
 - **Latent bug caught by the build** → `/clinic/history`'s client filter was importing a server-only module (a build-time error `tsc` misses); fixed by splitting out a client-safe tab module. The app now builds for **every route**.
 
-**Also done (P1-1, P1-4):** content-shaped **loading skeletons** in all 4 panels (replacing the spinner) and a coarse-pointer **40px touch-target** minimum on every design-system button.
+**Also done (P1-1, P1-4, P2-2, P2-8 skip-link):** content-shaped **loading skeletons** in all 4 panels; a coarse-pointer **40px touch-target** minimum on every button; **breadcrumbs** on the deep admin/appointment routes; and a **skip-to-content** link. All P0s + all P1s are now resolved.
 
-**Still open** (tracked in §16 / §20): P2-2 breadcrumbs · P2-3 inline form validation · P2-4 dashboard charts + KPI deltas · P2-6 measured contrast (dark-mode spot-checked, not instrumented) · P2-8 skip-to-content + icon-button aria sweep · all of P3.
+**Still open** (tracked in §16 / §20): P2-3 inline form validation · P2-4 dashboard charts + KPI deltas · P2-6 measured contrast (dark-mode spot-checked, not instrumented) · P2-8 icon-button aria sweep · all of P3.
 
 ---
 
@@ -350,13 +350,13 @@ The audit was acted on the same day. The items below are **implemented, `tsc` + 
 ### P2 — Medium Priority
 
 **✅ FIXED · P2-1 · Semantic status color tokens** — added `--success/--warning/--info` tokens + `Badge` variants; swapped the `emerald/amber/sky` literals to tokens app-wide (25 files) + tokenised semantic chart colours. Verified live (light + dark).
-**⬜ OPEN · P2-2 · Breadcrumbs** on deep routes. *Effort:* M · *Impact:* Medium.
+**✅ FIXED · P2-2 · Breadcrumbs** — new `Breadcrumbs` component wired into the deep admin flow the audit named (clinic detail → import) + the shared appointment detail, replacing lone "← Back" links. Verified live. *(A few client-component detail pages still use their own header back-link; extend as needed.)*
 **⬜ OPEN · P2-3 · Inline (client) form validation + full error summary.** *Effort:* M · *Impact:* Medium.
 **⬜ OPEN · P2-4 · Dashboard charts + KPI deltas.** *Effort:* M · *Impact:* Medium-High. *(Deferred: a correct delta needs prior-period queries — best done with a live eyeball.)*
 **✅ FIXED · P2-5 · Sticky table headers** — a `stickyHeader` option on `DataTable` (in-table skeletons still open, see P1-1).
 **◐ PARTIAL · P2-6 · Contrast verification** — dark-mode tokens/badges spot-checked live and legible; **not yet instrumented** against WCAG AA numerically. *Effort:* S.
 **✅ FIXED · P2-7 · Mobile card views** — every migrated table collapses to cards below `md` via `DataTable`.
-**⬜ OPEN · P2-8 · "Skip to content" link + full icon-button label sweep.** *Effort:* S · *Impact:* Medium (a11y).
+**◐ PARTIAL · P2-8 · Skip-to-content + icon-button labels** — ✅ **skip-to-content link** added in `PanelShell` (first focusable, → `#main-content`; verified live). ⬜ the full icon-button `aria-label` sweep is still open.
 
 ### P3 — Nice to Have
 
