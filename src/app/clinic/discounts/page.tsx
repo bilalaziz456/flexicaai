@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { Download } from "lucide-react";
@@ -15,21 +14,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { Badge } from "@/core/ui/badge";
 import { DiscountFilters } from "./discounts-filters";
+import { DiscountsTable } from "./discounts-table";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
   currency: "PKR",
   maximumFractionDigits: 0,
 });
-const BORNE: Record<string, string> = { clinic: "Clinic", doctor: "Doctor", split: "Split" };
-const STATUS: Record<string, { label: string; variant: "outline" | "secondary" | "destructive" }> = {
-  none: { label: "Applied", variant: "outline" },
-  approved: { label: "Approved", variant: "outline" },
-  pending: { label: "Pending", variant: "secondary" },
-  rejected: { label: "Rejected", variant: "destructive" },
-};
 
 /**
  * Discounts report — every discount given: patient, doctor, amount, who bears it,
@@ -77,11 +69,6 @@ export default async function DiscountsPage({
   if (doctorId) exportParams.set("doctorId", doctorId);
   if (borneBy) exportParams.set("borneBy", borneBy);
   if (status) exportParams.set("status", status);
-
-  const dayFmt = (d: Date) =>
-    d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-  const discLabel = (r: (typeof report.rows)[number]) =>
-    r.type === "percent" ? `${money.format(r.amount)} (${r.value}%)` : money.format(r.amount);
 
   return (
     <div className="space-y-6">
@@ -133,80 +120,7 @@ export default async function DiscountsPage({
           <CardTitle className="text-base">Discounts</CardTitle>
         </CardHeader>
         <CardContent>
-          {report.rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No discounts in this period.</p>
-          ) : (
-            <>
-              {/* Desktop */}
-              <table className="hidden w-full text-sm md:table">
-                <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="pb-2 font-normal">Date</th>
-                    <th className="pb-2 font-normal">Patient</th>
-                    <th className="pb-2 font-normal">Doctor</th>
-                    <th className="pb-2 font-normal">Borne by</th>
-                    <th className="pb-2 font-normal">Status</th>
-                    <th className="pb-2 text-right font-normal">Discount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.rows.map((r) => (
-                    <tr key={r.appointmentId} className="border-b last:border-0">
-                      <td className="py-2">
-                        <Link href={`/clinic/appointments/${r.appointmentId}`} className="underline underline-offset-4">
-                          {dayFmt(r.scheduledAt)}
-                        </Link>
-                      </td>
-                      <td className="py-2">{r.patientName ?? "—"}</td>
-                      <td className="py-2">{r.doctorName ?? "—"}</td>
-                      <td className="py-2">
-                        {BORNE[r.borneBy] ?? "Clinic"}
-                        {r.borneBy !== "clinic" ? (
-                          <span className="block text-xs text-muted-foreground">
-                            Clinic {money.format(r.clinicBears)} · Dr {money.format(r.doctorBears)}
-                          </span>
-                        ) : null}
-                      </td>
-                      <td className="py-2">
-                        <Badge variant={STATUS[r.status]?.variant ?? "outline"}>
-                          {STATUS[r.status]?.label ?? r.status}
-                        </Badge>
-                        {r.approvedBy ? (
-                          <span className="block text-xs text-muted-foreground">by {r.approvedBy}</span>
-                        ) : null}
-                      </td>
-                      <td className="py-2 text-right font-medium tabular-nums">{discLabel(r)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {/* Mobile */}
-              <ul className="space-y-2 md:hidden">
-                {report.rows.map((r) => (
-                  <li key={r.appointmentId} className="rounded-md border p-3 text-sm">
-                    <div className="flex items-center justify-between gap-2">
-                      <Link href={`/clinic/appointments/${r.appointmentId}`} className="font-medium underline underline-offset-4">
-                        {r.patientName ?? "—"}
-                      </Link>
-                      <span className="font-medium tabular-nums">{discLabel(r)}</span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                      <span>{dayFmt(r.scheduledAt)}</span>
-                      {r.doctorName ? <span>· {r.doctorName}</span> : null}
-                      <span>· borne by {BORNE[r.borneBy] ?? "Clinic"}</span>
-                      {r.borneBy !== "clinic" ? (
-                        <span>· Clinic {money.format(r.clinicBears)} / Dr {money.format(r.doctorBears)}</span>
-                      ) : null}
-                      <Badge variant={STATUS[r.status]?.variant ?? "outline"}>
-                        {STATUS[r.status]?.label ?? r.status}
-                      </Badge>
-                      {r.approvedBy ? <span>· by {r.approvedBy}</span> : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
+          <DiscountsTable rows={report.rows} />
         </CardContent>
       </Card>
     </div>

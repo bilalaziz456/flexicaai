@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { DayBookControls } from "./daybook-controls";
+import { DaybookTable } from "./daybook-table";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -87,36 +88,7 @@ export default async function DayBookPage({
           <CardTitle className="text-base">By method</CardTitle>
         </CardHeader>
         <CardContent>
-          {book.rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No cash movement on this day.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[28rem] text-sm">
-                <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="pb-2 font-normal">Method</th>
-                    <th className="pb-2 text-right font-normal">Collected</th>
-                    <th className="pb-2 text-right font-normal">Refunded</th>
-                    <th className="pb-2 text-right font-normal">Expenses</th>
-                    <th className="pb-2 text-right font-normal">Net</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {book.rows.map((r) => (
-                    <tr key={r.method} className="border-b last:border-0">
-                      <td className="py-2 capitalize">{r.method}</td>
-                      <td className="py-2 text-right tabular-nums">{money.format(r.collected)}</td>
-                      <td className="py-2 text-right tabular-nums">{money.format(r.refunded)}</td>
-                      <td className="py-2 text-right tabular-nums">{money.format(r.expenses)}</td>
-                      <td className={`py-2 text-right font-medium tabular-nums ${r.net < 0 ? "text-destructive" : ""}`}>
-                        {money.format(r.net)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <DaybookTable rows={book.rows} />
         </CardContent>
       </Card>
 

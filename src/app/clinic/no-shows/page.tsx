@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { SalesFilters } from "@/app/clinic/sales/sales-filters";
+import { NoShowsTable } from "./no-shows-table";
 
 /**
  * No-show report (operations) — the share of intended appointments the patient
@@ -63,32 +64,7 @@ export default async function NoShowsPage({
           <CardDescription>No-show rate per doctor (worst first).</CardDescription>
         </CardHeader>
         <CardContent>
-          {stats.byDoctor.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No completed or missed appointments in this period.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[26rem] text-sm">
-                <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="pb-2 font-normal">Doctor</th>
-                    <th className="pb-2 text-right font-normal">No-shows</th>
-                    <th className="pb-2 text-right font-normal">Attended</th>
-                    <th className="pb-2 text-right font-normal">Rate</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats.byDoctor.map((d) => (
-                    <tr key={d.doctorId ?? "none"} className="border-b last:border-0">
-                      <td className="py-1.5">{d.name}</td>
-                      <td className="py-1.5 text-right tabular-nums">{d.noShow}</td>
-                      <td className="py-1.5 text-right tabular-nums">{d.attended}</td>
-                      <td className="py-1.5 text-right font-medium tabular-nums">{pct(d.rate)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <NoShowsTable rows={stats.byDoctor} />
         </CardContent>
       </Card>
     </div>
