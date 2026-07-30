@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Printer } from "lucide-react";
+import { HandCoins, Printer } from "lucide-react";
 import { DataTable, type Column } from "@/core/ui/data-table";
 
 const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
@@ -77,5 +77,5 @@ export function PaymentsTable({ rows, empty }: { rows: Row[]; empty: string }) {
         ),
     },
   ];
-  return <DataTable rows={rows} columns={columns} getRowKey={(r) => r.id} minWidthClassName="min-w-[52rem]" empty={empty} />;
+  return <DataTable rows={rows} columns={columns} getRowKey={(r) => r.id} minWidthClassName="min-w-[52rem]" emptyIcon={HandCoins} empty={empty} />;
 }

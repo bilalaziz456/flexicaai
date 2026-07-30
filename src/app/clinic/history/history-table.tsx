@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Archive } from "lucide-react";
 import { DataTable, type Column } from "@/core/ui/data-table";
 import type { HistoryType } from "@/core/finance/imported-history-tabs";
 import type { ImportedHistoryRow } from "@/core/finance/imported-history";
@@ -87,6 +88,7 @@ export function HistoryTable({ rows, tab }: { rows: ImportedHistoryRow[]; tab: H
       columns={columns}
       getRowKey={(r) => r.id}
       minWidthClassName="min-w-[40rem]"
+      emptyIcon={Archive}
       empty="Nothing matches these filters."
     />
   );

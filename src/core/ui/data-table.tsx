@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsUpDown, type LucideIcon } from "lucide-react";
 import { cn } from "@/core/lib/utils";
 import { RowLink } from "@/core/ui/row-link";
+import { EmptyState } from "@/core/ui/empty-state";
 
 /**
  * Shared data table — CORE. One consistent implementation for the app's list/ledger
@@ -55,6 +56,7 @@ export function DataTable<T>({
   columns,
   getRowKey,
   empty = "Nothing to show.",
+  emptyIcon,
   stickyHeader = false,
   initialSort,
   minWidthClassName,
@@ -65,6 +67,8 @@ export function DataTable<T>({
   columns: Column<T>[];
   getRowKey: (row: T, index: number) => string;
   empty?: React.ReactNode;
+  /** Optional icon for the (designed) empty state. */
+  emptyIcon?: LucideIcon;
   stickyHeader?: boolean;
   initialSort?: SortState;
   /** e.g. "min-w-[48rem]" to force horizontal scroll before columns crush. */
@@ -102,7 +106,7 @@ export function DataTable<T>({
   }
 
   if (rows.length === 0) {
-    return <p className="py-6 text-center text-sm text-muted-foreground">{empty}</p>;
+    return <EmptyState compact icon={emptyIcon} title={empty} />;
   }
 
   const titleCol = columns.find((c) => c.cardTitle);

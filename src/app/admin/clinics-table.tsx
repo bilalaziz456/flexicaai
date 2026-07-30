@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { Building2, ChevronRight } from "lucide-react";
 import { DataTable, type Column } from "@/core/ui/data-table";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
@@ -101,6 +101,7 @@ export function ClinicsTable({ rows, showBilling, empty }: { rows: ClinicRow[]; 
       rowHref={(r) => `/admin/clinics/${r.id}`}
       minWidthClassName="min-w-[68rem]"
       initialSort={{ id: "created", dir: "desc" }}
+      emptyIcon={Building2}
       empty={empty}
     />
   );
