@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireAdminCapability } from "@/core/auth/user";
 import { displayStaffName } from "@/core/types/auth";
 import {
@@ -46,7 +47,7 @@ export async function saveCompanyExpense(
     recurring: formData.get("recurring") === "on",
     recurrence: (formData.get("recurrence") as string) || undefined,
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
 
   const input = {
     categoryId: parsed.data.categoryId ?? null,

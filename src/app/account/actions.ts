@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireUser } from "@/core/auth/user";
 import { canUseAccount } from "@/core/auth/admin-permissions";
 import { hashPassword } from "@/core/auth/password";
@@ -43,7 +44,7 @@ export async function updateMyProfile(
     email: formData.get("email") ?? "",
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
 
   try {
@@ -128,7 +129,7 @@ export async function changeMyPassword(
     confirmPassword: formData.get("confirmPassword"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
 
   if (!(await verifyCurrentUserPassword(parsed.data.currentPassword))) {

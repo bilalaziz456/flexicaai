@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireRole } from "@/core/auth/user";
 import { can, type PermAction } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
@@ -93,7 +94,7 @@ export async function collectPayment(
       reference: formData.get("reference") || undefined,
       note: formData.get("note") || undefined,
     });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
 
   const patientId = await apptPatient(clinicId, appointmentId);
   if (!patientId) return { error: "Appointment not found." };
@@ -137,7 +138,7 @@ export async function recordOpeningPayment(
       reference: formData.get("reference") || undefined,
       note: formData.get("note") || undefined,
     });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
 
   const res = await settleOpeningBalance(clinicId, {
     patientId,
@@ -204,7 +205,7 @@ export async function refundAppointmentPayment(
       reference: formData.get("reference") || undefined,
       note: formData.get("note") || undefined,
     });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
 
   const patientId = await apptPatient(clinicId, appointmentId);
   if (!patientId) return { error: "Appointment not found." };

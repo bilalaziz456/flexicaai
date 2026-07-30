@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireAdminCapability } from "@/core/auth/user";
 import { setCostRates } from "@/core/admin/cost";
 import { logActivity } from "@/core/audit/log";
@@ -32,7 +33,7 @@ export async function saveCostRatesAction(
     claudeOutputCost: formData.get("claudeOutputCost"),
     usdToPkr: formData.get("usdToPkr"),
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
 
   await setCostRates(parsed.data, {
     id: actor.id,

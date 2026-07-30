@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin, canManageTeam } from "@/core/auth/admin-permissions";
 import { CHURN_DAYS_OPTIONS, setAnomalyThresholds, setChurnInactiveDays } from "@/core/admin/company-settings";
@@ -48,7 +49,7 @@ export async function setAnomalyThresholdsAction(
     spikeMultiple: formData.get("spikeMultiple"),
     spikeFloorPkr: formData.get("spikeFloorPkr"),
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
 
   await setAnomalyThresholds(parsed.data);
   await logActivity({

@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { zodErrorMessage } from "@/core/lib/zod-error";
 import {
   THEME_COOKIE_MAX_AGE,
   THEME_COOKIE_NAME,
@@ -48,7 +49,7 @@ export async function signIn(
     password: formData.get("password"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
 
   const username = parsed.data.username.toLowerCase();
@@ -187,7 +188,7 @@ export async function changePassword(
     confirmPassword: formData.get("confirmPassword"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
 
   const passwordHash = await hashPassword(parsed.data.password);

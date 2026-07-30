@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { zodErrorMessage } from "@/core/lib/zod-error";
 import { consumeResetToken, requestPasswordReset } from "@/core/auth/password-reset";
 import { resetByIdentifier, resetByIp } from "@/core/security/rate-limit";
 import type { AuthActionState } from "@/core/auth/actions";
@@ -57,7 +58,7 @@ export async function submitResetAction(
     confirmPassword: formData.get("confirmPassword"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
   const result = await consumeResetToken(parsed.data.token, parsed.data.password);
   if ("error" in result) return { error: result.error };

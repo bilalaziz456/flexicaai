@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { and, desc, eq, gte, ilike, inArray, lt, or } from "drizzle-orm";
 import { z } from "zod";
+import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireRole } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
@@ -154,7 +155,7 @@ export async function createAppointment(
     discountSplitValue: formData.get("discountSplitValue") ?? undefined,
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
 
   const discountError = validateDiscount(
@@ -313,7 +314,7 @@ export async function updateAppointment(
     discountSplitValue: formData.get("discountSplitValue") ?? undefined,
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
 
   const discountError = validateDiscount(

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireAdminCapability } from "@/core/auth/user";
 import { hashPassword } from "@/core/auth/password";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
@@ -72,7 +73,7 @@ export async function createSuperAdminAction(
     password: formData.get("password"),
     subRole: formData.get("subRole") ?? "support",
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
 
   // Can't create someone with more access than you have (no escalation).
   if (!canGrantAdminCapabilities(actor, permsForSubRole(parsed.data.subRole))) {
@@ -178,7 +179,7 @@ export async function editTeamMemberProfileAction(
     fullName: formData.get("fullName"),
     username: formData.get("username"),
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
 
   try {
     await db

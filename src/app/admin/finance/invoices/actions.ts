@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireAdminCapability } from "@/core/auth/user";
 import { displayStaffName } from "@/core/types/auth";
 import {
@@ -34,7 +35,7 @@ export async function issueClinicInvoiceAction(
     periodEnd: formData.get("periodEnd") || undefined,
     note: formData.get("note") || undefined,
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
 
   const res = await issueClinicInvoice(
     {

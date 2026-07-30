@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireRole } from "@/core/auth/user";
 import { can, type PermAction } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
@@ -71,7 +72,7 @@ export async function createProcedure(
     price: formData.get("price"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
 
   const [clinic] = await db
@@ -113,7 +114,7 @@ export async function updateProcedure(
     price: formData.get("price"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
   const isActive = formData.get("isActive") === "on";
 

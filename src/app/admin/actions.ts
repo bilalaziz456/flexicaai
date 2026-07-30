@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
+import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireAdminCapability } from "@/core/auth/user";
 import { hashPassword } from "@/core/auth/password";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
@@ -98,7 +99,7 @@ export async function createClinicWithAdmin(
     adminPassword: formData.get("adminPassword"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
 
   // Only "available" specialties may be enabled; anything else is dropped.
@@ -209,7 +210,7 @@ export async function updateClinic(
     whatsappSenderName: formData.get("whatsappSenderName") ?? undefined,
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
 
   const specialtyAllowed = new Set(availableSpecialtyIds());
@@ -575,7 +576,7 @@ export async function updateClinicContact(
     notes: formData.get("notes") ?? undefined,
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
   const d = parsed.data;
   const orNull = (v?: string) => (v && v.length ? v : null);
@@ -722,7 +723,7 @@ export async function setClinicPrice(
     billingCycle: formData.get("billingCycle") ?? "monthly",
     graceDays: formData.get("graceDays") ?? 7,
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
 
   const [before] = await db
     .select({ name: clinics.name })
@@ -783,7 +784,7 @@ export async function recordClinicPaymentAction(
     commitmentAt: formData.get("commitmentAt") || undefined,
     commitmentNote: formData.get("commitmentNote") || undefined,
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
 
   const occurredAt = parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : undefined;
   if (occurredAt && Number.isNaN(occurredAt.getTime())) return { error: "Invalid date." };
@@ -1104,7 +1105,7 @@ export async function updateStaffProfile(
     username: formData.get("username"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
 
   try {
@@ -1153,7 +1154,7 @@ export async function resetUserPassword(
     password: formData.get("password"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
 
   const passwordHash = await hashPassword(parsed.data.password);

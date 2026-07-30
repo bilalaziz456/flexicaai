@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireAdminCapability } from "@/core/auth/user";
 import {
   createAnnouncement,
@@ -33,7 +34,7 @@ export async function createAnnouncementAction(
     body: formData.get("body"),
     endsAt: formData.get("endsAt") ?? undefined,
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
 
   const endsAt = parsed.data.endsAt ? new Date(parsed.data.endsAt) : null;
   if (endsAt && Number.isNaN(endsAt.getTime())) return { error: "Invalid end date." };

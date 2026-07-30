@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
+import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireClinicAdmin, requireRole, requireWorkspace } from "@/core/auth/user";
 import { can, type PermAction } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
@@ -193,7 +194,7 @@ export async function createStaff(
     password: formData.get("password"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
   // Title is mandatory when creating staff (so names always show as "Dr. …").
   if (!parsed.data.prefix) return { error: "Select a title." };
@@ -344,7 +345,7 @@ export async function resetStaffPassword(
     password: formData.get("password"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
 
   const passwordHash = await hashPassword(parsed.data.password);
@@ -400,7 +401,7 @@ export async function updateStaffProfile(
     username: formData.get("username"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
 
   // Fetch the (clinic-scoped, editable) member so we know whether to also save a
@@ -670,7 +671,7 @@ export async function createPatient(
     fullName: formData.get("fullName"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
 
   const createdPatient = await db.transaction(async (tx) => {
@@ -733,7 +734,7 @@ export async function updatePatient(
     fullName: formData.get("fullName"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
 
   const result = await db
@@ -894,7 +895,7 @@ export async function updateClinicSettings(
     avgVisitValue: formData.get("avgVisitValue"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: zodErrorMessage(parsed.error) };
   }
 
   await db
