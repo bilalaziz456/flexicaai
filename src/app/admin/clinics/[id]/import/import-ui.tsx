@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Download, Upload } from "lucide-react";
 import { Button } from "@/core/ui/button";
 import { ConfirmDialog } from "@/core/ui/confirm-dialog";
+import { DataTable } from "@/core/ui/data-table";
 import { cn } from "@/core/lib/utils";
 import { IMPORT_TEMPLATES, templateCsv } from "@/core/admin/import/templates";
 import { FIELDS } from "@/core/admin/import/fields";
@@ -284,28 +285,58 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
       {/* History */}
       <div>
         <h2 className="mb-2 text-sm font-semibold">Import history</h2>
-        {batches.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No imports yet.</p>
-        ) : (
-          <div className="overflow-x-auto rounded-lg border">
-            <table className="w-full min-w-[36rem] text-sm">
-              <thead className="text-left text-xs text-muted-foreground">
-                <tr className="border-b">
-                  <th className="px-3 py-2 font-normal">When</th>
-                  <th className="px-3 py-2 font-normal">What</th>
-                  <th className="px-3 py-2 font-normal">Result</th>
-                  <th className="px-3 py-2 font-normal">By</th>
-                  <th className="px-3 py-2 text-right font-normal"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {batches.map((b) => (
-                  <BatchRow key={b.id} clinicId={clinicId} batch={b} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          rows={batches}
+          getRowKey={(b) => b.id}
+          empty="No imports yet."
+          minWidthClassName="min-w-[36rem]"
+          initialSort={{ id: "when", dir: "desc" }}
+          columns={[
+            {
+              id: "when",
+              header: "When",
+              label: "When",
+              cardTitle: true,
+              sortValue: (b) => b.createdAt,
+              cell: (b) => (
+                <span className={b.status !== "active" ? "text-muted-foreground" : ""}>
+                  {new Date(b.createdAt).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </span>
+              ),
+            },
+            {
+              id: "what",
+              header: "What",
+              sortValue: (b) => b.entity,
+              cell: (b) => (
+                <span>
+                  {entityLabel(b.entity)}
+                  {b.filename ? <span className="block text-xs text-muted-foreground">{b.filename}</span> : null}
+                </span>
+              ),
+            },
+            {
+              id: "result",
+              header: "Result",
+              cell: (b) =>
+                b.status !== "active" ? (
+                  <span className="text-muted-foreground">Undone</span>
+                ) : (
+                  <span>
+                    {b.counts.imported ?? 0} imported{b.counts.skipped ? `, ${b.counts.skipped} skipped` : ""}
+                  </span>
+                ),
+            },
+            { id: "by", header: "By", sortValue: (b) => b.createdByName ?? "", cell: (b) => <span className="text-muted-foreground">{b.createdByName ?? "—"}</span> },
+            {
+              id: "actions",
+              header: "",
+              align: "right",
+              hideOnCard: false,
+              cell: (b) => (b.status === "active" ? <UndoBatchButton clinicId={clinicId} batchId={b.id} /> : null),
+            },
+          ]}
+        />
       </div>
     </div>
   );
@@ -359,41 +390,22 @@ function Stat({ label, value, tone = "" }: { label: string; value: number; tone?
   );
 }
 
-function BatchRow({ clinicId, batch }: { clinicId: string; batch: BatchView }) {
+/** The per-row "Undo import" action (styled confirm + refresh). */
+function UndoBatchButton({ clinicId, batchId }: { clinicId: string; batchId: string }) {
   const router = useRouter();
-  const undone = batch.status !== "active";
   return (
-    <tr className={cn("border-b last:border-0", undone && "opacity-60")}>
-      <td className="px-3 py-2">{new Date(batch.createdAt).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
-      <td className="px-3 py-2">
-        {entityLabel(batch.entity)}
-        {batch.filename ? <span className="block text-xs text-muted-foreground">{batch.filename}</span> : null}
-      </td>
-      <td className="px-3 py-2">
-        {undone ? (
-          <span className="text-muted-foreground">Undone</span>
-        ) : (
-          <span>{batch.counts.imported ?? 0} imported{batch.counts.skipped ? `, ${batch.counts.skipped} skipped` : ""}</span>
-        )}
-      </td>
-      <td className="px-3 py-2 text-muted-foreground">{batch.createdByName ?? "—"}</td>
-      <td className="px-3 py-2 text-right">
-        {undone ? null : (
-          <ConfirmDialog
-            triggerLabel="Undo"
-            triggerVariant="ghost"
-            triggerClassName="h-6 px-2 text-xs text-destructive hover:text-destructive"
-            title="Undo this import?"
-            description="It soft-deletes every record this batch created. You can fix the file and re-import afterwards."
-            confirmLabel="Undo import"
-            confirmVariant="destructive"
-            onConfirm={async () => {
-              await undoImportAction(clinicId, batch.id);
-              router.refresh();
-            }}
-          />
-        )}
-      </td>
-    </tr>
+    <ConfirmDialog
+      triggerLabel="Undo"
+      triggerVariant="ghost"
+      triggerClassName="h-6 px-2 text-xs text-destructive hover:text-destructive"
+      title="Undo this import?"
+      description="It soft-deletes every record this batch created. You can fix the file and re-import afterwards."
+      confirmLabel="Undo import"
+      confirmVariant="destructive"
+      onConfirm={async () => {
+        await undoImportAction(clinicId, batchId);
+        router.refresh();
+      }}
+    />
   );
 }
