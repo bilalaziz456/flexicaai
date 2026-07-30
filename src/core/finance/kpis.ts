@@ -4,7 +4,7 @@ import { and, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, users } from "@/core/db/schema";
-import { resolveSalesRange } from "@/core/sales/report";
+import { resolveSalesRange, type ResolvedRange } from "@/core/sales/report";
 import { getProfitAndLoss } from "@/core/finance/pl";
 import { getDoctorBalances } from "@/core/sales/payouts";
 import { appointmentBillNetSql } from "@/core/finance/receivables";
@@ -18,6 +18,12 @@ import { appointmentBillNetSql } from "@/core/finance/receivables";
 export type FinanceKpis = {
   collected30d: number;
   netProfit30d: number;
+  /** The SAME four figures for the PREVIOUS 30-day window — drives the KPI-card
+   *  "vs previous 30 days" deltas (0 when there's no prior baseline). */
+  collectedPrev30d: number;
+  netProfitPrev30d: number;
+  doctorSharesPrev30d: number;
+  expensesPrev30d: number;
   /** 30-day cost breakdown — feeds the dashboard "money flow" waterfall (same
    *  window as the KPI cards, so it stays visible on a quiet day). Reused from the
    *  P&L already computed below — no extra query. */
@@ -41,13 +47,23 @@ const isoDate = (d: Date): string => {
 
 export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
   const range30 = resolveSalesRange("30d", undefined, undefined);
+  // The equally-long window immediately BEFORE range30, for the "vs previous" deltas.
+  // Reuses the P&L math verbatim (so a delta can never disagree with the report).
+  const spanMs = range30.end.getTime() - range30.start.getTime();
+  const priorRange: ResolvedRange = {
+    ...range30,
+    period: "custom",
+    start: new Date(range30.start.getTime() - spanMs),
+    end: range30.start,
+  };
 
   // Outstanding receivable = Σ(bill − collected) over completed visits. Shared bill
   // expression with the Receivables report, so the two always reconcile.
   const netSql = appointmentBillNetSql();
 
-  const [pl, [rec], balances, outByDay, [opening]] = await Promise.all([
+  const [pl, plPrev, [rec], balances, outByDay, [opening]] = await Promise.all([
     getProfitAndLoss(clinicId, range30),
+    getProfitAndLoss(clinicId, priorRange),
     db
       .select({
         v: sql<number>`coalesce(sum(greatest(${netSql} - ${appointments.amountCollected}, 0)), 0)::int`,
@@ -118,6 +134,10 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
   return {
     collected30d: pl.revenue,
     netProfit30d: pl.netProfit,
+    collectedPrev30d: plPrev.revenue,
+    netProfitPrev30d: plPrev.netProfit,
+    doctorSharesPrev30d: plPrev.doctorShares,
+    expensesPrev30d: plPrev.expenses,
     doctorShares30d: pl.doctorShares,
     expenses30d: pl.expenses,
     outstandingReceivable: Number(rec?.v ?? 0),
