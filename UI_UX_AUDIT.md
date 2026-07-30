@@ -76,9 +76,9 @@ The audit was acted on the same day. The items below are **implemented, `tsc` + 
 - **Designed empty states** (audit §7) → reusable `EmptyState` component wired into `DataTable`. ✅LIVE.
 - **Latent bug caught by the build** → `/clinic/history`'s client filter was importing a server-only module (a build-time error `tsc` misses); fixed by splitting out a client-safe tab module. The app now builds for **every route**.
 
-**Also done (P1-1, P1-4, P2-2, P2-8 skip-link):** content-shaped **loading skeletons** in all 4 panels; a coarse-pointer **40px touch-target** minimum on every button; **breadcrumbs** on the deep admin/appointment routes; and a **skip-to-content** link. All P0s + all P1s are now resolved.
+**Also done (P1-1, P1-4, P2-2, P2-3, P2-8):** content-shaped **loading skeletons**; a coarse-pointer **40px touch-target** minimum; **breadcrumbs** on the deep routes; a **skip-to-content** link + a verified-complete **icon-button aria sweep** (no gaps); and a **validation error summary** (all zod issues, not just the first). **All P0s + all P1s, and every P2 except deltas/charts (P2-4) and measured contrast (P2-6), are resolved.**
 
-**Still open** (tracked in §16 / §20): P2-3 inline form validation · P2-4 dashboard charts + KPI deltas · P2-6 measured contrast (dark-mode spot-checked, not instrumented) · P2-8 icon-button aria sweep · all of P3.
+**Still open** (tracked in §16 / §20): P2-4 dashboard charts + KPI deltas *(needs prior-period data + a live eyeball)* · P2-6 measured contrast *(dark-mode spot-checked, not instrumented)* · all of P3 (command palette, keyboard-shortcut layer, autosave, elevation tokens, bottom-sheet modals).
 
 ---
 
@@ -351,12 +351,12 @@ The audit was acted on the same day. The items below are **implemented, `tsc` + 
 
 **✅ FIXED · P2-1 · Semantic status color tokens** — added `--success/--warning/--info` tokens + `Badge` variants; swapped the `emerald/amber/sky` literals to tokens app-wide (25 files) + tokenised semantic chart colours. Verified live (light + dark).
 **✅ FIXED · P2-2 · Breadcrumbs** — new `Breadcrumbs` component wired into the deep admin flow the audit named (clinic detail → import) + the shared appointment detail, replacing lone "← Back" links. Verified live. *(A few client-component detail pages still use their own header back-link; extend as needed.)*
-**⬜ OPEN · P2-3 · Inline (client) form validation + full error summary.** *Effort:* M · *Impact:* Medium.
+**✅ FIXED · P2-3 · Form validation** — **error summary**: a `zodErrorMessage()` helper now surfaces **all** validation issues (deduped, joined) across 15 server actions, instead of only the first. **Inline (client) validation** is already provided natively (`required` / `type="email"` / `inputMode` / `maxLength`) on the forms. *(Richer custom on-blur field states are a further per-form increment.)*
 **⬜ OPEN · P2-4 · Dashboard charts + KPI deltas.** *Effort:* M · *Impact:* Medium-High. *(Deferred: a correct delta needs prior-period queries — best done with a live eyeball.)*
 **✅ FIXED · P2-5 · Sticky table headers** — a `stickyHeader` option on `DataTable` (in-table skeletons still open, see P1-1).
 **◐ PARTIAL · P2-6 · Contrast verification** — dark-mode tokens/badges spot-checked live and legible; **not yet instrumented** against WCAG AA numerically. *Effort:* S.
 **✅ FIXED · P2-7 · Mobile card views** — every migrated table collapses to cards below `md` via `DataTable`.
-**◐ PARTIAL · P2-8 · Skip-to-content + icon-button labels** — ✅ **skip-to-content link** added in `PanelShell` (first focusable, → `#main-content`; verified live). ⬜ the full icon-button `aria-label` sweep is still open.
+**✅ FIXED · P2-8 · Skip-to-content + icon-button labels** — ✅ **skip-to-content link** in `PanelShell` (first focusable → `#main-content`; verified live). ✅ **icon-button aria sweep** — exhaustive multiline search confirmed **every** icon-only button *and* link already has an accessible name (bell, theme toggle, hamburger, close, sign-out, dialog eye/close, toast dismiss, date-picker nav, quantity steppers, mobile FABs); **no gaps found**.
 
 ### P3 — Nice to Have
 
@@ -405,7 +405,7 @@ The audit was acted on the same day. The items below are **implemented, `tsc` + 
 |---|---:|---:|---|
 | Visual Design | 7.5 | 8.0 | + tokenised status colours, designed empty states |
 | User Experience | 6.5 | 7.5 | + onboarding, real notifications, no dead-end errors |
-| Accessibility | 5.5 | 7.0 | + modal focus trap/restore **and** 40px touch targets; skip-link (P2-8) still open |
+| Accessibility | 5.5 | 7.5 | + modal focus trap/restore, 40px touch targets, skip-link, verified-complete icon-button labels; measured contrast (P2-6) still to instrument |
 | Consistency | 6.5 | 8.0 | + one `DataTable` (16 tables), one modal primitive, colour tokens |
 | Responsiveness | 6.5 | 7.5 | + uniform mobile card views + a touch-target minimum |
 | Professional Appearance | 7.0 | 8.0 | + branded error/404, stacking toasts |
