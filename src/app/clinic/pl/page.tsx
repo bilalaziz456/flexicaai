@@ -71,7 +71,7 @@ export default async function ProfitLossPage({
       title: loss ? "Net loss" : "Net profit",
       value: money.format(Math.abs(pl.netProfit)),
       note: "Revenue − shares − expenses",
-      tone: loss ? "text-destructive" : "text-emerald-600 dark:text-emerald-400",
+      tone: loss ? "text-destructive" : "text-success",
     },
   ];
 

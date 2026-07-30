@@ -8,8 +8,8 @@ export type MultiBarPoint = { label: string; values: Record<string, number> };
 
 const HEIGHT = 280;
 const PAD = { top: 12, right: 12, bottom: 28, left: 56 };
-const GOOD = "#10b981"; // emerald-500 — positive profit
-const BAD = "#ef4444"; // red-500 — loss
+const GOOD = "var(--color-success)"; // positive profit
+const BAD = "var(--color-destructive)"; // loss
 const money = new Intl.NumberFormat("en-PK");
 
 function niceCeil(v: number): number {

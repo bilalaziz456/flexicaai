@@ -66,15 +66,15 @@ export default async function AnnouncementsPage() {
                         variant="outline"
                         className={
                           a.level === "warning"
-                            ? "border-transparent bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                            : "border-transparent bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                            ? "border-transparent bg-amber-500/10 text-warning"
+                            : "border-transparent bg-sky-500/10 text-info"
                         }
                       >
                         {a.level}
                       </Badge>
                       <Badge variant="secondary">{a.clinicName ?? "All clinics"}</Badge>
                       {a.active ? (
-                        <Badge variant="outline" className="border-transparent bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                        <Badge variant="outline" className="border-transparent bg-emerald-500/10 text-success">
                           active
                         </Badge>
                       ) : (

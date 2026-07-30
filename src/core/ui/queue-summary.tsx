@@ -86,7 +86,7 @@ export function QueueSummary({
                         done && "border-transparent bg-accent text-accent-foreground",
                         missed && "border-transparent text-muted-foreground line-through",
                         notArrived && !late && "border-input",
-                        notArrived && late && "border-amber-500 text-amber-600 dark:text-amber-400",
+                        notArrived && late && "border-amber-500 text-warning",
                       )}
                     >
                       #{it.number}

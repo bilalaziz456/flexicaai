@@ -59,13 +59,13 @@ export type BillingPayment = {
 
 function StatusBadge({ s }: { s: BillingBalance["billingStatus"] }) {
   const map = {
-    active: ["Active", "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"],
-    due: ["Due", "bg-amber-500/10 text-amber-600 dark:text-amber-400"],
-    overdue: ["Overdue", "bg-destructive/10 text-destructive"],
-    free: ["Free", "bg-secondary text-secondary-foreground"],
+    active: ["Active", "success"],
+    due: ["Due", "warning"],
+    overdue: ["Overdue", "destructive"],
+    free: ["Free", "secondary"],
   } as const;
-  const [label, tone] = map[s];
-  return <Badge variant="outline" className={cn("border-transparent", tone)}>{label}</Badge>;
+  const [label, variant] = map[s];
+  return <Badge variant={variant}>{label}</Badge>;
 }
 
 export function ClinicBilling({
@@ -271,7 +271,7 @@ export function ClinicBilling({
             {savingReminder ? (
               <span className="text-xs text-muted-foreground">Saving…</span>
             ) : reminderOk ? (
-              <span className="text-xs text-emerald-600 dark:text-emerald-400">Saved</span>
+              <span className="text-xs text-success">Saved</span>
             ) : null}
           </div>
         </div>
@@ -411,9 +411,9 @@ export function ClinicBilling({
                 sortValue: (p) => p.kind,
                 cell: (p) =>
                   p.kind === "refund" ? (
-                    <Badge variant="outline" className="border-transparent bg-destructive/10 text-destructive">Refund</Badge>
+                    <Badge variant="destructive">Refund</Badge>
                   ) : p.kind === "credit" ? (
-                    <Badge variant="outline" className="border-transparent bg-amber-500/10 text-amber-600 dark:text-amber-400">Credit</Badge>
+                    <Badge variant="warning">Credit</Badge>
                   ) : (
                     <span className="text-muted-foreground">Payment</span>
                   ),

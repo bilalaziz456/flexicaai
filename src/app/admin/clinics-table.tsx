@@ -55,7 +55,7 @@ export function ClinicsTable({ rows, showBilling, empty }: { rows: ClinicRow[]; 
         ) : r.assigneeName ? (
           <span className="text-sm">
             {r.assigneeName}
-            {r.assigneeSuspended ? <span className="ml-1 text-xs text-amber-600 dark:text-amber-400">(suspended)</span> : null}
+            {r.assigneeSuspended ? <span className="ml-1 text-xs text-warning">(suspended)</span> : null}
           </span>
         ) : (
           <span className="text-sm text-muted-foreground">—</span>

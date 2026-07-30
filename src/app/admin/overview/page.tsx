@@ -50,7 +50,7 @@ function FlagBadges({ flags }: { flags: AnomalyFlag[] }) {
             title={m.hint}
             className={cn(
               "border-transparent",
-              m.severity === "high" ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+              m.severity === "high" ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-warning",
             )}
           >
             {m.label}
@@ -170,7 +170,7 @@ export default async function OverviewPage({
           label="At risk (churn)"
           value={String(health.atRisk.length)}
           sub={`no activity ≥ ${health.inactiveDays}d`}
-          tone={health.atRisk.length > 0 ? "text-amber-600 dark:text-amber-400" : undefined}
+          tone={health.atRisk.length > 0 ? "text-warning" : undefined}
         />
         {showBilling ? (
           <Kpi
@@ -189,13 +189,13 @@ export default async function OverviewPage({
               label="Gross margin (this month)"
               value={signed(metrics.grossMarginThisMonth)}
               sub="Collected − serving cost"
-              tone={metrics.grossMarginThisMonth < 0 ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"}
+              tone={metrics.grossMarginThisMonth < 0 ? "text-destructive" : "text-success"}
             />
             <Kpi
               label="Usage flags"
               value={String(health.flagged.length)}
               sub="cost / usage anomalies"
-              tone={health.flagged.some((f) => f.flags.includes("loss")) ? "text-destructive" : health.flagged.length > 0 ? "text-amber-600 dark:text-amber-400" : undefined}
+              tone={health.flagged.some((f) => f.flags.includes("loss")) ? "text-destructive" : health.flagged.length > 0 ? "text-warning" : undefined}
             />
           </>
         ) : null}
@@ -233,7 +233,7 @@ export default async function OverviewPage({
                             variant="outline"
                             className={cn(
                               "border-transparent",
-                              overdue ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+                              overdue ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-warning",
                             )}
                           >
                             {overdue ? `Overdue · ${c.balance.daysOverdue}d` : `Due · ${c.balance.daysOverdue}d`}
@@ -288,7 +288,7 @@ export default async function OverviewPage({
                       <TableCell className="font-medium">{c.name}</TableCell>
                       <TableCell className="whitespace-nowrap text-sm">{fmtDate(c.balance.paidThrough)}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="border-transparent bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                        <Badge variant="outline" className="border-transparent bg-sky-500/10 text-info">
                           {c.balance.daysRemaining === 0 ? "Due today" : `${c.balance.daysRemaining}d`}
                         </Badge>
                       </TableCell>
@@ -335,7 +335,7 @@ export default async function OverviewPage({
                     <RowLink key={c.clinicId} href={`/admin/clinics/${c.clinicId}`} className="border-b">
                       <TableCell className="font-medium">{c.name}</TableCell>
                       <TableCell><ClinicStatusBadge status={c.status} /></TableCell>
-                      <TableCell className="whitespace-nowrap text-amber-600 dark:text-amber-400">{ago(c.lastActivityAt, c.daysInactive)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-warning">{ago(c.lastActivityAt, c.daysInactive)}</TableCell>
                       <TableCell className="text-sm">{c.assigneeName ?? <span className="text-muted-foreground">unassigned</span>}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{c.ownerPhone ?? c.ownerEmail ?? "—"}</TableCell>
                       {showRevenue ? <TableCell className="text-right tabular-nums">{rs(c.mrr)}</TableCell> : null}
@@ -386,7 +386,7 @@ export default async function OverviewPage({
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap items-center gap-1">
-                          {c.isAtRisk ? <Badge variant="outline" className="border-transparent bg-amber-500/10 text-amber-600 dark:text-amber-400">Churn risk</Badge> : null}
+                          {c.isAtRisk ? <Badge variant="outline" className="border-transparent bg-amber-500/10 text-warning">Churn risk</Badge> : null}
                           {showRevenue ? <FlagBadges flags={c.flags} /> : null}
                         </div>
                       </TableCell>
@@ -511,7 +511,7 @@ export default async function OverviewPage({
                         <TableCell><ClinicStatusBadge status={c.status} /></TableCell>
                         <TableCell className="whitespace-nowrap text-sm">
                           {ago(c.lastActivityAt, c.daysInactive)}
-                          {stale ? <Badge variant="outline" className="ml-1.5 border-transparent bg-amber-500/10 text-amber-600 dark:text-amber-400">quiet</Badge> : null}
+                          {stale ? <Badge variant="outline" className="ml-1.5 border-transparent bg-amber-500/10 text-warning">quiet</Badge> : null}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{c.appointments}</TableCell>
                         <TableCell className="text-right tabular-nums">{c.scribeCalls}</TableCell>

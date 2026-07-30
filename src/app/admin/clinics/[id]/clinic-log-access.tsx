@@ -43,7 +43,7 @@ export function ClinicLogAccess({ clinicId, logAccess }: { clinicId: string; log
         Which activity the clinic admin can see in their log. Uncheck everything to remove
         their log access entirely.
         {granted.size === 0 ? (
-          <span className="ml-1 font-medium text-amber-600 dark:text-amber-400">No log access.</span>
+          <span className="ml-1 font-medium text-warning">No log access.</span>
         ) : null}
       </p>
 

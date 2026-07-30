@@ -143,9 +143,9 @@ export function PaymentPanel({
 
   const statusTone =
     paymentStatus === "paid"
-      ? "text-emerald-600 dark:text-emerald-400"
+      ? "text-success"
       : paymentStatus === "partial"
-        ? "text-amber-600 dark:text-amber-400"
+        ? "text-warning"
         : "text-muted-foreground";
 
   // A visit that isn't completed yet has no real bill/receivable — its total is an
@@ -229,7 +229,7 @@ export function PaymentPanel({
           />
         </form>
       ) : outstanding <= 0 && billTotal > 0 ? (
-        <p className="text-sm text-emerald-600 dark:text-emerald-400">Fully paid.</p>
+        <p className="text-sm text-success">Fully paid.</p>
       ) : null}
 
       {credit > 0 && outstanding <= 0 ? (

@@ -103,7 +103,7 @@ export function LoginForm({
           ) : null}
 
           {state.message ? (
-            <p className="text-sm text-emerald-600 dark:text-emerald-400" role="status">
+            <p className="text-sm text-success" role="status">
               {state.message}
             </p>
           ) : null}

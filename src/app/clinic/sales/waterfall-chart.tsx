@@ -10,8 +10,8 @@ export type WaterfallStep = { label: string; value: number; role: "start" | "ded
 
 const HEIGHT = 280;
 const PAD = { top: 22, right: 12, bottom: 30, left: 56 };
-const GOOD = "#10b981";
-const BAD = "#ef4444";
+const GOOD = "var(--color-success)"; // positive profit
+const BAD = "var(--color-destructive)"; // loss
 
 function niceCeil(v: number): number {
   if (v <= 0) return 1;

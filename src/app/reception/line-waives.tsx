@@ -63,7 +63,7 @@ export function LineWaives({
             </div>
             {l.waivedActionId ? (
               <div className="flex shrink-0 items-center gap-2">
-                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Waived</span>
+                <span className="text-xs font-medium text-success">Waived</span>
                 {canWaive ? (
                   <button
                     type="button"

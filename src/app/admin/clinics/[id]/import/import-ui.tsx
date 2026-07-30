@@ -203,9 +203,9 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
       {preview ? (
         <div className="rounded-lg border p-4">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label="Ready to import" value={preview.ready} tone="text-emerald-600 dark:text-emerald-400" />
+            <Stat label="Ready to import" value={preview.ready} tone="text-success" />
             <Stat label="Duplicates (skip)" value={preview.duplicates} />
-            <Stat label="Warnings" value={preview.warnings} tone={preview.warnings ? "text-amber-600 dark:text-amber-400" : ""} />
+            <Stat label="Warnings" value={preview.warnings} tone={preview.warnings ? "text-warning" : ""} />
             <Stat label="Errors (excluded)" value={preview.errored} tone={preview.errored ? "text-destructive" : ""} />
           </div>
 
@@ -222,7 +222,7 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
                   {preview.issues.map((iss, i) => (
                     <tr key={i} className="border-t">
                       <td className="px-3 py-1.5 tabular-nums text-muted-foreground">{iss.row}</td>
-                      <td className={cn("px-3 py-1.5", iss.level === "error" ? "text-destructive" : "text-amber-600 dark:text-amber-400")}>
+                      <td className={cn("px-3 py-1.5", iss.level === "error" ? "text-destructive" : "text-warning")}>
                         {iss.message}
                       </td>
                     </tr>

@@ -187,7 +187,7 @@ export default async function AdminHome({
                         ? `👤 ${c.assigneeName}`
                         : "unassigned"}
                     {c.assigneeSuspended ? (
-                      <span className="ml-1 text-amber-600 dark:text-amber-400">(suspended)</span>
+                      <span className="ml-1 text-warning">(suspended)</span>
                     ) : null}
                   </span>
                   {c.commitmentAt ? (
