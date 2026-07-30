@@ -19,6 +19,7 @@ import {
 import { MultiBarChart } from "@/app/clinic/sales/multi-bar-chart";
 import { HBarChart } from "@/app/clinic/sales/h-bar-chart";
 import { SalesFilters } from "@/app/clinic/sales/sales-filters";
+import { PlByPeriodTable } from "./pl-tables";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -160,30 +161,7 @@ export default async function ProfitLossPage({
           <CardDescription>Revenue, costs (shares + expenses) and profit.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[26rem] text-sm">
-              <thead>
-                <tr className="border-b text-left text-xs text-muted-foreground">
-                  <th className="pb-2 font-normal">Period</th>
-                  <th className="pb-2 text-right font-normal">Revenue</th>
-                  <th className="pb-2 text-right font-normal">Costs</th>
-                  <th className="pb-2 text-right font-normal">Profit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pl.plBuckets.map((b, i) => (
-                  <tr key={i} className="border-b last:border-0">
-                    <td className="py-1.5">{b.label}</td>
-                    <td className="py-1.5 text-right tabular-nums">{money.format(b.revenue)}</td>
-                    <td className="py-1.5 text-right tabular-nums">{money.format(b.share + b.expense)}</td>
-                    <td className={`py-1.5 text-right font-medium tabular-nums ${b.profit < 0 ? "text-destructive" : ""}`}>
-                      {money.format(b.profit)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <PlByPeriodTable rows={pl.plBuckets} />
         </CardContent>
       </Card>
 

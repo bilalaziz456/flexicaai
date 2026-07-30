@@ -15,16 +15,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { Badge } from "@/core/ui/badge";
 import { HBarChart } from "@/app/clinic/sales/h-bar-chart";
 import { WaterfallChart } from "@/app/clinic/sales/waterfall-chart";
 import { SalesFilters } from "@/app/clinic/sales/sales-filters";
 import { PrintButton } from "@/app/clinic/shares/payout-ui";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
+import { OverviewByDoctorTable, OverviewCashTable, OverviewDiscountsTable } from "./overview-tables";
 
 const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
 const dayFmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-const BORNE: Record<string, string> = { clinic: "Clinic", doctor: "Doctor", split: "Split" };
 
 const PRINT_CSS = `
 @media print {
@@ -159,47 +158,7 @@ export default async function OverviewPage({
           <CardDescription>What each doctor earned in this period (net of any discount they bore).</CardDescription>
         </CardHeader>
         <CardContent>
-          {ov.byDoctor.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No doctor shares in this period.</p>
-          ) : (
-            <>
-              <table className="hidden w-full text-sm md:table">
-                <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="pb-2 font-normal">Doctor</th>
-                    <th className="pb-2 text-right font-normal">Visits</th>
-                    <th className="pb-2 text-right font-normal">Earned</th>
-                    <th className="pb-2 text-right font-normal">Discount borne</th>
-                    <th className="pb-2 text-right font-normal">Net</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ov.byDoctor.map((d) => (
-                    <tr key={d.doctorId ?? "none"} className="border-b last:border-0">
-                      <td className="py-2">{d.name}</td>
-                      <td className="py-2 text-right tabular-nums">{d.count}</td>
-                      <td className="py-2 text-right tabular-nums">{money.format(d.grossEarned)}</td>
-                      <td className={`py-2 text-right tabular-nums ${d.borne < 0 ? "text-destructive" : ""}`}>{money.format(d.borne)}</td>
-                      <td className="py-2 text-right font-medium tabular-nums">{money.format(d.net)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <ul className="space-y-2 md:hidden">
-                {ov.byDoctor.map((d) => (
-                  <li key={d.doctorId ?? "none"} className="rounded-md border p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">{d.name}</span>
-                      <span className="font-medium tabular-nums">{money.format(d.net)}</span>
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {d.count} visit{d.count === 1 ? "" : "s"} · earned {money.format(d.grossEarned)} · borne {money.format(d.borne)}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
+          <OverviewByDoctorTable rows={ov.byDoctor} />
         </CardContent>
       </Card>
 
@@ -214,41 +173,7 @@ export default async function OverviewPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {ov.cash.rows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No cash movement in this period.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[26rem] text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-xs text-muted-foreground">
-                      <th className="pb-2 font-normal">Method</th>
-                      <th className="pb-2 text-right font-normal">Collected</th>
-                      <th className="pb-2 text-right font-normal">Refunded</th>
-                      <th className="pb-2 text-right font-normal">Expenses</th>
-                      <th className="pb-2 text-right font-normal">Net</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ov.cash.rows.map((r) => (
-                      <tr key={r.method} className="border-b last:border-0">
-                        <td className="py-2 capitalize">{r.method}</td>
-                        <td className="py-2 text-right tabular-nums">{money.format(r.collected)}</td>
-                        <td className="py-2 text-right tabular-nums">{money.format(r.refunded)}</td>
-                        <td className="py-2 text-right tabular-nums">{money.format(r.expenses)}</td>
-                        <td className="py-2 text-right font-medium tabular-nums">{money.format(r.net)}</td>
-                      </tr>
-                    ))}
-                    <tr className="border-t font-medium">
-                      <td className="py-2">Total</td>
-                      <td className="py-2 text-right tabular-nums">{money.format(ov.cash.totals.collected)}</td>
-                      <td className="py-2 text-right tabular-nums">{money.format(ov.cash.totals.refunded)}</td>
-                      <td className="py-2 text-right tabular-nums">{money.format(ov.cash.totals.expenses)}</td>
-                      <td className="py-2 text-right tabular-nums">{money.format(ov.cash.totals.net)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <OverviewCashTable rows={ov.cash.rows} totals={ov.cash.totals} />
           </CardContent>
         </Card>
       ) : null}
@@ -262,39 +187,7 @@ export default async function OverviewPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {ov.discounts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No discounts in this period.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[30rem] text-sm">
-                <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="pb-2 font-normal">Date</th>
-                    <th className="pb-2 font-normal">Patient</th>
-                    <th className="pb-2 font-normal">Doctor</th>
-                    <th className="pb-2 font-normal">Borne by</th>
-                    <th className="pb-2 text-right font-normal">Discount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ov.discounts.map((r) => (
-                    <tr key={r.appointmentId} className="border-b last:border-0">
-                      <td className="py-2">
-                        <Link href={`/clinic/appointments/${r.appointmentId}`} className="underline underline-offset-4">{dayFmt(r.scheduledAt)}</Link>
-                      </td>
-                      <td className="py-2">{r.patientName ?? "—"}</td>
-                      <td className="py-2">{r.doctorName ?? "—"}</td>
-                      <td className="py-2">
-                        {BORNE[r.borneBy] ?? "Clinic"}
-                        {r.status === "pending" ? <Badge variant="secondary" className="ml-1.5">Pending</Badge> : null}
-                      </td>
-                      <td className="py-2 text-right font-medium tabular-nums">{money.format(r.amount)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <OverviewDiscountsTable rows={ov.discounts} />
         </CardContent>
       </Card>
 

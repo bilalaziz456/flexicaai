@@ -38,6 +38,8 @@ export type Column<T> = {
   hideOnCard?: boolean;
   /** Render this column as the card's title (mobile). At most one. */
   cardTitle?: boolean;
+  /** A totals-row cell for this column. If ANY column has one, a footer renders. */
+  footer?: () => React.ReactNode;
 };
 
 type SortState = { id: string; dir: "asc" | "desc" };
@@ -106,6 +108,7 @@ export function DataTable<T>({
   const titleCol = columns.find((c) => c.cardTitle);
   const cardCols = columns.filter((c) => !c.hideOnCard && !c.cardTitle);
   const labelOf = (c: Column<T>) => c.label ?? (typeof c.header === "string" ? c.header : "");
+  const hasFooter = columns.some((c) => c.footer);
 
   return (
     <div className={className}>
@@ -174,6 +177,17 @@ export function DataTable<T>({
               );
             })}
           </tbody>
+          {hasFooter ? (
+            <tfoot>
+              <tr className="border-t font-medium">
+                {columns.map((c) => (
+                  <td key={c.id} className={cn("py-2 align-middle", c.align && alignClass[c.align], c.cellClassName)}>
+                    {c.footer ? c.footer() : null}
+                  </td>
+                ))}
+              </tr>
+            </tfoot>
+          ) : null}
         </table>
       </div>
 
@@ -204,6 +218,20 @@ export function DataTable<T>({
           );
         })}
       </ul>
+      {hasFooter ? (
+        <div className="mt-2 rounded-lg border bg-muted/30 p-3 text-sm font-medium md:hidden">
+          <dl className="grid gap-y-1 text-xs">
+            {columns
+              .filter((c) => c.footer && !c.cardTitle)
+              .map((c) => (
+                <div key={c.id} className="flex items-center justify-between gap-3">
+                  <dt className="text-muted-foreground">{labelOf(c)}</dt>
+                  <dd className="text-right">{c.footer!()}</dd>
+                </div>
+              ))}
+          </dl>
+        </div>
+      ) : null}
     </div>
   );
 }
