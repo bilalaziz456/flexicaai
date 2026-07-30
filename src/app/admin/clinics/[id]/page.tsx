@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
+import { Breadcrumbs } from "@/core/ui/breadcrumbs";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, users } from "@/core/db/schema";
@@ -87,12 +88,7 @@ export default async function ClinicDetailPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href="/admin"
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
-          ← Back to clinics
-        </Link>
+        <Breadcrumbs items={[{ label: "Clinics", href: "/admin" }, { label: clinic.name }]} />
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-xl font-semibold">{clinic.name}</h1>
           <div className="flex items-center gap-4">

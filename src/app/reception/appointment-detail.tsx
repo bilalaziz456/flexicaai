@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Breadcrumbs } from "@/core/ui/breadcrumbs";
 import { notFound } from "next/navigation";
 import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/core/db";
@@ -200,12 +200,7 @@ export async function AppointmentDetail({
         summary={`Viewed appointment for ${appt.patientName}`}
       />
       <div>
-        <Link
-          href={backHref}
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
-          ← Back to appointments
-        </Link>
+        <Breadcrumbs items={[{ label: "Appointments", href: backHref }, { label: appt.patientName }]} />
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="text-xl font-semibold">{appt.patientName}</h1>
           <Badge variant={APPOINTMENT_STATUS_VARIANT[appt.status] ?? "secondary"}>

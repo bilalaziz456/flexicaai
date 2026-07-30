@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
+import { Breadcrumbs } from "@/core/ui/breadcrumbs";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
 import { requireAdminCapability } from "@/core/auth/user";
@@ -32,12 +32,13 @@ export default async function ClinicImportPage({
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <Link
-          href={`/admin/clinics/${clinic.id}`}
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
-          ← Back to {clinic.name}
-        </Link>
+        <Breadcrumbs
+          items={[
+            { label: "Clinics", href: "/admin" },
+            { label: clinic.name, href: `/admin/clinics/${clinic.id}` },
+            { label: "Import data" },
+          ]}
+        />
         <h1 className="mt-2 text-xl font-semibold">Import data</h1>
         <p className="text-sm text-muted-foreground">
           Bring {clinic.name}&apos;s existing records into Klenic. Download a template,

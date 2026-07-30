@@ -404,6 +404,14 @@ export function PanelShell({
     // headers below keep working; content that needs to scroll uses its own
     // overflow-x-auto box.
     <div className="min-h-screen overflow-x-clip md:pl-60">
+      {/* Skip link — the FIRST focusable element, so a keyboard user can Tab once and
+          jump past the sidebar nav to the page content (WCAG 2.4.1). Hidden until focused. */}
+      <a
+        href="#main-content"
+        className="sr-only rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg outline-none focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        Skip to content
+      </a>
       {/* ---- Desktop sidebar ---- */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r bg-card md:flex">
         <div className="p-4">
@@ -528,7 +536,9 @@ export function PanelShell({
       {/* Bottom padding grows with the pill stack (measured below) so the last content
           never hides under the floating pills, no matter how many are showing. */}
       <main
-        className="mx-auto max-w-5xl px-4 pt-8 sm:px-6"
+        id="main-content"
+        tabIndex={-1}
+        className="mx-auto max-w-5xl px-4 pt-8 outline-none sm:px-6"
         style={{ paddingBottom: pillPad || 32 }}
       >
         {children}
