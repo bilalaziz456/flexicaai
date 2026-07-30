@@ -1,7 +1,7 @@
 # Klenic — UI/UX Audit
 
 **Reviewer perspective:** Staff Product Designer · Senior UX Researcher · Accessibility Expert · Senior Frontend Engineer
-**Date:** 2026-07-30
+**Date:** 2026-07-30 · **Status:** audited → **majority remediated same day** (see [§0a Remediation Log](#0a-remediation-log--2026-07-30); all P0s + most P1/P2 fixed, `build`-clean + spot-verified live)
 **Scope:** Full application — 77 pages across 6 route groups (`(marketing)`, `(auth)`, `admin`, `clinic`, `doctor`, `reception`), the shared design system (`src/core/ui/*`), tokens (`globals.css`), forms, tables, states, and responsive behaviour.
 **Method:** Code-level audit — I read the design-system primitives, page inventory, forms, tables, and cross-cutting state handling, and traced navigation. I did **not** run the live app: it needs a running server + an authenticated session, and entering credentials is out of scope. **A live, authenticated pass across mobile/tablet/desktop is the #1 recommended follow-up** (see §Method Gap). Everything below is grounded in specific files.
 
@@ -53,6 +53,30 @@
 - **Touch targets are desktop-sized** (default button `h-8` = 32px; `sm` = 28px; `xs` = 24px), below the 44px comfortable-touch target.
 
 **Bottom line: ~2–3 focused weeks moves this from "solid internal tool" to "looks like it belongs next to Stripe."** The hard part (the system) is done; the missing part (edges + a11y polish) is well-scoped and mostly mechanical.
+
+---
+
+## 0a. Remediation Log — 2026-07-30
+
+The audit was acted on the same day. The items below are **implemented, `tsc` + lint + production-`build` clean, and (where noted ✅LIVE) visually verified in a running instance across light + dark mode**. See `PROGRESS.md` for the per-commit detail.
+
+**All three P0 release-blockers — DONE.**
+- **P0-1 · Modal focus management** → rebuilt `ConfirmDialog` + `ConfirmDeleteDialog` on **Base UI `Dialog`** (focus trap, initial focus, **restore to trigger**, scroll-lock, Esc/backdrop). ✅LIVE (Esc closed a Void dialog and focus returned to the trigger, visible ring).
+- **P0-2 · Error boundary** → added `app/error.tsx` + `app/global-error.tsx` (branded, "Try again" + "Go to dashboard").
+- **P0-3 · Custom 404** → added `app/not-found.tsx` (Klenic logo + CTA). ✅LIVE.
+
+**High-priority (P1):**
+- **P1-2 · Notification system** → a real toast **queue** (`toast-store.ts` + one `<Toaster/>`): stacking, manual ×-dismiss, pause-on-hover, imperative `toast()`; old `<Toast>`/`<FlashToast>` kept as compat wrappers. ✅LIVE (two stacked, dismissible, success-tone).
+- **P1-3 · Table consistency + sorting** → built one `DataTable` (client-side sorting, sticky-header option, empty state, **mobile card view**, whole-row `rowHref`, **totals footer**) and **migrated 16 tables** onto it (payments, invoices, expenses, discounts, no-shows, day-book, P&L by-period, overview by-doctor/cash/discounts, shares balances+payouts, imported-history, import history, admin clinics list). ✅LIVE (header sort + row-link on the clinics list). *(This also delivers **P2-5** sticky headers and **P2-7** mobile card views.)* Receivables intentionally left as its per-patient accordion.
+- **P1-5 · Native `confirm()` removed** → the 3 remaining calls now use the styled `ConfirmDialog`.
+- **P1-6 · First-run onboarding** → an `OnboardingChecklist` on the clinic dashboard (add team → patient → first appointment), self-hiding once complete.
+
+**Medium (P2):**
+- **P2-1 · Semantic status tokens** → added `--success/--warning/--info` tokens (+ `Badge` variants), swapped the scattered `emerald/amber/sky` literals to tokens app-wide (25 files), and tokenised the semantic chart colours (profit/loss/expenses). ✅LIVE (correct in light **and** dark).
+- **Designed empty states** (audit §7) → reusable `EmptyState` component wired into `DataTable`. ✅LIVE.
+- **Latent bug caught by the build** → `/clinic/history`'s client filter was importing a server-only module (a build-time error `tsc` misses); fixed by splitting out a client-safe tab module. The app now builds for **every route**.
+
+**Still open** (tracked in §16 / §20): P1-1 loading skeletons · P1-4 touch targets · P2-2 breadcrumbs · P2-3 inline form validation · P2-4 dashboard charts + KPI deltas · P2-6 measured contrast (dark-mode spot-checked, not instrumented) · P2-8 skip-to-content + icon-button aria sweep · all of P3.
 
 ---
 
@@ -270,10 +294,10 @@
 | Import wizards (data + financial) | Minor Improvements | Solid; replace `confirm()`; add progress affordance |
 | Voice scribe (doctor) | **Needs review (live)** | Recorder UX must be tested on a real tablet |
 | Marketing / landing | **Needs review (live)** | Not audited in depth (static; verify SEO + hero) |
-| **Error pages (404/500)** | **Major Redesign Required** | They don't exist — default Next screens |
-| **Global loading states** | **Needs Significant Work** | Spinner-only, 4 routes |
-| **Notification system** | **Needs Significant Work** | No stacking/dismiss/queue |
-| **Modal a11y** | **Needs Significant Work** | No focus trap/restore/scroll-lock |
+| **Error pages (404/500)** | ✅ **Production Ready** | ~~don't exist~~ → branded 404 + error/global-error boundaries added |
+| **Global loading states** | **Needs Significant Work** | Spinner-only, 4 routes — **still open (P1-1)** |
+| **Notification system** | ✅ **Production Ready** | ~~no stacking~~ → queue with stacking / dismiss / pause-on-hover |
+| **Modal a11y** | ✅ **Production Ready** | ~~no focus trap~~ → rebuilt on Base UI `Dialog` (trap/restore/scroll-lock) |
 
 ---
 
@@ -283,7 +307,7 @@
 
 ### P0 — Must Fix Before Release
 
-**P0-1 · Custom modals have no focus management**
+**✅ FIXED · P0-1 · Custom modals have no focus management** *(rebuilt on Base UI `Dialog`; focus trap + restore + scroll-lock; verified live)*
 - **Location:** `core/ui/confirm-dialog.tsx`, `core/ui/confirm-delete-dialog.tsx`
 - **Description:** No focus trap, no initial focus on open, no focus restore on close, no body-scroll lock.
 - **Why:** Keyboard/screen-reader users can Tab behind the modal and lose their place; fails a basic a11y audit any enterprise buyer runs.
@@ -291,7 +315,7 @@
 - **Fix:** Rebuild both on Base UI `Dialog` (already a dependency) — you get trap/restore/scroll-lock/`aria` for free; keep the password step-up logic.
 - **Effort:** M · **Impact:** High (a11y + polish)
 
-**P0-2 · No custom error boundary**
+**✅ FIXED · P0-2 · No custom error boundary** *(added `app/error.tsx` + `app/global-error.tsx`)*
 - **Location:** app-wide (0 `error.tsx`)
 - **Description:** Thrown errors render Next's default.
 - **Why:** Looks broken/unfinished; no recovery path.
@@ -299,7 +323,7 @@
 - **Fix:** Add a root `app/error.tsx` + per-panel `error.tsx` with brand shell, "Try again" (reset) and "Go to dashboard".
 - **Effort:** S · **Impact:** High
 
-**P0-3 · No custom 404**
+**✅ FIXED · P0-3 · No custom 404** *(added branded `app/not-found.tsx`; verified live)*
 - **Location:** app-wide (0 `not-found.tsx`); `notFound()` called in many routes
 - **Description:** Bad IDs/URLs show Next's default 404.
 - **Why:** Unbranded dead end.
@@ -309,28 +333,28 @@
 
 ### P1 — High Priority
 
-**P1-1 · Loading skeletons + boundaries** — *Location:* app-wide (4 `loading.tsx`, 0 skeletons). *Fix:* add `loading.tsx` per major segment rendering content-shaped skeletons (list rows, card grids), not a spinner. *Principle:* perceived performance. *Effort:* M · *Impact:* High.
+**⬜ OPEN · P1-1 · Loading skeletons + boundaries** — *Location:* app-wide (4 `loading.tsx`, 0 skeletons). *Fix:* add `loading.tsx` per major segment rendering content-shaped skeletons (list rows, card grids), not a spinner. *Principle:* perceived performance. *Effort:* M · *Impact:* High.
 
-**P1-2 · Notification system (stack + dismiss + global API)** — *Location:* `core/ui/toast.tsx`. *Fix:* one `<Toaster/>` with a queue, stacking, manual close, pause-on-hover; imperative `toast()` API. *Effort:* M · *Impact:* High.
+**✅ FIXED · P1-2 · Notification system (stack + dismiss + global API)** — one `<Toaster/>` + queue (`toast-store.ts`): stacking, ×-dismiss, pause-on-hover, imperative `toast()`; compat wrappers kept. Verified live.
 
-**P1-3 · Table consistency + sorting** — *Location:* 21 raw tables. *Fix:* one `DataTable` (sticky header, zebra/hover, sortable columns, empty/skeleton rows, mobile card-collapse); migrate call-sites. *Effort:* L · *Impact:* High.
+**✅ FIXED · P1-3 · Table consistency + sorting** — one `DataTable` (sorting, sticky-header option, empty state, mobile cards, whole-row link, totals footer); **16 tables migrated**. Verified live. (Also delivers P2-5 + P2-7.)
 
-**P1-4 · Touch targets** — *Location:* `button.tsx` sizes; table action links. *Fix:* raise default interactive min-height to ~36–40px on touch (`@media (pointer:coarse)`), enlarge row-action hit areas. *Principle:* WCAG 2.5.8. *Effort:* S–M · *Impact:* Medium-High.
+**⬜ OPEN · P1-4 · Touch targets** — *Location:* `button.tsx` sizes; table action links. *Fix:* raise default interactive min-height to ~36–40px on touch (`@media (pointer:coarse)`), enlarge row-action hit areas. *Principle:* WCAG 2.5.8. *Effort:* S–M · *Impact:* Medium-High.
 
-**P1-5 · Replace native `confirm()`** — *Location:* `announcement-actions.tsx:28`, `clinic-billing.tsx:440`, `import-ui.tsx:366`. *Fix:* use `ConfirmDialog`. *Effort:* S · *Impact:* Medium.
+**✅ FIXED · P1-5 · Replace native `confirm()`** — the 3 calls (announcements/billing-void/import-undo) now use the styled `ConfirmDialog`.
 
-**P1-6 · First-run onboarding** — *Location:* clinic/admin dashboards. *Fix:* empty-dashboard checklist ("Add staff → patients → first appointment"). *Effort:* M · *Impact:* High (activation).
+**✅ FIXED · P1-6 · First-run onboarding** — `OnboardingChecklist` on the clinic dashboard (add team → patient → first appointment), self-hiding once complete.
 
 ### P2 — Medium Priority
 
-**P2-1 · Semantic status color tokens** — replace `emerald/amber/red/sky` literals + hexes with `--success/--warning/--danger/--info` + `StatusPill`. *Effort:* M · *Impact:* Medium.
-**P2-2 · Breadcrumbs** on deep routes. *Effort:* M · *Impact:* Medium.
-**P2-3 · Inline (client) form validation + full error summary.** *Effort:* M · *Impact:* Medium.
-**P2-4 · Dashboard charts + KPI deltas.** *Effort:* M · *Impact:* Medium-High.
-**P2-5 · Sticky table headers + in-table skeletons.** *Effort:* S · *Impact:* Medium.
-**P2-6 · Contrast verification** of muted text + tinted-badge text against WCAG AA. *Effort:* S · *Impact:* Medium (a11y).
-**P2-7 · Mobile card views** for the widest admin tables. *Effort:* M · *Impact:* Medium.
-**P2-8 · "Skip to content" link + full icon-button label sweep.** *Effort:* S · *Impact:* Medium (a11y).
+**✅ FIXED · P2-1 · Semantic status color tokens** — added `--success/--warning/--info` tokens + `Badge` variants; swapped the `emerald/amber/sky` literals to tokens app-wide (25 files) + tokenised semantic chart colours. Verified live (light + dark).
+**⬜ OPEN · P2-2 · Breadcrumbs** on deep routes. *Effort:* M · *Impact:* Medium.
+**⬜ OPEN · P2-3 · Inline (client) form validation + full error summary.** *Effort:* M · *Impact:* Medium.
+**⬜ OPEN · P2-4 · Dashboard charts + KPI deltas.** *Effort:* M · *Impact:* Medium-High. *(Deferred: a correct delta needs prior-period queries — best done with a live eyeball.)*
+**✅ FIXED · P2-5 · Sticky table headers** — a `stickyHeader` option on `DataTable` (in-table skeletons still open, see P1-1).
+**◐ PARTIAL · P2-6 · Contrast verification** — dark-mode tokens/badges spot-checked live and legible; **not yet instrumented** against WCAG AA numerically. *Effort:* S.
+**✅ FIXED · P2-7 · Mobile card views** — every migrated table collapses to cards below `md` via `DataTable`.
+**⬜ OPEN · P2-8 · "Skip to content" link + full icon-button label sweep.** *Effort:* S · *Impact:* Medium (a11y).
 
 ### P3 — Nice to Have
 
@@ -338,7 +362,7 @@
 - Keyboard-shortcut layer + a discoverable shortcut cheat-sheet. *Effort:* M.
 - Optimistic updates extended to all quick toggles/edits. *Effort:* M.
 - Autosave/drafts on long forms. *Effort:* M.
-- Designed (illustrated) empty states with CTAs. *Effort:* M.
+- ✅ **DONE (basic)** — reusable `EmptyState` (icon + title + optional description/CTA) wired into `DataTable`; illustrated variants still a nice-to-have.
 - Bottom-sheet modals on mobile. *Effort:* M.
 - Elevation/shadow token scale. *Effort:* S.
 - `aria-describedby` wiring for helper/error text. *Effort:* S.
@@ -351,40 +375,42 @@
 |---|---|---|
 | Search | Partial | Per-page (patients/invoices/payments); **no global search** |
 | Filter | ✅ | Strong — period pills, searchable selects, date ranges |
-| Sorting | ❌ | No sortable table columns anywhere |
+| Sorting | ✅ (was ❌) | Client-side column sorting on every `DataTable` (16 tables) |
 | Bulk actions | ❌ | No multi-select / batch operations |
 | Undo | Partial | Import batches undo; no general action undo |
 | Autosave / Drafts | ❌ | Long forms lose data on nav-away |
 | Keyboard shortcuts | Partial | Some `onKeyDown`; no global layer or cheat-sheet |
 | Command palette | ❌ | No ⌘K |
 | Tooltips | ❌/rare | `title=` attrs only; no real tooltip component |
-| Empty states | Partial | Present but plain text, not actionable |
+| Empty states | ✅ (was Partial) | Designed `EmptyState` (icon + message) via `DataTable`; illustrated/CTA variants still nice-to-have |
 | Help text | Partial | Good on some forms; not systematic |
 | Pagination | ✅ | Real, consistent component |
 | Breadcrumbs | ❌ | None |
 | Quick actions | Partial | FAB on mobile; no per-row quick-action menus |
 | Dark mode | ✅ | Full, token-driven |
-| Onboarding | ❌ | No first-run guidance |
-| Notifications (stack/dismiss) | ❌ | Single non-stacking toast |
-| Error/404 pages | ❌ | Default Next screens |
+| Onboarding | ✅ (was ❌) | First-run checklist on the clinic dashboard |
+| Notifications (stack/dismiss) | ✅ (was ❌) | Toast queue — stacks, dismissable, pause-on-hover |
+| Error/404 pages | ✅ (was ❌) | Branded 404 + error / global-error boundaries |
 | Charts / data-viz | ❌ (sparkline only) | Dashboards are numbers-only |
 
 ---
 
 ## 18. Final Scores
 
-| Dimension | Score /10 | Rationale |
-|---|---:|---|
-| Visual Design | 7.5 | Clean, brand-aware, dark mode; trails on density/elevation/empty states |
-| User Experience | 6.5 | Sound flows; hurt by hidden controls, dead-ends, no onboarding |
-| Accessibility | 5.5 | Strong aria intent; real modal-focus + touch-target failures |
-| Consistency | 6.5 | Great tokens/primitives; table + modal + color leaks |
-| Responsiveness | 6.5 | Real effort (drawer, cards, FAB); wide tables + touch targets weak |
-| Professional Appearance | 7.0 | Looks credible; error/loading edges betray polish |
-| Ease of Use | 6.5 | Good for trained staff; non-technical first-run is rough |
-| First Impression | 6.0 | Login is great; a stray error/404 or spinner-swap undercuts it |
-| Production Readiness | 5.5 | Blocked by error pages, modal a11y, notifications |
-| **Overall Product Quality** | **6.5** | Strong foundation, thin edges — a focused sprint from ~8 |
+> These are the **original (pre-remediation)** scores. The "Now" column reflects the 2026-07-30 fixes (§0a) — most edge/consistency gaps that dragged the numbers are closed; the remaining drag is loading skeletons (P1-1), touch targets (P1-4), and breadcrumbs/deltas.
+
+| Dimension | Was /10 | Now /10 | Rationale (updated) |
+|---|---:|---:|---|
+| Visual Design | 7.5 | 8.0 | + tokenised status colours, designed empty states |
+| User Experience | 6.5 | 7.5 | + onboarding, real notifications, no dead-end errors |
+| Accessibility | 5.5 | 6.5 | + modal focus trap/restore fixed; touch targets (P1-4) + skip-link (P2-8) still open |
+| Consistency | 6.5 | 8.0 | + one `DataTable` (16 tables), one modal primitive, colour tokens |
+| Responsiveness | 6.5 | 7.0 | + uniform mobile card views; touch targets still weak |
+| Professional Appearance | 7.0 | 8.0 | + branded error/404, stacking toasts |
+| Ease of Use | 6.5 | 7.0 | + first-run guidance, sortable tables |
+| First Impression | 6.0 | 7.0 | + no stray raw error/404 |
+| Production Readiness | 5.5 | 7.5 | P0 blockers cleared + a passing production build; skeletons remain |
+| **Overall Product Quality** | **6.5** | **7.5** | Foundation + edges now solid; polish (skeletons, deltas, breadcrumbs, touch) remains |
 
 ---
 
