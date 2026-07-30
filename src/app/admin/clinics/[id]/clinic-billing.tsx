@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/core/ui/badge";
 import { Button } from "@/core/ui/button";
 import { ConfirmDialog } from "@/core/ui/confirm-dialog";
+import { DataTable, type Column } from "@/core/ui/data-table";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { Toast } from "@/core/ui/toast";
@@ -396,63 +397,65 @@ export function ClinicBilling({
       {payments.length > 0 ? (
         <div className="space-y-2">
           <div className="text-sm font-medium">Payment history</div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[38rem] text-sm">
-              <thead>
-                <tr className="border-b text-left text-xs text-muted-foreground">
-                  <th className="py-1.5 font-normal">Date</th>
-                  <th className="py-1.5 font-normal">Type</th>
-                  <th className="py-1.5 font-normal">Amount</th>
-                  <th className="py-1.5 font-normal">Method</th>
-                  <th className="py-1.5 font-normal">Reference</th>
-                  <th className="py-1.5 text-right font-normal">By</th>
-                  <th className="py-1.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {payments.map((p) => {
-                  const isRefund = p.kind === "refund";
-                  const isCredit = p.kind === "credit";
-                  return (
-                    <tr key={p.id} className="border-b last:border-0">
-                      <td className="py-1.5">{fmtDate(p.occurredAt)}</td>
-                      <td className="py-1.5">
-                        {isRefund ? (
-                          <Badge variant="outline" className="border-transparent bg-destructive/10 text-destructive">Refund</Badge>
-                        ) : isCredit ? (
-                          <Badge variant="outline" className="border-transparent bg-amber-500/10 text-amber-600 dark:text-amber-400">Credit</Badge>
-                        ) : (
-                          <span className="text-muted-foreground">Payment</span>
-                        )}
-                      </td>
-                      <td className={cn("py-1.5 font-medium tabular-nums", isRefund ? "text-destructive" : "")}>
-                        {isRefund ? `−${rs(p.amount)}` : rs(p.amount)}
-                      </td>
-                      <td className="py-1.5 capitalize">{p.method ?? "—"}</td>
-                      <td className="py-1.5 text-muted-foreground">{p.reference ?? "—"}</td>
-                      <td className="py-1.5 text-right text-muted-foreground">{p.recordedByName ?? "—"}</td>
-                      <td className="py-1.5 text-right">
-                        {canManage ? (
-                          <ConfirmDialog
-                            triggerLabel="Void"
-                            triggerVariant="ghost"
-                            triggerClassName="h-6 px-2 text-xs text-destructive hover:text-destructive"
-                            title="Void this entry?"
-                            description="The clinic's balance will be recomputed. This can't be undone."
-                            confirmLabel="Void"
-                            confirmVariant="destructive"
-                            onConfirm={async () => {
-                              await voidClinicPaymentAction(clinicId, p.id);
-                            }}
-                          />
-                        ) : null}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            rows={payments}
+            getRowKey={(p) => p.id}
+            minWidthClassName="min-w-[38rem]"
+            initialSort={{ id: "date", dir: "desc" }}
+            empty="No payments yet."
+            columns={[
+              { id: "date", header: "Date", cardTitle: true, sortValue: (p) => p.occurredAt, cell: (p) => fmtDate(p.occurredAt) },
+              {
+                id: "type",
+                header: "Type",
+                sortValue: (p) => p.kind,
+                cell: (p) =>
+                  p.kind === "refund" ? (
+                    <Badge variant="outline" className="border-transparent bg-destructive/10 text-destructive">Refund</Badge>
+                  ) : p.kind === "credit" ? (
+                    <Badge variant="outline" className="border-transparent bg-amber-500/10 text-amber-600 dark:text-amber-400">Credit</Badge>
+                  ) : (
+                    <span className="text-muted-foreground">Payment</span>
+                  ),
+              },
+              {
+                id: "amount",
+                header: "Amount",
+                sortValue: (p) => (p.kind === "refund" ? -p.amount : p.amount),
+                cell: (p) => (
+                  <span className={cn("font-medium tabular-nums", p.kind === "refund" ? "text-destructive" : "")}>
+                    {p.kind === "refund" ? `−${rs(p.amount)}` : rs(p.amount)}
+                  </span>
+                ),
+              },
+              { id: "method", header: "Method", sortValue: (p) => p.method ?? "", cell: (p) => <span className="capitalize">{p.method ?? "—"}</span> },
+              { id: "reference", header: "Reference", sortValue: (p) => p.reference ?? "", cell: (p) => <span className="text-muted-foreground">{p.reference ?? "—"}</span> },
+              { id: "by", header: "By", align: "right", cell: (p) => <span className="text-muted-foreground">{p.recordedByName ?? "—"}</span> },
+              ...(canManage
+                ? [
+                    {
+                      id: "actions",
+                      header: "",
+                      align: "right",
+                      cell: (p) => (
+                        <ConfirmDialog
+                          triggerLabel="Void"
+                          triggerVariant="ghost"
+                          triggerClassName="h-6 px-2 text-xs text-destructive hover:text-destructive"
+                          title="Void this entry?"
+                          description="The clinic's balance will be recomputed. This can't be undone."
+                          confirmLabel="Void"
+                          confirmVariant="destructive"
+                          onConfirm={async () => {
+                            await voidClinicPaymentAction(clinicId, p.id);
+                          }}
+                        />
+                      ),
+                    } as Column<BillingPayment>,
+                  ]
+                : []),
+            ]}
+          />
         </div>
       ) : null}
     </div>
