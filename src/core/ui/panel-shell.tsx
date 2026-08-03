@@ -416,7 +416,7 @@ export function PanelShell({
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r bg-card md:flex">
         <div className="p-4">
           <Link href={brand} className="flex items-center">
-            <Logo className="h-9" />
+            <Logo variant="mark" className="h-9" />
           </Link>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-3">{renderNodes()}</nav>
@@ -463,7 +463,7 @@ export function PanelShell({
           <Menu className="size-6" aria-hidden="true" />
         </button>
         <Link href={brand} className="flex items-center">
-          <Logo className="h-8" />
+          <Logo variant="mark" className="h-8" />
         </Link>
         <div className="flex items-center gap-1">
           <NotificationBell initialUnread={notificationCount} />
@@ -506,7 +506,7 @@ export function PanelShell({
           )}
         >
           <div className="mb-4 flex items-center justify-between">
-            <Logo className="h-8" />
+            <Logo variant="mark" className="h-8" />
             <button
               type="button"
               onClick={() => setOpen(false)}
