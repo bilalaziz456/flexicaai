@@ -190,7 +190,7 @@ export default async function ReceivablesPage({
                           ))}
                           {p.openingBalance > 0 ? (
                             <tr className="border-b last:border-0">
-                              <td className="py-1.5" colSpan={4}>Opening balance (pre-Klenic dues)</td>
+                              <td className="py-1.5" colSpan={4}>Opening balance (pre-FlexicaAI dues)</td>
                               <td className="py-1.5 text-right font-medium tabular-nums text-warning">
                                 {money.format(p.openingBalance)}
                               </td>

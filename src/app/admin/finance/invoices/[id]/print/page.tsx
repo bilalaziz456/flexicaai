@@ -8,7 +8,7 @@ const fmtMoney = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 const fmtDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
 /**
- * Printable subscription invoice (Owner Finance, Phase 4) — Klenic (issuer) → clinic
+ * Printable subscription invoice (Owner Finance, Phase 4) — FlexicaAI (issuer) → clinic
  * (bill-to). Reuses the shared InvoicePrintFrame (thermal / A5 / A4). Gated by
  * `sub_invoices:view`.
  */
@@ -41,7 +41,7 @@ export default async function ClinicInvoicePrintPage({ params }: { params: Promi
         {/* Header — issuer */}
         <div className="flex items-start justify-between gap-3 border-b border-black/20 pb-2">
           <div>
-            <div className="text-base font-bold">Klenic</div>
+            <div className="text-base font-bold">FlexicaAI</div>
             <div className="text-[0.9em] opacity-70">Subscription invoice</div>
           </div>
           <div className="text-right text-[0.9em]">

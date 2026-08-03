@@ -14,10 +14,10 @@ import {
 import { taxMultiplier as computeTaxMultiplier } from "./cost-tax";
 
 /**
- * Owner Finance — variable serving cost (Phase 1). Klenic's metered spend on the two
+ * Owner Finance — variable serving cost (Phase 1). FlexicaAI's metered spend on the two
  * cost centres that scale with clinic activity: the AI scribe (Whisper + Claude, per
  * visit-with-audio) and WhatsApp (per outbound message). CORE, company-level (no
- * `clinic_id` scope — this is Klenic's own cost), so all reads run inside `unscoped`.
+ * `clinic_id` scope — this is FlexicaAI's own cost), so all reads run inside `unscoped`.
  *
  * v1 is a COUNT × UNIT-RATE ESTIMATE — there is no per-call token/minute log yet, so
  * scribe cost = (# visits with audio) × a configurable per-call rate, and WhatsApp

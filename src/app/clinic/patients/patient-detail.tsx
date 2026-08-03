@@ -388,7 +388,7 @@ export async function PatientDetail({
 
             {canRecordPayment && account.openingBalance > 0 ? (
               <div className="rounded-lg border p-3">
-                <p className="mb-2 text-sm font-medium">Settle opening balance (pre-Klenic dues)</p>
+                <p className="mb-2 text-sm font-medium">Settle opening balance (pre-FlexicaAI dues)</p>
                 <OpeningBalanceForm key={account.openingBalance} patientId={patient.id} owed={account.openingBalance} />
               </div>
             ) : null}

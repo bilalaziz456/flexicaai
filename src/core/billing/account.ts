@@ -130,7 +130,7 @@ export async function getPatientAccount(
       ),
   ]);
 
-  // Imported pre-Klenic dues, net of any 'opening' payments — added to what's owed.
+  // Imported pre-FlexicaAI dues, net of any 'opening' payments — added to what's owed.
   const openingBalance = Math.max(0, Number(patRow[0]?.opening ?? 0) - Number(openPaidRow[0]?.v ?? 0));
   totals.outstanding += openingBalance;
 

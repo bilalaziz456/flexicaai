@@ -8,7 +8,7 @@ import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import { displayStaffName } from "@/core/types/auth";
 
 /**
- * Net opening balance (imported pre-Klenic dues) still owed for a clinic — the sum
+ * Net opening balance (imported pre-FlexicaAI dues) still owed for a clinic — the sum
  * of `patients.opening_balance` minus any `opening` payments recorded against it.
  * Floored at 0. Shared by the KPI + the receivables report.
  */

@@ -13,8 +13,8 @@ const fontSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Klenic",
-  description: "Modular clinic management platform",
+  title: "FlexicaAI",
+  description: "AI-powered clinic management platform",
 };
 
 export default async function RootLayout({

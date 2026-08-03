@@ -140,7 +140,7 @@ export default async function PatientStatementPage({
           </div>
           {account.openingBalance > 0 ? (
             <div className="flex justify-between">
-              <span className="opacity-70">Opening balance (pre-Klenic)</span>
+              <span className="opacity-70">Opening balance (pre-FlexicaAI)</span>
               <span className="tabular-nums">{formatPkr(account.openingBalance)}</span>
             </div>
           ) : null}

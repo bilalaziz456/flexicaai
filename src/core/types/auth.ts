@@ -8,7 +8,7 @@
  */
 
 export const USER_ROLES = [
-  "super_admin", // Klenic company staff — manages clinics & modules
+  "super_admin", // FlexicaAI company staff — manages clinics & modules
   "clinic_admin", // Clinic owner — manages their staff & settings
   "manager", // Clinic operations manager — runs the front desk + oversight
   "doctor", // Clinical user — voice scribe, records, prescriptions

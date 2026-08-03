@@ -14,7 +14,7 @@ import {
 } from "@/core/sales/report";
 
 /**
- * Company operating expenses (Owner Finance, Phase 2) — CORE data layer. Klenic's
+ * Company operating expenses (Owner Finance, Phase 2) — CORE data layer. FlexicaAI's
  * OWN costs (payroll, rent, software, …), NOT a tenant table (no `clinic_id`), so
  * the tenant guard ignores it and no `unscoped` is needed. Categories are config
  * (deactivate, never delete); expenses soft-delete (recoverable). ACL + audit live

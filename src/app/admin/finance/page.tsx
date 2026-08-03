@@ -65,7 +65,7 @@ export default async function CompanyPnlPage({
         <div>
           <h1 className="text-xl font-semibold">Company P&amp;L</h1>
           <p className="text-sm text-muted-foreground">
-            How much Klenic earns: collected revenue − serving cost − operating expenses.
+            How much FlexicaAI earns: collected revenue − serving cost − operating expenses.
           </p>
         </div>
         <Link

@@ -160,7 +160,7 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
         </div>
       ) : null}
 
-      {/* Column mapping — match the file's columns to Klenic fields, then re-check. */}
+      {/* Column mapping — match the file's columns to FlexicaAI fields, then re-check. */}
       {preview ? (
         <div className="rounded-lg border p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

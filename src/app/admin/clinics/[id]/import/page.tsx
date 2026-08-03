@@ -41,7 +41,7 @@ export default async function ClinicImportPage({
         />
         <h1 className="mt-2 text-xl font-semibold">Import data</h1>
         <p className="text-sm text-muted-foreground">
-          Bring {clinic.name}&apos;s existing records into Klenic. Download a template,
+          Bring {clinic.name}&apos;s existing records into FlexicaAI. Download a template,
           fill it, upload, preview, then import. Nothing is written until you confirm,
           and every import can be undone.
         </p>

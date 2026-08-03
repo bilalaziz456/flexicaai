@@ -10,7 +10,7 @@
  * time. Server code reads the same vars. Company defaults are the fallback.
  */
 export const BRAND_WEBSITE =
-  process.env.NEXT_PUBLIC_BRAND_WEBSITE?.trim() || "www.klenic.com";
+  process.env.NEXT_PUBLIC_BRAND_WEBSITE?.trim() || "www.flexicaai.com";
 
 export const BRAND_PHONE =
   process.env.NEXT_PUBLIC_BRAND_PHONE?.trim() || "03000186120";

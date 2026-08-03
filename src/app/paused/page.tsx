@@ -30,7 +30,7 @@ export default async function PausedPage() {
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">{unusableReason(clinic)}</p>
           <p className="text-sm text-muted-foreground">
-            Please contact Klenic support to restore access to{" "}
+            Please contact FlexicaAI support to restore access to{" "}
             <span className="font-medium text-foreground">{clinic.name}</span>.
           </p>
           <div className="pt-2">

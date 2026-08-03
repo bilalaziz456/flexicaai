@@ -168,7 +168,7 @@ export const clinics = pgTable(
     address: text("address"),
     timezone: text("timezone").notNull().default("Asia/Karachi"),
     region: text("region"), // intended data region (compliance)
-    // Manual billing (clinic → Klenic). `paid_through` is pushed forward by payments;
+    // Manual billing (clinic → FlexicaAI). `paid_through` is pushed forward by payments;
     // owed/credit is derived (see core/admin/billing.ts). `capabilities` = the allowed
     // `resource:action` slugs for the whole clinic (NULL = all) — granular super-admin control.
     monthlyPrice: integer("monthly_price").notNull().default(0), // PKR
@@ -412,7 +412,7 @@ export const patients = pgTable(
     // desk can still search by it (kept distinct from `reference` = how referred).
     // See docs/import-plan.md.
     externalRef: text("external_ref"),
-    // Pre-Klenic dues carried in at import (whole PKR, ≥ 0). Added to the patient's
+    // Pre-FlexicaAI dues carried in at import (whole PKR, ≥ 0). Added to the patient's
     // outstanding in receivables + the statement; settled by an `opening` payment
     // (patient_payments.kind = 'opening'). NULL/0 = none.
     openingBalance: integer("opening_balance").notNull().default(0),
@@ -631,7 +631,7 @@ export const visits = pgTable(
     // Storage key of the source audio (for the flywheel / re-transcription).
     audioKey: text("audio_key"),
     // True when this note was IMPORTED from a clinic's old system (not authored in
-    // Klenic) — freeform text lives in `note.summary`, shown as "Imported" in the
+    // FlexicaAI) — freeform text lives in `note.summary`, shown as "Imported" in the
     // clinical timeline. See docs/import-plan.md (Phase 2).
     imported: boolean("imported").notNull().default(false),
     // Import batch this row came from (NULL = created in-app) — enables undo.
@@ -889,11 +889,11 @@ export const importBatches = pgTable(
 /**
  * Imported financial-history archive (Feature: financial-archive-plan.md). A clinic
  * migrating off its old PMS uploads its old bills/receipts/expenses/doctor-payouts as
- * per-transaction rows so the past is searchable inside Klenic forever.
+ * per-transaction rows so the past is searchable inside FlexicaAI forever.
  *
- * READ-ONLY archive — NEVER joined by a live report. Klenic's money (sales/shares/
+ * READ-ONLY archive — NEVER joined by a live report. FlexicaAI's money (sales/shares/
  * receivables/P&L) is derived from completed appointments through the billing engine;
- * these rows never happened *in Klenic*, so they must not enter those ledgers or they
+ * these rows never happened *in FlexicaAI*, so they must not enter those ledgers or they
  * would double-count revenue and distort every metric. The ONLY sanctioned bridge to
  * live data is the collectible remainder → `patients.opening_balance` (opt-in on the
  * payments commit). One generic table (not five per-entity) with a `type` discriminator
@@ -920,7 +920,7 @@ export const importedTransactions = pgTable(
     // payment; money out to a patient = refund; expense/doctor_payout = money out).
     amount: integer("amount").notNull().default(0),
     // Who it concerns. Snapshot name ALWAYS set; the *_id only when matched to a live
-    // record (both nullable — a money sheet may reference people not in Klenic).
+    // record (both nullable — a money sheet may reference people not in FlexicaAI).
     patientId: uuid("patient_id").references(() => patients.id, { onDelete: "set null" }),
     patientName: text("patient_name"),
     externalPatientRef: text("external_patient_ref"), // their old patient no. (match + display)
@@ -1305,7 +1305,7 @@ export const patientPayments = pgTable(
 );
 
 /**
- * `clinic_payments` — the CLINIC → Klenic subscription ledger (manual billing, v1).
+ * `clinic_payments` — the CLINIC → FlexicaAI subscription ledger (manual billing, v1).
  * Mirrors `patient_payments`: each row is a payment RECEIVED from a clinic, covering
  * `months_covered` months, which pushes the clinic's derived `paid_through` forward
  * (unpaid time carries forward as a running balance). Super-admin only. Soft-deletable
@@ -1344,7 +1344,7 @@ export const clinicPayments = pgTable(
 
 /**
  * Platform cost rates (Owner Finance — the COMPANY's serving-cost config). NOT a
- * tenant table (no `clinic_id`): these are Klenic's own unit costs for the metered
+ * tenant table (no `clinic_id`): these are FlexicaAI's own unit costs for the metered
  * dependencies. Every rate change inserts a NEW row (history) with `effectiveFrom`
  * — the latest row is the current rate; past periods can later be costed at the
  * rate that was live then. Unit costs are stored in `currency` (USD by default) as
@@ -1419,7 +1419,7 @@ export const aiUsage = pgTable(
 );
 
 /**
- * Company expense categories (Owner Finance — the COMPANY's opex). Klenic's own
+ * Company expense categories (Owner Finance — the COMPANY's opex). FlexicaAI's own
  * cost buckets (Payroll, Rent, …). NOT a tenant table (no `clinic_id`). Deactivate
  * with `is_active` (kept for history). See core/admin/company-expenses.ts.
  */
@@ -1433,7 +1433,7 @@ export const companyExpenseCategories = pgTable("company_expense_categories", {
 /**
  * Company expenses (Owner Finance — the COMPANY's operating costs: payroll, rent,
  * software, marketing, …). Feeds the company P&L (net profit = collected revenue −
- * serving cost − these). NOT a tenant table (no `clinic_id` — it's Klenic's own
+ * serving cost − these). NOT a tenant table (no `clinic_id` — it's FlexicaAI's own
  * cost, so the tenant guard ignores it). Soft-deletable (recoverable); `recurring`
  * tags a repeating cost the cron materialises each period (reusing the clinic
  * recurring date math). ACL + audit live in the action layer.
@@ -1473,8 +1473,8 @@ export const companyExpenses = pgTable(
 );
 
 /**
- * Company settings (Owner Finance) — a SINGLETON config row for Klenic itself (not
- * a tenant). Holds the company-global subscription-invoice counter + prefix (Klenic
+ * Company settings (Owner Finance) — a SINGLETON config row for FlexicaAI itself (not
+ * a tenant). Holds the company-global subscription-invoice counter + prefix (FlexicaAI
  * issues one numbered sequence across all clinics). Seeded lazily. See
  * core/admin/clinic-invoices.ts.
  */

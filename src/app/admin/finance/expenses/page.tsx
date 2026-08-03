@@ -36,7 +36,7 @@ import { AddCompanyExpenseForm, CompanyCategoryManager, CompanyExpenseRowActions
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 
 /**
- * Owner Finance — company operating expenses (Phase 2). Klenic's own costs (payroll,
+ * Owner Finance — company operating expenses (Phase 2). FlexicaAI's own costs (payroll,
  * rent, software, …) with period/category/method/search filters, a monthly trend +
  * by-category breakdown graph, add/edit/delete (soft) + a Trash view, and category
  * management. Gated by `expenses:view`; create/edit/delete by `expenses:*`.
@@ -97,7 +97,7 @@ export default async function CompanyExpensesPage({
       <div>
         <h1 className="text-xl font-semibold">Company finance — operating expenses</h1>
         <p className="text-sm text-muted-foreground">
-          Klenic&apos;s own costs (payroll, rent, software, marketing…). Feeds the company P&amp;L.
+          FlexicaAI&apos;s own costs (payroll, rent, software, marketing…). Feeds the company P&amp;L.
         </p>
       </div>
 

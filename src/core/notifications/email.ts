@@ -30,7 +30,7 @@ function getTransport(): Transporter | null {
   return transport;
 }
 
-const from = (): string => serverEnv.EMAIL_FROM || serverEnv.SMTP_USER || "no-reply@klenic.local";
+const from = (): string => serverEnv.EMAIL_FROM || serverEnv.SMTP_USER || "no-reply@flexicaai.com";
 
 export async function sendEmail(args: {
   to: string;

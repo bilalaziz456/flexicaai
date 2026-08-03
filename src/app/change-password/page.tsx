@@ -14,7 +14,7 @@ export default async function ChangePasswordPage() {
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
           <h1 className="text-3xl font-bold tracking-tight text-primary">
-            Klenic
+            FlexicaAI
           </h1>
         </div>
         <ChangePasswordForm forced={user.mustChangePassword} />

@@ -14,7 +14,7 @@ import {
 } from "@/core/sales/report";
 
 /**
- * Clinic subscription invoices (Owner Finance, Phase 4) — invoices Klenic issues TO
+ * Clinic subscription invoices (Owner Finance, Phase 4) — invoices FlexicaAI issues TO
  * clinics for their subscription. CORE, company control-plane. `clinic_invoices`
  * carries `clinic_id`, so cross-tenant reads run `unscoped`; the number comes from a
  * company-global counter (`company_settings`) allocated under a row lock, mirroring

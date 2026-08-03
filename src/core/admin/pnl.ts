@@ -71,7 +71,7 @@ export async function getCompanyPnl(range: ResolvedRange): Promise<CompanyPnl> {
   ]);
 
   return unscoped("admin: company P&L", async () => {
-    // Collected revenue rows (CASH clinics paid Klenic) in the window — payment counts
+    // Collected revenue rows (CASH clinics paid FlexicaAI) in the window — payment counts
     // in, refund out, a non-cash credit is excluded.
     const payRows = await db
       .select({ clinicId: clinicPayments.clinicId, amount: clinicPayments.amount, kind: clinicPayments.kind, at: clinicPayments.occurredAt })

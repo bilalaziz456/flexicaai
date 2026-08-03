@@ -24,7 +24,7 @@ import { CostRatesForm } from "./cost-rates-form";
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 
 /**
- * Owner Finance — serving-cost tracking (Phase 1). Klenic's estimated variable cost
+ * Owner Finance — serving-cost tracking (Phase 1). FlexicaAI's estimated variable cost
  * (AI scribe + WhatsApp) over a chosen period, with a scribe-vs-WhatsApp cost trend
  * and a per-clinic breakdown, driven by the configurable unit rates. Gated by
  * `serving_cost:view`; rate editing by `serving_cost:edit`.
@@ -58,7 +58,7 @@ export default async function CostsPage({
       <div>
         <h1 className="text-xl font-semibold">Company finance — serving cost</h1>
         <p className="text-sm text-muted-foreground">
-          Klenic&apos;s estimated variable cost of serving clinics (AI scribe + WhatsApp).
+          FlexicaAI&apos;s estimated variable cost of serving clinics (AI scribe + WhatsApp).
           Counts × your unit rates.
         </p>
       </div>

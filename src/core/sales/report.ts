@@ -10,7 +10,7 @@ export type SalesGranularity = "hour" | "day" | "week" | "month";
 export type SalesPeriod = "today" | "30d" | "quarter" | "half" | "year" | "all" | "custom";
 
 /** Floor for an "all time" range when the caller can't supply the real earliest
- *  date (e.g. a cross-clinic admin view). Safely before any Klenic data (the app
+ *  date (e.g. a cross-clinic admin view). Safely before any FlexicaAI data (the app
  *  launched mid-2026) while keeping the monthly bucket count reasonable. Per-clinic
  *  callers pass the clinic's `createdAt` for an exact, chart-clean start. */
 const ALL_TIME_FLOOR = new Date(2024, 0, 1);

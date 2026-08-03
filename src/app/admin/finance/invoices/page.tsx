@@ -37,7 +37,7 @@ const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 const fmtDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
 /**
- * Owner Finance — clinic subscription invoices (Phase 4). Invoices Klenic issues to
+ * Owner Finance — clinic subscription invoices (Phase 4). Invoices FlexicaAI issues to
  * clinics for their subscription: filters (clinic/period/Trash), an invoiced-total
  * KPI + monthly trend graph, an issue form (pre-fills the clinic's monthly price),
  * and a ledger with a printable receipt + void/restore. Gated by `sub_invoices:view`;
@@ -87,7 +87,7 @@ export default async function ClinicInvoicesPage({
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold">Company finance — subscription invoices</h1>
-        <p className="text-sm text-muted-foreground">Invoices Klenic issues to clinics for their subscription.</p>
+        <p className="text-sm text-muted-foreground">Invoices FlexicaAI issues to clinics for their subscription.</p>
       </div>
 
       <InvoiceFilters

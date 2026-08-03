@@ -68,7 +68,7 @@ export async function generatePrescriptionPdf(
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle(`Prescription - ${safe(input.patientName)}`);
-  doc.setProducer("Klenic");
+  doc.setProducer("FlexicaAI");
 
   const page: PDFPage = doc.addPage([PAGE_W, PAGE_H]);
   const reg = await doc.embedFont(StandardFonts.Helvetica);
@@ -203,7 +203,7 @@ export async function generatePrescriptionPdf(
     color: rgb(0.85, 0.85, 0.85),
   });
   text(
-    "This prescription was generated with Klenic. Review by the prescribing doctor.",
+    "This prescription was generated with FlexicaAI. Review by the prescribing doctor.",
     MARGIN,
     MARGIN + 14,
     { size: 8, color: MUTED },

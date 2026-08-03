@@ -42,7 +42,7 @@ export function LoginForm({
         <CardDescription>
           {twoFactor
             ? "Enter the 6-digit code from your authenticator app."
-            : "Access your Klenic workspace."}
+            : "Access your FlexicaAI workspace."}
         </CardDescription>
       </CardHeader>
       <form action={formAction}>

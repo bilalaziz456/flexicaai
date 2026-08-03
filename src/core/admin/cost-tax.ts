@@ -3,7 +3,7 @@
  * Shared by the serving-cost calc (server) and the rate form's live preview (client) so
  * the effective % can never drift between them. See core/admin/cost.ts.
  *
- * A Pakistani bank adds these when Klenic pays the AI/WhatsApp providers in USD:
+ * A Pakistani bank adds these when FlexicaAI pays the AI/WhatsApp providers in USD:
  *  - foreign-transaction fee — a % of the payment;
  *  - FED (Federal Excise Duty) — a % **of that fee**, so its contribution to the payment
  *    is `fee × FED%` (e.g. 16% FED on a 3% fee = 0.48% of the payment);

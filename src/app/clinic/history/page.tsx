@@ -22,7 +22,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 /**
- * Imported financial history (read-only archive). A clinic's pre-Klenic bills /
+ * Imported financial history (read-only archive). A clinic's pre-FlexicaAI bills /
  * receipts / expenses / doctor-payouts, uploaded by the company at onboarding. This is
  * the ONLY page that reads `imported_transactions`; it is deliberately walled off from
  * the live Sales/Payments/Receivables reports so old figures never mix with live ones.

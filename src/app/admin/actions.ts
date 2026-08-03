@@ -767,7 +767,7 @@ const clinicPaymentSchema = z.object({
   commitmentNote: z.string().trim().max(300).optional(),
 });
 
-/** Records a manual clinic→Klenic payment (extends paid-through) — Feature 6. */
+/** Records a manual clinic→FlexicaAI payment (extends paid-through) — Feature 6. */
 export async function recordClinicPaymentAction(
   clinicId: string,
   _prev: AdminActionState,

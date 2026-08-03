@@ -22,7 +22,7 @@ import { users } from "@/core/db/schema";
  * docs/super-admin-plan.md §11 Feature 1.
  */
 
-const ISSUER = "Klenic";
+const ISSUER = "FlexicaAI";
 
 export type BeginEnrollState = {
   error?: string;

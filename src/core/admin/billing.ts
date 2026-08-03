@@ -8,7 +8,7 @@ import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import { clinics, clinicPayments, users } from "@/core/db/schema";
 
 /**
- * Manual clinic→Klenic billing — CORE, super-admin control plane (Feature 6).
+ * Manual clinic→FlexicaAI billing — CORE, super-admin control plane (Feature 6).
  * Model = "paid-through date + carry-forward", the SAME advance/outstanding math as
  * the patient `core/billing/*` ledger, one tier up. A payment PUSHES `paid_through`
  * forward by the months it covers; the gap past it carries forward as owed. Status
