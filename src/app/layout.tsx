@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { Plus_Jakarta_Sans } from "next/font/google";
-import { getThemeCookie } from "@/core/theme/server";
+import { THEME_SCRIPT } from "@/core/theme/theme-script";
 import { Toaster } from "@/core/ui/toast";
 import "./globals.css";
 
@@ -17,38 +16,31 @@ export const metadata: Metadata = {
   description: "AI-powered clinic management platform",
 };
 
-export default async function RootLayout({
+/**
+ * Root layout — deliberately STATIC. It must not read cookies(), headers(), or any
+ * other request data: anything a root layout reads opts every route beneath it into
+ * dynamic rendering, which would stop the public marketing pages from being
+ * statically generated (CLAUDE.md §7). That is why the theme script reads the cookie
+ * client-side (core/theme/theme-script.ts) rather than being handed the value, and
+ * why it is allowed by a CSP hash rather than a per-request nonce (src/proxy.ts).
+ *
+ * The script must stay HERE, as the first thing in <body>, for two reasons: it runs
+ * before paint (no flash of the wrong theme), and the root layout is the one place
+ * React never re-renders on the client — a <script> rendered in a segment layout is
+ * inert on client navigation and React warns about it.
+ */
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const theme = await getThemeCookie();
-  // The per-request CSP nonce set by the proxy — attached to our inline theme script so
-  // it passes a nonce-based CSP (report-only for now).
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
-
-  // Runs before paint: applies the .dark class from the saved preference, and
-  // for "system" follows the OS and reacts to OS theme changes live. Prevents
-  // the flash of the wrong theme on load.
-  const themeScript = `(function(){try{var p=${JSON.stringify(theme)};var m=window.matchMedia('(prefers-color-scheme: dark)');function a(){var d=p==='dark'||(p==='system'&&m.matches);document.documentElement.classList.toggle('dark',d);}a();if(p==='system'&&m.addEventListener){m.addEventListener('change',a);}}catch(e){}})();`;
-
   return (
-    <html
-      lang="en"
-      className={`${fontSans.variable} h-full antialiased${theme === "dark" ? " dark" : ""}`}
-      suppressHydrationWarning
-    >
-      {/* suppressHydrationWarning: the theme script (and browser extensions like
-          Grammarly) may adjust attributes before hydration; this silences that. */}
+    <html lang="en" className={`${fontSans.variable} h-full antialiased`} suppressHydrationWarning>
+      {/* suppressHydrationWarning: the theme script sets the `dark` class on <html>
+          before hydration (and extensions like Grammarly touch attributes too);
+          this silences the resulting mismatch. */}
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        {/* suppressHydrationWarning: the browser blanks the `nonce` content attribute
-            after parsing (CSP hardening), so server nonce="…" vs client nonce="" trips
-            hydration — the script already ran with the correct nonce; nothing to patch. */}
-        <script
-          nonce={nonce}
-          suppressHydrationWarning
-          dangerouslySetInnerHTML={{ __html: themeScript }}
-        />
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         {children}
         {/* Single global toast host — stacks + dismisses notifications app-wide. */}
         <Toaster />

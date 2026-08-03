@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE_NAME } from "@/core/auth/constants";
+import { THEME_SCRIPT } from "@/core/theme/theme-script";
 import { matchProtectedPrefix } from "@/core/types/auth";
 
 /**
@@ -21,14 +22,34 @@ function makeNonce(): string {
 
 const isDev = process.env.NODE_ENV !== "production";
 
-function cspReportOnly(nonce: string): string {
+/**
+ * The root layout's inline theme script is allowed by HASH, not by the per-request
+ * nonce. It has to be: the root layout is static (so the marketing pages can be
+ * prerendered), and a prerendered page cannot carry a per-request value. The script
+ * is a constant, so its hash is too — computed once, then cached for the process.
+ */
+let themeScriptHash: string | null = null;
+
+async function getThemeScriptHash(): Promise<string> {
+  if (themeScriptHash) return themeScriptHash;
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(THEME_SCRIPT),
+  );
+  themeScriptHash = `'sha256-${btoa(String.fromCharCode(...new Uint8Array(digest)))}'`;
+  return themeScriptHash;
+}
+
+function cspReportOnly(nonce: string, scriptHash: string): string {
   // 'strict-dynamic' + nonce lets Next's chunk loader work without allow-listing hosts.
   // DEV also needs 'unsafe-eval' (HMR/React-refresh) — excluded in prod so real eval is
   // reported. Styles use 'unsafe-inline' (Tailwind + print <style>) — far lower risk than
   // scripts. media/blob covers MediaRecorder audio; img data/blob covers avatars/previews.
   return [
     `default-src 'self'`,
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
+    // With 'strict-dynamic' the CSP3 spec makes host sources ('self') moot for scripts —
+    // only the nonce and the hash actually admit anything.
+    `script-src 'self' 'nonce-${nonce}' ${scriptHash} 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' data: blob:`,
     `font-src 'self' data:`,
@@ -42,7 +63,7 @@ function cspReportOnly(nonce: string): string {
   ].join("; ");
 }
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hasSessionCookie = request.cookies.has(SESSION_COOKIE_NAME);
 
@@ -62,7 +83,10 @@ export function proxy(request: NextRequest) {
   requestHeaders.set("x-nonce", nonce);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
-  response.headers.set("Content-Security-Policy-Report-Only", cspReportOnly(nonce));
+  response.headers.set(
+    "Content-Security-Policy-Report-Only",
+    cspReportOnly(nonce, await getThemeScriptHash()),
+  );
   return response;
 }
 
