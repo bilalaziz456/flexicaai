@@ -421,9 +421,14 @@ clinic notice bar. `core/admin/announcements.ts` (cross-clinic reads `unscoped`)
 ### `platform_cost_rates` — company serving-cost config (Owner Finance) · NO clinic_id
 `id`, ESTIMATE rates `scribe_call_cost` (fallback) + `whatsapp_msg_cost`, METERED rates
 `whisper_minute_cost` + `claude_input_cost`/`claude_output_cost` (per 1M tokens), all
-`numeric` USD; `currency`, `usd_to_pkr` FX, `effective_from` (a NEW row per change =
-rate history; latest = current), `created_by(+name)`, `created_at`. Drives
-`core/admin/cost.ts#computeServingCost`. Index: `effective_from`.
+`numeric` USD; `currency`, `usd_to_pkr` FX; **international-transaction bank TAX/charges**
+(`tax_mode` 'itemized'|'total' + `foreign_txn_fee_pct` / `fed_pct` / `advance_tax_pct` /
+`additional_tax_pct` [itemised → summed] and `total_tax_pct` [single], all `numeric` %,
+default 0) applied as a **% markup on the PKR serving cost at report time** (ai_usage
+stays the raw provider cost) — `core/admin/cost.ts#effectiveTaxPct`/`taxMultiplier`;
+`effective_from` (a NEW row per change = rate history; latest = current),
+`created_by(+name)`, `created_at`. Drives `computeServingCost` + the dashboard serving-cost
+KPI (`metrics.ts`). Index: `effective_from`. (Tax cols: migration `0077`.)
 
 ### `ai_usage` — precise AI metering (Owner Finance)
 `id`, `clinic_id` → clinics (`cascade`), `visit_id` → visits (`set null`), `provider`
@@ -588,3 +593,11 @@ these for churn-risk + usage/cost anomaly flags.
   Set per clinic on the billing card (owner/super-admin/account-manager, `setPayment
   ReminderDaysAction`); `listDueClinics({ includeUpcoming })` adds the `upcoming` alert
   bucket (an `active` clinic with `daysRemaining ≤ payment_reminder_days`). 0 disables it.
+- Migration **`0077`** adds international-transaction **bank tax/charge** columns to
+  `platform_cost_rates` — `tax_mode` ('itemized'|'total') + `foreign_txn_fee_pct` /
+  `fed_pct` / `advance_tax_pct` / `additional_tax_pct` / `total_tax_pct` (all `numeric`,
+  default 0). The effective % (summed itemised, or the single total) is a **markup on the
+  PKR serving cost** (a PK bank deducts a foreign-transaction fee + FED + advance tax when
+  Klenic pays the AI/WhatsApp providers in USD); applied in `computeServingCost` +
+  `getCompanyMetrics` via `core/admin/cost.ts#taxMultiplier`. Editable on
+  `/admin/finance/costs`. Verified: itemised 10% and total 8% scale the cost exactly; 0 = no change.

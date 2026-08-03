@@ -35,6 +35,15 @@ export type CostRates = {
   claudeOutputCost: number; // METERED: Claude per 1M output tokens, in `currency`
   currency: string; // e.g. "USD"
   usdToPkr: number; // FX to convert cost into the PKR the app shows
+  // International-transaction tax/charges the bank adds on the USD payment. Either
+  // ITEMISED (fee + FED + advance + additional, summed) or a single TOTAL %. All in
+  // percent; 0 = no markup. See `effectiveTaxPct`.
+  taxMode: "itemized" | "total";
+  foreignTxnFeePct: number;
+  fedPct: number;
+  advanceTaxPct: number;
+  additionalTaxPct: number;
+  totalTaxPct: number;
   effectiveFrom: Date | null; // null = never configured
 };
 
@@ -46,8 +55,29 @@ const ZERO_RATES: CostRates = {
   claudeOutputCost: 0,
   currency: "USD",
   usdToPkr: 0,
+  taxMode: "itemized",
+  foreignTxnFeePct: 0,
+  fedPct: 0,
+  advanceTaxPct: 0,
+  additionalTaxPct: 0,
+  totalTaxPct: 0,
   effectiveFrom: null,
 };
+
+/**
+ * The effective international-transaction tax %, per the chosen mode: the single
+ * `totalTaxPct` in 'total' mode, else the SUM of the itemised components. PURE.
+ */
+export function effectiveTaxPct(rates: Pick<CostRates, "taxMode" | "foreignTxnFeePct" | "fedPct" | "advanceTaxPct" | "additionalTaxPct" | "totalTaxPct">): number {
+  return rates.taxMode === "total"
+    ? rates.totalTaxPct
+    : rates.foreignTxnFeePct + rates.fedPct + rates.advanceTaxPct + rates.additionalTaxPct;
+}
+
+/** The PKR multiplier for the bank tax/charges (1 + effective%/100). PURE. */
+export function taxMultiplier(rates: CostRates): number {
+  return 1 + effectiveTaxPct(rates) / 100;
+}
 
 /** The current (latest) unit-cost rates, or zeros when never configured. */
 export async function getCostRates(): Promise<CostRates> {
@@ -65,6 +95,12 @@ export async function getCostRates(): Promise<CostRates> {
     claudeOutputCost: n(row.claudeOutputCost),
     currency: row.currency,
     usdToPkr: n(row.usdToPkr),
+    taxMode: row.taxMode === "total" ? "total" : "itemized",
+    foreignTxnFeePct: n(row.foreignTxnFeePct),
+    fedPct: n(row.fedPct),
+    advanceTaxPct: n(row.advanceTaxPct),
+    additionalTaxPct: n(row.additionalTaxPct),
+    totalTaxPct: n(row.totalTaxPct),
     effectiveFrom: row.effectiveFrom,
   };
 }
@@ -91,6 +127,12 @@ export async function setCostRates(
     claudeInputCost?: number;
     claudeOutputCost?: number;
     currency?: string;
+    taxMode?: "itemized" | "total";
+    foreignTxnFeePct?: number;
+    fedPct?: number;
+    advanceTaxPct?: number;
+    additionalTaxPct?: number;
+    totalTaxPct?: number;
   },
   actor: { id: string; name: string },
 ): Promise<void> {
@@ -103,6 +145,12 @@ export async function setCostRates(
     claudeOutputCost: String(input.claudeOutputCost ?? 0),
     usdToPkr: String(input.usdToPkr),
     currency: input.currency ?? "USD",
+    taxMode: input.taxMode ?? "itemized",
+    foreignTxnFeePct: String(input.foreignTxnFeePct ?? 0),
+    fedPct: String(input.fedPct ?? 0),
+    advanceTaxPct: String(input.advanceTaxPct ?? 0),
+    additionalTaxPct: String(input.additionalTaxPct ?? 0),
+    totalTaxPct: String(input.totalTaxPct ?? 0),
     createdBy: actor.id,
     createdByName: actor.name,
   });
@@ -150,6 +198,10 @@ export async function computeServingCost(range: ResolvedRange): Promise<ServingC
     const rates = await getCostRates();
     const scribeEstUnit = rates.scribeCallCost * rates.usdToPkr; // fallback per un-metered call
     const waUnit = rates.whatsappMsgCost * rates.usdToPkr; // PKR per WhatsApp message
+    // Bank international-transaction tax/charges markup — applied to the final PKR cost
+    // (ai_usage.cost_pkr + estimates + WhatsApp), since the raw usage rows are the
+    // provider's charge, not what the bank actually deducted.
+    const taxMult = taxMultiplier(rates);
 
     // Scribe = visits WITH audio (a scribe run). Metered cost comes from ai_usage;
     // WhatsApp = OUTBOUND messages (sends cost money; inbound is typically free).
@@ -238,14 +290,15 @@ export async function computeServingCost(range: ResolvedRange): Promise<ServingC
       if (b) b.whatsappCostPkr += waUnit;
     }
 
+    // Final PKR = raw provider cost × the bank tax/charges multiplier.
     let totalCostPkr = 0;
     for (const [key, e] of byClinic) {
-      e.costPkr = Math.round((scribeCostByClinic.get(key) ?? 0) + (waCostByClinic.get(key) ?? 0));
+      e.costPkr = Math.round(((scribeCostByClinic.get(key) ?? 0) + (waCostByClinic.get(key) ?? 0)) * taxMult);
       totalCostPkr += e.costPkr;
     }
     for (const b of buckets) {
-      b.scribeCostPkr = Math.round(b.scribeCostPkr);
-      b.whatsappCostPkr = Math.round(b.whatsappCostPkr);
+      b.scribeCostPkr = Math.round(b.scribeCostPkr * taxMult);
+      b.whatsappCostPkr = Math.round(b.whatsappCostPkr * taxMult);
       b.costPkr = b.scribeCostPkr + b.whatsappCostPkr;
     }
     const perClinic = [...byClinic.values()].sort((a, b) => b.costPkr - a.costPkr);

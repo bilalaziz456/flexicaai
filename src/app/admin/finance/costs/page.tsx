@@ -1,6 +1,6 @@
 import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin } from "@/core/auth/admin-permissions";
-import { computeServingCost, getCostRates } from "@/core/admin/cost";
+import { computeServingCost, effectiveTaxPct, getCostRates } from "@/core/admin/cost";
 import { resolveSalesRange } from "@/core/sales/report";
 import { MultiBarChart } from "@/app/clinic/sales/multi-bar-chart";
 import {
@@ -121,6 +121,12 @@ export default async function CostsPage({
               claudeInputCost={rates.claudeInputCost}
               claudeOutputCost={rates.claudeOutputCost}
               usdToPkr={rates.usdToPkr}
+              taxMode={rates.taxMode}
+              foreignTxnFeePct={rates.foreignTxnFeePct}
+              fedPct={rates.fedPct}
+              advanceTaxPct={rates.advanceTaxPct}
+              additionalTaxPct={rates.additionalTaxPct}
+              totalTaxPct={rates.totalTaxPct}
             />
           ) : (
             <dl className="grid gap-3 sm:grid-cols-3 text-sm">
@@ -129,6 +135,7 @@ export default async function CostsPage({
               <div><dt className="text-muted-foreground">WhatsApp message</dt><dd className="font-medium">{rates.currency} {rates.whatsappMsgCost}</dd></div>
               <div><dt className="text-muted-foreground">Scribe call (fallback)</dt><dd className="font-medium">{rates.currency} {rates.scribeCallCost}</dd></div>
               <div><dt className="text-muted-foreground">USD → PKR</dt><dd className="font-medium">{rates.usdToPkr}</dd></div>
+              <div><dt className="text-muted-foreground">Bank tax (int&apos;l)</dt><dd className="font-medium">{effectiveTaxPct(rates)}%</dd></div>
             </dl>
           )}
         </CardContent>

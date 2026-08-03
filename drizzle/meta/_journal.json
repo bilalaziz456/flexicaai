@@ -540,6 +540,13 @@
       "when": 1785359713527,
       "tag": "0076_jittery_shotgun",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1785780670312,
+      "tag": "0077_spooky_onslaught",
+      "breakpoints": true
     }
   ]
 }

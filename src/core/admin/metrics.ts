@@ -6,7 +6,7 @@ import { db } from "@/core/db";
 import { unscoped } from "@/core/db/tenant-guard";
 import { notDeleted } from "@/core/db/tenant";
 import { aiUsage, clinics, clinicPayments, visits, whatsappMessages } from "@/core/db/schema";
-import { getCostRates } from "./cost";
+import { getCostRates, taxMultiplier } from "./cost";
 import { listDueClinics } from "./billing";
 
 /**
@@ -149,7 +149,10 @@ export async function getCompanyMetrics(
         .select({ wa: count() })
         .from(whatsappMessages)
         .where(and(eq(whatsappMessages.direction, "outbound"), isNotNull(whatsappMessages.clinicId), gte(whatsappMessages.createdAt, monthStart), scopeExists(whatsappMessages.clinicId)));
-      servingCostThisMonth = num(metered) + Math.round((num(sc) * rates.scribeCallCost + num(wa) * rates.whatsappMsgCost) * rates.usdToPkr);
+      // Raw provider cost (metered + estimate fallback + WhatsApp), then × the bank
+      // international-transaction tax/charges markup (matches computeServingCost).
+      const rawCost = num(metered) + (num(sc) * rates.scribeCallCost + num(wa) * rates.whatsappMsgCost) * rates.usdToPkr;
+      servingCostThisMonth = Math.round(rawCost * taxMultiplier(rates));
     }
     const grossMarginThisMonth = num(collectedThisMonth) - servingCostThisMonth;
 

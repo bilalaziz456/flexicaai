@@ -1367,6 +1367,17 @@ export const platformCostRates = pgTable(
     claudeOutputCost: numeric("claude_output_cost", { precision: 12, scale: 6 }).notNull().default("0"),
     currency: text("currency").notNull().default("USD"),
     usdToPkr: numeric("usd_to_pkr", { precision: 12, scale: 4 }).notNull().default("0"),
+    // International-transaction TAX/CHARGES a Pakistani bank adds on the USD payment to
+    // the AI/WhatsApp providers (foreign-transaction fee + FED on it + advance tax + any
+    // extra). Applied as a % MARKUP on the PKR serving cost at report time (ai_usage
+    // stays the raw provider cost). Two modes so the owner can either itemise or enter a
+    // single figure; all default 0 → no markup until configured. See core/admin/cost.ts.
+    taxMode: text("tax_mode").notNull().default("itemized"), // 'itemized' | 'total'
+    foreignTxnFeePct: numeric("foreign_txn_fee_pct", { precision: 12, scale: 4 }).notNull().default("0"),
+    fedPct: numeric("fed_pct", { precision: 12, scale: 4 }).notNull().default("0"),
+    advanceTaxPct: numeric("advance_tax_pct", { precision: 12, scale: 4 }).notNull().default("0"),
+    additionalTaxPct: numeric("additional_tax_pct", { precision: 12, scale: 4 }).notNull().default("0"),
+    totalTaxPct: numeric("total_tax_pct", { precision: 12, scale: 4 }).notNull().default("0"),
     effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
     createdBy: uuid("created_by"),
     createdByName: text("created_by_name"),
