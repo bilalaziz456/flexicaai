@@ -5,6 +5,7 @@ import { z } from "zod";
 import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireAdminCapability } from "@/core/auth/user";
 import { setCostRates } from "@/core/admin/cost";
+import { effectiveTaxPct } from "@/core/admin/cost-tax";
 import { logActivity } from "@/core/audit/log";
 
 export type CostRatesActionState = { error?: string; saved?: boolean };
@@ -53,10 +54,7 @@ export async function saveCostRatesAction(
     id: actor.id,
     name: actor.fullName ?? actor.username,
   });
-  const eff =
-    parsed.data.taxMode === "total"
-      ? parsed.data.totalTaxPct
-      : parsed.data.foreignTxnFeePct + parsed.data.fedPct + parsed.data.advanceTaxPct + parsed.data.additionalTaxPct;
+  const eff = effectiveTaxPct(parsed.data);
   await logActivity({
     action: "update",
     entity: "settings",

@@ -11,6 +11,7 @@ import {
   startOfBucket,
   type ResolvedRange,
 } from "@/core/sales/report";
+import { taxMultiplier as computeTaxMultiplier } from "./cost-tax";
 
 /**
  * Owner Finance — variable serving cost (Phase 1). Klenic's metered spend on the two
@@ -64,20 +65,10 @@ const ZERO_RATES: CostRates = {
   effectiveFrom: null,
 };
 
-/**
- * The effective international-transaction tax %, per the chosen mode: the single
- * `totalTaxPct` in 'total' mode, else the SUM of the itemised components. PURE.
- */
-export function effectiveTaxPct(rates: Pick<CostRates, "taxMode" | "foreignTxnFeePct" | "fedPct" | "advanceTaxPct" | "additionalTaxPct" | "totalTaxPct">): number {
-  return rates.taxMode === "total"
-    ? rates.totalTaxPct
-    : rates.foreignTxnFeePct + rates.fedPct + rates.advanceTaxPct + rates.additionalTaxPct;
-}
-
-/** The PKR multiplier for the bank tax/charges (1 + effective%/100). PURE. */
-export function taxMultiplier(rates: CostRates): number {
-  return 1 + effectiveTaxPct(rates) / 100;
-}
+// The bank-tax math lives in a client-safe module (this file is server-only) so the rate
+// form's live preview and the serving-cost calc share one formula. Re-exported here so
+// server callers keep a single import site.
+export { effectiveTaxPct, taxMultiplier, FILER_TAX_DEFAULTS } from "./cost-tax";
 
 /** The current (latest) unit-cost rates, or zeros when never configured. */
 export async function getCostRates(): Promise<CostRates> {
@@ -201,7 +192,7 @@ export async function computeServingCost(range: ResolvedRange): Promise<ServingC
     // Bank international-transaction tax/charges markup — applied to the final PKR cost
     // (ai_usage.cost_pkr + estimates + WhatsApp), since the raw usage rows are the
     // provider's charge, not what the bank actually deducted.
-    const taxMult = taxMultiplier(rates);
+    const taxMult = computeTaxMultiplier(rates);
 
     // Scribe = visits WITH audio (a scribe run). Metered cost comes from ai_usage;
     // WhatsApp = OUTBOUND messages (sends cost money; inbound is typically free).

@@ -423,9 +423,12 @@ clinic notice bar. `core/admin/announcements.ts` (cross-clinic reads `unscoped`)
 `whisper_minute_cost` + `claude_input_cost`/`claude_output_cost` (per 1M tokens), all
 `numeric` USD; `currency`, `usd_to_pkr` FX; **international-transaction bank TAX/charges**
 (`tax_mode` 'itemized'|'total' + `foreign_txn_fee_pct` / `fed_pct` / `advance_tax_pct` /
-`additional_tax_pct` [itemised → summed] and `total_tax_pct` [single], all `numeric` %,
-default 0) applied as a **% markup on the PKR serving cost at report time** (ai_usage
-stays the raw provider cost) — `core/admin/cost.ts#effectiveTaxPct`/`taxMultiplier`;
+`additional_tax_pct` and `total_tax_pct`, all `numeric` %, default 0) applied as a **%
+markup on the PKR serving cost at report time** (ai_usage stays the raw provider cost).
+Itemised effective % = fee + **(FED on the fee)** + advance + additional (FED is charged
+on the fee, not the payment — so 16% FED on a 3% fee = 0.48%); or the single total.
+Pure/client-safe math in `core/admin/cost-tax.ts#effectiveTaxPct`/`taxMultiplier`
+(`FILER_TAX_DEFAULTS` = 3% fee · 16% FED · 5% advance ≈ 8.48%, pre-filled but editable);
 `effective_from` (a NEW row per change = rate history; latest = current),
 `created_by(+name)`, `created_at`. Drives `computeServingCost` + the dashboard serving-cost
 KPI (`metrics.ts`). Index: `effective_from`. (Tax cols: migration `0077`.)

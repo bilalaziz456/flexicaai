@@ -7,6 +7,7 @@ import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { Toast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
+import { effectiveTaxPct, FILER_TAX_DEFAULTS } from "@/core/admin/cost-tax";
 
 /** Edit the platform unit-cost rates (Owner Finance, Phase 1). Gated by `serving_cost:edit`. */
 export function CostRatesForm({
@@ -43,12 +44,14 @@ export function CostRatesForm({
   const [claudeIn, setClaudeIn] = useState(String(claudeInputCost));
   const [claudeOut, setClaudeOut] = useState(String(claudeOutputCost));
   const [fx, setFx] = useState(String(usdToPkr));
-  // Bank international-transaction tax/charges.
+  // Bank international-transaction tax/charges. When a component hasn't been configured
+  // yet (stored 0), start from the filer default so the owner has a sensible, editable
+  // baseline rather than 0 (they should confirm against a statement before saving).
   const [mode, setMode] = useState<"itemized" | "total">(taxMode);
-  const [fee, setFee] = useState(String(foreignTxnFeePct));
-  const [fed, setFed] = useState(String(fedPct));
-  const [adv, setAdv] = useState(String(advanceTaxPct));
-  const [extra, setExtra] = useState(String(additionalTaxPct));
+  const [fee, setFee] = useState(String(foreignTxnFeePct || FILER_TAX_DEFAULTS.foreignTxnFeePct));
+  const [fed, setFed] = useState(String(fedPct || FILER_TAX_DEFAULTS.fedPct));
+  const [adv, setAdv] = useState(String(advanceTaxPct || FILER_TAX_DEFAULTS.advanceTaxPct));
+  const [extra, setExtra] = useState(String(additionalTaxPct || FILER_TAX_DEFAULTS.additionalTaxPct));
   const [total, setTotal] = useState(String(totalTaxPct));
 
   const numField = (id: string, label: string, hint: string, value: string, set: (v: string) => void, step = "0.000001") => (
@@ -60,7 +63,17 @@ export function CostRatesForm({
   );
 
   const num = (s: string) => (Number.isFinite(Number(s)) ? Number(s) : 0);
-  const effective = mode === "total" ? num(total) : num(fee) + num(fed) + num(adv) + num(extra);
+  // Same formula as the server (FED applies to the fee) — see core/admin/cost-tax.ts.
+  const effective = Math.round(
+    effectiveTaxPct({
+      taxMode: mode,
+      foreignTxnFeePct: num(fee),
+      fedPct: num(fed),
+      advanceTaxPct: num(adv),
+      additionalTaxPct: num(extra),
+      totalTaxPct: num(total),
+    }) * 100,
+  ) / 100;
 
   return (
     <form action={action} className="space-y-5">
@@ -117,9 +130,9 @@ export function CostRatesForm({
         {mode === "itemized" ? (
           <>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {numField("foreignTxnFeePct", "Foreign txn fee (%)", "Bank's fee on the transaction.", fee, setFee, "0.01")}
-              {numField("fedPct", "FED (%)", "Federal Excise Duty.", fed, setFed, "0.01")}
-              {numField("advanceTaxPct", "Advance tax (%)", "Adjustable against your return.", adv, setAdv, "0.01")}
+              {numField("foreignTxnFeePct", "Foreign txn fee (%)", "Bank's fee on the payment (~3%).", fee, setFee, "0.01")}
+              {numField("fedPct", "FED (%)", "16% — charged on the FEE, not the payment.", fed, setFed, "0.01")}
+              {numField("advanceTaxPct", "Advance tax (%)", "Filer ~5%; adjustable on your return.", adv, setAdv, "0.01")}
               {numField("additionalTaxPct", "Additional (%)", "Any other charge.", extra, setExtra, "0.01")}
             </div>
             <input type="hidden" name="totalTaxPct" value={total} />
