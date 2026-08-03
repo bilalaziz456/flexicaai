@@ -89,11 +89,20 @@ export function Toast({
 }: {
   message: string | null;
   variant?: "success" | "error";
+  /** Change this to re-fire the SAME message text (e.g. a repeated successful save —
+   *  `useActionState` returns the same state, so pass a nonce/timestamp here). */
   token?: number | string;
 }) {
+  // Push at most once per (message, token, variant). Guards against React StrictMode /
+  // any re-render double-invoking the effect and enqueueing the toast twice.
+  const lastKey = useRef<string | null>(null);
   useEffect(() => {
-    if (message) pushToast(message, { variant });
-  }, [message, token, variant]); // `token` re-triggers the same message text
+    if (!message) return;
+    const key = `${variant}:${token ?? ""}:${message}`;
+    if (lastKey.current === key) return;
+    lastKey.current = key;
+    pushToast(message, { variant });
+  }, [message, token, variant]);
   return null;
 }
 
@@ -103,8 +112,10 @@ export function Toast({
  * would remount and cut the toast short), and enqueues it once.
  */
 export function FlashToast({ message }: { message: string | null }) {
+  const done = useRef(false); // one-shot: guards the StrictMode double-invoke
   useEffect(() => {
-    if (!message) return;
+    if (!message || done.current) return;
+    done.current = true;
     pushToast(message, { variant: "success" });
     const url = new URL(window.location.href);
     if (url.search) window.history.replaceState(window.history.state, "", url.pathname);

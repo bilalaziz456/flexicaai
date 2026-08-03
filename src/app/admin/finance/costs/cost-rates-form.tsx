@@ -77,7 +77,7 @@ export function CostRatesForm({
 
   return (
     <form action={action} className="space-y-5">
-      {state.saved ? <Toast message="Cost rates saved." /> : null}
+      <Toast message={state.saved ? "Cost rates saved." : null} token={state.savedAt} />
 
       <div className="space-y-3">
         <div className="text-sm font-medium">Metered rates (accurate — used when a scribe call logs real usage)</div>

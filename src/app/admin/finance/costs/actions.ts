@@ -8,7 +8,7 @@ import { setCostRates } from "@/core/admin/cost";
 import { effectiveTaxPct } from "@/core/admin/cost-tax";
 import { logActivity } from "@/core/audit/log";
 
-export type CostRatesActionState = { error?: string; saved?: boolean };
+export type CostRatesActionState = { error?: string; saved?: boolean; savedAt?: number };
 
 // Non-negative money-ish numbers; unit costs are small decimals, FX is > 0 to matter.
 const pct = z.coerce.number().min(0, "Tax % must be ≥ 0.").max(100, "Tax % can't exceed 100.");
@@ -61,5 +61,8 @@ export async function saveCostRatesAction(
     summary: `Updated platform cost rates (Whisper $${parsed.data.whisperMinuteCost}/min · Claude $${parsed.data.claudeInputCost}/$${parsed.data.claudeOutputCost} per 1M · WhatsApp $${parsed.data.whatsappMsgCost} · FX ${parsed.data.usdToPkr} · bank tax ${eff}% [${parsed.data.taxMode}])`,
   });
   revalidatePath("/admin/finance/costs");
-  return { saved: true };
+  // `savedAt` is a per-save nonce: `useActionState` returns the same `{saved:true}` on
+  // every successful save, so without a changing value the success Toast wouldn't
+  // re-fire on a second consecutive save. Passed as the Toast `token`.
+  return { saved: true, savedAt: Date.now() };
 }
