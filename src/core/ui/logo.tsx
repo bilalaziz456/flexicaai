@@ -24,9 +24,9 @@ export function Logo({
   return (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={light} alt="FlexicaAI — AI-Powered Health Management" className={cn(base, "block dark:hidden", className)} />
+      <img src={light} alt="FlexicaAI, AI-powered health management" className={cn(base, "block dark:hidden", className)} />
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={dark} alt="FlexicaAI — AI-Powered Health Management" aria-hidden="true" className={cn(base, "hidden dark:block", className)} />
+      <img src={dark} alt="FlexicaAI, AI-powered health management" aria-hidden="true" className={cn(base, "hidden dark:block", className)} />
     </>
   );
 }

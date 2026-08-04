@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import { BRAND_WEBSITE } from "@/core/lib/brand";
 import { THEME_SCRIPT } from "@/core/theme/theme-script";
 import { Toaster } from "@/core/ui/toast";
 import "./globals.css";
@@ -12,8 +13,11 @@ const fontSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
+  // Absolute base for the marketing pages' canonical + og: URLs. Build-time constant,
+  // so it costs the root layout none of its staticness.
+  metadataBase: new URL(`https://${BRAND_WEBSITE.replace(/^https?:\/\//, "")}`),
   title: "FlexicaAI",
-  description: "AI-powered clinic management platform",
+  description: "AI-powered health management platform",
 };
 
 /**

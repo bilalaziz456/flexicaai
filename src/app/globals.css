@@ -192,6 +192,432 @@
   );
 }
 
+/* ===========================================================================
+   Marketing motion system
+   ---------------------------------------------------------------------------
+   Shared keyframes for the public site, so the whole page moves like one thing
+   rather than a pile of unrelated effects. Three rules hold throughout:
+
+   1. Animate `transform`, `opacity` and `stroke-*` only. Those stay on the
+      compositor; animating layout or background-position on a large surface
+      repaints every frame and janks on the mid-range Android these pages are
+      mostly read on.
+   2. Nothing loops fast. Everything here is slow enough to register as ambience
+      rather than motion competing with the copy.
+   3. Every one of these is applied through `motion-safe:`, or guards itself with
+      a reduced-motion query, so a visitor who asked their OS for less motion
+      gets a still page — never a broken one.
+   =========================================================================== */
+
+/* Brand-coloured scrollbar. Two syntaxes because they cover different engines:
+   `scrollbar-color` is the standard one (Firefox, and newer Chrome), the
+   ::-webkit-scrollbar pseudo-elements are what Chrome and Safari have honoured for
+   years. The thumb is painted with `background-clip: content-box` behind a
+   transparent border, which is how you inset a webkit thumb — there is no padding
+   property for it. */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--brand-teal) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--brand-teal);
+  background-clip: content-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--brand-blue);
+}
+
+/* Animated jumps for the marketing site's in-page nav, so clicking "Features" glides
+   there instead of teleporting.
+
+   Scoped with :has() rather than set globally: `scroll-behavior` lives on the
+   scrolling element, and turning it on app-wide would also animate the scroll-to-top
+   Next.js performs on every route change — which reads as lag in a tool people use
+   all day. Only the public pages render `.marketing-root`. */
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.marketing-root) {
+    scroll-behavior: smooth;
+  }
+}
+
+/* …and the arriving section announces itself, so a jump that lands mid-page is
+   obviously the thing you asked for. Only glow and offset — nothing that reflows. */
+@keyframes section-arrive {
+  from {
+    box-shadow: inset 0 0 0 9999px color-mix(in oklab, var(--brand-teal) 9%, transparent);
+  }
+  to {
+    box-shadow: inset 0 0 0 9999px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .marketing-root section:target {
+    animation: section-arrive 1.1s ease-out;
+  }
+}
+
+/* Focus rings for the public site.
+   ---------------------------------------------------------------------------
+   The design system's own controls carry `focus-visible:ring-*` classes, but the
+   marketing page is built from plain <a> and hand-styled <button>, which had NO
+   focus indicator at all — the base layer sets an outline colour while Tailwind's
+   preflight leaves `outline-style: none`, so nothing rendered. That is a WCAG 2.4.7
+   failure on every link on the page, and it is worse here than elsewhere because the
+   custom cursor sets `cursor: none`: a keyboard user had neither a pointer nor a
+   focus ring.
+
+   `:focus-visible` rather than `:focus`, so a mouse click does not leave a ring
+   behind. Scoped to `.marketing-root` so the signed-in app keeps its own styles. */
+.marketing-root a:focus-visible,
+.marketing-root button:focus-visible {
+  outline: 2px solid var(--brand-teal);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* While the marketing site's custom cursor is mounted, hide the native one — two
+   cursors is worse than either. The class is added by that component and only on the
+   public pages, and it never mounts for touch or reduced-motion visitors, so the real
+   cursor is untouched everywhere else in the product. */
+.has-custom-cursor,
+.has-custom-cursor * {
+  cursor: none;
+}
+
+/* Film grain — a faint static texture over the whole page. Stops the large flat
+   brand gradients from banding and gives the dark theme some tooth. Pure SVG noise
+   as a data URI: no image request, no decode. */
+@utility bg-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+
+/* Hero parallax layers. The wrapper publishes --mx/--my (-1..1, how far the pointer
+   is from the centre of the window — see hero-parallax.tsx) and each layer consumes
+   them at its own strength, so the far shapes travel further than the near ones and
+   the flat drawing gains depth. Falls back to 0 when no pointer is being tracked, so
+   without script the artwork simply sits centred.
+
+   `will-change` is set because these move on nearly every pointer event; without it
+   Chrome repaints the SVG layer each frame instead of compositing it. */
+.hero-depth-1,
+.hero-depth-2,
+.hero-depth-3 {
+  will-change: transform;
+}
+.hero-depth-1 {
+  transform: translate3d(calc(var(--mx, 0) * 22px), calc(var(--my, 0) * 22px), 0);
+}
+.hero-depth-2 {
+  transform: translate3d(calc(var(--mx, 0) * 12px), calc(var(--my, 0) * 12px), 0);
+}
+.hero-depth-3 {
+  /* The near layer moves AGAINST the pointer — opposing directions are what read as
+     parallax rather than the whole picture sliding. */
+  transform: translate3d(calc(var(--mx, 0) * -7px), calc(var(--my, 0) * -7px), 0);
+}
+
+/* A bright segment travelling along the ECG trace, the way a monitor sweeps. The
+   animated path sets pathLength="100" so the dash pattern is expressed in percent
+   of the trace and stays independent of the actual path geometry — redraw the
+   waveform and the sweep still runs end to end. Offset counts DOWN so the dash
+   advances in the path's own direction. */
+@keyframes ecg-sweep {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@utility animate-ecg-sweep {
+  animation: ecg-sweep 3.2s linear infinite;
+}
+
+/* The hero's circuit grid, drifting. Travels exactly one 56px cell so the loop is
+   seamless — the grid after one iteration is pixel-identical to the start. */
+@keyframes grid-drift {
+  to {
+    transform: translate3d(56px, 56px, 0);
+  }
+}
+
+@utility animate-grid-drift {
+  animation: grid-drift 28s linear infinite;
+}
+
+/* Brand glow breathing behind the hero and the closing CTA. */
+@keyframes aurora {
+  0%,
+  100% {
+    transform: translate3d(-3%, 0, 0) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate3d(3%, 0, 0) scale(1.12);
+    opacity: 1;
+  }
+}
+
+@utility animate-aurora {
+  animation: aurora 16s ease-in-out infinite;
+}
+
+/* A beam of light passing across a surface — a scanner pass. Used on the hero and,
+   on hover, across the capability cards. */
+@keyframes scan-x {
+  from {
+    transform: translateX(-140%) skewX(-12deg);
+  }
+  to {
+    transform: translateX(340%) skewX(-12deg);
+  }
+}
+
+@utility animate-scan-x {
+  animation: scan-x 9s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+/* A ring expanding out of the primary CTA — soft, slow, easy to ignore. */
+@keyframes ping-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+  70%,
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+
+@utility animate-ping-ring {
+  animation: ping-ring 3s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* --- the "how it works" artwork (scribe-flow.tsx) ------------------------- */
+
+/* Waveform bars breathing while the consultation is spoken. Short loop of its own,
+   staggered per bar, so it reads as continuous listening rather than a cycle. */
+@keyframes wave-bar {
+  0%,
+  100% {
+    transform: scaleY(0.28);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@utility animate-wave-bar {
+  animation: wave-bar 1.5s ease-in-out infinite;
+}
+
+/* The rotating consultation notes (scribe-flow.tsx).
+   ---------------------------------------------------------------------------
+   Four notes share one 28s loop — a 7s slot each — and every animation below runs
+   the full 28s so they can never drift apart. Which slot an element belongs to is
+   set purely by `animation-delay` in the markup, so adding a fifth note means
+   changing two numbers there and nothing here.
+
+   Within a slot: the note fades up, its lines TYPE out one after another, the status
+   flips DRAFT → APPROVED, then it leaves and the next begins.
+
+   Typing rather than fading is the point. Content that fades in reads as a skeleton
+   screen — something still loading. Content that types, behind a caret, reads as
+   something being written, which is what the AI is actually doing. */
+
+/* Note panel: up, hold for its slot, away. 25% of the loop = one 7s slot. */
+@keyframes note-slot {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  2%,
+  22% {
+    opacity: 1;
+    transform: none;
+  }
+  24%,
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -10px, 0);
+  }
+}
+
+@utility animate-note-slot {
+  animation: note-slot 28s ease-in-out infinite both;
+}
+
+/* A line typing itself out behind a caret.
+   `max-width` rather than `width`: the element keeps its natural width for layout, so
+   the text can never end up clipped if the estimate is off. The end value is
+   `--ch` characters, deliberately overshot in the markup — finishing a hair early is
+   invisible, finishing short would cut a word in half. The caret is the right border,
+   which turns transparent once the line is done so only the line being typed has one. */
+@keyframes type-row {
+  0% {
+    max-width: 0;
+    border-right-color: currentColor;
+    animation-timing-function: steps(26, end);
+  }
+  2.4% {
+    max-width: calc(var(--ch, 40) * 1ch);
+    border-right-color: currentColor;
+  }
+  3.2%,
+  100% {
+    max-width: calc(var(--ch, 40) * 1ch);
+    border-right-color: transparent;
+  }
+}
+
+@utility type-row {
+  /* Below `sm` the card is too narrow to hold a line on one row, so the typing is
+     dropped entirely and the text simply wraps — a clipped half-sentence would be
+     worse than no effect. */
+  @media (min-width: 640px) {
+    display: inline-block;
+    max-width: calc(var(--ch, 40) * 1ch);
+    overflow: hidden;
+    white-space: nowrap;
+    vertical-align: bottom;
+    border-right: 1.5px solid transparent;
+
+    @media (prefers-reduced-motion: no-preference) {
+      animation: type-row 28s linear infinite both;
+    }
+  }
+}
+
+/* Status chips. Exact complements, so precisely one is ever readable. 13% of 28s is
+   ~3.6s in — just after the last line finishes typing. */
+@keyframes note-draft {
+  0%,
+  13% {
+    opacity: 1;
+  }
+  15%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@utility animate-note-draft {
+  animation: note-draft 28s ease-in-out infinite both;
+}
+
+@keyframes note-approved {
+  0%,
+  13% {
+    opacity: 0;
+  }
+  15%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@utility animate-note-approved {
+  animation: note-approved 28s ease-in-out infinite both;
+}
+
+/* The security artwork (security-visual.tsx).
+   ---------------------------------------------------------------------------
+   A check passing down the access matrix, and log entries arriving. Both run a 9s
+   loop, staggered by `animation-delay` in the markup. */
+
+/* Highlight sweeping row to row — what an access check looks like from outside.
+   Exactly ONE row is ever lit: the highlight lasts 15% of the 9s loop (~1.35s) and
+   the rows are staggered 1.8s apart in the markup, so each has gone dark before the
+   next arrives. Keep that stagger LONGER than this window — the first version lit a
+   row for 1.6s at 0.55s intervals and three were on at once, which read as a
+   selection rather than a scan. */
+@keyframes acl-scan {
+  0% {
+    background-color: transparent;
+  }
+  3%,
+  11% {
+    background-color: color-mix(in oklab, var(--brand-teal) 12%, transparent);
+  }
+  15%,
+  100% {
+    background-color: transparent;
+  }
+}
+
+@utility animate-acl-scan {
+  animation: acl-scan 9s ease-in-out infinite;
+}
+
+/* A log entry arriving, then holding for the rest of the loop. This is the one place
+   on the page where content fading IN is honest rather than skeleton-like: a log
+   gaining an entry is exactly what is being depicted. */
+@keyframes audit-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  6%,
+  88% {
+    opacity: 1;
+    transform: none;
+  }
+  96%,
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0);
+  }
+}
+
+@utility animate-audit-in {
+  animation: audit-in 9s ease-in-out infinite both;
+}
+
+/* Reveal-on-scroll with NO JavaScript, via a scroll-driven view() timeline — which
+   is what makes it usable on a statically prerendered page.
+
+   The initial hidden state lives INSIDE the @supports block on purpose. In a browser
+   without scroll-driven animations (Safari, Firefox at time of writing) the rule
+   never applies, so the content is simply visible from the start — it can never be
+   left stranded at opacity 0 by an animation that will not run. Same for reduced
+   motion. */
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility reveal-up {
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      animation: reveal-up linear both;
+      animation-timeline: view();
+      animation-range: entry 5% cover 22%;
+    }
+  }
+}
+
 /* Chrome/Safari force a pale background on autofilled inputs that normal
    background-color can't override. The inset box-shadow trick paints over it
    with the theme surface colour, and text-fill-color fixes the text — so

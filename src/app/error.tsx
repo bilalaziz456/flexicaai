@@ -38,7 +38,7 @@ export default function Error({
       <div className="flex flex-wrap items-center justify-center gap-2">
         <Button onClick={() => reset()}>Try again</Button>
         <Link href="/" className={cn(buttonVariants({ variant: "outline" }))}>
-          Go to dashboard
+          Go to homepage
         </Link>
       </div>
     </main>
