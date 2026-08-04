@@ -1,4 +1,4 @@
-# Database schema — Klenic
+# Database schema — FlexicaAI
 
 > **Source of truth is `src/core/db/schema.ts`** (Drizzle). Migrations are
 > generated from it (`npm run db:generate`) into `/drizzle`. Never hand-edit the
@@ -350,10 +350,10 @@ unchanged). Indexes: (`appointment_id`); (`clinic_id`,`status`);
 
 ### `imported_transactions` — read-only financial-history archive (financial-archive-plan.md)
 A clinic migrating off its old PMS uploads its old **bills / receipts / expenses /
-doctor-payouts** as per-transaction rows so the past is searchable inside Klenic forever.
-**READ-ONLY archive — NEVER joined by a live report.** Klenic's money
+doctor-payouts** as per-transaction rows so the past is searchable inside FlexicaAI forever.
+**READ-ONLY archive — NEVER joined by a live report.** FlexicaAI's money
 (sales/shares/receivables/P&L) is DERIVED from completed appointments; these rows never
-happened *in Klenic*, so they must not enter those ledgers (a separate table, not an
+happened *in FlexicaAI*, so they must not enter those ledgers (a separate table, not an
 `imported` flag, makes exclusion the default). ONE generic table with a `type`
 discriminator (not five per-entity tables): `id`, `clinic_id` → clinics (cascade), `type`
 (free text — 'invoice'|'payment'|'refund'|'expense'|'doctor_payout'), `txn_date` date
@@ -381,9 +381,9 @@ flat and derived dues paths can't stack. Indexes: (`clinic_id`,`type`,`txn_date`
 
 ## 3b. Super-admin control plane & Owner Finance
 
-Company-side tables — how KLENIC runs its business (bill clinics, track its own
+Company-side tables — how FlexicaAI runs its business (bill clinics, track its own
 cost/profit). Some carry `clinic_id` (a tenant reference the super admin reads
-cross-tenant via `unscoped`); several are **company-level (no `clinic_id`)** — Klenic's
+cross-tenant via `unscoped`); several are **company-level (no `clinic_id`)** — FlexicaAI's
 own data, which the tenant guard therefore ignores. See `docs/super-admin-plan.md`,
 `docs/finance-plan.md` and `docs/owner-finance-plan.md`.
 
@@ -403,7 +403,7 @@ contact** (`owner_name`/`_email`/`_phone`, `city`, `country`). `users` gained
 `permissions` (admin `resource:action` slugs — a NULL list on a super_admin = the
 `owner`), `prefix`, `avatar_key`, and the doctor revenue-share `%` columns.
 
-### `clinic_payments` — clinic → Klenic subscription payments
+### `clinic_payments` — clinic → FlexicaAI subscription payments
 `id`, `clinic_id` → clinics (`cascade`), `amount` int (PKR, always positive),
 `kind` (`payment` = money in / `refund` = money out / `credit` = non-cash goodwill;
 sign for the balance + cash-collected math comes from this), `method`, `reference`,
@@ -442,7 +442,7 @@ best-effort). `computeServingCost` sums these (falls back to the flat estimate f
 audio visit with no metered row). Indexes: (`clinic_id`,`occurred_at`); (`occurred_at`);
 (`visit_id`).
 
-### `company_expense_categories` + `company_expenses` — Klenic's own opex · NO clinic_id
+### `company_expense_categories` + `company_expenses` — FlexicaAI's own opex · NO clinic_id
 Company operating costs (payroll/rent/software/…). `company_expense_categories`:
 `id`, `name`, `is_active`. `company_expenses`: `id`, `category_id` → categories
 (`set null`), `amount` int, `incurred_on` date, `vendor`, `method`, `reference`,
@@ -450,7 +450,7 @@ Company operating costs (payroll/rent/software/…). `company_expense_categories
 `created_by(+name)`, **soft-delete**, timestamps. `core/admin/company-expenses.ts`.
 Indexes: `incurred_on`; `category_id`; partial trash + recurring-due indexes.
 
-### `clinic_invoices` — Klenic → clinic subscription invoices (Owner Finance)
+### `clinic_invoices` — FlexicaAI → clinic subscription invoices (Owner Finance)
 `id`, `clinic_id` → clinics (`cascade`), `invoice_no` int (**company-global**
 sequence, allocated by locking `company_settings` + bumping its counter — distinct
 from patient `invoices`), `period_start`/`period_end` date, `amount` int, `note`,
@@ -577,7 +577,7 @@ these for churn-risk + usage/cost anomaly flags.
   by payment # (RCP) and MRN #.
 - Migration **`0074`** — the **read-only financial-history archive**: adds the
   `imported_transactions` table (see §3). One generic table (type discriminator + `raw`
-  jsonb) for a clinic's pre-Klenic bills/receipts/expenses/doctor-payouts, uploaded
+  jsonb) for a clinic's pre-FlexicaAI bills/receipts/expenses/doctor-payouts, uploaded
   admin-side via the existing clinic-detail importer (four new `ImportEntity` passes —
   `fin_invoice`/`fin_payment`/`fin_expense`/`fin_payout` — all writing this one table,
   undo via `import_batches`), viewed read-only at `/clinic/history`. Excluded from every
@@ -601,6 +601,6 @@ these for churn-risk + usage/cost anomaly flags.
   `fed_pct` / `advance_tax_pct` / `additional_tax_pct` / `total_tax_pct` (all `numeric`,
   default 0). The effective % (summed itemised, or the single total) is a **markup on the
   PKR serving cost** (a PK bank deducts a foreign-transaction fee + FED + advance tax when
-  Klenic pays the AI/WhatsApp providers in USD); applied in `computeServingCost` +
+  FlexicaAI pays the AI/WhatsApp providers in USD); applied in `computeServingCost` +
   `getCompanyMetrics` via `core/admin/cost.ts#taxMultiplier`. Editable on
   `/admin/finance/costs`. Verified: itemised 10% and total 8% scale the cost exactly; 0 = no change.

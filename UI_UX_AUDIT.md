@@ -1,4 +1,4 @@
-# Klenic — UI/UX Audit
+# FlexicaAI — UI/UX Audit
 
 **Reviewer perspective:** Staff Product Designer · Senior UX Researcher · Accessibility Expert · Senior Frontend Engineer
 **Date:** 2026-07-30 · **Status:** audited → **majority remediated same day** (see [§0a Remediation Log](#0a-remediation-log--2026-07-30); all P0s + most P1/P2 fixed, `build`-clean + spot-verified live)
@@ -63,7 +63,7 @@ The audit was acted on the same day. The items below are **implemented, `tsc` + 
 **All three P0 release-blockers — DONE.**
 - **P0-1 · Modal focus management** → rebuilt `ConfirmDialog` + `ConfirmDeleteDialog` on **Base UI `Dialog`** (focus trap, initial focus, **restore to trigger**, scroll-lock, Esc/backdrop). ✅LIVE (Esc closed a Void dialog and focus returned to the trigger, visible ring).
 - **P0-2 · Error boundary** → added `app/error.tsx` + `app/global-error.tsx` (branded, "Try again" + "Go to dashboard").
-- **P0-3 · Custom 404** → added `app/not-found.tsx` (Klenic logo + CTA). ✅LIVE.
+- **P0-3 · Custom 404** → added `app/not-found.tsx` (FlexicaAI logo + CTA). ✅LIVE.
 
 **High-priority (P1):**
 - **P1-2 · Notification system** → a real toast **queue** (`toast-store.ts` + one `<Toaster/>`): stacking, manual ×-dismiss, pause-on-hover, imperative `toast()`; old `<Toast>`/`<FlashToast>` kept as compat wrappers. ✅LIVE (two stacked, dismissible, success-tone).

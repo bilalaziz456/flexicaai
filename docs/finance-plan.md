@@ -9,7 +9,7 @@
 
 ## 1. What it does
 
-Turns Klenic from "record completed visits" into a real **clinic finance** system:
+Turns FlexicaAI from "record completed visits" into a real **clinic finance** system:
 patients can **owe money**, **pay in parts**, and **pay in advance**; the clinic gets
 **invoices/receipts** (thermal/A5/A4), a **collected-revenue** truth, **expenses**,
 and a **P&L** — each screen with the **filters** its users need and its own **ACL**.
@@ -58,7 +58,7 @@ Tenant-scoped (`clinic_id` + `byClinic`), soft-deletable (→ Trash), audit-logg
 
 ## 4. Access control (ACL) — every module gated
 
-Two gates, as everywhere in Klenic: a **feature** (super-admin, per clinic) + a
+Two gates, as everywhere in FlexicaAI: a **feature** (super-admin, per clinic) + a
 per-user **permission** (`resource:action`, clinic-admin grants). New resources go in
 `core/auth/permissions.ts`; pages guard with `requireWorkspace(resource, action)` and
 actions re-check `can(user, …)`.

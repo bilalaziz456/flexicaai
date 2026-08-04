@@ -1496,7 +1496,7 @@ export const companySettings = pgTable("company_settings", {
 });
 
 /**
- * Clinic subscription invoices (Owner Finance, Phase 4) — invoices/receipts KLENIC
+ * Clinic subscription invoices (Owner Finance, Phase 4) — invoices/receipts FlexicaAI
  * issues TO a clinic for its subscription (distinct from patient `invoices`).
  * `invoice_no` is a company-global sequence (allocated by locking `company_settings`
  * and bumping `next_invoice_no`), shown with its prefix. `amount` is stored (the

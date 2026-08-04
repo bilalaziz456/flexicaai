@@ -17,8 +17,8 @@
 > audit, history, etc."
 
 A clinic leaving its old PMS wants its old **bills, receipts, expenses, and doctor payouts**
-visible inside Klenic afterwards, *as they were*, forever. Not to re-run its business through
-Klenic's engine — just to **look up the past** and to carry the **current outstanding
+visible inside FlexicaAI afterwards, *as they were*, forever. Not to re-run its business through
+FlexicaAI's engine — just to **look up the past** and to carry the **current outstanding
 balance** into the live system so billing works day one.
 
 ---
@@ -47,10 +47,10 @@ ever truly needs it.
 
 **The archive is a frozen, read-only snapshot that never enters a live report.**
 
-Klenic's money is **derived, not stored**: `sales`, `sale_shares`, receivables, the P&L are
+FlexicaAI's money is **derived, not stored**: `sales`, `sale_shares`, receivables, the P&L are
 all computed on demand from *completed appointments* through the billing engine
 (`core/appointments/fee.ts`, `core/sales/report.ts`, `core/finance/receivables.ts`,
-`core/finance/pl.ts`). Old transactions never happened *in Klenic* — there are no
+`core/finance/pl.ts`). Old transactions never happened *in FlexicaAI* — there are no
 appointments behind them, and the fees/discounts/splits were the old system's. If they
 leaked into the live ledgers they would double-count revenue, invent doctor shares, and
 distort "Revenue Recovered", churn, and every super-admin metric.
@@ -228,12 +228,12 @@ To avoid double-counting the dues (once flat, once derived):
   (`receivables.ts`, `billing/payments.ts#openingOwed`).
 
 ### 7.2 Doctor balance (carry-forward) — resolved: archive-only
-**Resolved (§10.3): (a) archive-only.** Klenic's doctor balance is amount-based: Earned
+**Resolved (§10.3): (a) archive-only.** FlexicaAI's doctor balance is amount-based: Earned
 (Σ`sale_shares`) − Paid (Σ`doctor_payouts`) (`core/sales/payouts.ts`). A clinic can migrate
 owing a doctor money — we **record the history** (`doctor_payout`, and the optional
 `doctor_earning` type) and show it in the viewer's doctor-outstanding figure, but do **not**
 touch the live payout balance or add any `users` column. The clinic settles the old balance
-outside Klenic.
+outside FlexicaAI.
 - Future option (only if a clinic asks): seed a live opening via `users.opening_share_balance`
   = Σ earnings − Σ payouts, folded into `getDoctorBalances`. Deferred — it touches the live
   shares report and must be excluded from *period* views (it's an opening, not a dated
@@ -303,7 +303,7 @@ so a future change doesn't casually `UNION` it in.
   cheap. (This is how real migrations sign off — see §"real-world process".)
 - **Doctor pre-migration balance** (§7.2) — a clinic can owe a doctor money at cutover; the
   `doctor_payout` (and optional `doctor_earning`) rows capture it.
-- **Unmatched patients/doctors** — a money sheet references people not in Klenic; archive them
+- **Unmatched patients/doctors** — a money sheet references people not in FlexicaAI; archive them
   **unlinked** (snapshot name) rather than erroring or auto-creating.
 - **Freeze window** — imports happen after a cutover freeze so no transaction is split between
   systems; a process note for the AM, not code.

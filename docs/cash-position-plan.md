@@ -8,17 +8,17 @@
 
 ## 1. The problem
 
-A clinic that migrates to Klenic has been operating for years and already has money
-in the bank / cash drawer. Today Klenic **cannot tell them their bank balance.**
+A clinic that migrates to FlexicaAI has been operating for years and already has money
+in the bank / cash drawer. Today FlexicaAI **cannot tell them their bank balance.**
 
-Why: Klenic tracks money **flows** (a "stream"), not a **balance** (a "stock"). From
+Why: FlexicaAI tracks money **flows** (a "stream"), not a **balance** (a "stock"). From
 go-live it records:
 
 - **money in** — patient payments (`patient_payments`, incl. advances)
 - **money out** — expenses (`expenses`), doctor payouts (`doctor_payouts`), refunds
 
 …but there is **no opening cash/bank figure**, so every money view starts at zero on
-go-live day and reflects only post-Klenic activity — not the clinic's real cash on hand.
+go-live day and reflects only post-FlexicaAI activity — not the clinic's real cash on hand.
 
 ### Where this shows up
 - Finance → **Profit & Loss** shows profit over a *period* (a flow), not cash held.
@@ -42,9 +42,9 @@ Money in the bank
    − refunds
 ```
 
-Klenic already has **every term except the opening balance**. So the fix is to capture
+FlexicaAI already has **every term except the opening balance**. So the fix is to capture
 that one figure — a "fact as given," the same principle as patient `opening_balance`
-dues (see `docs/import-plan.md`) — and let Klenic keep the running total.
+dues (see `docs/import-plan.md`) — and let FlexicaAI keep the running total.
 
 ### Why NOT import transaction history
 Importing thousands of old transactions to *derive* the balance would **pollute every
@@ -80,7 +80,7 @@ data, making them meaningless. A single opening figure gives the correct balance
 ## 4. Open questions (to discuss)
 
 1. **Whose money?** Confirmed intent = the **clinic's** cash/bank position, NOT
-   Klenic's company treasury. (Owner-side company P&L already exists separately in
+   FlexicaAI's company treasury. (Owner-side company P&L already exists separately in
    `core/admin/pnl.ts`.)
 2. **Single vs per-account** — start single (Phase 1) and add accounts later? Or does a
    real clinic already need Cash-vs-Bank split on day one?
@@ -111,6 +111,6 @@ data, making them meaningless. A single opening figure gives the correct balance
 
 ## 6. Not in scope (for this feature)
 - Uploading historical revenue / expense transactions (see §2 — would corrupt reports).
-- Full double-entry accounting / GL. Klenic is a clinic ops tool, not accounting
+- Full double-entry accounting / GL. FlexicaAI is a clinic ops tool, not accounting
   software; cash position is a management view, not a bookkeeping system.
 - Bank API/statement sync. Manual opening figure only.

@@ -34,7 +34,7 @@ part — hashed single-use tokens, expiry, rate limiting, no account enumeration
 - **Dependency:** `nodemailer` (+ `@types/nodemailer`) — boring, universal, Node-only.
 
 **Env (all optional; validated in `core/lib/env.ts`):** `SMTP_HOST`, `SMTP_PORT`,
-`SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `EMAIL_FROM` (e.g. `"Klenic <no-reply@…>"`).
+`SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `EMAIL_FROM` (e.g. `"FlexicaAI <no-reply@…>"`).
 Added to `.env.example`; real values are a §Z step.
 
 ## 4. Data model — `password_reset_tokens` (migration `0051`)

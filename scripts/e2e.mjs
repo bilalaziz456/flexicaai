@@ -1,5 +1,5 @@
 /**
- * End-to-end smoke test for Klenic.
+ * End-to-end smoke test for FlexicaAI.
  *
  * Seeds a throwaway two-clinic world directly in Postgres, mints REAL sessions
  * (SHA-256 token — exactly how the app validates), then exercises every panel and
@@ -572,7 +572,7 @@ async function cleanup() {
 }
 
 (async () => {
-  console.log(`Klenic e2e → ${BASE}`);
+  console.log(`FlexicaAI e2e → ${BASE}`);
   try {
     await seed();
     await run();

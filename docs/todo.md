@@ -1,4 +1,4 @@
-# Klenic — Task Tracker (Completed + Remaining)
+# FlexicaAI — Task Tracker (Completed + Remaining)
 
 > Updated 2026-07-21. The CLAUDE.md §11 MVP (steps 1–12) is complete. This tracks
 > post-MVP work: ✅ = shipped, [ ] = remaining. Roughly ordered by product value.

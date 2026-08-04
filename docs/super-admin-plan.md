@@ -177,7 +177,7 @@ Support cannot help without seeing the clinic's workspace.
 
 ## 5. Billing from clinics — **DECIDED: manual for v1** (automated = v3)
 
-**Decision (2026-07-22): clinics pay Klenic MANUALLY for v1** (bank transfer / cash /
+**Decision (2026-07-22): clinics pay FlexicaAI MANUALLY for v1** (bank transfer / cash /
 cheque — no payment gateway, no PCI scope, no dunning automation). But manual ≠ nothing:
 you still need a **small ledger** to set prices, record what came in, and see revenue +
 who hasn't paid. It **mirrors the `patient_payments` ledger already built** — small.
@@ -213,7 +213,7 @@ subscription's valid-until) that each payment PUSHES forward.
 - **Optional:** a printable company invoice/receipt PDF (reuse the invoice PDF frame).
 
 This is the exact pattern already proven in `core/billing/*` (advance → paid-through;
-outstanding → carry-forward) — just at the clinic→Klenic level, so it's a small build.
+outstanding → carry-forward) — just at the clinic→FlexicaAI level, so it's a small build.
 
 ### 5.2 v3 — automated (when you scale)
 - **Payment gateway** for clinic self-serve (Stripe / local), auto-charge on renewal.
@@ -227,10 +227,10 @@ mirrors patient payments). The gateway/self-serve/dunning automation is v3.
 ### 5b. Company financials — "how much are WE earning?"  — **the owner's real question**
 
 Important distinction: the clinic **Expenses / P&L / doctor-payout** modules are the
-CLINIC's own money (built, §1-finance). They tell the COMPANY nothing. Klenic's earnings
+CLINIC's own money (built, §1-finance). They tell the COMPANY nothing. FlexicaAI's earnings
 are a **separate, company-level view that does NOT exist yet**:
 
-> **Company profit = Revenue (what clinics pay Klenic) − Cost (what it costs to serve them)**
+> **Company profit = Revenue (what clinics pay FlexicaAI) − Cost (what it costs to serve them)**
 
 - **Revenue = MRR** — from subscriptions (§5). The headline number; doesn't exist until
   billing is built.
@@ -240,7 +240,7 @@ are a **separate, company-level view that does NOT exist yet**:
 - **Company dashboard** on `/admin`: MRR, new/churned revenue, total AI + WhatsApp cost,
   **gross margin (MRR − variable cost)**, and per-clinic margin (spot a clinic that costs
   more than it pays).
-- **DON'T rebuild company accounting in-app.** Klenic's own staff **payroll**, rent, tax,
+- **DON'T rebuild company accounting in-app.** FlexicaAI's own staff **payroll**, rent, tax,
   and full bookkeeping belong in **dedicated accounting software (QuickBooks / Xero / an
   accountant)** — the product should expose **revenue + usage-cost + margin** and **export**
   to that tool, not replace it. (So: no "super-admin payroll module" — that's external.)

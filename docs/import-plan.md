@@ -1,6 +1,6 @@
 # Data import / clinic onboarding — plan
 
-How a new clinic's existing data gets into Klenic. Owner/super-admin-run, gated by a
+How a new clinic's existing data gets into FlexicaAI. Owner/super-admin-run, gated by a
 new admin capability. Built in phases so a clinic is usable fast.
 
 > Status: **Phases 1 & 2 BUILT.** Phase 1 = patients + procedures + opening balances
@@ -30,7 +30,7 @@ new admin capability. Built in phases so a clinic is usable fast.
 | Sequencing | **Phased** — Phase 1 first |
 
 ### The one principle that drives the design
-Klenic's money (sales / shares / receivables) is **derived** from the billing engine
+FlexicaAI's money (sales / shares / receivables) is **derived** from the billing engine
 (fee + procedures − discount, via the appointment-completion hook), never stored. So
 imported history is **facts-as-given and MUST bypass that derivation** — we never re-run
 an imported past visit through our fee model (the old clinic never used it). That is why
@@ -44,14 +44,14 @@ chains.
 - `patients.external_ref` text (nullable) — the clinic's **old patient number**. Kept
   distinct from `reference` (which means "how referred"). Add it to patient search so
   front desk can still look a patient up by their old ID. Index (`clinic_id`,`external_ref`).
-- `patients.opening_balance` int (default 0) — pre-Klenic dues carried in at import. The
+- `patients.opening_balance` int (default 0) — pre-FlexicaAI dues carried in at import. The
   receivables report + patient statement add the **unsettled** portion to what the patient
   owes; a payment against it is a `patient_payments` row with `appointment_id = NULL` and a
   new `kind = 'opening'` (money in, reduces the opening balance). Outstanding for a patient
   = Σ(appointment outstanding) + opening_balance − Σ(opening payments).
 - `patient_payments.kind` gains `'opening'` (settling an opening balance).
 - `visits.imported` bool (default false) — marks a note that was imported, not authored in
-  Klenic (so it's never confused with an AI-scribe draft). Imported notes are
+  FlexicaAI (so it's never confused with an AI-scribe draft). Imported notes are
   `status = 'approved'` with the old text stored as freeform (Phase 2).
 - **Import batches (undo):** new table `import_batches` (`id`, `clinic_id`, `entity`,
   `filename`, `row_counts` jsonb, `status` active|undone, `created_by(+name)`, `created_at`)

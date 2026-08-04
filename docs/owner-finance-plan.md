@@ -3,7 +3,7 @@
 > Status: **SHIPPED** (built 2026-07-23 → 2026-07-27; every §8 build phase is ✅ +
 > verified over HTTP, and the Owner Overview built on top of it). Dated change log in
 > `PROGRESS.md`; schema reference in `.claude/database.md`. This is the **COMPANY's**
-> finance — "how much are *we* (Klenic) earning?" — the super-admin control plane. It is **distinct from the
+> finance — "how much are *we* (FlexicaAI) earning?" — the super-admin control plane. It is **distinct from the
 > clinic-side Finance v1** (`docs/finance-plan.md`, which is patient billing for a
 > clinic). Everything here is **core** (`core/admin/*`, cross-tenant `unscoped`
 > reads), gated by new admin ACL capabilities.
@@ -19,7 +19,7 @@
 ## 1. The model
 
 ```
-Company Net Profit  =  Subscription Revenue          (what clinics pay Klenic)
+Company Net Profit  =  Subscription Revenue          (what clinics pay FlexicaAI)
                      −  Variable serving cost         (AI: Whisper + Claude · WhatsApp)
                      −  Operating expenses            (payroll, rent, marketing, …)
 ```
@@ -29,12 +29,12 @@ Company Net Profit  =  Subscription Revenue          (what clinics pay Klenic)
   - **Collected** = cash actually received (`clinic_payments`). *Actuals.*
   - **Net profit is computed on the CASH basis** (collected − cost − opex) for real
     results; MRR is shown alongside as the run-rate. (Decision — see §7.)
-- **Variable serving cost** — Klenic's metered spend, the cost of *serving* clinics:
+- **Variable serving cost** — FlexicaAI's metered spend, the cost of *serving* clinics:
   - **Scribe** (Whisper transcription + Claude note) per visit, **WhatsApp** per message.
   - **v1 = count × unit-rate estimate** (no per-call token/minute log exists yet):
     scribe count from `visits`, WhatsApp count from `whatsapp_messages`, × a
     configurable unit rate. Precise token/minute metering is a later add (§8).
-- **Operating expenses** — Klenic's own fixed/variable costs recorded in-app
+- **Operating expenses** — FlexicaAI's own fixed/variable costs recorded in-app
   (payroll, rent, software/infra, marketing, legal, tax set-aside, …).
 - **Gross margin** = Revenue − variable serving cost. **Net profit** = Gross margin −
   operating expenses. **Per-clinic margin** = that clinic's revenue − its serving cost.
@@ -52,7 +52,7 @@ Company Net Profit  =  Subscription Revenue          (what clinics pay Klenic)
 
 ## 3. Schema (new / changed)
 
-Company-level (most rows have **no `clinic_id`** — they're Klenic's, not a tenant's),
+Company-level (most rows have **no `clinic_id`** — they're FlexicaAI's, not a tenant's),
 soft-deletable where money-bearing (→ admin Trash), audit-logged.
 
 - **`platform_cost_rates` (new)** — the unit-cost config. `scribe_call_cost`,
@@ -69,7 +69,7 @@ soft-deletable where money-bearing (→ admin Trash), audit-logged.
 - **`company_expense_categories` (new)** — `name`, `is_active`. Seeded: Payroll,
   Rent, Software/Infra, Marketing, Legal/Professional, Taxes, AI/API, WhatsApp, Other.
 - **`clinic_invoices` (new, Phase 4 — optional)** — a numbered subscription
-  invoice/receipt Klenic issues *to* a clinic. `clinic_id`, `invoice_no` (company
+  invoice/receipt FlexicaAI issues *to* a clinic. `clinic_id`, `invoice_no` (company
   sequence), `period_start/end`, `amount`, `issued_at`, `issued_by(+name)`,
   soft-delete. Only if clinics ask for a document; reuses the invoice PDF frame.
 - **(Deferred) `ai_usage` (new)** — per-call tokens / audio-minutes for *precise*
@@ -185,7 +185,7 @@ resource; split so, e.g., a bookkeeper can manage expenses without seeing the P&
    receipt** reusing `InvoicePrintFrame` + void/restore). Gated `finance:view` /
    `finance:create` (issue) / `finance:delete` (void). Verified over HTTP: ACL 4 roles,
    sequential numbering (KL-INV-1/2, counter→3), list+total+trend, print (bill-to clinic
-   + owner, Klenic issuer) + print gated, clinic filter, void→Trash→restore. **Clinic
+   + owner, FlexicaAI issuer) + print gated, clinic filter, void→Trash→restore. **Clinic
    refund/credit** ✅ (migration 0060) — `clinic_payments.kind` (`payment` +balance
    +cash · `refund` −balance −cash · `credit` +balance non-cash); balance math +
    `recordClinicPayment` are sign/kind-aware (refund/credit carry 0 months); the clinic

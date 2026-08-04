@@ -1,6 +1,6 @@
 @AGENTS.md
 
-# CLAUDE.md — Klenic
+# CLAUDE.md — FlexicaAI
 
 This file guides Claude Code when developing this application. Read it fully before writing any code. Follow these conventions strictly.
 
@@ -8,7 +8,7 @@ This file guides Claude Code when developing this application. Read it fully bef
 
 ## 1. What we are building
 
-Klenic is a modular SaaS platform for dental clinics in Pakistan and the GCC. The first specialty is **dental**, but the architecture MUST support adding **derma** and **hair transplant** modules later without rewriting the core.
+FlexicaAI is a modular SaaS platform for dental clinics in Pakistan and the GCC. The first specialty is **dental**, but the architecture MUST support adding **derma** and **hair transplant** modules later without rewriting the core.
 
 **The golden rule of this codebase: 70-80% of the code is shared CORE. 20-30% is specialty-specific MODULES. Never mix the two.**
 
@@ -134,7 +134,7 @@ if (clinic.specialty === "dental") { /* ... */ }  // NEVER do this in core
 ```typescript
 export interface ModuleDefinition {
   id: string;                    // "dental"
-  name: string;                  // "Klenic"
+  name: string;                  // "Dental"
   scribePrompt: string;          // specialty AI prompt
   recallRules: RecallRule[];     // recall intervals
   drugFormulary: Drug[];         // specialty medications
@@ -332,7 +332,7 @@ are in `.env.example`.
   capability + password step-up on delete), account-manager **assignment**
   (`clinics.assigned_to`) with scoped visibility, **impersonation** (read-only "view
   as clinic"), **announcements**, 2FA/security, and per-clinic **capabilities**/features.
-- **Owner Finance** — "how much are WE (Klenic) earning?" (`docs/owner-finance-plan.md`),
+- **Owner Finance** — "how much are WE (FlexicaAI) earning?" (`docs/owner-finance-plan.md`),
   all **core**, each area under its own admin capability (`pnl` · `serving_cost` ·
   `expenses` · `sub_invoices`, independently grantable) + the `revenue:view` gate:
   **serving cost** (AI + WhatsApp, **metered** per Whisper-minute / Claude-token via
