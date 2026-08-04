@@ -113,7 +113,7 @@ export function LoginForm({
             </p>
           ) : null}
         </CardContent>
-        <CardFooter className="flex-col gap-2 border-t-0 bg-transparent" style={{ paddingTop: "1rem" }}>
+        <CardFooter className="flex-col gap-2 border-t-0 bg-transparent pt-4">
           <Button type="submit" className="w-full" disabled={pending}>
             {pending ? "Signing in…" : twoFactor ? "Verify" : "Sign in"}
           </Button>

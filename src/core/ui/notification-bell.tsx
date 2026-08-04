@@ -34,6 +34,17 @@ export function NotificationBell({ initialUnread = 0 }: { initialUnread?: number
   const [loaded, setLoaded] = useState(false);
   const [pending, start] = useTransition();
 
+  // Escape closes the panel. The click-away backdrop below is mouse-only, so without
+  // this a keyboard user could open the panel and have no way to dismiss it.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   // Keep the badge fresh without a full navigation: poll + refetch on focus.
   useEffect(() => {
     let alive = true;
@@ -88,6 +99,8 @@ export function NotificationBell({ initialUnread = 0 }: { initialUnread?: number
       <button
         type="button"
         onClick={toggle}
+        aria-haspopup="menu"
+        aria-expanded={open}
         aria-label={unread > 0 ? `Notifications (${unread} unread)` : "Notifications"}
         className="relative rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
       >

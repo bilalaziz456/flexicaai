@@ -48,8 +48,8 @@ export default async function CostsPage({
     values: { scribe: b.scribeCostPkr, whatsapp: b.whatsappCostPkr },
   }));
   const chartSeries = [
-    { key: "scribe", label: "AI scribe", color: "#6366f1" },
-    { key: "whatsapp", label: "WhatsApp", color: "#22c55e" },
+    { key: "scribe", label: "AI scribe", color: "var(--color-chart-2)" },
+    { key: "whatsapp", label: "WhatsApp", color: "var(--color-chart-3)" },
   ];
   const hasTrend = cost.trend.some((b) => b.costPkr > 0);
 

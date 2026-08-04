@@ -82,7 +82,7 @@ export function ScribeFlow({ className }: { className?: string }) {
       {/* ---- the consultation, being spoken ---- */}
       <div className="flex items-center gap-4 rounded-2xl bg-card/70 p-4 ring-1 ring-primary/20 backdrop-blur">
         <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/12 text-primary ring-1 ring-primary/25">
-          <Mic className="size-4.5" />
+          <Mic className="size-5" />
         </span>
         {/* The bars must NOT be flex-1, or they stretch into horizontal pills instead
             of standing up as a waveform. */}

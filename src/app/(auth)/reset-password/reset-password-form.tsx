@@ -44,7 +44,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
             </p>
           ) : null}
         </CardContent>
-        <CardFooter className="border-t-0 bg-transparent" style={{ paddingTop: "1rem" }}>
+        <CardFooter className="border-t-0 bg-transparent pt-4">
           <Button type="submit" className="w-full" disabled={pending}>
             {pending ? "Saving…" : "Set new password"}
           </Button>

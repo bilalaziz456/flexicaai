@@ -122,7 +122,7 @@ export default async function CompanyExpensesPage({
           <CardHeader className="pb-2"><CardTitle className="text-base">Expense trend</CardTitle></CardHeader>
           <CardContent>
             {hasTrend ? (
-              <MultiBarChart points={trendPoints} series={[{ key: "expenses", label: "Expenses", color: "#ef4444" }]} ariaLabel="Expenses by period" />
+              <MultiBarChart points={trendPoints} series={[{ key: "expenses", label: "Expenses", color: "var(--color-chart-5)" }]} ariaLabel="Expenses by period" />
             ) : (
               <p className="py-6 text-center text-sm text-muted-foreground">No expenses in this period yet.</p>
             )}

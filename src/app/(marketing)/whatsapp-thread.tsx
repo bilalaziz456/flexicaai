@@ -59,7 +59,7 @@ export function WhatsAppThread({ className }: { className?: string }) {
         {/* Thread header. */}
         <div className="flex items-center gap-3 border-b border-foreground/10 px-5 py-3.5">
           <span className="inline-flex size-9 items-center justify-center rounded-full bg-[#25d366]/15 text-[#128c4a] dark:text-[#4ade80]">
-            <WhatsAppIcon className="size-4.5" />
+            <WhatsAppIcon className="size-5" />
           </span>
           <div className="min-w-0">
             <p className="truncate text-[13px] font-medium">Your practice</p>

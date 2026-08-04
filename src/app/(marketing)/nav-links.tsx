@@ -38,8 +38,11 @@ export function HeaderNavLinks({ items }: { items: readonly NavItem[] }) {
             key={item.href}
             href={item.href}
             aria-current={active ? "page" : undefined}
+            // `inline-flex`, not the default inline: vertical padding does nothing to
+            // an inline <a>, so `py-1` alone left these 18px tall against the 24px
+            // WCAG 2.5.8 minimum. As a flex box the padding counts and they clear it.
             className={cn(
-              "relative py-1 text-sm transition-colors",
+              "relative inline-flex items-center py-2 text-sm transition-colors",
               active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -47,7 +50,9 @@ export function HeaderNavLinks({ items }: { items: readonly NavItem[] }) {
             {active ? (
               <span
                 aria-hidden="true"
-                className="absolute inset-x-0 -bottom-0.5 h-0.5 rounded-full bg-brand-teal"
+                // Inside the padding rather than below it, so the larger hit area does
+                // not push the underline away from the word.
+                className="absolute inset-x-0 bottom-1 h-0.5 rounded-full bg-brand-teal"
               />
             ) : null}
           </Link>
@@ -69,7 +74,7 @@ export function FooterNavLinks({ items }: { items: readonly NavItem[] }) {
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "transition-colors hover:text-foreground",
+                "inline-flex items-center py-1 transition-colors hover:text-foreground",
                 active && "font-medium text-foreground",
               )}
             >

@@ -56,7 +56,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
             </p>
           ) : null}
         </CardContent>
-        <CardFooter className="border-t-0 bg-transparent" style={{ paddingTop: "1rem" }}>
+        <CardFooter className="border-t-0 bg-transparent pt-4">
           <Button type="submit" className="w-full" disabled={pending}>
             {pending ? "Saving…" : "Save password"}
           </Button>

@@ -43,7 +43,7 @@ export function WhatsAppCta({
           size === "lg" ? "px-6 py-3 text-sm" : "px-4 py-2 text-sm",
         ].join(" ")}
       >
-        <WhatsAppIcon className={size === "lg" ? "size-4.5" : "size-4"} />
+        <WhatsAppIcon className={size === "lg" ? "size-5" : "size-4"} />
         {children}
       </a>
     </span>

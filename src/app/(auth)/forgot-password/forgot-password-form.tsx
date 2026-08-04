@@ -55,7 +55,7 @@ export function ForgotPasswordForm() {
             </p>
           ) : null}
         </CardContent>
-        <CardFooter className="border-t-0 bg-transparent" style={{ paddingTop: "1rem" }}>
+        <CardFooter className="border-t-0 bg-transparent pt-4">
           <div className="w-full space-y-3">
             <Button type="submit" className="w-full" disabled={pending}>
               {pending ? "Sending…" : "Send reset link"}

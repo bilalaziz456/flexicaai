@@ -146,13 +146,16 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
                   <li>
                     <Link
                       href="/#security"
-                      className="transition-colors hover:text-foreground"
+                      className="inline-flex items-center py-1 transition-colors hover:text-foreground"
                     >
                       Security
                     </Link>
                   </li>
                   <li>
-                    <Link href="/login" className="transition-colors hover:text-foreground">
+                    <Link
+                      href="/login"
+                      className="inline-flex items-center py-1 transition-colors hover:text-foreground"
+                    >
                       Sign in
                     </Link>
                   </li>
@@ -169,7 +172,7 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
                       href={SALES_WHATSAPP_URL}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 transition-colors hover:text-[#25d366]"
+                      className="inline-flex items-center gap-2 py-1 transition-colors hover:text-[#25d366]"
                     >
                       <WhatsAppIcon className="size-4" />
                       WhatsApp {SALES_PHONE_DISPLAY}
@@ -178,7 +181,7 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
                   <li>
                     <a
                       href={SALES_EMAIL_URL}
-                      className="inline-flex items-center gap-2 transition-colors hover:text-foreground"
+                      className="inline-flex items-center gap-2 py-1 transition-colors hover:text-foreground"
                     >
                       <Mail className="size-4" aria-hidden="true" />
                       {SALES_EMAIL}
