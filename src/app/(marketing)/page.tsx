@@ -1,9 +1,7 @@
-import type { ComponentType } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
   Activity,
-  ArrowRight,
   BadgeCheck,
   CalendarClock,
   ClipboardCheck,
@@ -21,10 +19,11 @@ import { HeroVisual } from "./hero-visual";
 import { HeroParallax } from "./hero-parallax";
 import { ScribeFlow } from "./scribe-flow";
 import { SecurityVisual } from "./security-visual";
-import { Magnetic } from "./cursor";
+import { Magnetic } from "./magnetic";
 import { WhatsAppCta } from "./whatsapp-cta";
 import { WhatsAppIcon } from "./whatsapp-icon";
 import { SALES_EMAIL, SALES_EMAIL_URL, SALES_WHATSAPP_NUMBER } from "./contact";
+import { FeatureCard, SectionHeading, Statement } from "./sections";
 
 /**
  * The public landing page. A server component with no data fetching, so it builds to
@@ -182,7 +181,10 @@ function Hero() {
         <div className="h-full w-1/4 bg-[linear-gradient(90deg,transparent,var(--brand-teal),transparent)] opacity-0 blur-2xl motion-safe:animate-scan-x motion-safe:opacity-[0.07] dark:motion-safe:opacity-[0.12]" />
       </div>
 
-      <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 pt-10 pb-14 sm:px-6 lg:grid-cols-2 lg:pt-14 lg:pb-20">
+      {/* Padding matches PageHero so the homepage opens at the same height as every
+          feature page. (The copy column is the taller of the two, so `items-center`
+          centres the ARTWORK against it — it was never pushing the copy down.) */}
+      <div className="mx-auto grid w-full max-w-6xl items-center gap-12 px-4 pt-12 pb-14 sm:px-6 lg:grid-cols-2 lg:pt-16 lg:pb-20">
         <div>
           {/* The kicker lives INSIDE the h1 on purpose. It was a separate pill above
               it, which looked identical but sat outside the heading, so the only words
@@ -190,7 +192,12 @@ function Hero() {
               is a good line that nobody searches for. Folding the pill in puts the
               term people do search into the h1 at no visual cost. */}
           <h1 className="text-[clamp(2.6rem,7vw,4.6rem)] leading-[0.95] font-semibold tracking-[-0.035em] text-balance">
-            <span className="mb-6 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium tracking-normal text-brand-navy ring-1 ring-primary/25 dark:text-brand-teal">
+            {/* `flex w-fit`, not `inline-flex`. As an inline box this sat inside the
+                h1's own line box, and the h1 is 73px with ~70px line-height, so the
+                pill was trapped in a 70px-tall line and carried 46px of dead space
+                above it — the headline sat far lower than on any other page. As a
+                block-level box it gets its own height and `mb` is the only gap. */}
+            <span className="mb-5 flex w-fit items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs leading-none font-medium tracking-normal text-brand-navy ring-1 ring-primary/25 dark:text-brand-teal">
               <Sparkles className="size-3.5" aria-hidden="true" />
               AI practice management software
             </span>
@@ -524,180 +531,5 @@ function ClosingCta() {
         </div>
       </div>
     </section>
-  );
-}
-
-/* ----------------------------------------------------------------- shared ---- */
-
-/**
- * The page's one card. Used by the capability grid, the three steps and the security
- * grid, so those three groups cannot drift apart — the hover, the primary-tinted icon
- * badge and the reveal are defined once here rather than copied three times.
- *
- * Everything moving is on hover, not on a loop: motion that answers the pointer,
- * rather than three grids of cards twitching in the corner of the eye.
- *
- * `as="li"` because the steps are an ordered list and a card there must be a real
- * list item — the numbering is meaning, not decoration.
- */
-function FeatureCard({
-  Icon,
-  title,
-  body,
-  eyebrow,
-  pingDelay,
-  as: Tag = "article",
-}: {
-  Icon: ComponentType<{ className?: string }>;
-  title: string;
-  body: string;
-  /** Small label beside the icon, e.g. "STEP 2". */
-  eyebrow?: string;
-  /** Set to give the icon an expanding ring, offset by this much. */
-  pingDelay?: string;
-  as?: "article" | "li";
-}) {
-  return (
-    <Tag className="group reveal-up relative overflow-hidden rounded-2xl bg-card p-6 ring-1 ring-foreground/10 transition-all hover:-translate-y-1 hover:ring-primary/40">
-      {/* Corner glow, on hover. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-16 -right-16 size-32 rounded-full bg-primary/15 opacity-0 blur-2xl transition-opacity group-hover:opacity-100"
-      />
-      {/* Scanner pass across the card, on hover only. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover:opacity-100"
-      >
-        <div className="h-full w-1/3 bg-[linear-gradient(90deg,transparent,var(--brand-teal),transparent)] opacity-10 blur-xl motion-safe:group-hover:animate-scan-x" />
-      </div>
-
-      <div className="relative flex items-center gap-3">
-        <span className="relative inline-flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20 transition-all group-hover:scale-110 group-hover:bg-primary/20 group-hover:ring-primary/40">
-          <Icon className="size-5" />
-          {pingDelay ? (
-            <span
-              aria-hidden="true"
-              style={{ animationDelay: pingDelay }}
-              className="absolute inset-0 rounded-xl ring-2 ring-primary motion-safe:animate-ping-ring motion-reduce:hidden"
-            />
-          ) : null}
-        </span>
-        {eyebrow ? (
-          <span className="font-mono text-xs tracking-widest text-muted-foreground">
-            {eyebrow}
-          </span>
-        ) : null}
-      </div>
-
-      <h3 className="relative mt-5 font-heading text-lg font-medium transition-colors group-hover:text-primary">
-        {title}
-      </h3>
-      <p className="relative mt-2 text-sm leading-relaxed text-muted-foreground">{body}</p>
-    </Tag>
-  );
-}
-
-/**
- * Editorial statement block: an oversized headline broken across deliberate lines,
- * the supporting paragraph beneath it, then a link onward.
- *
- * The line breaks are authored, not left to wrapping — that is the whole point of the
- * form. `text-balance` would fight it, so it is not used here; on narrow screens the
- * lines simply wrap within themselves, which is fine because each one is short.
- *
- * Left-aligned, unlike the centred SectionHeading used elsewhere. Alternating the two
- * is what stops the page reading as one long column of centred blocks.
- */
-function Statement({
-  eyebrow,
-  lines,
-  lede,
-  cta,
-}: {
-  eyebrow: string;
-  lines: string[];
-  lede: string;
-  cta?: { href: string; label: string };
-}) {
-  return (
-    <div className="reveal-up max-w-4xl">
-      {/* Brand navy in light mode, not primary teal: teal at this size measured
-          2.54:1 against the page, well under the 4.5:1 AA minimum for small text.
-          Navy clears it comfortably, and on a dark background the teal does. */}
-      <p className="font-mono text-xs tracking-widest text-brand-navy uppercase dark:text-brand-teal">
-        {eyebrow}
-        <span
-          aria-hidden="true"
-          className="ml-1 inline-block h-3 w-1.5 translate-y-px bg-brand-navy motion-safe:animate-pulse dark:bg-brand-teal"
-        />
-      </p>
-
-      <h2 className="mt-5 font-heading text-[clamp(2.1rem,5.6vw,4rem)] leading-[0.98] font-semibold tracking-[-0.035em]">
-        {lines.map((line, i) => (
-          <span key={line} className="block">
-            {/* The last line carries the brand gradient, so the eye lands on the end
-                of the thought rather than the start. */}
-            {i === lines.length - 1 ? (
-              <span className="bg-gradient-to-r from-brand-teal via-brand-blue to-brand-navy bg-clip-text text-transparent dark:to-brand-blue">
-                {line}
-              </span>
-            ) : (
-              line
-            )}
-            {/* A trailing space on every line but the last. These lines are `block`,
-                so without it the heading's TEXT runs together with no separator —
-                "Three steps,and only oneis yours" is what a screen reader announces
-                and what a crawler indexes. The space is invisible at the end of a
-                block, so it costs nothing visually. */}
-            {i < lines.length - 1 ? " " : null}
-          </span>
-        ))}
-      </h2>
-
-      <p className="mt-6 max-w-xl text-lg leading-relaxed text-pretty text-muted-foreground">
-        {lede}
-      </p>
-
-      {cta ? (
-        <a
-          href={cta.href}
-          className="group mt-7 inline-flex items-center gap-2 text-sm font-medium text-foreground"
-        >
-          {cta.label}
-          <span className="inline-flex size-7 items-center justify-center rounded-full ring-1 ring-foreground/20 transition-all group-hover:bg-primary group-hover:text-primary-foreground group-hover:ring-primary">
-            <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
-          </span>
-        </a>
-      ) : null}
-    </div>
-  );
-}
-
-function SectionHeading({
-  eyebrow,
-  title,
-  lede,
-}: {
-  eyebrow: string;
-  title: string;
-  lede: string;
-}) {
-  return (
-    <div className="reveal-up mx-auto max-w-2xl text-center">
-      {/* Navy rather than teal in light mode, for contrast — see Statement above. */}
-      <p className="font-mono text-xs tracking-widest text-brand-navy uppercase dark:text-brand-teal">
-        {eyebrow}
-        {/* Terminal caret on the eyebrow, a small nod to the machine doing the work. */}
-        <span
-          aria-hidden="true"
-          className="ml-1 inline-block h-3 w-1.5 translate-y-px bg-brand-navy motion-safe:animate-pulse dark:bg-brand-teal"
-        />
-      </p>
-      <h2 className="mt-4 font-heading text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-        {title}
-      </h2>
-      <p className="mt-5 text-lg text-pretty text-muted-foreground">{lede}</p>
-    </div>
   );
 }

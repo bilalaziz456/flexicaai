@@ -28,6 +28,21 @@ export const SALES_EMAIL_URL = `mailto:${SALES_EMAIL}?subject=${encodeURICompone
   "FlexicaAI demo request",
 )}`;
 
+/**
+ * Social profiles.
+ *
+ * Empty by default and each link is rendered ONLY when its URL is set. A guessed
+ * handle is worse than no icon: `facebook.com/flexicaai` may well belong to someone
+ * else, and pointing your own visitors at a stranger's page from your footer is a
+ * real harm, not a cosmetic slip. So these stay blank until the actual URLs are
+ * confirmed, either here or via the env vars.
+ */
+export const SOCIAL_LINKS = [
+  { id: "facebook", label: "Facebook", url: process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK?.trim() || "" },
+  { id: "instagram", label: "Instagram", url: process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM?.trim() || "" },
+  { id: "linkedin", label: "LinkedIn", url: process.env.NEXT_PUBLIC_SOCIAL_LINKEDIN?.trim() || "" },
+] as const;
+
 /** Display forms (the raw local number reads better to a local audience). */
 export const SALES_PHONE_DISPLAY = BRAND_PHONE;
 export const SITE_DOMAIN = BRAND_WEBSITE;

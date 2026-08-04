@@ -3,7 +3,10 @@ import Link from "next/link";
 import { Mail } from "lucide-react";
 import { Logo } from "@/core/ui/logo";
 import { ThemeSwitch } from "./theme-switch";
-import { Cursor, Magnetic } from "./cursor";
+import { Magnetic } from "./magnetic";
+import { FooterNavLinks, HeaderNavLinks, type NavItem } from "./nav-links";
+import { FacebookIcon, InstagramIcon, LinkedInIcon } from "./social-icons";
+import { cn } from "@/core/lib/utils";
 import { WhatsAppCta } from "./whatsapp-cta";
 import { WhatsAppIcon } from "./whatsapp-icon";
 import {
@@ -11,6 +14,7 @@ import {
   SALES_EMAIL_URL,
   SALES_PHONE_DISPLAY,
   SALES_WHATSAPP_URL,
+  SOCIAL_LINKS,
   SITE_DOMAIN,
 } from "./contact";
 
@@ -23,11 +27,31 @@ import {
  * enabled modules, so the copy stays specialty-agnostic throughout.
  */
 
-const NAV = [
-  { href: "#features", label: "Features" },
-  { href: "#how", label: "How it works" },
-  { href: "#specialties", label: "Specialties" },
-  { href: "#security", label: "Security" },
+const SOCIAL_ICONS = {
+  facebook: FacebookIcon,
+  instagram: InstagramIcon,
+  linkedin: LinkedInIcon,
+} as const;
+
+/** Each platform's own colour on hover, so the row is not a wall of grey. */
+const SOCIAL_HOVER = {
+  facebook: "hover:bg-[#1877F2]/10 hover:text-[#1877F2] hover:ring-[#1877F2]/40",
+  instagram: "hover:bg-[#E4405F]/10 hover:text-[#E4405F] hover:ring-[#E4405F]/40",
+  linkedin: "hover:bg-[#0A66C2]/10 hover:text-[#0A66C2] hover:ring-[#0A66C2]/40",
+} as const;
+
+/**
+ * Real pages only. This used to carry "/#security", left over from when the whole nav
+ * was homepage anchors — one item jumping back to a section while its neighbours were
+ * pages, which read as inconsistent and put a trust topic on a level with the three
+ * capability pages. Security still has its section on the homepage and a link in the
+ * footer; it is not a peer of these.
+ */
+const NAV: readonly NavItem[] = [
+  { href: "/ai-medical-scribe", label: "AI scribe" },
+  { href: "/whatsapp-for-patients", label: "WhatsApp" },
+  { href: "/billing-and-revenue", label: "Billing" },
+  { href: "/contact", label: "Contact" },
 ];
 
 export default function MarketingLayout({ children }: { children: ReactNode }) {
@@ -35,8 +59,6 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
     // `marketing-root` is the hook the scoped smooth-scroll rule keys off — see
     // globals.css. It must not appear anywhere in the signed-in app.
     <div className="marketing-root flex min-h-screen flex-col bg-background">
-      {/* Renders nothing on touch or under reduced motion — see the component. */}
-      <Cursor />
 
 
       {/* Film grain over the whole page. Fixed + pointer-events-none so it never
@@ -52,15 +74,7 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
           </Link>
 
           <nav className="hidden flex-1 items-center gap-7 md:flex">
-            {NAV.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-              >
-                {item.label}
-              </a>
-            ))}
+            <HeaderNavLinks items={NAV} />
           </nav>
 
           <div className="ml-auto flex items-center gap-2 md:ml-0">
@@ -94,6 +108,32 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
                 AI-powered health management. We handle the record keeping, the
                 messaging and the money side of running a practice.
               </p>
+
+              {/* Only the profiles that actually have a URL. If none are configured
+                  the whole row disappears rather than leaving dead icons. */}
+              {SOCIAL_LINKS.some((s) => s.url) ? (
+                <ul className="flex items-center gap-2">
+                  {SOCIAL_LINKS.filter((s) => s.url).map((social) => {
+                    const Icon = SOCIAL_ICONS[social.id];
+                    return (
+                      <li key={social.id}>
+                        <a
+                          href={social.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`FlexicaAI on ${social.label}`}
+                          className={cn(
+                            "inline-flex size-9 items-center justify-center rounded-full text-muted-foreground ring-1 ring-foreground/10 transition-all hover:-translate-y-0.5",
+                            SOCIAL_HOVER[social.id],
+                          )}
+                        >
+                          <Icon className="size-4" />
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
             </div>
 
             <div className="grid gap-8 sm:grid-cols-2">
@@ -102,13 +142,15 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
                   Product
                 </h2>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  {NAV.map((item) => (
-                    <li key={item.href}>
-                      <a href={item.href} className="transition-colors hover:text-foreground">
-                        {item.label}
-                      </a>
-                    </li>
-                  ))}
+                  <FooterNavLinks items={NAV} />
+                  <li>
+                    <Link
+                      href="/#security"
+                      className="transition-colors hover:text-foreground"
+                    >
+                      Security
+                    </Link>
+                  </li>
                   <li>
                     <Link href="/login" className="transition-colors hover:text-foreground">
                       Sign in

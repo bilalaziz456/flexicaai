@@ -37,7 +37,10 @@ export function ThemeSwitch() {
       onClick={toggle}
       aria-label="Toggle light or dark theme"
       title="Toggle theme"
-      className="flex size-9 items-center justify-center rounded-full text-muted-foreground ring-1 ring-foreground/10 transition-colors hover:bg-foreground/5 hover:text-foreground"
+      // `cursor-pointer` because a <button> shows the default arrow, while every link
+      // beside it in the header shows a hand. That was invisible while the site hid
+      // the native cursor; with it back, the only button on the page looked inert.
+      className="flex size-9 cursor-pointer items-center justify-center rounded-full text-muted-foreground ring-1 ring-foreground/10 transition-colors hover:bg-foreground/5 hover:text-foreground"
     >
       <Moon className="size-4 dark:hidden" aria-hidden="true" />
       <Sun className="hidden size-4 dark:block" aria-hidden="true" />

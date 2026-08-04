@@ -289,15 +289,6 @@ html {
   border-radius: 6px;
 }
 
-/* While the marketing site's custom cursor is mounted, hide the native one — two
-   cursors is worse than either. The class is added by that component and only on the
-   public pages, and it never mounts for touch or reduced-motion visitors, so the real
-   cursor is untouched everywhere else in the product. */
-.has-custom-cursor,
-.has-custom-cursor * {
-  cursor: none;
-}
-
 /* Film grain — a faint static texture over the whole page. Stops the large flat
    brand gradients from banding and gives the dark theme some tooth. Pure SVG noise
    as a data URI: no image request, no decode. */
@@ -534,6 +525,160 @@ html {
 
 @utility animate-note-approved {
   animation: note-approved 28s ease-in-out infinite both;
+}
+
+/* ===========================================================================
+   Feature-page artwork
+   ---------------------------------------------------------------------------
+   Each of these depicts something ARRIVING, which is the one case where fading
+   content in is honest rather than skeleton-like: words being transcribed, a
+   message being delivered, a bar being measured. Content that already exists is
+   never faded in anywhere on this site — see the note above the note-slot rules.
+   =========================================================================== */
+
+/* A word landing in a live transcript. 14s loop; each word is offset in the markup. */
+@keyframes word-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 4px, 0);
+  }
+  2%,
+  90% {
+    opacity: 1;
+    transform: none;
+  }
+  96%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@utility animate-word-in {
+  animation: word-in 14s ease-out infinite both;
+}
+
+/* The marker under a phrase the audio left unclear. Deliberately a slow, low-key
+   pulse: it is a "check this", not an alarm. */
+@keyframes flag-pulse {
+  0%,
+  40% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+  50%,
+  86% {
+    background-color: color-mix(in oklab, #f59e0b 18%, transparent);
+    box-shadow: inset 0 -2px 0 0 #f59e0b;
+  }
+  94%,
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+
+@utility animate-flag-pulse {
+  animation: flag-pulse 14s ease-in-out infinite;
+}
+
+/* A chat bubble arriving, then holding for the rest of the loop. */
+@keyframes bubble-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.96);
+  }
+  4%,
+  92% {
+    opacity: 1;
+    transform: none;
+  }
+  98%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@utility animate-bubble-in {
+  animation: bubble-in 16s cubic-bezier(0.22, 1, 0.36, 1) infinite both;
+}
+
+/* Delivery receipt: grey ticks turning read-blue a beat after the bubble lands. */
+@keyframes tick-read {
+  0%,
+  30% {
+    color: color-mix(in oklab, currentColor 45%, transparent);
+  }
+  38%,
+  100% {
+    color: #34b7f1;
+  }
+}
+
+@utility animate-tick-read {
+  animation: tick-read 16s ease-in-out infinite both;
+}
+
+/* A chart bar being measured. Grows from the axis, so the origin has to be the
+   bottom — a default-origin scale would grow from the middle and look like a glitch. */
+@keyframes bar-grow {
+  0% {
+    transform: scaleY(0);
+  }
+  14%,
+  92% {
+    transform: scaleY(1);
+  }
+  100% {
+    transform: scaleY(0);
+  }
+}
+
+@utility animate-bar-grow {
+  transform-origin: bottom;
+  animation: bar-grow 9s cubic-bezier(0.22, 1, 0.36, 1) infinite both;
+}
+
+/* The line running down from a source figure into the figures derived from it. Grows
+   from the TOP — a default-origin scale would grow from the middle and read as a
+   glitch rather than as flow. On the same 9s loop as the rows it feeds. */
+@keyframes trace-grow {
+  0%,
+  8% {
+    transform: scaleY(0);
+  }
+  48%,
+  92% {
+    transform: scaleY(1);
+  }
+  100% {
+    transform: scaleY(0);
+  }
+}
+
+@utility animate-trace-grow {
+  transform-origin: top;
+  animation: trace-grow 9s cubic-bezier(0.22, 1, 0.36, 1) infinite both;
+}
+
+/* A figure settling after the numbers above it change. */
+@keyframes total-settle {
+  0%,
+  46% {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  54%,
+  94% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@utility animate-total-settle {
+  animation: total-settle 9s ease-out infinite both;
 }
 
 /* The security artwork (security-visual.tsx).
