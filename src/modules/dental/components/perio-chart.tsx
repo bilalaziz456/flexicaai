@@ -10,6 +10,24 @@ import { ALL_PERMANENT, PERMANENT_LOWER, PERMANENT_UPPER } from "@/modules/denta
 import { examStats } from "@/modules/dental/perio-logic";
 
 const SITE_LABELS = ["MB", "B", "DB", "ML", "L", "DL"]; // buccal 0-2, lingual 3-5
+
+/**
+ * The same six sites written out, for accessible names only.
+ *
+ * The column headings stay abbreviated because that is how a chart is read at a
+ * glance, but a screen reader announcing "M B" tells you nothing about which
+ * surface you are on, and this grid is 256 controls that are otherwise identical.
+ * Every cell therefore names its own surface and tooth.
+ */
+const SITE_NAMES = [
+  "mesio-buccal",
+  "buccal",
+  "disto-buccal",
+  "mesio-lingual",
+  "lingual",
+  "disto-lingual",
+];
+
 const MOB_FUR = ["0", "1", "2", "3"];
 
 const num = (v: unknown): number | null =>
@@ -69,6 +87,7 @@ function ToothRow({
             type="number"
             min={0}
             max={15}
+            aria-label={`Pocket depth in mm, ${SITE_NAMES[i]}, tooth ${n}`}
             value={pockets[i] ?? ""}
             onChange={(e) => setPocket(i, e.target.value === "" ? null : Number(e.target.value))}
             className={cn(
@@ -78,7 +97,7 @@ function ToothRow({
           />
           <button
             type="button"
-            aria-label={`Bleeding ${SITE_LABELS[i]} on ${n}`}
+            aria-label={`Bleeding on probing, ${SITE_NAMES[i]}, tooth ${n}`}
             onClick={() => toggleBleed(i)}
             className={cn(
               "size-2.5 rounded-full border",
@@ -92,13 +111,14 @@ function ToothRow({
 
   return (
     <tr className="border-b last:border-0">
-      <td className="px-1 py-1 text-center text-xs font-medium tabular-nums">{n}</td>
+      <th scope="row" className="px-1 py-1 text-center text-xs font-medium tabular-nums">{n}</th>
       {[0, 1, 2, 3, 4, 5].map(site)}
       <td className="px-1 text-center">
         {readOnly ? (
           <span className="text-xs tabular-nums">{tooth?.mobility ?? "·"}</span>
         ) : (
           <select
+            aria-label={`Mobility, tooth ${n}`}
             value={tooth?.mobility ?? ""}
             onChange={(e) => onChange?.({ ...tooth, mobility: e.target.value === "" ? undefined : Number(e.target.value) })}
             className="h-6 rounded border border-input bg-[var(--input-bg)] text-xs outline-none"
@@ -115,6 +135,7 @@ function ToothRow({
           <span className="text-xs tabular-nums">{tooth?.furcation ?? "·"}</span>
         ) : (
           <select
+            aria-label={`Furcation, tooth ${n}`}
             value={tooth?.furcation ?? ""}
             onChange={(e) => onChange?.({ ...tooth, furcation: e.target.value === "" ? undefined : Number(e.target.value) })}
             className="h-6 rounded border border-input bg-[var(--input-bg)] text-xs outline-none"
@@ -151,16 +172,26 @@ export function PerioChart({
     onChange?.({ ...value, [n]: patch });
   };
 
-  const Table = ({ teeth }: { teeth: string[] }) => (
-    <table className="w-full text-xs">
+  // `arch` names the table, since two identical grids sit on the page and "table with
+  // 9 columns" twice over is not navigable. `scope` + the row header on the tooth
+  // number let a screen reader announce a cell's column and tooth as you move.
+  const Table = ({ teeth, arch }: { teeth: string[]; arch: string }) => (
+    <table className="w-full text-xs" aria-label={`${arch} arch periodontal chart`}>
       <thead>
         <tr className="border-b text-[10px] text-muted-foreground">
-          <th className="px-1 pb-1 font-normal">Tooth</th>
+          <th scope="col" className="px-1 pb-1 font-normal">Tooth</th>
           {SITE_LABELS.map((s, i) => (
-            <th key={s} className={cn("px-0.5 pb-1 font-normal", i === 2 && "border-r")}>{s}</th>
+            <th
+              key={s}
+              scope="col"
+              title={SITE_NAMES[i]}
+              className={cn("px-0.5 pb-1 font-normal", i === 2 && "border-r")}
+            >
+              {s}
+            </th>
           ))}
-          <th className="px-1 pb-1 font-normal">Mob</th>
-          <th className="px-1 pb-1 font-normal">Fur</th>
+          <th scope="col" title="Mobility" className="px-1 pb-1 font-normal">Mob</th>
+          <th scope="col" title="Furcation" className="px-1 pb-1 font-normal">Fur</th>
         </tr>
       </thead>
       <tbody>
@@ -185,9 +216,9 @@ export function PerioChart({
       ) : (
         <div className="overflow-x-auto rounded-lg border p-2">
           <p className="mb-1 text-[10px] font-medium text-muted-foreground">Upper</p>
-          <Table teeth={readOnly ? PERMANENT_UPPER.filter((n) => value[n]) : PERMANENT_UPPER} />
+          <Table teeth={readOnly ? PERMANENT_UPPER.filter((n) => value[n]) : PERMANENT_UPPER} arch="Upper" />
           <p className="mb-1 mt-3 text-[10px] font-medium text-muted-foreground">Lower</p>
-          <Table teeth={readOnly ? PERMANENT_LOWER.filter((n) => value[n]) : PERMANENT_LOWER} />
+          <Table teeth={readOnly ? PERMANENT_LOWER.filter((n) => value[n]) : PERMANENT_LOWER} arch="Lower" />
         </div>
       )}
       {!readOnly ? (
