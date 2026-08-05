@@ -51,17 +51,17 @@ export function TranscriptVisual({ className }: { className?: string }) {
 
       <div className="rounded-2xl bg-card/70 p-5 ring-1 ring-primary/20 backdrop-blur">
         <div className="flex items-center justify-between">
-          <p className="inline-flex items-center gap-2 font-mono text-[11px] tracking-widest text-muted-foreground uppercase">
-            <Mic className="size-3.5 text-primary" />
+          <p className="inline-flex items-center gap-2 font-mono text-2xs tracking-widest text-muted-foreground uppercase">
+            <Mic className="size-3.5 text-primary-text" />
             Transcribing
           </p>
-          <span className="inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
-            <span className="size-1.5 rounded-full bg-[#25d366] motion-safe:animate-pulse" />
+          <span className="inline-flex items-center gap-1.5 text-3xs font-medium tracking-wide text-muted-foreground uppercase">
+            <span className="size-1.5 rounded-full bg-whatsapp motion-safe:animate-pulse" />
             Live
           </span>
         </div>
 
-        <p className="mt-4 text-[15px] leading-relaxed text-foreground/85">
+        <p className="mt-4 text-sm leading-relaxed text-foreground/85">
           {SPOKEN.map((word, i) => (
             <span
               key={i}
@@ -91,8 +91,8 @@ export function TranscriptVisual({ className }: { className?: string }) {
             on the words themselves, because that is what the flag actually looks like
             in the product. */}
         <div className="mt-5 flex items-start gap-2.5 rounded-xl bg-primary/[0.07] p-3 ring-1 ring-primary/20">
-          <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-          <p className="text-[12px] leading-relaxed text-foreground/75">
+          <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary-text" />
+          <p className="text-xs leading-relaxed text-foreground/75">
             <span className="font-medium">Unclear audio is flagged, never guessed.</span>{" "}
             You confirm the dosage before anything is saved.
           </p>

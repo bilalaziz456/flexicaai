@@ -1,4 +1,4 @@
-import { SALES_EMAIL, SALES_WHATSAPP_NUMBER } from "./contact";
+import { SALES_EMAIL, SALES_WHATSAPP_NUMBER, SOCIAL_LINKS } from "./contact-details";
 
 /**
  * Structured data shared by every public page.
@@ -23,6 +23,10 @@ export const ORGANIZATION = {
   name: "FlexicaAI",
   url: ORIGIN,
   logo: `${ORIGIN}/logo.svg`,
+  // `sameAs` is how a search engine links these profiles to the brand entity rather
+  // than treating them as unrelated pages. Read from the same list the footer renders,
+  // so the two can never disagree, and filtered so an unset profile is simply absent.
+  sameAs: SOCIAL_LINKS.filter((s) => s.url).map((s) => s.url),
   areaServed: [
     { "@type": "Country", name: "Pakistan" },
     { "@type": "Country", name: "United Arab Emirates" },

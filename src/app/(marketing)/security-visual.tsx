@@ -47,11 +47,11 @@ export function SecurityVisual({ className }: { className?: string }) {
       {/* ---- who can reach what ---- */}
       <div className="rounded-2xl bg-card/70 p-5 ring-1 ring-primary/20 backdrop-blur">
         <div className="flex items-center justify-between gap-3">
-          <p className="inline-flex items-center gap-2 font-mono text-[11px] tracking-widest text-muted-foreground uppercase">
-            <ShieldCheck className="size-3.5 text-primary" />
+          <p className="inline-flex items-center gap-2 font-mono text-2xs tracking-widest text-muted-foreground uppercase">
+            <ShieldCheck className="size-3.5 text-primary-text" />
             Access
           </p>
-          <span className="rounded-full bg-primary/12 px-2.5 py-1 text-[10px] font-medium tracking-wide text-primary uppercase ring-1 ring-primary/25">
+          <span className="rounded-full bg-card px-2.5 py-1 text-3xs font-medium tracking-wide text-primary-text uppercase ring-1 ring-primary/25">
             Practice-scoped
           </span>
         </div>
@@ -73,7 +73,7 @@ export function SecurityVisual({ className }: { className?: string }) {
               style={{ animationDelay: `${i * 1.8}s` }}
               className="relative col-span-5 grid grid-cols-subgrid items-center rounded-lg py-1.5 motion-safe:animate-acl-scan"
             >
-              <span className="text-[12px] text-foreground/75">{role}</span>
+              <span className="text-xs text-foreground/75">{role}</span>
               {grants.map((allowed, j) => (
                 <span key={j} className="flex justify-center">
                   {allowed ? (
@@ -90,7 +90,7 @@ export function SecurityVisual({ className }: { className?: string }) {
 
       {/* ---- and what was done ---- */}
       <div className="mt-4 rounded-2xl bg-card/70 p-5 ring-1 ring-primary/20 backdrop-blur">
-        <p className="font-mono text-[11px] tracking-widest text-muted-foreground uppercase">
+        <p className="font-mono text-2xs tracking-widest text-muted-foreground uppercase">
           Activity log
         </p>
         <ul className="mt-3 space-y-2">
@@ -98,11 +98,11 @@ export function SecurityVisual({ className }: { className?: string }) {
             <li
               key={time}
               style={{ animationDelay: `${0.4 + i * 1.6}s` }}
-              className="flex items-baseline gap-3 text-[12px] motion-safe:animate-audit-in"
+              className="flex items-baseline gap-3 text-xs motion-safe:animate-audit-in"
             >
               <span className="font-mono text-muted-foreground">{time}</span>
               <span className="flex-1 text-foreground/75">{action}</span>
-              <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-[10px] text-muted-foreground">
+              <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-3xs text-muted-foreground">
                 {actor}
               </span>
             </li>

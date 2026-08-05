@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { SALES_WHATSAPP_URL } from "./contact";
+import { SALES_WHATSAPP_URL } from "./contact-details";
 import { WhatsAppIcon } from "./whatsapp-icon";
 
 /**
@@ -30,7 +30,7 @@ export function WhatsAppCta({
       {ping ? (
         <span
           aria-hidden="true"
-          className="absolute inset-0 rounded-full bg-[#25d366] motion-safe:animate-ping-ring motion-reduce:hidden"
+          className="absolute inset-0 rounded-full bg-whatsapp motion-safe:animate-ping-ring motion-reduce:hidden"
         />
       ) : null}
       <a
@@ -38,8 +38,8 @@ export function WhatsAppCta({
         target="_blank"
         rel="noopener noreferrer"
         className={[
-          "relative inline-flex items-center gap-2 rounded-full bg-[#25d366] font-medium text-brand-navy",
-          "shadow-lg shadow-[#25d366]/25 transition-all hover:bg-[#1ebe5b] hover:-translate-y-0.5",
+          "relative inline-flex items-center gap-2 rounded-full bg-whatsapp font-medium text-brand-navy",
+          "shadow-lg shadow-whatsapp/25 transition-all hover:bg-whatsapp-hover hover:-translate-y-0.5",
           size === "lg" ? "px-6 py-3 text-sm" : "px-4 py-2 text-sm",
         ].join(" ")}
       >

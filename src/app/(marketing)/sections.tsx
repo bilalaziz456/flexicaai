@@ -54,7 +54,7 @@ export function FeatureCard({
       </div>
 
       <div className="relative flex items-center gap-3">
-        <span className="relative inline-flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20 transition-all group-hover:scale-110 group-hover:bg-primary/20 group-hover:ring-primary/40">
+        <span className="relative inline-flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary-text ring-1 ring-primary/20 transition-all group-hover:scale-110 group-hover:bg-primary/20 group-hover:ring-primary/40">
           <Icon className="size-5" />
           {pingDelay ? (
             <span
@@ -71,7 +71,7 @@ export function FeatureCard({
         ) : null}
       </div>
 
-      <h3 className="relative mt-5 font-heading text-lg font-medium transition-colors group-hover:text-primary">
+      <h3 className="relative mt-5 font-heading text-lg font-medium transition-colors group-hover:text-primary-text">
         {title}
       </h3>
       <p className="relative mt-2 text-sm leading-relaxed text-muted-foreground">{body}</p>

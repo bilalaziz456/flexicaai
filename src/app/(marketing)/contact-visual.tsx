@@ -41,7 +41,7 @@ export function ContactVisual({ className }: { className?: string }) {
 
       {/* ---- how to reach us ---- */}
       <div className="rounded-2xl bg-card/70 p-5 ring-1 ring-primary/20 backdrop-blur">
-        <p className="font-mono text-[11px] tracking-widest text-muted-foreground uppercase">
+        <p className="font-mono text-2xs tracking-widest text-muted-foreground uppercase">
           Ways to reach us
         </p>
 
@@ -54,12 +54,12 @@ export function ContactVisual({ className }: { className?: string }) {
               style={{ animationDelay: `${i * 2}s` }}
               className="flex items-center gap-3 rounded-lg px-2 py-2.5 motion-safe:animate-acl-scan"
             >
-              <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20">
+              <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary-text ring-1 ring-primary/20">
                 <Icon className="size-4" />
               </span>
               <span className="min-w-0">
-                <span className="block text-[13px] font-medium">{label}</span>
-                <span className="block text-[11.5px] text-muted-foreground">{note}</span>
+                <span className="block text-sm font-medium">{label}</span>
+                <span className="block text-2xs text-muted-foreground">{note}</span>
               </span>
             </li>
           ))}
@@ -68,7 +68,7 @@ export function ContactVisual({ className }: { className?: string }) {
 
       {/* ---- and then what ---- */}
       <div className="mt-4 rounded-2xl bg-card/70 p-5 ring-1 ring-primary/20 backdrop-blur">
-        <p className="font-mono text-[11px] tracking-widest text-muted-foreground uppercase">
+        <p className="font-mono text-2xs tracking-widest text-muted-foreground uppercase">
           What happens next
         </p>
         <ol className="mt-3 space-y-2.5">
@@ -76,9 +76,9 @@ export function ContactVisual({ className }: { className?: string }) {
             <li
               key={text}
               style={{ animationDelay: `${(0.4 + i * 1.6).toFixed(1)}s` }}
-              className="flex items-start gap-3 text-[12.5px] leading-snug text-foreground/80 motion-safe:animate-audit-in"
+              className="flex items-start gap-3 text-xs leading-snug text-foreground/80 motion-safe:animate-audit-in"
             >
-              <span className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-[#25d366]/15 text-[#128c4a] dark:text-[#4ade80]">
+              <span className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-whatsapp/15 text-whatsapp-fg">
                 <Icon className="size-3" />
               </span>
               {text}

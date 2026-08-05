@@ -11,7 +11,7 @@ import {
   SALES_EMAIL_URL,
   SALES_PHONE_DISPLAY,
   SALES_WHATSAPP_URL,
-} from "../contact";
+} from "../contact-details";
 import { ORGANIZATION, ORIGIN, ORG_ID } from "../structured-data";
 
 /**
@@ -106,9 +106,9 @@ export default function ContactPage() {
               href={SALES_WHATSAPP_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="group reveal-up rounded-2xl bg-card p-6 ring-1 ring-foreground/10 transition-all hover:-translate-y-1 hover:ring-[#25d366]/50"
+              className="group reveal-up rounded-2xl bg-card p-6 ring-1 ring-foreground/10 transition-all hover:-translate-y-1 hover:ring-whatsapp/50"
             >
-              <span className="inline-flex size-10 items-center justify-center rounded-xl bg-[#25d366]/15 text-[#128c4a] ring-1 ring-[#25d366]/30 transition-transform group-hover:scale-110 dark:text-[#4ade80]">
+              <span className="inline-flex size-10 items-center justify-center rounded-xl bg-whatsapp/15 text-whatsapp-fg ring-1 ring-whatsapp/30 transition-transform group-hover:scale-110">
                 <WhatsAppIcon className="size-5" />
               </span>
               <h2 className="mt-5 font-heading text-lg font-medium">WhatsApp</h2>
@@ -122,7 +122,7 @@ export default function ContactPage() {
               href={SALES_EMAIL_URL}
               className="group reveal-up rounded-2xl bg-card p-6 ring-1 ring-foreground/10 transition-all hover:-translate-y-1 hover:ring-primary/40"
             >
-              <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20 transition-transform group-hover:scale-110">
+              <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary-text ring-1 ring-primary/20 transition-transform group-hover:scale-110">
                 <Mail className="size-5" />
               </span>
               <h2 className="mt-5 font-heading text-lg font-medium">Email</h2>
@@ -136,7 +136,7 @@ export default function ContactPage() {
               href={`tel:${SALES_PHONE_DISPLAY.replace(/\s/g, "")}`}
               className="group reveal-up rounded-2xl bg-card p-6 ring-1 ring-foreground/10 transition-all hover:-translate-y-1 hover:ring-primary/40"
             >
-              <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20 transition-transform group-hover:scale-110">
+              <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary-text ring-1 ring-primary/20 transition-transform group-hover:scale-110">
                 <Phone className="size-5" />
               </span>
               <h2 className="mt-5 font-heading text-lg font-medium">Phone</h2>

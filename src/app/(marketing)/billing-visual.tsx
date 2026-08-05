@@ -33,15 +33,17 @@ export function BillingVisual({ className }: { className?: string }) {
       {/* ---- the bill ---- */}
       <div className="rounded-2xl bg-card/70 p-5 ring-1 ring-primary/20 backdrop-blur">
         <div className="flex items-center justify-between">
-          <p className="font-mono text-[11px] tracking-widest text-muted-foreground uppercase">
+          <p className="font-mono text-2xs tracking-widest text-muted-foreground uppercase">
             Invoice
           </p>
           {/* Two statuses on one spot, exact complements, so one is always readable. */}
           <span className="relative inline-flex h-6 items-center">
-            <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-[10px] font-medium tracking-wide text-amber-700 uppercase opacity-0 ring-1 ring-amber-500/30 motion-safe:animate-note-draft dark:text-amber-400">
+            {/* amber-800, not -700: on this chip's own amber tint -700 measured 4.47:1,
+                a hair under AA at 10px. The dark override is unchanged. */}
+            <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-3xs font-medium tracking-wide text-amber-800 uppercase opacity-0 ring-1 ring-amber-500/30 motion-safe:animate-note-draft dark:text-amber-400">
               Discount pending
             </span>
-            <span className="absolute inset-y-0 right-0 inline-flex items-center rounded-full bg-[#25d366]/15 px-2.5 text-[10px] font-medium tracking-wide text-[#128c4a] uppercase ring-1 ring-[#25d366]/40 motion-safe:animate-note-approved dark:text-[#4ade80]">
+            <span className="absolute inset-y-0 right-0 inline-flex items-center rounded-full bg-whatsapp/15 px-2.5 text-3xs font-medium tracking-wide text-whatsapp-fg uppercase ring-1 ring-whatsapp/40 motion-safe:animate-note-approved">
               Approved
             </span>
           </span>
@@ -49,7 +51,7 @@ export function BillingVisual({ className }: { className?: string }) {
 
         <dl className="mt-4 space-y-2">
           {LINES.map((l) => (
-            <div key={l.name} className="flex items-baseline gap-3 text-[13px]">
+            <div key={l.name} className="flex items-baseline gap-3 text-sm">
               <dt className="flex-1 text-foreground/80">
                 {l.name}
                 {l.qty > 1 ? (
@@ -59,7 +61,7 @@ export function BillingVisual({ className }: { className?: string }) {
               <dd className="font-mono text-muted-foreground tabular-nums">{l.amount}</dd>
             </div>
           ))}
-          <div className="flex items-baseline gap-3 text-[13px]">
+          <div className="flex items-baseline gap-3 text-sm">
             <dt className="flex-1 text-amber-700 dark:text-amber-400">Discount</dt>
             <dd className="font-mono text-amber-700 tabular-nums dark:text-amber-400">
               −2,000
@@ -69,12 +71,12 @@ export function BillingVisual({ className }: { className?: string }) {
 
         {/* The figure settles only once the status has flipped. */}
         <div className="mt-4 flex items-baseline justify-between border-t border-foreground/10 pt-3.5">
-          <span className="text-[12px] text-muted-foreground">Total due</span>
+          <span className="text-xs text-muted-foreground">Total due</span>
           <span className="relative inline-flex h-7 items-baseline">
             <span className="font-mono text-lg font-medium tabular-nums opacity-0 motion-safe:animate-note-draft">
               15,900
             </span>
-            <span className="absolute inset-y-0 right-0 inline-flex items-baseline font-mono text-lg font-medium text-primary tabular-nums motion-safe:animate-total-settle">
+            <span className="absolute inset-y-0 right-0 inline-flex items-baseline font-mono text-lg font-medium text-primary-text tabular-nums motion-safe:animate-total-settle">
               13,900
             </span>
           </span>
@@ -84,10 +86,10 @@ export function BillingVisual({ className }: { className?: string }) {
       {/* ---- what it adds up to ---- */}
       <div className="mt-4 rounded-2xl bg-card/70 p-5 ring-1 ring-primary/20 backdrop-blur">
         <div className="flex items-center justify-between">
-          <p className="font-mono text-[11px] tracking-widest text-muted-foreground uppercase">
+          <p className="font-mono text-2xs tracking-widest text-muted-foreground uppercase">
             Revenue
           </p>
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-[#128c4a] dark:text-[#4ade80]">
+          <span className="inline-flex items-center gap-1.5 text-2xs text-whatsapp-fg">
             <TrendingUp className="size-3.5" />
             Collected, not invoiced
           </span>
@@ -103,8 +105,8 @@ export function BillingVisual({ className }: { className?: string }) {
           ))}
         </div>
 
-        <p className="mt-4 flex items-center gap-2 border-t border-foreground/10 pt-3.5 text-[12px] text-muted-foreground">
-          <BadgeCheck className="size-4 shrink-0 text-primary" />
+        <p className="mt-4 flex items-center gap-2 border-t border-foreground/10 pt-3.5 text-xs text-muted-foreground">
+          <BadgeCheck className="size-4 shrink-0 text-primary-text" />
           Every figure traces back to a visit your team already recorded.
         </p>
       </div>

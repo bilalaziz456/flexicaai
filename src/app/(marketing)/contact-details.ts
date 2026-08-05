@@ -14,7 +14,7 @@ import { BRAND_PHONE, BRAND_WEBSITE } from "@/core/lib/brand";
 export const SALES_WHATSAPP_NUMBER =
   process.env.NEXT_PUBLIC_SALES_WHATSAPP?.trim() || "923000186120";
 
-/** TODO(owner): confirm this inbox exists before launch — it is the only email on the page. */
+/** Confirmed by the owner, 2026-08-05. */
 export const SALES_EMAIL =
   process.env.NEXT_PUBLIC_SALES_EMAIL?.trim() || "hello@flexicaai.com";
 
@@ -29,18 +29,31 @@ export const SALES_EMAIL_URL = `mailto:${SALES_EMAIL}?subject=${encodeURICompone
 )}`;
 
 /**
- * Social profiles.
+ * Social profiles, confirmed by the owner 2026-08-05.
  *
- * Empty by default and each link is rendered ONLY when its URL is set. A guessed
- * handle is worse than no icon: `facebook.com/flexicaai` may well belong to someone
- * else, and pointing your own visitors at a stranger's page from your footer is a
- * real harm, not a cosmetic slip. So these stay blank until the actual URLs are
- * confirmed, either here or via the env vars.
+ * Each link still renders only when its URL is non-empty, so clearing one here (or
+ * setting its env var to a blank string) removes just that icon rather than leaving
+ * a dead link in the footer. These also feed the `sameAs` array in the Organization
+ * structured data, which is how a search engine ties the profiles to the brand.
  */
 export const SOCIAL_LINKS = [
-  { id: "facebook", label: "Facebook", url: process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK?.trim() || "" },
-  { id: "instagram", label: "Instagram", url: process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM?.trim() || "" },
-  { id: "linkedin", label: "LinkedIn", url: process.env.NEXT_PUBLIC_SOCIAL_LINKEDIN?.trim() || "" },
+  {
+    id: "facebook",
+    label: "Facebook",
+    url: process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK?.trim() || "https://www.facebook.com/flexicaai",
+  },
+  {
+    id: "instagram",
+    label: "Instagram",
+    url: process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM?.trim() || "https://www.instagram.com/flexicaai",
+  },
+  {
+    id: "linkedin",
+    label: "LinkedIn",
+    url:
+      process.env.NEXT_PUBLIC_SOCIAL_LINKEDIN?.trim() ||
+      "https://www.linkedin.com/company/138694703",
+  },
 ] as const;
 
 /** Display forms (the raw local number reads better to a local audience). */

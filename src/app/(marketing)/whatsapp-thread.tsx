@@ -53,17 +53,17 @@ const STEP = 1.7;
 export function WhatsAppThread({ className }: { className?: string }) {
   return (
     <div aria-hidden="true" className={`relative w-full select-none ${className ?? ""}`}>
-      <div className="absolute inset-8 -z-10 bg-[radial-gradient(circle_at_50%_40%,#25d366_0%,transparent_65%)] opacity-15 blur-2xl dark:opacity-25" />
+      <div className="absolute inset-8 -z-10 bg-[radial-gradient(circle_at_50%_40%,var(--whatsapp)_0%,transparent_65%)] opacity-15 blur-2xl dark:opacity-25" />
 
       <div className="overflow-hidden rounded-2xl bg-card/70 ring-1 ring-primary/20 backdrop-blur">
         {/* Thread header. */}
         <div className="flex items-center gap-3 border-b border-foreground/10 px-5 py-3.5">
-          <span className="inline-flex size-9 items-center justify-center rounded-full bg-[#25d366]/15 text-[#128c4a] dark:text-[#4ade80]">
+          <span className="inline-flex size-9 items-center justify-center rounded-full bg-whatsapp/15 text-whatsapp-fg">
             <WhatsAppIcon className="size-5" />
           </span>
           <div className="min-w-0">
-            <p className="truncate text-[13px] font-medium">Your practice</p>
-            <p className="text-[11px] text-muted-foreground">WhatsApp Business</p>
+            <p className="truncate text-sm font-medium">Your practice</p>
+            <p className="text-2xs text-muted-foreground">WhatsApp Business</p>
           </div>
         </div>
 
@@ -78,14 +78,14 @@ export function WhatsAppThread({ className }: { className?: string }) {
               >
                 <div
                   className={[
-                    "max-w-[78%] rounded-2xl px-3.5 py-2 text-[12.5px] leading-snug",
+                    "max-w-[78%] rounded-2xl px-3.5 py-2 text-xs leading-snug",
                     outgoing
-                      ? "rounded-br-sm bg-[#25d366]/15 text-foreground/85 ring-1 ring-[#25d366]/25"
+                      ? "rounded-br-sm bg-whatsapp/15 text-foreground/85 ring-1 ring-whatsapp/25"
                       : "rounded-bl-sm bg-foreground/[0.06] text-foreground/85 ring-1 ring-foreground/10",
                   ].join(" ")}
                 >
                   {m.text}
-                  <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
+                  <span className="mt-1 flex items-center justify-end gap-1 text-3xs text-muted-foreground">
                     {m.time}
                     {m.receipt ? (
                       <CheckCheck

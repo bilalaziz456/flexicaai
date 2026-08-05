@@ -16,7 +16,7 @@ import {
   SALES_WHATSAPP_URL,
   SOCIAL_LINKS,
   SITE_DOMAIN,
-} from "./contact";
+} from "./contact-details";
 
 /**
  * Public marketing shell — header + footer around every public page.
@@ -35,9 +35,9 @@ const SOCIAL_ICONS = {
 
 /** Each platform's own colour on hover, so the row is not a wall of grey. */
 const SOCIAL_HOVER = {
-  facebook: "hover:bg-[#1877F2]/10 hover:text-[#1877F2] hover:ring-[#1877F2]/40",
-  instagram: "hover:bg-[#E4405F]/10 hover:text-[#E4405F] hover:ring-[#E4405F]/40",
-  linkedin: "hover:bg-[#0A66C2]/10 hover:text-[#0A66C2] hover:ring-[#0A66C2]/40",
+  facebook: "hover:bg-facebook/10 hover:text-facebook hover:ring-facebook/40",
+  instagram: "hover:bg-instagram/10 hover:text-instagram hover:ring-instagram/40",
+  linkedin: "hover:bg-linkedin/10 hover:text-linkedin hover:ring-linkedin/40",
 } as const;
 
 /**
@@ -83,7 +83,9 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
                 worth keeping — signing in is also in the hero and the footer. */}
             <Link
               href="/login"
-              className="hidden rounded-full px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
+              // px-4 py-2 puts this at 36px, matching every other header control; at
+              // px-3 py-1.5 it sat 4px shorter than the CTA right beside it.
+              className="hidden rounded-full px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
             >
               Sign in
             </Link>
@@ -172,7 +174,7 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
                       href={SALES_WHATSAPP_URL}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 py-1 transition-colors hover:text-[#25d366]"
+                      className="inline-flex items-center gap-2 py-1 transition-colors hover:text-whatsapp"
                     >
                       <WhatsAppIcon className="size-4" />
                       WhatsApp {SALES_PHONE_DISPLAY}

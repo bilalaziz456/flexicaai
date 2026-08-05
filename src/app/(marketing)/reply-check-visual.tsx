@@ -33,7 +33,7 @@ export function ReplyCheckVisual({ className }: { className?: string }) {
           <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-foreground/[0.06] text-muted-foreground ring-1 ring-foreground/10">
             <MessageSquareText className="size-4" />
           </span>
-          <p className="rounded-2xl rounded-tl-sm bg-foreground/[0.06] px-3.5 py-2 text-[12.5px] leading-snug text-foreground/85 ring-1 ring-foreground/10">
+          <p className="rounded-2xl rounded-tl-sm bg-foreground/[0.06] px-3.5 py-2 text-xs leading-snug text-foreground/85 ring-1 ring-foreground/10">
             Can we do Thursday instead?
           </p>
         </div>
@@ -43,10 +43,10 @@ export function ReplyCheckVisual({ className }: { className?: string }) {
           style={{ animationDelay: "0.5s" }}
           className="mt-4 flex items-center justify-between rounded-xl bg-primary/[0.07] px-3.5 py-2.5 ring-1 ring-primary/20 motion-safe:animate-audit-in"
         >
-          <span className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
+          <span className="font-mono text-3xs tracking-widest text-muted-foreground uppercase">
             Read as
           </span>
-          <span className="font-mono text-[12.5px] font-medium text-primary">
+          <span className="font-mono text-xs font-medium text-primary-text">
             Thu 4:30pm
           </span>
         </div>
@@ -59,16 +59,16 @@ export function ReplyCheckVisual({ className }: { className?: string }) {
               style={{ animationDelay: `${(1.4 + i * 1).toFixed(1)}s` }}
               className="flex items-center gap-3 motion-safe:animate-audit-in"
             >
-              <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20">
+              <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary-text ring-1 ring-primary/20">
                 <Icon className="size-3.5" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[12.5px] text-foreground/80">{label}</span>
-                <span className="block font-mono text-[10.5px] text-muted-foreground">
+                <span className="block text-xs text-foreground/80">{label}</span>
+                <span className="block font-mono text-3xs text-muted-foreground">
                   {detail}
                 </span>
               </span>
-              <Check className="size-4 shrink-0 text-[#128c4a] dark:text-[#4ade80]" />
+              <Check className="size-4 shrink-0 text-whatsapp-fg" />
             </li>
           ))}
         </ul>
@@ -76,10 +76,10 @@ export function ReplyCheckVisual({ className }: { className?: string }) {
         {/* Only now is anything promised to the patient. */}
         <div
           style={{ animationDelay: "4.8s" }}
-          className="mt-4 flex items-center gap-2.5 rounded-xl bg-[#25d366]/10 px-3.5 py-3 ring-1 ring-[#25d366]/30 motion-safe:animate-audit-in"
+          className="mt-4 flex items-center gap-2.5 rounded-xl bg-whatsapp/10 px-3.5 py-3 ring-1 ring-whatsapp/30 motion-safe:animate-audit-in"
         >
-          <Send className="size-4 shrink-0 text-[#128c4a] dark:text-[#4ade80]" />
-          <p className="text-[12.5px] leading-snug text-foreground/85">
+          <Send className="size-4 shrink-0 text-whatsapp-fg" />
+          <p className="text-xs leading-snug text-foreground/85">
             <span className="font-medium">Only now is the slot offered.</span> Nothing is
             promised to a patient before it passes.
           </p>

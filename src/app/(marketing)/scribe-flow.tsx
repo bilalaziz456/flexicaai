@@ -80,8 +80,8 @@ export function ScribeFlow({ className }: { className?: string }) {
       <div className="absolute inset-8 -z-10 bg-[radial-gradient(circle_at_50%_40%,var(--brand-teal)_0%,transparent_65%)] opacity-15 blur-2xl dark:opacity-25" />
 
       {/* ---- the consultation, being spoken ---- */}
-      <div className="flex items-center gap-4 rounded-2xl bg-card/70 p-4 ring-1 ring-primary/20 backdrop-blur">
-        <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/12 text-primary ring-1 ring-primary/25">
+      <div className="flex items-center gap-4 rounded-2xl bg-card/70 p-5 ring-1 ring-primary/20 backdrop-blur">
+        <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/12 text-primary-text ring-1 ring-primary/25">
           <Mic className="size-5" />
         </span>
         {/* The bars must NOT be flex-1, or they stretch into horizontal pills instead
@@ -116,7 +116,7 @@ export function ScribeFlow({ className }: { className?: string }) {
             ].join(" ")}
           >
             <div className="flex items-center justify-between">
-              <p className="font-mono text-[11px] tracking-widest text-muted-foreground uppercase">
+              <p className="font-mono text-2xs tracking-widest text-muted-foreground uppercase">
                 Consultation note
               </p>
 
@@ -125,13 +125,13 @@ export function ScribeFlow({ className }: { className?: string }) {
               <span className="relative inline-flex h-6 items-center">
                 <span
                   style={{ animationDelay: noteDelay(i) }}
-                  className="rounded-full bg-primary/12 px-2.5 py-1 text-[10px] font-medium tracking-wide text-primary uppercase opacity-0 ring-1 ring-primary/25 motion-safe:animate-note-draft"
+                  className="rounded-full bg-card px-2.5 py-1 text-3xs font-medium tracking-wide text-primary-text uppercase opacity-0 ring-1 ring-primary/25 motion-safe:animate-note-draft"
                 >
                   Draft
                 </span>
                 <span
                   style={{ animationDelay: noteDelay(i) }}
-                  className="absolute inset-y-0 right-0 inline-flex items-center rounded-full bg-[#25d366]/15 px-2.5 text-[10px] font-medium tracking-wide text-[#128c4a] uppercase ring-1 ring-[#25d366]/40 motion-safe:animate-note-approved dark:text-[#4ade80]"
+                  className="absolute inset-y-0 right-0 inline-flex items-center rounded-full bg-whatsapp/15 px-2.5 text-3xs font-medium tracking-wide text-whatsapp-fg uppercase ring-1 ring-whatsapp/40 motion-safe:animate-note-approved"
                 >
                   Approved
                 </span>
@@ -140,7 +140,7 @@ export function ScribeFlow({ className }: { className?: string }) {
 
             <dl className="mt-4 space-y-2.5">
               {rows.map(({ label, value }, j) => (
-                <div key={label} className="flex gap-3 text-[13px] leading-snug">
+                <div key={label} className="flex gap-3 text-sm leading-snug">
                   <dt className="w-20 shrink-0 text-muted-foreground">{label}</dt>
                   <dd className="min-w-0 text-foreground/80">
                     <span
@@ -164,10 +164,10 @@ export function ScribeFlow({ className }: { className?: string }) {
               style={{ animationDelay: noteDelay(i) }}
               className="mt-5 flex items-center gap-2.5 border-t border-foreground/10 pt-4 motion-safe:animate-note-approved"
             >
-              <span className="inline-flex size-6 items-center justify-center rounded-full bg-[#25d366]/15">
-                <Check className="size-3.5 text-[#128c4a] dark:text-[#4ade80]" strokeWidth={3} />
+              <span className="inline-flex size-6 items-center justify-center rounded-full bg-whatsapp/15">
+                <Check className="size-3.5 text-whatsapp-fg" strokeWidth={3} />
               </span>
-              <p className="text-[12px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Reviewed and approved by the provider
               </p>
             </div>

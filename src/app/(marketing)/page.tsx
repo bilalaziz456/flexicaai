@@ -22,8 +22,9 @@ import { SecurityVisual } from "./security-visual";
 import { Magnetic } from "./magnetic";
 import { WhatsAppCta } from "./whatsapp-cta";
 import { WhatsAppIcon } from "./whatsapp-icon";
-import { SALES_EMAIL, SALES_EMAIL_URL, SALES_WHATSAPP_NUMBER } from "./contact";
+import { SALES_EMAIL, SALES_EMAIL_URL } from "./contact-details";
 import { FeatureCard, SectionHeading, Statement } from "./sections";
+import { ORGANIZATION, ORIGIN } from "./structured-data";
 
 /**
  * The public landing page. A server component with no data fetching, so it builds to
@@ -51,8 +52,6 @@ const TITLE = "FlexicaAI: AI practice management software for health teams";
 const DESCRIPTION =
   "Practice management software with an AI medical scribe. Turn a spoken consultation into an approved note, automate WhatsApp reminders, and track the money.";
 
-const ORIGIN = "https://www.flexicaai.com";
-
 /**
  * Structured data. Three things a search engine cannot infer from prose: that
  * FlexicaAI is an organisation, that this domain is its site, and that the product is
@@ -66,28 +65,11 @@ const ORIGIN = "https://www.flexicaai.com";
 const STRUCTURED_DATA = {
   "@context": "https://schema.org",
   "@graph": [
-    {
-      "@type": "Organization",
-      "@id": `${ORIGIN}/#organization`,
-      name: "FlexicaAI",
-      url: ORIGIN,
-      logo: `${ORIGIN}/logo.svg`,
-      description: DESCRIPTION,
-      areaServed: [
-        { "@type": "Country", name: "Pakistan" },
-        { "@type": "Country", name: "United Arab Emirates" },
-        { "@type": "Country", name: "Saudi Arabia" },
-      ],
-      contactPoint: [
-        {
-          "@type": "ContactPoint",
-          contactType: "sales",
-          telephone: `+${SALES_WHATSAPP_NUMBER}`,
-          email: SALES_EMAIL,
-          availableLanguage: ["English", "Urdu"],
-        },
-      ],
-    },
+    // The shared node, not a second copy. This page defined its own Organization
+    // before structured-data.ts existed, which meant two definitions of the same
+    // @id — and the homepage silently missing anything added to the shared one
+    // (`sameAs`, most recently).
+    { ...ORGANIZATION, description: DESCRIPTION },
     {
       "@type": "WebSite",
       "@id": `${ORIGIN}/#website`,
@@ -233,7 +215,13 @@ function Hero() {
 
           <p className="mt-5 text-sm text-muted-foreground">
             Already a customer?{" "}
-            <Link href="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
+            {/* inline-flex + py-1: vertical padding on a bare inline <a> does not add
+                to layout height, so this measured 43.6x17.6 and missed the 24px
+                minimum target (WCAG 2.5.8). */}
+            <Link
+              href="/login"
+              className="inline-flex items-center py-1 font-medium text-foreground underline-offset-4 hover:underline"
+            >
               Sign in
             </Link>
           </p>
@@ -266,7 +254,7 @@ function ValueStrip() {
       <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-8 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
         {VALUES.map(({ Icon, text }) => (
           <div key={text} className="flex items-start gap-3">
-            <Icon className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+            <Icon className="mt-0.5 size-5 shrink-0 text-primary-text" aria-hidden="true" />
             <p className="text-sm text-muted-foreground">{text}</p>
           </div>
         ))}
@@ -438,7 +426,7 @@ function Specialties() {
               "Activity audit trail",
             ].map((item) => (
               <li key={item} className="flex items-center gap-2.5 text-sm">
-                <BadgeCheck className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                <BadgeCheck className="size-4 shrink-0 text-primary-text" aria-hidden="true" />
                 {item}
               </li>
             ))}
