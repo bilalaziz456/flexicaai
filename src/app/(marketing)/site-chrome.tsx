@@ -226,9 +226,26 @@ export function MarketingShell({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          <div className="mt-10 flex flex-col gap-2 border-t border-foreground/10 pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-10 flex flex-col gap-3 border-t border-foreground/10 pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
             <p>© {new Date().getFullYear()} FlexicaAI. All rights reserved.</p>
-            <p>{SITE_DOMAIN}</p>
+            {/* Policy links belong in the bottom bar rather than a fourth column: they
+                are the two links people go looking for deliberately, and giving them a
+                heading would put them on a level with the product nav. */}
+            <div className="flex items-center gap-4">
+              <Link
+                href="/privacy"
+                className="inline-flex items-center py-1 transition-colors hover:text-foreground"
+              >
+                Privacy
+              </Link>
+              <Link
+                href="/terms"
+                className="inline-flex items-center py-1 transition-colors hover:text-foreground"
+              >
+                Terms
+              </Link>
+              <span>{SITE_DOMAIN}</span>
+            </div>
           </div>
         </div>
       </footer>

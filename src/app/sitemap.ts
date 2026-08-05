@@ -22,5 +22,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
         priority: 0.8,
       }),
     ),
+    // Listed so they are indexable and findable, at a low priority: an ad reviewer or
+    // a cautious buyer goes looking for these, but they are not what we want ranking.
+    ...["/privacy", "/terms"].map((path) => ({
+      url: `${origin}${path}`,
+      lastModified,
+      changeFrequency: "yearly" as const,
+      priority: 0.3,
+    })),
   ];
 }
