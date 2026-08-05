@@ -234,13 +234,16 @@ export function MarketingShell({ children }: { children: ReactNode }) {
             <div className="flex items-center gap-4">
               <Link
                 href="/privacy"
-                className="inline-flex items-center py-1 transition-colors hover:text-foreground"
+                // py-1.5, not py-1: at 12px/16px line-height these came out 23.99px,
+                // a hair under the 24px minimum once subpixel rounding is applied. This
+                // also matches the 28px of the footer's other links.
+                className="inline-flex items-center py-1.5 transition-colors hover:text-foreground"
               >
                 Privacy
               </Link>
               <Link
                 href="/terms"
-                className="inline-flex items-center py-1 transition-colors hover:text-foreground"
+                className="inline-flex items-center py-1.5 transition-colors hover:text-foreground"
               >
                 Terms
               </Link>

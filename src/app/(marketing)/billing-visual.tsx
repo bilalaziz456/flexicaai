@@ -43,7 +43,7 @@ export function BillingVisual({ className }: { className?: string }) {
             <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-3xs font-medium tracking-wide text-amber-800 uppercase opacity-0 ring-1 ring-amber-500/30 motion-safe:animate-note-draft dark:text-amber-400">
               Discount pending
             </span>
-            <span className="absolute inset-y-0 right-0 inline-flex items-center rounded-full bg-whatsapp/15 px-2.5 text-3xs font-medium tracking-wide text-whatsapp-fg uppercase ring-1 ring-whatsapp/40 motion-safe:animate-note-approved">
+            <span className="absolute inset-y-0 right-0 inline-flex items-center rounded-full bg-card px-2.5 text-3xs font-medium tracking-wide text-whatsapp-fg uppercase ring-1 ring-whatsapp/40 motion-safe:animate-note-approved">
               Approved
             </span>
           </span>

@@ -129,9 +129,13 @@ export function ScribeFlow({ className }: { className?: string }) {
                 >
                   Draft
                 </span>
+                {/* Opaque for the same reason as the Draft chip above: a translucent
+                    tint on a translucent card over a coloured glow composites to
+                    something stronger than the class implies, and the label landed at
+                    4.31:1. */}
                 <span
                   style={{ animationDelay: noteDelay(i) }}
-                  className="absolute inset-y-0 right-0 inline-flex items-center rounded-full bg-whatsapp/15 px-2.5 text-3xs font-medium tracking-wide text-whatsapp-fg uppercase ring-1 ring-whatsapp/40 motion-safe:animate-note-approved"
+                  className="absolute inset-y-0 right-0 inline-flex items-center rounded-full bg-card px-2.5 text-3xs font-medium tracking-wide text-whatsapp-fg uppercase ring-1 ring-whatsapp/40 motion-safe:animate-note-approved"
                 >
                   Approved
                 </span>

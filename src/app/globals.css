@@ -120,8 +120,14 @@
      brand colour has to be legible: `text-primary-text` and the marketing focus
      outline. Fills, rings and artwork keep `--brand-teal` untouched. Dark mode
      needs no adjustment (the teal is already 7.79:1 there) so it maps straight
-     back — same idea as `--whatsapp-fg`. */
-  --primary-text: #008384;
+     back — same idea as `--whatsapp-fg`.
+
+     Value chosen against the WORST light background it actually lands on, which is
+     a `bg-primary/[0.07]` tint, not white. #008384 cleared white at 4.59 but only
+     reached 4.30 on that tint, which is how it slipped through a first pass. The
+     minimum that clears both is #007e7f, at 4.59 on the tint. This sits a step
+     darker for headroom: 5.16 on white, 4.84 on the tint. */
+  --primary-text: #007a7b;
   --secondary: oklch(0.965 0.012 200);
   --secondary-foreground: oklch(0.32 0.04 200);
   --muted: oklch(0.968 0.008 200);
