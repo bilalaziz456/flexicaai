@@ -80,7 +80,7 @@ export default async function ReceivablesPage({
         <div>
           <h1 className="text-xl font-semibold">Receivables</h1>
           <p className="text-sm text-muted-foreground">
-            What patients owe on completed visits — this total matches the dashboard&apos;s Outstanding.
+            What patients owe on completed visits. This total matches the dashboard&apos;s Outstanding.
           </p>
         </div>
         {report.patients.length > 0 ? (
@@ -124,7 +124,7 @@ export default async function ReceivablesPage({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">By patient</CardTitle>
-          <CardDescription>Highest balance first — expand a patient to see the visits.</CardDescription>
+          <CardDescription>Highest balance first: expand a patient to see the visits.</CardDescription>
         </CardHeader>
         <CardContent>
           {report.patients.length === 0 ? (

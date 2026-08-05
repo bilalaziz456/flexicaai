@@ -92,7 +92,7 @@ export default async function ExpensesPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Expenses</h1>
-          <p className="text-sm text-muted-foreground">The clinic&apos;s costs — feeds the P&amp;L.</p>
+          <p className="text-sm text-muted-foreground">The clinic&apos;s costs. Feeds the P&amp;L.</p>
         </div>
         <div className="flex items-center gap-4">
           {!deleted ? (
@@ -121,7 +121,7 @@ export default async function ExpensesPage({
       </div>
 
       {deleted ? (
-        <p className="text-sm text-muted-foreground">Deleted expenses — restore any within reach.</p>
+        <p className="text-sm text-muted-foreground">Deleted expenses: restore any within reach.</p>
       ) : (
         <>
           {canManage ? (

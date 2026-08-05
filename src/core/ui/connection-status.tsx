@@ -89,7 +89,7 @@ export function ConnectionStatus() {
       ) : (
         <>
           <WifiOff className="size-4" aria-hidden="true" />
-          No internet connection — changes may not save
+          No internet connection: changes may not save
         </>
       )}
     </div>

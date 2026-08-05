@@ -503,7 +503,7 @@ export async function PatientDetail({
           <CardHeader>
             <CardTitle>Medical &amp; dental history</CardTitle>
             <CardDescription>
-              Allergies, conditions, medications — reviewed before treatment.
+              Allergies, conditions, medications: reviewed before treatment.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -521,7 +521,7 @@ export async function PatientDetail({
           <CardHeader>
             <CardTitle>Clinical history</CardTitle>
             <CardDescription>
-              The patient&apos;s visit records — chief complaint, findings, diagnosis and
+              The patient&apos;s visit records. Chief complaint, findings, diagnosis and
               treatment.
             </CardDescription>
           </CardHeader>
@@ -620,7 +620,7 @@ export async function PatientDetail({
           <CardHeader>
             <CardTitle>Prescriptions</CardTitle>
             <CardDescription>
-              Prescriptions from approved visits — open to print or re-print the PDF.
+              Prescriptions from approved visits. Open to print or re-print the PDF.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -685,7 +685,7 @@ export async function PatientDetail({
           <CardHeader>
             <CardTitle>Periodontal chart</CardTitle>
             <CardDescription>
-              Pocket depths, bleeding, mobility &amp; furcation — latest exam.
+              Pocket depths, bleeding, mobility &amp; furcation. Latest exam.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -727,7 +727,7 @@ export async function PatientDetail({
           <CardHeader>
             <CardTitle>Treatment plans</CardTitle>
             <CardDescription>
-              Multi-visit courses — priced, tooth-tagged, feed the visit bill when scheduled.
+              Multi-visit courses: priced, tooth-tagged, feed the visit bill when scheduled.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -749,7 +749,7 @@ export async function PatientDetail({
         <Card>
           <CardHeader>
             <CardTitle>Lab cases</CardTitle>
-            <CardDescription>Crowns, dentures &amp; appliances — status → &ldquo;ready&rdquo; WhatsApp.</CardDescription>
+            <CardDescription>Crowns, dentures &amp; appliances. Status → &ldquo;ready&rdquo; WhatsApp.</CardDescription>
           </CardHeader>
           <CardContent>
             <LabTrackerCard

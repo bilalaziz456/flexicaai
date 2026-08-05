@@ -148,7 +148,7 @@ export default async function ClinicDetailPage({
           <CardTitle>Plan &amp; features</CardTitle>
           <CardDescription>
             Name, specialties, the optional features included for this clinic, and its
-            configuration — what the clinic <span className="font-medium">has</span>.
+            configuration: what the clinic <span className="font-medium">has</span>.
             Access control (who can do what) is below.
           </CardDescription>
         </CardHeader>
@@ -221,7 +221,7 @@ export default async function ClinicDetailPage({
         <CardHeader>
           <CardTitle>Account manager</CardTitle>
           <CardDescription>
-            The team member who owns this clinic on our side — for &ldquo;my clinics&rdquo; and
+            The team member who owns this clinic on our side, for &ldquo;my clinics&rdquo; and
             payment-due / follow-up updates.
           </CardDescription>
         </CardHeader>
@@ -265,7 +265,7 @@ export default async function ClinicDetailPage({
           <h2 className="text-lg font-semibold">Access control</h2>
           <p className="text-sm text-muted-foreground">
             The ceiling on what this clinic&apos;s staff can <span className="font-medium">do</span>{" "}
-            and <span className="font-medium">see</span> — independent of the plan features above.
+            and <span className="font-medium">see</span>, independent of the plan features above.
           </p>
         </div>
 
@@ -387,7 +387,7 @@ export default async function ClinicDetailPage({
         <CardHeader>
           <CardTitle className="text-destructive">Danger zone</CardTitle>
           <CardDescription>
-            Permanently delete this clinic and all its data — staff, patients,
+            Permanently delete this clinic and all its data: staff, patients,
             appointments, visits and recalls. This cannot be undone.
           </CardDescription>
         </CardHeader>

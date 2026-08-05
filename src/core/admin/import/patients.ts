@@ -38,18 +38,18 @@ function validateRow(row: ImportRow): RowResult<PatientInput> {
 
   const rawPhone = pick(row, "phone", "mobile", "contact", "phone_number", "whatsapp", "cell");
   const { phone, valid } = normalizePhone(rawPhone);
-  if (rawPhone && !valid) warnings.push(`Phone "${rawPhone}" doesn't look valid — imported as-is`);
+  if (rawPhone && !valid) warnings.push(`Phone "${rawPhone}" doesn't look valid, imported as-is`);
 
   let dob: string | null = null;
   const rawDob = pick(row, "date_of_birth", "dob", "birth_date", "birthdate");
   const rawAge = pick(row, "age");
   if (rawDob) {
     dob = parseImportDate(rawDob);
-    if (!dob) warnings.push(`Unrecognised date of birth "${rawDob}" — left blank`);
+    if (!dob) warnings.push(`Unrecognised date of birth "${rawDob}", left blank`);
   } else if (rawAge) {
     const n = Number(rawAge);
     if (Number.isInteger(n) && n >= 0 && n <= 150) dob = dobFromAge(n);
-    else warnings.push(`Unrecognised age "${rawAge}" — left blank`);
+    else warnings.push(`Unrecognised age "${rawAge}", left blank`);
   }
 
   let openingBalance = 0;
@@ -57,7 +57,7 @@ function validateRow(row: ImportRow): RowResult<PatientInput> {
   if (rawBal) {
     const n = parseAmount(rawBal);
     if (n != null && n >= 0) openingBalance = n;
-    else warnings.push(`Unrecognised balance "${rawBal}" — treated as 0`);
+    else warnings.push(`Unrecognised balance "${rawBal}", treated as 0`);
   }
 
   let registeredAt: Date | null = null;
@@ -65,7 +65,7 @@ function validateRow(row: ImportRow): RowResult<PatientInput> {
   if (rawReg) {
     const d = parseImportDate(rawReg);
     if (d) registeredAt = new Date(`${d}T12:00:00`);
-    else warnings.push(`Unrecognised registration date "${rawReg}" — using today`);
+    else warnings.push(`Unrecognised registration date "${rawReg}", using today`);
   }
 
   return {

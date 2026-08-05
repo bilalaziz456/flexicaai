@@ -56,7 +56,7 @@ export async function ProceduresPanel({
         <div>
           <h1 className="text-xl font-semibold">Procedures</h1>
           <p className="text-sm text-muted-foreground">
-            Priced services patients can book — these feed appointment totals and
+            Priced services patients can book. These feed appointment totals and
             the Sales report. {list.length} procedure{list.length === 1 ? "" : "s"}.
           </p>
         </div>

@@ -86,7 +86,7 @@ export default async function ClinicInvoicesPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Company finance — subscription invoices</h1>
+        <h1 className="text-xl font-semibold">Company finance: subscription invoices</h1>
         <p className="text-sm text-muted-foreground">Invoices FlexicaAI issues to clinics for their subscription.</p>
       </div>
 

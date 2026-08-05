@@ -20,7 +20,7 @@ export function DeleteClinic({
       triggerLabel="Delete this clinic"
       triggerVariant="destructive"
       title={`Delete ${clinicName}`}
-      description="This permanently deletes the clinic and ALL its data — staff, patients, appointments, visits and recalls. This cannot be undone."
+      description="This permanently deletes the clinic and ALL its data: staff, patients, appointments, visits and recalls. This cannot be undone."
       confirmLabel="Delete clinic"
       onConfirm={(password) => deleteClinic(clinicId, password)}
     />

@@ -83,7 +83,7 @@ export function checkSql(text: string): void {
 
   const table = m[1];
   const err = new Error(
-    `[tenant-guard] query touches "${table}" without a clinic_id scope — add byClinic()/a clinic_id filter, or wrap an intentional cross-tenant query in unscoped("reason", …).\nSQL: ${text.slice(0, 400)}`,
+    `[tenant-guard] query touches "${table}" without a clinic_id scope. Add byClinic()/a clinic_id filter, or wrap an intentional cross-tenant query in unscoped("reason", …).\nSQL: ${text.slice(0, 400)}`,
   );
   if (STRICT) throw err;
   console.error(err.message);

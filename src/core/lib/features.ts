@@ -34,7 +34,7 @@ export const CLINIC_FEATURES = [
     id: "finance",
     name: "Finance (expenses & P&L)",
     description:
-      "Clinic expenses, the Profit & Loss report, and the unified finance reports/dashboard KPIs. Owner-level; needs the sales feature for full revenue figures.",
+      "Clinic expenses, the Profit & Loss report, and the unified finance reports/dashboard KPIs. Owner-level, and needs the sales feature for full revenue figures.",
   },
 ] as const satisfies readonly ClinicFeature[];
 

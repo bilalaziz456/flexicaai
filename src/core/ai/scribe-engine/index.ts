@@ -26,7 +26,7 @@ export async function transcribeAudio(
 ): Promise<{ text: string; durationSeconds: number }> {
   if (!serverEnv.OPENAI_API_KEY) {
     throw new MissingApiKeyError(
-      "OPENAI_API_KEY is not set — add it to .env.local to transcribe audio.",
+      "OPENAI_API_KEY is not set. Add it to .env.local to transcribe audio.",
     );
   }
 
@@ -71,7 +71,7 @@ export async function runScribe(args: {
 }): Promise<{ transcript: string; note: Record<string, unknown>; raw: string; usage: ScribeUsage }> {
   const { text: transcript, durationSeconds } = await transcribeAudio(args.audio, args.filename);
   if (!transcript) {
-    throw new Error("Transcription was empty — please record again.");
+    throw new Error("Transcription was empty. Please record again.");
   }
   const { note, raw, usage: claude } = await generateNote({
     scribePrompt: args.scribePrompt,

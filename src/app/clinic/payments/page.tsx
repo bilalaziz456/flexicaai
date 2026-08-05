@@ -88,7 +88,7 @@ export default async function PaymentsPage({
         <div>
           <h1 className="text-xl font-semibold">Payments</h1>
           <p className="text-sm text-muted-foreground">
-            Every payment, advance, and refund — money in and out of the clinic.
+            Every payment, advance, and refund. Money in and out of the clinic.
           </p>
         </div>
         <a

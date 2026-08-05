@@ -259,15 +259,15 @@ async function collect(scope: Scope, filters: TrashFilters = {}): Promise<TrashI
   for (const r of appts)
     push({ entity: "appointment", id: r.id, group: r.group ?? r.id, label: r.patientName ?? "Appointment", detail: r.scheduledAt.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }), clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
   for (const r of vis)
-    push({ entity: "visit", id: r.id, group: r.group ?? r.id, label: r.patientName ? `${r.patientName} — clinical note` : "Clinical note", detail: dateStr(r.visitDate), clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
+    push({ entity: "visit", id: r.id, group: r.group ?? r.id, label: r.patientName ? `${r.patientName} · clinical note` : "Clinical note", detail: dateStr(r.visitDate), clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
   for (const r of recs)
-    push({ entity: "recall", id: r.id, group: r.group ?? r.id, label: r.patientName ? `${r.patientName} — recall` : (r.reason ?? "Recall"), detail: r.reason, clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
+    push({ entity: "recall", id: r.id, group: r.group ?? r.id, label: r.patientName ? `${r.patientName} · recall` : (r.reason ?? "Recall"), detail: r.reason, clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
   for (const r of procs)
     push({ entity: "procedure", id: r.id, group: r.group ?? r.id, label: r.name, detail: `Rs ${r.price}`, clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
   for (const r of exps)
     push({ entity: "expense", id: r.id, group: r.group ?? r.id, label: r.vendor || r.note || "Expense", detail: `Rs ${r.amount} · ${dateStr(r.incurredOn)}`, clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
   for (const r of leaves)
-    push({ entity: "leave", id: r.id, group: r.group ?? r.id, label: `${r.doctorName ?? r.doctorUsername ?? "Doctor"} — leave`, detail: r.startDate === r.endDate ? dateStr(r.startDate) : `${dateStr(r.startDate)} – ${dateStr(r.endDate)}`, clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
+    push({ entity: "leave", id: r.id, group: r.group ?? r.id, label: `${r.doctorName ?? r.doctorUsername ?? "Doctor"} · leave`, detail: r.startDate === r.endDate ? dateStr(r.startDate) : `${dateStr(r.startDate)} – ${dateStr(r.endDate)}`, clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
   for (const r of staff)
     push({ entity: "staff", id: r.id, group: r.group ?? r.id, label: r.fullName ?? r.username, detail: r.role, clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
   for (const r of clins)

@@ -47,7 +47,7 @@ export function RecordPayoutForm({
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground" htmlFor="pay-amount">
-            Amount (Rs) — outstanding {money.format(outstanding)}
+            Amount (Rs): outstanding {money.format(outstanding)}
           </label>
           <input
             id="pay-amount"

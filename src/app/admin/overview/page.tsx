@@ -93,7 +93,7 @@ function PaymentFollowup(props: FollowupProps) {
     <FollowupModal
       {...props}
       action={setPaymentCommitmentAction}
-      description="When did the clinic promise to clear the balance? It’s shown on the dues list — it does not hide the clinic."
+      description="When did the clinic promise to clear the balance? It’s shown on the dues list. It does not hide the clinic."
       notePlaceholder="e.g. will pay after salary, ~5th"
     />
   );
@@ -142,7 +142,7 @@ export default async function OverviewPage({
         <div>
           <h1 className="text-xl font-semibold">Overview</h1>
           <p className="text-sm text-muted-foreground">
-            {seesAll ? "The whole company" : "Your assigned clinics"} at a glance — money, health &amp; usage.
+            {seesAll ? "The whole company" : "Your assigned clinics"} at a glance. Money, health &amp; usage.
           </p>
         </div>
         <Link href="/admin/finance" className="text-sm text-primary-text underline underline-offset-4">
@@ -267,7 +267,7 @@ export default async function OverviewPage({
           <CardHeader>
             <CardTitle>Payments coming up ({upcoming.length})</CardTitle>
             <CardDescription>
-              Paid clinics whose subscription lapses soon (within each clinic&apos;s reminder window) — reach out before they fall due.
+              Paid clinics whose subscription lapses soon (within each clinic&apos;s reminder window). Reach out before they fall due.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -308,7 +308,7 @@ export default async function OverviewPage({
         <CardHeader>
           <CardTitle>At-risk clinics ({health.atRisk.length})</CardTitle>
           <CardDescription>
-            Live clinics quiet for ≥ {health.inactiveDays} days (or never active) — activity counts visits, appointments, WhatsApp &amp; staff logins.
+            Live clinics quiet for ≥ {health.inactiveDays} days (or never active). Activity counts visits, appointments, WhatsApp &amp; staff logins.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -362,7 +362,7 @@ export default async function OverviewPage({
           <CardHeader>
             <CardTitle className="text-base">Following up ({health.followingUp.length})</CardTitle>
             <CardDescription>
-              Snoozed clinics — parked out of the alert lists until their follow-up date, then they re-surface.
+              Snoozed clinics: parked out of the alert lists until their follow-up date, then they re-surface.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -429,7 +429,7 @@ export default async function OverviewPage({
           <CardHeader>
             <CardTitle>Usage flags ({health.flagged.length})</CardTitle>
             <CardDescription>
-              Cost / usage anomalies over {rangeLabel} — cost ≥ {anomaly.thinMarginPct}% of MRR (high), &gt; MRR (loss), or ≥ {anomaly.spikeMultiple}× the prior period (spike).
+              Cost / usage anomalies over {rangeLabel}. Cost ≥ {anomaly.thinMarginPct}% of MRR (high), &gt; MRR (loss), or ≥ {anomaly.spikeMultiple}× the prior period (spike).
             </CardDescription>
           </CardHeader>
           <CardContent>

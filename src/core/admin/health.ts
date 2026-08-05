@@ -53,9 +53,9 @@ export type HealthRow = {
 /** Usage/cost anomalies surfaced on the Overview so outliers raise their hand. */
 export type AnomalyFlag = "loss" | "thin_margin" | "usage_spike";
 export const ANOMALY_META: Record<AnomalyFlag, { label: string; severity: "high" | "warn"; hint: string }> = {
-  loss: { label: "Cost > MRR", severity: "high", hint: "Serving cost exceeds the monthly price — losing money on this clinic." },
-  thin_margin: { label: "High cost", severity: "warn", hint: "Serving cost is ≥ 50% of the monthly price — thin margin." },
-  usage_spike: { label: "Usage spike", severity: "warn", hint: "Serving cost is ≥ 3× the previous period — runaway usage, abuse, or an upsell." },
+  loss: { label: "Cost > MRR", severity: "high", hint: "Serving cost exceeds the monthly price. Losing money on this clinic." },
+  thin_margin: { label: "High cost", severity: "warn", hint: "Serving cost is ≥ 50% of the monthly price. Thin margin." },
+  usage_spike: { label: "Usage spike", severity: "warn", hint: "Serving cost is ≥ 3× the previous period. Runaway usage, abuse, or an upsell." },
 };
 
 export type ClinicHealth = {

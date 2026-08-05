@@ -81,7 +81,7 @@ async function notifyReady(clinicId: string, patientId: string, item: string): P
       campaignName: serverEnv.AISENSY_LAB_CAMPAIGN,
       userName: pt.name,
       templateParams: [pt.name, item],
-      body: `Good news — your ${item} is back from the lab and ready to fit. Please call to book your fitting.`,
+      body: `Good news: your ${item} is back from the lab and ready to fit. Please call to book your fitting.`,
     });
   } catch {
     // Best-effort — a notify failure never blocks the status change.

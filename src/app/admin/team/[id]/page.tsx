@@ -112,7 +112,7 @@ export default async function TeamMemberPage({
           <CardTitle>Access (capabilities)</CardTitle>
           <CardDescription>
             {memberIsOwner ? (
-              <>The owner always has full access — not editable.</>
+              <>The owner always has full access. Not editable.</>
             ) : (
               <>
                 Apply a role preset or toggle individual capabilities. All capabilities = Super admin.
@@ -128,7 +128,7 @@ export default async function TeamMemberPage({
               <CapabilityEditor userId={member.id} initial={caps} isSelf={isSelf} />
             ) : (
               <p className="text-sm text-muted-foreground">
-                {caps.length} capabilit{caps.length === 1 ? "y" : "ies"} — you don&apos;t have
+                {caps.length} capabilit{caps.length === 1 ? "y" : "ies"}. You don&apos;t have
                 permission to change access.
               </p>
             )}
@@ -140,7 +140,7 @@ export default async function TeamMemberPage({
         <CardHeader>
           <CardTitle>Managed clinics</CardTitle>
           <CardDescription>
-            Clinics this member is the account manager for — bulk-reassign them to
+            Clinics this member is the account manager for. Bulk-reassign them to
             someone else (e.g. while they&apos;re suspended or leaving).
           </CardDescription>
         </CardHeader>

@@ -27,15 +27,15 @@ export function FlagRulesForm({
   return (
     <form action={action} className="flex flex-wrap items-end gap-3">
       <div className="space-y-1">
-        <Label htmlFor="thinMarginPct" className="text-xs text-muted-foreground">High cost — serving cost ≥ (% of MRR)</Label>
+        <Label htmlFor="thinMarginPct" className="text-xs text-muted-foreground">High cost: serving cost ≥ (% of MRR)</Label>
         <Input id="thinMarginPct" name="thinMarginPct" type="number" min={1} max={100} defaultValue={thinMarginPct} className="h-8 w-28" key={`t${thinMarginPct}`} />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="spikeMultiple" className="text-xs text-muted-foreground">Usage spike — ≥ (× prior period)</Label>
+        <Label htmlFor="spikeMultiple" className="text-xs text-muted-foreground">Usage spike: ≥ (× prior period)</Label>
         <Input id="spikeMultiple" name="spikeMultiple" type="number" min={2} max={100} defaultValue={spikeMultiple} className="h-8 w-28" key={`m${spikeMultiple}`} />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="spikeFloorPkr" className="text-xs text-muted-foreground">Spike floor — ignore below (Rs)</Label>
+        <Label htmlFor="spikeFloorPkr" className="text-xs text-muted-foreground">Spike floor: ignore below (Rs)</Label>
         <Input id="spikeFloorPkr" name="spikeFloorPkr" type="number" min={0} defaultValue={spikeFloorPkr} className="h-8 w-32" key={`f${spikeFloorPkr}`} />
       </div>
       <Button type="submit" variant="outline" size="sm" disabled={pending}>{pending ? "Saving…" : "Save flag rules"}</Button>

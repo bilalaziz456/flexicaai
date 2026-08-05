@@ -83,8 +83,8 @@ export const ADMIN_SUBROLE_PRESETS: Record<AssignableSubRole, string[]> = {
 
 /** Human labels + one-line descriptions for the sub-roles (UI). */
 export const ADMIN_SUBROLE_META: Record<AdminSubRole, { label: string; desc: string }> = {
-  owner: { label: "Owner", desc: "The account owner — full access; only the owner manages the owner." },
-  super_admin: { label: "Super admin", desc: "Full access — clinics, billing, announcements and the team (can't touch the owner)." },
+  owner: { label: "Owner", desc: "The account owner. Full access, and only the owner manages the owner." },
+  super_admin: { label: "Super admin", desc: "Full access. Clinics, billing, announcements and the team (can't touch the owner)." },
   support: { label: "Support", desc: "Manage clinics, impersonate, announcements, metrics + overdue." },
   sales: { label: "Sales", desc: "Add & manage clinics, metrics + which clinics are overdue." },
   billing: { label: "Billing", desc: "Record clinic payments, issue/void subscription invoices, view metrics + overdue." },

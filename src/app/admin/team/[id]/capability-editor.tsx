@@ -69,7 +69,7 @@ export function CapabilityEditor({
 
       {isSelf ? (
         <p className="text-xs text-muted-foreground">
-          This is your own account — you can&apos;t reduce your own access.
+          This is your own account. You can&apos;t reduce your own access.
         </p>
       ) : null}
 

@@ -19,14 +19,14 @@ export const IMPORT_TEMPLATES: Record<ImportEntity, { columns: string[]; sample:
   },
   visits: {
     columns: ["external_ref", "patient_name", "phone", "visit_date", "doctor", "diagnosis", "treatment", "note"],
-    sample: ["OLD-1001", "Ayesha Khan", "03001234567", "2024-03-15", "Dr Bilal", "Caries 26", "Composite filling on 26", "Advised soft diet; review in 2 weeks"],
-    note: "Identify the patient by external_ref (old number), phone, OR exact name. visit_date is optional (defaults to today). doctor is matched to staff by name if it exists. The note text is diagnosis + treatment + note combined; at least one is required.",
+    sample: ["OLD-1001", "Ayesha Khan", "03001234567", "2024-03-15", "Dr Bilal", "Caries 26", "Composite filling on 26", "Advised soft diet, review in 2 weeks"],
+    note: "Identify the patient by external_ref (old number), phone, OR exact name. visit_date is optional (defaults to today). doctor is matched to staff by name if it exists. The note text is diagnosis + treatment + note combined, and at least one is required.",
   },
   // ── Financial-history archive ──
   fin_invoice: {
     columns: ["invoice_no", "invoice_date", "external_ref", "patient_name", "phone", "amount", "gross", "discount", "doctor", "description"],
     sample: ["1001", "2024-03-15", "OLD-1001", "Ayesha Khan", "03001234567", "4500", "5000", "500", "Dr Bilal", "Scaling + 1 filling"],
-    note: "Old bills. Identify the patient by external_ref / phone / name (unmatched → archived unlinked). amount = NET billed (PKR); if you give gross + discount instead, net is computed. Read-only history — never enters live reports.",
+    note: "Old bills. Identify the patient by external_ref / phone / name (unmatched → archived unlinked). amount = NET billed (PKR); if you give gross + discount instead, net is computed. Read-only history. Never enters live reports.",
   },
   fin_payment: {
     columns: ["receipt_no", "payment_date", "external_ref", "patient_name", "phone", "amount", "method", "invoice_no", "note"],

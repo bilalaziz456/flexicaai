@@ -82,7 +82,7 @@ export default async function ClinicSalesPage({
         <div>
           <h1 className="text-xl font-semibold">Sales</h1>
           <p className="text-sm text-muted-foreground">
-            Revenue <strong>collected</strong> from completed visits — consultation +
+            Revenue <strong>collected</strong> from completed visits. Consultation +
             procedures, after discounts. A visit appears here once it&apos;s paid; what
             patients still owe is in{" "}
             <Link href="/clinic/appointments?status=completed&payment=unpaid" className="underline underline-offset-4">

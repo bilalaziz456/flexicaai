@@ -33,11 +33,11 @@ export function passwordResetEmail(args: {
   const subject = "Reset your FlexicaAI password";
   const html = shell(
     `<p style="margin:0 0 12px">Hi ${escapeHtml(name)},</p>
-     <p style="margin:0 0 16px">We received a request to reset your FlexicaAI password. Click below to set a new one — this link expires in <strong>${expiresMins} minutes</strong>.</p>
+     <p style="margin:0 0 16px">We received a request to reset your FlexicaAI password. Click below to set a new one. This link expires in <strong>${expiresMins} minutes</strong>.</p>
      <p style="margin:0 0 20px">${button(link, "Reset password")}</p>
      <p style="margin:0 0 8px;color:#64748b;font-size:13px">Or paste this link into your browser:</p>
      <p style="margin:0 0 16px;word-break:break-all;font-size:13px"><a href="${link}" style="color:${BRAND}">${link}</a></p>
-     <p style="margin:0;color:#64748b;font-size:13px">If you didn't request this, you can safely ignore this email — your password won't change.</p>`,
+     <p style="margin:0;color:#64748b;font-size:13px">If you didn't request this, you can safely ignore this email. Your password won't change.</p>`,
   );
   const text = `Hi ${name},
 
@@ -45,9 +45,9 @@ We received a request to reset your FlexicaAI password. Use the link below withi
 
 ${link}
 
-If you didn't request this, you can ignore this email — your password won't change.
+If you didn't request this, you can ignore this email. Your password won't change.
 
-— FlexicaAI`;
+FlexicaAI`;
   return { subject, html, text };
 }
 

@@ -23,11 +23,11 @@ export function PaymentNoticePill({ status }: { status: "due" | "overdue" }) {
       <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
       {overdue ? (
         <span>
-          <span className="font-semibold">Payment overdue</span> — access may be suspended soon.
+          <span className="font-semibold">Payment overdue</span>: access may be suspended soon.
         </span>
       ) : (
         <span>
-          <span className="font-semibold">Payment due</span> — please settle your subscription to
+          <span className="font-semibold">Payment due</span>: please settle your subscription to
           avoid interruption.
         </span>
       )}

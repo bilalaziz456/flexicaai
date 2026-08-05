@@ -151,7 +151,7 @@ export default async function CompanyPnlPage({
       <Card>
         <CardHeader>
           <CardTitle>Margin by clinic</CardTitle>
-          <CardDescription>Collected revenue − serving cost, lowest first — spot a clinic that costs more than it pays.</CardDescription>
+          <CardDescription>Collected revenue − serving cost, lowest first. Spot a clinic that costs more than it pays.</CardDescription>
         </CardHeader>
         <CardContent>
           {pnl.perClinic.length === 0 ? (

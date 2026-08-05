@@ -168,7 +168,7 @@ export default async function StaffDetailPage({
           <CardHeader>
             <CardTitle>Details</CardTitle>
             <CardDescription>
-              Read-only — ask a clinic admin to make changes.
+              Read-only: ask a clinic admin to make changes.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -210,7 +210,7 @@ export default async function StaffDetailPage({
             </CardTitle>
             <CardDescription>
               {member.role === "doctor"
-                ? "Name, login, working hours, daily cap and fee — saved together."
+                ? "Name, login, working hours, daily cap and fee. Saved together."
                 : "Edit the name and login username."}
             </CardDescription>
           </CardHeader>
@@ -284,7 +284,7 @@ export default async function StaffDetailPage({
           </CardTitle>
           <CardDescription>
             What this {member.role} can do. Tick View / Create / Edit / Delete per
-            module — View is required for the others. Starts from the role&apos;s
+            module. View is required for the others. Starts from the role&apos;s
             defaults until you change it.
           </CardDescription>
         </CardHeader>
@@ -316,7 +316,7 @@ export default async function StaffDetailPage({
           <CardDescription>
             {member.isActive
               ? "Suspend to block sign-in and end active sessions immediately."
-              : "This account is suspended — reactivate to restore access."}
+              : "This account is suspended. Reactivate to restore access."}
           </CardDescription>
         </CardHeader>
         <CardContent>

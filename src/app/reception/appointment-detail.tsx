@@ -303,7 +303,7 @@ export async function AppointmentDetail({
               {discountBlocked && appt.discountValue > 0 ? (
                 <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
                   {appt.discountStatus === "rejected"
-                    ? "A discount was entered but was rejected — it is not applied. Edit the appointment to re-submit."
+                    ? "A discount was entered but was rejected. It is not applied. Edit the appointment to re-submit."
                     : "A discount is awaiting approval and is not applied yet. It will apply once approved."}
                 </div>
               ) : null}
@@ -363,7 +363,7 @@ export async function AppointmentDetail({
           <CardHeader>
             <CardTitle>Doctor share</CardTitle>
             <CardDescription>
-              Waive a doctor&apos;s share for a line — it comes off their revenue-share earnings.
+              Waive a doctor&apos;s share for a line. It comes off their revenue-share earnings.
             </CardDescription>
           </CardHeader>
           <CardContent>

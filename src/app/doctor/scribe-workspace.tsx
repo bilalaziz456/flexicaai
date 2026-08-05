@@ -158,7 +158,7 @@ export function ScribeWorkspace({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Review draft — {patient?.fullName}</CardTitle>
+          <CardTitle>Review draft: {patient?.fullName}</CardTitle>
           <CardDescription>
             AI-generated draft. Edit anything, then approve to save. Nothing is
             saved to the record until you approve.
@@ -167,7 +167,7 @@ export function ScribeWorkspace({
         <CardContent className="space-y-4">
           {draft.allergyWarnings && draft.allergyWarnings.length > 0 && (
             <div className="rounded-md border border-red-500/60 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
-              <p className="font-semibold">⚠ Allergy conflict — review before prescribing:</p>
+              <p className="font-semibold">⚠ Allergy conflict. Review before prescribing:</p>
               <ul className="mt-1 list-inside list-disc">
                 {draft.allergyWarnings.map((w, i) => (
                   <li key={i}>{w}</li>
@@ -178,7 +178,7 @@ export function ScribeWorkspace({
 
           {draft.drugWarnings.length > 0 && (
             <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
-              <p className="font-medium">Check these drugs — not in the formulary:</p>
+              <p className="font-medium">These drugs are not in the formulary:</p>
               <p className="text-muted-foreground">{draft.drugWarnings.join(", ")}</p>
             </div>
           )}
@@ -196,7 +196,7 @@ export function ScribeWorkspace({
             <div className="space-y-2 rounded-lg border p-3">
               <p className="text-sm font-medium">Tooth chart</p>
               <p className="text-xs text-muted-foreground">
-                Pre-filled from the note. Adjust any tooth — it saves with the visit and
+                Pre-filled from the note. Adjust any tooth. It saves with the visit and
                 updates the patient&apos;s odontogram on approval.
               </p>
               <clinicalUi.VisitEditor value={chart} onChange={setChart} />

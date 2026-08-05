@@ -83,7 +83,7 @@ export function SettlementForm({
         </div>
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground" htmlFor="st-amount">
-            Amount (Rs) — up to {money.format(max)}
+            Amount (Rs): up to {money.format(max)}
           </label>
           <input
             id="st-amount"

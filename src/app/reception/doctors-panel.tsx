@@ -97,7 +97,7 @@ export async function DoctorsPanel({
         </h1>
         <p className="text-sm text-muted-foreground">
           {selfDoctorId
-            ? "Add your leave / vacation days — appointments in the range are cancelled and no new bookings are allowed."
+            ? "Add your leave / vacation days. Appointments in the range are cancelled and no new bookings are allowed."
             : "Set daily appointment limits and leave / vacation days."}
         </p>
       </div>

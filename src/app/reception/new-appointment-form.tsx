@@ -378,7 +378,7 @@ export function NewAppointmentForm({
           <Label>{freeTime ? "Time" : "Available times"}</Label>
           {onLeaveBlock ? (
             <p className="text-sm text-destructive">
-              Doctor is on leave that day — pick another date.
+              Doctor is on leave that day. Pick another date.
             </p>
           ) : freeTime ? (
             <TimeSelect
@@ -394,7 +394,7 @@ export function NewAppointmentForm({
             <p className="text-sm text-muted-foreground">Loading times…</p>
           ) : !slots.available ? (
             <p className="text-sm text-destructive">
-              Doctor doesn&apos;t work that day — pick another date.
+              Doctor doesn&apos;t work that day. Pick another date.
             </p>
           ) : windows.length === 0 ? (
             <p className="text-sm text-destructive">No available times that day.</p>
@@ -479,7 +479,7 @@ export function NewAppointmentForm({
               </>
             ) : (
               <p className="text-xs text-muted-foreground">
-                This doctor has no consultation fee set — add it under Staff.
+                This doctor has no consultation fee set. Add it under Staff.
               </p>
             )}
           </div>
@@ -491,7 +491,7 @@ export function NewAppointmentForm({
           <div className="space-y-2 sm:col-span-2 rounded-lg border border-primary/40 bg-accent/30 p-3">
             <Label>From treatment plan</Label>
             <p className="text-xs text-muted-foreground">
-              Tick items to schedule onto this visit — they bill like procedures.
+              Tick items to schedule onto this visit. They bill like procedures.
             </p>
             {[...planItemSel].map((id) => (
               <input key={id} type="hidden" name="planItemId" value={id} />
@@ -780,7 +780,7 @@ export function NewAppointmentForm({
       {slots && slots.available ? (
         <p className="text-xs text-muted-foreground">
           {slots.flexible
-            ? "Flexible — book any time."
+            ? "Flexible: book any time."
             : slots.windows.length
               ? `Working hours ${slots.windows.map((w) => `${w.start}–${w.end}`).join(", ")}.`
               : ""}

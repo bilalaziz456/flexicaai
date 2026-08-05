@@ -97,10 +97,10 @@ export function FollowupModal({
               <div
                 role="dialog"
                 aria-modal="true"
-                aria-label={`Follow up — ${clinicName}`}
+                aria-label={`Follow up: ${clinicName}`}
                 className="relative w-full max-w-sm rounded-xl border bg-card p-5 shadow-xl"
               >
-                <h2 className="text-base font-semibold break-words">Follow up — {clinicName}</h2>
+                <h2 className="text-base font-semibold break-words">Follow up: {clinicName}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">{description}</p>
 
                 <div className="mt-4 space-y-3">

@@ -105,7 +105,7 @@ export async function sendWhatsAppTemplate(
 async function sendViaAisensy(args: SendTemplateArgs): Promise<SendResult> {
   if (!serverEnv.AISENSY_API_KEY) {
     throw new WhatsAppNotConfiguredError(
-      "AISENSY_API_KEY is not set — WhatsApp sending is disabled.",
+      "AISENSY_API_KEY is not set. WhatsApp sending is disabled.",
     );
   }
 

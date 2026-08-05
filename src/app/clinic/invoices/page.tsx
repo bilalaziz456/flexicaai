@@ -69,7 +69,7 @@ export default async function InvoicesPage({
         <div>
           <h1 className="text-xl font-semibold">Invoices</h1>
           <p className="text-sm text-muted-foreground">
-            The numbered invoice register — search by invoice #, patient name, phone, MRN or patient
+            The numbered invoice register. Search by invoice #, patient name, phone, MRN or patient
             number, and reprint any invoice.
           </p>
         </div>

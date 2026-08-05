@@ -168,7 +168,7 @@ export default async function OverviewPage({
           <CardHeader>
             <CardTitle className="text-base">Cash that moved</CardTitle>
             <CardDescription>
-              Money in/out by method (payment date) — separate from realised revenue.{" "}
+              Money in/out by method (payment date). Separate from realised revenue.{" "}
               <Link href="/clinic/reports/daybook" className="underline underline-offset-4">Day book</Link>
             </CardDescription>
           </CardHeader>

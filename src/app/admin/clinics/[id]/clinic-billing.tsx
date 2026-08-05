@@ -211,7 +211,7 @@ export function ClinicBilling({
             <div className="text-sm font-medium">Show payment-due notice to clinic staff</div>
             <p className="mt-0.5 text-xs text-muted-foreground">
               When on, every user in this clinic sees a due/overdue reminder in their workspace.
-              Turn it off to stop reminding (e.g. a clinic on a payment plan) — this does not affect
+              Turn it off to stop reminding (e.g. a clinic on a payment plan). This does not affect
               the dues dashboard or the hard past-due lock.
             </p>
             {noticeErr ? <p className="mt-1 text-xs text-destructive" role="alert">{noticeErr}</p> : null}
@@ -282,14 +282,14 @@ export function ClinicBilling({
         <div className="flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
           <span className="font-medium">Follow up {fmtDate(commitmentAt)}</span>
           <span className="text-muted-foreground">
-            — {rs(balance.owed)} promised{commitmentNote ? ` · ${commitmentNote}` : ""}
+           · {rs(balance.owed)} promised{commitmentNote ? ` · ${commitmentNote}` : ""}
           </span>
         </div>
       ) : null}
 
       {!canManage ? (
         <p className="text-xs text-muted-foreground">
-          Read-only — you can see billing status but not change price or record payments.
+          Read-only: you can see billing status but not change price or record payments.
         </p>
       ) : null}
 
@@ -340,10 +340,10 @@ export function ClinicBilling({
             <Input id="amount" name="amount" type="number" min={1} required />
             <p className="text-[11px] text-muted-foreground">
               {isPayment
-                ? "Partial ok — any remaining balance carries forward."
+                ? "Partial ok: any remaining balance carries forward."
                 : kind === "refund"
-                  ? "Money returned to the clinic — reduces their balance & our revenue."
-                  : "Non-cash credit — reduces their balance without cash."}
+                  ? "Money returned to the clinic. Reduces their balance & our revenue."
+                  : "Non-cash credit: reduces their balance without cash."}
             </p>
           </div>
           <div className="space-y-2">
@@ -376,7 +376,7 @@ export function ClinicBilling({
               <Label htmlFor="commitmentAt">Follow-up date (if balance remains)</Label>
               <Input id="commitmentAt" name="commitmentAt" type="date" />
               <p className="text-[11px] text-muted-foreground">
-                When they promised to pay the rest — cleared once settled.
+                When they promised to pay the rest. Cleared once settled.
               </p>
             </div>
             <div className="space-y-2">

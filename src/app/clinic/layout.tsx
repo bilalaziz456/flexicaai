@@ -60,7 +60,7 @@ export default async function ClinicLayout({
         <span className="flex items-center gap-2">
           <ShieldAlert className="size-4 shrink-0" aria-hidden="true" />
           Viewing <span className="font-semibold">{user.impersonation.clinicName}</span> as
-          support — read-only.
+          support: read-only.
         </span>
         <form action={endImpersonation}>
           <button
@@ -104,7 +104,7 @@ export default async function ClinicLayout({
       >
         <Megaphone className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
         <span>
-          <span className="font-semibold">{a.title}</span> — {a.body}
+          <span className="font-semibold">{a.title}</span>: {a.body}
         </span>
       </div>,
     );

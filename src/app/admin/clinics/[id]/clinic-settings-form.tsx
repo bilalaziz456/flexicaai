@@ -142,7 +142,7 @@ export function ClinicSettingsForm({
           <p className="text-sm font-medium">Trash retention</p>
           <p className="text-xs text-muted-foreground">
             How many days a deleted record stays in this clinic&apos;s Trash before
-            it drops out of their view. It is never removed from the database — only
+            it drops out of their view. It is never removed from the database. Only
             you (super admin) can see it after this window or purge it.
           </p>
         </div>

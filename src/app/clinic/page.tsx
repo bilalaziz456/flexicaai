@@ -362,7 +362,7 @@ export default async function ClinicDashboard() {
                     </CardHeader>
                     {hasSpark ? (
                       <CardContent className="pt-0">
-                        <Sparkline values={k.trend!} color={k.trendColor} ariaLabel={`${k.title} — last 30 days`} />
+                        <Sparkline values={k.trend!} color={k.trendColor} ariaLabel={`${k.title}. Last 30 days`} />
                       </CardContent>
                     ) : null}
                   </Card>
@@ -433,7 +433,7 @@ export default async function ClinicDashboard() {
           <CardHeader>
             <CardTitle>My leave</CardTitle>
             <CardDescription>
-              Add your leave / vacation days — appointments in the range are
+              Add your leave / vacation days. Appointments in the range are
               cancelled and no new bookings are allowed.
             </CardDescription>
           </CardHeader>

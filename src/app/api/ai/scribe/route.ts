@@ -134,7 +134,7 @@ export async function POST(request: Request) {
       .filter((drug): drug is string => typeof drug === "string")
       .flatMap((drug) => {
         const hits = allergyConflicts(allergies, drug);
-        return hits.length ? [`${drug} — allergy: ${hits.join(", ")}`] : [];
+        return hits.length ? [`${drug}. Allergy: ${hits.join(", ")}`] : [];
       });
 
     const [visit] = await db

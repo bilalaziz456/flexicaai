@@ -109,7 +109,7 @@ export function AddStaffForm({ resources }: { resources: PermResource[] }) {
       <div className="space-y-2">
         <Label>Permissions</Label>
         <p className="text-xs text-muted-foreground">
-          Starts from the {role} defaults — tick View / Create / Edit / Delete to
+          Starts from the {role} defaults. Tick View / Create / Edit / Delete to
           adjust. View is required for the others.
         </p>
         <PermissionMatrix resources={resources} granted={granted} onChange={setGranted} />

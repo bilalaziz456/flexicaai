@@ -28,7 +28,7 @@ export function ClinicLogoForm({ clinicId, logo }: { clinicId: string; logo: str
   function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file && file.size > MAX_LOGO_BYTES) {
-      setFileError("Logo is too large — please use an image under 1 MB.");
+      setFileError("Logo is too large. Please use an image under 1 MB.");
       setPreview(null);
       setHasFile(false);
       e.target.value = ""; // clear so it can't be submitted
@@ -42,7 +42,7 @@ export function ClinicLogoForm({ clinicId, logo }: { clinicId: string; logo: str
   return (
     <form action={action} className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Printed at the top of invoices &amp; receipts, as uploaded — a thermal / black-and-white
+        Printed at the top of invoices &amp; receipts, as uploaded. A thermal / black-and-white
         printer renders it in B&amp;W automatically. For the cleanest B&amp;W result, upload a
         <span className="font-medium"> black (or transparent) PNG</span>. Under 1 MB. No logo = nothing printed.
       </p>

@@ -64,7 +64,7 @@ export async function sendInvoiceWhatsApp(
   const paid = formatPkr(bill.collected);
   const outstanding = formatPkr(bill.outstanding);
   const body =
-    `Invoice ${ref} — Total ${total}, Paid ${paid}, Outstanding ${outstanding}.\n${row.clinicName}`;
+    `Invoice ${ref}: Total ${total}, Paid ${paid}, Outstanding ${outstanding}.\n${row.clinicName}`;
 
   const result = await sendWhatsAppToPatient({
     clinicId,

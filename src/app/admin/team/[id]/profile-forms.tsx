@@ -60,7 +60,7 @@ export function PasswordResetForm({ userId }: { userId: string }) {
   );
   return (
     <form action={action} className="space-y-3">
-      {state.saved ? <Toast message="Password reset — they must set a new one on next login." /> : null}
+      {state.saved ? <Toast message="Password reset. They must set a new one on next login." /> : null}
       <div className="max-w-sm space-y-2">
         <Label htmlFor="password">New temporary password</Label>
         <PasswordInput id="password" name="password" autoComplete="new-password" required />
@@ -104,7 +104,7 @@ export function DangerActions({
           triggerVariant="outline"
           triggerDisabled={pending}
           title="Suspend team member"
-          description="They won't be able to log in. Their clinics stay assigned to them — you can reactivate them anytime."
+          description="They won't be able to log in. Their clinics stay assigned to them. You can reactivate them anytime."
           confirmLabel="Suspend"
           onConfirm={() => suspendMemberAction(userId)}
         />

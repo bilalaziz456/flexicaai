@@ -95,7 +95,7 @@ export default async function CompanyExpensesPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Company finance — operating expenses</h1>
+        <h1 className="text-xl font-semibold">Company finance: operating expenses</h1>
         <p className="text-sm text-muted-foreground">
           FlexicaAI&apos;s own costs (payroll, rent, software, marketing…). Feeds the company P&amp;L.
         </p>
@@ -149,7 +149,7 @@ export default async function CompanyExpensesPage({
         <Card>
           <CardHeader>
             <CardTitle>Recurring expenses ({recurring.length})</CardTitle>
-            <CardDescription>Ongoing costs — always shown regardless of the period. The cron materialises each into a dated expense per interval; edit or stop one here.</CardDescription>
+            <CardDescription>Ongoing costs: always shown regardless of the period. The cron materialises each into a dated expense per interval; edit or stop one here.</CardDescription>
           </CardHeader>
           <CardContent>
             <RecurringExpensesManager templates={recurring} categories={activeCategories} canEdit={canEdit} canDelete={canDelete} />
@@ -162,7 +162,7 @@ export default async function CompanyExpensesPage({
         <Card>
           <CardHeader>
             <CardTitle>Record an expense</CardTitle>
-            <CardDescription>Mark a repeating cost as recurring — the cron materialises it each period.</CardDescription>
+            <CardDescription>Mark a repeating cost as recurring. The cron materialises it each period.</CardDescription>
           </CardHeader>
           <CardContent>
             <AddCompanyExpenseForm categories={activeCategories} />

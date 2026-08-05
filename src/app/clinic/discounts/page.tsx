@@ -76,7 +76,7 @@ export default async function DiscountsPage({
         <div>
           <h1 className="text-xl font-semibold">Discounts</h1>
           <p className="text-sm text-muted-foreground">
-            Every discount given — who got it, who bears it, and whether it&apos;s applied.
+            Every discount given: who got it, who bears it, and whether it&apos;s applied.
           </p>
         </div>
         {report.rows.length > 0 ? (

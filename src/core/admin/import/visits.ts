@@ -88,7 +88,7 @@ function validateRow(row: ImportRow, lk: Lookups): RowResult<VisitInput> {
     const matches = lk.byName.get(name.trim().toLowerCase());
     if (matches && matches.length === 1) patientId = matches[0];
     else if (matches && matches.length > 1)
-      return { kind: "error", reason: `Ambiguous patient name "${name}" (${matches.length} matches) — add a phone or ID column` };
+      return { kind: "error", reason: `Ambiguous patient name "${name}" (${matches.length} matches). Add a phone or ID column` };
   }
   if (!patientId) return { kind: "error", reason: `Patient not found (${ext || rawPhone || name || "no identifier"})` };
 
@@ -110,7 +110,7 @@ function validateRow(row: ImportRow, lk: Lookups): RowResult<VisitInput> {
   if (d) visitDate = new Date(`${d}T12:00:00`);
   else {
     visitDate = new Date();
-    warnings.push(rawDate ? `Unrecognised date "${rawDate}" — using today` : "No visit date — using today");
+    warnings.push(rawDate ? `Unrecognised date "${rawDate}", using today` : "No visit date, using today");
   }
 
   // --- Doctor (optional; matched by name, else kept as text) ---

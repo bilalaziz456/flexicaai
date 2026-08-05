@@ -81,7 +81,7 @@ export default async function ProfitLossPage({
         <div>
           <h1 className="text-xl font-semibold">Profit &amp; Loss</h1>
           <p className="text-sm text-muted-foreground">
-            What the clinic kept after doctor shares and expenses — on collected revenue.
+            What the clinic kept after doctor shares and expenses. On collected revenue.
           </p>
         </div>
         <a
@@ -116,7 +116,7 @@ export default async function ProfitLossPage({
       {outstanding > 0 ? (
         <p className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">
           Memo: <span className="font-medium text-foreground">{money.format(outstanding)}</span>{" "}
-          outstanding from patients is <strong>not</strong> in this profit — it counts only
+          outstanding from patients is <strong>not</strong> in this profit. It counts only
           when collected.{" "}
           <Link href="/clinic/receivables" className="underline underline-offset-4">
             View receivables

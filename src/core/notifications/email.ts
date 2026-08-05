@@ -41,7 +41,7 @@ export async function sendEmail(args: {
   const t = getTransport();
   if (!t) {
     // Graceful no-send: the flow still works (token issued etc.), only delivery waits.
-    console.warn(`[email] not configured — skipped "${args.subject}" → ${args.to}`);
+    console.warn(`[email] not configured. Skipped "${args.subject}" → ${args.to}`);
     return { ok: false, error: "Email is not configured." };
   }
   try {

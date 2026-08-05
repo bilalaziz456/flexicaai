@@ -241,7 +241,7 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
                   <span className="font-semibold tabular-nums">{money.format(t.amount)}</span>
                 </div>
               ))}
-              <span className="text-xs text-muted-foreground">Totals of the rows that will import — check them against your old system.</span>
+              <span className="text-xs text-muted-foreground">Totals of the rows that will import. Check them against your old system.</span>
             </div>
           ) : null}
 
@@ -252,7 +252,7 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
               <span>
                 <span className="font-medium">Set each patient&apos;s outstanding balance from this history</span>
                 <span className="block text-xs text-muted-foreground">
-                  After importing, each patient&apos;s dues become their imported invoices minus payments. Import invoices first. Replaces any balance from the patient sheet — leave off to keep that.
+                  After importing, each patient&apos;s dues become their imported invoices minus payments. Import invoices first. Replaces any balance from the patient sheet. Leave off to keep that.
                 </span>
               </span>
             </label>

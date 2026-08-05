@@ -50,7 +50,7 @@ function ToothCell({
       type="button"
       onClick={onClick}
       disabled={!onClick}
-      aria-label={`Tooth ${n}${status ? ` — ${statusLabel(status)}` : ""}`}
+      aria-label={`Tooth ${n}${status ? `: ${statusLabel(status)}` : ""}`}
       title={status ? `${n}: ${statusLabel(status)}${tooth?.surfaces?.length ? ` (${tooth.surfaces.join("")})` : ""}` : n}
       className={cn(
         "flex w-8 shrink-0 flex-col items-center rounded-md border py-1 text-[10px] leading-tight transition-colors",
@@ -224,7 +224,7 @@ function Legend({ teeth }: { teeth: ChartTeeth }) {
   const present = new Set(Object.values(teeth).map((t) => t.status));
   const items = TOOTH_STATUSES.filter((s) => present.has(s.value));
   if (items.length === 0) {
-    return <p className="text-xs text-muted-foreground">No conditions charted — all teeth sound.</p>;
+    return <p className="text-xs text-muted-foreground">No conditions charted. All teeth sound.</p>;
   }
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">

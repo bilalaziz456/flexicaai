@@ -90,7 +90,7 @@ export function CreateClinicForm({
                 // Block an oversized logo before submit (else the whole create request
                 // trips Next's 1 MB body limit and crashes).
                 if (file && file.size > MAX_LOGO_BYTES) {
-                  setLogoError("Logo is too large — please use an image under 1 MB.");
+                  setLogoError("Logo is too large. Please use an image under 1 MB.");
                   e.target.value = "";
                 } else {
                   setLogoError(null);

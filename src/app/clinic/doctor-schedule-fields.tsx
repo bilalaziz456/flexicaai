@@ -114,7 +114,7 @@ export function DoctorScheduleFields({
         <div className="space-y-0.5">
           <div className="text-sm font-medium">Flexible hours</div>
           <p className="text-xs text-muted-foreground">
-            Book at any time — the working hours below are not enforced. Leave off
+            Book at any time. The working hours below are not enforced. Leave off
             to only allow appointments during the doctor&apos;s visiting hours.
           </p>
         </div>

@@ -33,7 +33,7 @@ export const SPECIALTY_CATALOG: SpecialtyCatalogEntry[] = [
   {
     id: "dental",
     name: "Dental",
-    description: "Dentistry — scribe, tooth chart, dental recalls.",
+    description: "Dentistry: scribe, tooth chart, dental recalls.",
     status: "available",
   },
   {

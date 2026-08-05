@@ -253,7 +253,7 @@ export function CompanyExpenseRowActions({ id, deleted }: { id: string; deleted:
           triggerVariant="ghost"
           triggerClassName="h-auto gap-1 px-0 text-xs text-muted-foreground hover:bg-transparent hover:text-destructive"
           title="Delete expense"
-          description="This moves the expense to Trash — you can restore it. A recurring template will also stop generating new copies."
+          description="This moves the expense to Trash. You can restore it. A recurring template will also stop generating new copies."
           confirmLabel="Delete expense"
           confirmVariant="destructive"
           onConfirm={() => deleteCompanyExpenseAction(id)}

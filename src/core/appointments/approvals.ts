@@ -121,7 +121,7 @@ export async function syncDiscountApprovals(
     const payload = {
       type: "discount.approval_needed",
       title: "Discount needs approval",
-      body: prev?.patientName ? `${prev.patientName} — review the discount.` : "Review a discount.",
+      body: prev?.patientName ? `${prev.patientName}. Review the discount.` : "Review a discount.",
       entity: "appointment",
       entityId: appointmentId,
       link: "/clinic/approvals",

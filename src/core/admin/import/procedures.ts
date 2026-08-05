@@ -19,7 +19,7 @@ function validateRow(row: ImportRow): RowResult<ProcInput> {
   if (rawPrice) {
     const n = parseAmount(rawPrice);
     if (n != null && n >= 0) price = n;
-    else warnings.push(`Unrecognised price "${rawPrice}" — treated as 0`);
+    else warnings.push(`Unrecognised price "${rawPrice}", treated as 0`);
   }
 
   const activeRaw = pick(row, "is_active", "active", "status").toLowerCase();

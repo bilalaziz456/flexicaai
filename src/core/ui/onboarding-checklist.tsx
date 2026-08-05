@@ -27,7 +27,7 @@ export function OnboardingChecklist({ steps }: { steps: OnboardingStep[] }) {
       <CardHeader>
         <CardTitle className="text-base">Get your clinic set up</CardTitle>
         <CardDescription>
-          {doneCount} of {steps.length} done — a few steps to start seeing patients.
+          {doneCount} of {steps.length} done. A few steps to start seeing patients.
         </CardDescription>
         <div
           className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-primary/15"

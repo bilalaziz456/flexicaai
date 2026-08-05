@@ -68,9 +68,9 @@ function validateRow(entity: ImportEntity, row: ImportRow): RowResult<TxnInput> 
   let txnDate: string | null = null;
   if (rawDate) {
     txnDate = parseImportDate(rawDate);
-    if (!txnDate) warnings.push(`Unrecognised date "${rawDate}" — left blank`);
+    if (!txnDate) warnings.push(`Unrecognised date "${rawDate}", left blank`);
   } else {
-    warnings.push("No date — left blank");
+    warnings.push("No date, left blank");
   }
 
   // Amount (shared, required). Invoices may give gross+discount instead of net.
@@ -87,7 +87,7 @@ function validateRow(entity: ImportEntity, row: ImportRow): RowResult<TxnInput> 
   let effType = type;
   if (entity === "fin_payment" && amount < 0) {
     effType = "refund";
-    warnings.push("Negative amount — recorded as a refund");
+    warnings.push("Negative amount, recorded as a refund");
   }
   if (amount < 0) amount = Math.abs(amount);
   if (amount === 0) warnings.push("Amount is 0");
@@ -98,7 +98,7 @@ function validateRow(entity: ImportEntity, row: ImportRow): RowResult<TxnInput> 
   // dedicated vendor column; the original is still kept in `raw`).
   if (entity === "fin_expense") {
     const vendor = pick(row, "vendor", "payee", "supplier");
-    if (vendor) description = description ? `${description} — ${vendor}` : vendor;
+    if (vendor) description = description ? `${description}: ${vendor}` : vendor;
   }
 
   // Reference = their old document number, per entity.
@@ -224,7 +224,7 @@ async function analyze(
         else if (phone && byPhone.has(phone)) id = byPhone.get(phone);
         else if (nameKey && byName.has(nameKey) && !nameDup.has(nameKey)) id = byName.get(nameKey);
         if (id) d.patientId = id;
-        else res.warnings.push("Patient not found — archived unlinked");
+        else res.warnings.push("Patient not found, archived unlinked");
         if (nameKey && nameDup.has(nameKey) && !d.patientId) {
           // ambiguous name; keep unlinked (already warned)
         }
@@ -233,7 +233,7 @@ async function analyze(
       if (needsDoctor && d.doctorName) {
         const nk = normName(d.doctorName);
         if (docByName.has(nk) && !docDup.has(nk)) d.doctorId = docByName.get(nk)!;
-        else res.warnings.push(docDup.has(nk) ? "Two doctors share this name — archived unlinked" : "Doctor not found — archived unlinked");
+        else res.warnings.push(docDup.has(nk) ? "Two doctors share this name, archived unlinked" : "Doctor not found, archived unlinked");
       }
       // Dedup on the old document number (within file + against existing archive).
       if (dedupByRef && d.reference) {

@@ -142,7 +142,7 @@ export async function checkDoctorSlot(
     if (availability.length === 0) {
       return {
         ok: false,
-        reason: `${name} has no visiting hours set — please contact the clinic.`,
+        reason: `${name} has no visiting hours set. Please contact the clinic.`,
       };
     }
     if (!isDoctorAvailableAt(availability, when)) {

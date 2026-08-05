@@ -80,7 +80,7 @@ export function CostRatesForm({
       <Toast message={state.saved ? "Cost rates saved." : null} token={state.savedAt} />
 
       <div className="space-y-3">
-        <div className="text-sm font-medium">Metered rates (accurate — used when a scribe call logs real usage)</div>
+        <div className="text-sm font-medium">Metered rates (accurate: used when a scribe call logs real usage)</div>
         <div className="grid gap-4 sm:grid-cols-3">
           {numField("whisperMinuteCost", "Whisper (USD / audio min)", "OpenAI transcription per minute.", whisper, setWhisper)}
           {numField("claudeInputCost", "Claude input (USD / 1M tokens)", "e.g. 3 for Sonnet.", claudeIn, setClaudeIn, "0.0001")}
@@ -131,7 +131,7 @@ export function CostRatesForm({
           <>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {numField("foreignTxnFeePct", "Foreign txn fee (%)", "Bank's fee on the payment (~3%).", fee, setFee, "0.01")}
-              {numField("fedPct", "FED (%)", "16% — charged on the FEE, not the payment.", fed, setFed, "0.01")}
+              {numField("fedPct", "FED (%)", "16%, charged on the FEE, not the payment.", fed, setFed, "0.01")}
               {numField("advanceTaxPct", "Advance tax (%)", "Filer ~5%; adjustable on your return.", adv, setAdv, "0.01")}
               {numField("additionalTaxPct", "Additional (%)", "Any other charge.", extra, setExtra, "0.01")}
             </div>

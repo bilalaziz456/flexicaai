@@ -49,7 +49,7 @@ export async function notifyInboundWhatsApp(args: {
     await notifyUsersWithPermission(clinicId, "appointments", "edit", {
       type: "appointment.request",
       title: "New booking request",
-      body: `${who} booked via WhatsApp — confirm the slot.`,
+      body: `${who} booked via WhatsApp. Confirm the slot.`,
       entity: "appointment",
       entityId: appointmentId ?? null,
       link: apptLink,

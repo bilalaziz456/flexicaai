@@ -29,7 +29,7 @@ let client: Anthropic | null = null;
 function getClient(): Anthropic {
   if (!serverEnv.ANTHROPIC_API_KEY) {
     throw new MissingApiKeyError(
-      "ANTHROPIC_API_KEY is not set — add it to .env.local to use the AI scribe.",
+      "ANTHROPIC_API_KEY is not set. Add it to .env.local to use the AI scribe.",
     );
   }
   client ??= new Anthropic({ apiKey: serverEnv.ANTHROPIC_API_KEY });

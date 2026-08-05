@@ -36,7 +36,7 @@ function BackupCodes({ codes, title }: { codes: string[]; title: string }) {
     <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-4">
       <p className="text-sm font-medium">{title}</p>
       <p className="mt-1 text-xs text-muted-foreground">
-        Save these now — each works once and they won&apos;t be shown again. Use one if you
+        Save these now: each works once and they won&apos;t be shown again. Use one if you
         lose access to your authenticator.
       </p>
       <ul className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 font-mono text-sm">

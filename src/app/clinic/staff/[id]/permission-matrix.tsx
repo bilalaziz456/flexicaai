@@ -89,7 +89,7 @@ export function PermissionMatrix({
                           type="button"
                           role="checkbox"
                           aria-checked={checked}
-                          aria-label={`${label} — ${r.label}`}
+                          aria-label={`${label}: ${r.label}`}
                           onClick={() => onChange(togglePermission(granted, r, a))}
                           className={cn(
                             "inline-flex size-5 items-center justify-center rounded border transition-colors",
