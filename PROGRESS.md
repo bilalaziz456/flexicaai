@@ -60,7 +60,7 @@ Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · **Dr
 - [x] `.env.example` + `.env.local` updated to `DATABASE_URL` + seed vars
 - [x] `drizzle.config.ts` + npm scripts (`db:generate/migrate/push/studio/seed`)
 - [x] Typecheck clean + production build passes
-- **Left for you:** set your Postgres password in `.env.local` `DATABASE_URL`, create the `klenic`
+- **Left for you:** set your Postgres password in `.env.local` `DATABASE_URL`, create the `flexicaai`
   database, then `npm run db:migrate` (see "How to run the DB" below).
 
 ### 2. Auth ✅  _(reworked to custom session auth 2026-07-06)_
@@ -234,7 +234,7 @@ requests) the failure points are known and must be addressed **before production
 
 1. In `.env.local`, set `DATABASE_URL` — replace `YOUR_PASSWORD` with your Postgres password.
 2. Create the database (once):
-   `psql -U postgres -c "CREATE DATABASE klenic;"`
+   `psql -U postgres -c "CREATE DATABASE flexicaai;"`
 3. Apply migrations: `npm run db:migrate`
 4. Seed the first super admin: `npm run db:seed` (set `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` first).
 5. `npm run dev`, open http://localhost:3000, log in with the seeded admin → lands on `/admin`.

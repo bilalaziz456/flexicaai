@@ -13,7 +13,7 @@ import { z } from "zod";
 
 const serverSchema = z.object({
   // Postgres connection string, e.g.
-  // postgres://postgres:password@localhost:5432/klenic
+  // postgres://postgres:password@localhost:5432/flexicaai
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   NODE_ENV: z
     .enum(["development", "test", "production"])

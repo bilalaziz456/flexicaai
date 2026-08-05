@@ -493,10 +493,14 @@ async function run() {
 
   console.log("\n== CSV EXPORTS (auth + text/csv + BOM + brand footer) ==");
   {
+    // Mirrors the default in core/lib/brand.ts rather than hardcoding a brand string.
+    // This assertion was left reading "www.klenic.com" after the rebrand, so it had
+    // been failing against every export it checks.
+    const brandSite = process.env.NEXT_PUBLIC_BRAND_WEBSITE?.trim() || "www.flexicaai.com";
     const okCsv = (r, header) =>
       r.status === 200 &&
       r.ct.includes("text/csv") &&
-      r.text.includes("Powered by www.klenic.com") &&
+      r.text.includes(`Powered by ${brandSite}`) &&
       r.text.includes(header);
 
     // Exports that need no billing feature (patients / staff / appointments).
