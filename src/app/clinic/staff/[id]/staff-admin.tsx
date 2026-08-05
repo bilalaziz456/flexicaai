@@ -283,7 +283,17 @@ export function DoctorSharesForm({
           {pending ? "Saving…" : "Save revenue share"}
         </Button>
       </div>
-      <Toast message="Revenue share saved." variant="success" token={savedNonce} />
+      {/* The message must be null until a save has actually happened. <Toast> fires
+          whenever `message` is non-empty and its (variant, token, message) key differs
+          from the last one pushed — and that key starts out null, so a CONSTANT string
+          here announced "Revenue share saved." the moment the page opened. `token`
+          alone does not gate it; it only lets an identical message fire a second time.
+          The error toast below already had this shape. */}
+      <Toast
+        message={state.saved ? "Revenue share saved." : null}
+        variant="success"
+        token={savedNonce}
+      />
       <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
