@@ -17,6 +17,28 @@ let nextId = 1;
 /** Cap so a burst of events can't fill the screen — oldest drops off. */
 const MAX_VISIBLE = 4;
 
+/**
+ * Collapse an identical message pushed again within this window.
+ *
+ * One user action can legitimately push the same text twice. The common shape is a
+ * `<Toast>` whose message comes straight off a `useActionState` result, paired with a
+ * nonce bumped in an effect on that same state:
+ *
+ *     useEffect(() => { if (state.error) setErrorNonce((n) => n + 1) }, [state])
+ *     <Toast message={state.error ?? null} token={errorNonce} />
+ *
+ * The message is already set on the commit BEFORE the nonce bump, so the wrapper's
+ * effect runs twice for one failed save — once with the old token, once with the new —
+ * and "That username is already in use." appeared twice. 27 call sites across 17 files
+ * share that shape, so the guard belongs here rather than in each of them.
+ *
+ * A window rather than a strict key: two distinct user actions producing the same text
+ * are seconds apart and still both show. This also absorbs React StrictMode's
+ * double-invoke in development.
+ */
+const DEDUPE_MS = 400;
+let recent: { key: string; at: number } | null = null;
+
 function emit() {
   for (const l of listeners) l();
 }
@@ -38,8 +60,18 @@ type ToastOptions = { variant?: ToastVariant; duration?: number };
 export function pushToast(message: string, opts?: ToastOptions): number {
   const text = (message ?? "").trim();
   if (!text) return 0;
-  const id = nextId++;
   const variant = opts?.variant ?? "success";
+
+  // Same text + variant again within the window: treat it as one event.
+  const key = `${variant}:${text}`;
+  const now = Date.now();
+  if (recent && recent.key === key && now - recent.at < DEDUPE_MS) {
+    recent = { key, at: now };
+    return 0;
+  }
+  recent = { key, at: now };
+
+  const id = nextId++;
   const duration = opts?.duration ?? (variant === "error" ? 6000 : 4000);
   items = [...items, { id, message: text, variant, duration }];
   if (items.length > MAX_VISIBLE) items = items.slice(items.length - MAX_VISIBLE);
