@@ -5,6 +5,7 @@ import { setClinicStatus, extendTrial } from "../../actions";
 import { ClinicStatusBadge } from "../status-badge";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
+import { PasswordInput } from "@/core/ui/password-input";
 import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
 
 /**
@@ -163,8 +164,7 @@ export function ClinicLifecycle({
           </label>
           <label className="text-sm">
             <span className="mb-1 block text-xs text-muted-foreground">Your password</span>
-            <Input
-              type="password"
+            <PasswordInput
               placeholder="Confirm with your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

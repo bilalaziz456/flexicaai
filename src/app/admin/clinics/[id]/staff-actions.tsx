@@ -10,6 +10,7 @@ import {
 } from "@/app/admin/actions";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
+import { PasswordInput } from "@/core/ui/password-input";
 import { Label } from "@/core/ui/label";
 
 /**
@@ -129,10 +130,10 @@ export function StaffActions({
           action={resetFormAction}
           className="flex items-center justify-end gap-2"
         >
-          <Input
+          <PasswordInput
             aria-label="New temporary password"
             name="password"
-            type="text"
+            defaultVisible
             placeholder="New temporary password"
             className="h-8 w-56"
             required

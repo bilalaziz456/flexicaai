@@ -12,6 +12,7 @@ import {
 import { Button } from "@/core/ui/button";
 import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
 import { Input } from "@/core/ui/input";
+import { PasswordInput } from "@/core/ui/password-input";
 import { Label } from "@/core/ui/label";
 import { Toast } from "@/core/ui/toast";
 import { DoctorScheduleFields } from "@/app/clinic/doctor-schedule-fields";
@@ -303,10 +304,10 @@ export function ResetPasswordForm({ userId }: { userId: string }) {
           <Label htmlFor="new-temp-password" className="text-xs">
             New temporary password
           </Label>
-          <Input
+          <PasswordInput
             id="new-temp-password"
             name="password"
-            type="text"
+            defaultVisible
             placeholder="At least 8 characters"
             className="w-64"
             required
