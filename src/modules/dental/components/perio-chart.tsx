@@ -30,8 +30,6 @@ const SITE_NAMES = [
 
 const MOB_FUR = ["0", "1", "2", "3"];
 
-const num = (v: unknown): number | null =>
-  typeof v === "number" && Number.isFinite(v) ? v : null;
 const arr6 = (a?: (number | null)[]): (number | null)[] => {
   const out = (a ?? []).slice(0, 6);
   while (out.length < 6) out.push(null);
@@ -152,30 +150,31 @@ function ToothRow({
 }
 
 /**
- * The periodontal chart — 6 sites per tooth (MB/B/DB buccal, ML/L/DL lingual):
- * pocket depths (mm), bleeding-on-probing dots, mobility + furcation (0–3).
- * Controlled by `value`; `onChange` makes it editable. Read-only shows only charted
- * teeth; the editor shows all permanent teeth.
+ * One arch's grid.
+ *
+ * Declared at module scope, NOT inside PerioChart. As a component defined during
+ * render it got a fresh identity on every render, so React unmounted and remounted
+ * the entire table each time `value` changed — which is once per keystroke. The
+ * effect was that typing a single digit into a pocket-depth cell destroyed the input
+ * and dropped focus to <body>, making a 192-field exam unchartable: you had to click
+ * the cell again after every character.
+ *
+ * `arch` names the table, since two identical grids sit on the page and "table with
+ * 9 columns" twice over is not navigable. `scope` + the row header on the tooth
+ * number let a screen reader announce a cell's column and tooth as you move.
  */
-export function PerioChart({
+function ArchTable({
+  teeth,
+  arch,
   value,
-  onChange,
+  onToothChange,
 }: {
+  teeth: string[];
+  arch: string;
   value: PerioTeeth;
-  onChange?: (next: PerioTeeth) => void;
+  onToothChange?: (n: string, patch: PerioTooth) => void;
 }) {
-  const readOnly = !onChange;
-  const stats = examStats(value);
-  const rows = readOnly ? ALL_PERMANENT.filter((n) => value[n]) : ALL_PERMANENT;
-
-  const setTooth = (n: string, patch: PerioTooth) => {
-    onChange?.({ ...value, [n]: patch });
-  };
-
-  // `arch` names the table, since two identical grids sit on the page and "table with
-  // 9 columns" twice over is not navigable. `scope` + the row header on the tooth
-  // number let a screen reader announce a cell's column and tooth as you move.
-  const Table = ({ teeth, arch }: { teeth: string[]; arch: string }) => (
+  return (
     <table className="w-full text-xs" aria-label={`${arch} arch periodontal chart`}>
       <thead>
         <tr className="border-b text-[10px] text-muted-foreground">
@@ -196,11 +195,38 @@ export function PerioChart({
       </thead>
       <tbody>
         {teeth.map((n) => (
-          <ToothRow key={n} n={n} tooth={value[n]} onChange={readOnly ? undefined : (patch) => setTooth(n, patch)} />
+          <ToothRow
+            key={n}
+            n={n}
+            tooth={value[n]}
+            onChange={onToothChange ? (patch) => onToothChange(n, patch) : undefined}
+          />
         ))}
       </tbody>
     </table>
   );
+}
+
+/**
+ * The periodontal chart — 6 sites per tooth (MB/B/DB buccal, ML/L/DL lingual):
+ * pocket depths (mm), bleeding-on-probing dots, mobility + furcation (0–3).
+ * Controlled by `value`; `onChange` makes it editable. Read-only shows only charted
+ * teeth; the editor shows all permanent teeth.
+ */
+export function PerioChart({
+  value,
+  onChange,
+}: {
+  value: PerioTeeth;
+  onChange?: (next: PerioTeeth) => void;
+}) {
+  const readOnly = !onChange;
+  const stats = examStats(value);
+  const rows = readOnly ? ALL_PERMANENT.filter((n) => value[n]) : ALL_PERMANENT;
+
+  const setTooth = (n: string, patch: PerioTooth) => {
+    onChange?.({ ...value, [n]: patch });
+  };
 
   return (
     <div className="space-y-3">
@@ -216,9 +242,19 @@ export function PerioChart({
       ) : (
         <div className="overflow-x-auto rounded-lg border p-2">
           <p className="mb-1 text-[10px] font-medium text-muted-foreground">Upper</p>
-          <Table teeth={readOnly ? PERMANENT_UPPER.filter((n) => value[n]) : PERMANENT_UPPER} arch="Upper" />
+          <ArchTable
+            teeth={readOnly ? PERMANENT_UPPER.filter((n) => value[n]) : PERMANENT_UPPER}
+            arch="Upper"
+            value={value}
+            onToothChange={readOnly ? undefined : setTooth}
+          />
           <p className="mb-1 mt-3 text-[10px] font-medium text-muted-foreground">Lower</p>
-          <Table teeth={readOnly ? PERMANENT_LOWER.filter((n) => value[n]) : PERMANENT_LOWER} arch="Lower" />
+          <ArchTable
+            teeth={readOnly ? PERMANENT_LOWER.filter((n) => value[n]) : PERMANENT_LOWER}
+            arch="Lower"
+            value={value}
+            onToothChange={readOnly ? undefined : setTooth}
+          />
         </div>
       )}
       {!readOnly ? (
