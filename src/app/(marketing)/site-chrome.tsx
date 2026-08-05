@@ -116,8 +116,12 @@ export function MarketingShell({ children }: { children: ReactNode }) {
 
       <footer className="border-t border-foreground/10 bg-muted/40">
         <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
+          {/* min-w-0 on both columns: at the md breakpoint this becomes a flex row,
+              and flex items default to min-width:auto, so the email address — one long
+              token with no break opportunity — stopped its column shrinking and pushed
+              the whole document 7px wider than the viewport at exactly 768px. */}
           <div className="flex flex-col gap-10 md:flex-row md:justify-between">
-            <div className="max-w-sm space-y-4">
+            <div className="min-w-0 max-w-sm space-y-4">
               <Logo variant="mark" className="h-8" />
               <p className="text-sm text-muted-foreground">
                 AI-powered health management. We handle the record keeping, the
@@ -156,7 +160,7 @@ export function MarketingShell({ children }: { children: ReactNode }) {
                 by heading put "Product" on a level with "One system for the whole day".
                 They are the names of two link groups, not document sections, so each
                 is now a <nav> whose accessible name comes from its own visible label. */}
-            <div className="grid gap-8 sm:grid-cols-2">
+            <div className="grid min-w-0 gap-8 sm:grid-cols-2">
               <nav aria-labelledby="footer-product" className="space-y-3">
                 <p
                   id="footer-product"
@@ -207,10 +211,10 @@ export function MarketingShell({ children }: { children: ReactNode }) {
                   <li>
                     <a
                       href={SALES_EMAIL_URL}
-                      className="inline-flex items-center gap-2 py-1 transition-colors hover:text-foreground"
+                      className="inline-flex min-w-0 items-start gap-2 py-1 transition-colors hover:text-foreground"
                     >
-                      <Mail className="size-4" aria-hidden="true" />
-                      {SALES_EMAIL}
+                      <Mail className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                      <span className="break-all">{SALES_EMAIL}</span>
                     </a>
                   </li>
                 </ul>
