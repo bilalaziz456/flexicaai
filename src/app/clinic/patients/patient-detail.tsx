@@ -516,114 +516,6 @@ export async function PatientDetail({
         </Card>
       ) : null}
 
-      {canViewClinical && clinicalRecord ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Odontogram</CardTitle>
-            <CardDescription>The patient&apos;s current tooth chart.</CardDescription>
-            <Link
-              href={`${backHref}/${patient.id}/chart-print`}
-              className="text-sm font-medium underline underline-offset-4"
-            >
-              Print chart →
-            </Link>
-          </CardHeader>
-          <CardContent>
-            <PatientChartCard
-              chart={currentChart}
-              patientId={patient.id}
-              modulesEnabled={modulesEnabled}
-              canEdit={canEditClinical}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {canViewClinical && clinicalRecord?.perio ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Periodontal chart</CardTitle>
-            <CardDescription>
-              Pocket depths, bleeding, mobility &amp; furcation — latest exam.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {perioTrend.length > 1 ? (
-              <p className="mb-3 text-xs text-muted-foreground">
-                BOP trend: {perioTrend.map((p) => `${p.bop}%`).join(" → ")}
-              </p>
-            ) : null}
-            <PerioChartCard
-              latest={latestPerio}
-              patientId={patient.id}
-              modulesEnabled={modulesEnabled}
-              canEdit={canEditClinical}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {canViewAttachments ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Imaging &amp; documents</CardTitle>
-            <CardDescription>X-rays, clinical photos, documents and consent forms.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AttachmentsCard
-              attachments={attachments}
-              patientId={patient.id}
-              photoConsent={photoConsent}
-              canUpload={canUploadAttachments}
-              canDelete={canDeleteAttachments}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {canViewPlans ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Treatment plans</CardTitle>
-            <CardDescription>
-              Multi-visit courses — priced, tooth-tagged, feed the visit bill when scheduled.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <TreatmentPlansCard
-              plans={plans}
-              procedures={planProcedures}
-              templates={planTemplates}
-              patientId={patient.id}
-              estimateBase={`${backHref}/${patient.id}/estimate`}
-              canCreate={canCreatePlans}
-              canEdit={canEditPlans}
-              canDelete={canDeletePlans}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {canViewLab && labBundle ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Lab cases</CardTitle>
-            <CardDescription>Crowns, dentures &amp; appliances — status → &ldquo;ready&rdquo; WhatsApp.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <LabTrackerCard
-              cases={labCaseRows}
-              statuses={labStatuses}
-              itemTypes={labItemTypes}
-              patientId={patient.id}
-              canCreate={canCreateLab}
-              canEdit={canEditLab}
-              canDelete={canDeleteLab}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
-
       {canViewClinical ? (
         <Card>
           <CardHeader>
@@ -761,6 +653,114 @@ export async function PatientDetail({
                 ))}
               </ol>
             )}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {canViewClinical && clinicalRecord ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Odontogram</CardTitle>
+            <CardDescription>The patient&apos;s current tooth chart.</CardDescription>
+            <Link
+              href={`${backHref}/${patient.id}/chart-print`}
+              className="text-sm font-medium underline underline-offset-4"
+            >
+              Print chart →
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <PatientChartCard
+              chart={currentChart}
+              patientId={patient.id}
+              modulesEnabled={modulesEnabled}
+              canEdit={canEditClinical}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {canViewClinical && clinicalRecord?.perio ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Periodontal chart</CardTitle>
+            <CardDescription>
+              Pocket depths, bleeding, mobility &amp; furcation — latest exam.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {perioTrend.length > 1 ? (
+              <p className="mb-3 text-xs text-muted-foreground">
+                BOP trend: {perioTrend.map((p) => `${p.bop}%`).join(" → ")}
+              </p>
+            ) : null}
+            <PerioChartCard
+              latest={latestPerio}
+              patientId={patient.id}
+              modulesEnabled={modulesEnabled}
+              canEdit={canEditClinical}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {canViewAttachments ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Imaging &amp; documents</CardTitle>
+            <CardDescription>X-rays, clinical photos, documents and consent forms.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AttachmentsCard
+              attachments={attachments}
+              patientId={patient.id}
+              photoConsent={photoConsent}
+              canUpload={canUploadAttachments}
+              canDelete={canDeleteAttachments}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {canViewPlans ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Treatment plans</CardTitle>
+            <CardDescription>
+              Multi-visit courses — priced, tooth-tagged, feed the visit bill when scheduled.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TreatmentPlansCard
+              plans={plans}
+              procedures={planProcedures}
+              templates={planTemplates}
+              patientId={patient.id}
+              estimateBase={`${backHref}/${patient.id}/estimate`}
+              canCreate={canCreatePlans}
+              canEdit={canEditPlans}
+              canDelete={canDeletePlans}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {canViewLab && labBundle ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Lab cases</CardTitle>
+            <CardDescription>Crowns, dentures &amp; appliances — status → &ldquo;ready&rdquo; WhatsApp.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <LabTrackerCard
+              cases={labCaseRows}
+              statuses={labStatuses}
+              itemTypes={labItemTypes}
+              patientId={patient.id}
+              canCreate={canCreateLab}
+              canEdit={canEditLab}
+              canDelete={canDeleteLab}
+            />
           </CardContent>
         </Card>
       ) : null}
