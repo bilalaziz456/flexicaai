@@ -105,6 +105,24 @@ function Eyebrow({ children }: { children: ReactNode }) {
  *
  * Left-aligned, unlike the centred SectionHeading. Alternating the two is what stops
  * a page reading as one long column of centred blocks.
+ *
+ * ---------------------------------------------------------------------------
+ * WHICH HEADING COMPONENT TO USE
+ *
+ * Both render an <h2>, at deliberately different sizes, and the difference is
+ * EMPHASIS not rank. An audit measured 64px and 36px <h2>s on the same page and
+ * flagged it as drift, so the rule is written down here:
+ *
+ *   Statement (64px, left)   — the ONE argument a section exists to make. At most
+ *                              two per page, never two in a row. Authored line
+ *                              breaks; give it `as="h1"` when it opens a page.
+ *   SectionHeading (36px)    — the ordinary label on a band of cards or a grid.
+ *                              Everything that is not the page's main argument.
+ *
+ * If a page needs a third size, that is a sign the page has too many sections,
+ * not that the scale needs another step. Sub-headings inside either belong at
+ * <h3> (18px) — see FeatureCard.
+ * ---------------------------------------------------------------------------
  */
 export function Statement({
   eyebrow,
@@ -120,11 +138,20 @@ export function Statement({
   /** `h1` on a page's opening statement, `h2` for the rest. */
   as?: "h1" | "h2";
 }) {
+  // A page opener is a step larger than a mid-page statement. Without this both
+  // render from one clamp, so on the feature pages the <h1> and a later <h2> were
+  // pixel-identical at 64px and the page's primary heading had no visual primacy.
+  // The h1 step matches the homepage hero exactly, so every page now opens at the
+  // same size — previously the homepage was 74px and the feature pages 64px.
+  const size =
+    Tag === "h1"
+      ? "text-[clamp(2.6rem,7vw,4.6rem)] leading-[0.95]"
+      : "text-[clamp(2.1rem,5.6vw,4rem)] leading-[0.98]";
   return (
     <div className="reveal-up max-w-4xl">
       <Eyebrow>{eyebrow}</Eyebrow>
 
-      <Tag className="mt-5 font-heading text-[clamp(2.1rem,5.6vw,4rem)] leading-[0.98] font-semibold tracking-[-0.035em]">
+      <Tag className={`mt-5 font-heading ${size} font-semibold tracking-[-0.035em]`}>
         {lines.map((line, i) => (
           <span key={line} className="block">
             {/* The last line carries the brand gradient, so the eye lands on the end
@@ -209,7 +236,7 @@ export function PageHero({
   artFirst?: boolean;
 }) {
   return (
-    <section className="relative overflow-hidden">
+    <section data-motion-scope className="relative overflow-hidden">
       {/* Drifting circuit grid, masked out before it reaches the copy. */}
       <div
         aria-hidden="true"
@@ -240,7 +267,7 @@ export function PageHero({
 /** The band every feature page ends on. */
 export function ClosingBand({ title, lede }: { title: string; lede: string }) {
   return (
-    <section className="relative overflow-hidden py-12 sm:py-16">
+    <section data-motion-scope className="relative overflow-hidden py-12 sm:py-16">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_center,var(--brand-teal)_0%,transparent_62%)] opacity-[0.12] blur-3xl motion-safe:animate-aurora dark:opacity-20"

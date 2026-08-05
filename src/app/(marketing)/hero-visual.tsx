@@ -17,9 +17,17 @@
  * Purely decorative, so it is hidden from assistive tech. All motion is behind
  * `motion-safe:`; a visitor who asked for less gets the same picture, still.
  */
+/**
+ * One duration for every pulsing node. The two node sets ran at 3.4s and 3.2s, which
+ * is not a perceptible difference — just two arbitrary numbers for the same visual
+ * idiom, drifting slowly out of phase. The per-node `animationDelay` below is what
+ * actually keeps them from blinking in unison.
+ */
+const NODE_PULSE = "3.2s";
+
 export function HeroVisual({ className }: { className?: string }) {
   return (
-    <div aria-hidden="true" className={`relative w-full select-none ${className ?? ""}`}>
+    <div aria-hidden="true" data-motion-scope className={`relative w-full select-none ${className ?? ""}`}>
       {/* Ambient brand glow behind the artwork. */}
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_45%,var(--brand-teal)_0%,transparent_62%)] opacity-20 blur-2xl dark:opacity-30" />
 
@@ -85,7 +93,7 @@ export function HeroVisual({ className }: { className?: string }) {
                   r="3.2"
                   fill="var(--brand-teal)"
                   className="motion-safe:animate-pulse"
-                  style={{ animationDelay: `${(i % 5) * 0.45}s`, animationDuration: "3.4s" }}
+                  style={{ animationDelay: `${(i % 5) * 0.45}s`, animationDuration: NODE_PULSE }}
                 />
               );
             })}
@@ -118,7 +126,7 @@ export function HeroVisual({ className }: { className?: string }) {
               r="3.5"
               fill="var(--brand-teal)"
               className="motion-safe:animate-pulse"
-              style={{ animationDelay: `${d}s`, animationDuration: "3.2s" }}
+              style={{ animationDelay: `${d}s`, animationDuration: NODE_PULSE }}
             />
           ))}
         </g>

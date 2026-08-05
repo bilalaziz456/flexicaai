@@ -98,9 +98,17 @@ export default function ContactPage() {
         artFirst
       />
 
-      {/* The three channels, as real links rather than decoration. */}
-      <section className="border-y border-foreground/10 bg-muted/40 py-12 sm:py-16">
+      {/* The three channels, as real links rather than decoration.
+
+          The card titles were <h2> with no heading above them, so the section had no
+          name and they rendered at 18px — the same size as the <h3>s further down the
+          page, making two different levels visually identical. A visually-hidden <h2>
+          gives the section its name and puts the cards at the level they read as. */}
+      <section aria-labelledby="contact-channels" className="border-y border-foreground/10 bg-muted/40 py-12 sm:py-16">
         <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
+          <h2 id="contact-channels" className="sr-only">
+            How to reach us
+          </h2>
           <div className="grid gap-5 md:grid-cols-3">
             <a
               href={SALES_WHATSAPP_URL}
@@ -111,7 +119,7 @@ export default function ContactPage() {
               <span className="inline-flex size-10 items-center justify-center rounded-xl bg-whatsapp/15 text-whatsapp-fg ring-1 ring-whatsapp/30 transition-transform group-hover:scale-110">
                 <WhatsAppIcon className="size-5" />
               </span>
-              <h2 className="mt-5 font-heading text-lg font-medium">WhatsApp</h2>
+              <h3 className="mt-5 font-heading text-lg font-medium">WhatsApp</h3>
               <p className="mt-2 text-sm text-muted-foreground">
                 The fastest way to reach us. Voice notes are fine.
               </p>
@@ -125,7 +133,7 @@ export default function ContactPage() {
               <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary-text ring-1 ring-primary/20 transition-transform group-hover:scale-110">
                 <Mail className="size-5" />
               </span>
-              <h2 className="mt-5 font-heading text-lg font-medium">Email</h2>
+              <h3 className="mt-5 font-heading text-lg font-medium">Email</h3>
               <p className="mt-2 text-sm text-muted-foreground">
                 Better for longer questions, or if you want it in writing.
               </p>
@@ -139,7 +147,7 @@ export default function ContactPage() {
               <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary-text ring-1 ring-primary/20 transition-transform group-hover:scale-110">
                 <Phone className="size-5" />
               </span>
-              <h2 className="mt-5 font-heading text-lg font-medium">Phone</h2>
+              <h3 className="mt-5 font-heading text-lg font-medium">Phone</h3>
               <p className="mt-2 text-sm text-muted-foreground">
                 If you would rather just talk it through.
               </p>

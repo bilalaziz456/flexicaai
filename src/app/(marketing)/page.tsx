@@ -139,7 +139,7 @@ export default function LandingPage() {
 
 function Hero() {
   return (
-    <section className="relative overflow-hidden">
+    <section data-motion-scope className="relative overflow-hidden">
       {/* Circuit-grid backdrop, drifting. The mask fades it out before it reaches the
           copy; the grid itself is oversized so the drift never exposes an edge. */}
       <div
@@ -343,7 +343,7 @@ const STEPS = [
 
 function HowItWorks() {
   return (
-    <section id="how" className="scroll-mt-20 border-y border-foreground/10 bg-muted/40 py-12 sm:py-16">
+    <section id="how" data-motion-scope className="scroll-mt-20 border-y border-foreground/10 bg-muted/40 py-12 sm:py-16">
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
         {/* Artwork left, words right — but the WORDS stay first in the DOM and are
             reordered visually only from `lg` up. Stacked on a phone the heading should
@@ -492,7 +492,7 @@ function Security() {
 
 function ClosingCta() {
   return (
-    <section className="relative overflow-hidden py-12 sm:py-16">
+    <section data-motion-scope className="relative overflow-hidden py-12 sm:py-16">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_center,var(--brand-teal)_0%,transparent_62%)] opacity-[0.12] blur-3xl motion-safe:animate-aurora dark:opacity-20"

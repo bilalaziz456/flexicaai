@@ -330,6 +330,16 @@ html {
 
    `:focus-visible` rather than `:focus`, so a mouse click does not leave a ring
    behind. Scoped to `.marketing-root` so the signed-in app keeps its own styles. */
+/* Set by OffscreenMotion on a [data-motion-scope] that has left the viewport. The
+   whole subtree stops together, which is what keeps animation-delay-synchronised
+   pieces (the four consultation notes on one 28s loop) from drifting apart. */
+.motion-paused,
+.motion-paused *,
+.motion-paused *::before,
+.motion-paused *::after {
+  animation-play-state: paused !important;
+}
+
 .marketing-root a:focus-visible,
 .marketing-root button:focus-visible {
   outline: 2px solid var(--primary-text);

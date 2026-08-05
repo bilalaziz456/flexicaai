@@ -41,7 +41,7 @@ const LOG = [
 
 export function SecurityVisual({ className }: { className?: string }) {
   return (
-    <div aria-hidden="true" className={`relative w-full select-none ${className ?? ""}`}>
+    <div aria-hidden="true" data-motion-scope className={`relative w-full select-none ${className ?? ""}`}>
       <div className="absolute inset-8 -z-10 bg-[radial-gradient(circle_at_50%_40%,var(--brand-teal)_0%,transparent_65%)] opacity-15 blur-2xl dark:opacity-25" />
 
       {/* ---- who can reach what ---- */}
