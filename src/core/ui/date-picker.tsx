@@ -31,7 +31,7 @@ const triggerCls =
 
 // Month/year quick-nav selects in the popover header (fast jumps for e.g. DOB).
 const navSelectCls =
-  "h-7 rounded-md border border-input bg-[var(--input-bg)] px-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50";
+  "h-7 rounded-md border border-input bg-[var(--input-bg)] px-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
 /**
  * Themed date picker — a calendar popover built from app tokens (not the native
@@ -150,7 +150,7 @@ export function DatePicker({
                   type="button"
                   aria-label="Previous month"
                   onClick={() => shiftMonth(-1)}
-                  className="inline-flex size-7 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground"
+                  className="inline-flex size-7 items-center justify-center rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:bg-accent hover:text-accent-foreground"
                 >
                   <ChevronLeft className="size-4" aria-hidden="true" />
                 </button>
@@ -158,7 +158,7 @@ export function DatePicker({
                   type="button"
                   aria-label="Next month"
                   onClick={() => shiftMonth(1)}
-                  className="inline-flex size-7 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground"
+                  className="inline-flex size-7 items-center justify-center rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:bg-accent hover:text-accent-foreground"
                 >
                   <ChevronRight className="size-4" aria-hidden="true" />
                 </button>
@@ -186,7 +186,7 @@ export function DatePicker({
                     aria-pressed={Boolean(isSelected)}
                     onClick={() => pick(c)}
                     className={cn(
-                      "flex h-8 items-center justify-center rounded-md text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                      "flex h-8 items-center justify-center rounded-md text-sm outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
                       !inMonth && "text-muted-foreground/50",
                       inMonth && !isSelected && "hover:bg-accent hover:text-accent-foreground",
                       isSelected && "bg-primary font-medium text-primary-foreground",
@@ -203,7 +203,7 @@ export function DatePicker({
               <button
                 type="button"
                 onClick={() => onChange("")}
-                className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+                className="rounded-sm text-xs text-muted-foreground underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:underline"
               >
                 Clear
               </button>
@@ -213,7 +213,7 @@ export function DatePicker({
                   const t = todayParts();
                   pick(t);
                 }}
-                className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                className="rounded-sm text-xs font-medium text-primary underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:underline"
               >
                 Today
               </button>

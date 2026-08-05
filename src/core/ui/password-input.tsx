@@ -27,7 +27,7 @@ export function PasswordInput({
         onClick={() => setShow((s) => !s)}
         tabIndex={-1}
         aria-label={show ? "Hide password" : "Show password"}
-        className="absolute inset-y-0 right-0 flex items-center px-2.5 text-muted-foreground hover:text-foreground"
+        className="absolute inset-y-0 right-0 flex items-center rounded-md px-2.5 text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:text-foreground"
       >
         {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
       </button>

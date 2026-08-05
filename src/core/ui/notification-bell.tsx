@@ -102,7 +102,7 @@ export function NotificationBell({ initialUnread = 0 }: { initialUnread?: number
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={unread > 0 ? `Notifications (${unread} unread)` : "Notifications"}
-        className="relative rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+        className="relative rounded-md p-1.5 text-muted-foreground transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:bg-accent hover:text-accent-foreground"
       >
         <Bell className="size-5" aria-hidden="true" />
         {unread > 0 ? (
@@ -123,7 +123,7 @@ export function NotificationBell({ initialUnread = 0 }: { initialUnread?: number
                 type="button"
                 onClick={markAll}
                 disabled={pending || unread === 0}
-                className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-40 disabled:no-underline"
+                className="rounded-sm text-xs text-muted-foreground underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:text-foreground hover:underline disabled:opacity-40 disabled:no-underline"
               >
                 Mark all read
               </button>
@@ -162,11 +162,11 @@ export function NotificationBell({ initialUnread = 0 }: { initialUnread?: number
                     return (
                       <li key={n.id} className="border-b last:border-0 hover:bg-accent">
                         {n.link ? (
-                          <Link href={n.link} onClick={() => openItem(n.id, n.read)} className="block">
+                          <Link href={n.link} onClick={() => openItem(n.id, n.read)} className="block rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
                             {inner}
                           </Link>
                         ) : (
-                          <button type="button" onClick={() => openItem(n.id, n.read)} className="block w-full text-left">
+                          <button type="button" onClick={() => openItem(n.id, n.read)} className="block w-full rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
                             {inner}
                           </button>
                         )}

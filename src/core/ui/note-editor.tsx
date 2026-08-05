@@ -39,7 +39,7 @@ function PrimitiveField({
         type="checkbox"
         checked={value}
         onChange={(e) => onChange(e.target.checked)}
-        className="size-4 accent-primary"
+        className="size-4 accent-primary outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       />
     );
   }

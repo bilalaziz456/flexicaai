@@ -44,6 +44,7 @@ export function QueueSummary({
           const active = activeSession === s.key;
           const cardCls = cn(
             "block rounded-lg border p-3 text-left",
+            clickable && "outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
             active && "border-primary ring-1 ring-primary/40",
             clickable && "cursor-pointer transition-colors hover:border-primary/60",
           );

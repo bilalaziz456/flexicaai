@@ -355,7 +355,7 @@ export function PanelShell({
       onClick={onClick}
       aria-current={isActive(item) ? "page" : undefined}
       className={cn(
-        "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+        "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
         isActive(item)
           ? "bg-primary text-primary-foreground"
           : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
@@ -377,7 +377,7 @@ export function PanelShell({
             type="button"
             onClick={() => setGroupOpen(n.group, !openGroup)}
             aria-expanded={openGroup}
-            className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:bg-accent hover:text-accent-foreground"
           >
             <span className="flex items-center gap-3">
               <n.Icon className="size-4 shrink-0" aria-hidden="true" />
@@ -408,14 +408,14 @@ export function PanelShell({
           jump past the sidebar nav to the page content (WCAG 2.4.1). Hidden until focused. */}
       <a
         href="#main-content"
-        className="sr-only rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg outline-none focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="sr-only rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg outline-none focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         Skip to content
       </a>
       {/* ---- Desktop sidebar ---- */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r bg-card md:flex">
         <div className="p-4">
-          <Link href={brand} className="flex items-center">
+          <Link href={brand} className="flex items-center rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
             <Logo className="h-9" />
           </Link>
         </div>
@@ -424,7 +424,7 @@ export function PanelShell({
           <form action={signOut}>
             <button
               type="submit"
-              className="flex w-full items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              className="flex w-full items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:bg-accent hover:text-accent-foreground"
             >
               <LogOut className="size-4 shrink-0" aria-hidden="true" />
               Sign out
@@ -444,7 +444,7 @@ export function PanelShell({
           <Link
             href={accountHref}
             aria-label="Account settings"
-            className="flex items-center gap-2 rounded-full py-0.5 pl-0.5 pr-3 transition-colors hover:bg-accent"
+            className="flex items-center gap-2 rounded-full py-0.5 pl-0.5 pr-3 transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:bg-accent"
           >
             <SelfAvatar key={avatarVersion} version={avatarVersion} initials={userInitials} className="size-7" />
             <span className="max-w-[12rem] truncate text-sm font-medium">{userName}</span>
@@ -458,16 +458,16 @@ export function PanelShell({
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Open menu"
-          className="-ml-1 rounded-md p-1.5 text-foreground hover:bg-accent"
+          className="-ml-1 rounded-md p-1.5 text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:bg-accent"
         >
           <Menu className="size-6" aria-hidden="true" />
         </button>
-        <Link href={brand} className="flex items-center">
+        <Link href={brand} className="flex items-center rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
           <Logo className="h-8" />
         </Link>
         <div className="flex items-center gap-1">
           <NotificationBell initialUnread={notificationCount} />
-          <Link href={accountHref} aria-label="Account settings" className="rounded-full p-0.5">
+          <Link href={accountHref} aria-label="Account settings" className="rounded-full p-0.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
             <SelfAvatar key={avatarVersion} version={avatarVersion} initials={userInitials} className="size-7" />
           </Link>
           <ThemeToggle initial={theme} />
@@ -475,7 +475,7 @@ export function PanelShell({
             <button
               type="submit"
               aria-label="Sign out"
-              className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              className="rounded-md p-1.5 text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:bg-accent hover:text-accent-foreground"
             >
               <LogOut className="size-5" aria-hidden="true" />
             </button>
@@ -511,7 +511,7 @@ export function PanelShell({
               type="button"
               onClick={() => setOpen(false)}
               aria-label="Close menu"
-              className="rounded-md p-1.5 text-foreground hover:bg-accent"
+              className="rounded-md p-1.5 text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:bg-accent"
             >
               <X className="size-6" aria-hidden="true" />
             </button>
@@ -520,7 +520,7 @@ export function PanelShell({
             <Link
               href={accountHref}
               onClick={() => setOpen(false)}
-              className="inline-flex max-w-full items-center gap-2 rounded-full pr-3 transition-colors hover:bg-accent"
+              className="inline-flex max-w-full items-center gap-2 rounded-full pr-3 transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:bg-accent"
             >
               <SelfAvatar key={avatarVersion} version={avatarVersion} initials={userInitials} />
               <span className="truncate text-xs font-medium text-muted-foreground">
