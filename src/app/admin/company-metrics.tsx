@@ -64,7 +64,7 @@ export function CompanyMetricsPanel({
               label="Gross margin (this month)"
               value={`${m.grossMarginThisMonth < 0 ? "−" : ""}${rs(Math.abs(m.grossMarginThisMonth))}`}
               sub="Collected − serving cost"
-              tone={m.grossMarginThisMonth < 0 ? "text-destructive" : "text-success"}
+              tone={m.grossMarginThisMonth < 0 ? "text-destructive" : "text-success-text"}
             />
           </>
         ) : null}
@@ -93,14 +93,14 @@ export function CompanyMetricsPanel({
           {/* Billing heads-up: payments coming up soon + amounts due/overdue. */}
           <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 border-t pt-3 text-sm">
             <div className="flex items-center gap-1.5">
-              <span className="text-info">Payments coming up</span>
+              <span className="text-info-text">Payments coming up</span>
               <span className="font-semibold tabular-nums">{m.upcomingCount}</span>
               {m.upcomingTotal > 0 ? (
                 <span className="text-xs text-muted-foreground">({rs(m.upcomingTotal)})</span>
               ) : null}
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-warning">Due / overdue</span>
+              <span className="text-warning-text">Due / overdue</span>
               <span className="font-semibold tabular-nums">{m.overdueCount}</span>
             </div>
           </div>

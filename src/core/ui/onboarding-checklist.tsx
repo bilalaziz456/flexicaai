@@ -59,7 +59,7 @@ export function OnboardingChecklist({ steps }: { steps: OnboardingStep[] }) {
               <div className="text-xs text-muted-foreground">{s.description}</div>
             </div>
             {s.done ? (
-              <span className="shrink-0 text-xs font-medium text-primary">Done</span>
+              <span className="shrink-0 text-xs font-medium text-primary-text">Done</span>
             ) : (
               <Link href={s.href} className={cn(buttonVariants({ size: "sm" }), "shrink-0")}>
                 {s.cta}

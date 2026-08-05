@@ -57,7 +57,7 @@ export function ClinicCapabilities({
         <span className="font-medium text-foreground">every user</span> in this clinic —
         the control plane over each clinic&apos;s buttons.
         {restrictedCount > 0 ? (
-          <span className="ml-1 font-medium text-warning">
+          <span className="ml-1 font-medium text-warning-text">
             {restrictedCount} action{restrictedCount === 1 ? "" : "s"} disabled.
           </span>
         ) : null}

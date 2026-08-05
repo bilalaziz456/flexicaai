@@ -114,7 +114,7 @@ export async function ScribePanel({
                               href={`/api/prescriptions/${v.id}`}
                               target="_blank"
                               rel="noopener"
-                              className="text-primary underline underline-offset-4"
+                              className="text-primary-text underline underline-offset-4"
                             >
                               Prescription
                             </a>

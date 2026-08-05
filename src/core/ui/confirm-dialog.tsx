@@ -96,7 +96,7 @@ export function ConfirmDialog({
             </Dialog.Description>
 
             {error ? (
-              <p className="mt-3 text-sm text-destructive" role="alert">
+              <p className="mt-3 text-sm text-destructive-text" role="alert">
                 {error}
               </p>
             ) : null}

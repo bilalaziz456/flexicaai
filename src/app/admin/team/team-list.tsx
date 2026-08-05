@@ -82,7 +82,7 @@ export function TeamList({ members }: { members: TeamMember[] }) {
                 <Badge variant="secondary" className="capitalize">{m.subRole}</Badge>
                 {m.isSelf ? <Badge variant="outline">you</Badge> : null}
                 {m.state !== "active" ? (
-                  <span className="text-xs text-warning capitalize">{m.state}</span>
+                  <span className="text-xs text-warning-text capitalize">{m.state}</span>
                 ) : null}
               </div>
               <Link

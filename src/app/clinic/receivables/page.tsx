@@ -106,7 +106,7 @@ export default async function ReceivablesPage({
         <Card>
           <CardHeader>
             <CardDescription>Total outstanding</CardDescription>
-            <CardTitle className="text-3xl text-warning">
+            <CardTitle className="text-3xl text-warning-text">
               {money.format(report.total)}
             </CardTitle>
             <CardDescription>Owed on completed visits</CardDescription>
@@ -150,7 +150,7 @@ export default async function ReceivablesPage({
                         </span>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
-                        <span className="font-semibold tabular-nums text-warning">
+                        <span className="font-semibold tabular-nums text-warning-text">
                           {money.format(p.outstanding)}
                         </span>
                         <span className="text-muted-foreground transition-transform group-open:rotate-90" aria-hidden="true">
@@ -183,7 +183,7 @@ export default async function ReceivablesPage({
                               <td className="py-1.5">{v.doctorName ?? "—"}</td>
                               <td className="py-1.5 text-right tabular-nums">{money.format(v.bill)}</td>
                               <td className="py-1.5 text-right tabular-nums">{money.format(v.collected)}</td>
-                              <td className="py-1.5 text-right font-medium tabular-nums text-warning">
+                              <td className="py-1.5 text-right font-medium tabular-nums text-warning-text">
                                 {money.format(v.outstanding)}
                               </td>
                             </tr>
@@ -191,7 +191,7 @@ export default async function ReceivablesPage({
                           {p.openingBalance > 0 ? (
                             <tr className="border-b last:border-0">
                               <td className="py-1.5" colSpan={4}>Opening balance (pre-FlexicaAI dues)</td>
-                              <td className="py-1.5 text-right font-medium tabular-nums text-warning">
+                              <td className="py-1.5 text-right font-medium tabular-nums text-warning-text">
                                 {money.format(p.openingBalance)}
                               </td>
                             </tr>

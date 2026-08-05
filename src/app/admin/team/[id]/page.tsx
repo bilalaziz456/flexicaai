@@ -83,7 +83,7 @@ export default async function TeamMemberPage({
           <Badge variant="secondary" className="capitalize">{subRole}</Badge>
           {isSelf ? <Badge variant="outline">you</Badge> : null}
           {accountState !== "active" ? (
-            <Badge variant="outline" className="border-transparent bg-amber-500/10 text-warning capitalize">
+            <Badge variant="outline" className="border-transparent bg-amber-500/10 text-warning-text capitalize">
               {accountState}
             </Badge>
           ) : null}
@@ -171,7 +171,7 @@ export default async function TeamMemberPage({
             <CardTitle>Password</CardTitle>
             <CardDescription>
               Change your own password in{" "}
-              <Link href="/account" className="text-primary underline underline-offset-2">Account settings</Link>.
+              <Link href="/account" className="text-primary-text underline underline-offset-2">Account settings</Link>.
             </CardDescription>
           </CardHeader>
         </Card>

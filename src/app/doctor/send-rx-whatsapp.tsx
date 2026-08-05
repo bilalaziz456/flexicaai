@@ -33,7 +33,7 @@ export function SendRxWhatsApp({ visitId }: { visitId: string }) {
       onClick={send}
       disabled={pending}
       title={error ?? "Send to patient on WhatsApp"}
-      className="inline-flex items-center gap-1 text-primary underline underline-offset-4 disabled:opacity-50"
+      className="inline-flex items-center gap-1 text-primary-text underline underline-offset-4 disabled:opacity-50"
     >
       <MessageCircle className="size-3.5" aria-hidden="true" />
       {pending ? "Sending…" : state === "error" ? "Retry" : "WhatsApp"}

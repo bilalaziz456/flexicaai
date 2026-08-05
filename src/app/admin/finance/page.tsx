@@ -84,7 +84,7 @@ export default async function CompanyPnlPage({
         <Card className={pnl.netProfit < 0 ? "border-destructive/40" : "border-emerald-500/40"}>
           <CardHeader className="pb-2"><CardDescription>Net profit ({rangeLabel})</CardDescription></CardHeader>
           <CardContent>
-            <div className={cn("text-2xl font-semibold tabular-nums", pnl.netProfit < 0 ? "text-destructive" : "text-success")}>
+            <div className={cn("text-2xl font-semibold tabular-nums", pnl.netProfit < 0 ? "text-destructive" : "text-success-text")}>
               {signed(pnl.netProfit)}
             </div>
             {pnl.marginPct !== null ? <div className="mt-0.5 text-xs text-muted-foreground">{pnl.marginPct}% margin</div> : null}

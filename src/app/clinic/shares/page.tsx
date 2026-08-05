@@ -83,7 +83,7 @@ export default async function ClinicSharesPage({
           title: "Discount adjustment",
           value: money.format(netAdjust),
           note: "Bearing + waives",
-          tone: netAdjust < 0 ? "text-destructive" : "text-success",
+          tone: netAdjust < 0 ? "text-destructive" : "text-success-text",
         }]
       : []),
     { title: "Paid", value: money.format(scoped.paid), note: "Settled to date", tone: "" },

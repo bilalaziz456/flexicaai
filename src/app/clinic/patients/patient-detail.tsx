@@ -747,7 +747,7 @@ export async function PatientDetail({
                         href={`/api/prescriptions/${rx.visitId}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-primary underline underline-offset-4"
+                        className="inline-flex items-center gap-1 text-primary-text underline underline-offset-4"
                       >
                         <Printer className="size-3.5" aria-hidden="true" /> Print
                       </a>

@@ -13,7 +13,7 @@ export function PanelLoader() {
       role="status"
       aria-live="polite"
     >
-      <Loader2 className="size-8 animate-spin text-primary" aria-hidden="true" />
+      <Loader2 className="size-8 animate-spin text-primary-text" aria-hidden="true" />
       <span className="sr-only">Loading…</span>
     </div>
   );

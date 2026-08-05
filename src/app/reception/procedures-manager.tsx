@@ -105,7 +105,7 @@ function AddProcedureForm({ templatesAvailable }: { templatesAvailable: boolean 
           type="button"
           disabled={importing}
           onClick={() => startImport(() => void importProcedureDefaults())}
-          className="text-sm text-primary underline-offset-4 hover:underline disabled:opacity-50"
+          className="text-sm text-primary-text underline-offset-4 hover:underline disabled:opacity-50"
         >
           {importing ? "Importing…" : "Import suggested procedures for your specialty"}
         </button>

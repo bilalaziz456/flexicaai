@@ -45,12 +45,12 @@ export function ForgotPasswordForm() {
             />
           </div>
           {state.message ? (
-            <p className="text-sm text-success" role="status">
+            <p className="text-sm text-success-text" role="status">
               {state.message}
             </p>
           ) : null}
           {state.error ? (
-            <p className="text-sm text-destructive" role="alert">
+            <p className="text-sm text-destructive-text" role="alert">
               {state.error}
             </p>
           ) : null}

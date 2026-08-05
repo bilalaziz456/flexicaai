@@ -310,7 +310,7 @@ export default async function ClinicDashboard() {
         <Card className="border-primary/40 bg-primary/5">
           <CardHeader>
             <CardDescription>Revenue recovered</CardDescription>
-            <CardTitle className="text-4xl text-primary">{money}</CardTitle>
+            <CardTitle className="text-4xl text-primary-text">{money}</CardTitle>
             <CardDescription>
               {recovered} return visit{recovered === 1 ? "" : "s"} driven by
               recall reminders ×{" "}
@@ -345,7 +345,7 @@ export default async function ClinicDashboard() {
               { show: billingKpiOn || financeKpiOn, title: "Collected (30d)", value: fmt(financeKpis.collected30d), note: "Revenue received", href: financeKpiOn ? "/clinic/pl" : "/clinic/sales", tone: "", trend: financeKpis.collectedTrend, trendColor: "var(--color-chart-1)", curr: financeKpis.collected30d, prev: financeKpis.collectedPrev30d, up: true },
               { show: financeKpiOn, title: "Doctor shares (30d)", value: `− ${fmt(financeKpis.doctorShares30d)}`, note: "Earned on collection", href: "/clinic/pl", tone: "", trend: financeKpis.sharesTrend, trendColor: "var(--color-chart-2)", curr: financeKpis.doctorShares30d, prev: financeKpis.doctorSharesPrev30d, up: false },
               { show: financeKpiOn, title: "Expenses (30d)", value: `− ${fmt(financeKpis.expenses30d)}`, note: "Costs incurred", href: "/clinic/expenses", tone: "", trend: financeKpis.expenseTrend, trendColor: "var(--color-warning)", curr: financeKpis.expenses30d, prev: financeKpis.expensesPrev30d, up: false },
-              { show: financeKpiOn, title: loss ? "Net loss (30d)" : "Net profit (30d)", value: fmt(Math.abs(financeKpis.netProfit30d)), note: "After shares + expenses", href: "/clinic/pl", tone: loss ? "text-destructive" : "text-success", trend: financeKpis.profitTrend, trendColor: loss ? "var(--color-destructive)" : "var(--color-success)", curr: financeKpis.netProfit30d, prev: financeKpis.netProfitPrev30d, up: true },
+              { show: financeKpiOn, title: loss ? "Net loss (30d)" : "Net profit (30d)", value: fmt(Math.abs(financeKpis.netProfit30d)), note: "After shares + expenses", href: "/clinic/pl", tone: loss ? "text-destructive" : "text-success-text", trend: financeKpis.profitTrend, trendColor: loss ? "var(--color-destructive)" : "var(--color-success)", curr: financeKpis.netProfit30d, prev: financeKpis.netProfitPrev30d, up: true },
             ].filter((k) => k.show);
             return kpis.map((k) => {
               const hasSpark = Boolean(k.trend && k.trend.length > 1);

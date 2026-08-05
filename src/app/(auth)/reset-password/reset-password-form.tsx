@@ -39,7 +39,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
             <PasswordInput id="confirmPassword" name="confirmPassword" autoComplete="new-password" required />
           </div>
           {state.error ? (
-            <p className="text-sm text-destructive" role="alert">
+            <p className="text-sm text-destructive-text" role="alert">
               {state.error}
             </p>
           ) : null}

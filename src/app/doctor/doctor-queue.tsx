@@ -33,7 +33,7 @@ export function DoctorQueue({ sessions }: { sessions: QueueSession[] }) {
               </div>
               <div className="shrink-0 text-right">
                 <div className="text-xs text-muted-foreground">In the room</div>
-                <div className="text-lg font-semibold text-primary">
+                <div className="text-lg font-semibold text-primary-text">
                   {s.nowServing != null ? `#${s.nowServing}` : "—"}
                 </div>
               </div>

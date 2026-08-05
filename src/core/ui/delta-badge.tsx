@@ -32,7 +32,7 @@ export function DeltaBadge({
   const Icon = up ? ArrowUp : ArrowDown;
   return (
     <span
-      className={cn("inline-flex items-center gap-0.5 text-xs font-medium", good ? "text-success" : "text-destructive", className)}
+      className={cn("inline-flex items-center gap-0.5 text-xs font-medium", good ? "text-success-text" : "text-destructive-text", className)}
     >
       <Icon className="size-3" aria-hidden="true" />
       {Math.abs(pct)}%

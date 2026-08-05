@@ -27,6 +27,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-text: var(--destructive-text);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -68,6 +69,10 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-info: var(--info);
+  /* Legible-as-text variants. See the note in :root. */
+  --color-success-text: var(--success-text);
+  --color-warning-text: var(--warning-text);
+  --color-info-text: var(--info-text);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -135,10 +140,27 @@
   --accent: oklch(0.95 0.03 195);
   --accent-foreground: var(--brand-navy);
   --destructive: oklch(0.577 0.245 27.325);
+  /* Same trap as the brand teal: --destructive clears white at 4.77:1 but the badge
+     and alert variants put it on a /10 or /15 tint of its OWN hue, where it drops to
+     4.01 and 3.64. Same hue and chroma, lower lightness, clearing all three surfaces
+     with headroom (6.32 on white, 5.32 on /10, 4.83 on /15). */
+  --destructive-text: oklch(0.48 0.245 27.325);
   /* Status tones (light) — tuned to the emerald-600 / amber-600 / sky-600 the app used. */
   --success: oklch(0.596 0.145 163.225);
   --warning: oklch(0.666 0.179 58.318);
   --info: oklch(0.588 0.158 241.966);
+  /* Readable variants of the three tones above, same idea as --primary-text.
+     Measured on the card in light mode, the FILL colours are nowhere near legible as
+     text: warning 3.20:1, success 3.65:1, info 4.02:1, against the 4.5:1 AA floor for
+     text under 18.66px. These keep each tone's hue and chroma and only drop lightness,
+     so a status stays the same colour, and they clear both the card and a `/10` tint
+     of their own hue with headroom (5.79/5.20, 5.78/5.15, 5.71/5.05).
+     Use `text-warning-text` for a LABEL and `--warning` for the fill, ring or chart
+     series it sits on. Dark mode needs no adjustment (8-10:1 already) so each maps
+     straight back below. */
+  --success-text: oklch(0.48 0.145 163.225);
+  --warning-text: oklch(0.52 0.179 58.318);
+  --info-text: oklch(0.5 0.158 241.966);
   --border: oklch(0.91 0.008 210);
   --input: oklch(0.91 0.008 210);
   --input-bg: oklch(0.98 0.005 200);
@@ -181,10 +203,16 @@
   --accent: oklch(0.32 0.045 200);
   --accent-foreground: oklch(0.95 0.02 195);
   --destructive: oklch(0.704 0.191 22.216);
+  /* 6.21:1 on the dark card already. */
+  --destructive-text: var(--destructive);
   /* Status tones (dark) — lighter (emerald-400 / amber-400 / sky-400) for legibility. */
   --success: oklch(0.765 0.177 163.223);
   --warning: oklch(0.828 0.189 84.429);
   --info: oklch(0.746 0.16 232.661);
+  /* Already 8-10:1 on the dark card, so the fill colours double as the text colours. */
+  --success-text: var(--success);
+  --warning-text: var(--warning);
+  --info-text: var(--info);
   --border: oklch(1 0 0 / 18%);
   --input: oklch(1 0 0 / 22%);
   --input-bg: oklch(0.26 0.014 200);

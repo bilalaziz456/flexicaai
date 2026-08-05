@@ -153,7 +153,7 @@ function EnrollView() {
               </code>
               <a
                 href={enroll.otpauth}
-                className="text-xs text-primary underline underline-offset-2"
+                className="text-xs text-primary-text underline underline-offset-2"
               >
                 Open in an authenticator app
               </a>

@@ -71,7 +71,7 @@ export default async function OverviewPage({
     { title: "Waivers", value: money.format(ov.waivers), note: "Share waives", show: true, tone: "" },
     { title: "Doctor shares", value: money.format(ov.doctorShares), note: "Earned (net of bearing)", show: true, tone: "" },
     { title: "Expenses", value: money.format(ov.expenses), note: "Incurred", show: !ov.scoped, tone: "" },
-    { title: loss ? "Net loss" : "Net profit", value: money.format(Math.abs(ov.netProfit)), note: "Revenue − shares − expenses", show: !ov.scoped, tone: loss ? "text-destructive" : "text-success" },
+    { title: loss ? "Net loss" : "Net profit", value: money.format(Math.abs(ov.netProfit)), note: "Revenue − shares − expenses", show: !ov.scoped, tone: loss ? "text-destructive" : "text-success-text" },
   ].filter((s) => s.show);
 
   return (

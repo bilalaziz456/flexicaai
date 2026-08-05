@@ -193,7 +193,7 @@ export function DoctorScheduleFields({
                       variant="ghost"
                       size="sm"
                       onClick={() => addRange(d.value)}
-                      className="text-primary"
+                      className="text-primary-text"
                     >
                       <Plus className="size-4" aria-hidden="true" /> Add another time
                     </Button>

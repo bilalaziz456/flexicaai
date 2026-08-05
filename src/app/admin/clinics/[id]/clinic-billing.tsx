@@ -271,7 +271,7 @@ export function ClinicBilling({
             {savingReminder ? (
               <span className="text-xs text-muted-foreground">Saving…</span>
             ) : reminderOk ? (
-              <span className="text-xs text-success">Saved</span>
+              <span className="text-xs text-success-text">Saved</span>
             ) : null}
           </div>
         </div>

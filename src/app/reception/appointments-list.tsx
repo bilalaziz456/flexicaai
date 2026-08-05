@@ -297,7 +297,7 @@ export async function AppointmentsList({
           <Link
             href={listPath}
             scroll={false}
-            className="font-medium text-primary underline-offset-4 hover:underline"
+            className="font-medium text-primary-text underline-offset-4 hover:underline"
           >
             Show all appointments
           </Link>

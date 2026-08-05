@@ -57,7 +57,7 @@ export function QueueSummary({
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="text-xs text-muted-foreground">In the room</div>
-                  <div className="text-lg font-semibold text-primary">
+                  <div className="text-lg font-semibold text-primary-text">
                     {s.nowServing != null ? `#${s.nowServing}` : "—"}
                   </div>
                 </div>
@@ -83,11 +83,11 @@ export function QueueSummary({
                       className={cn(
                         "inline-flex min-w-6 items-center justify-center rounded-md border px-1.5 py-0.5 text-xs",
                         inRoom && "border-primary bg-primary font-semibold text-primary-foreground",
-                        waiting && "border-primary text-primary",
+                        waiting && "border-primary text-primary-text",
                         done && "border-transparent bg-accent text-accent-foreground",
                         missed && "border-transparent text-muted-foreground line-through",
                         notArrived && !late && "border-input",
-                        notArrived && late && "border-amber-500 text-warning",
+                        notArrived && late && "border-amber-500 text-warning-text",
                       )}
                     >
                       #{it.number}

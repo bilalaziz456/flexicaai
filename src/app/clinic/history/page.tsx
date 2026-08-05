@@ -103,7 +103,7 @@ export default async function HistoryPage({
 
       {/* Unmistakable: these are historical, not live figures. */}
       <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
-        <Archive className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+        <Archive className="mt-0.5 size-4 shrink-0 text-warning-text" aria-hidden="true" />
         <p>
           <span className="font-medium">Historical — imported from previous software, read-only.</span>{" "}
           These figures are a frozen archive for audit and lookup. They are NOT part of your live
