@@ -6,6 +6,7 @@ import { ThemeSwitch } from "./theme-switch";
 import { Magnetic } from "./magnetic";
 import { FooterNavLinks, HeaderNavLinks, type NavItem } from "./nav-links";
 import { FacebookIcon, InstagramIcon, LinkedInIcon } from "./social-icons";
+import { MobileNav } from "./mobile-nav";
 import { OffscreenMotion } from "./offscreen-motion";
 import { cn } from "@/core/lib/utils";
 import { WhatsAppCta } from "./whatsapp-cta";
@@ -77,7 +78,7 @@ export function MarketingShell({ children }: { children: ReactNode }) {
         className="pointer-events-none fixed inset-0 z-[60] bg-grain opacity-[0.035] mix-blend-overlay dark:opacity-[0.05]"
       />
       <header className="sticky top-0 z-50 border-b border-foreground/5 bg-background/80 backdrop-blur-lg">
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-6 px-4 sm:px-6">
+        <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-3 px-4 sm:gap-6 sm:px-6">
           <Link href="/" aria-label="FlexicaAI home" className="shrink-0">
             <Logo variant="mark" className="h-7" />
           </Link>
@@ -88,8 +89,11 @@ export function MarketingShell({ children }: { children: ReactNode }) {
             <HeaderNavLinks items={NAV} />
           </nav>
 
-          <div className="ml-auto flex items-center gap-2 md:ml-0">
-            <ThemeSwitch />
+          <div className="ml-auto flex items-center gap-1 sm:gap-2 md:ml-0">
+            <MobileNav items={NAV} />
+            <div className="hidden md:flex">
+              <ThemeSwitch />
+            </div>
             {/* Below sm the header can only fit one of these, and the CTA is the one
                 worth keeping — signing in is also in the hero and the footer. */}
             <Link

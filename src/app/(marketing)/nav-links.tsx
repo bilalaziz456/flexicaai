@@ -21,8 +21,10 @@ import { cn } from "@/core/lib/utils";
 
 export type NavItem = { href: string; label: string };
 
-/** Active for its own page and anything beneath it, so a future child route stays lit. */
-function isActive(pathname: string, href: string) {
+/** Active for its own page and anything beneath it, so a future child route stays lit.
+ *  Exported so the mobile menu marks the current page by the same rule — two copies of
+ *  this would eventually disagree about a child route. */
+export function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
