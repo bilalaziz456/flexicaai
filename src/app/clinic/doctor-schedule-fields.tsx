@@ -131,7 +131,7 @@ export function DoctorScheduleFields({
             const day = days.find((x) => x.weekday === d.value)!;
             return (
               <div key={d.value} className="space-y-2 rounded-md border p-2">
-                <label className="flex items-center gap-2 text-sm">
+                <label className="flex min-h-6 items-center gap-2 text-sm">
                   <Checkbox
                     checked={day.on}
                     onCheckedChange={(v) => patchDay(d.value, { on: Boolean(v) })}

@@ -75,7 +75,7 @@ export default async function ReportsHubPage() {
                 <CardContent className="text-sm">
                   <a
                     href={`/api/finance/export?type=${r.csv}`}
-                    className="relative z-10 inline-flex text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                    className="relative z-10 inline-flex min-h-6 items-center text-muted-foreground underline underline-offset-4 hover:text-foreground"
                   >
                     Download CSV
                   </a>

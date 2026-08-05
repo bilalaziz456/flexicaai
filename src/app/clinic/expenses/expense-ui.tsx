@@ -111,7 +111,7 @@ export function AddExpenseForm({
       </div>
       <div className="flex flex-wrap items-center gap-4">
         <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Add expense"}</Button>
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex min-h-6 items-center gap-2 text-sm">
           <input type="checkbox" name="recurring" className="size-4 accent-[var(--color-primary)]" />
           Recurring cost
         </label>
@@ -154,7 +154,7 @@ export function ExpenseRowActions({ id, deleted }: { id: string; deleted: boolea
           type="button"
           disabled={pending}
           onClick={() => run(() => restoreExpenseAction(id))}
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
+          className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
         >
           <RotateCcw className="size-3.5" aria-hidden="true" /> Restore
         </button>
@@ -163,7 +163,7 @@ export function ExpenseRowActions({ id, deleted }: { id: string; deleted: boolea
           type="button"
           disabled={pending}
           onClick={() => run(() => deleteExpenseAction(id))}
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-destructive disabled:opacity-50"
+          className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-destructive disabled:opacity-50"
         >
           <Trash2 className="size-3.5" aria-hidden="true" /> Delete
         </button>

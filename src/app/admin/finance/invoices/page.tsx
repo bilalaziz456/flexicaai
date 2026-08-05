@@ -162,7 +162,7 @@ export default async function ClinicInvoicesPage({
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-3">
                         {!r.deleted ? (
-                          <Link href={`/admin/finance/invoices/${r.id}/print`} className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground" prefetch={false}>
+                          <Link href={`/admin/finance/invoices/${r.id}/print`} className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground" prefetch={false}>
                             <Printer className="size-3.5" aria-hidden="true" /> Print
                           </Link>
                         ) : null}

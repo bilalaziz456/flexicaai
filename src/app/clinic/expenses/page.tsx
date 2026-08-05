@@ -106,14 +106,14 @@ export default async function ExpensesPage({
                 ...(sp.method ? { method: sp.method } : {}),
                 ...(sp.q ? { q: sp.q } : {}),
               }).toString()}`}
-              className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+              className="inline-flex min-h-6 items-center text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
             >
               Export CSV
             </a>
           ) : null}
           <Link
             href={deleted ? "/clinic/expenses" : "/clinic/expenses?deleted=1"}
-            className="text-sm text-muted-foreground underline underline-offset-4"
+            className="inline-flex min-h-6 items-center text-sm text-muted-foreground underline underline-offset-4"
           >
             {deleted ? "← Back to expenses" : "View deleted"}
           </Link>

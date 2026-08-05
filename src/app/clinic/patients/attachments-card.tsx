@@ -83,7 +83,7 @@ export function AttachmentsCard({
     <div className="space-y-4">
       {/* Photo-consent state */}
       {canUpload ? (
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex min-h-6 items-center gap-2 text-sm">
           <input type="checkbox" checked={photoConsent} onChange={toggleConsent} disabled={pending} className="size-4 accent-[var(--color-primary)]" />
           Patient consents to clinical photos
           {!photoConsent ? <span className="text-xs text-muted-foreground">(required to upload photos)</span> : null}

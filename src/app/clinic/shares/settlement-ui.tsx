@@ -130,7 +130,7 @@ export function VoidSettlementButton({ actionId }: { actionId: string }) {
             }
           })
         }
-        className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
+        className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
       >
         <Undo2 className="size-3" aria-hidden="true" /> Reverse
       </button>

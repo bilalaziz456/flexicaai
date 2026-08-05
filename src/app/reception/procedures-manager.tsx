@@ -105,7 +105,7 @@ function AddProcedureForm({ templatesAvailable }: { templatesAvailable: boolean 
           type="button"
           disabled={importing}
           onClick={() => startImport(() => void importProcedureDefaults())}
-          className="text-sm text-primary-text underline-offset-4 hover:underline disabled:opacity-50"
+          className="inline-flex min-h-6 items-center text-sm text-primary-text underline-offset-4 hover:underline disabled:opacity-50"
         >
           {importing ? "Importing…" : "Import suggested procedures for your specialty"}
         </button>
@@ -162,7 +162,7 @@ function ProcedureRow({
         disabled={!perms.edit}
         required
       />
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex min-h-6 items-center gap-2 text-sm">
         <input
           key={`a-${procedure.isActive}`}
           type="checkbox"

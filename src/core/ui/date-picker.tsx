@@ -203,7 +203,7 @@ export function DatePicker({
               <button
                 type="button"
                 onClick={() => onChange("")}
-                className="rounded-sm text-xs text-muted-foreground underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:underline"
+                className="inline-flex min-h-6 items-center rounded-sm px-1 text-xs text-muted-foreground underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:underline"
               >
                 Clear
               </button>
@@ -213,7 +213,7 @@ export function DatePicker({
                   const t = todayParts();
                   pick(t);
                 }}
-                className="rounded-sm text-xs font-medium text-primary-text underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:underline"
+                className="inline-flex min-h-6 items-center rounded-sm px-1 text-xs font-medium text-primary-text underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:underline"
               >
                 Today
               </button>

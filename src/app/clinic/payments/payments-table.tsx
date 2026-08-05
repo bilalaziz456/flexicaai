@@ -68,7 +68,7 @@ export function PaymentsTable({ rows, empty }: { rows: Row[]; empty: string }) {
         r.appointmentId ? (
           <Link
             href={`/clinic/appointments/${r.appointmentId}/receipt`}
-            className="inline-flex items-center gap-1 text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            className="inline-flex min-h-6 items-center gap-1 text-muted-foreground underline underline-offset-4 hover:text-foreground"
           >
             <Printer className="size-3.5" aria-hidden="true" /> Print
           </Link>

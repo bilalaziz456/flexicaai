@@ -136,7 +136,7 @@ export function CompanyExpenseForm({
       </div>
       <div className="flex flex-wrap items-center gap-4">
         <Button type="submit" disabled={pending}>{pending ? "Saving…" : isEdit ? "Save changes" : "Add expense"}</Button>
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex min-h-6 items-center gap-2 text-sm">
           <input type="checkbox" name="recurring" defaultChecked={!!expense?.recurrence} className="size-4 accent-[var(--color-primary)]" />
           Recurring cost
         </label>
@@ -206,7 +206,7 @@ export function RecurringExpensesManager({
                   <button
                     type="button"
                     onClick={() => setEditingId(t.id)}
-                    className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                    className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
                   >
                     <Pencil className="size-3.5" aria-hidden="true" /> Edit
                   </button>
@@ -241,7 +241,7 @@ export function CompanyExpenseRowActions({ id, deleted }: { id: string; deleted:
           type="button"
           disabled={pending}
           onClick={() => run(() => restoreCompanyExpenseAction(id))}
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
+          className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
         >
           <RotateCcw className="size-3.5" aria-hidden="true" /> Restore
         </button>

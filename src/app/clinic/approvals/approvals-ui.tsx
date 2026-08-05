@@ -35,7 +35,7 @@ export function ClinicDiscountPolicy({ initial }: { initial: boolean }) {
   return (
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="requireApproval" value={on ? "on" : ""} />
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex min-h-6 items-center gap-2 text-sm">
         <input
           type="checkbox"
           checked={on}
