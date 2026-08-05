@@ -476,8 +476,11 @@ export async function updateStaffProfile(
   });
   revalidatePath("/clinic/staff");
   revalidatePath(`/clinic/staff/${userId}`);
-  // Back to the list with a success flash (matches the create flow).
-  redirect("/clinic/staff?updated=1");
+  // Stay on the profile and toast, matching updateStaffPermissions below. Editing a
+  // name or username is usually one of several changes an admin makes to the same
+  // person (permissions, schedule, password), and bouncing to the list after each
+  // one meant navigating back in every time.
+  return { saved: true };
 }
 
 /**

@@ -50,10 +50,13 @@ export function EditStaffForm({
     ClinicActionState,
     FormData
   >(action, {});
-  // Success redirects to the staff list (with a flash toast); a failed save
-  // pops an error toast here, re-triggered per attempt.
+  // Both outcomes toast in place — the save no longer bounces to the staff list.
+  // The nonces let an identical message fire again on a repeated save, since
+  // useActionState hands back an equal state object each time.
+  const [savedNonce, setSavedNonce] = useState(0);
   const [errorNonce, setErrorNonce] = useState(0);
   useEffect(() => {
+    if (state.saved) setSavedNonce((n) => n + 1);
     if (state.error) setErrorNonce((n) => n + 1);
   }, [state]);
   const isDoctor = role === "doctor";
@@ -121,6 +124,11 @@ export function EditStaffForm({
           {pending ? "Saving…" : "Save changes"}
         </Button>
       </div>
+      <Toast
+        message={state.saved ? "Staff member updated." : null}
+        variant="success"
+        token={savedNonce}
+      />
       <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
