@@ -54,6 +54,7 @@ export function PerioChartCard({
         <>
           <Editor value={value} onChange={setValue} />
           <Input
+            aria-label="Perio chart note"
             placeholder="Note (optional)"
             value={note}
             onChange={(e) => setNote(e.target.value)}

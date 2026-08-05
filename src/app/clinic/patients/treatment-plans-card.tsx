@@ -138,10 +138,11 @@ export function TreatmentPlansCard({
 
       {canCreate ? (
         <div className="flex flex-wrap items-end gap-2 rounded-lg border p-3">
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">New plan</label>
+          {/* label WRAPS the input: as a sibling with no htmlFor it named nothing. */}
+          <label className="block space-y-1">
+            <span className="block text-xs text-muted-foreground">New plan</span>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Plan title" className="h-8 w-48" />
-          </div>
+          </label>
           <Button size="sm" disabled={pending || !title.trim()} onClick={() => run(async () => { const r = await createPlanAction(patientId, title); if (r.ok) setTitle(""); return r; }, "Plan created.")}>
             <Plus className="size-4" /> Create
           </Button>
@@ -191,8 +192,8 @@ function AddItem({ planId, patientId, procedures, pending, onRun }: { planId: st
         placeholder="Add procedure…"
         className="w-52"
       />
-      <Input value={tooth} onChange={(e) => setTooth(e.target.value)} placeholder="Tooth" className="h-7 w-16" />
-      <Input value={qty} onChange={(e) => setQty(e.target.value.replace(/[^\d]/g, ""))} className="h-7 w-12" />
+      <Input value={tooth} onChange={(e) => setTooth(e.target.value)} aria-label="Tooth" placeholder="Tooth" className="h-7 w-16" />
+      <Input aria-label="Quantity" value={qty} onChange={(e) => setQty(e.target.value.replace(/[^\d]/g, ""))} className="h-7 w-12" />
       <Button size="sm" variant="outline" disabled={pending || !procId} onClick={add}>Add</Button>
     </div>
   );

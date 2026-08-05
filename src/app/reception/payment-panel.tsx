@@ -211,7 +211,7 @@ export function PaymentPanel({
               <input id="pp-ref" name="reference" type="text" placeholder="Optional" className={inputCls} />
             </div>
           </div>
-          <input type="text" name="note" placeholder="Note (optional)" className={inputCls} />
+          <input type="text" name="note" aria-label="Note for this payment" placeholder="Note (optional)" className={inputCls} />
           <div className="flex flex-wrap items-center gap-2">
             <Button type="submit" size="sm" disabled={pending}>
               {pending ? "Saving…" : "Collect payment"}
@@ -273,7 +273,7 @@ export function PaymentPanel({
                 <input id="rf-ref" name="reference" type="text" placeholder="Optional" className={inputCls} />
               </div>
             </div>
-            <input type="text" name="note" placeholder="Reason (optional)" className={inputCls} />
+            <input type="text" name="note" aria-label="Reason for this refund" placeholder="Reason (optional)" className={inputCls} />
             <div className="flex items-center gap-2">
               <Button type="submit" size="sm" variant="destructive" disabled={refundPending}>
                 {refundPending ? "Refunding…" : "Confirm refund"}

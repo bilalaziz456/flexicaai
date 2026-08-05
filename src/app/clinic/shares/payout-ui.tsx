@@ -84,7 +84,7 @@ export function RecordPayoutForm({
           <input id="pay-ref" name="reference" type="text" placeholder="Txn / cheque no." className={inputCls} />
         </div>
       </div>
-      <input type="text" name="note" placeholder="Note (optional)" className={inputCls} />
+      <input type="text" name="note" aria-label="Note for this payout" placeholder="Note (optional)" className={inputCls} />
       <Button
         type="submit"
         disabled={pending || outstanding <= 0 || Number(amount) <= 0}

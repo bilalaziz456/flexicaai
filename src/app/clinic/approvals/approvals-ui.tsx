@@ -90,6 +90,12 @@ function ApprovalRow({ item }: { item: QueueItem }) {
         <input
           type="text"
           name="note"
+          // A placeholder is not an accessible name: it is gone the moment you type,
+          // and it is not reliably announced. Every other field in these forms has a
+          // visible <label htmlFor>; this one sits full width under the grid and was
+          // missed. aria-label rather than a visible label because this form repeats
+          // per approval row and a label on each would double its height.
+          aria-label="Note for this decision"
           placeholder="Note (optional)"
           className="h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         />

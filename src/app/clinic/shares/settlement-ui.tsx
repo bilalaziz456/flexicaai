@@ -98,7 +98,7 @@ export function SettlementForm({
           />
         </div>
       </div>
-      <input type="text" name="note" placeholder="Note (optional)" className={inputCls} />
+      <input type="text" name="note" aria-label="Note for this settlement" placeholder="Note (optional)" className={inputCls} />
       <Button type="submit" disabled={pending || Number(amount) <= 0 || Number(amount) > max}>
         {pending ? "Recording…" : "Record"}
       </Button>

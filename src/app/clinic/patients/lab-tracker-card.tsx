@@ -89,7 +89,7 @@ export function LabTrackerCard({
               </div>
               <div className="flex items-center gap-2">
                 {canEdit ? (
-                  <select value={c.status} disabled={pending} className={selectCls} onChange={(e) => run(() => updateLabStatusAction(c.id, patientId, e.target.value), "Status updated.")}>
+                  <select value={c.status} aria-label="Lab case status" disabled={pending} className={selectCls} onChange={(e) => run(() => updateLabStatusAction(c.id, patientId, e.target.value), "Status updated.")}>
                     {statuses.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
                   </select>
                 ) : (
@@ -127,11 +127,21 @@ export function LabTrackerCard({
   );
 }
 
+/**
+ * A labelled field. The <label> WRAPS its control on purpose: it previously sat as a
+ * sibling with no htmlFor, which looks correct on screen but names nothing, so every
+ * input in these cards was reaching a screen reader unlabelled. Wrapping gives implicit
+ * association without threading ids through every call site.
+ *
+ * Only for a SINGLE control. Where a caption covers a repeating group (allergies,
+ * medications), use a role="group" and label the inputs individually instead: a label
+ * wrapping several controls is ambiguous about which one it names.
+ */
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1">
-      <label className="text-xs text-muted-foreground">{label}</label>
+    <label className="block space-y-1">
+      <span className="block text-xs text-muted-foreground">{label}</span>
       {children}
-    </div>
+    </label>
   );
 }

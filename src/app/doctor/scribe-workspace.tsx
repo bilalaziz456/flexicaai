@@ -233,6 +233,7 @@ export function ScribeWorkspace({
         {!patient ? (
           <div className="space-y-3">
             <Input
+              aria-label="Search patients by name or phone"
               placeholder="Search patients by name or phone…"
               value={query}
               onChange={(e) => void runSearch(e.target.value)}

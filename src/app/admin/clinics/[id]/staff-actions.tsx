@@ -130,6 +130,7 @@ export function StaffActions({
           className="flex items-center justify-end gap-2"
         >
           <Input
+            aria-label="New temporary password"
             name="password"
             type="text"
             placeholder="New temporary password"

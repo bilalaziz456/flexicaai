@@ -114,13 +114,13 @@ export function MedicalHistoryCard({
             <div key={i} className="flex flex-wrap items-center gap-2">
               <Input
                 className="h-8 w-40"
-                placeholder="Substance"
+                aria-label="Allergy substance" placeholder="Substance"
                 value={a.substance}
                 onChange={(e) => set("allergies", replace(data.allergies, i, { ...a, substance: e.target.value }))}
               />
               <Input
                 className="h-8 w-40"
-                placeholder="Reaction"
+                aria-label="Allergy reaction" placeholder="Reaction"
                 value={a.reaction ?? ""}
                 onChange={(e) => set("allergies", replace(data.allergies, i, { ...a, reaction: e.target.value }))}
               />
@@ -166,8 +166,8 @@ export function MedicalHistoryCard({
         <div className="space-y-2">
           {data.medications.map((m, i) => (
             <div key={i} className="flex flex-wrap items-center gap-2">
-              <Input className="h-8 w-40" placeholder="Name" value={m.name} onChange={(e) => set("medications", replace(data.medications, i, { ...m, name: e.target.value }))} />
-              <Input className="h-8 w-32" placeholder="Dose" value={m.dose ?? ""} onChange={(e) => set("medications", replace(data.medications, i, { ...m, dose: e.target.value }))} />
+              <Input className="h-8 w-40" aria-label="Medication name" placeholder="Name" value={m.name} onChange={(e) => set("medications", replace(data.medications, i, { ...m, name: e.target.value }))} />
+              <Input className="h-8 w-32" aria-label="Medication dose" placeholder="Dose" value={m.dose ?? ""} onChange={(e) => set("medications", replace(data.medications, i, { ...m, dose: e.target.value }))} />
               <button type="button" onClick={() => set("medications", remove(data.medications, i))} aria-label="Remove medication">
                 <X className="size-4 text-muted-foreground" />
               </button>
@@ -180,11 +180,12 @@ export function MedicalHistoryCard({
       </Field>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Smoking"><Input className="h-8" value={data.smoking ?? ""} onChange={(e) => set("smoking", e.target.value)} placeholder="e.g. 10/day" /></Field>
-        <Field label="Alcohol"><Input className="h-8" value={data.alcohol ?? ""} onChange={(e) => set("alcohol", e.target.value)} placeholder="e.g. occasional" /></Field>
+        <Field label="Smoking"><Input className="h-8" aria-label="Smoking" value={data.smoking ?? ""} onChange={(e) => set("smoking", e.target.value)} placeholder="e.g. 10/day" /></Field>
+        <Field label="Alcohol"><Input className="h-8" aria-label="Alcohol" value={data.alcohol ?? ""} onChange={(e) => set("alcohol", e.target.value)} placeholder="e.g. occasional" /></Field>
       </div>
       <Field label="Notes">
         <textarea
+          aria-label="Notes"
           className="min-h-16 w-full rounded-lg border border-input bg-[var(--input-bg)] p-2 text-sm outline-none focus-visible:border-ring"
           value={data.notes ?? ""}
           onChange={(e) => set("notes", e.target.value)}
@@ -208,9 +209,15 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
     </div>
   );
 }
+/**
+ * A captioned group. The caption is a <p>, not a <label>, because several of these
+ * wrap a REPEATING set of controls (allergies, medications) and a label may only name
+ * one. role="group" + aria-label gives the set a name; each control inside carries its
+ * own aria-label so it is not announced bare.
+ */
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1.5">
+    <div role="group" aria-label={label} className="space-y-1.5">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       {children}
     </div>

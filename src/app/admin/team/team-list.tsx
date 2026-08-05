@@ -44,6 +44,7 @@ export function TeamList({ members }: { members: TeamMember[] }) {
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
         <Input
+          aria-label="Search team by name or username"
           placeholder="Search name or username…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
