@@ -302,7 +302,7 @@ export default async function StaffDetailPage({
         <CardHeader>
           <CardTitle>Password</CardTitle>
           <CardDescription>
-            Set a temporary password; they must change it at next login.
+            Set a temporary password. They must change it at next login.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -340,7 +340,7 @@ export default async function StaffDetailPage({
         <CardHeader>
           <CardTitle className="text-destructive">Danger zone</CardTitle>
           <CardDescription>
-            Permanently delete this staff member. Visit history is kept; their
+            Permanently delete this staff member. Visit history is kept, and their
             sessions end immediately. This cannot be undone.
           </CardDescription>
         </CardHeader>

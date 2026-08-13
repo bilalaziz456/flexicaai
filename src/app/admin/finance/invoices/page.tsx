@@ -123,7 +123,7 @@ export default async function ClinicInvoicesPage({
         <Card>
           <CardHeader>
             <CardTitle>Issue an invoice</CardTitle>
-            <CardDescription>Picking a clinic pre-fills its monthly price; adjust for the period charged.</CardDescription>
+            <CardDescription>Picking a clinic pre-fills its monthly price. Adjust it for the period charged.</CardDescription>
           </CardHeader>
           <CardContent>
             <IssueInvoiceForm clinics={clinicList} />

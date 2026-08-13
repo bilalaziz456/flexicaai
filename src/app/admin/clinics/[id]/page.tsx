@@ -174,7 +174,7 @@ export default async function ClinicDetailPage({
             <CardTitle>Billing</CardTitle>
             <CardDescription>
               Subscription price, paid-through date and carried-forward balance. Recording
-              a payment extends paid-through; overdue past grace flips the clinic to
+              a payment extends paid-through, and overdue past grace flips the clinic to
               past-due (locking staff out).
             </CardDescription>
           </CardHeader>

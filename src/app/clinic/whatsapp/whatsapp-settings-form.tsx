@@ -47,7 +47,7 @@ export function WhatsappSettingsForm({
         ) : (
           <>
             {" "}
-            You can set this now; it takes effect once your clinic&apos;s own WhatsApp
+            You can set this now. It takes effect once your clinic&apos;s own WhatsApp
             number is activated.
           </>
         )}

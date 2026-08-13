@@ -159,7 +159,7 @@ export default async function TeamMemberPage({
         <Card>
           <CardHeader>
             <CardTitle>Password</CardTitle>
-            <CardDescription>Set a temporary password; they must change it on next login.</CardDescription>
+            <CardDescription>Set a temporary password. They must change it on next login.</CardDescription>
           </CardHeader>
           <CardContent>
             <PasswordResetForm userId={member.id} />
@@ -181,7 +181,7 @@ export default async function TeamMemberPage({
         <Card className="border-destructive/40">
           <CardHeader>
             <CardTitle className="text-destructive">Danger zone</CardTitle>
-            <CardDescription>Suspend cuts access immediately; delete removes the account.</CardDescription>
+            <CardDescription>Suspend cuts access immediately. Delete removes the account.</CardDescription>
           </CardHeader>
           <CardContent>
             <DangerActions userId={member.id} state={accountState} canEdit={canEdit} canDelete={canDelete} />

@@ -474,7 +474,7 @@ export default async function OverviewPage({
       <Card>
         <CardHeader>
           <CardTitle>Clinic activity &amp; usage ({rangeLabel})</CardTitle>
-          <CardDescription>Quietest clinics first. Usage over the period; last-active is all-time.</CardDescription>
+          <CardDescription>Quietest clinics first. Usage over the period. Last-active is all-time.</CardDescription>
         </CardHeader>
         <CardContent>
           {health.rows.length === 0 ? (

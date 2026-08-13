@@ -126,7 +126,7 @@ export async function TreatmentEstimate({
         {plan.note ? <p className="mt-2 text-[0.9em] opacity-80">{plan.note}</p> : null}
 
         <div className="mt-3 border-t border-black/20 pt-2 text-center text-[0.8em] opacity-70">
-          <div>This is an estimate; the final cost may vary with treatment.</div>
+          <div>This is an estimate. The final cost may vary with treatment.</div>
           {clinic?.signature ? <div>{clinic.signature}</div> : null}
         </div>
       </InvoicePrintFrame>

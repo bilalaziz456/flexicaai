@@ -90,6 +90,10 @@ export type PerioTooth = {
   mobility?: number; // 0–3
   furcation?: number; // 0–3
   plaque?: boolean;
+  /** Free text for this tooth at this exam ("furcation involvement, refer"). Lives in
+   *  the `teeth` jsonb, so it needs no migration. Distinct from `perio_exams.note`,
+   *  which is the note for the exam as a whole. */
+  note?: string;
 };
 
 /** FDI tooth number → its periodontal measurements for one exam. */

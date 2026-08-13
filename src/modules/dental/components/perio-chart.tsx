@@ -145,6 +145,22 @@ function ToothRow({
           </select>
         )}
       </td>
+      {/* Note, editor only. The read-only grid is already 9 columns of numbers and a
+          sentence would wreck it, so charted notes are listed under the chart instead
+          where there is room to read them. */}
+      {readOnly ? null : (
+        <td className="px-1">
+          <input
+            type="text"
+            aria-label={`Note, tooth ${n}`}
+            value={tooth?.note ?? ""}
+            onChange={(e) =>
+              onChange?.({ ...tooth, note: e.target.value === "" ? undefined : e.target.value })
+            }
+            className="h-6 w-36 rounded border border-input bg-[var(--input-bg)] px-1.5 text-xs outline-none focus-visible:border-ring"
+          />
+        </td>
+      )}
     </tr>
   );
 }
@@ -191,6 +207,9 @@ function ArchTable({
           ))}
           <th scope="col" title="Mobility" className="px-1 pb-1 font-normal">Mob</th>
           <th scope="col" title="Furcation" className="px-1 pb-1 font-normal">Fur</th>
+          {onToothChange ? (
+            <th scope="col" className="px-1 pb-1 font-normal">Note</th>
+          ) : null}
         </tr>
       </thead>
       <tbody>
@@ -259,9 +278,38 @@ export function PerioChart({
       )}
       {!readOnly ? (
         <p className="text-[11px] text-muted-foreground">
-          Enter pocket depth (mm) per site; tap the dot to mark bleeding. Mob/Fur = mobility/furcation (0–3).
+          Enter pocket depth (mm) per site, tap the dot to mark bleeding. Mob/Fur = mobility/furcation (0–3).
         </p>
       ) : null}
+
+      <PerioNotes teeth={value} />
+    </div>
+  );
+}
+
+/**
+ * Per-tooth notes, listed under the chart.
+ *
+ * The grid is nine columns of numbers, so a sentence has nowhere to sit in it: the
+ * editor gets a Note column, and everyone reading the exam gets this list. Shown in
+ * both modes so a note written during the exam is still there when it is read back.
+ */
+function PerioNotes({ teeth }: { teeth: PerioTeeth }) {
+  const noted = Object.entries(teeth)
+    .filter(([, t]) => t?.note?.trim())
+    .sort(([a], [b]) => a.localeCompare(b));
+  if (noted.length === 0) return null;
+  return (
+    <div className="rounded-lg border p-3">
+      <p className="text-xs font-medium text-muted-foreground">Notes</p>
+      <ul className="mt-1.5 space-y-1">
+        {noted.map(([n, t]) => (
+          <li key={n} className="flex gap-2 text-xs">
+            <span className="shrink-0 font-medium tabular-nums">{n}</span>
+            <span className="text-muted-foreground">{t.note}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
