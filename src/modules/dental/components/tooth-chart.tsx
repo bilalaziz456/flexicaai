@@ -8,6 +8,7 @@ import type {
 } from "@/core/types/module";
 import type { ChartTeeth, ChartTooth, ToothStatus } from "@/modules/dental/db/schema";
 import {
+  ALL_PERMANENT,
   ALL_PRIMARY,
   PERMANENT_LOWER,
   PERMANENT_UPPER,
@@ -149,13 +150,27 @@ export function ToothChart({
   const [pUL, pUR] = half(PRIMARY_UPPER);
   const [pLL, pLR] = half(PRIMARY_LOWER);
 
-  // A charted primary tooth has to show itself. Reading the chart — on the patient
-  // page or on a printed sheet — the baby dentition only ever appeared if you pressed
-  // a toggle, and paper has no buttons, so a paediatric chart printed as though the
-  // child had nothing recorded. Here both dentitions render whenever the primary one
-  // holds anything. The editor keeps the toggle: charting is deliberate, and showing
-  // 52 teeth to someone working on a permanent molar is just noise.
-  const showsBothDentitions = readOnly && ALL_PRIMARY.some((n) => value[n]);
+  // Reading the chart — on the patient page or on a printed sheet — every dentition
+  // that has something charted is shown, and nothing else. Paper has no controls, so
+  // this must not depend on a toggle somebody could forget: a child's teeth would
+  // silently be absent from their own record. An adult therefore sees the permanent
+  // arches as before, a toddler sees only their primary ones instead of twenty teeth
+  // buried under thirty-two blanks, and a six-to-twelve-year-old in mixed dentition
+  // sees both on one sheet rather than needing two.
+  //
+  // A chart with nothing on it still draws the permanent arches, so a blank sheet is
+  // a usable form rather than an empty box.
+  //
+  // The editor keeps the toggle. Charting a primary tooth that has nothing on it yet
+  // means summoning a dentition this rule would hide, and there is a person present
+  // to press the button.
+  const hasPermanentCharted = ALL_PERMANENT.some((n) => value[n]);
+  const hasPrimaryCharted = ALL_PRIMARY.some((n) => value[n]);
+  const showsPrimary = readOnly && hasPrimaryCharted;
+  const showsPermanent = !readOnly || hasPermanentCharted || !hasPrimaryCharted;
+  // Captions only earn their place once the primary set is on the sheet; a plain
+  // adult chart does not need to be told it is the permanent one.
+  const captionDentitions = showsPrimary;
 
   const setTooth = (n: string, patch: Partial<ChartTooth> & { status: ToothStatus }) => {
     if (!onChange) return;
@@ -204,12 +219,16 @@ export function ToothChart({
           was — that is what stopped the quadrants from ever wrapping, and what let the
           scroller clip them on print. The arches centre themselves. */}
       <div className="space-y-1.5">
-        {showsBothDentitions ? <DentitionLabel>Permanent</DentitionLabel> : null}
-        <ArchRow left={uL} right={uR} teeth={value} selected={selected} onSelect={readOnly ? undefined : setSelected} />
-        <ArchRow left={lL} right={lR} teeth={value} selected={selected} onSelect={readOnly ? undefined : setSelected} />
-        {showsBothDentitions ? (
+        {showsPermanent ? (
           <>
-            <DentitionLabel>Primary</DentitionLabel>
+            {captionDentitions ? <DentitionLabel>Permanent</DentitionLabel> : null}
+            <ArchRow left={uL} right={uR} teeth={value} selected={selected} onSelect={readOnly ? undefined : setSelected} />
+            <ArchRow left={lL} right={lR} teeth={value} selected={selected} onSelect={readOnly ? undefined : setSelected} />
+          </>
+        ) : null}
+        {showsPrimary ? (
+          <>
+            {captionDentitions ? <DentitionLabel>Primary</DentitionLabel> : null}
             <ArchRow left={pUL} right={pUR} teeth={value} selected={null} />
             <ArchRow left={pLL} right={pLR} teeth={value} selected={null} />
           </>
