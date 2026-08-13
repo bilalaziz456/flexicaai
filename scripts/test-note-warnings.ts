@@ -50,25 +50,45 @@ check(
   ["Fluxywoxitab 250mg"],
 );
 
-// CURRENT BEHAVIOUR, and it is worth staring at: matching is exact, but the scribe
-// writes the strength into the name ("Amoxicillin 500mg"), while the formulary lists
-// "Amoxicillin". So a perfectly ordinary prescription is reported as not in the
-// formulary. Every real note in the database looks like this, which means the warning
-// fires almost every time and stops meaning anything. Asserted here so the day someone
-// makes matching dose-aware, this test fails loudly and on purpose.
+// The scribe writes the strength into the name, so a dose-suffixed formulary drug
+// must resolve. This is the case that made the warning fire on nearly every real
+// note and taught everyone to ignore it.
+const flagged = (...names: string[]) =>
+  noteWarnings({ prescriptions: names.map((drug) => ({ drug })) }, formulary, []).drugWarnings;
+
+check("dose-suffixed generic resolves", flagged("Amoxicillin 500mg"), []);
+check("dose without a space", flagged("Ibuprofen 400mg"), []);
+check("space between number and unit", flagged("Paracetamol 1 g"), []);
+check("dose-suffixed brand resolves", flagged("Augmentin 625mg"), []);
+check("strength plus dosage form", flagged("Chlorhexidine gluconate 0.2% mouthwash"), []);
+check("dose in parentheses", flagged("Amoxicillin (500mg)"), []);
+check("compound strength", flagged("Amoxicillin 250mg/5ml suspension"), []);
+check("multi-word generic keeps its name", flagged("Mefenamic acid 500 mg"), []);
+
+// A brand ending in a bare letter must survive peeling — "C" is not a unit.
+check("brand with a trailing letter", flagged("Dalacin C"), []);
+
+// A combination that IS in the formulary, written with its dose.
 check(
-  "exact matching flags a dose-suffixed formulary drug",
-  noteWarnings(
-    {
-      prescriptions: [
-        { drug: "Zerodol-SP" }, // genuinely not in the formulary
-        { drug: "Amoxicillin 500mg" }, // IS in the formulary, as "Amoxicillin"
-      ],
-    },
-    formulary,
-    [],
-  ).drugWarnings,
-  ["Zerodol-SP", "Amoxicillin 500mg"],
+  "formulary combination with a dose",
+  flagged("Amoxicillin + Clavulanic acid 625mg"),
+  [],
+);
+
+// The reason this peels only trailing tokens instead of matching on prefix: a
+// combination product is NOT the single drug it starts with, and must still warn.
+check(
+  "combination product is still flagged",
+  flagged("Ibuprofen + Codeine 400mg"),
+  ["Ibuprofen + Codeine 400mg"],
+);
+check("unknown drug with a dose is still flagged", flagged("Zerodol-SP 100mg"), ["Zerodol-SP 100mg"]);
+check("a bare dose is not a drug", flagged("500mg"), ["500mg"]);
+
+check(
+  "known and unknown together",
+  flagged("Zerodol-SP", "Amoxicillin 500mg"),
+  ["Zerodol-SP"],
 );
 
 // An allergy recorded AFTER the dictation is the reason resuming recomputes rather
