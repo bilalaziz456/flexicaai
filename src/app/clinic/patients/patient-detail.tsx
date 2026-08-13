@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarPlus, Printer } from "lucide-react";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, clinics, patients, users, visits } from "@/core/db/schema";
@@ -51,6 +51,7 @@ export async function PatientDetail({
   canDelete,
   canBook = false,
   bookPath,
+  viewerId,
   canViewClinical = false,
   canEditClinical = false,
   canViewPrescriptions = false,
@@ -77,6 +78,10 @@ export async function PatientDetail({
    *  new-appointment page path (`bookPath`). */
   canBook?: boolean;
   bookPath?: string;
+  /** The signed-in user. Clinical history shows approved notes to everyone, and
+   *  unapproved drafts only to the doctor who dictated them. Omit and the history
+   *  is approved-only. */
+  viewerId?: string;
   /** Show the clinical history (visit notes) — needs `clinical:view` (§10). */
   canViewClinical?: boolean;
   /** Allow editing the chart (existing conditions) — needs `clinical:edit`. */
@@ -141,6 +146,14 @@ export async function PatientDetail({
   // Clinical history — the visit record timeline. Phase 0 reads the existing
   // `visits` (transcript + module-shaped note); later phases add the structured
   // chart. Gated by `clinical:view` (§6). Newest first.
+  //
+  // APPROVED notes only, plus the viewer's OWN drafts. A draft is unreviewed AI
+  // output, and the rule is that it never counts as the record until a doctor has
+  // signed it off, so it must not read as clinical fact to a manager or to another
+  // doctor. The author is the exception: a scribe session that ends before approval
+  // (tab closed, called away) leaves a draft row, and this timeline is the only
+  // place its text is legible — filtering it from the author too would make what
+  // they dictated unreachable. Their own drafts stay, badged Draft.
   const clinicalVisits = canViewClinical
     ? await db
         .select({
@@ -160,6 +173,9 @@ export async function PatientDetail({
             clinicId,
             notDeleted(visits.deletedAt),
             eq(visits.patientId, patientId),
+            viewerId
+              ? or(eq(visits.status, "approved"), eq(visits.doctorId, viewerId))
+              : eq(visits.status, "approved"),
           ),
         )
         .orderBy(desc(visits.visitDate))

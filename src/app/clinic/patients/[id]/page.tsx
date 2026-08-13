@@ -29,6 +29,7 @@ export default async function PatientDetailPage({
       clinicId={user.clinicId}
       patientId={id}
       backHref="/clinic/patients"
+      viewerId={user.id}
       canEdit={can(user, "patients", "edit")}
       canDelete={can(user, "patients", "delete")}
       canBook={can(user, "appointments", "create")}
