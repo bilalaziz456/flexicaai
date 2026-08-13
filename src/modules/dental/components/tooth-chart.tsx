@@ -199,21 +199,21 @@ export function ToothChart({
         )}
       </div>
 
-      {/* Not `w-fit`: sizing to the 557px arch regardless of the container is exactly
-          what stopped the quadrants from ever wrapping. */}
-      <div>
-        <div className="mx-auto max-w-full space-y-1.5">
-          {showsBothDentitions ? <DentitionLabel>Permanent</DentitionLabel> : null}
-          <ArchRow left={uL} right={uR} teeth={value} selected={selected} onSelect={readOnly ? undefined : setSelected} />
-          <ArchRow left={lL} right={lR} teeth={value} selected={selected} onSelect={readOnly ? undefined : setSelected} />
-          {showsBothDentitions ? (
-            <>
-              <DentitionLabel>Primary</DentitionLabel>
-              <ArchRow left={pUL} right={pUR} teeth={value} selected={null} />
-              <ArchRow left={pLL} right={pLR} teeth={value} selected={null} />
-            </>
-          ) : null}
-        </div>
+      {/* Deliberately no width of its own. This used to be a `w-fit` box inside a
+          horizontal scroller, which sized itself to the 557px arch whatever the paper
+          was — that is what stopped the quadrants from ever wrapping, and what let the
+          scroller clip them on print. The arches centre themselves. */}
+      <div className="space-y-1.5">
+        {showsBothDentitions ? <DentitionLabel>Permanent</DentitionLabel> : null}
+        <ArchRow left={uL} right={uR} teeth={value} selected={selected} onSelect={readOnly ? undefined : setSelected} />
+        <ArchRow left={lL} right={lR} teeth={value} selected={selected} onSelect={readOnly ? undefined : setSelected} />
+        {showsBothDentitions ? (
+          <>
+            <DentitionLabel>Primary</DentitionLabel>
+            <ArchRow left={pUL} right={pUR} teeth={value} selected={null} />
+            <ArchRow left={pLL} right={pLR} teeth={value} selected={null} />
+          </>
+        ) : null}
       </div>
 
       {/* Editor: the picker for the selected tooth. */}
