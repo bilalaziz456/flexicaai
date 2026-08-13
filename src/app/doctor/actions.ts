@@ -2,7 +2,7 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { requireRole } from "@/core/auth/user";
+import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
@@ -20,22 +20,30 @@ import { getPatientAllergies } from "@/core/patients/medical-history";
 import { noteWarnings } from "@/core/ai/note-warnings";
 
 /**
- * Doctor actions on scribe drafts — CLAUDE.md §8: AI output is a DRAFT until the
- * doctor approves it. All queries are scoped to the doctor's own clinic_id.
+ * Scribe actions — CLAUDE.md §8: AI output is a DRAFT until a clinician approves it.
+ * Every query is scoped to the caller's own clinic_id.
+ *
+ * Authorization is the PERMISSION, not the role. These used to demand
+ * `requireRole("doctor")`, a strict equality check, while the page that calls them
+ * (`/clinic/scribe`) admits the whole workspace — so a clinic admin, who holds every
+ * permission by default, could record a note and then be silently redirected when
+ * they pressed Approve, stranding the draft forever. In this market the clinic owner
+ * usually IS the practising dentist, so the role was the wrong question to ask.
+ * `requireWorkspace()` establishes the clinic; `can()` decides what may be done.
  */
 
 /**
- * Advance the doctor's OWN queue patient: Call in (→ in_progress) or Complete
- * (→ completed). Authorization is ownership — the appointment must belong to the
- * signed-in doctor — so no extra `appointments:edit` grant is needed to run their
- * own room. The shared transition records the sale on completion. Clinic-scoped.
+ * Advance your OWN queue patient: Call in (→ in_progress) or Complete (→ completed).
+ * Authorization is ownership — the appointment must be assigned to the signed-in
+ * user — so no extra `appointments:edit` grant is needed to run your own room, and
+ * an owner-dentist seeing patients under their own name gets the same controls.
+ * The shared transition records the sale on completion. Clinic-scoped.
  */
 export async function advanceMyQueue(
   appointmentId: string,
   status: AppointmentStatus,
 ): Promise<void> {
-  const user = await requireRole("doctor");
-  if (!user.clinicId) return;
+  const user = await requireWorkspace();
   // A doctor may only push a patient forward through the two in-room states.
   if (status !== "in_progress" && status !== "completed") return;
 
@@ -67,8 +75,8 @@ export async function advanceMyQueue(
  * in-scribe editor. Module-agnostic; gated by `clinical:view`. Null when no chart.
  */
 export async function loadPatientChart(patientId: string): Promise<unknown> {
-  const user = await requireRole("doctor");
-  if (!user.clinicId || !can(user, "clinical", "view")) return null;
+  const user = await requireWorkspace();
+  if (!can(user, "clinical", "view")) return null;
   const [clinicRow] = await db
     .select({ modulesEnabled: clinics.modulesEnabled })
     .from(clinics)
@@ -79,7 +87,7 @@ export async function loadPatientChart(patientId: string): Promise<unknown> {
 }
 
 /**
- * Reopen one of the doctor's own unapproved drafts for review.
+ * Reopen one of your own unapproved drafts for review.
  *
  * A scribe session that ends before approval (tab closed, called away) leaves the
  * draft in the database with nothing pointing at it — approve and discard both act
@@ -87,9 +95,9 @@ export async function loadPatientChart(patientId: string): Promise<unknown> {
  * in: it returns the same shape the scribe route returns, so the existing review
  * screen can pick the draft up as though it had just been dictated.
  *
- * Own drafts only. An unapproved note is the author's until they sign it off, so
- * another doctor cannot open, edit or approve it. Returns null if it is not yours,
- * already approved, or discarded.
+ * Own drafts only. An unapproved note belongs to whoever dictated it until they sign
+ * it off, so nobody else can open, edit or approve it — not another doctor, and not
+ * the clinic admin. Returns null if it is not yours, already approved, or discarded.
  */
 export async function loadDraft(visitId: string): Promise<{
   visitId: string;
@@ -99,8 +107,8 @@ export async function loadDraft(visitId: string): Promise<{
   allergyWarnings: string[];
   patient: { id: string; fullName: string; phone: string | null };
 } | null> {
-  const user = await requireRole("doctor");
-  if (!user.clinicId || !can(user, "clinical", "create")) return null;
+  const user = await requireWorkspace();
+  if (!can(user, "clinical", "create")) return null;
 
   const [row] = await db
     .select({
@@ -163,8 +171,7 @@ export async function approveVisit(
   note: Record<string, unknown>,
   chart?: unknown,
 ): Promise<{ ok: true } | { error: string }> {
-  const user = await requireRole("doctor");
-  if (!user.clinicId) return { error: "No clinic." };
+  const user = await requireWorkspace();
   // Approving finalises a clinical note — an authoring action.
   if (!can(user, "clinical", "create")) {
     return { error: "You don't have permission to save clinical notes." };
@@ -240,12 +247,11 @@ export async function approveVisit(
   return { ok: true };
 }
 
-/** Discard a draft the doctor doesn't want to keep. */
+/** Discard a draft you don't want to keep. Soft delete, so it lands in Trash. */
 export async function discardDraft(
   visitId: string,
 ): Promise<{ ok: true } | { error: string }> {
-  const user = await requireRole("doctor");
-  if (!user.clinicId) return { error: "No clinic." };
+  const user = await requireWorkspace();
   if (!can(user, "clinical", "create")) {
     return { error: "You don't have permission to modify clinical drafts." };
   }
@@ -273,8 +279,10 @@ export async function discardDraft(
 export async function searchPatients(
   query: string,
 ): Promise<{ id: string; fullName: string; phone: string | null }[]> {
-  const user = await requireRole("doctor");
-  if (!user.clinicId) return [];
+  const user = await requireWorkspace();
+  // This was the one action here with no permission check, which did not matter while
+  // only a doctor could reach it. Now that the whole workspace can, it needs its own.
+  if (!can(user, "patients", "view")) return [];
   const q = query.trim();
 
   const { patients } = await import("@/core/db/schema");
@@ -315,8 +323,7 @@ export async function searchPatients(
 export async function sendPrescriptionToWhatsApp(
   visitId: string,
 ): Promise<{ ok: true } | { error: string }> {
-  const user = await requireRole("doctor");
-  if (!user.clinicId) return { error: "No clinic." };
+  const user = await requireWorkspace();
   if (!can(user, "prescriptions", "create")) {
     return { error: "You don't have permission to send prescriptions." };
   }

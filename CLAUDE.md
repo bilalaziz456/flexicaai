@@ -222,7 +222,7 @@ Flow:
 ### Critical AI rules
 - The scribe engine in `/core` is generic. It receives a prompt; it does not know dental from derma.
 - The dental prompt lives in `/modules/dental/prompts`.
-- **Every AI output is a DRAFT.** The doctor must review and approve. Never auto-finalize medical notes or prescriptions.
+- **Every AI output is a DRAFT.** A clinician must review and approve before it becomes the record. Never auto-finalize medical notes or prescriptions. Who may approve is the `clinical:create` PERMISSION, not the `doctor` role — in this market the clinic owner is usually the practising dentist, so the scribe actions gate on `can()` and admit any workspace role holding that grant. A draft still belongs to whoever dictated it: only its author can reopen or approve it.
 - Drug names must be validated against the module's drug formulary before showing.
 - Always include confidence handling: if transcription is unclear, flag it for the doctor rather than guessing.
 - Log every AI interaction (input, output, doctor's edits) for the accuracy flywheel.
@@ -358,7 +358,7 @@ advanced analytics.
 - Do NOT hardcode "dental" logic in `/core`. Core is specialty-agnostic.
 - Do NOT build derma or hair modules now. Only architect for them.
 - Do NOT over-abstract. Build dental concretely; extract patterns into core only when a second module actually needs them.
-- Do NOT auto-finalize AI-generated medical content. Always doctor-approved.
+- Do NOT auto-finalize AI-generated medical content. Always approved by a clinician holding `clinical:create`, and only ever by the author of that draft.
 - Do NOT put specialty columns on core tables. Use related specialty tables.
 - Do NOT skip `clinic_id` filtering on any query.
 - Do NOT hard-delete records. Everything soft-deletes to Trash (`softDeleteColumns()`);
@@ -401,7 +401,7 @@ Before writing any code, ask:
 1. **Core or module?** Would all three specialties use this identically? → core. Else → module.
 2. **Does it respect modules_enabled?** Will a dental-only clinic correctly not see other modules?
 3. **Is patient data filtered by clinic_id?**
-4. **Is AI output doctor-approved, not auto-finalized?**
+4. **Is AI output approved by its author, not auto-finalized?**
 5. **Am I staying in MVP scope?**
 
 If all five pass, proceed. If not, rethink before coding.

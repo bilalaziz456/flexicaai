@@ -80,7 +80,7 @@ check(
   [],
 );
 
-const allergies: Allergy[] = [{ substance: "amoxicillin", reaction: "rash", severity: null }];
+const allergies: Allergy[] = [{ substance: "amoxicillin", reaction: "rash" }];
 const withAllergy = noteWarnings(note, formulary, allergies).allergyWarnings;
 check("allergy recorded later now warns", withAllergy.length, 1);
 console.log(`        → ${JSON.stringify(withAllergy[0])}`);
