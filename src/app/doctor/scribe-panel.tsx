@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, or } from "drizzle-orm";
 import { can } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
 import { db } from "@/core/db";
@@ -40,13 +40,15 @@ export async function ScribePanel({
     .where(eq(clinics.id, clinicId))
     .limit(1);
 
-  const [recentPatients, recentVisits, queue] = await Promise.all([
+  const [recentPatients, recentVisits, pendingDrafts, queue] = await Promise.all([
     db
       .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })
       .from(patients)
       .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt)))
       .orderBy(desc(patients.createdAt))
       .limit(20),
+    // Approved notes, plus your own drafts — the same rule the patient's clinical
+    // history follows. An unapproved note is the author's until they sign it off.
     db
       .select({
         id: visits.id,
@@ -56,9 +58,37 @@ export async function ScribePanel({
       })
       .from(visits)
       .innerJoin(patients, eq(visits.patientId, patients.id))
-      .where(byClinic(visits.clinicId, clinicId, notDeleted(visits.deletedAt)))
+      .where(
+        byClinic(
+          visits.clinicId,
+          clinicId,
+          notDeleted(visits.deletedAt),
+          or(eq(visits.status, "approved"), eq(visits.doctorId, user.id)),
+        ),
+      )
       .orderBy(desc(visits.visitDate))
       .limit(10),
+    // Drafts this doctor started and never approved. Oldest first: the one left
+    // longest is the one most likely to be forgotten.
+    db
+      .select({
+        id: visits.id,
+        visitDate: visits.visitDate,
+        patientName: patients.fullName,
+      })
+      .from(visits)
+      .innerJoin(patients, eq(visits.patientId, patients.id))
+      .where(
+        byClinic(
+          visits.clinicId,
+          clinicId,
+          notDeleted(visits.deletedAt),
+          eq(visits.status, "draft"),
+          eq(visits.doctorId, user.id),
+        ),
+      )
+      .orderBy(visits.visitDate)
+      .limit(20),
     getDayQueue(clinicId, new Date(), { doctorId: user.id }),
   ]);
 
@@ -76,6 +106,7 @@ export async function ScribePanel({
       {canCreateClinical ? (
         <ScribeWorkspace
           initialPatients={recentPatients}
+          pendingDrafts={pendingDrafts}
           modulesEnabled={clinicRow?.modulesEnabled ?? []}
         />
       ) : (

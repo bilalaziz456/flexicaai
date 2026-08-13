@@ -11,7 +11,7 @@ import { runScribe } from "@/core/ai/scribe-engine";
 import { recordScribeUsage } from "@/core/ai/usage";
 import { MissingApiKeyError, AiParseError } from "@/core/ai/prompt-runner";
 import { getPatientAllergies } from "@/core/patients/medical-history";
-import { allergyConflicts } from "@/core/lib/medical-history";
+import { noteWarnings } from "@/core/ai/note-warnings";
 import { aiScribeByUser, throttle, tooManyRequests } from "@/core/security/rate-limit";
 
 /** Cap the audio upload — bounds memory + the paid Whisper call. A few minutes of
@@ -110,32 +110,15 @@ export async function POST(request: Request) {
       scribePrompt,
     });
 
-    // Flag prescribed drugs not in the module formulary (CLAUDE.md §8) — a
-    // warning for the doctor, not a hard block.
-    const formulary = workspace.drugFormulary;
-    const known = new Set(
-      formulary.flatMap((d) => [d.name, ...d.brands]).map((s) => s.toLowerCase()),
-    );
-    const prescriptions = Array.isArray(note.prescriptions)
-      ? (note.prescriptions as { drug?: string }[])
-      : [];
-    const drugWarnings = prescriptions
-      .map((p) => p?.drug)
-      .filter(
-        (drug): drug is string =>
-          typeof drug === "string" && !known.has(drug.toLowerCase()),
-      );
-
-    // Allergy gate: flag any prescribed drug that conflicts with a recorded allergy
-    // (direct or by drug class). A prominent warning for the doctor, not a hard block.
+    // Flag prescribed drugs that are not in the module formulary, and any that
+    // conflict with a recorded allergy (CLAUDE.md §8). Warnings for the doctor, not
+    // a hard block. Shared with the resume-a-draft path so the two can't drift.
     const allergies = await getPatientAllergies(clinicId, patientId);
-    const allergyWarnings = prescriptions
-      .map((p) => p?.drug)
-      .filter((drug): drug is string => typeof drug === "string")
-      .flatMap((drug) => {
-        const hits = allergyConflicts(allergies, drug);
-        return hits.length ? [`${drug}. Allergy: ${hits.join(", ")}`] : [];
-      });
+    const { drugWarnings, allergyWarnings } = noteWarnings(
+      note,
+      workspace.drugFormulary,
+      allergies,
+    );
 
     const [visit] = await db
       .insert(visits)

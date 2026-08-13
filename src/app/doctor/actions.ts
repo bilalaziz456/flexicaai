@@ -15,7 +15,9 @@ import { serverEnv } from "@/core/lib/env";
 import { isPublicLinkingEnabled, signToken } from "@/core/lib/signed-link";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import { scheduleRecall } from "@/core/recall";
-import { clinicalRecordFor } from "@/config/modules";
+import { clinicalRecordFor, getClinicWorkspace } from "@/config/modules";
+import { getPatientAllergies } from "@/core/patients/medical-history";
+import { noteWarnings } from "@/core/ai/note-warnings";
 
 /**
  * Doctor actions on scribe drafts — CLAUDE.md §8: AI output is a DRAFT until the
@@ -74,6 +76,85 @@ export async function loadPatientChart(patientId: string): Promise<unknown> {
     .limit(1);
   const clinicalRecord = clinicalRecordFor(clinicRow?.modulesEnabled ?? []);
   return clinicalRecord ? clinicalRecord.loadChart(user.clinicId, patientId) : null;
+}
+
+/**
+ * Reopen one of the doctor's own unapproved drafts for review.
+ *
+ * A scribe session that ends before approval (tab closed, called away) leaves the
+ * draft in the database with nothing pointing at it — approve and discard both act
+ * on whatever the workspace happens to be holding in memory. This is the way back
+ * in: it returns the same shape the scribe route returns, so the existing review
+ * screen can pick the draft up as though it had just been dictated.
+ *
+ * Own drafts only. An unapproved note is the author's until they sign it off, so
+ * another doctor cannot open, edit or approve it. Returns null if it is not yours,
+ * already approved, or discarded.
+ */
+export async function loadDraft(visitId: string): Promise<{
+  visitId: string;
+  transcript: string;
+  note: Record<string, unknown>;
+  drugWarnings: string[];
+  allergyWarnings: string[];
+  patient: { id: string; fullName: string; phone: string | null };
+} | null> {
+  const user = await requireRole("doctor");
+  if (!user.clinicId || !can(user, "clinical", "create")) return null;
+
+  const [row] = await db
+    .select({
+      id: visits.id,
+      transcript: visits.transcript,
+      note: visits.note,
+      patientId: patients.id,
+      patientName: patients.fullName,
+      patientPhone: patients.phone,
+    })
+    .from(visits)
+    .innerJoin(patients, eq(visits.patientId, patients.id))
+    .where(
+      byClinic(
+        visits.clinicId,
+        user.clinicId,
+        notDeleted(visits.deletedAt),
+        eq(visits.id, visitId),
+        eq(visits.status, "draft"),
+        eq(visits.doctorId, user.id),
+      ),
+    )
+    .limit(1);
+  if (!row) return null;
+
+  const note = (row.note ?? {}) as Record<string, unknown>;
+
+  // Warnings aren't stored on the visit, so recompute them against the formulary and
+  // the patient's allergies as they stand NOW — a drug the clinic has since removed,
+  // or an allergy recorded after the dictation, has to show before this is approved.
+  const [clinicRow] = await db
+    .select({ modulesEnabled: clinics.modulesEnabled })
+    .from(clinics)
+    .where(eq(clinics.id, user.clinicId))
+    .limit(1);
+  const allergies = await getPatientAllergies(user.clinicId, row.patientId);
+  const { drugWarnings, allergyWarnings } = noteWarnings(
+    note,
+    getClinicWorkspace(clinicRow?.modulesEnabled ?? []).drugFormulary,
+    allergies,
+  );
+
+  return {
+    visitId: row.id,
+    transcript: row.transcript ?? "",
+    note,
+    drugWarnings,
+    allergyWarnings,
+    patient: {
+      id: row.patientId,
+      fullName: row.patientName,
+      phone: row.patientPhone,
+    },
+  };
 }
 
 /** Approve a draft: save the (edited) note + chart and mark it approved. */

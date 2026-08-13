@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Loader2, Mic, Square } from "lucide-react";
+import { FileClock, Loader2, Mic, Square } from "lucide-react";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import {
@@ -13,9 +13,16 @@ import {
 } from "@/core/ui/card";
 import { NoteEditor } from "@/core/ui/note-editor";
 import { clinicalUiFor } from "@/config/clinical-record-ui";
-import { approveVisit, discardDraft, loadPatientChart, searchPatients } from "./actions";
+import {
+  approveVisit,
+  discardDraft,
+  loadDraft,
+  loadPatientChart,
+  searchPatients,
+} from "./actions";
 
 type Patient = { id: string; fullName: string; phone: string | null };
+type PendingDraft = { id: string; visitDate: Date | null; patientName: string };
 type Draft = {
   visitId: string;
   transcript: string;
@@ -32,9 +39,12 @@ type Draft = {
  */
 export function ScribeWorkspace({
   initialPatients,
+  pendingDrafts = [],
   modulesEnabled = [],
 }: {
   initialPatients: Patient[];
+  /** Your own drafts that were never approved — see PendingApproval below. */
+  pendingDrafts?: PendingDraft[];
   /** The clinic's enabled modules — drives the specialty chart editor (if any). */
   modulesEnabled?: string[];
 }) {
@@ -51,6 +61,7 @@ export function ScribeWorkspace({
   // current chart + the note's suggested edits when the draft arrives.
   const [chart, setChart] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resuming, setResuming] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -61,6 +72,18 @@ export function ScribeWorkspace({
     setNote({});
     setChart(null);
     setError(null);
+  }
+
+  /**
+   * Seed the specialty chart editor: the patient's current chart overlaid with the
+   * note's suggested edits — a pre-filled chart the doctor reviews (still a draft).
+   * Used by a fresh dictation and by a resumed draft alike.
+   */
+  async function seedChart(patientId: string, forNote: Record<string, unknown>) {
+    if (!clinicalUi) return;
+    const current = (await loadPatientChart(patientId)) as Record<string, unknown> | null;
+    const seeded = clinicalUi.seedFromNote(forNote) as Record<string, unknown>;
+    setChart({ ...(current ?? {}), ...(seeded ?? {}) });
   }
 
   async function runSearch(q: string) {
@@ -118,18 +141,43 @@ export function ScribeWorkspace({
       }
       setDraft(data as Draft);
       setNote((data as Draft).note);
-      // Seed the specialty chart: the patient's current chart overlaid with the
-      // note's suggested edits — a pre-filled chart the doctor reviews (still a draft).
-      if (clinicalUi) {
-        const current = (await loadPatientChart(patient.id)) as Record<string, unknown> | null;
-        const seeded = clinicalUi.seedFromNote((data as Draft).note) as Record<string, unknown>;
-        setChart({ ...(current ?? {}), ...(seeded ?? {}) });
-      }
+      await seedChart(patient.id, (data as Draft).note);
     } catch {
       setError("Could not reach the scribe. Check your connection.");
     } finally {
       setProcessing(false);
     }
+  }
+
+  /**
+   * Pick a draft back up. Fetches it into exactly the shape a fresh dictation
+   * produces, so the review screen below needs no special case for a resumed note —
+   * the doctor edits, approves or discards it the same way either path got them here.
+   */
+  function onResume(visitId: string) {
+    setError(null);
+    setResuming(visitId);
+    startTransition(async () => {
+      try {
+        const d = await loadDraft(visitId);
+        if (!d) {
+          setError("That draft is no longer available. It may have been approved or discarded.");
+          return;
+        }
+        setPatient(d.patient);
+        setDraft({
+          visitId: d.visitId,
+          transcript: d.transcript,
+          note: d.note,
+          drugWarnings: d.drugWarnings,
+          allergyWarnings: d.allergyWarnings,
+        });
+        setNote(d.note);
+        await seedChart(d.patient.id, d.note);
+      } finally {
+        setResuming(null);
+      }
+    });
   }
 
   function onApprove() {
@@ -220,83 +268,167 @@ export function ScribeWorkspace({
 
   // ---- Record ----
   return (
+    <>
+      <PendingApproval
+        drafts={pendingDrafts}
+        onResume={onResume}
+        resuming={resuming}
+        disabled={pending}
+      />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>New note</CardTitle>
+          <CardDescription>
+            {patient
+              ? `Recording for ${patient.fullName}.`
+              : "Choose a patient, then record the visit."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!patient ? (
+            <div className="space-y-3">
+              <Input
+                aria-label="Search patients by name or phone"
+                placeholder="Search patients by name or phone…"
+                value={query}
+                onChange={(e) => void runSearch(e.target.value)}
+              />
+              <ul className="max-h-64 divide-y overflow-y-auto rounded-md border">
+                {results.length === 0 ? (
+                  <li className="p-3 text-sm text-muted-foreground">
+                    No patients found.
+                  </li>
+                ) : (
+                  results.map((p) => (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        onClick={() => setPatient(p)}
+                        className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-accent"
+                      >
+                        <span className="font-medium">{p.fullName}</span>
+                        <span className="text-muted-foreground">{p.phone ?? ""}</span>
+                      </button>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <span className="rounded-full bg-accent px-2.5 py-1 text-sm font-medium text-accent-foreground">
+                  {patient.fullName}
+                </span>
+                <button
+                  type="button"
+                  className="text-sm text-muted-foreground underline underline-offset-4"
+                  onClick={() => {
+                    setPatient(null);
+                    reset();
+                  }}
+                >
+                  Change
+                </button>
+              </div>
+
+              {processing ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  Transcribing and drafting the note…
+                </div>
+              ) : recording ? (
+                <Button variant="destructive" onClick={stopRecording}>
+                  <Square className="size-4" aria-hidden="true" />
+                  Stop & generate
+                </Button>
+              ) : (
+                <Button onClick={startRecording}>
+                  <Mic className="size-4" aria-hidden="true" />
+                  Start recording
+                </Button>
+              )}
+
+              {error && <p className="text-sm text-destructive">{error}</p>}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
+/**
+ * Drafts you started and never approved.
+ *
+ * Approve and discard only ever acted on the draft the workspace was holding in
+ * memory, so a session that ended early — tab closed, called away mid-review — left
+ * a note stranded: it was in the database, it was not in the record, and nothing on
+ * screen led back to it. This is that route back. Oldest first, because the one left
+ * longest is the one most likely to have been forgotten.
+ *
+ * Review, not Discard: throwing away a note without reading it should not be a
+ * one-click action next to nine others, so the discard button stays inside the
+ * review screen where the note is on show.
+ */
+function PendingApproval({
+  drafts,
+  onResume,
+  resuming,
+  disabled,
+}: {
+  drafts: PendingDraft[];
+  onResume: (visitId: string) => void;
+  /** The draft currently being fetched, so only its own button shows a spinner. */
+  resuming: string | null;
+  disabled: boolean;
+}) {
+  if (drafts.length === 0) return null;
+  return (
     <Card>
       <CardHeader>
-        <CardTitle>New note</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <FileClock className="size-4 text-warning-text" aria-hidden="true" />
+          Pending approval
+        </CardTitle>
         <CardDescription>
-          {patient
-            ? `Recording for ${patient.fullName}.`
-            : "Choose a patient, then record the visit."}
+          {drafts.length === 1
+            ? "A note you recorded but never approved. It is not in the patient's record yet."
+            : `${drafts.length} notes you recorded but never approved. They are not in the patients' records yet.`}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {!patient ? (
-          <div className="space-y-3">
-            <Input
-              aria-label="Search patients by name or phone"
-              placeholder="Search patients by name or phone…"
-              value={query}
-              onChange={(e) => void runSearch(e.target.value)}
-            />
-            <ul className="max-h-64 divide-y overflow-y-auto rounded-md border">
-              {results.length === 0 ? (
-                <li className="p-3 text-sm text-muted-foreground">
-                  No patients found.
-                </li>
-              ) : (
-                results.map((p) => (
-                  <li key={p.id}>
-                    <button
-                      type="button"
-                      onClick={() => setPatient(p)}
-                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-accent"
-                    >
-                      <span className="font-medium">{p.fullName}</span>
-                      <span className="text-muted-foreground">{p.phone ?? ""}</span>
-                    </button>
-                  </li>
-                ))
-              )}
-            </ul>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <span className="rounded-full bg-accent px-2.5 py-1 text-sm font-medium text-accent-foreground">
-                {patient.fullName}
+      <CardContent>
+        <ul className="divide-y">
+          {drafts.map((d) => (
+            <li key={d.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+              <span className="min-w-0 flex-1 truncate font-medium">{d.patientName}</span>
+              <span className="flex items-center gap-3">
+                <span className="hidden text-muted-foreground sm:inline">
+                  {d.visitDate ? d.visitDate.toLocaleDateString() : ""}
+                </span>
+                <Button
+                  variant="outline"
+                  onClick={() => onResume(d.id)}
+                  disabled={disabled}
+                >
+                  {resuming === d.id ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                      Opening…
+                    </>
+                  ) : (
+                    <>
+                      {/* Every row's button would otherwise be named "Review", which
+                          tells a screen reader nothing about which note it opens. */}
+                      Review<span className="sr-only"> {d.patientName}&apos;s note</span>
+                    </>
+                  )}
+                </Button>
               </span>
-              <button
-                type="button"
-                className="text-sm text-muted-foreground underline underline-offset-4"
-                onClick={() => {
-                  setPatient(null);
-                  reset();
-                }}
-              >
-                Change
-              </button>
-            </div>
-
-            {processing ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                Transcribing and drafting the note…
-              </div>
-            ) : recording ? (
-              <Button variant="destructive" onClick={stopRecording}>
-                <Square className="size-4" aria-hidden="true" />
-                Stop & generate
-              </Button>
-            ) : (
-              <Button onClick={startRecording}>
-                <Mic className="size-4" aria-hidden="true" />
-                Start recording
-              </Button>
-            )}
-
-            {error && <p className="text-sm text-destructive">{error}</p>}
-          </div>
-        )}
+            </li>
+          ))}
+        </ul>
       </CardContent>
     </Card>
   );
