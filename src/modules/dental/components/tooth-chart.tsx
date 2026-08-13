@@ -50,8 +50,14 @@ function ToothCell({
       type="button"
       onClick={onClick}
       disabled={!onClick}
-      aria-label={`Tooth ${n}${status ? `: ${statusLabel(status)}` : ""}`}
-      title={status ? `${n}: ${statusLabel(status)}${tooth?.surfaces?.length ? ` (${tooth.surfaces.join("")})` : ""}` : n}
+      aria-label={`Tooth ${n}${status ? `: ${statusLabel(status)}` : ""}${
+        tooth?.note?.trim() ? `. Note: ${tooth.note.trim()}` : ""
+      }`}
+      title={
+        (status
+          ? `${n}: ${statusLabel(status)}${tooth?.surfaces?.length ? ` (${tooth.surfaces.join("")})` : ""}`
+          : n) + (tooth?.note?.trim() ? `\n${tooth.note.trim()}` : "")
+      }
       className={cn(
         "flex w-8 shrink-0 flex-col items-center rounded-md border py-1 text-[10px] leading-tight transition-colors",
         toneFor(status),
@@ -60,7 +66,12 @@ function ToothCell({
       )}
     >
       <span className="tabular-nums opacity-60">{n}</span>
-      <span className="min-h-3 font-semibold">{abbr || " "}</span>
+      <span className="min-h-3 font-semibold">
+        {abbr || " "}
+        {/* A dot marks a tooth carrying a note, so the grid shows there is more to
+            read without the note needing to fit in an 8px-wide cell. */}
+        {tooth?.note?.trim() ? <span aria-hidden="true"> ·</span> : null}
+      </span>
     </button>
   );
 }
@@ -211,10 +222,62 @@ export function ToothChart({
               ))}
             </div>
           ) : null}
+
+          {/* Per-tooth note. `ChartTooth.note` already existed and was carried through
+              every edit path, but nothing could set it. A note alone is enough to keep
+              a tooth on the chart: `setTooth` only drops an entry when the status is
+              sound AND there are no surfaces AND no note, so "sound but watch this"
+              survives, and clearing the text drops it again. */}
+          <label className="block space-y-1">
+            <span className="block text-xs text-muted-foreground">Note</span>
+            <input
+              type="text"
+              value={sel?.note ?? ""}
+              onChange={(e) =>
+                setTooth(selected, {
+                  status: sel?.status ?? "sound",
+                  surfaces: sel?.surfaces,
+                  note: e.target.value,
+                })
+              }
+              placeholder={`Anything worth remembering about tooth ${selected}`}
+              className="h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            />
+          </label>
         </div>
       ) : null}
 
+      <ChartNotes teeth={value} />
+
       <Legend teeth={value} />
+    </div>
+  );
+}
+
+/**
+ * The charted notes, listed under the odontogram.
+ *
+ * Without this a note is invisible once saved: the grid only has room for a status
+ * abbreviation, so a note would live in the tooltip of a cell nobody thinks to hover.
+ * Shown in both modes, so the person reading the chart sees the same thing as the
+ * person who wrote it.
+ */
+function ChartNotes({ teeth }: { teeth: ChartTeeth }) {
+  const noted = Object.entries(teeth)
+    .filter(([, t]) => t.note?.trim())
+    .sort(([a], [b]) => a.localeCompare(b));
+  if (noted.length === 0) return null;
+  return (
+    <div className="rounded-lg border p-3">
+      <p className="text-xs font-medium text-muted-foreground">Notes</p>
+      <ul className="mt-1.5 space-y-1">
+        {noted.map(([n, t]) => (
+          <li key={n} className="flex gap-2 text-xs">
+            <span className="shrink-0 font-medium tabular-nums">{n}</span>
+            <span className="text-muted-foreground">{t.note}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
