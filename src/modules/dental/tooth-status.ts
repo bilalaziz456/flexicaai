@@ -3,7 +3,24 @@
  * so both the client odontogram and the server fold logic share one source of truth.
  * FDI ("ISO 3950") is the PK/GCC norm and matches the scribe prompt.
  */
-import type { ToothStatus } from "@/modules/dental/db/schema";
+import type { ChartTooth, ToothStatus } from "@/modules/dental/db/schema";
+
+/**
+ * Is this tooth root-treated?
+ *
+ * Reads the `endo` flag OR the legacy `root_canal` status, which is what charts
+ * recorded before `endo` existed and still means the same thing. Keeping the status
+ * value lets every chart written earlier display correctly without rewriting anyone's
+ * clinical data; it now reads as "root-treated, no restoration recorded".
+ *
+ * Here rather than beside `ChartTooth` in `db/schema.ts` because the client
+ * odontogram calls it: schema.ts evaluates `pgTable(...)` at module scope, so a
+ * runtime import of it from a "use client" component drags drizzle into the browser
+ * bundle. This file is pure by contract, which is the whole reason it exists.
+ */
+export function isRootTreated(tooth?: ChartTooth): boolean {
+  return !!tooth && (tooth.endo === true || tooth.status === "root_canal");
+}
 
 /** Odontogram rows, left→right as drawn. Permanent + primary (baby) dentition. */
 export const PERMANENT_UPPER = ["18", "17", "16", "15", "14", "13", "12", "11", "21", "22", "23", "24", "25", "26", "27", "28"];

@@ -54,6 +54,17 @@ export type ToothStatus =
 export type ChartTooth = {
   status: ToothStatus;
   surfaces?: string[];
+  /**
+   * Root-treated. Deliberately NOT a `status`, because endodontic and restorative
+   * state are independent axes: a root canal is nearly always followed by a crown,
+   * and with one status field the crown overwrote the root canal and the tooth
+   * silently stopped being root-treated. A paper chart marks the root and the crown
+   * separately for exactly this reason.
+   *
+   * Lives in the `teeth` jsonb, so it needs no migration, and absent means false, so
+   * every chart written before this keeps working. Post and core go in `note`.
+   */
+  endo?: boolean;
   note?: string;
   /** The visit whose record last set this tooth (audit link back into history). */
   updatedVisitId?: string | null;

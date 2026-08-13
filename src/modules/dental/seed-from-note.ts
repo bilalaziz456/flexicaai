@@ -60,7 +60,12 @@ export function seedFromNote(note: unknown): ChartTeeth {
     const tooth = toothIn(p ?? "");
     if (!tooth) continue;
     const st = procedureStatus(p ?? "");
-    if (st) teeth[tooth] = { status: st };
+    if (!st) continue;
+    // A root canal is recorded on its own axis as well as in the status, so that the
+    // crown which usually follows overwrites the status without the tooth quietly
+    // ceasing to be root-treated.
+    const endo = st === "root_canal" ? { endo: true } : {};
+    teeth[tooth] = { ...teeth[tooth], status: st, ...endo };
   }
   return teeth;
 }

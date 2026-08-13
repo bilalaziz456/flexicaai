@@ -11,6 +11,7 @@
  * after an edit/void is just re-running this over the live records.
  */
 import type { ChartTeeth, ToothStatus } from "@/modules/dental/db/schema";
+import { isRootTreated } from "@/modules/dental/tooth-status";
 
 /** A record as far as the fold cares — its snapshot + ordering key. */
 export type ChartFrame = {
@@ -45,11 +46,20 @@ export type ToothChange = {
   tooth: string;
   from: ToothStatus | null;
   to: ToothStatus | null;
+  /** Root-treated before/after. Tracked separately because it is its own axis. */
+  endoFrom: boolean;
+  endoTo: boolean;
 };
 
 /**
- * The teeth whose STATUS changed between two chart states — for the visit timeline
- * ("what this visit changed"). Surface/note-only edits are ignored for the summary.
+ * The teeth whose STATUS or ROOT-TREATED state changed between two chart states —
+ * for the visit timeline ("what this visit changed"). Surface/note-only edits are
+ * ignored for the summary.
+ *
+ * Endodontic state is included because it does not imply a status change: a root
+ * canal on a tooth that keeps its existing restoration moves no status at all, and
+ * on a status-only diff the visit that did the root canal would report having
+ * changed nothing.
  */
 export function diffTeeth(before: ChartTeeth, after: ChartTeeth): ToothChange[] {
   const teeth = new Set([...Object.keys(before), ...Object.keys(after)]);
@@ -57,7 +67,9 @@ export function diffTeeth(before: ChartTeeth, after: ChartTeeth): ToothChange[] 
   for (const t of teeth) {
     const b = before[t]?.status ?? null;
     const a = after[t]?.status ?? null;
-    if (b !== a) changes.push({ tooth: t, from: b, to: a });
+    const eb = isRootTreated(before[t]);
+    const ea = isRootTreated(after[t]);
+    if (b !== a || eb !== ea) changes.push({ tooth: t, from: b, to: a, endoFrom: eb, endoTo: ea });
   }
   return changes.sort((x, y) => x.tooth.localeCompare(y.tooth));
 }

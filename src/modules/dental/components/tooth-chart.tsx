@@ -15,6 +15,7 @@ import {
   PRIMARY_LOWER,
   PRIMARY_UPPER,
   STATUS_BY_VALUE,
+  isRootTreated,
   SURFACES,
   TOOTH_STATUSES,
   statusLabel,
@@ -47,22 +48,31 @@ function ToothCell({
 }) {
   const status = tooth?.status;
   const abbr = status ? STATUS_BY_VALUE[status]?.abbr : "";
+  const endo = isRootTreated(tooth);
+  // Root canal reads as a bar under the crown — the root, marked the way a paper
+  // chart marks it. A glyph would have to share an 8px-wide cell with the status
+  // abbreviation and the note dot, and a bar survives a mono thermal print where a
+  // colour would not.
+  const endoMark = endo ? "border-b-[3px] border-b-current" : "";
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={!onClick}
       aria-label={`Tooth ${n}${status ? `: ${statusLabel(status)}` : ""}${
-        tooth?.note?.trim() ? `. Note: ${tooth.note.trim()}` : ""
-      }`}
+        endo ? ". Root treated" : ""
+      }${tooth?.note?.trim() ? `. Note: ${tooth.note.trim()}` : ""}`}
       title={
         (status
           ? `${n}: ${statusLabel(status)}${tooth?.surfaces?.length ? ` (${tooth.surfaces.join("")})` : ""}`
-          : n) + (tooth?.note?.trim() ? `\n${tooth.note.trim()}` : "")
+          : n) +
+        (endo ? "\nRoot treated" : "") +
+        (tooth?.note?.trim() ? `\n${tooth.note.trim()}` : "")
       }
       className={cn(
         "flex w-8 shrink-0 flex-col items-center rounded-md border py-1 text-[10px] leading-tight transition-colors",
         toneFor(status),
+        endoMark,
         onClick && "cursor-pointer hover:ring-1 hover:ring-primary/50",
         selected && "ring-2 ring-primary",
       )}
@@ -175,10 +185,16 @@ export function ToothChart({
   const setTooth = (n: string, patch: Partial<ChartTooth> & { status: ToothStatus }) => {
     if (!onChange) return;
     const next = { ...value };
-    if (patch.status === "sound" && !patch.surfaces?.length && !patch.note) {
-      delete next[n]; // sound + nothing = no entry
+    // Decide on the MERGED tooth, not on the patch. The status buttons send only
+    // status/surfaces/note, so judging the patch alone would read a root-treated
+    // tooth as carrying nothing and delete it the moment someone set the status back
+    // to sound — losing the root canal. "Sound and nothing else" is still not worth
+    // an entry, but root-treated counts as something else.
+    const merged = { ...next[n], ...patch };
+    if (merged.status === "sound" && !merged.surfaces?.length && !merged.note && !merged.endo) {
+      delete next[n];
     } else {
-      next[n] = { ...next[n], ...patch };
+      next[n] = merged;
     }
     onChange(next);
   };
@@ -284,6 +300,24 @@ export function ToothChart({
             </div>
           ) : null}
 
+          {/* Root treated. Its own control rather than another status, because it
+              coexists with whatever restoration the tooth carries — the usual case
+              being a root canal that is later crowned. Hidden for a tooth that is not
+              there to treat. Post and core go in the note below. */}
+          {sel?.status !== "missing" && sel?.status !== "unerupted" ? (
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={isRootTreated(sel)}
+                onChange={(e) =>
+                  setTooth(selected, { status: sel?.status ?? "sound", endo: e.target.checked })
+                }
+                className="size-4 rounded border-input accent-primary"
+              />
+              <span>Root treated (endodontic)</span>
+            </label>
+          ) : null}
+
           {/* Per-tooth note. `ChartTooth.note` already existed and was carried through
               every edit path, but nothing could set it. A note alone is enough to keep
               a tooth on the chart: `setTooth` only drops an entry when the status is
@@ -356,7 +390,10 @@ function ChartNotes({ teeth }: { teeth: ChartTeeth }) {
 function Legend({ teeth }: { teeth: ChartTeeth }) {
   const present = new Set(Object.values(teeth).map((t) => t.status));
   const items = TOOTH_STATUSES.filter((s) => present.has(s.value));
-  if (items.length === 0) {
+  // The root-canal bar is the one mark on the chart that is not a colour, so it has
+  // to be spelled out or it reads as a styling accident.
+  const anyEndo = Object.values(teeth).some((t) => isRootTreated(t));
+  if (items.length === 0 && !anyEndo) {
     return <p className="text-xs text-muted-foreground">No conditions charted. All teeth sound.</p>;
   }
   return (
@@ -367,6 +404,15 @@ function Legend({ teeth }: { teeth: ChartTeeth }) {
           {s.label}
         </span>
       ))}
+      {anyEndo ? (
+        <span className="inline-flex items-center gap-1">
+          <span
+            className="inline-block size-3 rounded-sm border border-b-[3px] border-b-current"
+            aria-hidden="true"
+          />
+          Root treated
+        </span>
+      ) : null}
     </div>
   );
 }

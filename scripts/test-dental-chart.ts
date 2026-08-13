@@ -5,6 +5,7 @@
  */
 import { reduceChart, orderFrames, diffTeeth } from "../src/modules/dental/chart-logic";
 import { examStats, computeBop } from "../src/modules/dental/perio-logic";
+import { isRootTreated } from "../src/modules/dental/tooth-status";
 import type { ChartTeeth } from "../src/modules/dental/db/schema";
 
 let failures = 0;
@@ -49,15 +50,37 @@ check(
 
 console.log("\nDental chart diff:");
 check(
-  "diff reports status changes only, sorted by tooth",
+  "diff reports status changes, sorted by tooth",
   diffTeeth({ "16": t("filled") }, { "16": t("root_canal"), "21": t("caries") }),
   [
-    { tooth: "16", from: "filled", to: "root_canal" },
-    { tooth: "21", from: null, to: "caries" },
+    { tooth: "16", from: "filled", to: "root_canal", endoFrom: false, endoTo: true },
+    { tooth: "21", from: null, to: "caries", endoFrom: false, endoTo: false },
   ],
 );
 
 check("diff of identical charts = no changes", diffTeeth({ "16": t("filled") }, { "16": t("filled") }), []);
+
+// Root canal is its own axis. A root canal on a tooth that keeps its restoration
+// moves no status, so a status-only diff would report the visit as having changed
+// nothing at all.
+check(
+  "diff catches a root canal that changes no status",
+  diffTeeth({ "16": t("crown") }, { "16": { status: "crown", endo: true } }),
+  [{ tooth: "16", from: "crown", to: "crown", endoFrom: false, endoTo: true }],
+);
+
+check(
+  "the legacy root_canal status counts as root-treated",
+  diffTeeth({ "16": t("root_canal") }, { "16": { status: "root_canal", endo: true } }),
+  [],
+);
+
+console.log("\nRoot-treated:");
+check("endo flag", isRootTreated({ status: "filled", endo: true }), true);
+check("legacy status", isRootTreated({ status: "root_canal" }), true);
+check("crown alone is not root-treated", isRootTreated({ status: "crown" }), false);
+check("endo survives a crown being charted over it", isRootTreated({ status: "crown", endo: true }), true);
+check("no tooth", isRootTreated(undefined), false);
 
 console.log("\nPerio summary:");
 {

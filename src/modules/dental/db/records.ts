@@ -267,10 +267,20 @@ export async function visitChanges(
   for (const r of ordered) {
     const after = (r.chartAfter ?? {}) as ChartTeeth;
     if (r.visitId) {
-      out[r.visitId] = diffTeeth(prev, after).map(
-        (c) =>
-          `${c.tooth}: ${c.from ? statusLabel(c.from) : "sound"} → ${c.to ? statusLabel(c.to) : "sound"}`,
-      );
+      out[r.visitId] = diffTeeth(prev, after).map((c) => {
+        // A visit can change the status, the root-treated state, or both — a root
+        // canal on an already-crowned tooth moves no status at all.
+        const parts: string[] = [];
+        if (c.from !== c.to) {
+          parts.push(
+            `${c.from ? statusLabel(c.from) : "sound"} → ${c.to ? statusLabel(c.to) : "sound"}`,
+          );
+        }
+        if (c.endoFrom !== c.endoTo) {
+          parts.push(c.endoTo ? "root treated" : "root treatment cleared");
+        }
+        return `${c.tooth}: ${parts.join(", ")}`;
+      });
     }
     prev = after;
   }
