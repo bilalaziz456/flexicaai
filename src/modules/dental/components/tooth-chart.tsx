@@ -8,6 +8,7 @@ import type {
 } from "@/core/types/module";
 import type { ChartTeeth, ChartTooth, ToothStatus } from "@/modules/dental/db/schema";
 import {
+  ALL_PRIMARY,
   PERMANENT_LOWER,
   PERMANENT_UPPER,
   PRIMARY_LOWER,
@@ -76,7 +77,21 @@ function ToothCell({
   );
 }
 
-/** One arch row, split at the FDI midline for a natural odontogram gap. */
+/**
+ * One arch row, split at the FDI midline for a natural odontogram gap.
+ *
+ * The two quadrants WRAP when there isn't room for both. A full arch is 557px wide,
+ * but the printable width is 278px on an 80mm thermal roll and 482px on A5, and the
+ * arch used to sit in a horizontal scroller — which scrolls on screen but simply
+ * CLIPS on paper. Thermal lost 8 of the 16 teeth in every arch, A5 lost 2, and
+ * nothing said so. Wrapping to quadrants fits every format, and because it is plain
+ * responsive layout rather than a print-only rule, the preview on screen shows the
+ * same thing the printer will produce.
+ *
+ * The midline is a gap rather than a 1px rule: as a flex item the rule stranded
+ * itself on its own line once the halves wrapped. Every cell carries its FDI number,
+ * so the gap is enough to read the arch by.
+ */
 function ArchRow({
   left,
   right,
@@ -91,14 +106,17 @@ function ArchRow({
   onSelect?: (n: string) => void;
 }) {
   return (
-    <div className="flex items-center justify-center gap-2">
-      <div className="flex gap-0.5">
+    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5">
+      {/* The quadrants wrap internally too. A quadrant is 270px and the narrowest
+          supported paper leaves 278px, so this never triggers in practice — but a
+          chart that quietly drops teeth is the bug being fixed here, and breaking the
+          row awkwardly beats losing a molar on some future narrower stationery. */}
+      <div className="flex flex-wrap justify-center gap-0.5">
         {left.map((n) => (
           <ToothCell key={n} n={n} tooth={teeth[n]} selected={selected === n} onClick={onSelect ? () => onSelect(n) : undefined} />
         ))}
       </div>
-      <div className="h-8 w-px bg-border" aria-hidden="true" />
-      <div className="flex gap-0.5">
+      <div className="flex flex-wrap justify-center gap-0.5">
         {right.map((n) => (
           <ToothCell key={n} n={n} tooth={teeth[n]} selected={selected === n} onClick={onSelect ? () => onSelect(n) : undefined} />
         ))}
@@ -128,6 +146,16 @@ export function ToothChart({
   const half = (row: string[]) => [row.slice(0, row.length / 2), row.slice(row.length / 2)] as const;
   const [uL, uR] = half(upper);
   const [lL, lR] = half(lower);
+  const [pUL, pUR] = half(PRIMARY_UPPER);
+  const [pLL, pLR] = half(PRIMARY_LOWER);
+
+  // A charted primary tooth has to show itself. Reading the chart — on the patient
+  // page or on a printed sheet — the baby dentition only ever appeared if you pressed
+  // a toggle, and paper has no buttons, so a paediatric chart printed as though the
+  // child had nothing recorded. Here both dentitions render whenever the primary one
+  // holds anything. The editor keeps the toggle: charting is deliberate, and showing
+  // 52 teeth to someone working on a permanent molar is just noise.
+  const showsBothDentitions = readOnly && ALL_PRIMARY.some((n) => value[n]);
 
   const setTooth = (n: string, patch: Partial<ChartTooth> & { status: ToothStatus }) => {
     if (!onChange) return;
@@ -155,22 +183,36 @@ export function ToothChart({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">FDI numbering</p>
-        <button
-          type="button"
-          onClick={() => {
-            setShowPrimary((v) => !v);
-            setSelected(null);
-          }}
-          className="rounded-md border px-2 py-1 text-xs font-medium hover:bg-accent"
-        >
-          {showPrimary ? "Permanent teeth" : "Primary teeth"}
-        </button>
+        {/* The toggle is an editor control. It was printing onto the sheet as a dead
+            button, and in the read-only view it is now redundant anyway. */}
+        {readOnly ? null : (
+          <button
+            type="button"
+            onClick={() => {
+              setShowPrimary((v) => !v);
+              setSelected(null);
+            }}
+            className="rounded-md border px-2 py-1 text-xs font-medium hover:bg-accent"
+          >
+            {showPrimary ? "Permanent teeth" : "Primary teeth"}
+          </button>
+        )}
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="mx-auto w-fit space-y-1.5">
+      {/* Not `w-fit`: sizing to the 557px arch regardless of the container is exactly
+          what stopped the quadrants from ever wrapping. */}
+      <div>
+        <div className="mx-auto max-w-full space-y-1.5">
+          {showsBothDentitions ? <DentitionLabel>Permanent</DentitionLabel> : null}
           <ArchRow left={uL} right={uR} teeth={value} selected={selected} onSelect={readOnly ? undefined : setSelected} />
           <ArchRow left={lL} right={lR} teeth={value} selected={selected} onSelect={readOnly ? undefined : setSelected} />
+          {showsBothDentitions ? (
+            <>
+              <DentitionLabel>Primary</DentitionLabel>
+              <ArchRow left={pUL} right={pUR} teeth={value} selected={null} />
+              <ArchRow left={pLL} right={pLR} teeth={value} selected={null} />
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -251,6 +293,15 @@ export function ToothChart({
 
       <Legend teeth={value} />
     </div>
+  );
+}
+
+/** Caption above an arch pair, shown only when both dentitions are on the chart. */
+function DentitionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="pt-1 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+      {children}
+    </p>
   );
 }
 

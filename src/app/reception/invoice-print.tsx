@@ -67,8 +67,16 @@ export function InvoicePrintFrame({
       </div>
 
       <div
-        className="invoice-sheet mx-auto rounded-md border bg-white p-5 text-black shadow-sm"
-        style={{ width: `min(100%, ${f.width})`, fontSize: f.font }}
+        className="invoice-sheet mx-auto rounded-md border bg-white text-black shadow-sm"
+        style={{
+          width: `min(100%, ${f.width})`,
+          // The sheet's padding IS the page margin. A flat 20px made the preview
+          // narrower than the real page on thermal (3mm) and wider on A4 (14mm), so
+          // content that fits the paper could wrap differently on screen — which is
+          // the one thing a print preview must not do.
+          padding: f.margin,
+          fontSize: f.font,
+        }}
       >
         {/* Clinic logo — always black & white; sized to the paper format. */}
         {logo ? (
