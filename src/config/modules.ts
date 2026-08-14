@@ -1,6 +1,7 @@
 import type {
   ModuleClinicalRecord,
   ModuleDefinition,
+  ModuleTrash,
   ModuleId,
   ProcedureTemplate,
   SpecialtyCatalogEntry,
@@ -144,4 +145,14 @@ export function getClinicWorkspace(modulesEnabled: readonly ModuleId[]) {
     drugFormulary: modules.flatMap((m) => m.drugFormulary),
     recallRules: modules.flatMap((m) => m.recallRules),
   };
+}
+
+/**
+ * Every registered module's Trash provider. The registry is the one place allowed
+ * to name modules, so the super-admin Trash asks here rather than guessing.
+ */
+export function moduleTrashProviders(): ModuleTrash[] {
+  return Object.values(MODULES)
+    .map((m) => m.clinicalRecord?.trash)
+    .filter((t): t is ModuleTrash => Boolean(t));
 }

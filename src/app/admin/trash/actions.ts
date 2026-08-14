@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminCapability } from "@/core/auth/user";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { restoreGlobal, purgeGroup } from "@/core/trash";
+import { allModuleTrash } from "@/app/clinic/trash/module-trash";
 import { logActivity } from "@/core/audit/log";
 
 /**
@@ -17,7 +18,7 @@ export async function restoreTrashGlobal(
   await requireAdminCapability("clinics:edit");
   if (!group) return { error: "Nothing to restore." };
 
-  await restoreGlobal(group);
+  await restoreGlobal(group, allModuleTrash());
 
   await logActivity({
     action: "update",
@@ -44,7 +45,7 @@ export async function purgeTrashGlobal(
     return { error: "Incorrect password." };
   }
 
-  await purgeGroup(group);
+  await purgeGroup(group, allModuleTrash());
 
   await logActivity({
     action: "delete",

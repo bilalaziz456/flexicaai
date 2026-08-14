@@ -1,9 +1,9 @@
 import "server-only";
 
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNotNull, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
+import { newDeleteGroup, restoreValues, softDeleteValues } from "@/core/db/soft-delete";
 import {
   dentalCharts,
   dentalRecords,
@@ -20,7 +20,8 @@ import {
 } from "@/modules/dental/chart-logic";
 import { seedFromNote } from "@/modules/dental/seed-from-note";
 import { isRootTreated, isToothNumber, statusLabel } from "@/modules/dental/tooth-status";
-import type { ChartItemHistoryEntry } from "@/core/types/module";
+import type { ChartItemHistoryEntry, ModuleTrash } from "@/core/types/module";
+import { patients } from "@/core/db/schema";
 
 /**
  * Dental records + living chart — MODULE data layer (server-only). The living
@@ -529,4 +530,95 @@ export async function softDeleteDentalRecord(
     await recomputeChart(tx, clinicId, row.patientId);
     return true;
   });
+}
+
+// ─── Trash provider ─────────────────────────────────────────────────────────
+
+/**
+ * The module's Trash bundle. `/core` never imports a dental table, so the module
+ * produces its own trashed rows and the app layer hands them to the core Trash.
+ *
+ * Only DIRECTLY deleted records are listed: a record hidden because its patient or
+ * visit was trashed carries `deleted_by_cascade`, and is restored with that parent
+ * rather than on its own — the same rule every core entity follows.
+ */
+export const dentalTrash: ModuleTrash = {
+  async list(scope) {
+    const where: (SQL | undefined)[] = [
+      isNotNull(dentalRecords.deletedAt),
+      eq(dentalRecords.deletedByCascade, false),
+    ];
+    if (scope.kind === "clinic") {
+      where.push(eq(dentalRecords.clinicId, scope.clinicId), gte(dentalRecords.deletedAt, scope.cutoff));
+    } else if (scope.clinicId) {
+      where.push(eq(dentalRecords.clinicId, scope.clinicId));
+    }
+
+    const rows = await db
+      .select({
+        id: dentalRecords.id,
+        group: dentalRecords.deleteGroup,
+        clinicId: dentalRecords.clinicId,
+        deletedAt: dentalRecords.deletedAt,
+        deletedBy: dentalRecords.deletedBy,
+        chartAfter: dentalRecords.chartAfter,
+        patientName: patients.fullName,
+      })
+      .from(dentalRecords)
+      .leftJoin(patients, eq(dentalRecords.patientId, patients.id))
+      .where(and(...where))
+      .orderBy(desc(dentalRecords.deletedAt));
+
+    return rows.map((r) => {
+      // Name the teeth it covered, so a row in Trash says what it was.
+      const teeth = Object.keys((r.chartAfter ?? {}) as ChartTeeth);
+      const what = teeth.length
+        ? `${teeth.length === 1 ? "Tooth" : "Teeth"} ${teeth.sort().join(", ")}`
+        : "Chart entry";
+      return {
+        id: r.id,
+        group: r.group ?? r.id,
+        label: r.patientName ? `${r.patientName} · ${what.toLowerCase()}` : what,
+        detail: describeTrashedRecord((r.chartAfter ?? {}) as ChartTeeth),
+        clinicId: r.clinicId,
+        deletedAt: r.deletedAt as Date,
+        deletedById: r.deletedBy,
+      };
+    });
+  },
+
+  async restore(group, clinicId) {
+    const rows = await db
+      .update(dentalRecords)
+      .set(restoreValues())
+      .where(
+        clinicId
+          ? and(eq(dentalRecords.deleteGroup, group), eq(dentalRecords.clinicId, clinicId))
+          : eq(dentalRecords.deleteGroup, group),
+      )
+      .returning({ clinicId: dentalRecords.clinicId, patientId: dentalRecords.patientId });
+
+    // The living chart is derived, so it has to be re-folded for every patient the
+    // restore touched or the record would be back without being on the chart.
+    const seen = new Set<string>();
+    for (const r of rows) {
+      const key = `${r.clinicId}:${r.patientId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      await db.transaction((tx) => recomputeChart(tx, r.clinicId, r.patientId));
+    }
+  },
+
+  async purge(group) {
+    await db.delete(dentalRecords).where(eq(dentalRecords.deleteGroup, group));
+  },
+};
+
+/** "Crown, root treated" — what a trashed record said, for the Trash row's detail. */
+function describeTrashedRecord(chart: ChartTeeth): string | null {
+  const states = Object.values(chart);
+  if (!states.length) return null;
+  return states
+    .map((t) => `${statusLabel(t.status)}${isRootTreated(t) ? ", root treated" : ""}`)
+    .join("; ");
 }

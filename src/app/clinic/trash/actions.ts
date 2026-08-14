@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireWorkspace } from "@/core/auth/user";
 import { restoreForClinic } from "@/core/trash";
+import { clinicTrashProvider } from "./module-trash";
 import { logActivity } from "@/core/audit/log";
 
 /**
@@ -16,7 +17,7 @@ export async function restoreTrashItem(
   const user = await requireWorkspace("trash", "create");
   if (!group) return { error: "Nothing to restore." };
 
-  await restoreForClinic(user.clinicId, group);
+  await restoreForClinic(user.clinicId, group, await clinicTrashProvider(user.clinicId));
 
   await logActivity({
     action: "update",

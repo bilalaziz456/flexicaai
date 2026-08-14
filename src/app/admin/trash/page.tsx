@@ -7,6 +7,7 @@ import { listAllTrash, parseTrashFilters } from "@/core/trash";
 import { TrashTable } from "@/app/clinic/trash/trash-table";
 import { TrashFilters } from "@/app/clinic/trash/trash-filters";
 import { restoreTrashGlobal, purgeTrashGlobal } from "./actions";
+import { allModuleTrashRows } from "@/app/clinic/trash/module-trash";
 
 const TYPE_OPTIONS = [
   { value: "clinic", label: "Clinic" },
@@ -44,7 +45,7 @@ export default async function AdminTrashPage({
   const { filters, ui } = parseTrashFilters(sp);
 
   const [items, clinicRows, staff] = await Promise.all([
-    listAllTrash(filters),
+    allModuleTrashRows(filters.clinicId).then((rows) => listAllTrash(filters, rows)),
     db.select({ id: clinics.id, name: clinics.name }).from(clinics).orderBy(asc(clinics.name)),
     // Actor options depend on the chosen clinic (like the activity-log filter).
     filters.clinicId

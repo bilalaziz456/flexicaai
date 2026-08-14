@@ -79,6 +79,36 @@ export interface PatientChartProps {
   selectedItem?: string | null;
 }
 
+/**
+ * A trashed module row, shaped for the core Trash list.
+ *
+ * Core never queries a specialty table, so the module produces these and the APP
+ * layer hands them to `listClinicTrash`/`listAllTrash`. That keeps `/core` free of
+ * any import from `/modules` while still listing module records in one Trash.
+ */
+export interface ModuleTrashRow {
+  id: string;
+  /** The delete group, so Restore reverts exactly the batch that was hidden. */
+  group: string;
+  label: string;
+  detail: string | null;
+  clinicId: string;
+  deletedAt: Date;
+  deletedById: string | null;
+}
+
+/** A module's Trash provider — listing, restoring and purging its own rows. */
+export interface ModuleTrash {
+  /** Trashed rows for a clinic within its retention window, or all of them. */
+  list: (
+    scope: { kind: "clinic"; clinicId: string; cutoff: Date } | { kind: "all"; clinicId?: string },
+  ) => Promise<ModuleTrashRow[]>;
+  /** Un-delete this module's rows in a delete group. `clinicId` null = any clinic. */
+  restore: (group: string, clinicId: string | null) => Promise<void>;
+  /** PHYSICALLY delete this module's rows in a group (super-admin legal erasure). */
+  purge: (group: string) => Promise<void>;
+}
+
 /** Controls for ONE charted item (a tooth), supplied by the module. Controlled. */
 export interface ChartItemEditorProps {
   /** The item's current state, module-shaped. Null when nothing is recorded. */
@@ -251,6 +281,9 @@ export interface ModuleClinicalRecord {
    * — from the "edit chart" flow on the patient page. Re-folds the living chart.
    */
   saveBaseline: (clinicId: string, patientId: string, chart: unknown) => Promise<void>;
+  /** Trash provider for this module's own rows, so a deleted record is listed and
+   *  restorable in the one Trash. Absent → this module contributes nothing. */
+  trash?: ModuleTrash;
   /** Optional periodontal charting (a separate per-exam record). Absent → no perio card. */
   perio?: ModulePerio;
   /** Optional lab-case tracking (crowns/dentures). Absent → no lab card. */

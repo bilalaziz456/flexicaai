@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { ModuleTrash, ModuleTrashRow } from "@/core/types/module";
 import { and, desc, eq, gte, inArray, isNotNull, lt, sql, type SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/core/db";
@@ -33,6 +34,7 @@ import {
  */
 
 export type TrashEntity =
+  | "clinical_record"
   | "patient"
   | "appointment"
   | "visit"
@@ -91,7 +93,11 @@ export type TrashFilters = {
  * all clinics (no window), including trashed clinics themselves. `filters` narrow
  * the set (type / actor / date range / clinic / text search).
  */
-async function collect(scope: Scope, filters: TrashFilters = {}): Promise<TrashItem[]> {
+async function collect(
+  scope: Scope,
+  filters: TrashFilters = {},
+  moduleRows: ModuleTrashRow[] = [],
+): Promise<TrashItem[]> {
   const wantType = (e: TrashEntity) => !filters.type || filters.type === e;
 
   // Per-entity WHERE: directly-deleted rows, plus scope (clinic + retention window,
@@ -273,6 +279,27 @@ async function collect(scope: Scope, filters: TrashFilters = {}): Promise<TrashI
   for (const r of clins)
     push({ entity: "clinic", id: r.id, group: r.group ?? r.id, label: r.name, detail: "Whole clinic + all its data", clinicId: r.id, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
 
+  // Module rows (e.g. a dental chart entry) are fetched by the app layer, because a
+  // specialty table must never be imported here. They are already scoped and
+  // window-filtered; only the shared type/actor/date filters still apply.
+  for (const r of moduleRows) {
+    if (filters.type && filters.type !== "clinical_record") break;
+    if (filters.deletedBy && r.deletedById !== filters.deletedBy) continue;
+    if (filters.from && r.deletedAt < filters.from) continue;
+    if (filters.toExclusive && r.deletedAt >= filters.toExclusive) continue;
+    if (filters.clinicId && r.clinicId !== filters.clinicId) continue;
+    push({
+      entity: "clinical_record",
+      id: r.id,
+      group: r.group,
+      label: r.label,
+      detail: r.detail,
+      clinicId: r.clinicId,
+      deletedAt: r.deletedAt,
+      deletedById: r.deletedById,
+    });
+  }
+
   // Resolve deleter names (users may themselves be trashed — no notDeleted filter)
   // and clinic names (super-admin scope), in one query each.
   const actorIds = [...new Set(items.map((i) => i.deletedById).filter((x): x is string => Boolean(x)))];
@@ -315,19 +342,24 @@ export async function listClinicTrash(
   clinicId: string,
   retentionDays: number,
   filters: TrashFilters = {},
+  moduleRows: ModuleTrashRow[] = [],
 ): Promise<TrashItem[]> {
   const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-  return collect({ kind: "clinic", clinicId, cutoff }, filters);
+  return collect({ kind: "clinic", clinicId, cutoff }, filters, moduleRows);
 }
 
 /** The super admin's Trash: every trashed entry across all clinics, no window. */
-export async function listAllTrash(filters: TrashFilters = {}): Promise<TrashItem[]> {
-  return collect({ kind: "all" }, filters);
+export async function listAllTrash(
+  filters: TrashFilters = {},
+  moduleRows: ModuleTrashRow[] = [],
+): Promise<TrashItem[]> {
+  return collect({ kind: "all" }, filters, moduleRows);
 }
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 const TRASH_ENTITIES: readonly TrashEntity[] = [
   "patient",
+  "clinical_record",
   "appointment",
   "visit",
   "recall",
@@ -441,13 +473,22 @@ async function revertGroup(group: string, clinicId: string | null): Promise<void
 }
 
 /** Clinic-scoped restore of a group (only rows belonging to `clinicId`). */
-export async function restoreForClinic(clinicId: string, group: string): Promise<void> {
+export async function restoreForClinic(
+  clinicId: string,
+  group: string,
+  moduleTrash?: Pick<ModuleTrash, "restore">,
+): Promise<void> {
   await revertGroup(group, clinicId);
+  await moduleTrash?.restore(group, clinicId);
 }
 
 /** Super-admin restore of a group (any clinic, and the clinic row itself). */
-export async function restoreGlobal(group: string): Promise<void> {
+export async function restoreGlobal(
+  group: string,
+  moduleTrash?: Pick<ModuleTrash, "restore">,
+): Promise<void> {
   await revertGroup(group, null);
+  await moduleTrash?.restore(group, null);
 }
 
 // ---- Purge (super-admin legal erasure only) -------------------------------
@@ -458,7 +499,13 @@ export async function restoreGlobal(group: string): Promise<void> {
  * action layer. FK cascades remove dependent rows (appointment procedures, sales,
  * a clinic's whole tree), so we delete leaf→root and let the DB do the rest.
  */
-export async function purgeGroup(group: string): Promise<void> {
+export async function purgeGroup(
+  group: string,
+  moduleTrash?: Pick<ModuleTrash, "purge">,
+): Promise<void> {
+  // A module's own rows first: they reference core tables, so they must go before
+  // the rows they point at.
+  await moduleTrash?.purge(group);
   await db.transaction(async (tx) => {
     // Void sales for the group's appointments first (sales has no group column).
     const appts = await tx.select({ id: appointments.id, clinicId: appointments.clinicId }).from(appointments).where(eq(appointments.deleteGroup, group));

@@ -10,6 +10,7 @@ import { Toast } from "@/core/ui/toast";
 
 const ENTITY_LABEL: Record<TrashEntity, string> = {
   patient: "Patient",
+  clinical_record: "Chart entry",
   appointment: "Appointment",
   visit: "Clinical note",
   recall: "Recall",

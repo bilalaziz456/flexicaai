@@ -8,9 +8,11 @@ import { listClinicTrash, parseTrashFilters } from "@/core/trash";
 import { restoreTrashItem } from "./actions";
 import { TrashTable } from "./trash-table";
 import { TrashFilters } from "./trash-filters";
+import { clinicModuleTrashRows } from "./module-trash";
 
 const TYPE_OPTIONS = [
   { value: "patient", label: "Patient" },
+  { value: "clinical_record", label: "Chart entry" },
   { value: "appointment", label: "Appointment" },
   { value: "visit", label: "Clinical note" },
   { value: "recall", label: "Recall" },
@@ -48,8 +50,10 @@ export default async function ClinicTrashPage({
     .limit(1);
   const retention = clinic?.retention ?? 30;
 
+  const moduleRows = await clinicModuleTrashRows(user.clinicId, retention);
+
   const [items, staff] = await Promise.all([
-    listClinicTrash(user.clinicId, retention, filters),
+    listClinicTrash(user.clinicId, retention, filters, moduleRows),
     // "Deleted by" options — this clinic's staff (anyone who could have deleted).
     db
       .select({ id: users.id, fullName: users.fullName, username: users.username })
