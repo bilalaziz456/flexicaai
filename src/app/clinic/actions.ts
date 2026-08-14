@@ -784,7 +784,12 @@ export async function updatePatient(
   });
   revalidatePath(home);
   revalidatePath(`${home}/${patientId}`);
-  redirect(`${home}?updated=1`);
+  // Stay on the patient and toast, matching the staff profile. Editing details is
+  // usually one of several things done to the same patient — chart, appointments,
+  // payments — and bouncing to the list after each one meant navigating back in
+  // every time. Nothing read the `?updated=1` flash either, so the redirect was
+  // costing a page and buying nothing.
+  return { saved: true };
 }
 
 /**

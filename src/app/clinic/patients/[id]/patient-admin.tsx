@@ -39,8 +39,12 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
   >(action, {});
   const age = ageFromDob(patient.dateOfBirth);
   // Success redirects to the list (flash toast); a failed save pops an error toast.
+  // The nonces let an identical message fire again on a repeated save, since
+  // useActionState hands back an equal state object each time.
+  const [savedNonce, setSavedNonce] = useState(0);
   const [errorNonce, setErrorNonce] = useState(0);
   useEffect(() => {
+    if (state.saved) setSavedNonce((n) => n + 1);
     if (state.error) setErrorNonce((n) => n + 1);
   }, [state]);
 
@@ -142,6 +146,11 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
           {pending ? "Saving…" : "Save changes"}
         </Button>
       </div>
+      <Toast
+        message={state.saved ? "Patient updated." : null}
+        variant="success"
+        token={savedNonce}
+      />
       <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
