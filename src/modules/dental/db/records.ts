@@ -388,7 +388,11 @@ export async function editToothRecord(
   if (!row) return { error: "That entry no longer exists." };
   // A visit's record belongs to a clinical note a doctor approved. Editing it from a
   // tooth panel would alter a signed record without anyone opening the visit.
-  if (row.visitId || row.isBaseline) return { error: "Only a recorded treatment can be edited here." };
+  if (row.visitId) return { error: "This came from a visit. Open the visit to change it." };
+  // The intake entry is editable too — it is the same correction, just applied to the
+  // snapshot instead of to a dated event. Without this the intake chart was
+  // write-only once the separate intake editor was removed.
+  if (row.isBaseline) return setToothBaseline(clinicId, patientId, tooth, next);
 
   await db.transaction(async (tx) => {
     await tx
@@ -420,7 +424,11 @@ export async function deleteToothRecord(
   actorId: string,
 ): Promise<{ ok: true } | { error: string }> {
   const [row] = await db
-    .select({ visitId: dentalRecords.visitId, isBaseline: dentalRecords.isBaseline })
+    .select({
+      visitId: dentalRecords.visitId,
+      isBaseline: dentalRecords.isBaseline,
+      chartAfter: dentalRecords.chartAfter,
+    })
     .from(dentalRecords)
     .where(
       byClinic(
@@ -434,7 +442,24 @@ export async function deleteToothRecord(
     .limit(1);
   if (!row) return { error: "That entry no longer exists." };
   if (row.visitId) return { error: "This came from a visit. Open the visit to change it." };
-  if (row.isBaseline) return { error: "Edit existing conditions to change the intake chart." };
+
+  // Removing an intake entry clears that ONE tooth from the baseline snapshot rather
+  // than deleting the row, which also holds every other tooth's intake state. Without
+  // this, a mistaken "already there" could not be taken back at all once the separate
+  // intake editor was removed.
+  if (row.isBaseline) {
+    const rest = { ...((row.chartAfter ?? {}) as ChartTeeth) };
+    if (!(tooth in rest)) return { error: "That entry no longer exists." };
+    delete rest[tooth];
+    await db.transaction(async (tx) => {
+      await tx
+        .update(dentalRecords)
+        .set({ chartAfter: rest, updatedAt: new Date() })
+        .where(eq(dentalRecords.id, recordId));
+      await recomputeChart(tx, clinicId, patientId);
+    });
+    return { ok: true };
+  }
 
   const ok = await softDeleteDentalRecord(clinicId, recordId, actorId);
   return ok ? { ok: true } : { error: "That entry no longer exists." };

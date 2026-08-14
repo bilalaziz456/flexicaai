@@ -140,10 +140,10 @@ export function ItemHistoryPanel({
         <ol className="space-y-1.5">
           {entries.map((e, i) => {
             const editing = editRow === e.recordId;
-            // Only a recorded treatment may be changed from here. A visit's entry
-            // belongs to a clinical note a doctor approved, and the baseline is the
-            // intake snapshot — each has its own door.
-            const mine = canAmend && e.recordId && e.source === "treatment";
+            // Anything but a VISIT entry can be changed here. A visit's belongs to a
+            // clinical note a doctor approved. The intake entry is editable — it is
+            // the only way to correct one now that the separate intake editor is gone.
+            const mine = canAmend && e.recordId && e.source !== "visit";
             return (
               <li key={`${e.recordId ?? i}-${e.at}`} className="border-b pb-1.5 text-xs last:border-0 last:pb-0">
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
@@ -186,7 +186,11 @@ export function ItemHistoryPanel({
                         triggerClassName="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
                         triggerDisabled={pending}
                         title="Delete this entry?"
-                        description={`"${e.label}" will be removed from ${itemKey} and the chart will go back to what the remaining entries say. It moves to Trash and can be restored.`}
+                        description={
+                          e.source === "baseline"
+                            ? `"${e.label}" will stop being recorded as something ${itemKey} already had when the patient arrived. This clears the intake entry rather than moving a record to Trash.`
+                            : `"${e.label}" will be removed from ${itemKey} and the chart will go back to what the remaining entries say. It moves to Trash and can be restored.`
+                        }
                         confirmLabel="Delete"
                         confirmVariant="destructive"
                         onConfirm={() => remove(e.recordId!)}

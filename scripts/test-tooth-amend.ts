@@ -19,6 +19,7 @@ import {
   listDentalRecords,
   recordToothTreatment,
   saveBaseline,
+  setToothBaseline,
   saveDentalRecord,
   toothHistoryFor,
 } from "@/modules/dental/db/records";
@@ -120,6 +121,37 @@ async function main() {
       }
     }
 
+    console.log("\nAn intake entry can be corrected and removed:");
+    {
+      const [p4] = await db
+        .insert(patients)
+        .values({ clinicId: clinic.id, fullName: "ZZ baseline probe" })
+        .returning({ id: patients.id });
+      try {
+        await setToothBaseline(clinic.id, p4.id, "18", { status: "crown" });
+        await setToothBaseline(clinic.id, p4.id, "26", { status: "root_canal" });
+        let h4 = await toothHistoryFor(clinic.id, p4.id, "18");
+        check("it is recorded as intake, not a treatment", h4[0].source, "baseline");
+
+        // Both were refused before, which left a mistaken "already there" unfixable
+        // once the separate intake editor was removed.
+        check("editing it works", await editToothRecord(clinic.id, p4.id, "18", h4[0].recordId!, { status: "veneer" }), { ok: true });
+        h4 = await toothHistoryFor(clinic.id, p4.id, "18");
+        check("the entry is corrected in place", h4[0].label, "Sound → Veneer");
+        check("no second entry appears", h4.length, 1);
+        check("the chart follows", (await getPatientChart(clinic.id, p4.id))["18"], { status: "veneer" });
+
+        check("deleting it works", await deleteToothRecord(clinic.id, p4.id, "18", h4[0].recordId!, p4.id), { ok: true });
+        check("the entry is gone", (await toothHistoryFor(clinic.id, p4.id, "18")).length, 0);
+        check("and so is the tooth", (await getPatientChart(clinic.id, p4.id))["18"] ?? null, null);
+        check("other intake teeth are untouched", (await getPatientChart(clinic.id, p4.id))["26"], { status: "root_canal" });
+      } finally {
+        await db.delete(dentalRecords).where(eq(dentalRecords.patientId, p4.id));
+        await db.delete(dentalCharts).where(eq(dentalCharts.patientId, p4.id));
+        await db.delete(patients).where(eq(patients.id, p4.id));
+      }
+    }
+
     console.log("\nWhat may not be changed from here:");
     const [v] = await db
       .insert(visits)
@@ -130,11 +162,7 @@ async function main() {
       error: "This came from a visit. Open the visit to change it.",
     });
     check("a visit entry cannot be edited here", await editToothRecord(clinic.id, pid, "18", visitRec.id, { status: "veneer" }), {
-      error: "Only a recorded treatment can be edited here.",
-    });
-    const baseline = (await listDentalRecords(clinic.id, pid)).find((r) => r.isBaseline)!;
-    check("the intake entry cannot be deleted here", await deleteToothRecord(clinic.id, pid, "18", baseline.id, pid), {
-      error: "Edit existing conditions to change the intake chart.",
+      error: "This came from a visit. Open the visit to change it.",
     });
     check("a visit entry is marked as such", (await toothHistoryFor(clinic.id, pid, "18"))[0].source, "visit");
   } finally {
