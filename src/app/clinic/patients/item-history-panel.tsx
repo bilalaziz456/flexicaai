@@ -238,13 +238,17 @@ export function ItemHistoryPanel({
                 a treatment is an event that joins the history, while "already there"
                 corrects the intake snapshot. Collapsing them would have the history
                 claim the clinic did work it never did. */}
-            <div className="flex overflow-hidden rounded-md border" role="group" aria-label="What kind of record">
+            <div
+              className="flex w-fit overflow-hidden rounded-md border"
+              role="group"
+              aria-label="What kind of record"
+            >
               <button
                 type="button"
                 aria-pressed={!asExisting}
                 onClick={() => setAsExisting(false)}
                 className={cn(
-                  "px-2.5 py-1 text-xs font-medium transition-colors",
+                  "px-3 py-1.5 text-xs font-medium transition-colors",
                   !asExisting ? "bg-primary text-primary-foreground" : "hover:bg-accent",
                 )}
               >
@@ -255,7 +259,7 @@ export function ItemHistoryPanel({
                 aria-pressed={asExisting}
                 onClick={() => setAsExisting(true)}
                 className={cn(
-                  "px-2.5 py-1 text-xs font-medium transition-colors",
+                  "border-l px-3 py-1.5 text-xs font-medium transition-colors",
                   asExisting ? "bg-primary text-primary-foreground" : "hover:bg-accent",
                 )}
               >

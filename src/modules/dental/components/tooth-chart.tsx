@@ -209,15 +209,20 @@ export function ToothChart({
             handler, so paper gets the automatic choice and no dead buttons. */}
         {readOnly ? (
           onSelectTooth ? (
-            <div className="flex overflow-hidden rounded-md border" role="group" aria-label="Which teeth to show">
-              {(["primary", "permanent", "mixed"] as const).map((v) => (
+            <div
+              className="flex w-fit overflow-hidden rounded-md border"
+              role="group"
+              aria-label="Which teeth to show"
+            >
+              {(["primary", "permanent", "mixed"] as const).map((v, i) => (
                 <button
                   key={v}
                   type="button"
                   aria-pressed={view === v}
                   onClick={() => setChosenView(v)}
                   className={cn(
-                    "px-2 py-1 text-xs font-medium capitalize transition-colors",
+                    "px-3 py-1.5 text-xs font-medium capitalize transition-colors",
+                    i > 0 && "border-l",
                     view === v ? "bg-primary text-primary-foreground" : "hover:bg-accent",
                   )}
                 >
