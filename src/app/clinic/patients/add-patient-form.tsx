@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { createPatient, type ClinicActionState } from "@/app/clinic/actions";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
+import { PhoneInput } from "@/core/ui/phone-input";
 import { Label } from "@/core/ui/label";
 import { Toast } from "@/core/ui/toast";
 
@@ -28,7 +29,7 @@ export function AddPatientForm() {
         </div>
         <div className="space-y-2">
           <Label htmlFor="phone">WhatsApp / phone</Label>
-          <Input id="phone" name="phone" placeholder="+92300…" />
+          <PhoneInput id="phone" name="phone" required placeholder="03450186120" />
         </div>
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>

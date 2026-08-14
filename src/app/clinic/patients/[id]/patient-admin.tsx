@@ -10,6 +10,7 @@ import {
 import { Button } from "@/core/ui/button";
 import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
 import { Input } from "@/core/ui/input";
+import { PhoneInput } from "@/core/ui/phone-input";
 import { Label } from "@/core/ui/label";
 import { Toast } from "@/core/ui/toast";
 import { ageFromDob } from "@/core/lib/age";
@@ -58,12 +59,13 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
         </div>
         <div className="space-y-2">
           <Label htmlFor="phone">WhatsApp / phone</Label>
-          <Input
+          <PhoneInput
             key={`p-${patient.phone ?? ""}`}
             id="phone"
             name="phone"
+            required
             defaultValue={patient.phone ?? ""}
-            placeholder="+92300…"
+            placeholder="03450186120"
           />
         </div>
         <div className="space-y-2">

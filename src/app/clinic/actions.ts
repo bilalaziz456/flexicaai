@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { toE164 } from "@/core/lib/phone";
 import { revalidatePath } from "next/cache";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
@@ -646,6 +647,15 @@ export async function updateDoctorShares(
 
 const createPatientSchema = z.object({
   fullName: z.string().trim().min(2, "Patient name is required."),
+  // Required: WhatsApp is the whole patient channel, so a patient without a number
+  // cannot be reminded, sent a prescription, or recalled. A family member with no
+  // mobile of their own uses the household number — several patients may share one.
+  phone: z
+    .string()
+    .trim()
+    .min(1, "Phone number is required.")
+    .transform((v) => toE164(v).phone ?? "")
+    .refine((v) => toE164(v).valid && v !== "", "Enter a valid phone number."),
 });
 
 /**
@@ -672,6 +682,7 @@ export async function createPatient(
 
   const parsed = createPatientSchema.safeParse({
     fullName: formData.get("fullName"),
+    phone: formData.get("phone"),
   });
   if (!parsed.success) {
     return { error: zodErrorMessage(parsed.error) };
@@ -698,7 +709,9 @@ export async function createPatient(
         clinicId,
         mrn,
         fullName: parsed.data.fullName,
-        phone: emptyToNull(formData.get("phone")),
+        // Stored E.164, so every way the same number can be typed converges and
+        // inbound WhatsApp can find it.
+        phone: parsed.data.phone,
         email: emptyToNull(formData.get("email")),
         // Patients are entered by age; we store the derived birth date (see age.ts).
         dateOfBirth: dobFromAgeField(formData.get("age")),
@@ -721,9 +734,7 @@ export async function createPatient(
   redirect(`${home}?created=1`);
 }
 
-const updatePatientSchema = z.object({
-  fullName: z.string().trim().min(2, "Patient name is required."),
-});
+const updatePatientSchema = createPatientSchema;
 
 /** Edits a patient's details — clinic-scoped (a foreign id matches 0 rows). */
 export async function updatePatient(
@@ -735,6 +746,7 @@ export async function updatePatient(
 
   const parsed = updatePatientSchema.safeParse({
     fullName: formData.get("fullName"),
+    phone: formData.get("phone"),
   });
   if (!parsed.success) {
     return { error: zodErrorMessage(parsed.error) };
@@ -744,7 +756,7 @@ export async function updatePatient(
     .update(patients)
     .set({
       fullName: parsed.data.fullName,
-      phone: emptyToNull(formData.get("phone")),
+      phone: parsed.data.phone,
       email: emptyToNull(formData.get("email")),
       dateOfBirth: dobFromAgeField(formData.get("age")),
       gender: emptyToNull(formData.get("gender")),

@@ -2,6 +2,8 @@
  * Shared import types + helpers — CORE (client-safe: no server-only, no DB). See
  * docs/import-plan.md.
  */
+import { toE164 } from "@/core/lib/phone";
+
 export type ImportEntity =
   | "patients"
   | "procedures"
@@ -55,24 +57,15 @@ export type RowResult<T> =
 export const MAX_ISSUES = 200;
 
 /**
- * Best-effort E.164 normalisation for storage. `defaultCc` is the country-code
- * digits assumed for a local number (Pakistan "92" by default; pass the clinic's
- * later). Empty input is allowed (phone is optional). `valid` is false when the
- * result doesn't look like a plausible E.164 number — the caller keeps it but flags it.
+ * The importer's name for what is now one shared implementation (core/lib/phone).
+ * Two near-identical normalisers with different behaviour is how a patient saved as
+ * "03450186120" became invisible to inbound WhatsApp.
  */
-export function normalizePhone(raw: string, defaultCc = "92"): { phone: string | null; valid: boolean } {
-  const trimmed = (raw ?? "").trim();
-  if (!trimmed) return { phone: null, valid: true };
-  const hasPlus = trimmed.startsWith("+");
-  const digits = trimmed.replace(/\D/g, "");
-  if (!digits) return { phone: null, valid: true };
-  let e164: string;
-  if (hasPlus) e164 = "+" + digits;
-  else if (digits.startsWith("00")) e164 = "+" + digits.slice(2);
-  else if (digits.startsWith("0")) e164 = "+" + defaultCc + digits.slice(1);
-  else if (digits.startsWith(defaultCc) && digits.length >= defaultCc.length + 9) e164 = "+" + digits;
-  else e164 = "+" + defaultCc + digits;
-  return { phone: e164, valid: /^\+\d{10,15}$/.test(e164) };
+export function normalizePhone(
+  raw: string,
+  defaultCc = "92",
+): { phone: string | null; valid: boolean } {
+  return toE164(raw, defaultCc);
 }
 
 /** Roll per-row results into a preview summary (capped issue list). */
