@@ -16,10 +16,10 @@ import {
   PRIMARY_UPPER,
   STATUS_BY_VALUE,
   isRootTreated,
-  SURFACES,
   TOOTH_STATUSES,
   statusLabel,
 } from "@/modules/dental/tooth-status";
+import { ToothEditor } from "@/modules/dental/components/tooth-editor";
 
 /** Semantic tone → colour classes (light + dark). */
 const TONE_CLASS: Record<string, string> = {
@@ -208,15 +208,6 @@ export function ToothChart({
     onChange(next);
   };
 
-  const toggleSurface = (n: string, s: string) => {
-    const cur = value[n];
-    if (!cur) return;
-    const surfaces = new Set(cur.surfaces ?? []);
-    if (surfaces.has(s)) surfaces.delete(s);
-    else surfaces.add(s);
-    setTooth(n, { status: cur.status, surfaces: [...surfaces], note: cur.note });
-  };
-
   const sel = selected ? value[selected] : undefined;
 
   return (
@@ -273,81 +264,10 @@ export function ToothChart({
               Done
             </button>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {TOOTH_STATUSES.map((s) => (
-              <button
-                key={s.value}
-                type="button"
-                onClick={() => setTooth(selected, { status: s.value, surfaces: sel?.surfaces, note: sel?.note })}
-                className={cn(
-                  "rounded-md border px-2 py-1 text-xs font-medium transition-colors",
-                  sel?.status === s.value || (!sel && s.value === "sound")
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "hover:bg-accent",
-                )}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-          {sel && sel.status !== "missing" && sel.status !== "unerupted" ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground">Surfaces:</span>
-              {SURFACES.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => toggleSurface(selected, s)}
-                  className={cn(
-                    "size-6 rounded border text-xs font-medium",
-                    sel.surfaces?.includes(s) ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent",
-                  )}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          {/* Root treated. Its own control rather than another status, because it
-              coexists with whatever restoration the tooth carries — the usual case
-              being a root canal that is later crowned. Hidden for a tooth that is not
-              there to treat. Post and core go in the note below. */}
-          {sel?.status !== "missing" && sel?.status !== "unerupted" ? (
-            <label className="flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={isRootTreated(sel)}
-                onChange={(e) =>
-                  setTooth(selected, { status: sel?.status ?? "sound", endo: e.target.checked })
-                }
-                className="size-4 rounded border-input accent-primary"
-              />
-              <span>Root treated (endodontic)</span>
-            </label>
-          ) : null}
-
-          {/* Per-tooth note. `ChartTooth.note` already existed and was carried through
-              every edit path, but nothing could set it. A note alone is enough to keep
-              a tooth on the chart: `setTooth` only drops an entry when the status is
-              sound AND there are no surfaces AND no note, so "sound but watch this"
-              survives, and clearing the text drops it again. */}
-          <label className="block space-y-1">
-            <span className="block text-xs text-muted-foreground">Note</span>
-            <input
-              type="text"
-              value={sel?.note ?? ""}
-              onChange={(e) =>
-                setTooth(selected, {
-                  status: sel?.status ?? "sound",
-                  surfaces: sel?.surfaces,
-                  note: e.target.value,
-                })
-              }
-              placeholder={`Anything worth remembering about tooth ${selected}`}
-              className="h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
-          </label>
+          <ToothEditor
+            value={sel ?? null}
+            onChange={(next: ChartTooth) => setTooth(selected, next)}
+          />
         </div>
       ) : null}
 

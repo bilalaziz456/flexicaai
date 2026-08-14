@@ -131,6 +131,18 @@ export const dentalRecords = pgTable(
     // NULL for a baseline record; unique when set (one dental record per visit).
     visitId: uuid("visit_id").references(() => visits.id, { onDelete: "cascade" }),
     isBaseline: boolean("is_baseline").notNull().default(false),
+    /**
+     * What kind of record this is, when it belongs to no visit: 'treatment' (charted
+     * straight onto a tooth, outside a visit) or 'correction' (an amendment undoing
+     * an earlier entry). NULL on everything written before this existed, where the
+     * kind is unambiguous anyway — a baseline has `is_baseline`, a visit record has
+     * `visit_id` — so nothing needed backfilling.
+     *
+     * Explicit rather than inferred: "no visit and not the baseline" used to mean
+     * correction on its own, and recording treatments this way would have made the
+     * two indistinguishable.
+     */
+    kind: text("kind"),
     chiefComplaint: text("chief_complaint"),
     diagnosis: text("diagnosis"),
     findings: jsonb("findings").$type<ToothFinding[]>(),

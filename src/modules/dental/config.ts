@@ -5,6 +5,7 @@ import { dentalDrugFormulary } from "@/modules/dental/drug-formulary";
 import { dentalProcedureTemplates } from "@/modules/dental/procedure-templates";
 import { dentalTreatmentTemplates } from "@/modules/dental/treatment-templates";
 import { DentalPatientChart, DentalVisitEditor } from "@/modules/dental/components/tooth-chart";
+import { DentalToothEditor } from "@/modules/dental/components/tooth-editor";
 import { seedFromNote } from "@/modules/dental/seed-from-note";
 import {
   getPatientChart,
@@ -13,6 +14,7 @@ import {
   visitChanges,
   toothHistoryFor,
   amendTooth,
+  recordToothTreatment,
 } from "@/modules/dental/db/records";
 import { dentalPerio } from "@/modules/dental/db/perio";
 import { dentalLab } from "@/modules/dental/db/lab";
@@ -47,6 +49,8 @@ export const dentalModule: ModuleDefinition = {
     // A tooth is this module's charted item; core only ever passes the key back.
     itemHistory: toothHistoryFor,
     amendItem: amendTooth,
+    recordItemTreatment: recordToothTreatment,
+    ItemEditor: DentalToothEditor,
     perio: dentalPerio,
     lab: dentalLab,
   },

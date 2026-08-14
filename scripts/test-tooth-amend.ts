@@ -15,6 +15,8 @@ import { dentalCharts, dentalRecords } from "@/modules/dental/db/schema";
 import {
   amendTooth,
   getPatientChart,
+  recordToothTreatment,
+  saveBaseline,
   saveDentalRecord,
   toothHistoryFor,
 } from "@/modules/dental/db/records";
@@ -88,6 +90,45 @@ async function main() {
       status: "filled",
       endo: true,
     });
+
+    console.log("\nTreatments recorded from the tooth itself:");
+    {
+      const [p2] = await db
+        .insert(patients)
+        .values({ clinicId: clinic.id, fullName: "ZZ treatment probe" })
+        .returning({ id: patients.id });
+      try {
+        await saveBaseline(clinic.id, p2.id, { "18": { status: "caries" } });
+        // The sequence that the intake editor collapsed into a single rewritten line.
+        await recordToothTreatment(clinic.id, p2.id, "18", { status: "filled" });
+        await recordToothTreatment(clinic.id, p2.id, "18", { status: "filled", endo: true });
+        await recordToothTreatment(clinic.id, p2.id, "18", { status: "crown", endo: true });
+
+        const h2 = await toothHistoryFor(clinic.id, p2.id, "18");
+        check("each treatment is its own entry", h2.length, 4);
+        check("the filling is NOT lost", h2.map((e) => e.label), [
+          "Sound → Caries",
+          "Caries → Filled",
+          "Filled → Filled, root treated",
+          "Filled → Crown",
+        ]);
+        check("each treatment is its own record", (await db.select().from(dentalRecords).where(eq(dentalRecords.patientId, p2.id))).length, 4);
+        check("the chart shows the latest", (await getPatientChart(clinic.id, p2.id))["18"], { status: "crown", endo: true });
+        check("re-recording the same state is refused", await recordToothTreatment(clinic.id, p2.id, "18", { status: "crown", endo: true }), {
+          error: "That is already this tooth's state.",
+        });
+        check("a treatment needs a status", await recordToothTreatment(clinic.id, p2.id, "18", {}), {
+          error: "Choose what was done to the tooth.",
+        });
+        check("the item key must be a tooth", await recordToothTreatment(clinic.id, p2.id, "99", { status: "crown" }), {
+          error: "That isn't a tooth.",
+        });
+      } finally {
+        await db.delete(dentalRecords).where(eq(dentalRecords.patientId, p2.id));
+        await db.delete(dentalCharts).where(eq(dentalCharts.patientId, p2.id));
+        await db.delete(patients).where(eq(patients.id, p2.id));
+      }
+    }
 
     console.log("\nGuards:");
     check("amending an entry that never touched this tooth is refused", await amendTooth(clinic.id, pid, "27", r2.id), {

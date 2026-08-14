@@ -21,8 +21,10 @@ export type ChartFrame = {
   at: number;
   /** The record's own id, so a history entry can name the frame to amend. */
   id?: string;
-  /** The visit this frame came from. Null on the baseline and on a correction. */
+  /** The visit this frame came from. Null on the baseline, a treatment, a correction. */
   visitId?: string | null;
+  /** 'treatment' | 'correction' when the frame belongs to no visit. */
+  kind?: string | null;
 };
 
 /**
@@ -42,11 +44,10 @@ export type ToothHistoryEntry = {
   /** State before this frame, and after it. Null = no entry (i.e. sound). */
   before: ChartTooth | null;
   after: ChartTooth | null;
-  /**
-   * A frame belonging to no visit and not the baseline, which is what an amendment
-   * writes. Structural rather than a flag, so it needed no migration.
-   */
+  /** This entry is an amendment undoing an earlier one. */
   isCorrection: boolean;
+  /** 'treatment' when charted straight onto the item, outside any visit. */
+  kind?: string | null;
 };
 
 /**
@@ -71,7 +72,8 @@ export function toothHistory(frames: ChartFrame[], tooth: string): ToothHistoryE
       at: f.at,
       before,
       after,
-      isCorrection: !f.isBaseline && !f.visitId,
+      kind: f.kind ?? null,
+      isCorrection: f.kind === "correction",
     });
     before = after;
   }

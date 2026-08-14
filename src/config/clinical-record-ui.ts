@@ -1,7 +1,12 @@
 import type { ComponentType } from "react";
-import type { ClinicalVisitEditorProps, PatientChartProps } from "@/core/types/module";
+import type {
+  ChartItemEditorProps,
+  ClinicalVisitEditorProps,
+  PatientChartProps,
+} from "@/core/types/module";
 import { DentalPatientChart, DentalVisitEditor } from "@/modules/dental/components/tooth-chart";
 import { DentalPerioChart, DentalPerioEditor } from "@/modules/dental/components/perio-chart";
+import { DentalToothEditor } from "@/modules/dental/components/tooth-editor";
 import { seedFromNote as dentalSeedFromNote } from "@/modules/dental/seed-from-note";
 
 /**
@@ -17,6 +22,8 @@ import { seedFromNote as dentalSeedFromNote } from "@/modules/dental/seed-from-n
 export type ClinicalRecordUI = {
   VisitEditor: ComponentType<ClinicalVisitEditorProps>;
   PatientChart: ComponentType<PatientChartProps>;
+  /** Controls for ONE charted item, for recording a treatment on it. */
+  ItemEditor?: ComponentType<ChartItemEditorProps>;
   /** Map a scribe draft note into suggested chart edits (pure). */
   seedFromNote: (note: unknown) => unknown;
   /** Optional periodontal chart components (view + edit). */
@@ -30,6 +37,7 @@ const CLINICAL_UI: Record<string, ClinicalRecordUI> = {
   dental: {
     VisitEditor: DentalVisitEditor,
     PatientChart: DentalPatientChart,
+    ItemEditor: DentalToothEditor,
     seedFromNote: dentalSeedFromNote,
     perio: { Chart: DentalPerioChart, Editor: DentalPerioEditor },
   },

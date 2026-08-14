@@ -547,6 +547,13 @@
       "when": 1785780670312,
       "tag": "0077_spooky_onslaught",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1786668773625,
+      "tag": "0078_woozy_magdalene",
+      "breakpoints": true
     }
   ]
 }

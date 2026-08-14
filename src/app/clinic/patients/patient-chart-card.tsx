@@ -72,7 +72,7 @@ export function PatientChartCard({
       ) : (
         <>
           <PatientChart
-            chart={value}
+            chart={chart}
             onSelectItem={(key) => setHistoryOf((cur) => (cur === key ? null : key))}
             selectedItem={historyOf}
           />
@@ -82,15 +82,26 @@ export function PatientChartCard({
               patientId={patientId}
               itemKey={historyOf}
               canAmend={canEdit}
+              // Seed the treatment form with what the item is now, so recording a
+              // root canal on a filled tooth doesn't silently drop the filling.
+              current={(chart as Record<string, unknown> | null)?.[historyOf] ?? null}
+              ItemEditor={ui.ItemEditor}
               onClose={() => setHistoryOf(null)}
               onAmended={() => {
-                setMsg({ text: "Entry corrected.", error: false });
+                setMsg({ text: "Chart updated.", error: false });
                 setNonce((n) => n + 1);
               }}
             />
           ) : null}
           {canEdit ? (
-            <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setValue(chart ?? {});
+                setEditing(true);
+              }}
+            >
               Edit existing conditions
             </Button>
           ) : null}

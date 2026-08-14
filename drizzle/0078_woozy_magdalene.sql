@@ -1,0 +1,1 @@
+ALTER TABLE "dental_records" ADD COLUMN "kind" text;

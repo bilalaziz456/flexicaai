@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { Loader2, RotateCcw, X } from "lucide-react";
+import { useEffect, useState, useTransition, type ComponentType } from "react";
+import { Loader2, Plus, RotateCcw, X } from "lucide-react";
 import { Button } from "@/core/ui/button";
-import type { ChartItemHistoryEntry } from "@/core/types/module";
-import { amendItemAction, loadItemHistory } from "./patient-clinical-actions";
+import type { ChartItemEditorProps, ChartItemHistoryEntry } from "@/core/types/module";
+import {
+  amendItemAction,
+  loadItemHistory,
+  recordItemTreatmentAction,
+} from "./patient-clinical-actions";
 
 /**
  * One charted item's own history — for dental, everything ever recorded on one tooth.
@@ -26,6 +30,8 @@ export function ItemHistoryPanel({
   patientId,
   itemKey,
   canAmend,
+  current,
+  ItemEditor,
   onClose,
   onAmended,
 }: {
@@ -33,11 +39,17 @@ export function ItemHistoryPanel({
   itemKey: string;
   /** `clinical:edit`. A viewer without it still reads the history, with no Undo. */
   canAmend: boolean;
+  /** The item's current state, seeding the treatment form. */
+  current?: unknown;
+  /** The module's controls for one item. Absent → history only. */
+  ItemEditor?: ComponentType<ChartItemEditorProps>;
   onClose: () => void;
   onAmended: () => void;
 }) {
   const [entries, setEntries] = useState<ChartItemHistoryEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState<unknown>(current ?? null);
   const [pending, start] = useTransition();
 
   // No state reset here: the parent keys this component by item, so choosing a
@@ -64,6 +76,19 @@ export function ItemHistoryPanel({
         setError(r.error);
         return;
       }
+      onAmended();
+      setEntries(await loadItemHistory(patientId, itemKey));
+    });
+
+  const record = () =>
+    start(async () => {
+      setError(null);
+      const r = await recordItemTreatmentAction(patientId, itemKey, draft);
+      if ("error" in r) {
+        setError(r.error);
+        return;
+      }
+      setAdding(false);
       onAmended();
       setEntries(await loadItemHistory(patientId, itemKey));
     });
@@ -122,6 +147,40 @@ export function ItemHistoryPanel({
           ))}
         </ol>
       )}
+
+      {/* Record a treatment — its own dated entry, deliberately behind a button.
+          If the status controls saved on click, every stray tap would become a line
+          in the history, and the history is the thing being built here. */}
+      {canAmend && ItemEditor ? (
+        adding ? (
+          <div className="space-y-2 rounded-md border p-2.5">
+            <p className="text-xs font-medium">What was done to {itemKey}?</p>
+            <ItemEditor value={draft} onChange={setDraft} disabled={pending} />
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" disabled={pending} onClick={record}>
+                {pending ? "Saving…" : "Record treatment"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={() => {
+                  setAdding(false);
+                  setDraft(current ?? null);
+                  setError(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
+            <Plus className="size-3.5" aria-hidden="true" />
+            Record treatment
+          </Button>
+        )
+      ) : null}
 
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
       {canAmend && entries && entries.length > 0 ? (

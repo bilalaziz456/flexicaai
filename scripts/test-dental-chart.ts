@@ -112,7 +112,12 @@ console.log("\nPer-tooth history:");
   check("undoing the filling keeps the later crown", toothStateWithout(frames, "18", "r1"), { status: "crown", endo: true });
 
   // An amendment is a frame with no visit that is not the baseline.
-  const amended: ChartFrame[] = [...frames, { id: "r6", visitId: null, at: 600, chartAfter: { "18": { status: "filled", endo: true } } }];
+  // A correction is now tagged explicitly rather than inferred from "no visit and not
+  // the baseline", which stopped being unique once treatments are recorded that way.
+  const amended: ChartFrame[] = [
+    ...frames,
+    { id: "r6", visitId: null, kind: "correction", at: 600, chartAfter: { "18": { status: "filled", endo: true } } },
+  ];
   const last = toothHistory(amended, "18").at(-1)!;
   check("an amendment is flagged as a correction", last.isCorrection, true);
   check("amending restores the state without that entry", last.after, { status: "filled", endo: true });

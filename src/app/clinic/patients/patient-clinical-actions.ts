@@ -103,6 +103,49 @@ export async function amendItemAction(
   return { ok: true };
 }
 
+/**
+ * Record a treatment on ONE charted item — its own dated record, so the item's
+ * history accumulates instead of one entry being rewritten.
+ *
+ * This is the counterpart to `saveBaselineChart`, and the distinction is the point:
+ * the baseline is what the patient arrived with and each save corrects it in place,
+ * while a treatment is an event that happened and must stand alongside the ones
+ * before it. Gated by `clinical:edit` and audit-logged.
+ */
+export async function recordItemTreatmentAction(
+  patientId: string,
+  itemKey: string,
+  state: unknown,
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireRole(["clinic_admin", "doctor", "manager"]);
+  if (!user.clinicId) return { error: "No clinic access." };
+  if (!can(user, "clinical", "edit")) {
+    return { error: "You don't have permission to edit clinical records." };
+  }
+
+  const clinicalRecord = await clinicalRecordForUser(user.clinicId);
+  if (!clinicalRecord) return { error: "This clinic has no clinical chart." };
+
+  const result = await clinicalRecord.recordItemTreatment(
+    user.clinicId,
+    patientId,
+    itemKey,
+    state,
+  );
+  if ("error" in result) return result;
+
+  await logActivity({
+    action: "update",
+    entity: "patient",
+    entityId: patientId,
+    summary: `Recorded a treatment on ${itemKey}`,
+    metadata: { itemKey },
+  });
+  revalidatePath(`/clinic/patients/${patientId}`);
+  revalidatePath(`/doctor/patients/${patientId}`);
+  return { ok: true };
+}
+
 /** The enabled module's clinical-record bundle for this clinic, or null. */
 async function clinicalRecordForUser(clinicId: string) {
   const [clinicRow] = await db

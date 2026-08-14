@@ -20,7 +20,7 @@ import {
   toothStateWithout,
 } from "@/modules/dental/chart-logic";
 import { seedFromNote } from "@/modules/dental/seed-from-note";
-import { isRootTreated, statusLabel } from "@/modules/dental/tooth-status";
+import { isRootTreated, isToothNumber, statusLabel } from "@/modules/dental/tooth-status";
 import type { ChartItemHistoryEntry } from "@/core/types/module";
 
 /**
@@ -125,6 +125,8 @@ export type SaveDentalRecordInput = {
   patientId: string;
   visitId?: string | null;
   isBaseline?: boolean;
+  /** 'treatment' | 'correction' for records that belong to no visit. */
+  kind?: string | null;
   chiefComplaint?: string | null;
   diagnosis?: string | null;
   findings?: ToothFinding[] | null;
@@ -173,6 +175,7 @@ export async function saveDentalRecord(
         : [];
 
     const values = {
+      kind: input.kind ?? null,
       chiefComplaint: input.chiefComplaint ?? null,
       diagnosis: input.diagnosis ?? null,
       findings: input.findings ?? null,
@@ -319,6 +322,7 @@ async function chartFrames(clinicId: string, patientId: string) {
     id: r.id,
     visitId: r.visitId,
     isBaseline: r.isBaseline,
+    kind: r.kind,
     at: r.createdAt.getTime(),
     chartAfter: (r.chartAfter ?? {}) as ChartTeeth,
   }));
@@ -373,9 +377,58 @@ export async function amendTooth(
     patientId,
     visitId: null,
     isBaseline: false,
+    kind: "correction",
     chartAfter: { [tooth]: restore ?? { status: "sound" } } as ChartTeeth,
   });
   return { ok: true };
+}
+
+/**
+ * Record a treatment on ONE tooth, outside any visit — the module's
+ * `recordItemTreatment`.
+ *
+ * Writes its OWN dated record every time, which is the whole point. The intake
+ * baseline is a single row that each save overwrites, so charting a filling and then
+ * a root canal through it left one entry reading "Sound → Root canal" and the filling
+ * was simply gone. A treatment is an event, so it gets a record of its own and the
+ * history accumulates.
+ *
+ * Only the treated tooth is written. The baseline writes the whole chart, which would
+ * mean charting one tooth restated all thirty-two.
+ */
+export async function recordToothTreatment(
+  clinicId: string,
+  patientId: string,
+  tooth: string,
+  state: unknown,
+): Promise<{ ok: true } | { error: string }> {
+  if (!isToothNumber(tooth)) return { error: "That isn't a tooth." };
+  const next = (state && typeof state === "object" ? state : null) as ChartTooth | null;
+  if (!next?.status) return { error: "Choose what was done to the tooth." };
+
+  const current = (await getPatientChart(clinicId, patientId))[tooth] ?? null;
+  // Nothing changed — don't write a record that would read as a treatment.
+  if (sameToothState(current, next)) return { error: "That is already this tooth's state." };
+
+  await saveDentalRecord(clinicId, {
+    patientId,
+    visitId: null,
+    isBaseline: false,
+    kind: "treatment",
+    chartAfter: { [tooth]: next } as ChartTeeth,
+  });
+  return { ok: true };
+}
+
+/** Whole-tooth equality, so a no-op save cannot become a history entry. */
+function sameToothState(a: ChartTooth | null, b: ChartTooth | null): boolean {
+  if (!a || !b) return isBlankTooth(a) && isBlankTooth(b);
+  return (
+    a.status === b.status &&
+    isRootTreated(a) === isRootTreated(b) &&
+    (a.note ?? "") === (b.note ?? "") &&
+    [...(a.surfaces ?? [])].sort().join("") === [...(b.surfaces ?? [])].sort().join("")
+  );
 }
 
 /** "Filled → Crown, root treated" — the human line for one history entry. */

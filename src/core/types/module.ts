@@ -79,6 +79,14 @@ export interface PatientChartProps {
   selectedItem?: string | null;
 }
 
+/** Controls for ONE charted item (a tooth), supplied by the module. Controlled. */
+export interface ChartItemEditorProps {
+  /** The item's current state, module-shaped. Null when nothing is recorded. */
+  value: unknown;
+  onChange: (next: unknown) => void;
+  disabled?: boolean;
+}
+
 /**
  * One entry in a charted item's history — a change made at one visit. `label` is
  * rendered by the module ("Filled → Crown, root treated") so core displays the line
@@ -204,6 +212,20 @@ export interface ModuleClinicalRecord {
     itemKey: string,
     recordId: string,
   ) => Promise<{ ok: true } | { error: string }>;
+  /**
+   * Record a treatment on ONE item, outside any visit — its own dated record, so the
+   * history accumulates. Distinct from `saveBaseline`, which upserts a single intake
+   * snapshot and therefore cannot express a sequence of treatments.
+   */
+  recordItemTreatment: (
+    clinicId: string,
+    patientId: string,
+    itemKey: string,
+    state: unknown,
+  ) => Promise<{ ok: true } | { error: string }>;
+  /** Controls for one item, so core can offer "record a treatment" without knowing
+   *  what an item is. Absent → no inline treatment recording. */
+  ItemEditor?: ComponentType<ChartItemEditorProps>;
   /**
    * Save the patient's intake BASELINE chart (existing conditions, no visit) directly
    * — from the "edit chart" flow on the patient page. Re-folds the living chart.
