@@ -167,13 +167,25 @@ export async function POST(request: Request) {
  * Exact phone match within one clinic (clinic already known from the number).
  * Compares on DIGITS ONLY (Postgres `regexp_replace`) so stored formatting —
  * spaces, +, dashes — never breaks the match. Clinic-scoped, so the scan is small.
+ *
+ * ONE match or nobody. A household commonly shares a single mobile number — nothing
+ * stops several patients being registered on it, and in this market that is the norm
+ * rather than an edge case. This used to take the first row of a `LIMIT 1` with no
+ * ORDER BY, so a shared number resolved to an arbitrary, not even deterministic,
+ * family member. That id then drives self-service reschedule and booking, so a
+ * mother texting "reschedule" could have moved her son's appointment.
+ *
+ * Returning null instead leaves the message unattributed in the WhatsApp queue for
+ * staff to place, which is the same thing the legacy webhook does and the right
+ * trade: a message a human has to route beats an appointment silently moved on the
+ * wrong patient.
  */
 async function matchPatientInClinic(
   clinicId: string,
   phone: string,
 ): Promise<string | null> {
   if (!phone) return null;
-  const [row] = await db
+  const rows = await db
     .select({ id: patients.id })
     .from(patients)
     .where(
@@ -184,6 +196,6 @@ async function matchPatientInClinic(
         sql`regexp_replace(${patients.phone}, '[^0-9]', '', 'g') = ${phone}`,
       ),
     )
-    .limit(1);
-  return row?.id ?? null;
+    .limit(2);
+  return rows.length === 1 ? rows[0].id : null;
 }
