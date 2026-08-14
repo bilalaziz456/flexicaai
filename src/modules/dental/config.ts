@@ -16,6 +16,7 @@ import {
   editToothRecord,
   deleteToothRecord,
   recordToothTreatment,
+  setToothBaseline,
   dentalTrash,
 } from "@/modules/dental/db/records";
 import { dentalPerio } from "@/modules/dental/db/perio";
@@ -53,6 +54,7 @@ export const dentalModule: ModuleDefinition = {
     editItemRecord: editToothRecord,
     deleteItemRecord: deleteToothRecord,
     recordItemTreatment: recordToothTreatment,
+    setItemBaseline: setToothBaseline,
     ItemEditor: DentalToothEditor,
     trash: dentalTrash,
     perio: dentalPerio,

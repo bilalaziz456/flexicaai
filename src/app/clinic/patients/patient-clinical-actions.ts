@@ -15,43 +15,6 @@ import { asMedicalHistory } from "@/core/lib/medical-history";
 import { logActivity } from "@/core/audit/log";
 
 /**
- * Save the patient's baseline / existing-conditions chart (the "edit chart" flow on
- * the patient page). Module-agnostic via the clinicalRecord contract; gated by
- * `clinical:edit` (editing a clinical record). Re-check is enforced here even though
- * the UI hides the button.
- */
-export async function saveBaselineChart(
-  patientId: string,
-  chart: unknown,
-): Promise<{ ok: true } | { error: string }> {
-  const user = await requireRole(["clinic_admin", "doctor", "manager"]);
-  if (!user.clinicId) return { error: "No clinic access." };
-  if (!can(user, "clinical", "edit")) {
-    return { error: "You don't have permission to edit clinical records." };
-  }
-
-  const [clinicRow] = await db
-    .select({ modulesEnabled: clinics.modulesEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, user.clinicId))
-    .limit(1);
-  const clinicalRecord = clinicalRecordFor(clinicRow?.modulesEnabled ?? []);
-  if (!clinicalRecord) return { error: "This clinic has no clinical chart." };
-
-  await clinicalRecord.saveBaseline(user.clinicId, patientId, chart);
-
-  await logActivity({
-    action: "update",
-    entity: "patient",
-    entityId: patientId,
-    summary: "Edited the patient's chart (existing conditions)",
-  });
-  revalidatePath(`/clinic/patients/${patientId}`);
-  revalidatePath(`/doctor/patients/${patientId}`);
-  return { ok: true };
-}
-
-/**
  * One charted item's history (a tooth, for dental) — oldest first.
  *
  * Read-only, so `clinical:view` is enough; a viewer who cannot edit still sees how
@@ -183,6 +146,40 @@ export async function recordItemTreatmentAction(
     entity: "patient",
     entityId: patientId,
     summary: `Recorded a treatment on ${itemKey}`,
+    metadata: { itemKey },
+  });
+  revalidatePath(`/clinic/patients/${patientId}`);
+  revalidatePath(`/doctor/patients/${patientId}`);
+  return { ok: true };
+}
+
+/**
+ * Record ONE item on the intake baseline — "already there when the patient came".
+ * The counterpart to `recordItemTreatmentAction`, and the reason both exist is that
+ * a pre-existing crown must not enter the history as a crown this clinic fitted.
+ * Gated by `clinical:edit` and audit-logged.
+ */
+export async function setItemBaselineAction(
+  patientId: string,
+  itemKey: string,
+  state: unknown,
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireRole(["clinic_admin", "doctor", "manager"]);
+  if (!user.clinicId) return { error: "No clinic access." };
+  if (!can(user, "clinical", "edit")) {
+    return { error: "You don't have permission to edit clinical records." };
+  }
+  const clinicalRecord = await clinicalRecordForUser(user.clinicId);
+  if (!clinicalRecord) return { error: "This clinic has no clinical chart." };
+
+  const result = await clinicalRecord.setItemBaseline(user.clinicId, patientId, itemKey, state);
+  if ("error" in result) return result;
+
+  await logActivity({
+    action: "update",
+    entity: "patient",
+    entityId: patientId,
+    summary: `Recorded an existing condition on ${itemKey}`,
     metadata: { itemKey },
   });
   revalidatePath(`/clinic/patients/${patientId}`);

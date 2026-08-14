@@ -5,11 +5,13 @@ import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/core/ui/button";
 import type { ChartItemEditorProps, ChartItemHistoryEntry } from "@/core/types/module";
 import { ConfirmDialog } from "@/core/ui/confirm-dialog";
+import { cn } from "@/core/lib/utils";
 import {
   deleteItemRecordAction,
   editItemRecordAction,
   loadItemHistory,
   recordItemTreatmentAction,
+  setItemBaselineAction,
 } from "./patient-clinical-actions";
 
 /**
@@ -56,6 +58,7 @@ export function ItemHistoryPanel({
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<unknown>(current ?? null);
+  const [asExisting, setAsExisting] = useState(false);
   const [editRow, setEditRow] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<unknown>(null);
   const [pending, start] = useTransition();
@@ -105,7 +108,9 @@ export function ItemHistoryPanel({
   const record = () =>
     start(async () => {
       setError(null);
-      const r = await recordItemTreatmentAction(patientId, itemKey, draft);
+      const r = asExisting
+        ? await setItemBaselineAction(patientId, itemKey, draft)
+        : await recordItemTreatmentAction(patientId, itemKey, draft);
       if ("error" in r) {
         setError(r.error);
         return;
@@ -224,11 +229,39 @@ export function ItemHistoryPanel({
       {canAmend && ItemEditor ? (
         adding ? (
           <div className="space-y-2 rounded-md border p-2.5">
-            <p className="text-xs font-medium">What was done to {itemKey}?</p>
+            <p className="text-xs font-medium">What are you recording on {itemKey}?</p>
+            {/* Treatment or pre-existing. They write to different places on purpose:
+                a treatment is an event that joins the history, while "already there"
+                corrects the intake snapshot. Collapsing them would have the history
+                claim the clinic did work it never did. */}
+            <div className="flex overflow-hidden rounded-md border" role="group" aria-label="What kind of record">
+              <button
+                type="button"
+                aria-pressed={!asExisting}
+                onClick={() => setAsExisting(false)}
+                className={cn(
+                  "px-2.5 py-1 text-xs font-medium transition-colors",
+                  !asExisting ? "bg-primary text-primary-foreground" : "hover:bg-accent",
+                )}
+              >
+                Treatment done
+              </button>
+              <button
+                type="button"
+                aria-pressed={asExisting}
+                onClick={() => setAsExisting(true)}
+                className={cn(
+                  "px-2.5 py-1 text-xs font-medium transition-colors",
+                  asExisting ? "bg-primary text-primary-foreground" : "hover:bg-accent",
+                )}
+              >
+                Already there
+              </button>
+            </div>
             <ItemEditor value={draft} onChange={setDraft} disabled={pending} />
             <div className="flex flex-wrap gap-2">
               <Button size="sm" disabled={pending} onClick={record}>
-                {pending ? "Saving…" : "Record treatment"}
+                {pending ? "Saving…" : asExisting ? "Save existing condition" : "Record treatment"}
               </Button>
               <Button
                 size="sm"
@@ -243,11 +276,16 @@ export function ItemHistoryPanel({
                 Cancel
               </Button>
             </div>
+            <p className="text-[11px] text-muted-foreground">
+              {asExisting
+                ? "Corrects what the patient arrived with. It does not add to the history."
+                : "Added to this tooth's history with today's date."}
+            </p>
           </div>
         ) : (
           <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
             <Plus className="size-3.5" aria-hidden="true" />
-            Record treatment
+            Record on {itemKey}
           </Button>
         )
       ) : null}

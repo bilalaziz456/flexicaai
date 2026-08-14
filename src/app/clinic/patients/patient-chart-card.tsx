@@ -1,17 +1,22 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { clinicalUiFor } from "@/config/clinical-record-ui";
-import { Button } from "@/core/ui/button";
 import { Toast } from "@/core/ui/toast";
-import { saveBaselineChart } from "./patient-clinical-actions";
 import { ItemHistoryPanel } from "./item-history-panel";
 
 /**
- * The patient's odontogram card body — read-only by default, with an "Edit existing
- * conditions" toggle (when `canEdit`) that swaps in the specialty VisitEditor and
- * saves the baseline chart. Module-agnostic via the client clinical-UI registry;
- * renders nothing if the clinic's modules ship no chart.
+ * The patient's odontogram card.
+ *
+ * Everything a tooth needs is on the tooth: click it for its history, and record a
+ * treatment, correct an entry or delete one from the panel that opens. The old "Edit
+ * existing conditions" mode switch is gone — it hid the history behind a second mode,
+ * and its one distinct job (recording what the patient ARRIVED with) is now the
+ * "Already there" option in that same panel, which still writes the intake snapshot
+ * rather than a treatment.
+ *
+ * Module-agnostic via the client clinical-UI registry; renders nothing if the
+ * clinic's modules ship no chart.
  */
 export function PatientChartCard({
   chart,
@@ -25,87 +30,43 @@ export function PatientChartCard({
   canEdit: boolean;
 }) {
   const ui = clinicalUiFor(modulesEnabled);
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState<unknown>(chart ?? {});
-  const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null);
   const [nonce, setNonce] = useState(0);
-  // Which charted item's history is open. Clicking the same one again closes it.
-  const [historyOf, setHistoryOf] = useState<string | null>(null);
+  // Which charted item's panel is open. Clicking the same one again closes it.
+  const [openItem, setOpenItem] = useState<string | null>(null);
 
   if (!ui) return null;
-  const { VisitEditor, PatientChart } = ui;
-
-  const save = () =>
-    start(async () => {
-      const r = await saveBaselineChart(patientId, value);
-      if ("error" in r) setMsg({ text: r.error, error: true });
-      else {
-        setMsg({ text: "Chart saved.", error: false });
-        setEditing(false);
-      }
-      setNonce((n) => n + 1);
-    });
+  const { PatientChart } = ui;
 
   return (
     <div className="space-y-3">
-      {editing ? (
-        <>
-          <VisitEditor value={value} onChange={setValue} />
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" disabled={pending} onClick={save}>
-              {pending ? "Saving…" : "Save chart"}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={pending}
-              onClick={() => {
-                setValue(chart ?? {});
-                setEditing(false);
-              }}
-            >
-              Cancel
-            </Button>
-          </div>
-        </>
+      <PatientChart
+        chart={chart}
+        onSelectItem={(key) => setOpenItem((cur) => (cur === key ? null : key))}
+        selectedItem={openItem}
+      />
+      {openItem ? (
+        <ItemHistoryPanel
+          key={openItem}
+          patientId={patientId}
+          itemKey={openItem}
+          canAmend={canEdit}
+          // Seed the form with what the item is now, so recording a root canal on a
+          // filled tooth doesn't silently drop the filling.
+          current={(chart as Record<string, unknown> | null)?.[openItem] ?? null}
+          ItemEditor={ui.ItemEditor}
+          onClose={() => setOpenItem(null)}
+          onAmended={() => {
+            setMsg({ text: "Chart updated.", error: false });
+            setNonce((n) => n + 1);
+          }}
+        />
       ) : (
-        <>
-          <PatientChart
-            chart={chart}
-            onSelectItem={(key) => setHistoryOf((cur) => (cur === key ? null : key))}
-            selectedItem={historyOf}
-          />
-          {historyOf ? (
-            <ItemHistoryPanel
-              key={historyOf}
-              patientId={patientId}
-              itemKey={historyOf}
-              canAmend={canEdit}
-              // Seed the treatment form with what the item is now, so recording a
-              // root canal on a filled tooth doesn't silently drop the filling.
-              current={(chart as Record<string, unknown> | null)?.[historyOf] ?? null}
-              ItemEditor={ui.ItemEditor}
-              onClose={() => setHistoryOf(null)}
-              onAmended={() => {
-                setMsg({ text: "Chart updated.", error: false });
-                setNonce((n) => n + 1);
-              }}
-            />
-          ) : null}
-          {canEdit ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setValue(chart ?? {});
-                setEditing(true);
-              }}
-            >
-              Edit existing conditions
-            </Button>
-          ) : null}
-        </>
+        <p className="text-xs text-muted-foreground">
+          {canEdit
+            ? "Select a tooth to see its history or record a treatment."
+            : "Select a tooth to see its history."}
+        </p>
       )}
       <Toast message={msg?.text ?? null} variant={msg?.error ? "error" : "success"} token={nonce} />
     </div>

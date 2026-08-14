@@ -8,8 +8,8 @@ import type {
 } from "@/core/types/module";
 import type { ChartTeeth, ChartTooth, ToothStatus } from "@/modules/dental/db/schema";
 import {
-  ALL_PERMANENT,
-  ALL_PRIMARY,
+  autoDentition,
+  type DentitionView,
   PERMANENT_LOWER,
   PERMANENT_UPPER,
   PRIMARY_LOWER,
@@ -160,7 +160,7 @@ export function ToothChart({
   const readOnly = !onChange;
   const [showPrimary, setShowPrimary] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
-  const [revealAll, setRevealAll] = useState(false);
+  const [chosenView, setChosenView] = useState<DentitionView | null>(null);
 
   const upper = showPrimary ? PRIMARY_UPPER : PERMANENT_UPPER;
   const lower = showPrimary ? PRIMARY_LOWER : PERMANENT_LOWER;
@@ -170,32 +170,16 @@ export function ToothChart({
   const [pUL, pUR] = half(PRIMARY_UPPER);
   const [pLL, pLR] = half(PRIMARY_LOWER);
 
-  // Reading the chart — on the patient page or on a printed sheet — every dentition
-  // that has something charted is shown, and nothing else. Paper has no controls, so
-  // this must not depend on a toggle somebody could forget: a child's teeth would
-  // silently be absent from their own record. An adult therefore sees the permanent
-  // arches as before, a toddler sees only their primary ones instead of twenty teeth
-  // buried under thirty-two blanks, and a six-to-twelve-year-old in mixed dentition
-  // sees both on one sheet rather than needing two.
-  //
-  // A chart with nothing on it still draws the permanent arches, so a blank sheet is
-  // a usable form rather than an empty box.
-  //
-  // The editor keeps the toggle. Charting a primary tooth that has nothing on it yet
-  // means summoning a dentition this rule would hide, and there is a person present
-  // to press the button.
-  const hasPermanentCharted = ALL_PERMANENT.some((n) => value[n]);
-  const hasPrimaryCharted = ALL_PRIMARY.some((n) => value[n]);
-  // `revealAll` is the read-only override. Charting a tooth now happens from the
-  // tooth's own panel rather than only inside the intake editor, so a dentition with
-  // nothing on it yet has to be reachable without leaving the chart. It only ever
-  // ADDS the missing arches — a charted dentition can never be hidden by a toggle,
-  // which is the guarantee the automatic rule exists to make.
-  const showsPrimary = readOnly && (hasPrimaryCharted || revealAll);
-  const showsPermanent = !readOnly || hasPermanentCharted || !hasPrimaryCharted || revealAll;
-  // Captions only earn their place once the primary set is on the sheet; a plain
-  // adult chart does not need to be told it is the permanent one.
-  const captionDentitions = showsPrimary;
+  // Which dentitions to draw. Nobody chooses on a printed sheet — paper has no
+  // controls — so `auto` shows what is actually charted and the segmented control is
+  // an on-screen override only. That is the guarantee: a child's teeth cannot be
+  // absent from their own record because a button was left the wrong way.
+  const auto = autoDentition(value);
+  const view: DentitionView = readOnly ? (chosenView ?? auto) : showPrimary ? "primary" : "permanent";
+  const showsPermanent = view === "permanent" || view === "mixed";
+  const showsPrimary = view === "primary" || view === "mixed";
+  // Captions only earn their place once both sets are up.
+  const captionDentitions = showsPrimary && showsPermanent;
 
   const setTooth = (n: string, patch: Partial<ChartTooth> & { status: ToothStatus }) => {
     if (!onChange) return;
@@ -220,27 +204,27 @@ export function ToothChart({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">FDI numbering</p>
-        {/* The intake editor keeps its own primary/permanent switch. This one belongs
-            to the read-only chart, which is now where treatments are recorded — so a
-            dentition with nothing on it yet has to be reachable from here. It only
-            reveals; it never hides a dentition that has something charted. */}
+        {/* Primary / Permanent / Mixed, like the period filter elsewhere. Rendered
+            only when the chart is interactive: the print sheet passes no select
+            handler, so paper gets the automatic choice and no dead buttons. */}
         {readOnly ? (
-          !revealAll && (!showsPrimary || !showsPermanent) ? (
-            <button
-              type="button"
-              onClick={() => setRevealAll(true)}
-              className="rounded-md border px-2 py-1 text-xs font-medium hover:bg-accent"
-            >
-              {showsPrimary ? "Show permanent teeth" : "Show primary teeth"}
-            </button>
-          ) : revealAll ? (
-            <button
-              type="button"
-              onClick={() => setRevealAll(false)}
-              className="rounded-md border px-2 py-1 text-xs font-medium hover:bg-accent"
-            >
-              Show charted only
-            </button>
+          onSelectTooth ? (
+            <div className="flex overflow-hidden rounded-md border" role="group" aria-label="Which teeth to show">
+              {(["primary", "permanent", "mixed"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  aria-pressed={view === v}
+                  onClick={() => setChosenView(v)}
+                  className={cn(
+                    "px-2 py-1 text-xs font-medium capitalize transition-colors",
+                    view === v ? "bg-primary text-primary-foreground" : "hover:bg-accent",
+                  )}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
           ) : null
         ) : (
           <button

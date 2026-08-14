@@ -47,6 +47,7 @@ export type ToothStatus =
   | "fractured"
   | "to_extract"
   | "missing"
+  | "exfoliated"
   | "unerupted"
   | "watch";
 

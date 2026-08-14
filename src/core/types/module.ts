@@ -277,6 +277,17 @@ export interface ModuleClinicalRecord {
    *  what an item is. Absent → no inline treatment recording. */
   ItemEditor?: ComponentType<ChartItemEditorProps>;
   /**
+   * Set ONE item on the intake baseline — what the patient ARRIVED with, as opposed
+   * to something the clinic did. Recorded from the item's own panel; corrects the
+   * single intake snapshot in place rather than adding to the history.
+   */
+  setItemBaseline: (
+    clinicId: string,
+    patientId: string,
+    itemKey: string,
+    state: unknown,
+  ) => Promise<{ ok: true } | { error: string }>;
+  /**
    * Save the patient's intake BASELINE chart (existing conditions, no visit) directly
    * — from the "edit chart" flow on the patient page. Re-folds the living chart.
    */

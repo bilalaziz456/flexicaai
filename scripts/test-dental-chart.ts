@@ -5,7 +5,7 @@
  */
 import { reduceChart, orderFrames, diffTeeth, toothHistory } from "../src/modules/dental/chart-logic";
 import { examStats, computeBop } from "../src/modules/dental/perio-logic";
-import { isRootTreated } from "../src/modules/dental/tooth-status";
+import { autoDentition, isRootTreated } from "../src/modules/dental/tooth-status";
 import type { ChartTeeth } from "../src/modules/dental/db/schema";
 import type { ChartFrame } from "../src/modules/dental/chart-logic";
 
@@ -113,6 +113,28 @@ check("legacy status", isRootTreated({ status: "root_canal" }), true);
 check("crown alone is not root-treated", isRootTreated({ status: "crown" }), false);
 check("endo survives a crown being charted over it", isRootTreated({ status: "crown", endo: true }), true);
 check("no tooth", isRootTreated(undefined), false);
+
+console.log("\nAutomatic dentition (the mixed → permanent transition):");
+check("adult with permanent charted", autoDentition({ "18": t("crown") }), "permanent");
+check("toddler with primary only", autoDentition({ "55": t("caries") }), "primary");
+check("child in mixed dentition", autoDentition({ "16": t("sealant"), "55": t("caries") }), "mixed");
+check("an empty chart is a blank adult form", autoDentition({}), "permanent");
+
+// Shedding retires the dentition on its own — no age check, no manual tidy-up.
+check(
+  "still mixed while any primary tooth remains",
+  autoDentition({ "16": t("sealant"), "55": t("exfoliated"), "54": t("filled") }),
+  "mixed",
+);
+check(
+  "once every primary tooth has shed, the chart is permanent",
+  autoDentition({ "16": t("sealant"), "55": t("exfoliated"), "54": t("exfoliated") }),
+  "permanent",
+);
+// A missing PERMANENT tooth is a gap a dentist needs to see, so `missing` must NOT
+// retire a dentition the way `exfoliated` does.
+check("a missing permanent tooth still counts", autoDentition({ "16": t("missing") }), "permanent");
+check("a missing primary tooth still counts", autoDentition({ "55": t("missing") }), "primary");
 
 console.log("\nPerio summary:");
 {

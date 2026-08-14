@@ -3,7 +3,7 @@
  * so both the client odontogram and the server fold logic share one source of truth.
  * FDI ("ISO 3950") is the PK/GCC norm and matches the scribe prompt.
  */
-import type { ChartTooth, ToothStatus } from "@/modules/dental/db/schema";
+import type { ChartTeeth, ChartTooth, ToothStatus } from "@/modules/dental/db/schema";
 
 /**
  * Is this tooth root-treated?
@@ -69,6 +69,11 @@ export const TOOTH_STATUSES: {
   { value: "fractured", label: "Fractured", tone: "danger", abbr: "Fx" },
   { value: "to_extract", label: "To extract", tone: "danger", abbr: "X" },
   { value: "missing", label: "Missing", tone: "muted", abbr: "—" },
+  // Shed naturally, which is NOT the same fact as missing. A primary tooth that
+  // fell out on schedule and one that was extracted read identically otherwise, and
+  // for a child those are completely different things. It is also what lets a
+  // dentition retire itself once every tooth in it has gone.
+  { value: "exfoliated", label: "Exfoliated (shed)", tone: "muted", abbr: "Ex" },
   { value: "unerupted", label: "Unerupted", tone: "muted", abbr: "U" },
   { value: "watch", label: "Watch", tone: "warning", abbr: "!" },
 ];
@@ -82,4 +87,35 @@ export const STATUS_BY_VALUE: Record<ToothStatus, (typeof TOOTH_STATUSES)[number
 /** Label for a status value (fallback to the raw value). */
 export function statusLabel(v: string): string {
   return STATUS_BY_VALUE[v as ToothStatus]?.label ?? v;
+}
+
+/** Which dentition(s) the odontogram is drawing. */
+export type DentitionView = "primary" | "permanent" | "mixed";
+
+/**
+ * Does this dentition still have anything worth drawing?
+ *
+ * A tooth that has EXFOLIATED is gone and is not coming back, so once every primary
+ * tooth on a chart has shed, the primary arches say nothing about the patient in
+ * front of you — the shedding itself stays in each tooth's history. This is what
+ * makes the move from mixed to permanent dentition look after itself: the arches
+ * retire as the last tooth goes, with no age check and no manual tidy-up.
+ *
+ * `missing` deliberately does NOT count as gone. A missing permanent tooth is a gap
+ * a dentist needs to see.
+ */
+export function dentitionInUse(teeth: ChartTeeth, numbers: readonly string[]): boolean {
+  return numbers.some((n) => teeth[n] && teeth[n].status !== "exfoliated");
+}
+
+/**
+ * Which dentitions to draw when nobody has chosen — show what is actually charted.
+ * Falls back to permanent so an empty chart is a usable blank adult form.
+ */
+export function autoDentition(teeth: ChartTeeth): DentitionView {
+  const perm = dentitionInUse(teeth, ALL_PERMANENT);
+  const prim = dentitionInUse(teeth, ALL_PRIMARY);
+  if (perm && prim) return "mixed";
+  if (prim) return "primary";
+  return "permanent";
 }

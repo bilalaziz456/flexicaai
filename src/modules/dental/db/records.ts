@@ -622,3 +622,47 @@ function describeTrashedRecord(chart: ChartTeeth): string | null {
     .map((t) => `${statusLabel(t.status)}${isRootTreated(t) ? ", root treated" : ""}`)
     .join("; ");
 }
+
+/**
+ * Set ONE tooth on the intake baseline — the module's `setItemBaseline`.
+ *
+ * "This was already there when the patient came" rather than "we did this". Both are
+ * recorded from the same tooth panel now that the separate intake editor is gone, and
+ * keeping them apart is what stops the history claiming the clinic crowned a tooth
+ * that arrived crowned — which matters clinically and in a billing dispute.
+ *
+ * Updates only this tooth within the single baseline row, so the rest of the intake
+ * chart is untouched; the baseline is a snapshot you correct, not a sequence.
+ */
+export async function setToothBaseline(
+  clinicId: string,
+  patientId: string,
+  tooth: string,
+  state: unknown,
+): Promise<{ ok: true } | { error: string }> {
+  if (!isToothNumber(tooth)) return { error: "That isn't a tooth." };
+  const next = (state && typeof state === "object" ? state : null) as ChartTooth | null;
+  if (!next?.status) return { error: "Choose what was found on the tooth." };
+
+  const [existing] = await db
+    .select({ chartAfter: dentalRecords.chartAfter })
+    .from(dentalRecords)
+    .where(
+      byClinic(
+        dentalRecords.clinicId,
+        clinicId,
+        notDeleted(dentalRecords.deletedAt),
+        eq(dentalRecords.patientId, patientId),
+        eq(dentalRecords.isBaseline, true),
+      ),
+    )
+    .limit(1);
+
+  await saveDentalRecord(clinicId, {
+    patientId,
+    isBaseline: true,
+    visitId: null,
+    chartAfter: { ...((existing?.chartAfter ?? {}) as ChartTeeth), [tooth]: next },
+  });
+  return { ok: true };
+}
