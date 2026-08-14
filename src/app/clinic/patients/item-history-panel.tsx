@@ -175,6 +175,10 @@ export function ItemHistoryPanel({
                         triggerLabel={`Delete this entry on ${itemKey}`}
                         triggerIcon={<Trash2 className="size-3.5" aria-hidden="true" />}
                         triggerVariant="ghost"
+                        // The app's delete red. `destructive-text` is the contrast-corrected
+                        // variant of it — plain `destructive` misses 4.5:1 on a card in
+                        // light mode, and this sits on white.
+                        triggerClassName="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
                         triggerDisabled={pending}
                         title="Delete this entry?"
                         description={`"${e.label}" will be removed from ${itemKey} and the chart will go back to what the remaining entries say. It moves to Trash and can be restored.`}

@@ -160,6 +160,7 @@ export function ToothChart({
   const readOnly = !onChange;
   const [showPrimary, setShowPrimary] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const [revealAll, setRevealAll] = useState(false);
 
   const upper = showPrimary ? PRIMARY_UPPER : PERMANENT_UPPER;
   const lower = showPrimary ? PRIMARY_LOWER : PERMANENT_LOWER;
@@ -185,8 +186,13 @@ export function ToothChart({
   // to press the button.
   const hasPermanentCharted = ALL_PERMANENT.some((n) => value[n]);
   const hasPrimaryCharted = ALL_PRIMARY.some((n) => value[n]);
-  const showsPrimary = readOnly && hasPrimaryCharted;
-  const showsPermanent = !readOnly || hasPermanentCharted || !hasPrimaryCharted;
+  // `revealAll` is the read-only override. Charting a tooth now happens from the
+  // tooth's own panel rather than only inside the intake editor, so a dentition with
+  // nothing on it yet has to be reachable without leaving the chart. It only ever
+  // ADDS the missing arches — a charted dentition can never be hidden by a toggle,
+  // which is the guarantee the automatic rule exists to make.
+  const showsPrimary = readOnly && (hasPrimaryCharted || revealAll);
+  const showsPermanent = !readOnly || hasPermanentCharted || !hasPrimaryCharted || revealAll;
   // Captions only earn their place once the primary set is on the sheet; a plain
   // adult chart does not need to be told it is the permanent one.
   const captionDentitions = showsPrimary;
@@ -214,9 +220,29 @@ export function ToothChart({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">FDI numbering</p>
-        {/* The toggle is an editor control. It was printing onto the sheet as a dead
-            button, and in the read-only view it is now redundant anyway. */}
-        {readOnly ? null : (
+        {/* The intake editor keeps its own primary/permanent switch. This one belongs
+            to the read-only chart, which is now where treatments are recorded — so a
+            dentition with nothing on it yet has to be reachable from here. It only
+            reveals; it never hides a dentition that has something charted. */}
+        {readOnly ? (
+          !revealAll && (!showsPrimary || !showsPermanent) ? (
+            <button
+              type="button"
+              onClick={() => setRevealAll(true)}
+              className="rounded-md border px-2 py-1 text-xs font-medium hover:bg-accent"
+            >
+              {showsPrimary ? "Show permanent teeth" : "Show primary teeth"}
+            </button>
+          ) : revealAll ? (
+            <button
+              type="button"
+              onClick={() => setRevealAll(false)}
+              className="rounded-md border px-2 py-1 text-xs font-medium hover:bg-accent"
+            >
+              Show charted only
+            </button>
+          ) : null
+        ) : (
           <button
             type="button"
             onClick={() => {
