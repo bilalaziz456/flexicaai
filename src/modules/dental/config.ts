@@ -11,6 +11,8 @@ import {
   saveBaseline,
   saveRecordOnApprove,
   visitChanges,
+  toothHistoryFor,
+  amendTooth,
 } from "@/modules/dental/db/records";
 import { dentalPerio } from "@/modules/dental/db/perio";
 import { dentalLab } from "@/modules/dental/db/lab";
@@ -42,6 +44,9 @@ export const dentalModule: ModuleDefinition = {
     saveRecord: saveRecordOnApprove,
     visitChanges,
     saveBaseline,
+    // A tooth is this module's charted item; core only ever passes the key back.
+    itemHistory: toothHistoryFor,
+    amendItem: amendTooth,
     perio: dentalPerio,
     lab: dentalLab,
   },

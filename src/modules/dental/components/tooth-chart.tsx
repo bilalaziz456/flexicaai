@@ -144,9 +144,18 @@ function ArchRow({
 export function ToothChart({
   value,
   onChange,
+  onSelectTooth,
+  selectedTooth = null,
 }: {
   value: ChartTeeth;
   onChange?: (next: ChartTeeth) => void;
+  /**
+   * Read-only only: make teeth clickable to open that tooth's history. The print
+   * sheet does NOT pass this, so the printed chart stays inert and history is not
+   * printed.
+   */
+  onSelectTooth?: (tooth: string) => void;
+  selectedTooth?: string | null;
 }) {
   const readOnly = !onChange;
   const [showPrimary, setShowPrimary] = useState(false);
@@ -238,15 +247,15 @@ export function ToothChart({
         {showsPermanent ? (
           <>
             {captionDentitions ? <DentitionLabel>Permanent</DentitionLabel> : null}
-            <ArchRow left={uL} right={uR} teeth={value} selected={selected} onSelect={readOnly ? undefined : setSelected} />
-            <ArchRow left={lL} right={lR} teeth={value} selected={selected} onSelect={readOnly ? undefined : setSelected} />
+            <ArchRow left={uL} right={uR} teeth={value} selected={readOnly ? selectedTooth : selected} onSelect={readOnly ? onSelectTooth : setSelected} />
+            <ArchRow left={lL} right={lR} teeth={value} selected={readOnly ? selectedTooth : selected} onSelect={readOnly ? onSelectTooth : setSelected} />
           </>
         ) : null}
         {showsPrimary ? (
           <>
             {captionDentitions ? <DentitionLabel>Primary</DentitionLabel> : null}
-            <ArchRow left={pUL} right={pUR} teeth={value} selected={null} />
-            <ArchRow left={pLL} right={pLR} teeth={value} selected={null} />
+            <ArchRow left={pUL} right={pUR} teeth={value} selected={selectedTooth} onSelect={onSelectTooth} />
+            <ArchRow left={pLL} right={pLR} teeth={value} selected={selectedTooth} onSelect={onSelectTooth} />
           </>
         ) : null}
       </div>
@@ -429,7 +438,19 @@ export function DentalVisitEditor({ value, onChange }: ClinicalVisitEditorProps)
   );
 }
 
-/** Read-only bundle — the patient's current odontogram. */
-export function DentalPatientChart({ chart }: PatientChartProps) {
-  return <ToothChart value={(chart ?? {}) as ChartTeeth} />;
+/**
+ * Read-only bundle — the patient's current odontogram.
+ *
+ * `onSelectItem` is what makes a tooth openable. The print sheet renders this same
+ * component WITHOUT it, so the printed chart has no clickable teeth and no history,
+ * which is how history stays off paper.
+ */
+export function DentalPatientChart({ chart, onSelectItem, selectedItem }: PatientChartProps) {
+  return (
+    <ToothChart
+      value={(chart ?? {}) as ChartTeeth}
+      onSelectTooth={onSelectItem}
+      selectedTooth={selectedItem ?? null}
+    />
+  );
 }

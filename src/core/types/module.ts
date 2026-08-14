@@ -70,6 +70,30 @@ export interface ClinicalVisitEditorProps {
 export interface PatientChartProps {
   /** The patient's current chart state (module-shaped). */
   chart: unknown;
+  /**
+   * Make charted items clickable, to open that item's own history. Omitted on the
+   * PRINT sheet, which is inert and must stay so — history does not print.
+   */
+  onSelectItem?: (itemKey: string) => void;
+  /** The item whose history is open, so the chart can highlight it. */
+  selectedItem?: string | null;
+}
+
+/**
+ * One entry in a charted item's history — a change made at one visit. `label` is
+ * rendered by the module ("Filled → Crown, root treated") so core displays the line
+ * without knowing what was charted.
+ */
+export interface ChartItemHistoryEntry {
+  /** The record that made this change — what an amendment reverts. */
+  recordId: string | null;
+  visitId: string | null;
+  isBaseline: boolean;
+  /** Epoch ms, so it crosses the server/client boundary without a Date. */
+  at: number;
+  /** This entry IS a correction of an earlier one. */
+  isCorrection: boolean;
+  label: string;
 }
 
 /**
@@ -159,6 +183,27 @@ export interface ModuleClinicalRecord {
    * visit without knowing they describe teeth.
    */
   visitChanges: (clinicId: string, patientId: string) => Promise<Record<string, string[]>>;
+  /**
+   * The history of ONE charted item (a tooth, for dental), oldest first. Core passes
+   * back the key it got from the chart component and displays the rendered `label`,
+   * so it never learns what an item is.
+   */
+  itemHistory: (
+    clinicId: string,
+    patientId: string,
+    itemKey: string,
+  ) => Promise<ChartItemHistoryEntry[]>;
+  /**
+   * Undo one entry on one charted item. An AMENDMENT: the module appends a
+   * correcting record rather than deleting anything, so the chart reverts while the
+   * original entry stays in the history. Gated by `clinical:edit` at the caller.
+   */
+  amendItem: (
+    clinicId: string,
+    patientId: string,
+    itemKey: string,
+    recordId: string,
+  ) => Promise<{ ok: true } | { error: string }>;
   /**
    * Save the patient's intake BASELINE chart (existing conditions, no visit) directly
    * — from the "edit chart" flow on the patient page. Re-folds the living chart.

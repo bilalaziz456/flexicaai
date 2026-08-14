@@ -8,12 +8,20 @@ import {
   dentalCharts,
   dentalRecords,
   type ChartTeeth,
+  type ChartTooth,
   type ToothFinding,
   type ToothProcedure,
 } from "@/modules/dental/db/schema";
-import { diffTeeth, reduceChart } from "@/modules/dental/chart-logic";
+import {
+  diffTeeth,
+  isBlankTooth,
+  reduceChart,
+  toothHistory,
+  toothStateWithout,
+} from "@/modules/dental/chart-logic";
 import { seedFromNote } from "@/modules/dental/seed-from-note";
-import { statusLabel } from "@/modules/dental/tooth-status";
+import { isRootTreated, statusLabel } from "@/modules/dental/tooth-status";
+import type { ChartItemHistoryEntry } from "@/core/types/module";
 
 /**
  * Dental records + living chart — MODULE data layer (server-only). The living
@@ -302,6 +310,87 @@ export async function saveBaseline(
     visitId: null,
     chartAfter: (chart && typeof chart === "object" ? chart : {}) as ChartTeeth,
   });
+}
+
+/** The patient's live records as fold frames, for the pure history/amend logic. */
+async function chartFrames(clinicId: string, patientId: string) {
+  const records = await listDentalRecords(clinicId, patientId);
+  return records.map((r) => ({
+    id: r.id,
+    visitId: r.visitId,
+    isBaseline: r.isBaseline,
+    at: r.createdAt.getTime(),
+    chartAfter: (r.chartAfter ?? {}) as ChartTeeth,
+  }));
+}
+
+/**
+ * One tooth's own history, oldest first — the module's `itemHistory`. Each entry is
+ * already rendered to a human line, so core displays it without knowing it is a
+ * tooth.
+ */
+export async function toothHistoryFor(
+  clinicId: string,
+  patientId: string,
+  tooth: string,
+): Promise<ChartItemHistoryEntry[]> {
+  const entries = toothHistory(await chartFrames(clinicId, patientId), tooth);
+  return entries.map((e) => ({
+    recordId: e.recordId ?? null,
+    visitId: e.visitId ?? null,
+    isBaseline: e.isBaseline,
+    at: e.at,
+    isCorrection: e.isCorrection,
+    label: describeToothChange(e.before, e.after),
+  }));
+}
+
+/**
+ * Undo one entry on one tooth — the module's `amendItem`.
+ *
+ * An AMENDMENT, not a deletion: it appends a new frame restoring the state the tooth
+ * had before the mistaken record, so the fold produces the corrected chart while the
+ * original entry stays in the history, marked as corrected. Nothing is erased from a
+ * clinical record, which is both the rule in CLAUDE.md and how notes are meant to be
+ * corrected — someone may already have been billed or prescribed against that entry.
+ *
+ * The correction frame carries no visit and is not the baseline, which is what marks
+ * it as a correction. Restoring "sound" writes a blank tooth, which the fold drops.
+ */
+export async function amendTooth(
+  clinicId: string,
+  patientId: string,
+  tooth: string,
+  recordId: string,
+): Promise<{ ok: true } | { error: string }> {
+  const frames = await chartFrames(clinicId, patientId);
+  const target = frames.find((f) => f.id === recordId);
+  if (!target || !(tooth in (target.chartAfter ?? {}))) {
+    return { error: "That entry is no longer on this tooth." };
+  }
+  const restore = toothStateWithout(frames, tooth, recordId);
+  await saveDentalRecord(clinicId, {
+    patientId,
+    visitId: null,
+    isBaseline: false,
+    chartAfter: { [tooth]: restore ?? { status: "sound" } } as ChartTeeth,
+  });
+  return { ok: true };
+}
+
+/** "Filled → Crown, root treated" — the human line for one history entry. */
+function describeToothChange(before: ChartTooth | null, after: ChartTooth | null): string {
+  const name = (t: ChartTooth | null) => (t && !isBlankTooth(t) ? statusLabel(t.status) : "Sound");
+  const parts = [`${name(before)} → ${name(after)}`];
+  const endoBefore = isRootTreated(before ?? undefined);
+  const endoAfter = isRootTreated(after ?? undefined);
+  if (endoBefore !== endoAfter) parts.push(endoAfter ? "root treated" : "root treatment cleared");
+  const surfaces = after?.surfaces?.length ? after.surfaces.join("") : null;
+  if (surfaces) parts.push(`surfaces ${surfaces}`);
+  if ((after?.note ?? "") !== (before?.note ?? "") && after?.note?.trim()) {
+    parts.push(`note "${after.note.trim()}"`);
+  }
+  return parts.join(", ");
 }
 
 /** Soft-delete a dental record and re-fold the chart (correction / discard). */

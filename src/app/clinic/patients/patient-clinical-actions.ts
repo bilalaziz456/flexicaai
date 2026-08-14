@@ -6,7 +6,7 @@ import { requireRole } from "@/core/auth/user";
 import { can, type PermAction } from "@/core/auth/permissions";
 import { displayStaffName } from "@/core/types/auth";
 import type { CurrentUser } from "@/core/types/auth";
-import type { ModuleLab } from "@/core/types/module";
+import type { ChartItemHistoryEntry, ModuleLab } from "@/core/types/module";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
 import { clinicalRecordFor } from "@/config/modules";
@@ -49,6 +49,68 @@ export async function saveBaselineChart(
   revalidatePath(`/clinic/patients/${patientId}`);
   revalidatePath(`/doctor/patients/${patientId}`);
   return { ok: true };
+}
+
+/**
+ * One charted item's history (a tooth, for dental) — oldest first.
+ *
+ * Read-only, so `clinical:view` is enough; a viewer who cannot edit still sees how
+ * the tooth got to its current state, they just get no Undo buttons.
+ */
+export async function loadItemHistory(
+  patientId: string,
+  itemKey: string,
+): Promise<ChartItemHistoryEntry[]> {
+  const user = await requireRole(["clinic_admin", "doctor", "manager"]);
+  if (!user.clinicId || !can(user, "clinical", "view")) return [];
+
+  const clinicalRecord = await clinicalRecordForUser(user.clinicId);
+  if (!clinicalRecord) return [];
+  return clinicalRecord.itemHistory(user.clinicId, patientId, itemKey);
+}
+
+/**
+ * Undo one entry on one charted item — an AMENDMENT (see the module's `amendItem`:
+ * it appends a correcting record, it does not delete). Gated by `clinical:edit` and
+ * audit-logged, because it changes what the patient's record says.
+ */
+export async function amendItemAction(
+  patientId: string,
+  itemKey: string,
+  recordId: string,
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireRole(["clinic_admin", "doctor", "manager"]);
+  if (!user.clinicId) return { error: "No clinic access." };
+  if (!can(user, "clinical", "edit")) {
+    return { error: "You don't have permission to edit clinical records." };
+  }
+
+  const clinicalRecord = await clinicalRecordForUser(user.clinicId);
+  if (!clinicalRecord) return { error: "This clinic has no clinical chart." };
+
+  const result = await clinicalRecord.amendItem(user.clinicId, patientId, itemKey, recordId);
+  if ("error" in result) return result;
+
+  await logActivity({
+    action: "update",
+    entity: "patient",
+    entityId: patientId,
+    summary: `Corrected an entry on ${itemKey} in the patient's chart`,
+    metadata: { itemKey, recordId },
+  });
+  revalidatePath(`/clinic/patients/${patientId}`);
+  revalidatePath(`/doctor/patients/${patientId}`);
+  return { ok: true };
+}
+
+/** The enabled module's clinical-record bundle for this clinic, or null. */
+async function clinicalRecordForUser(clinicId: string) {
+  const [clinicRow] = await db
+    .select({ modulesEnabled: clinics.modulesEnabled })
+    .from(clinics)
+    .where(eq(clinics.id, clinicId))
+    .limit(1);
+  return clinicalRecordFor(clinicRow?.modulesEnabled ?? []);
 }
 
 /**

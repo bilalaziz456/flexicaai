@@ -3,10 +3,11 @@
  * Run: `npm run test:unit` (chained) or `tsx scripts/test-dental-chart.ts`.
  * Asserts reduceChart (baseline-first fold), orderFrames, and diffTeeth.
  */
-import { reduceChart, orderFrames, diffTeeth } from "../src/modules/dental/chart-logic";
+import { reduceChart, orderFrames, diffTeeth, toothHistory, toothStateWithout } from "../src/modules/dental/chart-logic";
 import { examStats, computeBop } from "../src/modules/dental/perio-logic";
 import { isRootTreated } from "../src/modules/dental/tooth-status";
 import type { ChartTeeth } from "../src/modules/dental/db/schema";
+import type { ChartFrame } from "../src/modules/dental/chart-logic";
 
 let failures = 0;
 function check(name: string, got: unknown, want: unknown) {
@@ -74,6 +75,49 @@ check(
   diffTeeth({ "16": t("root_canal") }, { "16": { status: "root_canal", endo: true } }),
   [],
 );
+
+console.log("\nPer-tooth history:");
+{
+  // 18 over three visits: filled, then root-treated, then crowned. 26 is touched
+  // once and must not appear in 18's history.
+  const frames: ChartFrame[] = [
+    { id: "b", isBaseline: true, at: 0, chartAfter: { "26": t("caries") } },
+    { id: "r1", visitId: "v1", at: 100, chartAfter: { "18": t("filled") } },
+    { id: "r2", visitId: "v2", at: 200, chartAfter: { "18": { status: "filled", endo: true } } },
+    { id: "r3", visitId: "v3", at: 300, chartAfter: { "18": { status: "crown", endo: true } } },
+  ];
+
+  check("history is one entry per real change", toothHistory(frames, "18").length, 3);
+  check(
+    "history reads oldest first, with the transition",
+    toothHistory(frames, "18").map((e) => `${e.before?.status ?? "sound"}→${e.after?.status}${e.after && isRootTreated(e.after) ? "+endo" : ""}`),
+    ["sound→filled", "filled→filled+endo", "filled→crown+endo"],
+  );
+  check("history names the visit that made each change", toothHistory(frames, "18").map((e) => e.visitId), ["v1", "v2", "v3"]);
+  check("a tooth touched only by the baseline", toothHistory(frames, "26").map((e) => e.isBaseline), [true]);
+  check("an untouched tooth has no history", toothHistory(frames, "11"), []);
+
+  // A frame that re-states the same tooth is not a change and must not appear.
+  const repeated: ChartFrame[] = [...frames, { id: "r4", visitId: "v4", at: 400, chartAfter: { "18": { status: "crown", endo: true } } }];
+  check("re-stating the same tooth adds no entry", toothHistory(repeated, "18").length, 3);
+
+  // A note added later IS part of the tooth's story even though no status moved.
+  const noted: ChartFrame[] = [...frames, { id: "r5", visitId: "v5", at: 500, chartAfter: { "18": { status: "crown", endo: true, note: "check margin" } } }];
+  check("a note-only change is recorded", toothHistory(noted, "18").length, 4);
+
+  // What an amendment restores: the state as it stood before that frame.
+  check("undoing the crown leaves the root-treated filling", toothStateWithout(frames, "18", "r3"), { status: "filled", endo: true });
+  // Frames are snapshots, so undoing the FILLING must not also discard the root
+  // canal and crown that came after it.
+  check("undoing the filling keeps the later crown", toothStateWithout(frames, "18", "r1"), { status: "crown", endo: true });
+
+  // An amendment is a frame with no visit that is not the baseline.
+  const amended: ChartFrame[] = [...frames, { id: "r6", visitId: null, at: 600, chartAfter: { "18": { status: "filled", endo: true } } }];
+  const last = toothHistory(amended, "18").at(-1)!;
+  check("an amendment is flagged as a correction", last.isCorrection, true);
+  check("amending restores the state without that entry", last.after, { status: "filled", endo: true });
+  check("the mistaken crown is still in the history", toothHistory(amended, "18").length, 4);
+}
 
 console.log("\nRoot-treated:");
 check("endo flag", isRootTreated({ status: "filled", endo: true }), true);

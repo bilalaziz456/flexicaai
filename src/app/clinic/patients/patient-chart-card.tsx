@@ -5,6 +5,7 @@ import { clinicalUiFor } from "@/config/clinical-record-ui";
 import { Button } from "@/core/ui/button";
 import { Toast } from "@/core/ui/toast";
 import { saveBaselineChart } from "./patient-clinical-actions";
+import { ItemHistoryPanel } from "./item-history-panel";
 
 /**
  * The patient's odontogram card body — read-only by default, with an "Edit existing
@@ -29,6 +30,8 @@ export function PatientChartCard({
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null);
   const [nonce, setNonce] = useState(0);
+  // Which charted item's history is open. Clicking the same one again closes it.
+  const [historyOf, setHistoryOf] = useState<string | null>(null);
 
   if (!ui) return null;
   const { VisitEditor, PatientChart } = ui;
@@ -68,7 +71,24 @@ export function PatientChartCard({
         </>
       ) : (
         <>
-          <PatientChart chart={value} />
+          <PatientChart
+            chart={value}
+            onSelectItem={(key) => setHistoryOf((cur) => (cur === key ? null : key))}
+            selectedItem={historyOf}
+          />
+          {historyOf ? (
+            <ItemHistoryPanel
+              key={historyOf}
+              patientId={patientId}
+              itemKey={historyOf}
+              canAmend={canEdit}
+              onClose={() => setHistoryOf(null)}
+              onAmended={() => {
+                setMsg({ text: "Entry corrected.", error: false });
+                setNonce((n) => n + 1);
+              }}
+            />
+          ) : null}
           {canEdit ? (
             <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
               Edit existing conditions
