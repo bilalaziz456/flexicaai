@@ -3,7 +3,7 @@
  * Run: `npm run test:unit` (chained) or `tsx scripts/test-dental-chart.ts`.
  * Asserts reduceChart (baseline-first fold), orderFrames, and diffTeeth.
  */
-import { reduceChart, orderFrames, diffTeeth, toothHistory, toothStateWithout } from "../src/modules/dental/chart-logic";
+import { reduceChart, orderFrames, diffTeeth, toothHistory } from "../src/modules/dental/chart-logic";
 import { examStats, computeBop } from "../src/modules/dental/perio-logic";
 import { isRootTreated } from "../src/modules/dental/tooth-status";
 import type { ChartTeeth } from "../src/modules/dental/db/schema";
@@ -105,23 +105,6 @@ console.log("\nPer-tooth history:");
   const noted: ChartFrame[] = [...frames, { id: "r5", visitId: "v5", at: 500, chartAfter: { "18": { status: "crown", endo: true, note: "check margin" } } }];
   check("a note-only change is recorded", toothHistory(noted, "18").length, 4);
 
-  // What an amendment restores: the state as it stood before that frame.
-  check("undoing the crown leaves the root-treated filling", toothStateWithout(frames, "18", "r3"), { status: "filled", endo: true });
-  // Frames are snapshots, so undoing the FILLING must not also discard the root
-  // canal and crown that came after it.
-  check("undoing the filling keeps the later crown", toothStateWithout(frames, "18", "r1"), { status: "crown", endo: true });
-
-  // An amendment is a frame with no visit that is not the baseline.
-  // A correction is now tagged explicitly rather than inferred from "no visit and not
-  // the baseline", which stopped being unique once treatments are recorded that way.
-  const amended: ChartFrame[] = [
-    ...frames,
-    { id: "r6", visitId: null, kind: "correction", at: 600, chartAfter: { "18": { status: "filled", endo: true } } },
-  ];
-  const last = toothHistory(amended, "18").at(-1)!;
-  check("an amendment is flagged as a correction", last.isCorrection, true);
-  check("amending restores the state without that entry", last.after, { status: "filled", endo: true });
-  check("the mistaken crown is still in the history", toothHistory(amended, "18").length, 4);
 }
 
 console.log("\nRoot-treated:");

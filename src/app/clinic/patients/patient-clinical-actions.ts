@@ -70,11 +70,50 @@ export async function loadItemHistory(
 }
 
 /**
- * Undo one entry on one charted item — an AMENDMENT (see the module's `amendItem`:
- * it appends a correcting record, it does not delete). Gated by `clinical:edit` and
- * audit-logged, because it changes what the patient's record says.
+ * Correct one recorded treatment in place. For fixing what was charted, not for
+ * undoing it. Gated by `clinical:edit` and audit-logged.
  */
-export async function amendItemAction(
+export async function editItemRecordAction(
+  patientId: string,
+  itemKey: string,
+  recordId: string,
+  state: unknown,
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireRole(["clinic_admin", "doctor", "manager"]);
+  if (!user.clinicId) return { error: "No clinic access." };
+  if (!can(user, "clinical", "edit")) {
+    return { error: "You don't have permission to edit clinical records." };
+  }
+  const clinicalRecord = await clinicalRecordForUser(user.clinicId);
+  if (!clinicalRecord) return { error: "This clinic has no clinical chart." };
+
+  const result = await clinicalRecord.editItemRecord(
+    user.clinicId,
+    patientId,
+    itemKey,
+    recordId,
+    state,
+  );
+  if ("error" in result) return result;
+
+  await logActivity({
+    action: "update",
+    entity: "patient",
+    entityId: patientId,
+    summary: `Edited a recorded treatment on ${itemKey}`,
+    metadata: { itemKey, recordId },
+  });
+  revalidatePath(`/clinic/patients/${patientId}`);
+  revalidatePath(`/doctor/patients/${patientId}`);
+  return { ok: true };
+}
+
+/**
+ * Remove one recorded treatment. A SOFT delete — the record is hidden and the chart
+ * re-folds from what remains, so nothing is erased and it can be restored. Gated by
+ * `clinical:edit` and audit-logged.
+ */
+export async function deleteItemRecordAction(
   patientId: string,
   itemKey: string,
   recordId: string,
@@ -84,18 +123,23 @@ export async function amendItemAction(
   if (!can(user, "clinical", "edit")) {
     return { error: "You don't have permission to edit clinical records." };
   }
-
   const clinicalRecord = await clinicalRecordForUser(user.clinicId);
   if (!clinicalRecord) return { error: "This clinic has no clinical chart." };
 
-  const result = await clinicalRecord.amendItem(user.clinicId, patientId, itemKey, recordId);
+  const result = await clinicalRecord.deleteItemRecord(
+    user.clinicId,
+    patientId,
+    itemKey,
+    recordId,
+    user.id,
+  );
   if ("error" in result) return result;
 
   await logActivity({
-    action: "update",
+    action: "delete",
     entity: "patient",
     entityId: patientId,
-    summary: `Corrected an entry on ${itemKey} in the patient's chart`,
+    summary: `Deleted a recorded treatment on ${itemKey}`,
     metadata: { itemKey, recordId },
   });
   revalidatePath(`/clinic/patients/${patientId}`);

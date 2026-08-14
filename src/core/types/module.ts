@@ -93,15 +93,23 @@ export interface ChartItemEditorProps {
  * without knowing what was charted.
  */
 export interface ChartItemHistoryEntry {
-  /** The record that made this change — what an amendment reverts. */
+  /** The record behind this entry — what Edit and Delete act on. */
   recordId: string | null;
   visitId: string | null;
-  isBaseline: boolean;
   /** Epoch ms, so it crosses the server/client boundary without a Date. */
   at: number;
-  /** This entry IS a correction of an earlier one. */
-  isCorrection: boolean;
   label: string;
+  /**
+   * Where the entry came from, which decides what may be done to it:
+   * - `treatment` — charted straight onto the item. Editable and deletable here.
+   * - `baseline` — the intake snapshot. Edited through the intake editor, not here.
+   * - `visit` — part of a clinical note a doctor approved. READ-ONLY here: deleting
+   *   it from an item's panel would quietly alter a signed record without anyone
+   *   going near the visit.
+   */
+  source: "baseline" | "visit" | "treatment";
+  /** The item's state after this entry, for prefilling the edit form. */
+  state: unknown;
 }
 
 /**
@@ -202,15 +210,27 @@ export interface ModuleClinicalRecord {
     itemKey: string,
   ) => Promise<ChartItemHistoryEntry[]>;
   /**
-   * Undo one entry on one charted item. An AMENDMENT: the module appends a
-   * correcting record rather than deleting anything, so the chart reverts while the
-   * original entry stays in the history. Gated by `clinical:edit` at the caller.
+   * Correct one recorded treatment in place, then re-fold. For fixing what was
+   * charted — a veneer recorded as a crown — rather than for undoing it.
    */
-  amendItem: (
+  editItemRecord: (
     clinicId: string,
     patientId: string,
     itemKey: string,
     recordId: string,
+    state: unknown,
+  ) => Promise<{ ok: true } | { error: string }>;
+  /**
+   * Remove one recorded treatment and re-fold, so the item reverts to what the
+   * remaining records say. A SOFT delete — the record is hidden and recoverable,
+   * never erased (CLAUDE.md). Only a `treatment` entry may be deleted.
+   */
+  deleteItemRecord: (
+    clinicId: string,
+    patientId: string,
+    itemKey: string,
+    recordId: string,
+    actorId: string,
   ) => Promise<{ ok: true } | { error: string }>;
   /**
    * Record a treatment on ONE item, outside any visit — its own dated record, so the

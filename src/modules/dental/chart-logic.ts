@@ -44,8 +44,6 @@ export type ToothHistoryEntry = {
   /** State before this frame, and after it. Null = no entry (i.e. sound). */
   before: ChartTooth | null;
   after: ChartTooth | null;
-  /** This entry is an amendment undoing an earlier one. */
-  isCorrection: boolean;
   /** 'treatment' when charted straight onto the item, outside any visit. */
   kind?: string | null;
 };
@@ -73,7 +71,6 @@ export function toothHistory(frames: ChartFrame[], tooth: string): ToothHistoryE
       before,
       after,
       kind: f.kind ?? null,
-      isCorrection: f.kind === "correction",
     });
     before = after;
   }
@@ -89,27 +86,6 @@ function sameTooth(a: ChartTooth | null, b: ChartTooth | null): boolean {
     (a.note ?? "") === (b.note ?? "") &&
     [...(a.surfaces ?? [])].sort().join("") === [...(b.surfaces ?? [])].sort().join("")
   );
-}
-
-/**
- * What one tooth would be if a given record had never been written — the state an
- * amendment restores. Null means it would have no entry, i.e. sound.
- *
- * This re-folds every OTHER frame rather than rewinding to the state just before the
- * mistaken one, and the difference matters. Frames are snapshots, not deltas: on a
- * tooth filled, then root-treated, then crowned, rewinding the FILLING would throw
- * away the root canal and the crown along with it, because they came later. Folding
- * without that one record instead leaves the tooth crowned and root-treated, which is
- * what undoing a single mistaken entry should mean. Undoing the newest entry gives
- * the same answer either way, which is the common case.
- */
-export function toothStateWithout(
-  frames: ChartFrame[],
-  tooth: string,
-  recordId: string,
-): ChartTooth | null {
-  const rebuilt = reduceChart(frames.filter((f) => f.id !== recordId));
-  return rebuilt[tooth] ?? null;
 }
 
 /** Order frames for folding: baseline first, then oldest→newest. */

@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState, useTransition, type ComponentType } from "react";
-import { Loader2, Plus, RotateCcw, X } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/core/ui/button";
 import type { ChartItemEditorProps, ChartItemHistoryEntry } from "@/core/types/module";
+import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import {
-  amendItemAction,
+  deleteItemRecordAction,
+  editItemRecordAction,
   loadItemHistory,
   recordItemTreatmentAction,
 } from "./patient-clinical-actions";
@@ -17,11 +19,15 @@ import {
  * in the per-visit snapshots, but organised by visit, so reading a single tooth's
  * story meant opening every visit in turn.
  *
- * Undo is an AMENDMENT, never a deletion (see the module's `amendItem`): the chart
- * reverts to the state before the chosen entry, and the entry stays here marked as
- * corrected. That is the rule in CLAUDE.md — nothing is erased from a patient's
- * record — and it is also the honest thing to do when a bill or a prescription may
- * already have gone out against that entry.
+ * Newest first, because the question asked of a chart is almost always what happened
+ * recently, and the item on the chart shows the latest entry.
+ *
+ * A recorded treatment can be EDITED in place or DELETED. Deleting soft-deletes the
+ * record and re-folds, so the item reverts to what the remaining records say and
+ * nothing is erased — it moves to Trash and can be restored. Entries that came from a
+ * visit are read-only here: they belong to a clinical note a doctor approved, and
+ * changing one from an item panel would alter a signed record without anyone opening
+ * the visit.
  *
  * Core-side and specialty-agnostic: it renders whatever `label` the module produced
  * and hands the item key back untouched.
@@ -50,6 +56,8 @@ export function ItemHistoryPanel({
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<unknown>(current ?? null);
+  const [editRow, setEditRow] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<unknown>(null);
   const [pending, start] = useTransition();
 
   // No state reset here: the parent keys this component by item, so choosing a
@@ -68,17 +76,31 @@ export function ItemHistoryPanel({
     };
   }, [patientId, itemKey]);
 
-  const amend = (recordId: string) =>
+  const refresh = async () => setEntries(await loadItemHistory(patientId, itemKey));
+
+  const saveEdit = (recordId: string) =>
     start(async () => {
       setError(null);
-      const r = await amendItemAction(patientId, itemKey, recordId);
+      const r = await editItemRecordAction(patientId, itemKey, recordId, editDraft);
       if ("error" in r) {
         setError(r.error);
         return;
       }
+      setEditRow(null);
       onAmended();
-      setEntries(await loadItemHistory(patientId, itemKey));
+      await refresh();
     });
+
+  /**
+   * Returns the error to ConfirmDialog rather than throwing, so a refusal — a visit's
+   * entry, or one already gone — keeps the dialog open and says why.
+   */
+  const remove = async (recordId: string) => {
+    const r = await deleteItemRecordAction(patientId, itemKey, recordId);
+    if ("error" in r) return { error: r.error };
+    onAmended();
+    await refresh();
+  };
 
   const record = () =>
     start(async () => {
@@ -90,7 +112,7 @@ export function ItemHistoryPanel({
       }
       setAdding(false);
       onAmended();
-      setEntries(await loadItemHistory(patientId, itemKey));
+      await refresh();
     });
 
   return (
@@ -111,40 +133,84 @@ export function ItemHistoryPanel({
         <p className="text-xs text-muted-foreground">Nothing has been recorded on {itemKey}.</p>
       ) : (
         <ol className="space-y-1.5">
-          {entries.map((e, i) => (
-            <li
-              key={`${e.recordId ?? i}-${e.at}`}
-              className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b pb-1.5 text-xs last:border-0 last:pb-0"
-            >
-              <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2">
-                <span className="tabular-nums text-muted-foreground">
-                  {new Date(e.at).toLocaleDateString()}
-                </span>
-                <span className="font-medium">{e.label}</span>
-                {e.isBaseline ? (
-                  <span className="text-muted-foreground">(existing conditions)</span>
-                ) : null}
-                {e.isCorrection ? (
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">
-                    correction
+          {entries.map((e, i) => {
+            const editing = editRow === e.recordId;
+            // Only a recorded treatment may be changed from here. A visit's entry
+            // belongs to a clinical note a doctor approved, and the baseline is the
+            // intake snapshot — each has its own door.
+            const mine = canAmend && e.recordId && e.source === "treatment";
+            return (
+              <li key={`${e.recordId ?? i}-${e.at}`} className="border-b pb-1.5 text-xs last:border-0 last:pb-0">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2">
+                    <span className="tabular-nums text-muted-foreground">
+                      {new Date(e.at).toLocaleDateString()}
+                    </span>
+                    <span className="font-medium">{e.label}</span>
+                    {e.source === "baseline" ? (
+                      <span className="text-muted-foreground">(existing conditions)</span>
+                    ) : null}
+                    {e.source === "visit" ? (
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">
+                        from a visit
+                      </span>
+                    ) : null}
                   </span>
+                  {mine && !editing ? (
+                    <span className="flex items-center gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={pending}
+                        onClick={() => {
+                          setEditRow(e.recordId);
+                          setEditDraft(e.state ?? null);
+                          setError(null);
+                        }}
+                      >
+                        <Pencil className="size-3.5" aria-hidden="true" />
+                        Edit<span className="sr-only"> this entry on {itemKey}</span>
+                      </Button>
+                      <ConfirmDialog
+                        triggerLabel={`Delete this entry on ${itemKey}`}
+                        triggerIcon={<Trash2 className="size-3.5" aria-hidden="true" />}
+                        triggerVariant="ghost"
+                        triggerDisabled={pending}
+                        title="Delete this entry?"
+                        description={`"${e.label}" will be removed from ${itemKey} and the chart will go back to what the remaining entries say. It moves to Trash and can be restored.`}
+                        confirmLabel="Delete"
+                        confirmVariant="destructive"
+                        onConfirm={() => remove(e.recordId!)}
+                      />
+                    </span>
+                  ) : null}
+                </div>
+
+                {/* Edit in place, on the row it belongs to. */}
+                {editing && ItemEditor ? (
+                  <div className="mt-2 space-y-2 rounded-md border p-2.5">
+                    <ItemEditor value={editDraft} onChange={setEditDraft} disabled={pending} />
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" disabled={pending} onClick={() => saveEdit(e.recordId!)}>
+                        {pending ? "Saving…" : "Save changes"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() => {
+                          setEditRow(null);
+                          setError(null);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
                 ) : null}
-              </span>
-              {/* A correction is itself an entry, and undoing an undo is a rabbit
-                  hole — correct it forward by charting the right value instead. */}
-              {canAmend && e.recordId && !e.isCorrection ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={pending}
-                  onClick={() => amend(e.recordId!)}
-                >
-                  <RotateCcw className="size-3.5" aria-hidden="true" />
-                  Undo<span className="sr-only"> this change to {itemKey}</span>
-                </Button>
-              ) : null}
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ol>
       )}
 
@@ -185,8 +251,8 @@ export function ItemHistoryPanel({
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
       {canAmend && entries && entries.length > 0 ? (
         <p className="text-[11px] text-muted-foreground">
-          Undo restores the state before that entry. The entry stays in the history,
-          marked as a correction. Nothing is deleted from the record.
+          Deleting an entry moves it to Trash and re-folds the chart from what is left.
+          Entries from a visit are changed in the visit itself.
         </p>
       ) : null}
     </div>

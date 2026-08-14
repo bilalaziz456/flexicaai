@@ -1,20 +1,20 @@
 /**
- * End-to-end check of per-tooth history + amendment against a REAL database.
- *
- * The pure logic is unit-tested in test-dental-chart.ts; this asserts the parts that
- * only exist once records are written and the living chart is re-folded: that an
- * amendment reverts the chart, keeps the mistaken entry in the history, and does not
- * delete anything. Creates its own patient and removes it at the end.
+ * End-to-end check of per-tooth history, treatments, edit and delete, against a REAL
+ * database. The pure logic is unit-tested in test-dental-chart.ts; this covers what
+ * only exists once records are written and the living chart is re-folded. Creates its
+ * own patient and removes it at the end.
  *
  * Run: tsx --env-file=.env.local --tsconfig scripts/_seed/tsconfig.json scripts/test-tooth-amend.ts
  */
 import { eq } from "drizzle-orm";
 import { db } from "@/core/db";
-import { clinics, patients } from "@/core/db/schema";
+import { clinics, patients, visits } from "@/core/db/schema";
 import { dentalCharts, dentalRecords } from "@/modules/dental/db/schema";
 import {
-  amendTooth,
+  deleteToothRecord,
+  editToothRecord,
   getPatientChart,
+  listDentalRecords,
   recordToothTreatment,
   saveBaseline,
   saveDentalRecord,
@@ -27,10 +27,8 @@ const norm = (v: unknown) =>
     ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
     : v;
 function check(name: string, gotRaw: unknown, wantRaw: unknown) {
-  const got = norm(gotRaw);
-  const want = norm(wantRaw);
-  const g = JSON.stringify(got);
-  const w = JSON.stringify(want);
+  const g = JSON.stringify(norm(gotRaw));
+  const w = JSON.stringify(norm(wantRaw));
   if (g === w) console.log(`  ✓ ${name}`);
   else {
     failures++;
@@ -41,102 +39,71 @@ function check(name: string, gotRaw: unknown, wantRaw: unknown) {
 async function main() {
   const [clinic] = await db.select({ id: clinics.id }).from(clinics).limit(1);
   if (!clinic) throw new Error("no clinic in this database");
-
   const [patient] = await db
     .insert(patients)
-    .values({ clinicId: clinic.id, fullName: "ZZ amend probe", phone: null })
+    .values({ clinicId: clinic.id, fullName: "ZZ chart probe" })
     .returning({ id: patients.id });
   const pid = patient.id;
 
   try {
-    // 18 over three visits: filled → root-treated → crowned.
-    const r1 = await saveDentalRecord(clinic.id, { patientId: pid, chartAfter: { "18": { status: "filled" } } });
-    const r2 = await saveDentalRecord(clinic.id, { patientId: pid, chartAfter: { "18": { status: "filled", endo: true } } });
-    const r3 = await saveDentalRecord(clinic.id, { patientId: pid, chartAfter: { "18": { status: "crown", endo: true } } });
+    await saveBaseline(clinic.id, pid, { "18": { status: "caries" } });
+    await recordToothTreatment(clinic.id, pid, "18", { status: "filled" });
+    await recordToothTreatment(clinic.id, pid, "18", { status: "filled", endo: true });
+    await recordToothTreatment(clinic.id, pid, "18", { status: "crown", endo: true });
 
-    console.log("Per-tooth history from real records:");
+    console.log("History, newest first:");
     const h = await toothHistoryFor(clinic.id, pid, "18");
-    check("three entries", h.length, 3);
-    check("read oldest first", h.map((e) => e.label), [
-      "Sound → Filled",
-      "Filled → Filled, root treated",
+    check("every treatment is its own entry", h.length, 4);
+    check("newest is on top", h.map((e) => e.label), [
       "Filled → Crown",
+      "Filled → Filled, root treated",
+      "Caries → Filled",
+      "Sound → Caries",
     ]);
-    check("the living chart shows the crown", (await getPatientChart(clinic.id, pid))["18"], {
-      status: "crown",
-      endo: true,
+    check("the intake entry is marked baseline", h[3].source, "baseline");
+    check("the treatments are marked treatment", h.slice(0, 3).map((e) => e.source), [
+      "treatment",
+      "treatment",
+      "treatment",
+    ]);
+    check("the chart shows the newest", (await getPatientChart(clinic.id, pid))["18"], { status: "crown", endo: true });
+
+    console.log("\nEdit an entry in place:");
+    const crown = h[0];
+    check("edit succeeds", await editToothRecord(clinic.id, pid, "18", crown.recordId!, { status: "veneer", endo: true }), { ok: true });
+    const afterEdit = await toothHistoryFor(clinic.id, pid, "18");
+    check("the entry now reads the corrected treatment", afterEdit[0].label, "Filled → Veneer");
+    check("no extra entry was created", afterEdit.length, 4);
+    check("the chart follows the edit", (await getPatientChart(clinic.id, pid))["18"], { status: "veneer", endo: true });
+
+    console.log("\nDelete an entry:");
+    check("delete succeeds", await deleteToothRecord(clinic.id, pid, "18", crown.recordId!, pid), { ok: true });
+    const afterDelete = await toothHistoryFor(clinic.id, pid, "18");
+    check("the entry is gone from the history", afterDelete.length, 3);
+    check("the chart reverts to what is left", (await getPatientChart(clinic.id, pid))["18"], { status: "filled", endo: true });
+    check("the record is SOFT deleted, not erased", (await db.select().from(dentalRecords).where(eq(dentalRecords.patientId, pid))).length, 4);
+    check("and it is hidden from live reads", (await listDentalRecords(clinic.id, pid)).length, 3);
+
+    console.log("\nWhat may not be changed from here:");
+    const [v] = await db
+      .insert(visits)
+      .values({ clinicId: clinic.id, patientId: pid, module: "dental", status: "approved", visitDate: new Date() })
+      .returning({ id: visits.id });
+    const visitRec = await saveDentalRecord(clinic.id, { patientId: pid, visitId: v.id, chartAfter: { "18": { status: "crown" } } });
+    check("a visit entry cannot be deleted here", await deleteToothRecord(clinic.id, pid, "18", visitRec.id, pid), {
+      error: "This came from a visit. Open the visit to change it.",
     });
-
-    console.log("\nAmend the crown (charted by mistake):");
-    const res = await amendTooth(clinic.id, pid, "18", r3.id);
-    check("amend succeeded", res, { ok: true });
-    check("chart reverted to the root-treated filling", (await getPatientChart(clinic.id, pid))["18"], {
-      status: "filled",
-      endo: true,
+    check("a visit entry cannot be edited here", await editToothRecord(clinic.id, pid, "18", visitRec.id, { status: "veneer" }), {
+      error: "Only a recorded treatment can be edited here.",
     });
-
-    const after = await toothHistoryFor(clinic.id, pid, "18");
-    check("the mistaken crown is STILL in the history", after.length, 4);
-    check("the crown entry survives", after[2].label, "Filled → Crown");
-    check("the last entry is flagged a correction", after[3].isCorrection, true);
-    check("nothing was deleted", (await db.select().from(dentalRecords).where(eq(dentalRecords.patientId, pid))).length, 4);
-
-    console.log("\nAmend the very first entry (revert to sound):");
-    await amendTooth(clinic.id, pid, "18", r1.id);
-    // Frames are snapshots, so undoing the filling must NOT discard what came after
-    // it. Folding without r1 leaves the correction that reverted the crown, i.e. the
-    // root-treated filling from r2.
-    check("undoing an old entry keeps the later ones", (await getPatientChart(clinic.id, pid))["18"], {
-      status: "filled",
-      endo: true,
+    const baseline = (await listDentalRecords(clinic.id, pid)).find((r) => r.isBaseline)!;
+    check("the intake entry cannot be deleted here", await deleteToothRecord(clinic.id, pid, "18", baseline.id, pid), {
+      error: "Edit existing conditions to change the intake chart.",
     });
-
-    console.log("\nTreatments recorded from the tooth itself:");
-    {
-      const [p2] = await db
-        .insert(patients)
-        .values({ clinicId: clinic.id, fullName: "ZZ treatment probe" })
-        .returning({ id: patients.id });
-      try {
-        await saveBaseline(clinic.id, p2.id, { "18": { status: "caries" } });
-        // The sequence that the intake editor collapsed into a single rewritten line.
-        await recordToothTreatment(clinic.id, p2.id, "18", { status: "filled" });
-        await recordToothTreatment(clinic.id, p2.id, "18", { status: "filled", endo: true });
-        await recordToothTreatment(clinic.id, p2.id, "18", { status: "crown", endo: true });
-
-        const h2 = await toothHistoryFor(clinic.id, p2.id, "18");
-        check("each treatment is its own entry", h2.length, 4);
-        check("the filling is NOT lost", h2.map((e) => e.label), [
-          "Sound → Caries",
-          "Caries → Filled",
-          "Filled → Filled, root treated",
-          "Filled → Crown",
-        ]);
-        check("each treatment is its own record", (await db.select().from(dentalRecords).where(eq(dentalRecords.patientId, p2.id))).length, 4);
-        check("the chart shows the latest", (await getPatientChart(clinic.id, p2.id))["18"], { status: "crown", endo: true });
-        check("re-recording the same state is refused", await recordToothTreatment(clinic.id, p2.id, "18", { status: "crown", endo: true }), {
-          error: "That is already this tooth's state.",
-        });
-        check("a treatment needs a status", await recordToothTreatment(clinic.id, p2.id, "18", {}), {
-          error: "Choose what was done to the tooth.",
-        });
-        check("the item key must be a tooth", await recordToothTreatment(clinic.id, p2.id, "99", { status: "crown" }), {
-          error: "That isn't a tooth.",
-        });
-      } finally {
-        await db.delete(dentalRecords).where(eq(dentalRecords.patientId, p2.id));
-        await db.delete(dentalCharts).where(eq(dentalCharts.patientId, p2.id));
-        await db.delete(patients).where(eq(patients.id, p2.id));
-      }
-    }
-
-    console.log("\nGuards:");
-    check("amending an entry that never touched this tooth is refused", await amendTooth(clinic.id, pid, "27", r2.id), {
-      error: "That entry is no longer on this tooth.",
-    });
-    check("an untouched tooth has no history", await toothHistoryFor(clinic.id, pid, "27"), []);
+    check("a visit entry is marked as such", (await toothHistoryFor(clinic.id, pid, "18"))[0].source, "visit");
   } finally {
     await db.delete(dentalRecords).where(eq(dentalRecords.patientId, pid));
+    await db.delete(visits).where(eq(visits.patientId, pid));
     await db.delete(dentalCharts).where(eq(dentalCharts.patientId, pid));
     await db.delete(patients).where(eq(patients.id, pid));
     console.log("\nprobe patient removed");

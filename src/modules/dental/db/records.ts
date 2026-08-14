@@ -17,7 +17,6 @@ import {
   isBlankTooth,
   reduceChart,
   toothHistory,
-  toothStateWithout,
 } from "@/modules/dental/chart-logic";
 import { seedFromNote } from "@/modules/dental/seed-from-note";
 import { isRootTreated, isToothNumber, statusLabel } from "@/modules/dental/tooth-status";
@@ -125,7 +124,7 @@ export type SaveDentalRecordInput = {
   patientId: string;
   visitId?: string | null;
   isBaseline?: boolean;
-  /** 'treatment' | 'correction' for records that belong to no visit. */
+  /** 'treatment' for a record that belongs to no visit. */
   kind?: string | null;
   chiefComplaint?: string | null;
   diagnosis?: string | null;
@@ -329,9 +328,12 @@ async function chartFrames(clinicId: string, patientId: string) {
 }
 
 /**
- * One tooth's own history, oldest first — the module's `itemHistory`. Each entry is
+ * One tooth's own history, NEWEST FIRST — the module's `itemHistory`. Each entry is
  * already rendered to a human line, so core displays it without knowing it is a
- * tooth.
+ * tooth, and carries the state after it, so the edit form can be prefilled.
+ *
+ * Newest first because the question being asked of a chart is almost always "what
+ * happened recently", and the tooth on the chart shows the latest entry.
  */
 export async function toothHistoryFor(
   clinicId: string,
@@ -339,48 +341,102 @@ export async function toothHistoryFor(
   tooth: string,
 ): Promise<ChartItemHistoryEntry[]> {
   const entries = toothHistory(await chartFrames(clinicId, patientId), tooth);
-  return entries.map((e) => ({
-    recordId: e.recordId ?? null,
-    visitId: e.visitId ?? null,
-    isBaseline: e.isBaseline,
-    at: e.at,
-    isCorrection: e.isCorrection,
-    label: describeToothChange(e.before, e.after),
-  }));
+  return entries
+    .map((e) => ({
+      recordId: e.recordId ?? null,
+      visitId: e.visitId ?? null,
+      at: e.at,
+      label: describeToothChange(e.before, e.after),
+      source: e.isBaseline ? ("baseline" as const) : e.visitId ? ("visit" as const) : ("treatment" as const),
+      state: e.after,
+    }))
+    .reverse();
 }
 
 /**
- * Undo one entry on one tooth — the module's `amendItem`.
+ * Correct one recorded treatment in place — the module's `editItemRecord`.
  *
- * An AMENDMENT, not a deletion: it appends a new frame restoring the state the tooth
- * had before the mistaken record, so the fold produces the corrected chart while the
- * original entry stays in the history, marked as corrected. Nothing is erased from a
- * clinical record, which is both the rule in CLAUDE.md and how notes are meant to be
- * corrected — someone may already have been billed or prescribed against that entry.
- *
- * The correction frame carries no visit and is not the baseline, which is what marks
- * it as a correction. Restoring "sound" writes a blank tooth, which the fold drops.
+ * Updates only this tooth within that record and re-folds, so a record covering
+ * several teeth keeps the rest untouched. For fixing what was charted; removing it
+ * is `deleteToothRecord`.
  */
-export async function amendTooth(
+export async function editToothRecord(
   clinicId: string,
   patientId: string,
   tooth: string,
   recordId: string,
+  state: unknown,
 ): Promise<{ ok: true } | { error: string }> {
-  const frames = await chartFrames(clinicId, patientId);
-  const target = frames.find((f) => f.id === recordId);
-  if (!target || !(tooth in (target.chartAfter ?? {}))) {
-    return { error: "That entry is no longer on this tooth." };
-  }
-  const restore = toothStateWithout(frames, tooth, recordId);
-  await saveDentalRecord(clinicId, {
-    patientId,
-    visitId: null,
-    isBaseline: false,
-    kind: "correction",
-    chartAfter: { [tooth]: restore ?? { status: "sound" } } as ChartTeeth,
+  if (!isToothNumber(tooth)) return { error: "That isn't a tooth." };
+  const next = (state && typeof state === "object" ? state : null) as ChartTooth | null;
+  if (!next?.status) return { error: "Choose what was done to the tooth." };
+
+  const [row] = await db
+    .select({ id: dentalRecords.id, chartAfter: dentalRecords.chartAfter, visitId: dentalRecords.visitId, isBaseline: dentalRecords.isBaseline })
+    .from(dentalRecords)
+    .where(
+      byClinic(
+        dentalRecords.clinicId,
+        clinicId,
+        notDeleted(dentalRecords.deletedAt),
+        eq(dentalRecords.id, recordId),
+        eq(dentalRecords.patientId, patientId),
+      ),
+    )
+    .limit(1);
+  if (!row) return { error: "That entry no longer exists." };
+  // A visit's record belongs to a clinical note a doctor approved. Editing it from a
+  // tooth panel would alter a signed record without anyone opening the visit.
+  if (row.visitId || row.isBaseline) return { error: "Only a recorded treatment can be edited here." };
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(dentalRecords)
+      .set({
+        chartAfter: { ...((row.chartAfter ?? {}) as ChartTeeth), [tooth]: next },
+        updatedAt: new Date(),
+      })
+      .where(eq(dentalRecords.id, recordId));
+    await recomputeChart(tx, clinicId, patientId);
   });
   return { ok: true };
+}
+
+/**
+ * Remove one recorded treatment — the module's `deleteItemRecord`.
+ *
+ * A SOFT delete: the record keeps its row and can be restored, and the chart re-folds
+ * from what remains, so the tooth reverts to whatever the other records say. This
+ * replaced an earlier design that appended a "correction" record to undo an entry —
+ * that left the original in place, needed its own record kind, and let repeated
+ * clicks pile up identical no-op rows. Removing the record says what was meant.
+ */
+export async function deleteToothRecord(
+  clinicId: string,
+  patientId: string,
+  tooth: string,
+  recordId: string,
+  actorId: string,
+): Promise<{ ok: true } | { error: string }> {
+  const [row] = await db
+    .select({ visitId: dentalRecords.visitId, isBaseline: dentalRecords.isBaseline })
+    .from(dentalRecords)
+    .where(
+      byClinic(
+        dentalRecords.clinicId,
+        clinicId,
+        notDeleted(dentalRecords.deletedAt),
+        eq(dentalRecords.id, recordId),
+        eq(dentalRecords.patientId, patientId),
+      ),
+    )
+    .limit(1);
+  if (!row) return { error: "That entry no longer exists." };
+  if (row.visitId) return { error: "This came from a visit. Open the visit to change it." };
+  if (row.isBaseline) return { error: "Edit existing conditions to change the intake chart." };
+
+  const ok = await softDeleteDentalRecord(clinicId, recordId, actorId);
+  return ok ? { ok: true } : { error: "That entry no longer exists." };
 }
 
 /**
