@@ -12,6 +12,7 @@ import {
   defaultPermissionsForRole,
   type PermResource,
 } from "@/core/auth/permissions";
+import { cn } from "@/core/lib/utils";
 import { STAFF_PREFIXES, type UserRole } from "@/core/types/auth";
 import { PermissionMatrix } from "./[id]/permission-matrix";
 
@@ -47,7 +48,10 @@ export function AddStaffForm({ resources }: { resources: PermResource[] }) {
               aria-label="Title"
               defaultValue=""
               required
-              className={`${selectCls} w-24 shrink-0`}
+              // cn() (tailwind-merge) so w-24 actually beats selectCls's
+              // w-full — plain concatenation loses, and the Title select then
+              // eats the whole column, leaving no room for the name input.
+              className={cn(selectCls, "w-24 shrink-0")}
             >
               <option value="" disabled>
                 Title
