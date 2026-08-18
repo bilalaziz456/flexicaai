@@ -16,6 +16,7 @@ import {
 } from "@/core/appointments/procedures";
 import { parseListFilters } from "@/core/appointments/list-filters";
 import { buildAppointmentConds } from "@/core/appointments/list-query";
+import { appointmentDoctorScope } from "@/core/appointments/scope";
 import { statusLabel } from "@/core/appointments/status";
 import { displayStaffName } from "@/core/types/auth";
 
@@ -47,8 +48,11 @@ export async function GET(req: Request) {
 
   // Every filter except the keyset cursor (added per batch below). Shared with
   // the list page + calendar so the CSV always matches what's on screen.
+  // Same scope the screen applies — a doctor's download is their own schedule,
+  // not the clinic's. Enforced here rather than trusted from the caller.
+  const doctorId = appointmentDoctorScope(user);
   const baseConds = (): SQL[] =>
-    buildAppointmentConds({ session, start, endExclusive, q, status, type, payment });
+    buildAppointmentConds({ session, start, endExclusive, q, status, type, payment, doctorId });
 
   const typeLabel = (charge: boolean, hasProc: boolean): string => {
     if (charge && hasProc) return "Consultation + procedure";

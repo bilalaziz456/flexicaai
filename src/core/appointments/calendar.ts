@@ -149,7 +149,11 @@ export async function getCalendarDays(
   ]);
 
   const counts = new Map(rows.map((r) => [r.day, r]));
-  const active = doctors.filter((d) => d.isActive);
+  // Scoped to one doctor, the card is THEIR calendar — listing colleagues'
+  // visiting hours next to counts that exclude them would just misread.
+  const active = doctors.filter(
+    (d) => d.isActive && (!filters.doctorId || d.id === filters.doctorId),
+  );
 
   return eachDate(start, endExclusive).map((date) => {
     const weekday = new Date(`${date}T00:00:00`).getDay();

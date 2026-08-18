@@ -41,6 +41,9 @@ export type AppointmentFilterInput = {
   type?: VisitTypeFilter;
   /** "" | "paid" | "partial" | "unpaid" — only meaningful when the clinic bills. */
   payment?: string;
+  /** Narrow to one doctor. Set from `appointmentDoctorScope`, not from the URL —
+   *  it's a viewer's scope, not something they choose. */
+  doctorId?: string;
 };
 
 /**
@@ -61,6 +64,9 @@ export function buildAppointmentConds(f: AppointmentFilterInput): SQL[] {
     );
   }
   if (f.status) conds.push(eq(appointments.status, f.status));
+  // Applies even inside a queue session, so a doctor opening someone else's
+  // queue key by hand still only sees their own patients.
+  if (f.doctorId) conds.push(eq(appointments.doctorId, f.doctorId));
 
   // Visit type = consultation (fee, no procedures) · procedure (procedures, fee not
   // charged) · both (fee + procedures). Derived from charge_consultation + procedures.

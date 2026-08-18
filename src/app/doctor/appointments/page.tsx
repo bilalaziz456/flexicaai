@@ -1,12 +1,14 @@
 import { redirect } from "next/navigation";
 import { requireRole } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
+import { appointmentDoctorScope } from "@/core/appointments/scope";
 import {
   AppointmentsList,
   type AppointmentsListSearchParams,
 } from "@/app/reception/appointments-list";
 
-/** Doctor with the `appointments` permission: the clinic's appointments list. */
+/** Doctor with the `appointments` permission: THEIR OWN appointments — the list,
+ *  the month calendar and the CSV are all scoped by `appointmentDoctorScope`. */
 export default async function DoctorAppointmentsPage({
   searchParams,
 }: {
@@ -27,6 +29,7 @@ export default async function DoctorAppointmentsPage({
       detailBase="/doctor/appointments"
       newHref="/doctor/appointments/new"
       searchParams={sp}
+      doctorScope={appointmentDoctorScope(user)}
     />
   );
 }

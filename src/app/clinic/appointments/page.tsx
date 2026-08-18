@@ -1,5 +1,6 @@
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
+import { appointmentDoctorScope } from "@/core/appointments/scope";
 import {
   AppointmentsList,
   type AppointmentsListSearchParams,
@@ -22,6 +23,7 @@ export default async function ClinicAppointmentsPage({
       detailBase="/clinic/appointments"
       newHref="/clinic/appointments/new"
       searchParams={sp}
+      doctorScope={appointmentDoctorScope(user)}
     />
   );
 }

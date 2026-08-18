@@ -82,6 +82,7 @@ export async function AppointmentsList({
   detailBase,
   newHref,
   searchParams,
+  doctorScope,
 }: {
   clinicId: string;
   canCreate: boolean;
@@ -93,6 +94,9 @@ export async function AppointmentsList({
   /** Href for the "New appointment" button. */
   newHref: string;
   searchParams: AppointmentsListSearchParams;
+  /** Limit every figure on this screen to one doctor (a doctor viewing their own
+   *  schedule). Comes from `appointmentDoctorScope`, never from the URL. */
+  doctorScope?: string;
 }) {
   const sp = searchParams;
   const page = parsePage(sp.page);
@@ -142,6 +146,7 @@ export async function AppointmentsList({
     status,
     type,
     payment,
+    doctorId: doctorScope,
   });
 
   const whereClause = byClinic(
@@ -184,7 +189,7 @@ export async function AppointmentsList({
       .orderBy(session ? asc(appointments.queueNumber) : asc(appointments.scheduledAt))
       .limit(pageSize)
       .offset(pageOffset(page, pageSize)),
-    getDayQueue(clinicId, new Date()),
+    getDayQueue(clinicId, new Date(), doctorScope ? { doctorId: doctorScope } : undefined),
     db
       .select({ total: count() })
       .from(appointments)
@@ -198,6 +203,7 @@ export async function AppointmentsList({
           status,
           type,
           payment,
+          doctorId: doctorScope,
         }),
   ]);
 
