@@ -5,7 +5,10 @@ import { Plus, X } from "lucide-react";
 import {
   timeToMinutes,
   WEEKDAYS,
+  windowKind,
+  WINDOW_KINDS,
   type DayAvailability,
+  type WindowKind,
 } from "@/core/lib/availability";
 import { Button } from "@/core/ui/button";
 import { Checkbox } from "@/core/ui/checkbox";
@@ -13,7 +16,7 @@ import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { TimeSelect } from "@/core/ui/time-select";
 
-type Range = { start: string; end: string };
+type Range = { start: string; end: string; kind: WindowKind };
 type DayState = { weekday: number; on: boolean; ranges: Range[] };
 
 /**
@@ -51,8 +54,8 @@ export function DoctorScheduleFields({
         on: ws.length > 0,
         ranges:
           ws.length > 0
-            ? ws.map((w) => ({ start: w.start, end: w.end }))
-            : [{ start: "09:00", end: "17:00" }],
+            ? ws.map((w) => ({ start: w.start, end: w.end, kind: windowKind(w) }))
+            : [{ start: "09:00", end: "17:00", kind: "consultation" as WindowKind }],
       };
     }),
   );
@@ -76,7 +79,13 @@ export function DoctorScheduleFields({
     setDays((prev) =>
       prev.map((d) =>
         d.weekday === weekday
-          ? { ...d, ranges: [...d.ranges, { start: "09:00", end: "17:00" }] }
+          ? {
+              ...d,
+              ranges: [
+                ...d.ranges,
+                { start: "09:00", end: "17:00", kind: "consultation" as WindowKind },
+              ],
+            }
           : d,
       ),
     );
@@ -93,7 +102,12 @@ export function DoctorScheduleFields({
   const availability: DayAvailability[] = days
     .filter((d) => d.on)
     .flatMap((d) =>
-      d.ranges.map((r) => ({ weekday: d.weekday, start: r.start, end: r.end })),
+      d.ranges.map((r) => ({
+        weekday: d.weekday,
+        start: r.start,
+        end: r.end,
+        kind: r.kind,
+      })),
     );
 
   // A range is invalid only when its day is enabled and hours are enforced.
@@ -123,7 +137,10 @@ export function DoctorScheduleFields({
       <div className={`space-y-2 ${flexible ? "opacity-50" : ""}`}>
         <Label>Working days &amp; hours</Label>
         <p className="text-xs text-muted-foreground">
-          Enable each day the doctor works and set the hours.
+          Enable each day the doctor works and set the hours. Mark a window{" "}
+          <strong>Procedure</strong> to allow longer treatments outside consulting
+          hours — a visit with procedures may be booked in either kind of window,
+          a plain consultation only in a Consultation one.
           {flexible ? " (Not enforced while Flexible hours is on.)" : ""}
         </p>
         <div className="space-y-2">
@@ -168,17 +185,36 @@ export function DoctorScheduleFields({
                                 value={r.end}
                                 onChange={(v) => setRange(d.value, i, { end: v })}
                               />
-                              {day.ranges.length > 1 ? (
-                                <button
-                                  type="button"
-                                  onClick={() => removeRange(d.value, i)}
-                                  aria-label="Remove time"
-                                  className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-                                >
-                                  <X className="size-4" aria-hidden="true" />
-                                </button>
-                              ) : null}
                             </div>
+                            {/* What this window is for. Consultation is the
+                                default; a procedure window lets longer work be
+                                booked outside consulting hours. */}
+                            <select
+                              aria-label={`${d.label} type ${i + 1}`}
+                              value={r.kind}
+                              onChange={(e) =>
+                                setRange(d.value, i, {
+                                  kind: e.target.value as WindowKind,
+                                })
+                              }
+                              className="h-8 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron"
+                            >
+                              {WINDOW_KINDS.map((k) => (
+                                <option key={k.value} value={k.value}>
+                                  {k.label}
+                                </option>
+                              ))}
+                            </select>
+                            {day.ranges.length > 1 ? (
+                              <button
+                                type="button"
+                                onClick={() => removeRange(d.value, i)}
+                                aria-label="Remove time"
+                                className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                              >
+                                <X className="size-4" aria-hidden="true" />
+                              </button>
+                            ) : null}
                           </div>
                           {invalid ? (
                             <p className="text-xs text-destructive">

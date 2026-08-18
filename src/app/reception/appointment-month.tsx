@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
 import type { CalendarDay } from "@/core/appointments/calendar";
 import { WEEKDAYS } from "@/core/lib/availability";
 import { cn } from "@/core/lib/utils";
@@ -25,6 +25,11 @@ const longDate = (date: string) =>
  * needs while a patient is on the phone. Clicking a day filters the table below
  * to that date; every other filter is left exactly as the user set it.
  *
+ * COLLAPSIBLE, because expanded it is ~380px and pushes the table it filters
+ * below the fold on a laptop. Folded to one line, the table sits right under the
+ * filters as it did before the calendar existed. The state lives in the URL, so
+ * it survives every navigation without any client state.
+ *
  * Pure CSS hover/focus, so this stays a server component: no client JS, no
  * hydration cost on a page that already ships a filter bar.
  */
@@ -32,6 +37,8 @@ export function AppointmentMonth({
   days,
   today,
   monthLabel,
+  collapsed,
+  toggleHref,
   prevHref,
   nextHref,
   todayHref,
@@ -43,6 +50,9 @@ export function AppointmentMonth({
   /** Local "YYYY-MM-DD" — outlined in the grid. */
   today: string;
   monthLabel: string;
+  collapsed: boolean;
+  /** Link that flips the collapsed state. */
+  toggleHref: string;
   prevHref: string;
   nextHref: string;
   todayHref: string;
@@ -53,6 +63,36 @@ export function AppointmentMonth({
   selectedTo: string;
 }) {
   if (days.length === 0) return null;
+  const monthTotal = days.reduce((n, d) => n + d.total, 0);
+
+  const disclosure = (
+    <Link
+      href={toggleHref}
+      scroll={false}
+      aria-expanded={!collapsed}
+      className="inline-flex h-8 items-center gap-1.5 rounded-lg px-1.5 text-sm font-semibold outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
+    >
+      <ChevronDown
+        className={cn("size-4 shrink-0 transition-transform", collapsed && "-rotate-90")}
+        aria-hidden="true"
+      />
+      {monthLabel}
+    </Link>
+  );
+
+  // Folded: one line that still reports the month's load, so collapsing doesn't
+  // cost you the overview — only the day-by-day detail.
+  if (collapsed) {
+    return (
+      <section className="flex items-center gap-2">
+        {disclosure}
+        <span className="text-sm text-muted-foreground">
+          · {monthTotal} appointment{monthTotal === 1 ? "" : "s"}
+        </span>
+      </section>
+    );
+  }
+
   // Bars are relative to the busiest day, so a quiet month still reads as a
   // shape rather than 30 near-identical stubs.
   const busiest = Math.max(...days.map((d) => d.total), 1);
@@ -62,19 +102,19 @@ export function AppointmentMonth({
     "inline-flex size-8 items-center justify-center rounded-lg border border-input text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50";
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-2">
       <div className="flex items-center gap-1">
+        {disclosure}
         <Link href={prevHref} scroll={false} aria-label="Previous month" className={navCls}>
           <ChevronLeft className="size-4" aria-hidden="true" />
         </Link>
-        <h2 className="min-w-40 text-center text-sm font-semibold">{monthLabel}</h2>
         <Link href={nextHref} scroll={false} aria-label="Next month" className={navCls}>
           <ChevronRight className="size-4" aria-hidden="true" />
         </Link>
         <Link
           href={todayHref}
           scroll={false}
-          className="ml-1 inline-flex h-8 items-center rounded-lg border border-input px-2.5 text-sm text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="inline-flex h-8 items-center rounded-lg border border-input px-2.5 text-sm text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           Today
         </Link>
@@ -82,7 +122,7 @@ export function AppointmentMonth({
 
       <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
         {WEEKDAYS.map((w) => (
-          <div key={w.value} className="px-1 pb-0.5 text-xs font-medium text-muted-foreground">
+          <div key={w.value} className="px-1 text-xs font-medium text-muted-foreground">
             {w.short}
           </div>
         ))}
@@ -109,13 +149,13 @@ export function AppointmentMonth({
                 href={dayHref(d.date)}
                 scroll={false}
                 className={cn(
-                  "flex min-h-20 flex-col rounded-lg border p-1.5 outline-none transition-colors sm:min-h-24 sm:p-2",
+                  "flex min-h-14 flex-col gap-1 rounded-lg border p-1.5 outline-none transition-colors",
                   "hover:border-primary/60 focus-visible:ring-3 focus-visible:ring-ring/50",
                   isToday && "border-primary",
                   selected && "bg-accent ring-1 ring-primary/40",
                 )}
               >
-                <div className="flex items-start justify-between gap-1">
+                <div className="flex items-start justify-between gap-1 leading-none">
                   <span
                     className={cn(
                       "text-sm tabular-nums",
@@ -132,28 +172,24 @@ export function AppointmentMonth({
                   ) : null}
                 </div>
 
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-accent">
+                <div className="h-1 overflow-hidden rounded-full bg-accent">
                   <div
                     className="h-full rounded-full bg-primary"
                     style={{ width: `${Math.round((d.total / busiest) * 100)}%` }}
                   />
                 </div>
 
-                <div className="mt-1 text-xs tabular-nums">
+                {/* Load and cover on ONE line. The doctor figure is a count, not
+                    names: names live in the hover card, but a touch device gets no
+                    hover, so it must still be able to see whether anyone is in. */}
+                <div className="truncate text-[0.65rem] leading-none tabular-nums text-muted-foreground">
                   {d.total > 0 ? (
-                    <span className="font-medium">{d.total}</span>
+                    <span className="font-medium text-foreground">{d.total} appt{d.total === 1 ? "" : "s"}</span>
                   ) : (
-                    <span className="text-muted-foreground">—</span>
+                    "—"
                   )}
-                  <span className="text-muted-foreground"> appt{d.total === 1 ? "" : "s"}</span>
-                </div>
-
-                {/* A count, not names: the names are in the hover card, but a
-                    touch device gets no hover — it must still see who's in. */}
-                <div className="mt-auto pt-1 text-[0.65rem] text-muted-foreground">
-                  {visiting.length > 0
-                    ? `${visiting.length} doctor${visiting.length === 1 ? "" : "s"}`
-                    : "No doctor"}
+                  {" · "}
+                  {visiting.length > 0 ? `${visiting.length} dr` : "no dr"}
                 </div>
               </Link>
 
@@ -200,13 +236,21 @@ export function AppointmentMonth({
                           >
                             {doc.name}
                           </span>
-                          <span className="text-muted-foreground">
-                            {doc.onLeave
-                              ? " — on leave"
-                              : doc.flexible
-                                ? "" // Hours aren't enforced: there is no window to quote.
-                                : ` — ${doc.windows.join(", ")}`}
-                          </span>
+                          {doc.onLeave ? (
+                            <span className="text-muted-foreground"> — on leave</span>
+                          ) : doc.flexible ? null : ( // No enforced hours: nothing to quote.
+                            <span className="text-muted-foreground">
+                              {doc.windows.length > 0 ? ` — ${doc.windows.join(", ")}` : null}
+                              {/* Procedure slots are named, because "can he do a
+                                  filling at 3?" is a different question from
+                                  "when does he consult?". */}
+                              {doc.procedureWindows.length > 0 ? (
+                                <span className="block">
+                                  Procedures: {doc.procedureWindows.join(", ")}
+                                </span>
+                              ) : null}
+                            </span>
+                          )}
                         </li>
                       ))}
                     </ul>

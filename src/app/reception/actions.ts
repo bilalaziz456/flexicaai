@@ -22,8 +22,10 @@ import {
   users,
 } from "@/core/db/schema";
 import {
+  windowKind,
   windowsForWeekday,
   type DayAvailability,
+  type WindowKind,
 } from "@/core/lib/availability";
 import {
   checkDoctorSlot,
@@ -187,9 +189,13 @@ export async function createAppointment(
   // Queue context comes from the slot check so we don't re-query the schedule.
   let queueAvailability: DayAvailability[] = [];
   let queueFlexible = false;
+  // A visit carrying procedures may also use the doctor's procedure windows.
+  const procedureSelections = parseProcedureSelections(formData);
   if (parsed.data.doctorId) {
     // Single source of truth for leave / working hours / daily cap.
-    const check = await checkDoctorSlot(clinicId, parsed.data.doctorId, when);
+    const check = await checkDoctorSlot(clinicId, parsed.data.doctorId, when, {
+      hasProcedures: procedureSelections.length > 0,
+    });
     if (!check.ok) return { error: check.reason };
     queueAvailability = check.availability;
     queueFlexible = check.flexible;
@@ -240,7 +246,7 @@ export async function createAppointment(
   await saveAppointmentProcedures(
     clinicId,
     created.id,
-    withApptDoctor(parseProcedureSelections(formData), parsed.data.doctorId ?? null),
+    withApptDoctor(procedureSelections, parsed.data.doctorId ?? null),
   );
 
   // Booking-from-plan: schedule any selected treatment-plan items onto this
@@ -346,10 +352,14 @@ export async function updateAppointment(
 
   let queueAvailability: DayAvailability[] = [];
   let queueFlexible = false;
+  // The selection being SAVED decides which windows are acceptable — dropping the
+  // last procedure narrows the visit back to consultation hours.
+  const procedureSelections = parseProcedureSelections(formData);
   if (parsed.data.doctorId) {
     // Same leave / hours / cap enforcement as booking (excludes this appt).
     const check = await checkDoctorSlot(clinicId, parsed.data.doctorId, when, {
       excludeAppointmentId: appointmentId,
+      hasProcedures: procedureSelections.length > 0,
     });
     if (!check.ok) return { error: check.reason };
     queueAvailability = check.availability;
@@ -413,7 +423,7 @@ export async function updateAppointment(
   await saveAppointmentProcedures(
     clinicId,
     appointmentId,
-    withApptDoctor(parseProcedureSelections(formData), parsed.data.doctorId ?? null),
+    withApptDoctor(procedureSelections, parsed.data.doctorId ?? null),
   );
 
   // Recompute approvals AFTER the procedures/discount are saved (editing a discount
@@ -549,7 +559,7 @@ export type DoctorDaySlots = {
   onLeave: boolean;
   flexible: boolean;
   /** The doctor's working windows on the selected date (empty when flexible/off). */
-  windows: { start: string; end: string }[];
+  windows: { start: string; end: string; kind: WindowKind }[];
   limit: number;
   booked: number;
   remaining: number | null; // null = unlimited
@@ -603,11 +613,14 @@ export async function doctorDayAvailability(
 
   const avail = (doc.availability ?? []) as DayAvailability[];
   const flexible = doc.flexibleHours;
+  // Every window the day offers, tagged — the form shows procedure slots too,
+  // since a visit with procedures may be booked into either kind.
   const windows = flexible
     ? []
     : windowsForWeekday(avail, when.getDay()).map((w) => ({
         start: w.start,
         end: w.end,
+        kind: windowKind(w),
       }));
   // Flexible doctors are bookable any time; otherwise the day must have windows.
   const availableByHours = flexible ? true : windows.length > 0;

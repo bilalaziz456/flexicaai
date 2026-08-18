@@ -96,6 +96,7 @@ export function AppointmentFilters({
   today,
   session = "",
   month = "",
+  calCollapsed = false,
 }: {
   from: string;
   to: string;
@@ -112,6 +113,9 @@ export function AppointmentFilters({
   /** "YYYY-MM" the calendar is browsing. Carried through so changing a filter
    *  doesn't snap the grid back to the month of the date range. */
   month?: string;
+  /** Whether the calendar is folded. Carried through for the same reason — a
+   *  filter change shouldn't reopen a grid the user chose to close. */
+  calCollapsed?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -151,6 +155,7 @@ export function AppointmentFilters({
     if (ty) params.set("type", ty);
     if (pay) params.set("payment", pay);
     if (month) params.set("month", month);
+    if (calCollapsed) params.set("cal", "0");
     const s = params.toString();
     router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
   }

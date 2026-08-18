@@ -7,6 +7,7 @@ import { appointments, doctorLeaves, patients, users } from "@/core/db/schema";
 import {
   ACTIVE_APPT_STATUSES,
   formatTime12,
+  windowKind,
   windowsForWeekday,
 } from "@/core/lib/availability";
 import { appointmentHasProceduresSql } from "./procedures";
@@ -28,8 +29,10 @@ const SERVER_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 export type DutyDoctor = {
   id: string;
   name: string;
-  /** "9:00 AM – 12:00 PM" per working window. Empty when `flexible`. */
+  /** "9:00 AM – 12:00 PM" per CONSULTATION window. Empty when `flexible`. */
   windows: string[];
+  /** Separate slots kept for longer treatments; empty when the doctor has none. */
+  procedureWindows: string[];
   /** Hours aren't enforced for this doctor — show the name, no timing. */
   flexible: boolean;
   onLeave: boolean;
@@ -163,12 +166,17 @@ export async function getCalendarDays(
       // with no schedule at all is likewise unrestricted (isDoctorAvailableAt).
       const unscheduled = d.flexibleHours || d.availability.length === 0;
       if (!unscheduled && windows.length === 0) continue;
+      const label = (w: (typeof windows)[number]) =>
+        `${formatTime12(w.start)} – ${formatTime12(w.end)}`;
       duty.push({
         id: d.id,
         name: d.name,
         windows: unscheduled
           ? []
-          : windows.map((w) => `${formatTime12(w.start)} – ${formatTime12(w.end)}`),
+          : windows.filter((w) => windowKind(w) === "consultation").map(label),
+        procedureWindows: unscheduled
+          ? []
+          : windows.filter((w) => windowKind(w) === "procedure").map(label),
         flexible: unscheduled,
         onLeave: leaves.some(
           (l) => l.doctorId === d.id && l.startDate <= date && l.endDate >= date,

@@ -7,8 +7,44 @@
  * Weekdays use the JS convention: 0 = Sunday … 6 = Saturday (Date.getDay()).
  */
 
+/**
+ * What a window is for. A doctor may consult 9–12 and keep a separate afternoon
+ * slot for procedures, which take longer and often need a chair or an assistant.
+ *
+ * Free-text-ish rather than an enum because `availability` is jsonb: an OLD
+ * window has no `kind` at all and must keep behaving exactly as it did, so
+ * absent reads as "consultation" everywhere (see `windowKind`).
+ */
+export type WindowKind = "consultation" | "procedure";
+
 /** One working window on a given weekday, e.g. Mon 09:00–17:00. */
-export type DayAvailability = { weekday: number; start: string; end: string };
+export type DayAvailability = {
+  weekday: number;
+  start: string;
+  end: string;
+  /** Absent = consultation, so schedules saved before this existed are unchanged. */
+  kind?: WindowKind;
+};
+
+/** A window's purpose, defaulting an untagged (pre-existing) window to consultation. */
+export function windowKind(w: DayAvailability): WindowKind {
+  return w.kind === "procedure" ? "procedure" : "consultation";
+}
+
+export const WINDOW_KINDS: { value: WindowKind; label: string }[] = [
+  { value: "consultation", label: "Consultation" },
+  { value: "procedure", label: "Procedure" },
+];
+
+/**
+ * Which window kinds a visit may be booked into. A visit carrying procedure
+ * lines fits either — the patient is in the chair once, and the clinic's rule is
+ * that a procedure may run inside consulting hours or in its own slot. A pure
+ * consultation may only use a consultation window.
+ */
+export function allowedKindsFor(hasProcedures: boolean): WindowKind[] {
+  return hasProcedures ? ["consultation", "procedure"] : ["consultation"];
+}
 
 /** Display order (Mon first) with labels. `value` is the JS getDay() number. */
 export const WEEKDAYS: { value: number; label: string; short: string }[] = [
@@ -38,12 +74,31 @@ export function formatTime12(hhmm: string): string {
   return `${h12}:${String(m).padStart(2, "0")} ${meridiem}`;
 }
 
-/** ALL of the doctor's working windows for a JS weekday (0=Sun..6=Sat). */
+/**
+ * ALL of the doctor's working windows for a JS weekday (0=Sun..6=Sat), in list
+ * order and regardless of kind.
+ *
+ * The order matters beyond display: `queueSessionKey` identifies a session by a
+ * window's INDEX in this result (`w{idx}`). Never filter here — narrowing the
+ * list would renumber existing sessions and collide live queue tokens. Use
+ * `windowsOfKind` when you only want one purpose.
+ */
 export function windowsForWeekday(
   availability: DayAvailability[],
   weekday: number,
 ): DayAvailability[] {
   return availability.filter((a) => a.weekday === weekday);
+}
+
+/** A weekday's windows narrowed to the given purposes (display + validation). */
+export function windowsOfKind(
+  availability: DayAvailability[],
+  weekday: number,
+  kinds: WindowKind[],
+): DayAvailability[] {
+  return windowsForWeekday(availability, weekday).filter((w) =>
+    kinds.includes(windowKind(w)),
+  );
 }
 
 /** The doctor's FIRST window for a weekday, if any (convenience). */
@@ -59,14 +114,21 @@ export function availabilityForWeekday(
  * (bookable any time) — availability is opt-in per doctor. Otherwise the time
  * must fall within ANY of the weekday's windows (a day can have several, e.g.
  * 09:00–12:00 and 16:00–19:00).
+ *
+ * `kinds` narrows which purposes count. Omitted, every window counts — so a
+ * caller that doesn't care about purpose behaves exactly as before this existed.
  */
 export function isDoctorAvailableAt(
   availability: DayAvailability[],
   when: Date,
+  kinds?: WindowKind[],
 ): boolean {
   if (!availability || availability.length === 0) return true;
   const t = when.getHours() * 60 + when.getMinutes();
-  return windowsForWeekday(availability, when.getDay()).some((w) => {
+  const windows = kinds
+    ? windowsOfKind(availability, when.getDay(), kinds)
+    : windowsForWeekday(availability, when.getDay());
+  return windows.some((w) => {
     const s = timeToMinutes(w.start);
     const e = timeToMinutes(w.end);
     return s !== null && e !== null && t >= s && t < e;
@@ -74,9 +136,10 @@ export function isDoctorAvailableAt(
 }
 
 /**
- * Human-readable summary, e.g. "Mon 09:00–12:00, 16:00–19:00; Tue 10:00–14:00"
- * or "Any time". Days are separated by "; " since each day may list several
- * windows separated by ", ".
+ * Human-readable summary, e.g. "Mon 09:00–12:00, 16:00–19:00 (proc); Tue
+ * 10:00–14:00" or "Any time". Days are separated by "; " since each day may list
+ * several windows separated by ", ". Procedure windows are marked; consultation
+ * is the unmarked default, so a doctor who never uses the split reads as before.
  */
 export function describeAvailability(availability: DayAvailability[]): string {
   if (!availability || availability.length === 0) return "Any time";
@@ -85,7 +148,10 @@ export function describeAvailability(availability: DayAvailability[]): string {
   )
     .map((d) => {
       const windows = windowsForWeekday(availability, d.value)
-        .map((w) => `${w.start}–${w.end}`)
+        .map(
+          (w) =>
+            `${w.start}–${w.end}${windowKind(w) === "procedure" ? " (proc)" : ""}`,
+        )
         .join(", ");
       return `${d.short} ${windows}`;
     })

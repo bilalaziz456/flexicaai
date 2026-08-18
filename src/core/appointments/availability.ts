@@ -6,10 +6,11 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, doctorLeaves, users } from "@/core/db/schema";
 import {
   ACTIVE_APPT_STATUSES,
+  allowedKindsFor,
   dayBounds,
   describeAvailability,
   isDoctorAvailableAt,
-  windowsForWeekday,
+  windowsOfKind,
   type DayAvailability,
 } from "@/core/lib/availability";
 
@@ -100,12 +101,16 @@ export type SlotCheck =
  * The single source of truth for "can this doctor take an appointment at this
  * time" — leave, working hours, and the daily cap. Used by booking AND by the
  * WhatsApp reschedule flow so both enforce identical rules. Clinic-scoped.
+ *
+ * `hasProcedures` widens the acceptable hours to include the doctor's procedure
+ * windows; omitted, only consultation windows count. A doctor who has never
+ * tagged a window has consultation windows only, so nothing changes for them.
  */
 export async function checkDoctorSlot(
   clinicId: string,
   doctorId: string,
   when: Date,
-  opts?: { excludeAppointmentId?: string },
+  opts?: { excludeAppointmentId?: string; hasProcedures?: boolean },
 ): Promise<SlotCheck> {
   const [doc] = await db
     .select({
@@ -145,12 +150,17 @@ export async function checkDoctorSlot(
         reason: `${name} has no visiting hours set. Please contact the clinic.`,
       };
     }
-    if (!isDoctorAvailableAt(availability, when)) {
-      const windows = windowsForWeekday(availability, when.getDay());
+    // A visit with procedures may use either kind of window — the patient is in
+    // the chair once, and a procedure may run inside consulting hours or in a
+    // slot of its own. A pure consultation is held to consultation windows.
+    const kinds = allowedKindsFor(Boolean(opts?.hasProcedures));
+    if (!isDoctorAvailableAt(availability, when, kinds)) {
+      const windows = windowsOfKind(availability, when.getDay(), kinds);
+      const label = opts?.hasProcedures ? "" : "for consultations ";
       return {
         ok: false,
         reason: windows.length
-          ? `${name} works ${windows.map((w) => `${w.start}–${w.end}`).join(", ")} that day.`
+          ? `${name} works ${label}${windows.map((w) => `${w.start}–${w.end}`).join(", ")} that day.`
           : `${name} isn't available then (hours: ${describeAvailability(availability)}).`,
       };
     }

@@ -7,7 +7,10 @@ import { appointments, patients } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import { computeAppointmentTotal, effectiveDiscountValue } from "@/core/appointments/fee";
-import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
+import {
+  appointmentHasProceduresSql,
+  appointmentProceduresNetSql,
+} from "@/core/appointments/procedures";
 import { checkDoctorSlot } from "@/core/appointments/availability";
 import { queueSessionKey, withQueueNumber } from "@/core/appointments/queue";
 import { parseWhen } from "@/core/appointments/parse-when";
@@ -159,8 +162,17 @@ export async function handleRescheduleReply(args: {
     let availability: DayAvailability[] = [];
     let flexible = false;
     if (appt.doctorId) {
+      // Moving a visit keeps its procedures, so it keeps access to the doctor's
+      // procedure windows — otherwise a procedure booked at 2pm couldn't be
+      // moved to 3pm by the patient without the clinic doing it for them.
+      const [{ hasProcedures }] = await db
+        .select({ hasProcedures: appointmentHasProceduresSql() })
+        .from(appointments)
+        .where(eq(appointments.id, appt.id))
+        .limit(1);
       const check = await checkDoctorSlot(clinicId, appt.doctorId, when, {
         excludeAppointmentId: appt.id,
+        hasProcedures: Boolean(hasProcedures),
       });
       if (!check.ok) {
         await reply(

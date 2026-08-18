@@ -46,6 +46,9 @@ const availabilitySchema = z
         weekday: z.number().int().min(0).max(6),
         start: z.string().regex(TIME_RE, "Invalid time."),
         end: z.string().regex(TIME_RE, "Invalid time."),
+        // Optional, defaulting to consultation: schedules saved before window
+        // kinds existed have no `kind` and must keep validating as they did.
+        kind: z.enum(["consultation", "procedure"]).optional().default("consultation"),
       })
       .refine((d) => (timeToMinutes(d.start) ?? 0) < (timeToMinutes(d.end) ?? 0), {
         message: "End time must be after start time.",

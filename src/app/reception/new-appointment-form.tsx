@@ -235,6 +235,13 @@ export function NewAppointmentForm({
   const freeTime = !doctorId || Boolean(selectedDoctor?.flexibleHours);
   const onLeaveBlock = Boolean(doctorId) && Boolean(date) && Boolean(slots?.onLeave);
 
+  // Whether this visit carries procedures decides which windows the SERVER will
+  // accept (checkDoctorSlot widens to procedure windows only then), so the form
+  // offers exactly that set — never more, never less. Note it's the procedures,
+  // not the consultation-fee checkbox: a visit can skip the fee and still be a
+  // plain consultation, which a procedure window would refuse.
+  const hasProcedures = procSel.size > 0;
+
   const constrained =
     !freeTime &&
     Boolean(date) &&
@@ -242,23 +249,26 @@ export function NewAppointmentForm({
     !slots.onLeave &&
     slots.available &&
     slots.windows.length > 0;
-  const windows = constrained ? slots!.windows : [];
+  const windows = constrained
+    ? slots!.windows.filter((w) => hasProcedures || w.kind !== "procedure")
+    : [];
   // The selected window is whichever one contains the current time.
   const selectedWindowIdx = windows.findIndex(
     (w) => timeToMin(time) >= timeToMin(w.start) && timeToMin(time) < timeToMin(w.end),
   );
 
-  // For a specific-hours doctor, keep `time` inside a window (snap to the first
-  // if it isn't — e.g. after switching doctor/date).
+  // Keep `time` inside a BOOKABLE window (snap to the first if it isn't) — after
+  // switching doctor or date, and after removing the last procedure, which can
+  // strand the time inside a procedure window that no longer applies.
   useEffect(() => {
     if (freeTime || !slots) return;
-    const ws = slots.windows;
+    const ws = slots.windows.filter((w) => hasProcedures || w.kind !== "procedure");
     if (ws.length === 0) return;
     const inWindow = ws.some(
       (w) => timeToMin(time) >= timeToMin(w.start) && timeToMin(time) < timeToMin(w.end),
     );
     if (!inWindow) setTime(ws[0].start);
-  }, [slots, freeTime, time]);
+  }, [slots, freeTime, time, hasProcedures]);
 
   const effectiveTime = freeTime ? time : selectedWindowIdx >= 0 ? time : "";
   const scheduledAt =
@@ -397,7 +407,13 @@ export function NewAppointmentForm({
               Doctor doesn&apos;t work that day. Pick another date.
             </p>
           ) : windows.length === 0 ? (
-            <p className="text-sm text-destructive">No available times that day.</p>
+            // Distinguish "doesn't work" from "works, but only on procedures" —
+            // the second is fixed by adding a procedure, not by changing the date.
+            <p className="text-sm text-destructive">
+              {slots.windows.length > 0
+                ? "That day is procedure-only. Add a procedure below, or pick another date."
+                : "No available times that day."}
+            </p>
           ) : (
             // Specific-hours doctor → pick one of the visiting-hours window(s).
             // These are buttons (not <input type="radio">) on purpose: React 19
@@ -426,7 +442,16 @@ export function NewAppointmentForm({
                         <span className="size-2 rounded-full bg-primary" />
                       ) : null}
                     </span>
-                    {label12(w.start)} – {label12(w.end)}
+                    <span>
+                      {label12(w.start)} – {label12(w.end)}
+                    </span>
+                    {/* This slot is only in the list because procedures were
+                        added — say so, since it appears and disappears. */}
+                    {w.kind === "procedure" ? (
+                      <span className="ml-auto rounded-md border border-input px-1.5 py-0.5 text-xs text-muted-foreground">
+                        Procedure slot
+                      </span>
+                    ) : null}
                   </button>
                 );
               })}
@@ -782,7 +807,7 @@ export function NewAppointmentForm({
           {slots.flexible
             ? "Flexible: book any time."
             : slots.windows.length
-              ? `Working hours ${slots.windows.map((w) => `${w.start}–${w.end}`).join(", ")}.`
+              ? `Working hours ${slots.windows.map((w) => `${w.start}–${w.end}${w.kind === "procedure" ? " (procedures)" : ""}`).join(", ")}.`
               : ""}
           {slots.remaining !== null
             ? ` ${slots.remaining} of ${slots.limit} appointment${slots.remaining === 1 ? "" : "s"} left that day.`

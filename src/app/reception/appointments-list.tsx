@@ -53,6 +53,8 @@ export type AppointmentsListSearchParams = {
   /** "YYYY-MM" — which month the calendar shows. Independent of from/to so
    *  browsing months doesn't change which day the table lists. */
   month?: string;
+  /** "0" folds the calendar to one line so the table sits above the fold. */
+  cal?: string;
   page?: string;
   size?: string;
 };
@@ -152,6 +154,7 @@ export async function AppointmentsList({
   // range. It browses independently (`?month=`), so stepping months doesn't
   // disturb which day the table is showing.
   const month = monthBounds(parseMonth(sp.month) ?? start);
+  const calCollapsed = sp.cal === "0";
   const [rows, queue, [{ total }], calendarDays] = await Promise.all([
     db
       .select({
@@ -259,7 +262,12 @@ export async function AppointmentsList({
 
   // Calendar links keep every other filter exactly as the user set it — a day
   // click only moves the date range, a month step only moves `month`.
-  const calendarHref = (next: { from?: string; to?: string; month?: string }) => {
+  const calendarHref = (next: {
+    from?: string;
+    to?: string;
+    month?: string;
+    collapsed?: boolean;
+  }) => {
     const params = new URLSearchParams();
     params.set("from", next.from ?? fromStr);
     params.set("to", next.to ?? toStr);
@@ -268,6 +276,7 @@ export async function AppointmentsList({
     if (type) params.set("type", type);
     if (payment) params.set("payment", payment);
     if (next.month) params.set("month", next.month);
+    if (next.collapsed ?? calCollapsed) params.set("cal", "0");
     return `${listPath}?${params.toString()}`;
   };
   const stepMonth = (delta: number) => {
@@ -338,6 +347,7 @@ export async function AppointmentsList({
         today={today}
         session={session}
         month={sp.month && calendarDays.length > 0 ? toYm(month.start) : ""}
+        calCollapsed={calCollapsed}
       />
 
       {/* The month at a glance, above the table it filters. Hover a day for the
@@ -351,6 +361,8 @@ export async function AppointmentsList({
             month: "long",
             year: "numeric",
           })}
+          collapsed={calCollapsed}
+          toggleHref={calendarHref({ month: toYm(month.start), collapsed: !calCollapsed })}
           prevHref={stepMonth(-1)}
           nextHref={stepMonth(1)}
           todayHref={calendarHref({ from: today, to: today, month: toYm(new Date()) })}
