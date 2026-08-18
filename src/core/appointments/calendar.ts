@@ -12,18 +12,12 @@ import {
 } from "@/core/lib/availability";
 import { appointmentHasProceduresSql } from "./procedures";
 import { listClinicDoctors, type ClinicDoctor } from "./doctors";
+import { SERVER_TZ } from "@/core/lib/server-tz";
 import { localDateStr } from "./availability";
 import {
   buildAppointmentConds,
   type AppointmentFilterInput,
 } from "./list-query";
-
-/**
- * The IANA zone the server's `Date` maths uses. Availability, day bounds and the
- * reminder cron all work in this clock (see the timezone caveat in
- * .claude/database.md), so SQL-side day bucketing has to agree with it.
- */
-const SERVER_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
 /** A doctor visiting on a given day. */
 export type DutyDoctor = {

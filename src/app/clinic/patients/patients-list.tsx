@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { CalendarPlus, ChevronRight, Download, Plus } from "lucide-react";
-import { count, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { count, desc, eq, ilike, or } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, patients } from "@/core/db/schema";
-import { formatMrn, mrnDigits } from "@/core/patients/mrn";
+import { formatMrn, mrnDigits, mrnMatchesSql } from "@/core/patients/mrn";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
@@ -79,10 +79,7 @@ export async function PatientsList({
     const digits = mrnDigits(query);
     // Match the MRN's digits (registration date + padded counter) so "42",
     // "0000042", or a pasted "KL-202607270000042" all resolve to the patient.
-    if (digits)
-      conds.push(
-        sql`(to_char(${patients.createdAt}, 'YYYYMMDD') || lpad(${patients.mrn}::text, 7, '0')) ilike ${`%${digits}%`}`,
-      );
+    if (digits) conds.push(mrnMatchesSql(digits));
     search = or(...conds);
   }
 

@@ -1,4 +1,4 @@
-import { desc, eq, ilike, or, sql } from "drizzle-orm";
+import { desc, eq, ilike, or } from "drizzle-orm";
 import { getCurrentUser } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { db } from "@/core/db";
@@ -6,7 +6,7 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, patients } from "@/core/db/schema";
 import { toCsv } from "@/core/lib/csv";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
-import { formatMrn, mrnDigits } from "@/core/patients/mrn";
+import { formatMrn, mrnDigits, mrnMatchesSql } from "@/core/patients/mrn";
 import { ageFromDob } from "@/core/lib/age";
 
 /**
@@ -27,10 +27,7 @@ export async function GET(req: Request) {
   if (query) {
     const conds = [ilike(patients.fullName, `%${query}%`), ilike(patients.phone, `%${query}%`)];
     const digits = mrnDigits(query);
-    if (digits)
-      conds.push(
-        sql`(to_char(${patients.createdAt}, 'YYYYMMDD') || lpad(${patients.mrn}::text, 7, '0')) ilike ${`%${digits}%`}`,
-      );
+    if (digits) conds.push(mrnMatchesSql(digits));
     search = or(...conds);
   }
   const where = byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt), search);

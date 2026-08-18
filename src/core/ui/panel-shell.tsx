@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConnectionStatus } from "@/core/ui/connection-status";
+import { GlobalSearch, type SearchNavItem } from "@/core/ui/global-search";
 import {
   BadgeCheck,
   BellRing,
@@ -303,6 +304,31 @@ export function PanelShell({
     .map((n) => (isGroup(n) ? { ...n, items: n.items.filter(visible) } : n))
     .filter((n) => (isGroup(n) ? n.items.length > 0 : visible(n)));
 
+  // Flattened for the search box — the SAME already-filtered list the sidebar
+  // renders, so search can never offer a page the nav wouldn't show.
+  const searchNavItems: SearchNavItem[] = visibleNodes.flatMap((n) =>
+    isGroup(n)
+      ? n.items.map((i) => ({ href: i.href, label: i.label, group: n.group }))
+      : [{ href: n.href, label: n.label }],
+  );
+  // Patients and appointments live under each panel's own base; only the clinic
+  // workspace has the invoice/receipt print pages.
+  const searchBase =
+    panel === "reception"
+      ? { patients: "/reception/patients", appts: "/reception/appointments", docs: false }
+      : panel === "doctor"
+        ? { patients: "/doctor/patients", appts: "/doctor/appointments", docs: false }
+        : { patients: "/clinic/patients", appts: "/clinic/appointments", docs: true };
+  const searchBox =
+    panel === "admin" ? null : (
+      <GlobalSearch
+        navItems={searchNavItems}
+        patientBase={searchBase.patients}
+        appointmentBase={searchBase.appts}
+        documentPages={searchBase.docs}
+      />
+    );
+
   const isActive = (item: NavItem) =>
     item.exact ? pathname === item.href : pathname.startsWith(item.href);
   const groupHasActive = (g: NavGroup) => g.items.some(isActive);
@@ -435,10 +461,13 @@ export function PanelShell({
 
       {/* ---- Desktop top bar (clinic name left; theme + profile top-right) ---- */}
       <header className="sticky top-0 z-20 hidden items-center justify-between gap-3 border-b bg-card px-6 py-2 md:flex">
-        <span className="max-w-xs truncate text-sm font-medium text-muted-foreground">
+        <span className="max-w-xs shrink-0 truncate text-sm font-medium text-muted-foreground">
           {identityLabel}
         </span>
-        <div className="flex items-center gap-3">
+        {searchBox ? (
+          <div className="mx-auto w-full max-w-md px-4">{searchBox}</div>
+        ) : null}
+        <div className="flex shrink-0 items-center gap-3">
           <NotificationBell initialUnread={notificationCount} />
           <ThemeToggle initial={theme} />
           <Link
@@ -482,6 +511,14 @@ export function PanelShell({
           </form>
         </div>
       </header>
+
+      {/* Mobile search sits on its OWN row: that bar already carries five
+          controls, so an inline field would crush the logo. */}
+      {searchBox ? (
+        <div className="sticky top-[3.75rem] z-30 border-b bg-card px-4 py-2 md:hidden">
+          {searchBox}
+        </div>
+      ) : null}
 
       {/* ---- Mobile drawer (slides in/out; backdrop fades) ---- */}
       <div

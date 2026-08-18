@@ -1,5 +1,9 @@
 import "server-only";
 
+import { sql, type SQL } from "drizzle-orm";
+import { patients } from "@/core/db/schema";
+import { SERVER_TZ } from "@/core/lib/server-tz";
+
 /**
  * Patient MRN (Medical Record Number) — CORE, specialty-agnostic. A per-clinic,
  * human-friendly patient number allocated sequentially at registration by locking
@@ -34,4 +38,19 @@ export function formatMrn(
  */
 export function mrnDigits(q: string): string {
   return q.replace(/\D/g, "");
+}
+
+/**
+ * SQL predicate: does this patient's RENDERED MRN contain `digits`? Matches what
+ * `formatMrn` prints — registration date + padded counter — so "42", "0000042"
+ * and a pasted "KL-202607270000042" all resolve to the same patient.
+ *
+ * The date half must be formatted in the SERVER's zone, not the connection's.
+ * `created_at` is timestamptz and a bare `to_char` uses the session TimeZone, so
+ * on a box whose Postgres session isn't the app's zone every full-MRN paste
+ * missed by a day and found nothing. Use this rather than hand-rolling the
+ * concatenation, so every search agrees with the label on the printout.
+ */
+export function mrnMatchesSql(digits: string): SQL {
+  return sql`(to_char(${patients.createdAt} at time zone cast(${SERVER_TZ} as text), 'YYYYMMDD') || lpad(${patients.mrn}::text, 7, '0')) ilike ${`%${digits}%`}`;
 }
