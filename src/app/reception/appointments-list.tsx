@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChevronRight, Download, Plus } from "lucide-react";
-import { and, asc, count, eq, gte, ilike, lt, or, sql } from "drizzle-orm";
+import { and, asc, count, eq } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, clinics, patients, users } from "@/core/db/schema";
@@ -19,6 +19,9 @@ import {
 } from "@/core/appointments/procedures";
 import { getDayQueue } from "@/core/appointments/queue";
 import { parseListFilters } from "@/core/appointments/list-filters";
+import { buildAppointmentConds } from "@/core/appointments/list-query";
+import { getCalendarDays, monthBounds } from "@/core/appointments/calendar";
+import { AppointmentMonth } from "./appointment-month";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { displayStaffName } from "@/core/types/auth";
 import { QueueSummary } from "@/core/ui/queue-summary";
@@ -47,9 +50,21 @@ export type AppointmentsListSearchParams = {
   type?: string;
   payment?: string;
   session?: string;
+  /** "YYYY-MM" — which month the calendar shows. Independent of from/to so
+   *  browsing months doesn't change which day the table lists. */
+  month?: string;
   page?: string;
   size?: string;
 };
+
+const YM = /^\d{4}-(0[1-9]|1[0-2])$/;
+/** Local midnight on the 1st of a "YYYY-MM", or null when absent/malformed. */
+function parseMonth(value: string | undefined): Date | null {
+  if (!value || !YM.test(value)) return null;
+  const [y, m] = value.split("-").map(Number);
+  return new Date(y, m - 1, 1);
+}
+const toYm = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 
 /**
  * The clinic's appointments list — shared by the receptionist panel and any other
@@ -113,45 +128,19 @@ export async function AppointmentsList({
   if (type) exportParams.set("type", type);
   if (payment) exportParams.set("payment", payment);
 
-  // SQL for the visit's net bill: (consultation if charged) + procedures − the
-  // approval-gated appointment discount. Mirrors computeAppointmentTotal.
-  const effDiscount = sql`(case when ${appointments.discountStatus} in ('pending','rejected') then 0 else ${appointments.discountValue} end)`;
-  const subtotalSql = sql`((case when ${appointments.chargeConsultation} then coalesce(${users.consultationFee}, 0) else 0 end) + ${appointmentProceduresNetSql()})`;
-  const netSql = sql`(${subtotalSql} - least(greatest(case when ${appointments.discountType} = 'percent' then round(${subtotalSql} * ${effDiscount} / 100.0) else ${effDiscount} end, 0), ${subtotalSql}))`;
-
   // A queue session pins the doctor + day + window (ordered by token); the date
   // range applies only in the normal list. The other filters (search, status,
-  // type, payment) narrow BOTH views — so selecting a doctor's queue still filters.
-  const conds = session
-    ? [eq(appointments.queueSession, session)]
-    : [gte(appointments.scheduledAt, start), lt(appointments.scheduledAt, endExclusive)];
-  if (q) {
-    conds.push(
-      or(ilike(patients.fullName, `%${q}%`), ilike(patients.phone, `%${q}%`))!,
-    );
-  }
-  if (status) conds.push(eq(appointments.status, status));
-  // Visit type = consultation (fee, no procedures) · procedure (procedures, fee not
-  // charged) · both (fee + procedures). Derived from charge_consultation + procedures.
-  if (type) {
-    const hasProc = appointmentHasProceduresSql();
-    if (type === "both") {
-      conds.push(sql`${appointments.chargeConsultation} = true and ${hasProc}`);
-    } else if (type === "procedure") {
-      conds.push(sql`${appointments.chargeConsultation} = false and ${hasProc}`);
-    } else if (type === "consultation") {
-      conds.push(sql`not ${hasProc}`);
-    }
-  }
-  if (payment) {
-    if (payment === "paid") {
-      conds.push(sql`${appointments.status} = 'completed' and (${netSql} <= 0 or ${appointments.amountCollected} >= ${netSql})`);
-    } else if (payment === "partial") {
-      conds.push(sql`${appointments.status} = 'completed' and ${netSql} > 0 and ${appointments.amountCollected} > 0 and ${appointments.amountCollected} < ${netSql}`);
-    } else if (payment === "unpaid") {
-      conds.push(sql`${appointments.status} = 'completed' and ${netSql} > 0 and ${appointments.amountCollected} = 0`);
-    }
-  }
+  // type, payment) narrow BOTH views — so selecting a doctor's queue still
+  // filters. Shared with the CSV export and the month calendar.
+  const conds = buildAppointmentConds({
+    session,
+    start,
+    endExclusive,
+    q,
+    status,
+    type,
+    payment,
+  });
 
   const whereClause = byClinic(
     appointments.clinicId,
@@ -159,7 +148,11 @@ export async function AppointmentsList({
     notDeleted(appointments.deletedAt),
     and(...conds),
   );
-  const [rows, queue, [{ total }]] = await Promise.all([
+  // The calendar sits above the table showing the month around the current
+  // range. It browses independently (`?month=`), so stepping months doesn't
+  // disturb which day the table is showing.
+  const month = monthBounds(parseMonth(sp.month) ?? start);
+  const [rows, queue, [{ total }], calendarDays] = await Promise.all([
     db
       .select({
         id: appointments.id,
@@ -194,6 +187,15 @@ export async function AppointmentsList({
       .from(appointments)
       .innerJoin(patients, eq(appointments.patientId, patients.id))
       .where(whereClause),
+    // A queue view has no date range for a calendar to sit against.
+    session
+      ? Promise.resolve([])
+      : getCalendarDays(clinicId, month.start, month.endExclusive, {
+          q,
+          status,
+          type,
+          payment,
+        }),
   ]);
 
   const activeQueue = session ? (queue.find((s) => s.key === session) ?? null) : null;
@@ -254,6 +256,24 @@ export async function AppointmentsList({
   const contextLabel = session
     ? `queue · ${activeQueue ? `${activeQueue.doctorName} · ${activeQueue.windowLabel}` : "selected"}`
     : `${rangeLabel}${statusLabel}${typeLabel}${q ? ` · “${q}”` : ""}`;
+
+  // Calendar links keep every other filter exactly as the user set it — a day
+  // click only moves the date range, a month step only moves `month`.
+  const calendarHref = (next: { from?: string; to?: string; month?: string }) => {
+    const params = new URLSearchParams();
+    params.set("from", next.from ?? fromStr);
+    params.set("to", next.to ?? toStr);
+    if (q) params.set("q", q);
+    if (status) params.set("status", status);
+    if (type) params.set("type", type);
+    if (payment) params.set("payment", payment);
+    if (next.month) params.set("month", next.month);
+    return `${listPath}?${params.toString()}`;
+  };
+  const stepMonth = (delta: number) => {
+    const d = new Date(month.start.getFullYear(), month.start.getMonth() + delta, 1);
+    return calendarHref({ month: toYm(d) });
+  };
 
   return (
     <div className="space-y-6">
@@ -317,7 +337,28 @@ export async function AppointmentsList({
         showPayment={billingOn}
         today={today}
         session={session}
+        month={sp.month && calendarDays.length > 0 ? toYm(month.start) : ""}
       />
+
+      {/* The month at a glance, above the table it filters. Hover a day for the
+          visit-type breakdown and which doctors are visiting (with hours);
+          click one to list that date below. */}
+      {calendarDays.length > 0 ? (
+        <AppointmentMonth
+          days={calendarDays}
+          today={today}
+          monthLabel={month.start.toLocaleDateString("en-GB", {
+            month: "long",
+            year: "numeric",
+          })}
+          prevHref={stepMonth(-1)}
+          nextHref={stepMonth(1)}
+          todayHref={calendarHref({ from: today, to: today, month: toYm(new Date()) })}
+          dayHref={(date) => calendarHref({ from: date, to: date, month: toYm(month.start) })}
+          selectedFrom={fromStr}
+          selectedTo={toStr}
+        />
+      ) : null}
 
       <Pagination
         page={page}

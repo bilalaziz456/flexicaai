@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, sql, type SQL } from "drizzle-orm";
 import { getCurrentUser } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { db } from "@/core/db";
@@ -15,6 +15,7 @@ import {
   appointmentProceduresNetSql,
 } from "@/core/appointments/procedures";
 import { parseListFilters } from "@/core/appointments/list-filters";
+import { buildAppointmentConds } from "@/core/appointments/list-query";
 import { statusLabel } from "@/core/appointments/status";
 import { displayStaffName } from "@/core/types/auth";
 
@@ -44,33 +45,10 @@ export async function GET(req: Request) {
   const billingOn = clinicHasFeature(clinicRow?.featuresEnabled, "sales");
   const payment = billingOn && typeof sp.payment === "string" ? sp.payment : "";
 
-  // Net-bill SQL (mirrors the list) — only needed for the payment filter.
-  const effDiscount = sql`(case when ${appointments.discountStatus} in ('pending','rejected') then 0 else ${appointments.discountValue} end)`;
-  const subtotalSql = sql`((case when ${appointments.chargeConsultation} then coalesce(${users.consultationFee}, 0) else 0 end) + ${appointmentProceduresNetSql()})`;
-  const netSql = sql`(${subtotalSql} - least(greatest(case when ${appointments.discountType} = 'percent' then round(${subtotalSql} * ${effDiscount} / 100.0) else ${effDiscount} end, 0), ${subtotalSql}))`;
-
-  // Every filter except the keyset cursor (added per batch below).
-  const baseConds = (): SQL[] => {
-    const conds: SQL[] = session
-      ? [eq(appointments.queueSession, session)]
-      : [gte(appointments.scheduledAt, start), lt(appointments.scheduledAt, endExclusive)];
-    if (q) conds.push(or(ilike(patients.fullName, `%${q}%`), ilike(patients.phone, `%${q}%`))!);
-    if (status) conds.push(eq(appointments.status, status));
-    if (type) {
-      const hasProc = appointmentHasProceduresSql();
-      if (type === "both") conds.push(sql`${appointments.chargeConsultation} = true and ${hasProc}`);
-      else if (type === "procedure") conds.push(sql`${appointments.chargeConsultation} = false and ${hasProc}`);
-      else if (type === "consultation") conds.push(sql`not ${hasProc}`);
-    }
-    if (payment === "paid") {
-      conds.push(sql`${appointments.status} = 'completed' and (${netSql} <= 0 or ${appointments.amountCollected} >= ${netSql})`);
-    } else if (payment === "partial") {
-      conds.push(sql`${appointments.status} = 'completed' and ${netSql} > 0 and ${appointments.amountCollected} > 0 and ${appointments.amountCollected} < ${netSql}`);
-    } else if (payment === "unpaid") {
-      conds.push(sql`${appointments.status} = 'completed' and ${netSql} > 0 and ${appointments.amountCollected} = 0`);
-    }
-    return conds;
-  };
+  // Every filter except the keyset cursor (added per batch below). Shared with
+  // the list page + calendar so the CSV always matches what's on screen.
+  const baseConds = (): SQL[] =>
+    buildAppointmentConds({ session, start, endExclusive, q, status, type, payment });
 
   const typeLabel = (charge: boolean, hasProc: boolean): string => {
     if (charge && hasProc) return "Consultation + procedure";

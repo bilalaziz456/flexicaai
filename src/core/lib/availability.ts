@@ -30,6 +30,14 @@ export function timeToMinutes(hhmm: string): number | null {
   return h * 60 + m;
 }
 
+/** "09:30" → "9:30 AM", for reading a working window back to a patient. */
+export function formatTime12(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const meridiem = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${meridiem}`;
+}
+
 /** ALL of the doctor's working windows for a JS weekday (0=Sun..6=Sat). */
 export function windowsForWeekday(
   availability: DayAvailability[],

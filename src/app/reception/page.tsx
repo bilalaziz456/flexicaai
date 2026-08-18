@@ -1,22 +1,15 @@
 import { requireRole } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
-import { AppointmentsList } from "./appointments-list";
+import {
+  AppointmentsList,
+  type AppointmentsListSearchParams,
+} from "./appointments-list";
 
 /** Receptionist / manager: the clinic's appointments (shared list component). */
 export default async function ReceptionHome({
   searchParams,
 }: {
-  searchParams: Promise<{
-    created?: string;
-    updated?: string;
-    from?: string;
-    to?: string;
-    q?: string;
-    status?: string;
-    session?: string;
-    page?: string;
-    size?: string;
-  }>;
+  searchParams: Promise<AppointmentsListSearchParams>;
 }) {
   const user = await requireRole(["receptionist", "manager"]);
   if (!user.clinicId) {

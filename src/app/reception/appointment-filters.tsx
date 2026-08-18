@@ -95,6 +95,7 @@ export function AppointmentFilters({
   showPayment = false,
   today,
   session = "",
+  month = "",
 }: {
   from: string;
   to: string;
@@ -108,6 +109,9 @@ export function AppointmentFilters({
   /** When set, the list is scoped to one doctor's queue: preserve it on every
    *  filter change and hide the date range (the session already pins the day). */
   session?: string;
+  /** "YYYY-MM" the calendar is browsing. Carried through so changing a filter
+   *  doesn't snap the grid back to the month of the date range. */
+  month?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -146,6 +150,7 @@ export function AppointmentFilters({
     if (st) params.set("status", st);
     if (ty) params.set("type", ty);
     if (pay) params.set("payment", pay);
+    if (month) params.set("month", month);
     const s = params.toString();
     router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
   }
