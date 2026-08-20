@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
-import { getCurrentUser } from "@/core/auth/user";
-import { can } from "@/core/auth/permissions";
+import { apiRequireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { clinics, patients, visits } from "@/core/db/schema";
 import { getClinicWorkspace } from "@/config/modules";
 import { saveClinicFile } from "@/core/integrations/storage";
-import { runScribe } from "@/core/ai/scribe-engine";
+import { runScribe, AiTimeoutError } from "@/core/ai/scribe-engine";
 import { recordScribeUsage } from "@/core/ai/usage";
 import { MissingApiKeyError, AiParseError } from "@/core/ai/prompt-runner";
 import { getPatientAllergies } from "@/core/patients/medical-history";
@@ -19,6 +18,20 @@ import { aiScribeByUser, throttle, tooManyRequests } from "@/core/security/rate-
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB
 
 /**
+ * This route runs TWO paid, slow provider calls back to back (Whisper, then Claude),
+ * so it needs far more than a default request budget: real dictation is minutes of
+ * audio. Without this the hosting platform kills the invocation mid-call, the doctor
+ * sees a generic failure, and the audio is already stored and the APIs already
+ * billed — with no way to report what happened.
+ *
+ * 300s is the ceiling the provider timeouts are budgeted against (Whisper 120s +
+ * Claude 90s × 2 attempts). Raising either of those means raising this too — see the
+ * SCRIBE TIME BUDGET note in `core/ai/scribe-engine/index.ts`. Note this is an upper
+ * bound the platform may cap by plan; it does not make a request slower.
+ */
+export const maxDuration = 300;
+
+/**
  * POST /api/ai/scribe — CORE, specialty-agnostic voice scribe (CLAUDE.md §8).
  * Doctor uploads audio (+ patientId); we transcribe (Whisper) and generate a
  * structured note (Claude) using the CLINIC'S ENABLED MODULE prompt, then save
@@ -26,15 +39,17 @@ const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB
  * auto-finalized. Every query is scoped to the doctor's own clinic_id.
  */
 export async function POST(request: Request) {
-  const user = await getCurrentUser();
-  if (!user || user.role !== "doctor" || !user.clinicId) {
-    return NextResponse.json({ error: "Not authorized." }, { status: 401 });
-  }
-  // Generating a note is a clinical authoring action.
-  if (!can(user, "clinical", "create")) {
-    return NextResponse.json({ error: "Not permitted." }, { status: 403 });
-  }
-  const clinicId = user.clinicId;
+  // Generating a note is a clinical authoring action, gated on the PERMISSION and
+  // not on the `doctor` role (CLAUDE.md §8). This used to require
+  // `role === "doctor"`, which locked out the clinic owner who is the practising
+  // dentist — the common case in this market. They could open /clinic/scribe and
+  // record (that page gates on `clinical`), then got a 401 from this route.
+  //
+  // Going through the shared guard also means a paused clinic can't reach the PAID
+  // AI providers: it was blocked from every page but not from this route.
+  const auth = await apiRequireWorkspace("clinical", "create");
+  if (!auth.ok) return auth.response;
+  const { user, clinicId } = auth;
 
   // Throttle before reading the (large) upload or hitting the PAID AI APIs — bounds
   // spend if a client loops. Per doctor.
@@ -153,6 +168,18 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "The AI returned an unreadable note. Please try again." },
         { status: 502 },
+      );
+    }
+    // A provider stalled past its budget (Whisper) or past the SDK timeout (Claude).
+    // 504 + `retryable` so the client can offer "Try again" on the SAME recording
+    // rather than making the doctor dictate it a second time.
+    if (e instanceof AiTimeoutError) {
+      return NextResponse.json(
+        {
+          error: "The AI service took too long to respond. Your recording was saved — please try again.",
+          retryable: true,
+        },
+        { status: 504 },
       );
     }
     const message = e instanceof Error ? e.message : "Scribe failed.";

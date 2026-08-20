@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq, ilike, isNotNull } from "drizzle-orm";
+import { and, eq, ilike, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { patients, whatsappMessages } from "@/core/db/schema";
@@ -117,16 +117,38 @@ export async function POST(request: Request) {
   const exact = candidates.filter((c) => normalisePhone(c.phone ?? "") === phone);
   const matched = exact.length === 1 ? exact[0] : null;
 
-  await db.insert(whatsappMessages).values({
+  // IDEMPOTENT INSERT — see the Cloud webhook and the partial unique index in
+  // schema.ts. AiSensy redelivers when it doesn't get a timely 200, and the
+  // self-service handlers below can BOOK an appointment, so a replay must not run
+  // them twice. An empty `returning()` means the unique index rejected the row as a
+  // duplicate: already handled, acknowledge and stop.
+  const values = {
     clinicId: matched?.clinicId ?? null,
     patientId: matched?.id ?? null,
-    direction: "inbound",
+    direction: "inbound" as const,
     phone,
-    status: "received",
+    status: "received" as const,
     body: text ?? null,
     externalId: externalId ?? null,
     payload,
-  });
+  };
+  const insertedRows = externalId
+    ? await db
+        .insert(whatsappMessages)
+        .values(values)
+        // `where` is the CONFLICT TARGET predicate; it repeats the partial index's
+        // predicate so Postgres can infer which index this targets.
+        .onConflictDoNothing({
+          target: whatsappMessages.externalId,
+          where: sql`${whatsappMessages.externalId} is not null and ${whatsappMessages.direction} = 'inbound'`,
+        })
+        .returning({ id: whatsappMessages.id })
+    // No provider id → nothing to dedupe on; process it, as before.
+    : await db.insert(whatsappMessages).values(values).returning({ id: whatsappMessages.id });
+
+  if (insertedRows.length === 0) {
+    return NextResponse.json({ ok: true, kind: "duplicate" });
+  }
 
   // Self-service for a matched patient: reschedule an existing appointment
   // ("reschedule …") or book a new one ("book …"). Reschedule is checked first;

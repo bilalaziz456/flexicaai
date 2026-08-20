@@ -1,6 +1,4 @@
-import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/core/auth/user";
-import { canAdmin } from "@/core/auth/admin-permissions";
+import { apiRequireAdminCapability } from "@/core/auth/user";
 import { getCompanyPnl } from "@/core/admin/pnl";
 import { resolveSalesRange } from "@/core/sales/report";
 import { toCsv } from "@/core/lib/csv";
@@ -13,10 +11,8 @@ import { BRAND_POWERED_BY } from "@/core/lib/brand";
  * Excel opens Urdu/Arabic clinic names correctly.
  */
 export async function GET(request: Request) {
-  const user = await getCurrentUser();
-  if (!user || user.role !== "super_admin" || !canAdmin(user, "pnl:view")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await apiRequireAdminCapability("pnl:view");
+  if (!auth.ok) return auth.response;
 
   const url = new URL(request.url);
   const range = resolveSalesRange(

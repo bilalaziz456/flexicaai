@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { getCurrentUser } from "@/core/auth/user";
+import { apiRequireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
@@ -24,9 +24,11 @@ import { BRAND_POWERED_BY } from "@/core/lib/brand";
  * filters mirror each report page (period/from/to, or date for the day book).
  */
 export async function GET(req: Request) {
-  const user = await getCurrentUser();
-  if (!user?.clinicId) return new Response("Unauthorized", { status: 401 });
-  const clinicId = user.clinicId;
+  // Workspace gate only — each report type applies its own feature + permission
+  // check below, since one route serves a dozen differently-gated reports.
+  const auth = await apiRequireWorkspace();
+  if (!auth.ok) return auth.response;
+  const { user, clinicId } = auth;
 
   const url = new URL(req.url);
   const type = url.searchParams.get("type") ?? "";

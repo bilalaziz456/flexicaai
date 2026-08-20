@@ -71,13 +71,18 @@ const serverSchema = z.object({
   // Token echoed back on the Cloud API webhook verification (GET hub.challenge).
   WHATSAPP_VERIFY_TOKEN: z.string().optional(),
   // Meta App Secret — verifies the X-Hub-Signature-256 on inbound Cloud webhooks.
-  // When set, a bad/missing signature is rejected; unset = accept (dev only).
+  // PRODUCTION-REQUIRED (see the note at the bottom of this file): when set, a
+  // bad/missing signature is rejected; unset, the webhook accepts payloads in dev and
+  // REFUSES them in production rather than trusting an unsigned caller.
   WHATSAPP_APP_SECRET: z.string().optional(),
 
-  // Secret protecting the cron endpoint that runs the recall engine. Vercel
-  // sends it as `Authorization: Bearer <CRON_SECRET>` automatically.
+  // Secret protecting the cron endpoints. Vercel sends it as
+  // `Authorization: Bearer <CRON_SECRET>` automatically. PRODUCTION-REQUIRED —
+  // unset, every cron route answers 503 rather than running unprotected
+  // (`core/security/cron.ts`).
   CRON_SECRET: z.string().optional(),
   // Shared secret AiSensy includes (?token=) when calling our inbound webhook.
+  // PRODUCTION-REQUIRED — the webhook already 401s when this is unset.
   WHATSAPP_WEBHOOK_TOKEN: z.string().optional(),
 
   // HMAC secret for signing public, unguessable links (prescription PDFs sent
@@ -135,3 +140,19 @@ export const serverEnv = serverSchema.parse({
 });
 
 export const isProduction = serverEnv.NODE_ENV === "production";
+
+/**
+ * PRODUCTION-REQUIRED SECRETS — and why they are `optional()` above anyway.
+ *
+ * Three vars guard endpoints the public internet can reach:
+ *   • CRON_SECRET           → every /api/cron/* route      (core/security/cron.ts)
+ *   • WHATSAPP_WEBHOOK_TOKEN → /api/whatsapp/webhook       (AiSensy inbound)
+ *   • WHATSAPP_APP_SECRET   → /api/whatsapp/cloud          (Meta signature)
+ *
+ * Each is enforced at the REQUEST boundary — unset in production, those routes
+ * refuse the call (503/401) instead of degrading into an open endpoint. We
+ * deliberately do NOT mark them required in the schema: this module is imported
+ * during `next build`, which runs with NODE_ENV=production, so a required var would
+ * fail the BUILD on any machine that doesn't carry production secrets (CI, a local
+ * `npm run build`). Failing the request is loud enough and can't brick a deploy.
+ */

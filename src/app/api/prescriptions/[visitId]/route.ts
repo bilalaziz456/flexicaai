@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/core/auth/user";
-import { can } from "@/core/auth/permissions";
+import { apiRequireWorkspace } from "@/core/auth/user";
 import { buildPrescriptionPdf } from "../build";
 
 /**
@@ -14,14 +13,10 @@ export async function GET(
 ) {
   const { visitId } = await params;
 
-  const user = await getCurrentUser();
-  if (!user || !user.clinicId) {
-    return NextResponse.json({ error: "Not authorized." }, { status: 401 });
-  }
   // Permission-driven: any clinic staff granted prescription view access.
-  if (!can(user, "prescriptions", "view")) {
-    return NextResponse.json({ error: "Not permitted." }, { status: 403 });
-  }
+  const auth = await apiRequireWorkspace("prescriptions", "view");
+  if (!auth.ok) return auth.response;
+  const { user } = auth;
 
   const result = await buildPrescriptionPdf(visitId);
   if (!result.ok) {

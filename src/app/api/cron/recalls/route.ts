@@ -1,30 +1,16 @@
 import { NextResponse } from "next/server";
 import { processDueRecalls } from "@/core/recall";
 import { unscoped } from "@/core/db/tenant-guard";
-import { serverEnv, isProduction } from "@/core/lib/env";
+import { requireCron } from "@/core/security/cron";
 
 /**
  * GET /api/cron/recalls — runs the recall engine: sends reminders for recalls
  * that are due. Triggered by Vercel Cron (CLAUDE.md §2 — start with Vercel Cron).
- * Vercel sends `Authorization: Bearer <CRON_SECRET>` automatically; we also
- * accept ?token=<CRON_SECRET> for manual runs.
+ * Auth is the shared `requireCron` guard (Bearer <CRON_SECRET> or ?token=…).
  */
 export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  const provided = bearer || url.searchParams.get("token") || "";
-
-  if (serverEnv.CRON_SECRET) {
-    if (provided !== serverEnv.CRON_SECRET) {
-      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-    }
-  } else if (isProduction) {
-    // Refuse to run an unprotected cron in production.
-    return NextResponse.json(
-      { error: "CRON_SECRET is not configured." },
-      { status: 503 },
-    );
-  }
+  const denied = requireCron(request);
+  if (denied) return denied;
 
   // System job: runs across every clinic → opt out of the tenant guard.
   const result = await unscoped("cron: recalls (all clinics)", () => processDueRecalls());

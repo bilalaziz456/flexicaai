@@ -1,6 +1,5 @@
 import { and, desc, ilike, inArray, or } from "drizzle-orm";
-import { getCurrentUser } from "@/core/auth/user";
-import { can } from "@/core/auth/permissions";
+import { apiRequireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { users } from "@/core/db/schema";
@@ -15,11 +14,9 @@ import { describeAvailability } from "@/core/lib/availability";
  * search (name / username). UTF-8 BOM for Excel; brand credit appended.
  */
 export async function GET(req: Request) {
-  const user = await getCurrentUser();
-  if (!user?.clinicId || !can(user, "staff", "view")) {
-    return new Response("Forbidden", { status: 403 });
-  }
-  const clinicId = user.clinicId;
+  const auth = await apiRequireWorkspace("staff", "view");
+  if (!auth.ok) return auth.response;
+  const { clinicId } = auth;
   const query = new URL(req.url).searchParams.get("q")?.trim() || "";
 
   const roleFilter = inArray(users.role, [...CLINIC_STAFF_ROLES]);

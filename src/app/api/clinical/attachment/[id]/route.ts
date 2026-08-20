@@ -1,5 +1,4 @@
-import { getCurrentUser } from "@/core/auth/user";
-import { can } from "@/core/auth/permissions";
+import { apiRequireWorkspace } from "@/core/auth/user";
 import { getAttachmentForServe } from "@/core/patients/attachments";
 import { readFileByKey } from "@/core/integrations/storage";
 
@@ -9,12 +8,11 @@ import { readFileByKey } from "@/core/integrations/storage";
  * photo_consent is set (§10). `no-store` — clinical bytes are never cached.
  */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getCurrentUser();
-  if (!user?.clinicId) return new Response("Unauthorized", { status: 401 });
-  if (!can(user, "attachments", "view")) return new Response("Forbidden", { status: 403 });
+  const auth = await apiRequireWorkspace("attachments", "view");
+  if (!auth.ok) return auth.response;
 
   const { id } = await params;
-  const row = await getAttachmentForServe(user.clinicId, id);
+  const row = await getAttachmentForServe(auth.clinicId, id);
   if (!row) return new Response("Not found", { status: 404 });
   if (row.isPhoto && !row.photoConsent) {
     return new Response("Photo consent not granted", { status: 403 });

@@ -17,6 +17,9 @@ const CONTENT_TYPE: Record<string, string> = {
 };
 
 export async function GET() {
+  // Deliberately NOT apiRequireWorkspace: this serves the caller their OWN avatar,
+  // never tenant data. It must also work for a super_admin (no clinic) and on
+  // /paused and /change-password, where the shell still renders the user's face.
   const user = await getCurrentUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
 

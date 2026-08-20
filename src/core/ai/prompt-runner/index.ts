@@ -15,7 +15,29 @@ import { serverEnv } from "@/core/lib/env";
 // parse defensively below.
 const SCRIBE_MODEL = "claude-sonnet-4-6";
 
+/**
+ * Hard ceiling on one Claude call. The SDK's default is 10 MINUTES with 2 automatic
+ * retries — i.e. a hung provider could hold a request open for half an hour. That is
+ * far longer than any hosting platform will keep the function alive, so the caller
+ * never gets to handle it: the platform kills the invocation and the doctor sees a
+ * generic failure with the audio already stored and the API already billed.
+ *
+ * 90s is generous for a note-sized completion. `maxRetries: 1` keeps one retry for a
+ * transient 429/5xx while bounding the worst case to ~3 minutes, which fits inside
+ * the scribe route's `maxDuration`. Budgeted alongside Whisper — see
+ * `scribe-engine/index.ts`.
+ */
+const CLAUDE_TIMEOUT_MS = 90_000;
+const CLAUDE_MAX_RETRIES = 1;
+
 export class MissingApiKeyError extends Error {}
+/**
+ * A provider call exceeded its time budget — distinct from a provider *error*, and
+ * the one failure worth retrying on the same input. Declared here (not in the engine)
+ * so the Anthropic SDK's own timeout type never has to leak past this module: this is
+ * the ONE place the SDK is imported, and callers stay provider-agnostic.
+ */
+export class AiTimeoutError extends Error {}
 export class AiParseError extends Error {
   constructor(
     message: string,
@@ -32,7 +54,11 @@ function getClient(): Anthropic {
       "ANTHROPIC_API_KEY is not set. Add it to .env.local to use the AI scribe.",
     );
   }
-  client ??= new Anthropic({ apiKey: serverEnv.ANTHROPIC_API_KEY });
+  client ??= new Anthropic({
+    apiKey: serverEnv.ANTHROPIC_API_KEY,
+    timeout: CLAUDE_TIMEOUT_MS,
+    maxRetries: CLAUDE_MAX_RETRIES,
+  });
   return client;
 }
 
@@ -72,12 +98,22 @@ export async function runJsonPrompt<T = Record<string, unknown>>(args: {
   user: string;
   maxTokens?: number;
 }): Promise<{ data: T; raw: string; usage: ClaudeUsage }> {
-  const message = await getClient().messages.create({
-    model: SCRIBE_MODEL,
-    max_tokens: args.maxTokens ?? 4096,
-    system: args.system,
-    messages: [{ role: "user", content: args.user }],
-  });
+  let message: Anthropic.Message;
+  try {
+    message = await getClient().messages.create({
+      model: SCRIBE_MODEL,
+      max_tokens: args.maxTokens ?? 4096,
+      system: args.system,
+      messages: [{ role: "user", content: args.user }],
+    });
+  } catch (e) {
+    // Translate the SDK's timeout into our provider-agnostic one so callers never
+    // need to know which vendor they're talking to. Everything else propagates.
+    if (e instanceof Anthropic.APIConnectionTimeoutError) {
+      throw new AiTimeoutError("The note generator timed out. Please try again.");
+    }
+    throw e;
+  }
 
   const raw = message.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")

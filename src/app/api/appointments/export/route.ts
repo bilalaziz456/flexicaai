@@ -1,6 +1,5 @@
 import { and, asc, eq, sql, type SQL } from "drizzle-orm";
-import { getCurrentUser } from "@/core/auth/user";
-import { can } from "@/core/auth/permissions";
+import { apiRequireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, clinics, patients, users } from "@/core/db/schema";
@@ -28,11 +27,9 @@ import { displayStaffName } from "@/core/types/auth";
  * `appointments:view`. Amounts are raw numbers so Excel can sum them.
  */
 export async function GET(req: Request) {
-  const user = await getCurrentUser();
-  if (!user?.clinicId || !can(user, "appointments", "view")) {
-    return new Response("Forbidden", { status: 403 });
-  }
-  const clinicId = user.clinicId;
+  const auth = await apiRequireWorkspace("appointments", "view");
+  if (!auth.ok) return auth.response;
+  const { user, clinicId } = auth;
   const sp = Object.fromEntries(new URL(req.url).searchParams.entries());
 
   const { q, status, type, start, endExclusive, fromStr, toStr } = parseListFilters(sp);

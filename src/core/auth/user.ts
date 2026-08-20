@@ -1,7 +1,7 @@
 import "server-only";
 
 import { redirect } from "next/navigation";
-import { getSession, getSessionUser } from "@/core/auth/session";
+import { getSession } from "@/core/auth/session";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { isClinicUsable } from "@/core/clinics/status";
 import { can, VIEW_ONLY_CAPABILITIES, type PermAction } from "@/core/auth/permissions";
@@ -92,6 +92,114 @@ export async function requireUser(): Promise<CurrentUser> {
   return user;
 }
 
+// ---- The shared access predicate ----------------------------------------
+//
+// Panels and Route Handlers need the SAME access rules but can't share a guard that
+// calls `redirect()` — an API caller needs a status code, not a 307 to an HTML login
+// page. That split is why ten Route Handlers grew their own `getCurrentUser() +
+// can()` checks and quietly skipped the clinic-usable and must-change-password gates
+// that `requireRole` enforces: a suspended clinic's staff were bounced from every
+// page but could still pull a full patient CSV from /api/patients/export.
+//
+// So the rules live HERE, once, in a function that decides but never acts. The
+// page guards below turn a denial into a redirect; `apiRequire*` turns the same
+// denial into a Response. Neither can drift from the other again.
+
+/** Why access was refused — the page and API guards each render this their own way. */
+type Denial =
+  | { kind: "unauthenticated" }
+  /** Signed in, but this panel isn't theirs. `home` is their own landing route. */
+  | { kind: "wrong_role"; home: string }
+  /** Clinic suspended / past-due / cancelled / trial expired. */
+  | { kind: "clinic_paused" }
+  | { kind: "must_change_password" }
+  /** Clinic staff with no clinic assigned — unprovisioned. */
+  | { kind: "no_clinic" }
+  /** Authenticated and in the right panel, but lacks `resource:action`. */
+  | { kind: "forbidden" };
+
+type AccessResult =
+  | { ok: true; user: CurrentUser }
+  | { ok: false; denial: Denial };
+
+/**
+ * Evaluates access in the canonical order. Order matters and is preserved exactly as
+ * `requireRole`/`requireWorkspace` had it: identity → role → clinic status → password
+ * → clinic assignment → permission.
+ */
+async function checkAccess(
+  allowed: UserRole[],
+  opts: { requireClinic?: boolean; resource?: string; action?: PermAction } = {},
+): Promise<AccessResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, denial: { kind: "unauthenticated" } };
+
+  if (!allowed.includes(user.role)) {
+    return { ok: false, denial: { kind: "wrong_role", home: ROLE_HOME_ROUTE[user.role] } };
+  }
+
+  // Clinic-level access block (super-admin control plane). getClinic is
+  // request-cached, so this adds no query the layout wasn't already running.
+  // super_admin has no clinic and is exempt. Impersonation is EXEMPT too — a
+  // super-admin often views a clinic BECAUSE it's suspended (support diagnosis).
+  if (user.clinicId && user.role !== "super_admin" && !user.impersonation) {
+    const clinic = await getClinic(user.clinicId);
+    if (clinic && !isClinicUsable(clinic)) {
+      return { ok: false, denial: { kind: "clinic_paused" } };
+    }
+  }
+
+  // A user with a temporary password can't use anything until they change it.
+  if (user.mustChangePassword) {
+    return { ok: false, denial: { kind: "must_change_password" } };
+  }
+
+  if (opts.requireClinic && !user.clinicId) {
+    return { ok: false, denial: { kind: "no_clinic" } };
+  }
+
+  if (opts.resource && !can(user, opts.resource, opts.action ?? "view")) {
+    return { ok: false, denial: { kind: "forbidden" } };
+  }
+
+  return { ok: true, user };
+}
+
+/** Where a denied PAGE request is sent. */
+function redirectTarget(denial: Denial): string {
+  switch (denial.kind) {
+    case "unauthenticated":
+      return "/login";
+    case "wrong_role":
+      return denial.home;
+    case "clinic_paused":
+      // /paused uses requireUser, not requireRole, so this never loops.
+      return "/paused";
+    case "must_change_password":
+      return "/change-password";
+    case "no_clinic":
+      return "/login?error=no_access";
+    case "forbidden":
+      return "/clinic";
+  }
+}
+
+/**
+ * How a denied API request is answered. 401 means "sign in"; 403 means "signed in,
+ * still not allowed". Messages are deliberately non-specific about what exists.
+ */
+function denialResponse(denial: Denial): Response {
+  const [status, error]: [number, string] =
+    denial.kind === "unauthenticated"
+      ? [401, "Not signed in."]
+      : denial.kind === "clinic_paused"
+        ? [403, "This clinic's access is paused. Contact your administrator."]
+        : denial.kind === "must_change_password"
+          ? [403, "Change your password before continuing."]
+          : [403, "Not permitted."];
+  return Response.json({ error }, { status });
+}
+
 /**
  * Guards a panel to specific role(s). Use at the top of a protected layout/page:
  *   const user = await requireRole("doctor");
@@ -102,31 +210,9 @@ export async function requireUser(): Promise<CurrentUser> {
 export async function requireRole(
   allowed: UserRole | UserRole[],
 ): Promise<CurrentUser> {
-  const user = await requireUser();
-  const allowedRoles = Array.isArray(allowed) ? allowed : [allowed];
-
-  if (!allowedRoles.includes(user.role)) {
-    redirect(ROLE_HOME_ROUTE[user.role]);
-  }
-  // Clinic-level access block (super-admin control plane): if this staff member's
-  // clinic isn't usable (suspended / past-due / cancelled / trial expired) they're
-  // sent to /paused. ONE chokepoint — every panel page AND every clinic mutation
-  // guarded by requireRole is covered. super_admin has no clinic and is exempt.
-  // getClinic is request-cached, so this adds no query the layout wasn't already
-  // running. /paused itself uses requireUser, not requireRole, so it never loops.
-  // Impersonation is EXEMPT — a super-admin often views a clinic BECAUSE it's
-  // suspended/past-due (support diagnosis).
-  if (user.clinicId && user.role !== "super_admin" && !user.impersonation) {
-    const clinic = await getClinic(user.clinicId);
-    if (clinic && !isClinicUsable(clinic)) {
-      redirect("/paused");
-    }
-  }
-  // A user with a temporary password can't use any panel until they change it.
-  if (user.mustChangePassword) {
-    redirect("/change-password");
-  }
-  return user;
+  const result = await checkAccess(Array.isArray(allowed) ? allowed : [allowed]);
+  if (!result.ok) redirect(redirectTarget(result.denial));
+  return result.user;
 }
 
 /**
@@ -167,8 +253,56 @@ export async function requireWorkspace(
   resource?: string,
   action: PermAction = "view",
 ): Promise<CurrentUser & { clinicId: string }> {
-  const user = await requireRole(WORKSPACE_ROLES);
-  if (!user.clinicId) redirect("/login?error=no_access");
-  if (resource && !can(user, resource, action)) redirect("/clinic");
-  return { ...user, clinicId: user.clinicId };
+  const result = await checkAccess(WORKSPACE_ROLES, {
+    requireClinic: true,
+    resource,
+    action,
+  });
+  if (!result.ok) redirect(redirectTarget(result.denial));
+  // requireClinic guarantees this is non-null.
+  return { ...result.user, clinicId: result.user.clinicId as string };
+}
+
+// ---- API guards: the same rules, answered with a status code ------------
+
+/**
+ * The Route-Handler twin of `requireWorkspace`. Runs the IDENTICAL checks (role,
+ * clinic status, forced password change, clinic assignment, `resource:action`) and
+ * returns a Response instead of redirecting. Use it in every clinic-scoped Route
+ * Handler so an API caller can never reach data a page would have refused:
+ *
+ *   const auth = await apiRequireWorkspace("patients", "view");
+ *   if (!auth.ok) return auth.response;
+ *   const { user, clinicId } = auth;
+ */
+export async function apiRequireWorkspace(
+  resource?: string,
+  action: PermAction = "view",
+): Promise<
+  | { ok: true; user: CurrentUser; clinicId: string }
+  | { ok: false; response: Response }
+> {
+  const result = await checkAccess(WORKSPACE_ROLES, {
+    requireClinic: true,
+    resource,
+    action,
+  });
+  if (!result.ok) return { ok: false, response: denialResponse(result.denial) };
+  return { ok: true, user: result.user, clinicId: result.user.clinicId as string };
+}
+
+/**
+ * The Route-Handler twin of `requireAdminCapability` — super_admin plus one admin
+ * capability slug, answered with a status code. Note this also applies the
+ * forced-password-change gate, which the hand-rolled admin route checks skipped.
+ */
+export async function apiRequireAdminCapability(
+  capability: string,
+): Promise<{ ok: true; user: CurrentUser } | { ok: false; response: Response }> {
+  const result = await checkAccess(["super_admin"]);
+  if (!result.ok) return { ok: false, response: denialResponse(result.denial) };
+  if (!canAdmin(result.user, capability)) {
+    return { ok: false, response: denialResponse({ kind: "forbidden" }) };
+  }
+  return { ok: true, user: result.user };
 }

@@ -35,6 +35,9 @@ config({ path: path.join(ROOT, ".env.local"), quiet: true });
 const BASE = process.env.BASE_URL || "http://localhost:3000";
 const SECRET_LINK = process.env.LINK_SIGNING_SECRET;
 const WH_TOKEN = process.env.WHATSAPP_WEBHOOK_TOKEN;
+// Meta app secret. Set → the Cloud-webhook delivery path is exercised with a real
+// signature; unset → we assert the endpoint fails closed instead.
+const WA_APP_SECRET = process.env.WHATSAPP_APP_SECRET;
 const CRON = process.env.CRON_SECRET;
 const STORAGE_DIR = path.resolve(ROOT, process.env.STORAGE_DIR || "./storage");
 
@@ -374,12 +377,37 @@ async function run() {
         messages: [{ from: "923009990001", id: inId, type: "text", text: { body: "hello" } }],
       } }] }],
     });
+    // The webhook FAILS CLOSED: unsigned payloads are refused in production. So the
+    // request must carry a real X-Hub-Signature-256 when the app secret is
+    // configured — and when it isn't, the only correct outcome is a 401.
+    if (WA_APP_SECRET) {
+      hdr["x-hub-signature-256"] =
+        "sha256=" + crypto.createHmac("sha256", WA_APP_SECRET).update(body).digest("hex");
+    }
     const r = await req("/api/whatsapp/cloud", { method: "POST", body, headers: hdr });
     let j = null;
     try { j = JSON.parse(r.text); } catch { /* ignore */ }
-    record("cloud webhook POST inbound → 200 {inbound:1}", r.status === 200 && j && j.inbound === 1, `status=${r.status}`);
-    const row = (await pool.query("select clinic_id, patient_id from whatsapp_messages where external_id=$1", [inId])).rows[0];
-    record("cloud inbound routed by number → clinic A + matched patient", Boolean(row) && row.clinic_id === ids.clinics[0] && row.patient_id === ids.patients[0]);
+
+    if (!WA_APP_SECRET) {
+      // Fail-closed check. `npm start` runs NODE_ENV=production, so an unsigned
+      // payload must be rejected rather than silently trusted. Set
+      // WHATSAPP_APP_SECRET in .env.local to exercise the delivery path too.
+      record("cloud webhook rejects UNSIGNED payload in production → 401", r.status === 401, `status=${r.status} (set WHATSAPP_APP_SECRET to test delivery)`);
+    } else {
+      record("cloud webhook POST inbound (signed) → 200 {inbound:1}", r.status === 200 && j && j.inbound === 1, `status=${r.status}`);
+      const row = (await pool.query("select clinic_id, patient_id from whatsapp_messages where external_id=$1", [inId])).rows[0];
+      record("cloud inbound routed by number → clinic A + matched patient", Boolean(row) && row.clinic_id === ids.clinics[0] && row.patient_id === ids.patients[0]);
+
+      // Idempotency (migration 0079): a provider REDELIVERY must not log the message
+      // twice, because everything after the insert has patient-visible side effects.
+      const again = await req("/api/whatsapp/cloud", { method: "POST", body, headers: hdr });
+      const cnt = (await pool.query("select count(*)::int c from whatsapp_messages where external_id=$1 and direction='inbound'", [inId])).rows[0].c;
+      record("cloud webhook replay is idempotent → still one row", again.status === 200 && cnt === 1, `status=${again.status} rows=${cnt}`);
+
+      // A forged payload must never be accepted when the secret IS configured.
+      const bad = await req("/api/whatsapp/cloud", { method: "POST", body, headers: { ...hdr, "x-hub-signature-256": "sha256=" + "0".repeat(64) } });
+      record("cloud webhook rejects a BAD signature → 401", bad.status === 401, `status=${bad.status}`);
+    }
   }
 
   console.log("\n== RECALL ENGINE (cron) ==");
@@ -414,7 +442,41 @@ async function run() {
     const okGraceful = r.status === 200 || r.status === 400; // 200 only if keys ARE configured
     record("doctor scribe → graceful (200 configured / 400 unconfigured, not 500)", okGraceful, `status=${r.status}`);
   }
-  record("receptionist scribe → 401 (doctor-only)", (await req("/api/ai/scribe", { cookie: S.recepA, method: "POST", body: mkForm(ids.patients[0]) })).status === 401);
+  {
+    // The scribe gates on the `clinical:create` PERMISSION, not the `doctor` ROLE
+    // (CLAUDE.md §8). A receptionist doesn't hold it → 403.
+    const rec = await req("/api/ai/scribe", { cookie: S.recepA, method: "POST", body: mkForm(ids.patients[0]) });
+    record("receptionist scribe → 403 (lacks clinical:create)", rec.status === 403, `status=${rec.status}`);
+
+    // …and the clinic OWNER who is the practising dentist must NOT be locked out.
+    // The old `role === "doctor"` check 401'd them even though /clinic/scribe let
+    // them record. Anything but 401/403 means they got through the guard (400 here,
+    // since AI keys aren't configured in the test env).
+    const owner = await req("/api/ai/scribe", { cookie: S.adminA, method: "POST", body: mkForm(ids.patients[0]) });
+    record("clinic admin (owner-dentist) scribe is NOT blocked", owner.status !== 401 && owner.status !== 403, `status=${owner.status}`);
+  }
+
+  console.log("\n== API AUTH CHOKEPOINT (paused clinic can't reach data routes) ==");
+  {
+    // Regression guard: Route Handlers used to run their own `getCurrentUser() +
+    // can()` check and skip the clinic-usable gate that every PAGE enforces, so a
+    // suspended clinic's staff were bounced from the UI yet could still pull a full
+    // patient CSV. `apiRequireWorkspace` closed that. Suspend clinic A and prove it.
+    const before = await req("/api/patients/export", { cookie: S.adminA });
+    record("active clinic can export patients → 200", before.status === 200, `status=${before.status}`);
+
+    await pool.query("update clinics set status='suspended' where id=$1", [ids.clinics[0]]);
+    const paused = await req("/api/patients/export", { cookie: S.adminA });
+    record("SUSPENDED clinic is refused the patients CSV → 403", paused.status === 403, `status=${paused.status}`);
+    const pausedAppts = await req("/api/appointments/export", { cookie: S.adminA });
+    record("SUSPENDED clinic is refused the appointments CSV → 403", pausedAppts.status === 403, `status=${pausedAppts.status}`);
+    const pausedScribe = await req("/api/ai/scribe", { cookie: S.adminA, method: "POST", body: mkForm(ids.patients[0]) });
+    record("SUSPENDED clinic can't reach the PAID AI scribe → 403", pausedScribe.status === 403, `status=${pausedScribe.status}`);
+
+    await pool.query("update clinics set status='active' where id=$1", [ids.clinics[0]]);
+    const after = await req("/api/patients/export", { cookie: S.adminA });
+    record("restoring the clinic restores API access → 200", after.status === 200, `status=${after.status}`);
+  }
 
   console.log("\n== LOGIN CREDENTIAL PATH (bcrypt round-trip) ==");
   {

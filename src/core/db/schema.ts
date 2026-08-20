@@ -778,6 +778,23 @@ export const whatsappMessages = pgTable(
     // The reception queue reads newest-first per clinic.
     index("wa_messages_clinic_created_idx").on(t.clinicId, t.createdAt),
     index("wa_messages_external_id_idx").on(t.externalId),
+    // INBOUND idempotency. WhatsApp providers redeliver a webhook whenever they
+    // don't get a timely 200 — and our handlers do real work (patient matching,
+    // self-service reschedule/booking) before responding, so a slow batch invites a
+    // retry. Without this, a replay logged the message twice AND could run
+    // `handleBookingReply` twice, booking two appointments from one patient text.
+    // The insert is now ON CONFLICT DO NOTHING against this index: no row inserted
+    // means "already handled", and the handler skips the side effects.
+    //
+    // Scoped to inbound ON PURPOSE. Outbound rows also carry a provider id, but the
+    // AiSensy sender picks it out of a loosely-typed response
+    // (`messageId ?? id ?? submitted_message_id`); if that ever yielded a shared
+    // value, a unique index spanning outbound would start REJECTING legitimate sends
+    // at log time and break WhatsApp delivery. Inbound-only gets the dedupe with
+    // none of that risk.
+    uniqueIndex("wa_messages_inbound_external_id_unique")
+      .on(t.externalId)
+      .where(sql`${t.externalId} is not null and ${t.direction} = 'inbound'`),
   ],
 );
 

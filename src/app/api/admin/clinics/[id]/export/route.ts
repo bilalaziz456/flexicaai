@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/core/auth/user";
-import { canAdmin } from "@/core/auth/admin-permissions";
+import { apiRequireAdminCapability } from "@/core/auth/user";
 import { exportClinicData } from "@/core/admin/export";
 
 /**
@@ -12,10 +11,8 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const user = await getCurrentUser();
-  if (!user || user.role !== "super_admin" || !canAdmin(user, "clinics:view")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await apiRequireAdminCapability("clinics:view");
+  if (!auth.ok) return auth.response;
 
   const { id } = await params;
   const data = await exportClinicData(id);
