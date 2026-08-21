@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   boolean,
+  check,
   date,
   index,
   integer,
@@ -568,6 +569,19 @@ export const appointments = pgTable(
       .defaultNow(),
   },
   (t) => [
+    // A PERCENT discount above 100 isn't a bigger discount, it's a typo — and this
+    // exact field, unbounded, overflowed int4 in the SQL bill and made Postgres throw
+    // where TS clamped (ADR-021, D-17). The app validates and clamps on every write
+    // path; this makes the invariant true regardless of which one is used. A flat
+    // AMOUNT stays unbounded: the bill clamps it, and a large write-off is valid.
+    check(
+      "appointments_percent_discount_max",
+      sql`${t.discountType} <> 'percent' or ${t.discountValue} between 0 and 100`,
+    ),
+    check(
+      "appointments_percent_split_max",
+      sql`${t.discountSplitType} <> 'percent' or ${t.discountSplitValue} between 0 and 100`,
+    ),
     index("appointments_clinic_id_idx").on(t.clinicId),
     // Receipt numbers are unique per clinic per year (they reset each year).
     uniqueIndex("appointments_receipt_unique")
@@ -1697,6 +1711,15 @@ export const appointmentProcedures = pgTable(
     index("appt_procedures_appointment_idx").on(t.appointmentId),
     index("appt_procedures_clinic_idx").on(t.clinicId),
     index("appt_procedures_procedure_idx").on(t.procedureId),
+    // A PERCENT discount above 100 isn't a bigger discount, it's a typo — and this
+    // exact field, unbounded, overflowed int4 in the SQL bill and made Postgres throw
+    // where TS clamped (ADR-021, D-17). The app validates and clamps on every write
+    // path; this makes the invariant true regardless of which one is used. A flat
+    // AMOUNT stays unbounded: the bill clamps it, and a large write-off is valid.
+    check(
+      "appt_procedures_percent_discount_max",
+      sql`${t.discountType} <> 'percent' or ${t.discountValue} between 0 and 100`,
+    ),
   ],
 );
 

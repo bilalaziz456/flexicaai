@@ -11,7 +11,7 @@ import {
   users,
 } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
-import type { DiscountType } from "@/core/appointments/fee";
+import { clampDiscountValue, type DiscountType } from "@/core/appointments/fee";
 
 export type BookingProcedure = { id: string; name: string; price: number };
 
@@ -187,7 +187,14 @@ export async function saveAppointmentProcedures(
         unitPrice: r.price,
         quantity: clampQty(s.quantity),
         discountType: s.discountType === "percent" ? "percent" : "amount",
-        discountValue: Math.max(0, Math.round(s.discountValue || 0)),
+        // Clamped HERE, not just at the form: this is the single write path for a
+        // procedure line, so a caller that skipped validation still can't store a
+        // percentage above 100 (D-17). A flat amount stays unbounded — the bill
+        // clamps it, and a large write-off is legitimate.
+        discountValue: clampDiscountValue(
+          s.discountType === "percent" ? "percent" : "amount",
+          s.discountValue,
+        ),
       };
     }),
   );

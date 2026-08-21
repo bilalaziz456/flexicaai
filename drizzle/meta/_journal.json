@@ -561,6 +561,13 @@
       "when": 1787268887092,
       "tag": "0079_nebulous_earthquake",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1787309315640,
+      "tag": "0080_early_human_torch",
+      "breakpoints": true
     }
   ]
 }

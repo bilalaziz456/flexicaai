@@ -122,7 +122,9 @@ on `full_name` and `phone`.
 `duration_minutes` (default 30), `status` (enum, default scheduled), `reason`,
 `discount_type` (free-text, default 'amount'; 'amount' = flat PKR, 'percent' = % of
 the doctor's fee), `discount_value` int (default 0; the raw figure — e.g. 500, or 20
-for 20%), `discount_borne_by` (free-text, default 'clinic'; 'clinic'|'doctor'|'split'
+for 20%; **CHECK: a 'percent' value must be 0–100** — unbounded, it overflowed int4
+inside the bill SQL and made Postgres throw where TS clamped, see ADR-021/D-17. A
+flat amount has no ceiling; the bill clamps it), `discount_borne_by` (free-text, default 'clinic'; 'clinic'|'doctor'|'split'
 — who absorbs the discount in the doctor/clinic split), `discount_status` (free-text,
 default 'none'; 'none'|'pending'|'approved'|'rejected' — a 'pending'/'rejected'
 discount is treated as 0 in the bill/sale/split until approved, derived from
@@ -611,3 +613,16 @@ these for churn-risk + usage/cost anomaly flags.
   FlexicaAI pays the AI/WhatsApp providers in USD); applied in `computeServingCost` +
   `getCompanyMetrics` via `core/admin/cost.ts#taxMultiplier`. Editable on
   `/admin/finance/costs`. Verified: itemised 10% and total 8% scale the cost exactly; 0 = no change.
+- Migration **`0079`** adds a partial unique index on `whatsapp_messages(external_id)`
+  for INBOUND rows — provider webhook idempotency, so a redelivery can't log the
+  message twice or re-run patient self-service booking. Scoped to inbound on purpose:
+  outbound ids come from a loosely-typed provider response, and a unique index
+  spanning them could start rejecting real sends at log time.
+- Migration **`0080`** caps PERCENT discounts at 100 — CHECK constraints on
+  `appointments` (`discount_value`, `discount_split_value`) and
+  `appointment_procedures` (`discount_value`). Unbounded, a mistyped percentage
+  overflowed int4 inside the bill SQL and made Postgres THROW where TypeScript
+  clamped, 500-ing every list that aggregates bills for that clinic (ADR-021 / D-17).
+  The migration clamps existing rows first, because `ADD CONSTRAINT` validates
+  existing data and one stale row would fail the deploy. A flat AMOUNT stays
+  unbounded — the bill clamps it, and a large write-off is legitimate.

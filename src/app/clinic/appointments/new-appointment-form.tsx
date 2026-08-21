@@ -19,6 +19,7 @@ import { TimeSelect } from "@/core/ui/time-select";
 import { Toast } from "@/core/ui/toast";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 import {
+  MAX_DISCOUNT_PERCENT,
   computeBill,
   formatPkr,
   type DiscountType,
@@ -683,13 +684,21 @@ export function NewAppointmentForm({
               type="number"
               inputMode="numeric"
               min={0}
-              max={discountType === "percent" ? 100 : undefined}
+              max={discountType === "percent" ? MAX_DISCOUNT_PERCENT : undefined}
               step={discountType === "percent" ? 1 : 50}
               value={discountValue}
               onChange={(e) => {
-                // Digits only; allow empty so the field can be cleared.
+                // Digits only; allow empty so the field can be cleared. A percentage
+                // is also CLAMPED here: `max` on a number input only constrains the
+                // spinner, so 99999 could still be typed — and that value used to
+                // reach the database and overflow the SQL bill (ADR-021). Clamping in
+                // the field beats a server error after the form is filled in.
                 const v = e.target.value.replace(/[^\d]/g, "");
-                setDiscountValue(v);
+                setDiscountValue(
+                  discountType === "percent" && v !== ""
+                    ? String(Math.min(Number(v), MAX_DISCOUNT_PERCENT))
+                    : v,
+                );
               }}
               placeholder={discountType === "percent" ? "e.g. 20" : "e.g. 500"}
             />
@@ -787,10 +796,18 @@ export function NewAppointmentForm({
                           type="number"
                           inputMode="numeric"
                           min={0}
-                          max={splitType === "percent" ? 100 : bill.discount || undefined}
+                          max={splitType === "percent" ? MAX_DISCOUNT_PERCENT : bill.discount || undefined}
                           step={splitType === "percent" ? 5 : 50}
                           value={splitValue}
-                          onChange={(e) => setSplitValue(e.target.value.replace(/[^\d]/g, ""))}
+                          onChange={(e) => {
+                            // Same clamp as the discount field above.
+                            const v = e.target.value.replace(/[^\d]/g, "");
+                            setSplitValue(
+                              splitType === "percent" && v !== ""
+                                ? String(Math.min(Number(v), MAX_DISCOUNT_PERCENT))
+                                : v,
+                            );
+                          }}
                           placeholder={splitType === "percent" ? "e.g. 50" : "e.g. 250"}
                           aria-label="Doctor's share of the discount"
                         />

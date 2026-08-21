@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { and, desc, eq, gte, ilike, inArray, lt, or } from "drizzle-orm";
 import { z } from "zod";
 import { zodErrorMessage } from "@/core/lib/zod-error";
+import { MAX_DISCOUNT_PERCENT, discountError } from "@/core/appointments/fee";
 import { requireRole } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
@@ -91,7 +92,15 @@ const createSchema = z.object({
   discountBorneBy: z.enum(["clinic", "doctor", "split"]).default("clinic"),
   discountSplitType: z.enum(["amount", "percent"]).default("percent"),
   discountSplitValue: z.coerce.number().int().min(0).default(0),
-});
+})
+  .superRefine((v, ctx) => {
+    // The bound depends on the discount TYPE, so it cannot live on the field itself:
+    // a flat amount has no ceiling here (the bill clamps it), a percentage does.
+    const e = discountError(v.discountType, v.discountValue);
+    if (e) ctx.addIssue({ code: "custom", path: ["discountValue"], message: e });
+    const se = discountError(v.discountSplitType, v.discountSplitValue);
+    if (se) ctx.addIssue({ code: "custom", path: ["discountSplitValue"], message: se });
+  });
 
 /**
  * Discounts are validated against their type: a percentage can't exceed 100
@@ -116,11 +125,18 @@ function parseProcedureSelections(formData: FormData): ProcedureSelection[] {
     .map(String)
     .map((raw) => {
       const [procedureId, qty, dtype, dval] = raw.split(":");
+      const discountType = dtype === "percent" ? ("percent" as const) : ("amount" as const);
+      // Same ceiling as the appointment-level discount. This field is hand-parsed out
+      // of an encoded hidden input rather than going through zod, so the rule is
+      // applied directly — and by CLAMPING rather than rejecting, because a malformed
+      // value here means a bug in our own form, not something to show a user.
+      const rawValue = Math.max(0, Number(dval) || 0);
       return {
         procedureId,
         quantity: Number(qty) || 1,
-        discountType: dtype === "percent" ? ("percent" as const) : ("amount" as const),
-        discountValue: Math.max(0, Number(dval) || 0),
+        discountType,
+        discountValue:
+          discountType === "percent" ? Math.min(rawValue, MAX_DISCOUNT_PERCENT) : rawValue,
       };
     })
     .filter((s) => s.procedureId);
@@ -295,7 +311,15 @@ const updateSchema = z.object({
   discountBorneBy: z.enum(["clinic", "doctor", "split"]).default("clinic"),
   discountSplitType: z.enum(["amount", "percent"]).default("percent"),
   discountSplitValue: z.coerce.number().int().min(0).default(0),
-});
+})
+  .superRefine((v, ctx) => {
+    // The bound depends on the discount TYPE, so it cannot live on the field itself:
+    // a flat amount has no ceiling here (the bill clamps it), a percentage does.
+    const e = discountError(v.discountType, v.discountValue);
+    if (e) ctx.addIssue({ code: "custom", path: ["discountValue"], message: e });
+    const se = discountError(v.discountSplitType, v.discountSplitValue);
+    if (se) ctx.addIssue({ code: "custom", path: ["discountSplitValue"], message: se });
+  });
 
 /** Edits an existing appointment (doctor / date-time / duration / reason / discount). */
 export async function updateAppointment(

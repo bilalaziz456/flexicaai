@@ -16,6 +16,49 @@ export function normalizeDiscountType(v: string | null | undefined): DiscountTyp
   return v === "percent" ? "percent" : "amount";
 }
 
+/** The largest meaningful percentage discount — the whole thing, free of charge. */
+export const MAX_DISCOUNT_PERCENT = 100;
+
+/**
+ * Is this a discount a human could have meant? A PERCENT discount above 100 isn't a
+ * bigger discount, it's a typo — the maths clamps it to "free" either way, so nothing
+ * downstream distinguishes 101% from 99999%. A flat AMOUNT has no upper bound here:
+ * the bill it applies to isn't known at parse time, and `computeFee` clamps it to the
+ * bill anyway, so a large write-off is legitimate input.
+ *
+ * WHY IT'S ENFORCED AT ALL, given both sides clamp: `discount_value` is an int4
+ * column, and `subtotal * 99999` overflowed it — which made Postgres THROW where TS
+ * quietly clamped, taking down every list that aggregates bills for that clinic
+ * (ADR-021). The SQL now computes in `numeric` so it can't break, but storing a value
+ * nobody meant is still how that happened. This rejects it at the door.
+ *
+ * Pure, so the server actions and the booking form share one rule.
+ */
+export function isValidDiscount(type: DiscountType, value: number): boolean {
+  if (!Number.isFinite(value) || value < 0) return false;
+  return type === "percent" ? value <= MAX_DISCOUNT_PERCENT : true;
+}
+
+/**
+ * Coerce a discount value into the storable range: a whole number ≥ 0, and ≤ 100 when
+ * it's a percentage. Use where a value arrives from a path that isn't user-facing (a
+ * hidden form field, an internal caller) and rejecting it would be unhelpful; use
+ * `discountError` where a person typed it and deserves to be told.
+ */
+export function clampDiscountValue(type: DiscountType, value: number): number {
+  const n = Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+  return type === "percent" ? Math.min(n, MAX_DISCOUNT_PERCENT) : n;
+}
+
+/** The user-facing reason a discount was refused, or null when it's fine. */
+export function discountError(type: DiscountType, value: number): string | null {
+  if (!Number.isFinite(value) || value < 0) return "Discount can't be negative.";
+  if (type === "percent" && value > MAX_DISCOUNT_PERCENT) {
+    return `A percentage discount can't be more than ${MAX_DISCOUNT_PERCENT}%.`;
+  }
+  return null;
+}
+
 /**
  * The discount that ACTUALLY applies given its approval status. A discount awaiting
  * approval ('pending') or declined ('rejected') is treated as 0 everywhere the bill

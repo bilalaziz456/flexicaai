@@ -187,21 +187,37 @@ async function sqlBill(appointmentId: string) {
   };
 }
 
+/**
+ * A discount value appropriate to its TYPE. A percentage is capped at 100 by a DB
+ * CHECK (D-17), so generating 5000% here would test nothing but the constraint — it
+ * would just fail the insert. A flat AMOUNT is deliberately allowed to exceed the
+ * bill, because that is the case where clamping actually has to work and where the
+ * two implementations could disagree.
+ */
+function discountFor(type: DiscountType): number {
+  return type === "percent"
+    ? pick([0, 0, 10, 25, 50, 100]) // 100 = free, the boundary
+    : pick([0, 0, 200, 500, 5000, 99999]); // large ones must clamp to the bill
+}
+
 function randomCase(): Case {
   const nLines = rnd(4); // 0–3
+  const discountType = pick<DiscountType>(["amount", "percent"]);
   return {
     fee: pick([0, 500, 1500, 2000, 7777]),
     chargeConsultation: rnd(4) > 0, // mostly true, sometimes a procedure-only visit
-    discountType: pick<DiscountType>(["amount", "percent"]),
-    // Includes values that must CLAMP: a flat discount larger than the bill, and >100%.
-    discountValue: pick([0, 0, 100, 500, 10, 25, 150, 99999]),
+    discountType,
+    discountValue: discountFor(discountType),
     discountStatus: pick(["none", "none", "none", "approved", "pending", "rejected"]),
-    lines: Array.from({ length: nLines }, () => ({
-      procIdx: rnd(5),
-      quantity: 1 + rnd(4),
-      discountType: pick<DiscountType>(["amount", "percent"]),
-      discountValue: pick([0, 0, 200, 50, 10, 100, 5000]),
-    })),
+    lines: Array.from({ length: nLines }, () => {
+      const t = pick<DiscountType>(["amount", "percent"]);
+      return {
+        procIdx: rnd(5),
+        quantity: 1 + rnd(4),
+        discountType: t,
+        discountValue: discountFor(t),
+      };
+    }),
   };
 }
 

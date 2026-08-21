@@ -295,7 +295,14 @@ Postgres **throws**, while TS clamps — so one side returned a number and the o
 500'd every list that aggregates bills (appointments, receivables, invoices, dashboard
 KPIs) for that clinic until the row was edited. Found by the parity test.
 **Consequence:** the clamp makes the result always `0 ≤ net ≤ subtotal`, so the final
-`::int` can never overflow. Bounding the input remains worth doing separately (D-17).
+`::int` can never overflow.
+**The input is now bounded too (D-17, closed 2026-08-21)** — in four places, because
+this is the field that caused it: the form clamps as you type (a `max` attribute only
+constrains the spinner, not typing), a zod `superRefine` rejects it at the action (the
+bound depends on the discount TYPE, so it cannot sit on the field), the core
+`saveAppointmentProcedures` write path clamps, and a **DB CHECK** makes it true
+whatever writes. A percentage over 100 was never a bigger discount — the maths already
+treated everything ≥ 100% as free — so capping loses no figure.
 
 **ADR-016 — Derived state is transactional; external effects are best-effort; drift
 is reconciled** · *2026-08-21* · `Accepted` *(implemented — D-03 closed)*
@@ -393,7 +400,6 @@ they land.** Ordered by consequence.
 | D-13 | No test framework; no CI | ADR-005 | **On hold** (owner's direction, 2026-08-21) |
 | D-14 | Timezone is server-local; blocks a second region | ADR-009 | Open — required before the first GCC clinic |
 | D-15 | CSP is report-only | — | Open — enforce once the sink shows it clean |
-| D-17 | `discount_value` is unbounded (`z.coerce.number().int().min(0)`), so a *percent* discount of e.g. 99999 is storable and meaningless. The SQL no longer breaks on it (ADR-021) and both sides clamp, but the input should be rejected: percent ≤ 100 | ADR-021 | Open — found 2026-08-21 by `test-bill-parity.ts`; a zod refine on the appointment + per-line discount schemas |
 
 **Closed:** local-FS storage on an ephemeral host (ADR-010) · in-memory limiter on a
 multi-instance host (ADR-011) · API routes bypassing the auth chokepoint (ADR-013) ·
@@ -405,7 +411,9 @@ approve/discard (ADR-007, closed 2026-08-21 — `scripts/test-draft-ownership.ts
 `fee.ts#billFromTotals`, one SQL expression in `bill-sql.ts`, bound by
 `scripts/test-bill-parity.ts`)** · **D-03 untransacted derived ledgers (ADR-016,
 closed 2026-08-21 — one transaction per derived set, joined to the completion event,
-plus the nightly `reconcile` cron; `scripts/test-sales-reconcile.ts`)** · **D-06
+plus the nightly `reconcile` cron; `scripts/test-sales-reconcile.ts`)** · **D-17
+percent discounts unbounded (ADR-021, closed 2026-08-21 — migration `0080` +
+`scripts/test-discount-bounds.ts`)** · **D-06
 unvalidated clinical jsonb (ADR-007, closed 2026-08-21 — core bounds +
 module-declared shapes; `scripts/test-clinical-validation.ts`)**.
 
