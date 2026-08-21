@@ -6,11 +6,12 @@ import { appointments, clinics, patients, users } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { streamCsvResponse } from "@/core/lib/csv-stream";
 import {
-  computeAppointmentTotal,
+  billFromTotals,
   effectiveDiscountValue,
 } from "@/core/appointments/fee";
 import {
   appointmentHasProceduresSql,
+  appointmentProceduresGrossSql,
   appointmentProceduresNetSql,
 } from "@/core/appointments/procedures";
 import { parseListFilters } from "@/core/appointments/list-filters";
@@ -87,6 +88,7 @@ export async function GET(req: Request) {
           doctorUsername: users.username,
           doctorPrefix: users.prefix,
           consultationFee: users.consultationFee,
+          proceduresGross: appointmentProceduresGrossSql(),
           proceduresTotal: appointmentProceduresNetSql(),
           hasProcedures: appointmentHasProceduresSql(),
         })
@@ -98,8 +100,9 @@ export async function GET(req: Request) {
         .limit(BATCH);
 
       for (const r of batch) {
-        const { net } = computeAppointmentTotal(
+        const { net } = billFromTotals(
           r.chargeConsultation ? (r.consultationFee ?? 0) : 0,
+          Number(r.proceduresGross),
           Number(r.proceduresTotal),
           r.discountType === "percent" ? "percent" : "amount",
           effectiveDiscountValue(r.discountStatus, r.discountValue),

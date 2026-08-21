@@ -3,8 +3,8 @@ import "server-only";
 import { and, desc, eq, gte, ilike, lt, or, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
+import { appointmentNetSql } from "@/core/appointments/bill-sql";
 import { appointments, patientPayments, patients, users } from "@/core/db/schema";
-import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import { displayStaffName } from "@/core/types/auth";
 
 /**
@@ -31,21 +31,13 @@ async function openingOwed(clinicId: string): Promise<number> {
  * bill net mirrors computeAppointmentTotal. Clinic-scoped.
  */
 
-/**
- * The bill net SQL for an appointment (consultation + procedures − approval-gated
- * discount), mirroring computeAppointmentTotal. The single source of the "bill"
- * expression — the dashboard's outstanding KPI (`getFinanceKpis`) reuses it so the
- * two always reconcile. Requires `users` joined on the appointment's doctor.
- */
-export function appointmentBillNetSql() {
-  const effDiscount = sql`(case when ${appointments.discountStatus} in ('pending','rejected') then 0 else ${appointments.discountValue} end)`;
-  const subtotal = sql`((case when ${appointments.chargeConsultation} then coalesce(${users.consultationFee}, 0) else 0 end) + ${appointmentProceduresNetSql()})`;
-  return sql<number>`(${subtotal} - least(greatest(case when ${appointments.discountType} = 'percent' then round(${subtotal} * ${effDiscount} / 100.0) else ${effDiscount} end, 0), ${subtotal}))`;
-}
+// The bill expression lives in `core/appointments/bill-sql`. This module used to
+// carry a byte-identical copy of it, and `list-query.ts` a third — each documented
+// as "the single source" (D-02). There is now ONE definition and one name.
 
 /** Total outstanding receivable across all completed visits (matches the dashboard). */
 export async function getOutstandingTotal(clinicId: string): Promise<number> {
-  const net = appointmentBillNetSql();
+  const net = appointmentNetSql();
   const [row] = await db
     .select({ v: sql<number>`coalesce(sum(greatest(${net} - ${appointments.amountCollected}, 0)), 0)::int` })
     .from(appointments)
@@ -90,7 +82,7 @@ export async function getReceivablesReport(
   clinicId: string,
   filters: ReceivablesFilters = {},
 ): Promise<ReceivablesReport> {
-  const net = appointmentBillNetSql();
+  const net = appointmentNetSql();
   const conds = [eq(appointments.status, "completed"), sql`${net} > ${appointments.amountCollected}`];
   if (filters.doctorId) conds.push(eq(appointments.doctorId, filters.doctorId));
   if (filters.q) conds.push(or(ilike(patients.fullName, `%${filters.q}%`), ilike(patients.phone, `%${filters.q}%`))!);

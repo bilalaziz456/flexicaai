@@ -93,7 +93,7 @@ export function computeProcedureLine(line: ProcedureLineInput): ProcedureLineTot
   return { gross, discount, net };
 }
 
-export type BillTotal = {
+export type BillTotals = {
   consultation: number;
   proceduresGross: number; // Σ line gross (pre any discount)
   proceduresDiscount: number; // Σ per-line discounts
@@ -103,27 +103,50 @@ export type BillTotal = {
   gross: number; // consultation + proceduresGross (true pre-discount)
   discount: number; // proceduresDiscount + appointmentDiscount
   net: number; // what the patient pays
-  lines: ProcedureLineTotal[];
 };
 
+export type BillTotal = BillTotals & { lines: ProcedureLineTotal[] };
+
 /**
- * The full appointment bill with per-line discounts AND an overall appointment
- * discount: each line is discounted first, summed with the consultation fee into a
- * subtotal, then the appointment discount is applied to that subtotal. Pure.
+ * ═══ THE BILL. One formula, in one place. ═══
+ *
+ * Everything that answers "what does this visit cost?" goes through here. It used to
+ * be three near-identical functions in this file plus two byte-identical SQL copies
+ * elsewhere, kept in step by comments — and they had already drifted (see `gross`
+ * below). `scripts/test-bill-parity.ts` now binds this to its SQL counterpart in
+ * `core/appointments/bill-sql.ts`; change one without the other and it goes red.
+ *
+ * ORDER MATTERS, and it is the thing most easily got wrong:
+ *   1. each line is discounted FIRST  → lineNet = gross − its own clamped discount
+ *   2. subtotal = consultation + Σ lineNet
+ *   3. the appointment discount applies to that SUBTOTAL, never to the gross
+ *   4. net = subtotal − that discount, clamped so it can't go below zero
+ *
+ * `gross` is the TRUE pre-discount figure (consultation + Σ line gross), so the
+ * invariant `gross − discount = net` always holds. The old
+ * `computeAppointmentTotal` took a single pre-summed procedures number and every
+ * server caller passed the NET, which made its `gross` post-line-discount: the
+ * struck-through "full price" on the appointments list understated the real one, and
+ * disagreed with the printed invoice. Taking gross AND net separately is what makes
+ * that unrepresentable.
+ *
+ * Pure — no DB, no `server-only` — so the booking form and the sales ledger share it.
  */
-export function computeBill(
+export function billFromTotals(
   consultationFee: number | null | undefined,
-  lines: ProcedureLineInput[],
+  proceduresGross: number,
+  proceduresNet: number,
   appointmentDiscountType: DiscountType,
   appointmentDiscountValue: number,
-): BillTotal {
+): BillTotals {
   const consultation =
     consultationFee && consultationFee > 0 ? Math.round(consultationFee) : 0;
-  const lineTotals = lines.map(computeProcedureLine);
-  const proceduresGross = lineTotals.reduce((s, l) => s + l.gross, 0);
-  const proceduresDiscount = lineTotals.reduce((s, l) => s + l.discount, 0);
-  const proceduresNet = lineTotals.reduce((s, l) => s + l.net, 0);
-  const subtotal = consultation + proceduresNet;
+  const pGross = Math.max(0, Math.round(proceduresGross || 0));
+  // Net can never exceed gross; clamping here means a caller that passes them the
+  // wrong way round gets a wrong-but-sane number instead of a negative discount.
+  const pNet = Math.min(pGross, Math.max(0, Math.round(proceduresNet || 0)));
+  const proceduresDiscount = pGross - pNet;
+  const subtotal = consultation + pNet;
   const { discount: appointmentDiscount } = computeFee(
     subtotal,
     appointmentDiscountType,
@@ -131,22 +154,43 @@ export function computeBill(
   );
   return {
     consultation,
-    proceduresGross,
+    proceduresGross: pGross,
     proceduresDiscount,
-    proceduresNet,
+    proceduresNet: pNet,
     subtotal,
     appointmentDiscount,
-    gross: consultation + proceduresGross,
+    gross: consultation + pGross,
     discount: proceduresDiscount + appointmentDiscount,
     net: subtotal - appointmentDiscount,
-    lines: lineTotals,
   };
 }
 
 /**
+ * The bill from actual LINES — used where they're already loaded (the invoice, the
+ * receipt, the booking form). Sums the lines, then defers to `billFromTotals`, and
+ * additionally returns the per-line breakdown for rendering.
+ */
+export function computeBill(
+  consultationFee: number | null | undefined,
+  lines: ProcedureLineInput[],
+  appointmentDiscountType: DiscountType,
+  appointmentDiscountValue: number,
+): BillTotal {
+  const lineTotals = lines.map(computeProcedureLine);
+  const totals = billFromTotals(
+    consultationFee,
+    lineTotals.reduce((s, l) => s + l.gross, 0),
+    lineTotals.reduce((s, l) => s + l.net, 0),
+    appointmentDiscountType,
+    appointmentDiscountValue,
+  );
+  return { ...totals, lines: lineTotals };
+}
+
+/**
  * The three snapshot amounts the sales ledger stores, from pre-summed procedure
- * gross + net (so it stays a single aggregate query). Keeps the invariant
- * gross − discount = net while counting BOTH line and appointment discounts. Pure.
+ * gross + net (so it stays a single aggregate query). A projection of
+ * `billFromTotals` — NOT a second formula.
  */
 export function computeSaleAmounts(
   consultationFee: number | null | undefined,
@@ -155,48 +199,12 @@ export function computeSaleAmounts(
   appointmentDiscountType: DiscountType,
   appointmentDiscountValue: number,
 ): { gross: number; discount: number; net: number } {
-  const consultation =
-    consultationFee && consultationFee > 0 ? Math.round(consultationFee) : 0;
-  const pGross = Math.max(0, Math.round(proceduresGross || 0));
-  const pNet = Math.max(0, Math.round(proceduresNet || 0));
-  const lineDiscount = Math.max(0, pGross - pNet);
-  const subtotal = consultation + pNet;
-  const { discount: appointmentDiscount } = computeFee(
-    subtotal,
+  const { gross, discount, net } = billFromTotals(
+    consultationFee,
+    proceduresGross,
+    proceduresNet,
     appointmentDiscountType,
     appointmentDiscountValue,
   );
-  return {
-    gross: consultation + pGross,
-    discount: lineDiscount + appointmentDiscount,
-    net: subtotal - appointmentDiscount,
-  };
-}
-
-export type AppointmentTotal = {
-  consultation: number;
-  procedures: number;
-  gross: number; // consultation + procedures, before discount
-  discount: number;
-  net: number; // what the patient pays
-};
-
-/**
- * Full appointment bill: the doctor's consultation fee PLUS the selected
- * procedures, with the discount applied to that combined total. Pure — shared by
- * the booking form, the lists, and the WhatsApp confirmation.
- */
-export function computeAppointmentTotal(
-  consultationFee: number | null | undefined,
-  proceduresTotal: number,
-  discountType: DiscountType,
-  discountValue: number,
-): AppointmentTotal {
-  const consultation =
-    consultationFee && consultationFee > 0 ? Math.round(consultationFee) : 0;
-  const procs = Math.max(0, Math.round(proceduresTotal || 0));
-  const gross = consultation + procs;
-  // Reuse the same discount clamp against the combined total.
-  const { discount, net } = computeFee(gross, discountType, discountValue);
-  return { consultation, procedures: procs, gross, discount, net };
+  return { gross, discount, net };
 }

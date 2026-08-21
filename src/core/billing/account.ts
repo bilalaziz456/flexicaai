@@ -4,9 +4,12 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, patientPayments, patients, users } from "@/core/db/schema";
-import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import {
-  computeAppointmentTotal,
+  appointmentProceduresGrossSql,
+  appointmentProceduresNetSql,
+} from "@/core/appointments/procedures";
+import {
+  billFromTotals,
   effectiveDiscountValue,
   normalizeDiscountType,
 } from "@/core/appointments/fee";
@@ -57,6 +60,7 @@ export async function getPatientAccount(
       discountStatus: appointments.discountStatus,
       amountCollected: appointments.amountCollected,
       fee: users.consultationFee,
+      proceduresGross: appointmentProceduresGrossSql(),
       proceduresNet: appointmentProceduresNetSql(),
     })
     .from(appointments)
@@ -72,8 +76,9 @@ export async function getPatientAccount(
     .orderBy(desc(appointments.scheduledAt));
 
   const visits: PatientVisit[] = rows.map((r) => {
-    const bill = computeAppointmentTotal(
+    const bill = billFromTotals(
       r.chargeConsultation ? (r.fee ?? 0) : 0,
+      Number(r.proceduresGross),
       Number(r.proceduresNet),
       normalizeDiscountType(r.discountType),
       effectiveDiscountValue(r.discountStatus, r.discountValue),

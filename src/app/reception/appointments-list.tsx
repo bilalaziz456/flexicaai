@@ -9,12 +9,13 @@ import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import {
-  computeAppointmentTotal,
+  billFromTotals,
   effectiveDiscountValue,
   formatPkr,
 } from "@/core/appointments/fee";
 import {
   appointmentHasProceduresSql,
+  appointmentProceduresGrossSql,
   appointmentProceduresNetSql,
 } from "@/core/appointments/procedures";
 import { getDayQueue } from "@/core/appointments/queue";
@@ -179,6 +180,7 @@ export async function AppointmentsList({
         doctorUsername: users.username,
         doctorPrefix: users.prefix,
         consultationFee: users.consultationFee,
+        proceduresGross: appointmentProceduresGrossSql(),
         proceduresTotal: appointmentProceduresNetSql(),
         hasProcedures: appointmentHasProceduresSql(),
       })
@@ -221,8 +223,12 @@ export async function AppointmentsList({
       ? displayStaffName(a.doctorPrefix, a.doctorName, a.doctorUsername ?? "")
       : "Any doctor";
   const feeLabel = (a: (typeof rows)[number]) => {
-    const { gross, discount, net } = computeAppointmentTotal(
+    // gross is now the TRUE pre-discount figure: passing only the NET made the
+    // struck-through "full price" understate whenever a line carried a discount,
+    // so this row disagreed with the invoice it prints.
+    const { gross, discount, net } = billFromTotals(
       a.chargeConsultation ? a.consultationFee : 0,
+      Number(a.proceduresGross),
       Number(a.proceduresTotal),
       a.discountType === "percent" ? "percent" : "amount",
       effectiveDiscountValue(a.discountStatus, a.discountValue),
@@ -236,8 +242,9 @@ export async function AppointmentsList({
     a: (typeof rows)[number],
   ): { label: string; variant: "outline" | "secondary" | "destructive" } | null => {
     if (!billingOn || a.status !== "completed") return null;
-    const bill = computeAppointmentTotal(
+    const bill = billFromTotals(
       a.chargeConsultation ? a.consultationFee : 0,
+      Number(a.proceduresGross),
       Number(a.proceduresTotal),
       a.discountType === "percent" ? "percent" : "amount",
       effectiveDiscountValue(a.discountStatus, a.discountValue),

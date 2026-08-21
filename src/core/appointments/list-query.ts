@@ -1,11 +1,9 @@
 import "server-only";
 
 import { eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
-import { appointments, patients, users } from "@/core/db/schema";
-import {
-  appointmentHasProceduresSql,
-  appointmentProceduresNetSql,
-} from "@/core/appointments/procedures";
+import { appointments, patients } from "@/core/db/schema";
+import { appointmentHasProceduresSql } from "@/core/appointments/procedures";
+import { appointmentNetSql } from "@/core/appointments/bill-sql";
 import type { StatusFilter, VisitTypeFilter } from "./list-filters";
 
 /**
@@ -19,17 +17,6 @@ import type { StatusFilter, VisitTypeFilter } from "./list-filters";
  * reference both), and wrap the result in `byClinic(...)` + `notDeleted(...)`.
  */
 
-/**
- * A visit's NET bill: (consultation when charged) + procedures − the
- * approval-gated appointment discount. Mirrors `computeAppointmentTotal` /
- * `computeBill` exactly so the DB filter and the rendered figure can't drift; a
- * 'pending'/'rejected' discount counts as 0 until approved.
- */
-export function appointmentNetSql(): SQL<number> {
-  const effDiscount = sql`(case when ${appointments.discountStatus} in ('pending','rejected') then 0 else ${appointments.discountValue} end)`;
-  const subtotal = sql`((case when ${appointments.chargeConsultation} then coalesce(${users.consultationFee}, 0) else 0 end) + ${appointmentProceduresNetSql()})`;
-  return sql<number>`(${subtotal} - least(greatest(case when ${appointments.discountType} = 'percent' then round(${subtotal} * ${effDiscount} / 100.0) else ${effDiscount} end, 0), ${subtotal}))`;
-}
 
 export type AppointmentFilterInput = {
   /** A queue session pins doctor + day + window; it replaces the date range. */

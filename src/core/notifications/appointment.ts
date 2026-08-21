@@ -5,8 +5,11 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, clinics, patients, users } from "@/core/db/schema";
 import { displayStaffName } from "@/core/types/auth";
-import { computeAppointmentTotal, effectiveDiscountValue } from "@/core/appointments/fee";
-import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
+import { billFromTotals, effectiveDiscountValue } from "@/core/appointments/fee";
+import {
+  appointmentProceduresGrossSql,
+  appointmentProceduresNetSql,
+} from "@/core/appointments/procedures";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import { report } from "@/core/observability";
@@ -128,6 +131,7 @@ export async function notifyAppointmentBooked(
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
         discountStatus: appointments.discountStatus,
+        proceduresGross: appointmentProceduresGrossSql(),
         proceduresTotal: appointmentProceduresNetSql(),
         queueNumber: appointments.queueNumber,
         clinicName: clinics.name,
@@ -154,8 +158,9 @@ export async function notifyAppointmentBooked(
     const when = formatWhen(r.scheduledAt);
     // Quote the net total the patient pays: consultation fee + procedures, less
     // any per-appointment discount.
-    const { gross, net } = computeAppointmentTotal(
+    const { gross, net } = billFromTotals(
       doctor && r.chargeConsultation ? r.fee : 0,
+      Number(r.proceduresGross),
       Number(r.proceduresTotal),
       r.discountType === "percent" ? "percent" : "amount",
       effectiveDiscountValue(r.discountStatus, r.discountValue),

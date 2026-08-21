@@ -19,7 +19,7 @@ import { TimeSelect } from "@/core/ui/time-select";
 import { Toast } from "@/core/ui/toast";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 import {
-  computeAppointmentTotal,
+  computeBill,
   formatPkr,
   type DiscountType,
 } from "@/core/appointments/fee";
@@ -176,9 +176,19 @@ export function NewAppointmentForm({
     if (!s) return null;
     return { gross: p.price * s.quantity, net: p.price * s.quantity };
   };
-  const proceduresTotal = procedures
+  // The selected lines, in the shape the shared bill takes. This form has no
+  // per-line discount (see the hidden field below), so each line's gross IS its net
+  // — but going through `computeBill` rather than a local sum means the preview uses
+  // the same formula as the invoice it will become, and gains line discounts for
+  // free if this form ever offers them.
+  const billLines = procedures
     .filter((p) => procSel.has(p.id))
-    .reduce((sum, p) => sum + (procLine(p)?.net ?? 0), 0);
+    .map((p) => ({
+      unitPrice: p.price,
+      quantity: procSel.get(p.id)!.quantity,
+      discountType: "amount" as DiscountType,
+      discountValue: 0,
+    }));
   const [slots, setSlots] = useState<DoctorDaySlots | null>(null);
   const action = isEdit
     ? updateAppointment.bind(null, appointmentId!)
@@ -226,9 +236,9 @@ export function NewAppointmentForm({
   ];
   const consultationFee = selectedDoctor?.consultationFee ?? 0;
   // Live bill preview: consultation fee (if charged) + procedures, minus discount.
-  const bill = computeAppointmentTotal(
+  const bill = computeBill(
     chargeConsultation ? consultationFee : 0,
-    proceduresTotal,
+    billLines,
     discountType,
     discountNumber,
   );
@@ -688,7 +698,7 @@ export function NewAppointmentForm({
             (() => {
               const parts: string[] = [];
               if (bill.consultation > 0) parts.push(`${formatPkr(bill.consultation)} fee`);
-              if (bill.procedures > 0) parts.push(`${formatPkr(bill.procedures)} procedures`);
+              if (bill.proceduresNet > 0) parts.push(`${formatPkr(bill.proceduresNet)} procedures`);
               const lhs =
                 parts.length > 1 ? `${parts.join(" + ")} = ${formatPkr(bill.gross)}` : parts[0];
               return (

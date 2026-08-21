@@ -213,12 +213,14 @@ feature (`core/lib/features.ts`). Indexes: `clinic_id`; (`clinic_id`,`is_active`
 THIS line's gross (`unit_price×quantity`) BEFORE the appointment-level discount —
 and `created_at`. The bill is **layered**: each line is discounted first (`lineNet
 = gross − line discount`), summed with the consultation fee into a **subtotal**,
-then the appointment's own discount applies to that subtotal — all in
-`core/appointments/fee.ts` (`computeProcedureLine` / `computeBill`;
-`computeSaleAmounts` for the ledger's gross/discount/net snapshot). To keep the many
-callers a single fast aggregate (not N queries), the per-row net is expressed in SQL
-by `procedures.ts#procedureRowNetSql` (mirrors `computeProcedureLine` exactly), with
-correlated `appointmentProceduresNetSql` / `appointmentProceduresGrossSql` helpers
+then the appointment's own discount applies to that subtotal. ONE formula does this
+(ADR-015): `core/appointments/fee.ts#billFromTotals`, with `computeBill` (from lines)
+and `computeSaleAmounts` (for the ledger snapshot) as projections of it. To keep the
+many callers a single fast aggregate (not N queries), the same formula is expressed in
+SQL by `procedures.ts#procedureRowNetSql` (per line) and
+`bill-sql.ts#appointmentNetSql` (per appointment) — bound to the TS by
+`scripts/test-bill-parity.ts`, which asserts they agree to the rupee, so the two can
+no longer drift. Correlated `appointmentProceduresNetSql` / `appointmentProceduresGrossSql` helpers
 used by both appointment lists, the WhatsApp confirmation + reschedule quote, the
 sales ledger, and the report's per-procedure breakdown. Saved on create/edit via
 `saveAppointmentProcedures` (replace-all, `{procedureId, quantity, discountType,
@@ -231,7 +233,8 @@ back for the edit-form prefill and the read-only bill. Indexes: `appointment_id`
 (`cascade`, **UNIQUE** — one sale per appointment), `doctor_id` → users (`set
 null`), `doctor_name` (**snapshot**, survives the doctor being renamed/deleted),
 `gross_amount` / `discount_amount` / `net_amount` (int PKR, **snapshots** computed
-via `computeAppointmentTotal` = fee + procedures − discount), `occurred_at`
+via `computeSaleAmounts` = fee + procedures − discount; `gross` is the TRUE
+pre-discount figure, so `gross − discount = net` always holds), `occurred_at`
 (= the appointment's `scheduled_at`; drives the report's time buckets),
 `created_at`. One row per **completed** appointment, written by
 `core/sales/ledger.ts`: `recordSaleForAppointment` (upsert on the completion hook
@@ -326,7 +329,8 @@ change (no drift). See `core/billing/*`. Indexes: (`clinic_id`,`patient_id`);
 appointment (partial unique on `appointment_id WHERE deleted_at IS NULL`); the number
 is allocated by locking the clinic row (`FOR UPDATE`) and bumping
 `clinics.next_invoice_no`, shown with `clinics.invoice_prefix`. The bill amount is
-NOT stored — derived from `computeBill` at render (thermal/A5/A4 print). See
+NOT stored — derived from `computeBill` at render (thermal/A5/A4 print), the same
+formula the lists aggregate in SQL. See
 `core/billing/invoice.ts`. Indexes: unique(`clinic_id`,`invoice_no`);
 (`clinic_id`,`issued_at`); (`patient_id`).
 

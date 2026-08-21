@@ -4,7 +4,7 @@ import { and, desc, eq, gte, ilike, lt, or, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, clinics, invoices, patients, users } from "@/core/db/schema";
-import { appointmentBillNetSql } from "@/core/finance/receivables";
+import { appointmentNetSql } from "@/core/appointments/bill-sql";
 
 /**
  * Invoices — CORE (Finance). One live invoice per appointment. The number is a
@@ -87,7 +87,7 @@ export type InvoiceListFilters = { from?: Date; toExclusive?: Date; q?: string }
 
 /**
  * The invoice register — every live invoice, newest number first, with the derived
- * bill amount (the shared `appointmentBillNetSql`, so it matches the printed invoice
+ * bill amount (the shared `appointmentNetSql`, so it matches the printed invoice
  * and every other money view). Search matches invoice number OR patient name/phone;
  * an optional issued-date range narrows it. Clinic-scoped; for lookup + reprint.
  */
@@ -140,7 +140,7 @@ export async function getInvoicesList(
       patientName: patients.fullName,
       patientPhone: patients.phone,
       appointmentId: appointments.id,
-      amount: appointmentBillNetSql(),
+      amount: appointmentNetSql(),
     })
     .from(invoices)
     .innerJoin(appointments, eq(appointments.id, invoices.appointmentId))

@@ -48,12 +48,17 @@ function clampQty(q: number): number {
 
 /**
  * SQL for a procedure row's NET (line gross − its clamped per-line discount).
- * Mirrors `computeProcedureLine` exactly so the DB aggregates and the JS bill can
- * never drift. Use inside a `sum(...)` (grouped) or the correlated helper below.
+ * Mirrors `computeProcedureLine` exactly — enforced by `scripts/test-bill-parity.ts`,
+ * not by this comment. Use inside a `sum(...)` (grouped) or the correlated helper
+ * below. The appointment-level half of the formula lives in `bill-sql.ts`.
+ *
+ * The percent multiply runs in NUMERIC for the same reason as the appointment-level
+ * discount: per-line `discount_value` is unbounded, and `gross * value` overflows
+ * int4 on a large percentage, which makes Postgres throw where TS would clamp.
  */
 export function procedureRowNetSql(): SQL<number> {
   const gross = sql`(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity})`;
-  return sql<number>`(${gross} - least(greatest(case when ${appointmentProcedures.discountType} = 'percent' then round(${gross} * ${appointmentProcedures.discountValue} / 100.0) else ${appointmentProcedures.discountValue} end, 0), ${gross}))`;
+  return sql<number>`(${gross} - least(greatest(round(case when ${appointmentProcedures.discountType} = 'percent' then ${gross}::numeric * ${appointmentProcedures.discountValue} / 100.0 else ${appointmentProcedures.discountValue}::numeric end), 0), ${gross}))::int`;
 }
 
 /** Correlated Σ of per-row NET for the OUTER `appointments.id` (0 when none). */

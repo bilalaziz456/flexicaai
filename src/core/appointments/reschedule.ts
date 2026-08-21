@@ -6,9 +6,10 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, patients } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
-import { computeAppointmentTotal, effectiveDiscountValue } from "@/core/appointments/fee";
+import { billFromTotals, effectiveDiscountValue } from "@/core/appointments/fee";
 import {
   appointmentHasProceduresSql,
+  appointmentProceduresGrossSql,
   appointmentProceduresNetSql,
 } from "@/core/appointments/procedures";
 import { checkDoctorSlot } from "@/core/appointments/availability";
@@ -98,6 +99,7 @@ export async function handleRescheduleReply(args: {
         discountValue: appointments.discountValue,
         discountStatus: appointments.discountStatus,
         chargeConsultation: appointments.chargeConsultation,
+        proceduresGross: appointmentProceduresGrossSql(),
         proceduresTotal: appointmentProceduresNetSql(),
       })
       .from(appointments)
@@ -226,8 +228,9 @@ export async function handleRescheduleReply(args: {
     // Tell the patient it's rescheduled (accurate wording — not "confirmed").
     // Quote the full net total the patient pays: consultation fee + procedures −
     // discount (the procedures don't change on a move).
-    const { gross, net } = computeAppointmentTotal(
+    const { gross, net } = billFromTotals(
       appt.chargeConsultation ? fee : 0,
+      Number(appt.proceduresGross),
       Number(appt.proceduresTotal),
       appt.discountType === "percent" ? "percent" : "amount",
       effectiveDiscountValue(appt.discountStatus, appt.discountValue),

@@ -7,7 +7,7 @@ import { appointments, users } from "@/core/db/schema";
 import { resolveSalesRange, type ResolvedRange } from "@/core/sales/report";
 import { getProfitAndLoss } from "@/core/finance/pl";
 import { getDoctorBalances } from "@/core/sales/payouts";
-import { appointmentBillNetSql } from "@/core/finance/receivables";
+import { appointmentNetSql } from "@/core/appointments/bill-sql";
 
 /**
  * Owner finance KPIs for the dashboard — collected + net profit over the last 30
@@ -59,7 +59,7 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
 
   // Outstanding receivable = Σ(bill − collected) over completed visits. Shared bill
   // expression with the Receivables report, so the two always reconcile.
-  const netSql = appointmentBillNetSql();
+  const netSql = appointmentNetSql();
 
   const [pl, plPrev, [rec], balances, outByDay, [opening]] = await Promise.all([
     getProfitAndLoss(clinicId, range30),

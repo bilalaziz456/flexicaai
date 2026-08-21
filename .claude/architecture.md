@@ -249,16 +249,40 @@ would add indirection without removing coupling.
 **Consequence:** enforced by an ESLint `no-restricted-imports` rule with an
 allowlist that only ever shrinks — a visible debt counter, no big-bang refactor.
 
-**ADR-015 — One bill implementation, with SQL bound to it by test** · *2026-08-21* ·
-`Accepted` *(target; see delta D-02)*
-One canonical pure function (`computeBill`) and one canonical SQL expression.
-`computeAppointmentTotal` / `computeSaleAmounts` become projections of `computeBill`,
-not parallel formulas.
-**Why:** six implementations currently answer "what does this visit cost?", kept in
-step by comments. One has already drifted.
-**Consequence:** SQL that mirrors TS money logic requires a differential test
-asserting agreement to the rupee. That test — not the refactor — is what retires the
-risk.
+**ADR-015 — One bill formula, with SQL bound to it by test** · *2026-08-21* ·
+`Accepted` *(implemented — D-02 closed)*
+ONE formula, expressed twice because it must be:
+- **TS** — `fee.ts#billFromTotals(consultation, proceduresGross, proceduresNet, …)`
+  is the core. `computeBill` (from lines, for the invoice/receipt/booking form) and
+  `computeSaleAmounts` (for the ledger) are projections of it, not parallel formulas.
+- **SQL** — `bill-sql.ts#appointmentNetSql`, composed over
+  `procedures.ts#procedureRowNetSql`, for set-based queries where doing it per row in
+  JS would be N+1.
+- **`scripts/test-bill-parity.ts` is the contract** between them: randomised
+  appointments, asserted equal to the rupee.
+
+**Why:** six implementations answered "what does this visit cost?", kept in step by
+comments — including two byte-identical SQL copies each documented as "the single
+source". `computeAppointmentTotal` took ONE pre-summed procedures figure and every
+server caller passed the NET, so its `gross` was post-line-discount: the appointments
+list showed a struck-through "full price" that disagreed with the invoice.
+**Order is the load-bearing detail:** line discounts apply first, the appointment
+discount applies to the SUBTOTAL, never to the gross.
+**Consequence:** any SQL mirroring TS money logic needs a differential test asserting
+agreement to the rupee. That test — not the refactor — is what retires the risk, and
+it earned its place immediately by finding an int4 overflow (below).
+
+**ADR-021 — Money arithmetic in SQL runs in `numeric`, not `int4`** · *2026-08-21* ·
+`Accepted`
+Any percent-discount multiply casts to `numeric` before multiplying, and casts the
+clamped result back to `int`.
+**Why:** `discount_value` has no upper bound in the schema or in validation, so a
+percent discount of e.g. 99999 is storable. `subtotal * 99999` overflows int4 and
+Postgres **throws**, while TS clamps — so one side returned a number and the other
+500'd every list that aggregates bills (appointments, receivables, invoices, dashboard
+KPIs) for that clinic until the row was edited. Found by the parity test.
+**Consequence:** the clamp makes the result always `0 ≤ net ≤ subtotal`, so the final
+`::int` can never overflow. Bounding the input remains worth doing separately (D-17).
 
 **ADR-016 — Derived state is transactional; external effects are best-effort** ·
 *2026-08-21* · `Accepted` *(target; see delta D-03)*
@@ -317,7 +341,6 @@ they land.** Ordered by consequence.
 | # | Delta | ADR | Status |
 |---|---|---|---|
 | D-01 | 77 app files query the DB directly; no lint rule yet | ADR-014 | Open |
-| D-02 | Six bill implementations; no differential test | ADR-015 | Open |
 | D-03 | Appointment completion writes 5 tables untransacted; no reconciliation job | ADR-016 | Open |
 | D-04 | `/doctor` + `/reception` dead shells hold live code; cross-group imports | ADR-019 | Open |
 | D-05 | `core/ui/panel-shell.tsx` owns the whole app's route map | ADR-019 | Open |
@@ -331,13 +354,17 @@ they land.** Ordered by consequence.
 | D-13 | No test framework; no CI | ADR-005 | **On hold** (owner's direction, 2026-08-21) |
 | D-14 | Timezone is server-local; blocks a second region | ADR-009 | Open — required before the first GCC clinic |
 | D-15 | CSP is report-only | — | Open — enforce once the sink shows it clean |
+| D-17 | `discount_value` is unbounded (`z.coerce.number().int().min(0)`), so a *percent* discount of e.g. 99999 is storable and meaningless. The SQL no longer breaks on it (ADR-021) and both sides clamp, but the input should be rejected: percent ≤ 100 | ADR-021 | Open — found 2026-08-21 by `test-bill-parity.ts`; a zod refine on the appointment + per-line discount schemas |
 
 **Closed:** local-FS storage on an ephemeral host (ADR-010) · in-memory limiter on a
 multi-instance host (ADR-011) · API routes bypassing the auth chokepoint (ADR-013) ·
 no observability (ADR-017) · silent tenant-guard (ADR-018) · webhook replay
 double-booking · unbounded AI provider calls · cron secret timing leak · unsigned
 webhooks accepted in production · **D-16 draft ownership unenforced on
-approve/discard (ADR-007, closed 2026-08-21 — `scripts/test-draft-ownership.ts`)**.
+approve/discard (ADR-007, closed 2026-08-21 — `scripts/test-draft-ownership.ts`)** ·
+**D-02 six bill implementations (ADR-015, closed 2026-08-21 — one TS formula in
+`fee.ts#billFromTotals`, one SQL expression in `bill-sql.ts`, bound by
+`scripts/test-bill-parity.ts`)**.
 
 ---
 

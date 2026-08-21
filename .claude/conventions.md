@@ -81,6 +81,12 @@ note above it; obvious logic gets none.
 - Drizzle by default; raw SQL on the same pool for heavy aggregation. Never a second
   `Pool`.
 - **Never hard-delete.** A delete UPDATEs the soft-delete columns.
+- **Money arithmetic in SQL runs in `numeric`, then casts back to `int`** (ADR-021).
+  An amount column is `int4`; a percentage multiply on it overflows and Postgres
+  *throws* where the TS equivalent would clamp. Cast before multiplying.
+- **SQL that mirrors a TS calculation needs a test binding the two**, not a comment
+  claiming it mirrors. See `scripts/test-bill-parity.ts` for the pattern: build
+  randomised rows, compute both ways, assert equality.
 
 ## 7. Error handling
 
