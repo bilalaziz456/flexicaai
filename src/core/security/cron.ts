@@ -6,9 +6,22 @@ import { serverEnv, isProduction } from "@/core/lib/env";
 import { report, reportEvent, withRequestContext } from "@/core/observability";
 
 /**
- * Cron authorization — CORE. Vercel Cron calls our job routes with
- * `Authorization: Bearer <CRON_SECRET>`; we also accept `?token=<CRON_SECRET>` (and
- * an `x-cron-token` header) so a job can be kicked off by hand.
+ * Cron authorization — CORE. The job routes are invoked by SYSTEM CRON / systemd
+ * timers on the server (CLAUDE.md §2a) with `Authorization: Bearer <CRON_SECRET>`;
+ * we also accept `?token=<CRON_SECRET>` and an `x-cron-token` header so a job can be
+ * kicked off by hand.
+ *
+ * DEPLOY NOTE: nothing schedules these for us. There is no platform cron on a
+ * self-managed server, so if the crontab/timers are not installed, recalls and
+ * reminders never fire and NOTHING reports it — a job that is never invoked produces
+ * no error to report. `vercel.json` is inert; it survives only as the reference list
+ * of paths and schedules. Example (`/etc/cron.d/flexicaai`, times mirror vercel.json):
+ *
+ *   0 9  * * *  flexica  curl -fsS -H "Authorization: Bearer ${CRON_SECRET}" http://127.0.0.1:3000/api/cron/recalls
+ *   0 18 * * *  flexica  curl -fsS -H "Authorization: Bearer ${CRON_SECRET}" http://127.0.0.1:3000/api/cron/reminders
+ *
+ * Call the LOCAL port directly so a job never traverses nginx (no proxy timeout, no
+ * TLS, and it keeps the secret off the public interface).
  *
  * This block used to be copy-pasted, byte for byte, into all five cron routes. It
  * lives here once so the policy has ONE place to change and the five can't drift.

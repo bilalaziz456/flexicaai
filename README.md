@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FlexicaAI
 
-## Getting Started
+A modular SaaS platform for dental clinics in Pakistan and the GCC — appointments,
+patients, billing, an AI voice scribe, and WhatsApp patient messaging.
 
-First, run the development server:
+The architecture is deliberately split: ~70–80% shared **core** (`src/core`) and
+20–30% specialty **modules** (`src/modules`, dental today; derma and hair
+transplant are architected for but not built). **Read `CLAUDE.md` before writing
+code** — it holds the guardrails, and `.claude/database.md` the schema reference.
+
+## Stack
+
+Next.js (App Router) · TypeScript · Tailwind + shadcn/ui · PostgreSQL via Drizzle ·
+custom session auth · Claude (scribe) · Whisper (transcription) · WhatsApp
+(AiSensy / Meta Cloud API).
+
+## Getting started
 
 ```bash
+npm install
+cp .env.example .env.local     # set DATABASE_URL at minimum
+npm run db:migrate             # apply migrations
+npm run db:seed                # create the first super-admin
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. Most integrations (AI, WhatsApp, SMTP) are optional —
+without their keys the app boots and those features degrade gracefully rather than
+failing.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Checks
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run test:unit    # pure logic + a few DB-backed checks
+npm run test:e2e     # full HTTP smoke test; needs the app running
+npx tsc --noEmit     # typecheck
+npm run lint
+```
 
-## Learn More
+## Deployment
 
-To learn more about Next.js, take a look at the following resources:
+FlexicaAI runs on a **self-managed Linux server** (single node): Node serving
+`next start` behind **nginx** for TLS, with PostgreSQL on the same box or a
+neighbouring one. `CLAUDE.md` §2a is the authoritative deployment contract; the
+three things most easily missed:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. **Install the cron jobs.** There is no platform scheduler — see
+   `deploy/flexicaai.cron`. Without it, recalls and reminders never fire, and
+   nothing reports it.
+2. **Raise nginx's `proxy_read_timeout` for `/api/ai/scribe`** (default 60s cuts
+   off a normal dictation; the route budgets 300s).
+3. **Back up `STORAGE_DIR` together with Postgres.** The database rows and the
+   files on disk are one dataset — restoring one without the other leaves records
+   pointing at attachments that no longer exist.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Single node is an assumption with teeth: local file storage and the in-memory rate
+limiter are both correct on one process and silently wrong across two. Going
+multi-instance means switching storage to S3 and the limiter to Redis first
+(`docs/scale-plan.md` §1).

@@ -5,7 +5,7 @@ import { runCron } from "@/core/security/cron";
 
 /**
  * GET /api/cron/recalls — runs the recall engine: sends reminders for recalls
- * that are due. Triggered by Vercel Cron (CLAUDE.md §2 — start with Vercel Cron).
+ * that are due. Triggered by system cron / a systemd timer (CLAUDE.md §2a).
  * Wrapped by `runCron`: auth (Bearer <CRON_SECRET> or ?token=…) + a correlation id +
  * crash reporting, since a cron has no user watching it.
  */

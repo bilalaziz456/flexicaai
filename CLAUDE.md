@@ -35,13 +35,17 @@ When writing any feature, always ask: "Would a dentist, dermatologist, and hair 
   for heavy analytics / hand-tuned queries. See `src/core/db/index.ts` for the policy.
 - **Auth:** Custom session auth — `users` table (bcrypt hashes) + `sessions` table +
   HTTP-only cookie holding an opaque token (SHA-256 hash stored). No third-party auth.
-- **File storage:** local filesystem for now (audio, PDFs, photos); swap to an
-  S3-compatible store later. (Was Supabase Storage.)
+- **File storage:** local filesystem — a real, persistent disk on the server
+  (audio, PDFs, photos, attachments, logos). All access goes through
+  `core/integrations/storage`, so an S3-compatible store can be swapped in later
+  by changing that one module. (Was Supabase Storage.)
 - **AI reasoning:** Anthropic Claude API (scribe, chat)
 - **Voice transcription:** OpenAI Whisper API
 - **WhatsApp:** AiSensy (WhatsApp Business API provider)
-- **Background jobs:** Start with Vercel Cron; add BullMQ + Redis only when needed
-- **Hosting:** Vercel
+- **Background jobs:** system **cron / systemd timers** on the server calling the
+  `/api/cron/*` endpoints with the `CRON_SECRET`; add BullMQ + Redis only when needed
+- **Hosting:** a **self-managed Linux server** (single node), Node running
+  `next start` behind **nginx** as the TLS-terminating reverse proxy
 - **PDF generation:** react-pdf or pdfkit
 
 Do not introduce new libraries or frameworks without a clear reason. Prefer boring, proven choices.
@@ -49,6 +53,57 @@ Do not introduce new libraries or frameworks without a clear reason. Prefer bori
 > **Stack note (2026-07-06):** The DB/Auth/Storage stack was changed from Supabase to
 > **local PostgreSQL + Drizzle + custom session auth** at the owner's direction. Any older
 > references to Supabase elsewhere in this file are superseded by this section.
+
+> **Hosting note (2026-08-21):** Hosting was changed from **Vercel** to a
+> **self-managed Linux server** at the owner's direction. This is not a cosmetic
+> swap — it is what makes several existing design choices CORRECT rather than
+> merely tolerated, and it moves three constraints. See §2a. Any older reference to
+> Vercel elsewhere in this file or in `/docs` is superseded.
+
+---
+
+## 2a. What the Linux server means (read before touching infra)
+
+The app was architected **single-node-first** on purpose. A persistent Linux box is
+the deployment that assumption was written for, so several things stop being
+liabilities:
+
+- **Local-filesystem storage is now correct, not a workaround.** A serverless host
+  has an ephemeral, read-only filesystem, which would have lost clinical
+  attachments. A real disk persists, so `STORAGE_DIR` is a sound choice. It stays
+  behind `core/integrations/storage` so S3 remains a one-module swap when it's
+  needed — see the horizontal-scaling caveat below.
+- **The in-memory rate limiter is now effective.** `core/security/rate-limit.ts`
+  keeps counters in process memory. On ONE Node process that is exactly right and
+  brute-force protection genuinely works. It silently stops working under PM2
+  cluster mode or multiple app instances — see below.
+- **Cron secrets and long requests are ours to control**, not a platform's.
+
+**The three constraints this moves — do not lose these:**
+
+1. **Nothing schedules the jobs unless you configure it.** There is no platform
+   cron. `vercel.json` is inert here. Five endpoints must be invoked by system cron
+   or systemd timers with `Authorization: Bearer $CRON_SECRET` — recalls, reminders,
+   expenses, company-expenses, billing. Miss this and recalls and reminders simply
+   never fire, silently. Schedules: see `vercel.json` (kept only as the reference
+   list of paths and times).
+2. **nginx's `proxy_read_timeout` is the new request ceiling** (default **60s**).
+   The AI scribe budgets up to 300s (Whisper 120s + Claude 90s×2) and
+   `maxDuration` — a platform hint — does nothing here. nginx must be raised to
+   match on `/api/ai/scribe` or the doctor gets a 504 mid-dictation. Keep the two
+   numbers in step.
+3. **Single node is now an assumption with teeth.** The moment a second app
+   instance or a PM2 cluster appears, local storage and the in-memory limiter both
+   break — quietly. Going multi-instance means doing the S3 swap and a Redis-backed
+   `Limiter` FIRST (`docs/scale-plan.md` §1).
+
+**Also now ours to own:** TLS/HSTS at nginx; a process manager (systemd or PM2 in
+*fork* mode, not cluster) to keep `next start` alive and restart on boot; **backups
+of both Postgres and `STORAGE_DIR`** (they are one unit — a DB restore without the
+matching files leaves rows pointing at missing attachments); disk-space monitoring,
+since nothing is ever hard-deleted; log collection — the observability sink writes
+structured JSON to stdout/stderr, which journald captures with no extra work; and
+the server's timezone, which availability and "tomorrow" reminders read from.
 
 ---
 

@@ -22,8 +22,12 @@ const serverSchema = z.object({
   // fails with a clear message if a call is attempted and its key is missing.
   ANTHROPIC_API_KEY: z.string().optional(), // Claude (note generation)
   OPENAI_API_KEY: z.string().optional(), // Whisper (transcription) — separate provider
-  // Where uploaded audio is stored on disk for now (swap to S3 later). Relative
-  // to the project root. Gitignored.
+  // Where uploaded files live on the server's PERSISTENT disk (audio, attachments,
+  // avatars, clinic logos). Relative to the project root, gitignored. On the Linux
+  // deployment point this at a durable path outside the deploy directory (e.g.
+  // /var/lib/flexicaai/storage) so a redeploy can't wipe it. BACK IT UP TOGETHER
+  // WITH POSTGRES — they are one unit: a DB restore without the matching files
+  // leaves rows pointing at attachments that no longer exist. (CLAUDE.md §2a.)
   STORAGE_DIR: z.string().default("./storage"),
 
   // Absolute base URL of this app — used to build public links (e.g. a
@@ -76,8 +80,8 @@ const serverSchema = z.object({
   // REFUSES them in production rather than trusting an unsigned caller.
   WHATSAPP_APP_SECRET: z.string().optional(),
 
-  // Secret protecting the cron endpoints. Vercel sends it as
-  // `Authorization: Bearer <CRON_SECRET>` automatically. PRODUCTION-REQUIRED —
+  // Secret protecting the cron endpoints. System cron / systemd timers send it as
+  // `Authorization: Bearer <CRON_SECRET>` (CLAUDE.md §2a). PRODUCTION-REQUIRED —
   // unset, every cron route answers 503 rather than running unprotected
   // (`core/security/cron.ts`).
   CRON_SECRET: z.string().optional(),

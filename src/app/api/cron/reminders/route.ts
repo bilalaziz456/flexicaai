@@ -5,7 +5,7 @@ import { runCron } from "@/core/security/cron";
 
 /**
  * GET /api/cron/reminders — sends the day-before WhatsApp reminder for every
- * appointment happening tomorrow. Triggered by Vercel Cron; wrapped by `runCron`, which
+ * appointment happening tomorrow. Triggered by system cron / a systemd timer (CLAUDE.md §2a); wrapped by `runCron`, which
  * authorizes (Bearer <CRON_SECRET> or ?token=…), gives the run a correlation id, and
  * reports a crash — a cron has no user watching it.
  */

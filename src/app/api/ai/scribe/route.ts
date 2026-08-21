@@ -20,14 +20,24 @@ const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB
 /**
  * This route runs TWO paid, slow provider calls back to back (Whisper, then Claude),
  * so it needs far more than a default request budget: real dictation is minutes of
- * audio. Without this the hosting platform kills the invocation mid-call, the doctor
- * sees a generic failure, and the audio is already stored and the APIs already
- * billed — with no way to report what happened.
+ * audio. 300s is the ceiling the provider timeouts are budgeted against (Whisper
+ * 120s + Claude 90s × 2 attempts) — raising either means raising this too, see the
+ * SCRIBE TIME BUDGET note in `core/ai/scribe-engine/index.ts`.
  *
- * 300s is the ceiling the provider timeouts are budgeted against (Whisper 120s +
- * Claude 90s × 2 attempts). Raising either of those means raising this too — see the
- * SCRIBE TIME BUDGET note in `core/ai/scribe-engine/index.ts`. Note this is an upper
- * bound the platform may cap by plan; it does not make a request slower.
+ * ⚠ ON THE LINUX DEPLOYMENT THIS EXPORT DOES NOTHING BY ITSELF. `maxDuration` is a
+ * hint consumed by serverless platforms; a plain `next start` has no such limit. The
+ * real ceiling is **nginx's `proxy_read_timeout`, which defaults to 60 SECONDS** —
+ * well inside a normal dictation, so the doctor would get a 504 mid-note while the
+ * audio is already stored and the AI already billed. nginx must be raised to match:
+ *
+ *   location /api/ai/scribe {
+ *     proxy_read_timeout 300s;
+ *     proxy_send_timeout 300s;
+ *     client_max_body_size 25m;   # matches MAX_AUDIO_BYTES below
+ *   }
+ *
+ * Kept as an export so the number lives next to the budget it belongs to, and so a
+ * future move to a serverless host is already correct. (CLAUDE.md §2a.)
  */
 export const maxDuration = 300;
 

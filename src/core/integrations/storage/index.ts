@@ -7,9 +7,18 @@ import { serverEnv } from "@/core/lib/env";
 import { report } from "@/core/observability";
 
 /**
- * File storage — CORE, specialty-agnostic. Local filesystem for now; the whole
- * app goes through these functions so we can swap to an S3-compatible store
- * later by changing only this file (CLAUDE.md §2).
+ * File storage — CORE, specialty-agnostic. Backed by the SERVER'S PERSISTENT DISK
+ * (`STORAGE_DIR`), which is a sound choice on the self-managed Linux deployment:
+ * the disk survives restarts and redeploys, so clinical attachments, scribe audio,
+ * avatars and clinic logos stay put. (This would NOT hold on a serverless host with
+ * an ephemeral filesystem — see CLAUDE.md §2a.)
+ *
+ * The whole app still goes through these four functions, so an S3-compatible store
+ * remains a one-module swap. Two things force that swap when they happen:
+ *   • a SECOND app instance — a file written by one node is a 404 on the other;
+ *   • storage outgrowing the box, or needing off-host durability.
+ * Until then, the operational requirement is that `STORAGE_DIR` is backed up in step
+ * with Postgres: the DB rows and these files are one dataset.
  *
  * Files are namespaced by clinic so tenant data never mingles on disk, mirroring
  * the clinic_id boundary in the database.
