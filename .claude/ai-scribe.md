@@ -19,8 +19,15 @@
    here locks out the primary persona; that was a real bug, fixed 2026-08-21.
 3. **A draft belongs to whoever dictated it.** Only its author reopens, approves or
    discards it — not another doctor, not the clinic admin. Enforced in the WHERE
-   clause of all three (`eq(visits.doctorId, user.id)`), not just hidden in the UI.
+   clause of all three, through ONE shared predicate
+   (`core/clinical/drafts.ts#draftAccessCondition`), not just hidden in the UI.
    Guarded by `scripts/test-draft-ownership.ts`.
+   **The single exception (ADR-022):** a holder of the opt-in `handover` grant may
+   also act on a draft whose author can no longer authenticate — deleted, suspended
+   or purged. Without it such a draft is unreachable by everyone and its clinical
+   content is lost in silence (D-18). It does NOT reach an active colleague's draft,
+   and the record keeps both names: `doctor_id` dictated, `approved_by` signed.
+   Guarded by `scripts/test-orphaned-drafts.ts`.
 4. **The engine is generic.** `core/ai/*` receives a prompt string. It must never
    know dental from derma; the specialty lives in `modules/<id>/prompts`.
 5. **Drug names are validated against the module formulary** before being shown, and

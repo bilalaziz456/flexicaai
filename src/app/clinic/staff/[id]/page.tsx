@@ -9,6 +9,7 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, doctorLeaves, users } from "@/core/db/schema";
 import { getBookingProcedures } from "@/core/appointments/procedures";
+import { countOpenDrafts } from "@/core/clinical/drafts";
 import { getDoctorProcedureOverrides } from "@/core/appointments/share-config";
 import { CLINIC_STAFF_ROLES } from "@/core/types/auth";
 import {
@@ -345,7 +346,11 @@ export default async function StaffDetailPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <DeleteStaffButton userId={member.id} label={label} />
+          <DeleteStaffButton
+            userId={member.id}
+            label={label}
+            openDrafts={await countOpenDrafts(clinicId, member.id)}
+          />
         </CardContent>
       </Card>
         </>

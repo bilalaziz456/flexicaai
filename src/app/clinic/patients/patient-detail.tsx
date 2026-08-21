@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarPlus, Printer } from "lucide-react";
 import { and, desc, eq, or } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, clinics, patients, users, visits } from "@/core/db/schema";
@@ -43,6 +44,13 @@ import { OpeningBalanceForm } from "./opening-balance-form";
  * return to; `canEdit`/`canDelete` gate the edit form and delete (view-only shows
  * the details read-only).
  */
+/**
+ * `users` joined a SECOND time, as the approver. A visit references two people —
+ * whoever dictated it (`doctor_id`) and whoever signed it (`approved_by`) — and one
+ * join cannot serve both.
+ */
+const approver = alias(users, "approver");
+
 export async function PatientDetail({
   clinicId,
   patientId,
@@ -164,9 +172,18 @@ export async function PatientDetail({
           doctorName: users.fullName,
           doctorUsername: users.username,
           doctorPrefix: users.prefix,
+          // Who SIGNED it, which is usually the same person who dictated it. It
+          // differs only when a stranded draft was adopted under the `handover`
+          // grant (D-18), and then the record must say so — a note that showed only
+          // one name would imply that person examined the patient.
+          approvedByName: approver.fullName,
+          approvedByPrefix: approver.prefix,
+          approvedById: visits.approvedBy,
+          doctorId: visits.doctorId,
         })
         .from(visits)
         .leftJoin(users, eq(visits.doctorId, users.id))
+        .leftJoin(approver, eq(visits.approvedBy, approver.id))
         .where(
           byClinic(
             visits.clinicId,
@@ -565,6 +582,14 @@ export async function PatientDetail({
                     v.doctorName || v.doctorUsername
                       ? `${v.doctorPrefix ? `${v.doctorPrefix}. ` : ""}${v.doctorName ?? v.doctorUsername}`
                       : note.doctorName || "—";
+                  // Shown ONLY when the signer differs from the clinician who
+                  // dictated — i.e. an adopted stranded draft (D-18). On every
+                  // ordinary note the two are the same person and one name is the
+                  // honest rendering; repeating it would just add noise.
+                  const approvedBy =
+                    v.approvedById && v.approvedById !== v.doctorId && v.approvedByName
+                      ? `${v.approvedByPrefix ? `${v.approvedByPrefix}. ` : ""}${v.approvedByName}`
+                      : null;
                   return (
                     <li
                       key={v.id}
@@ -574,6 +599,12 @@ export async function PatientDetail({
                         <span className="font-medium">
                           {v.visitDate ? dayFmt(v.visitDate) : "—"}
                           <span className="text-muted-foreground"> · {doctor}</span>
+                          {approvedBy ? (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              · approved by {approvedBy}
+                            </span>
+                          ) : null}
                         </span>
                         <Badge variant={note.imported ? "outline" : v.status === "approved" ? "default" : "secondary"}>
                           {note.imported ? "Imported" : v.status === "approved" ? "Approved" : "Draft"}

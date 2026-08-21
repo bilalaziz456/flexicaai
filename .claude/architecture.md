@@ -392,6 +392,37 @@ function can't cross the server→client boundary as a prop. So each panel has a
 three-line client wrapper (`clinic-shell.tsx`, `admin-shell.tsx`) that imports its own
 nav and forwards the rest. Adding a page is a change to that panel's `nav.ts` alone.
 
+**ADR-022 — The author-only rule has exactly one exception, and it lives in the
+ACL** · *2026-08-21* · `Accepted` *(implemented — D-18 closed)*
+ADR-007 says only a draft's author may approve it. That rule is enforced in a WHERE
+clause, so **no permission could ever relax it** — which meant a clinician's deletion
+stranded their unapproved notes permanently and invisibly (D-18). The fix is a new
+`handover` resource (`view` / `create` / `delete`), held by `clinic_admin` via
+`ALL_PERMISSIONS` and grantable to anyone, that widens the predicate — and **only**
+for a draft whose author can no longer authenticate.
+
+**Why a separate resource, not a `clinical` action:** it is a different authority in
+kind, not a larger dose of the same one — `clinical` says you document YOUR patients,
+`handover` says you may finish a colleague's. Same reasoning that split `refund` out
+of `billing:delete`. (`PERM_ACTIONS` is a closed vocabulary, so an `approve_others`
+action was not available anyway.)
+
+**The narrowness is the design, not a limitation.** A grant that unlocked ANY
+colleague's draft would let an admin sign a note while its author sat in the next
+room — trading ADR-007 away for the whole clinic to fix the rare case. The predicate
+(`core/clinical/drafts.ts#authorIsStranded`) means soft-deleted **or** suspended/
+deactivated **or** purged. Suspension counts because the test is *cannot log in*, and
+it is reversible: reactivating hands the draft straight back, which is why the delete
+dialog offers suspending as the safer option.
+
+**Attribution needed no schema change** — `visits.doctor_id` (dictated) and
+`visits.approved_by` (signed) already existed, so the record carries both truths; the
+patient timeline now renders the second only when it differs from the first.
+
+**Consequence:** one predicate, `draftAccessCondition`, serves open/approve/discard.
+D-16 was precisely the bug of that rule living in one of the three and being forgotten
+in the other two, so it must never be inlined at a call site again.
+
 **ADR-020 — The scribe becomes an async job** · *2026-08-21* · `Interim`
 Today: synchronous, budgeted at 300s (Whisper 120s + Claude 90s×2), needing a matching
 nginx `proxy_read_timeout`.
@@ -419,7 +450,6 @@ they land.** Ordered by consequence.
 | D-14 | Timezone is server-local; blocks a second region | ADR-009 | Open — required before the first GCC clinic |
 | D-15 | CSP is report-only | — | Open — enforce once the sink shows it clean |
 | D-19 | No scheduled job runs on the server — the crontab is not installed | ADR-012 | **Routes done and proven** (2026-08-21: all six run, idempotent on a second pass, zero errors) and the install is now one command, `deploy/install-cron.sh`. **Installing stays on hold** (owner's direction), which is safe while pre-launch: with no live clinics all six are no-ops. Unhold in TWO parts — **WhatsApp keys** → `sudo ./deploy/install-cron.sh all` (`recalls` + `reminders` are the only two needing an API; none need Whisper/Claude). **First live clinic** → `sudo ./deploy/install-cron.sh core`, the four pure-DB jobs, gated on real data rather than keys. `reconcile` is the one not to miss: ADR-016 leaves the payment path best-effort *because* it repairs drift nightly |
-| D-18 | A draft whose author is deleted becomes unapprovable by ANYONE: `visits.doctor_id` is `ON DELETE SET NULL`, and approve/discard require `doctor_id = <caller>`. The draft is also invisible, since the list filters by author | ADR-007 | Open — needs a PRODUCT decision, not just code: either a `clinical:create` holder may adopt an orphaned draft (`doctor_id IS NULL`), or orphaned drafts surface in Trash. Found 2026-08-21 closing D-16 |
 
 **Closed:** two WhatsApp webhooks with duplicated pipelines (D-10, closed
 2026-08-21 — one shared `core/integrations/whatsapp/inbound.ts`; the two providers
@@ -443,7 +473,9 @@ plus the nightly `reconcile` cron; `scripts/test-sales-reconcile.ts`)** · **D-1
 percent discounts unbounded (ADR-021, closed 2026-08-21 — migration `0080` +
 `scripts/test-discount-bounds.ts`)** · **D-06
 unvalidated clinical jsonb (ADR-007, closed 2026-08-21 — core bounds +
-module-declared shapes; `scripts/test-clinical-validation.ts`)**.
+module-declared shapes; `scripts/test-clinical-validation.ts`)** · **D-18 drafts
+stranded by their author's deletion (ADR-022, closed 2026-08-21 — warned at delete
+time, plus one narrow opt-in `handover` grant; `scripts/test-orphaned-drafts.ts`)**.
 
 ---
 

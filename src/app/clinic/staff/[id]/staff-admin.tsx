@@ -350,12 +350,21 @@ export function ResetPasswordForm({ userId }: { userId: string }) {
 }
 
 /** Delete the staff member (step-up password), then return to the list. */
+/**
+ * `openDrafts` is the count of unapproved notes this person dictated. Deleting them
+ * ends their login, and a draft can only ever be reopened by its author (ADR-007) —
+ * so those notes become unreachable by everyone, including the admin doing this. The
+ * admin cannot be expected to infer that, hence the count is stated before they
+ * confirm rather than discovered when a patient's record turns out to be missing one.
+ */
 export function DeleteStaffButton({
   userId,
   label,
+  openDrafts = 0,
 }: {
   userId: string;
   label: string;
+  openDrafts?: number;
 }) {
   return (
     <ConfirmDeleteDialog
@@ -364,6 +373,11 @@ export function DeleteStaffButton({
       triggerIcon={<Trash2 className="size-4" aria-hidden="true" />}
       title="Delete staff member"
       description={`Permanently delete ${label}. Their sessions end immediately; visit history is kept.`}
+      warning={
+        openDrafts > 0
+          ? `${label} has ${openDrafts} unapproved ${openDrafts === 1 ? "note" : "notes"}. Only the clinician who dictated a note can approve it, so deleting this account leaves ${openDrafts === 1 ? "it" : "them"} unreachable — ${openDrafts === 1 ? "it" : "they"} will not reach the patient's record, and will not appear in Trash. Have ${label} review ${openDrafts === 1 ? "it" : "them"} first, or suspend the account instead (that is reversible).`
+          : undefined
+      }
       onConfirm={(password) => deleteStaff(userId, password)}
     />
   );

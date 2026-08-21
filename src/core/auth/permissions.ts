@@ -40,6 +40,21 @@ export const PERM_RESOURCES: PermResource[] = [
   { id: "appointments", label: "Appointments", actions: ["view", "create", "edit", "delete"] },
   { id: "patients", label: "Patients", actions: ["view", "create", "edit", "delete"] },
   { id: "clinical", label: "Clinical notes", actions: ["view", "create", "edit"] },
+  // Taking over an unapproved note dictated by SOMEONE ELSE. Its own slug — split out
+  // of `clinical` the same way `refund` was split out of `billing:delete` — because it
+  // is a different authority in kind, not a bigger dose of the same one: `clinical`
+  // says you document YOUR patients, this says you may finish a colleague's.
+  //
+  // It exists because ADR-007's author-only rule is otherwise absolute. When a
+  // clinician's account is deleted their unapproved drafts become unreachable by
+  // everyone (delta D-18), and no permission could unlock them because the rule lives
+  // in a WHERE clause, not in the ACL. This is that rule's one configurable exception.
+  //
+  // DELIBERATELY NARROW: holding it does NOT let you approve any colleague's draft on
+  // demand — only one whose author can no longer log in (`core/clinical/drafts.ts`).
+  // A permission that let an admin sign off a note while its author sat next to them
+  // would defeat ADR-007 for the normal case in order to fix the rare one.
+  { id: "handover", label: "Colleague's unapproved notes", actions: ["view", "create", "delete"] },
   // Clinical imaging/photos/docs (x-rays, before/after photos, consent forms).
   // `delete` soft-deletes. Photo attachments are additionally gated by the patient's
   // photo_consent, enforced server-side. Doctor + clinic admin hold it by default.

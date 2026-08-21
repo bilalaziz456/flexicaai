@@ -5,6 +5,7 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, patients, visits } from "@/core/db/schema";
 import { getDayQueue } from "@/core/appointments/queue";
+import { listStrandedDrafts } from "@/core/clinical/drafts";
 import { DoctorQueue } from "@/app/clinic/scribe/doctor-queue";
 import { Badge } from "@/core/ui/badge";
 import {
@@ -30,6 +31,10 @@ export async function ScribePanel({
   clinicId: string;
 }) {
   const canCreateClinical = can(user, "clinical", "create");
+  // Drafts nobody can reach any more (D-18). Only fetched for a holder of the
+  // `handover` grant — for everyone else the list stays empty and the card never
+  // renders, so the exception is invisible to clinics that haven't granted it.
+  const canSeeStranded = canCreateClinical && can(user, "handover", "view");
   const canViewClinical = can(user, "clinical", "view");
   const canViewRx = can(user, "prescriptions", "view");
   const canSendRx = can(user, "prescriptions", "create");
@@ -40,7 +45,7 @@ export async function ScribePanel({
     .where(eq(clinics.id, clinicId))
     .limit(1);
 
-  const [recentPatients, recentVisits, pendingDrafts, queue] = await Promise.all([
+  const [recentPatients, recentVisits, pendingDrafts, queue, strandedDrafts] = await Promise.all([
     db
       .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })
       .from(patients)
@@ -90,6 +95,7 @@ export async function ScribePanel({
       .orderBy(visits.visitDate)
       .limit(20),
     getDayQueue(clinicId, new Date(), { doctorId: user.id }),
+    canSeeStranded ? listStrandedDrafts(clinicId) : Promise.resolve([]),
   ]);
 
   return (
@@ -107,6 +113,7 @@ export async function ScribePanel({
         <ScribeWorkspace
           initialPatients={recentPatients}
           pendingDrafts={pendingDrafts}
+          strandedDrafts={strandedDrafts}
           modulesEnabled={clinicRow?.modulesEnabled ?? []}
         />
       ) : (

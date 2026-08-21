@@ -30,6 +30,7 @@ export function ConfirmDeleteDialog({
   triggerClassName,
   title,
   description,
+  warning,
   confirmLabel = "Delete",
   onConfirm,
 }: {
@@ -40,6 +41,13 @@ export function ConfirmDeleteDialog({
   triggerClassName?: string;
   title: string;
   description: string;
+  /**
+   * A consequence the person is unlikely to have thought of, shown as a callout
+   * ABOVE the password field so it is read before the delete can be completed —
+   * `description` is skimmed, this is not. Omit it when there is nothing to say;
+   * a warning that appears every time is a warning nobody reads.
+   */
+  warning?: React.ReactNode;
   confirmLabel?: string;
   /** Re-verifies the password server-side, then deletes. Return an error to keep the dialog open. */
   onConfirm: (password: string) => Promise<{ error?: string } | void>;
@@ -107,6 +115,15 @@ export function ConfirmDeleteDialog({
             <Dialog.Description className="mt-1 text-sm break-words text-muted-foreground">
               {description}
             </Dialog.Description>
+
+            {warning ? (
+              <p
+                role="alert"
+                className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm break-words text-destructive"
+              >
+                {warning}
+              </p>
+            ) : null}
 
             <form onSubmit={submit} autoComplete="off" className="mt-4 space-y-2">
               <Label htmlFor="reauth-password" className="text-sm">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { FileClock, Loader2, Mic, Square } from "lucide-react";
+import { FileClock, Loader2, Mic, Square, UserX } from "lucide-react";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import {
@@ -23,6 +23,8 @@ import {
 
 type Patient = { id: string; fullName: string; phone: string | null };
 type PendingDraft = { id: string; visitDate: Date | null; patientName: string };
+/** A draft whose author can no longer log in (delta D-18) — see StrandedDrafts. */
+type StrandedDraftItem = PendingDraft & { authorName: string | null };
 type Draft = {
   visitId: string;
   transcript: string;
@@ -40,11 +42,14 @@ type Draft = {
 export function ScribeWorkspace({
   initialPatients,
   pendingDrafts = [],
+  strandedDrafts = [],
   modulesEnabled = [],
 }: {
   initialPatients: Patient[];
   /** Your own drafts that were never approved — see PendingApproval below. */
   pendingDrafts?: PendingDraft[];
+  /** Someone ELSE's drafts, reachable only via `handover` — see StrandedDrafts. */
+  strandedDrafts?: StrandedDraftItem[];
   /** The clinic's enabled modules — drives the specialty chart editor (if any). */
   modulesEnabled?: string[];
 }) {
@@ -276,6 +281,13 @@ export function ScribeWorkspace({
         disabled={pending}
       />
 
+      <StrandedDrafts
+        drafts={strandedDrafts}
+        onResume={onResume}
+        resuming={resuming}
+        disabled={pending}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle>New note</CardTitle>
@@ -426,6 +438,83 @@ function PendingApproval({
                   )}
                 </Button>
               </span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Drafts dictated by someone who can no longer log in (delta D-18) — shown only to a
+ * caller holding `handover:view`.
+ *
+ * A SEPARATE card from "Pending approval", never merged into it. Approving a note is
+ * signing it (ADR-007), and the one thing that must not happen is signing a
+ * colleague's clinical judgement while believing it was your own — which is exactly
+ * what a single undifferentiated list invites. Hence the different icon, the explicit
+ * "you did not dictate this" copy, and the author's name on every row.
+ */
+function StrandedDrafts({
+  drafts,
+  onResume,
+  resuming,
+  disabled,
+}: {
+  drafts: StrandedDraftItem[];
+  onResume: (visitId: string) => void;
+  resuming: string | null;
+  disabled: boolean;
+}) {
+  if (drafts.length === 0) return null;
+  return (
+    <Card className="border-warning/40">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <UserX className="size-4 text-warning-text" aria-hidden="true" />
+          Left by a former colleague
+        </CardTitle>
+        <CardDescription>
+          {drafts.length === 1 ? "This note was" : `These ${drafts.length} notes were`}{" "}
+          dictated by someone whose account is no longer active, so{" "}
+          {drafts.length === 1 ? "it" : "they"} can never be approved by the person who
+          recorded {drafts.length === 1 ? "it" : "them"}. Read{" "}
+          {drafts.length === 1 ? "it" : "each one"} carefully before approving — your
+          name is recorded as approving, theirs stays as who saw the patient.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ul className="divide-y">
+          {drafts.map((d) => (
+            <li
+              key={d.id}
+              className="flex flex-wrap items-center justify-between gap-3 py-2 text-sm"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{d.patientName}</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  dictated by {d.authorName ?? "a removed account"}
+                  {d.visitDate ? ` · ${d.visitDate.toLocaleDateString()}` : ""}
+                </span>
+              </span>
+              <Button variant="outline" onClick={() => onResume(d.id)} disabled={disabled}>
+                {resuming === d.id ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    Opening…
+                  </>
+                ) : (
+                  <>
+                    Review
+                    <span className="sr-only">
+                      {" "}
+                      {d.patientName}&apos;s note, dictated by{" "}
+                      {d.authorName ?? "a removed account"}
+                    </span>
+                  </>
+                )}
+              </Button>
             </li>
           ))}
         </ul>

@@ -8,6 +8,7 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import { appointments, clinics, patients, visits } from "@/core/db/schema";
+import { draftAccessCondition } from "@/core/clinical/drafts";
 import { applyAppointmentStatus } from "@/core/appointments/set-status";
 import type { AppointmentStatus } from "@/core/appointments/status";
 import { revalidateFinance } from "@/app/clinic/finance-revalidate";
@@ -100,6 +101,10 @@ export async function loadPatientChart(patientId: string): Promise<unknown> {
  * Own drafts only. An unapproved note belongs to whoever dictated it until they sign
  * it off, so nobody else can open, edit or approve it — not another doctor, and not
  * the clinic admin. Returns null if it is not yours, already approved, or discarded.
+ *
+ * ONE exception (delta D-18): a caller holding `handover:view` may also open a draft
+ * whose author can no longer log in. Without it those drafts are unreachable by
+ * everyone and their clinical content is silently lost — see `draftAccessCondition`.
  */
 export async function loadDraft(visitId: string): Promise<{
   visitId: string;
@@ -111,6 +116,7 @@ export async function loadDraft(visitId: string): Promise<{
 } | null> {
   const user = await requireWorkspace();
   if (!can(user, "clinical", "create")) return null;
+  const canHandover = can(user, "handover", "view");
 
   const [row] = await db
     .select({
@@ -130,7 +136,7 @@ export async function loadDraft(visitId: string): Promise<{
         notDeleted(visits.deletedAt),
         eq(visits.id, visitId),
         eq(visits.status, "draft"),
-        eq(visits.doctorId, user.id),
+        draftAccessCondition(user.id, canHandover),
       ),
     )
     .limit(1);
@@ -223,13 +229,16 @@ export async function approveVisit(
         notDeleted(visits.deletedAt),
         eq(visits.id, visitId),
         eq(visits.status, "draft"),
-        // AUTHOR ONLY. A draft belongs to whoever dictated it (CLAUDE.md §8) — the
-        // same condition `loadDraft` applies when opening one. Without it, anyone
-        // holding `clinical:create` could sign off a colleague's note, and the
-        // record would then carry THEIR name in `approved_by` over someone else's
-        // clinical judgement. The UI never surfaces another clinician's draft, so
-        // this is the guard behind that, not a duplicate of it.
-        eq(visits.doctorId, user.id),
+        // AUTHOR ONLY, plus the narrow `handover` exception. A draft belongs to
+        // whoever dictated it (CLAUDE.md §8) — the same condition `loadDraft` applies
+        // when opening one. Without it, anyone holding `clinical:create` could sign
+        // off a colleague's note, and the record would then carry THEIR name in
+        // `approved_by` over someone else's clinical judgement. The one relaxation is
+        // an author who can no longer log in: that is not a colleague being
+        // overridden, it is a note nobody could otherwise ever reach (D-18). The
+        // dictating author stays on `doctor_id`, so the record still says who saw
+        // the patient and who signed.
+        draftAccessCondition(user.id, can(user, "handover", "create")),
       ),
     )
     .returning({ id: visits.id, patientId: visits.patientId, module: visits.module });
@@ -308,9 +317,11 @@ export async function discardDraft(
         notDeleted(visits.deletedAt),
         eq(visits.id, visitId),
         eq(visits.status, "draft"),
-        // AUTHOR ONLY — same rule as approving. Discarding is the more destructive
-        // of the two: it bins work someone else dictated and has not yet reviewed.
-        eq(visits.doctorId, user.id),
+        // AUTHOR ONLY — same rule as approving, and the same narrow `handover`
+        // exception. Discarding is the more destructive of the two: it bins work
+        // someone else dictated and has not yet reviewed. It still soft-deletes, so a
+        // stranded draft binned by mistake is recoverable from Trash.
+        draftAccessCondition(user.id, can(user, "handover", "delete")),
       ),
     )
     .returning({ id: visits.id });
