@@ -224,7 +224,8 @@ Design every table to support multiple specialties from day one. The
   by `clinic_id`** via the `byClinic()` helper (`src/core/db/tenant.ts`). The
   browser never queries the DB; all access is via Server Actions / Route Handlers.
 
-**`src/core/db/schema.ts` is the source of truth.** The full table-by-table
+**`src/core/db/schema/` is the source of truth** (split by domain behind a barrel —
+import from `@/core/db/schema`). The full table-by-table
 reference (columns, FK behaviours, enums, indexes) lives in the imported file
 below — read it before touching the schema:
 
@@ -346,7 +347,7 @@ Stop after this. That's the MVP. Do not build derma, hair, mobile apps, or advan
 The §11 MVP is complete; the features below were added afterward on the owner's
 instruction. They all still honour the core guardrails (core-vs-module, `clinic_id`
 scoping, draft-then-approve, notifications best-effort). **Source of truth:**
-`src/core/db/schema.ts` (schema) and `PROGRESS.md` (dated change log); new env vars
+`src/core/db/schema/` (schema) and `PROGRESS.md` (dated change log); new env vars
 are in `.env.example`.
 
 - **Owner "Revenue Recovered" dashboard** — an optional per-clinic feature the super

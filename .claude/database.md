@@ -1,9 +1,14 @@
 # Database schema — FlexicaAI
 
-> **Source of truth is `src/core/db/schema.ts`** (Drizzle). Migrations are
-> generated from it (`npm run db:generate`) into `/drizzle`. Never hand-edit the
-> database — change the schema file and generate a migration. This document is the
-> human-readable reference; if it disagrees with `schema.ts`, `schema.ts` wins.
+> **Source of truth is `src/core/db/schema/`** (Drizzle) — split by domain behind a
+> barrel, so `import { … } from "@/core/db/schema"` still reaches everything:
+> `identity` (clinics, users, sessions, patients) · `scheduling` · `clinical` ·
+> `billing` · `messaging` · `platform` · `_shared` (the soft-delete columns).
+> The boundaries follow the FOREIGN KEYS — the files must form a DAG, since a cycle
+> between two schema modules breaks at import time (delta D-09; see `schema/index.ts`).
+> Migrations are generated from it (`npm run db:generate`) into `/drizzle`. Never
+> hand-edit the database — change the schema and generate a migration. This document
+> is the human-readable reference; if the two disagree, the schema wins.
 >
 > Imported by root `CLAUDE.md` §5.
 

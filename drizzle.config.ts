@@ -15,7 +15,7 @@ export default defineConfig({
   // src/modules/dental/db/schema.ts). This is drizzle-KIT codegen config only — it does
   // NOT make /core import /modules; module code imports its own tables and passes them
   // to `db.select()` (the app uses no relational `db.query`, so no client merge needed).
-  schema: ["./src/core/db/schema.ts", "./src/modules/**/db/schema.ts"],
+  schema: ["./src/core/db/schema/*.ts", "./src/modules/**/db/schema.ts"],
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {

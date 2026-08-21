@@ -16,7 +16,7 @@
   `generateDentalNote`, not `genNote`; `recordSaleForAppointment`, not `save`.
 - **Composition over inheritance.** There are no class hierarchies here and there
   should be none.
-- **Derive types, don't restate them.** Row shapes come from `schema.ts`
+- **Derive types, don't restate them.** Row shapes come from `@/core/db/schema`
   (`Clinic`, `Patient`, `Appointment`…). A hand-written interface mirroring a table
   is a bug waiting for the next migration.
 - **Const-array + union over enums** for app-level sets (`USER_ROLES`,
