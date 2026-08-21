@@ -77,7 +77,14 @@ note above it; obvious logic gets none.
 - Cross-tenant work (super admin, crons) wraps in `unscoped("reason", …)` — explicit
   and greppable, never silent.
 - **Queries belong in `core/<domain>`**, not in pages or actions (ADR-014).
-- **Derived state writes in the same transaction as its source** (ADR-016).
+- **Derived state writes in ONE transaction, and joins its source's where the source
+  is the triggering event** (ADR-016). A function handed a `Tx` must READ through it
+  too — on the pool it cannot see the caller's uncommitted row, so it derives from
+  stale data (`core/db/tx.ts`).
+- **Never catch inside a transaction and carry on.** Postgres aborts the whole
+  transaction on the first error, so a swallowed failure makes the *next* statement
+  fail for an unrelated-looking reason. Let inner steps throw and keep ONE
+  best-effort boundary, outermost.
 - Drizzle by default; raw SQL on the same pool for heavy aggregation. Never a second
   `Pool`.
 - **Never hard-delete.** A delete UPDATEs the soft-delete columns.

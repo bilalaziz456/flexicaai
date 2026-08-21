@@ -284,15 +284,34 @@ KPIs) for that clinic until the row was edited. Found by the parity test.
 **Consequence:** the clamp makes the result always `0 ≤ net ≤ subtotal`, so the final
 `::int` can never overflow. Bounding the input remains worth doing separately (D-17).
 
-**ADR-016 — Derived state is transactional; external effects are best-effort** ·
-*2026-08-21* · `Accepted` *(target; see delta D-03)*
+**ADR-016 — Derived state is transactional; external effects are best-effort; drift
+is reconciled** · *2026-08-21* · `Accepted` *(implemented — D-03 closed)*
 `sales`, `sale_shares`, `discount_settlements` and line waives are *derived* from the
-appointment and must be written in the **same transaction** as the status change.
-WhatsApp sends, the audit log, and notifications stay outside it and best-effort.
-**Why:** five tables across five connections means a crash leaves permanently
-half-applied financial state.
-**Consequence:** a nightly reconciliation job re-derives and alerts on drift —
-`backfillClinicSales` is already idempotent and is most of it.
+appointment. Three rules:
+1. **The derived set is written in ONE transaction** (`recordSaleInner`), so it can
+   never be internally half-applied — revenue booked with nobody credited for it.
+2. **It joins the SOURCE transaction where the source is the completion event**
+   (`applyAppointmentStatus`), so "completed" and "its revenue" become true together.
+   External effects — WhatsApp, audit, notifications — stay outside and best-effort:
+   a provider must never roll back a clinical status change, and holding a
+   transaction open across a network call is how a pool gets exhausted.
+3. **Everything is reconciled** nightly (`core/sales/reconcile.ts`,
+   `GET /api/cron/reconcile`), re-deriving drift through the normal write path so a
+   repair can never invent a number the app wouldn't have produced.
+
+**REFINED DURING IMPLEMENTATION —** the original wording said derived writes always
+join their source transaction. Money-in does **not**: `core/billing/payments.ts`
+commits the payment first and records the sale after. Coupling them would mean a bug
+in share arithmetic blocks a receptionist from taking cash, and that is a far worse
+failure than a delayed ledger. The trade is only sound because derived state is
+**recomputable** — unlike a payment, which is a fact about the world — so rule 3 is
+what makes rule 2 optional there. *Never block the user, always detect, always repair.*
+
+**Consequence:** a function handed a `Tx` must READ through it too (`core/db/tx.ts`),
+or it re-derives from the pre-update row on another connection. And the inner ledger
+steps now **throw** rather than swallow: catching inside a transaction leaves it
+aborted while pretending to succeed, so there is exactly ONE best-effort boundary and
+it is the outermost.
 
 **ADR-017 — Observability is ours; no vendor SDK in the code path** · *2026-08-21* ·
 `Accepted`
@@ -341,7 +360,6 @@ they land.** Ordered by consequence.
 | # | Delta | ADR | Status |
 |---|---|---|---|
 | D-01 | 77 app files query the DB directly; no lint rule yet | ADR-014 | Open |
-| D-03 | Appointment completion writes 5 tables untransacted; no reconciliation job | ADR-016 | Open |
 | D-04 | `/doctor` + `/reception` dead shells hold live code; cross-group imports | ADR-019 | Open |
 | D-05 | `core/ui/panel-shell.tsx` owns the whole app's route map | ADR-019 | Open |
 | D-06 | Clinical `note`/`chart` jsonb written from client input with no zod schema | ADR-007 | Open |
@@ -364,7 +382,9 @@ webhooks accepted in production · **D-16 draft ownership unenforced on
 approve/discard (ADR-007, closed 2026-08-21 — `scripts/test-draft-ownership.ts`)** ·
 **D-02 six bill implementations (ADR-015, closed 2026-08-21 — one TS formula in
 `fee.ts#billFromTotals`, one SQL expression in `bill-sql.ts`, bound by
-`scripts/test-bill-parity.ts`)**.
+`scripts/test-bill-parity.ts`)** · **D-03 untransacted derived ledgers (ADR-016,
+closed 2026-08-21 — one transaction per derived set, joined to the completion event,
+plus the nightly `reconcile` cron; `scripts/test-sales-reconcile.ts`)**.
 
 ---
 

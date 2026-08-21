@@ -73,9 +73,9 @@ storage** (a real disk persists, so clinical attachments are safe) and the
 **Three constraints this moves — do not lose these:**
 
 1. **Nothing schedules the jobs unless you configure it.** There is no platform
-   cron; `vercel.json` is inert. Install `deploy/flexicaai.cron`. Miss it and recalls
-   and reminders simply never fire — silently, because a job that is never invoked
-   raises no error.
+   cron; `vercel.json` is inert. Install `deploy/flexicaai.cron` (six jobs). Miss it
+   and recalls, reminders and the nightly sales **reconciliation** never fire —
+   silently, because a job that is never invoked raises no error.
 2. **nginx's `proxy_read_timeout` is the request ceiling** (default **60s**). The
    scribe budgets 300s and `maxDuration` is a platform hint that does nothing here,
    so nginx must be raised on `/api/ai/scribe` or the doctor gets a 504 mid-dictation.

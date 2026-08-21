@@ -47,31 +47,49 @@ export async function applyAppointmentStatus(
   if (!prior || prior.status === status) return false; // nothing to change
 
   const now = new Date();
-  await db
-    .update(appointments)
-    .set({
-      status,
-      updatedAt: now,
-      ...(status === "arrived"
-        ? { arrivedAt: now }
-        : status === "scheduled" || status === "confirmed"
-          ? { arrivedAt: null }
-          : {}),
-    })
-    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)));
 
+  // ONE unit of work: the status change AND the derived ledgers it implies (ADR-016).
+  // Completion is the event that creates revenue, so "this visit is completed" and
+  // "this visit's revenue, doctor shares and discount settlement" must become true
+  // together or not at all. They used to be five sequential writes on five
+  // connections — a crash between them left a visit marked completed with no sale, or
+  // a sale with nobody credited, and nothing recomputed it.
+  //
+  // The derived writes READ the appointment back, so they must run on this same
+  // transaction: on the pool they would see the pre-update status and snapshot the
+  // wrong thing (see core/db/tx.ts).
+  await db.transaction(async (tx) => {
+    await tx
+      .update(appointments)
+      .set({
+        status,
+        updatedAt: now,
+        ...(status === "arrived"
+          ? { arrivedAt: now }
+          : status === "scheduled" || status === "confirmed"
+            ? { arrivedAt: null }
+            : {}),
+      })
+      .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)));
+
+    // Sales ledger: a completed appointment is a realised sale; leaving "completed"
+    // voids it. Inside the transaction, so a ledger failure rolls the status back
+    // rather than leaving the two disagreeing.
+    if (status === "completed") {
+      await recordSaleForAppointment(clinicId, appointmentId, tx);
+    } else if (prior.status === "completed") {
+      await voidSaleForAppointment(clinicId, appointmentId, tx);
+    }
+  });
+
+  // ── Everything below is an EXTERNAL side effect, deliberately outside the
+  // transaction: a WhatsApp send or an audit write must never roll back a clinical
+  // status change, and holding a DB transaction open across a network call to a
+  // provider is how you exhaust a connection pool.
   if (status === "cancelled") {
     await notifyAppointmentsCancelled(clinicId, [appointmentId]);
   } else if (status === "confirmed" && prior.source === "whatsapp") {
     await notifyAppointmentBooked(clinicId, appointmentId);
-  }
-
-  // Sales ledger: a completed appointment is a realised sale; leaving "completed"
-  // voids it. Best-effort — never blocks the status change.
-  if (status === "completed") {
-    await recordSaleForAppointment(clinicId, appointmentId);
-  } else if (prior.status === "completed") {
-    await voidSaleForAppointment(clinicId, appointmentId);
   }
 
   await logActivity({

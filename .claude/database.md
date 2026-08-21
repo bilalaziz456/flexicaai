@@ -241,8 +241,11 @@ pre-discount figure, so `gross − discount = net` always holds), `occurred_at`
 in `setAppointmentStatus`, and re-snapshot when a completed appointment is edited),
 `voidSaleForAppointment` (delete when it leaves "completed"),
 `backfillClinicSales` (idempotent; run when the super admin first enables the
-`sales` feature, in `admin/actions.ts#updateClinic`). All best-effort — a ledger
-hiccup never blocks the status change. The report (`core/sales/report.ts`,
+`sales` feature, in `admin/actions.ts#updateClinic`). The sale and its sibling derived
+ledgers are written in ONE transaction, joined to the completion event so they cannot
+disagree with the appointment (ADR-016); on the payment path the write stays
+best-effort so a ledger hiccup never blocks taking money, and the nightly
+`reconcile` cron (`core/sales/reconcile.ts`) re-derives any drift. The report (`core/sales/report.ts`,
 `/clinic/sales`) reads this table: summary, per-doctor + per-procedure breakdown,
 and a bucketed net-sales-over-time chart, filterable by period / custom range /
 doctor. Gated by the `sales` feature; clinic-scoped. Indexes: UNIQUE

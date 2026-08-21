@@ -2,6 +2,7 @@ import "server-only";
 
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/core/db";
+import type { Executor } from "@/core/db/tx";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointmentProcedures, appointments, users } from "@/core/db/schema";
 import {
@@ -56,6 +57,9 @@ function toBorneBy(v: string | null | undefined): ShareBorneBy {
 export async function getAppointmentShareContext(
   clinicId: string,
   appointmentId: string,
+  // Reads through the caller's transaction when there is one, so a ledger snapshot
+  // taken during a status change sees the NEW status, not the committed old row.
+  exec: Executor = db,
 ): Promise<AppointmentShareContext> {
   const empty: AppointmentShareContext = {
     found: false,
@@ -74,7 +78,7 @@ export async function getAppointmentShareContext(
     earnerDoctorIds: [],
   };
 
-  const [appt] = await db
+  const [appt] = await exec
     .select({
       doctorId: appointments.doctorId,
       scheduledAt: appointments.scheduledAt,
@@ -102,7 +106,7 @@ export async function getAppointmentShareContext(
   let consultFee = 0;
   let consultDoctorId: string | null = null;
   if (appt.chargeConsultation && appt.doctorId) {
-    const [doc] = await db
+    const [doc] = await exec
       .select({ id: users.id, fee: users.consultationFee })
       .from(users)
       .where(byClinic(users.clinicId, clinicId, eq(users.id, appt.doctorId)))
@@ -114,7 +118,7 @@ export async function getAppointmentShareContext(
   }
 
   // Procedure lines with their performing doctor + own discount (for the net).
-  const procRows = await db
+  const procRows = await exec
     .select({
       id: appointmentProcedures.id,
       name: appointmentProcedures.name,

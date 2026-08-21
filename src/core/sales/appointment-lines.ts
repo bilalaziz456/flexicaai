@@ -2,11 +2,11 @@ import "server-only";
 
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/core/db";
+import type { Executor } from "@/core/db/tx";
 import { byClinic } from "@/core/db/tenant";
 import { appointments, doctorSettlementActions, users } from "@/core/db/schema";
 import { getAppointmentShareContext } from "@/core/appointments/share-context";
 import { displayStaffName } from "@/core/types/auth";
-import { report } from "@/core/observability";
 
 /**
  * A doctor's earning line on a completed appointment (the consultation or one
@@ -34,11 +34,15 @@ type RawLine = { lineRef: string; label: string; doctorId: string; earned: numbe
  * place the per-line earned number is computed; `getAppointmentDoctorLines` (display)
  * and `syncLineWaives` (keep waives in step) both read it.
  */
-async function rawLineEarnings(clinicId: string, appointmentId: string): Promise<RawLine[]> {
-  const ctx = await getAppointmentShareContext(clinicId, appointmentId);
+async function rawLineEarnings(
+  clinicId: string,
+  appointmentId: string,
+  exec: Executor = db,
+): Promise<RawLine[]> {
+  const ctx = await getAppointmentShareContext(clinicId, appointmentId, exec);
   if (!ctx.found || ctx.grossTotal <= 0) return [];
 
-  const [appt] = await db
+  const [appt] = await exec
     .select({ collected: appointments.amountCollected, status: appointments.status })
     .from(appointments)
     .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
@@ -104,12 +108,17 @@ export async function getAppointmentDoctorLines(
  * share, so a waived line nets to zero at any collection level (as the patient pays,
  * the earning and the waive grow together). A line that no longer earns — unpaid,
  * un-completed, soft-deleted, or removed from the visit — syncs to 0 (inert), so a
- * waive never lingers as a phantom deduction. Called from the sale record/void hooks;
- * best-effort.
+ * waive never lingers as a phantom deduction. Called from the sale record/void hooks.
+ * Takes an executor and THROWS on failure — one step of the derived-write transaction;
+ * the outer boundary is the only best-effort one (ADR-016).
  */
-export async function syncLineWaives(clinicId: string, appointmentId: string): Promise<void> {
-  try {
-    const waives = await db
+export async function syncLineWaives(
+  clinicId: string,
+  appointmentId: string,
+  exec: Executor,
+): Promise<void> {
+  {
+    const waives = await exec
       .select({ id: doctorSettlementActions.id, lineRef: doctorSettlementActions.lineRef, amount: doctorSettlementActions.amount })
       .from(doctorSettlementActions)
       .where(
@@ -125,19 +134,15 @@ export async function syncLineWaives(clinicId: string, appointmentId: string): P
       );
     if (waives.length === 0) return;
 
-    const earned = new Map((await rawLineEarnings(clinicId, appointmentId)).map((r) => [r.lineRef, r.earned]));
+    const earned = new Map((await rawLineEarnings(clinicId, appointmentId, exec)).map((r) => [r.lineRef, r.earned]));
     for (const w of waives) {
       const target = earned.get(w.lineRef as string) ?? 0;
       if (target !== w.amount) {
-        await db
+        await exec
           .update(doctorSettlementActions)
           .set({ amount: target })
           .where(byClinic(doctorSettlementActions.clinicId, clinicId, eq(doctorSettlementActions.id, w.id)));
       }
     }
-  } catch (e) {
-    // Per-line waives re-sync to the current earned share; a failure here leaves a
-    // stale waive deducting from a doctor balance forever.
-    report(e, { op: "sales.syncLineWaives", clinicId, ids: { appointmentId } });
   }
 }

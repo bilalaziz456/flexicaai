@@ -1,13 +1,12 @@
 import "server-only";
 
 import { eq, inArray } from "drizzle-orm";
-import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
+import type { Executor } from "@/core/db/tx";
 import { discountSettlements, users } from "@/core/db/schema";
 import { computeShare } from "@/core/appointments/shares";
 import { computeBearing } from "@/core/appointments/discount-bearing";
 import { getAppointmentShareContext } from "@/core/appointments/share-context";
-import { report } from "@/core/observability";
 
 /**
  * Discount settlement ledger (discount-bearing, phase 2) — snapshots how a completed
@@ -15,8 +14,9 @@ import { report } from "@/core/observability";
  * per docs/discount-bearing-plan.md §3. The bearing party absorbs it in full (no
  * spillover); the settlement is a zero-sum transfer computed on the NET bill + gross
  * shares (collection-independent), so it doesn't move when the patient pays. Recording
- * REPLACES all rows for the appointment. Best-effort — a hiccup here must never block
- * whatever triggered it.
+ * REPLACES all rows for the appointment. Takes an executor and THROWS on failure —
+ * one step of the derived-write transaction; the outer boundary is the only
+ * best-effort one (ADR-016).
  *
  * NOTE (phase 2): this is a SHADOW ledger — it is written on the completion hook but
  * nothing reads it yet; the reader cutover (balances / reports / P&L) is a later phase.
@@ -24,12 +24,12 @@ import { report } from "@/core/observability";
 export async function recordDiscountSettlementForAppointment(
   clinicId: string,
   appointmentId: string,
+  exec: Executor,
 ): Promise<void> {
-  try {
-    const ctx = await getAppointmentShareContext(clinicId, appointmentId);
+    const ctx = await getAppointmentShareContext(clinicId, appointmentId, exec);
 
     // Replace-all: clear first so an edit that removed the discount leaves nothing.
-    await db
+    await exec
       .delete(discountSettlements)
       .where(byClinic(discountSettlements.clinicId, clinicId, eq(discountSettlements.appointmentId, appointmentId)));
 
@@ -72,14 +72,14 @@ export async function recordDiscountSettlementForAppointment(
     const doctorIds = rows.map((r) => r.doctorId).filter((v): v is string => Boolean(v));
     const names = new Map<string, string>();
     if (doctorIds.length > 0) {
-      const nameRows = await db
+      const nameRows = await exec
         .select({ id: users.id, fullName: users.fullName, username: users.username })
         .from(users)
         .where(byClinic(users.clinicId, clinicId, inArray(users.id, doctorIds)));
       for (const r of nameRows) names.set(r.id, r.fullName ?? r.username);
     }
 
-    await db.insert(discountSettlements).values(
+    await exec.insert(discountSettlements).values(
       rows.map((r) => ({
         clinicId,
         appointmentId,
@@ -91,23 +91,16 @@ export async function recordDiscountSettlementForAppointment(
         occurredAt: ctx.occurredAt as Date,
       })),
     );
-  } catch (e) {
-    // The doctor/clinic discount-bearing snapshot. Missing rows silently shift who
-    // absorbed a discount, which surfaces later as a disputed balance.
-    report(e, { op: "sales.recordDiscountSettlement", clinicId, ids: { appointmentId } });
-  }
 }
 
-/** Removes an appointment's settlement rows (when it leaves "completed"). Best-effort. */
+/** Removes an appointment's settlement rows (when it leaves "completed"). Throws on
+ *  failure — one step of the derived-write transaction (ADR-016). */
 export async function voidDiscountSettlementForAppointment(
   clinicId: string,
   appointmentId: string,
+  exec: Executor,
 ): Promise<void> {
-  try {
-    await db
-      .delete(discountSettlements)
-      .where(byClinic(discountSettlements.clinicId, clinicId, eq(discountSettlements.appointmentId, appointmentId)));
-  } catch (e) {
-    report(e, { op: "sales.voidDiscountSettlement", clinicId, ids: { appointmentId } });
-  }
+  await exec
+    .delete(discountSettlements)
+    .where(byClinic(discountSettlements.clinicId, clinicId, eq(discountSettlements.appointmentId, appointmentId)));
 }

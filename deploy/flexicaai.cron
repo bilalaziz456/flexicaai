@@ -47,6 +47,9 @@ BASE=http://127.0.0.1:3000
 # Subscription billing sweep: active ↔ past_due as time passes.     03:00 daily
 0 3 * * *   flexica  . /etc/flexicaai/cron.env; curl -fsS -m 300 -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/billing" >/dev/null
 
+# Sales reconciliation: re-derive any drifted ledger row.            03:30 daily
+30 3 * * *  flexica  . /etc/flexicaai/cron.env; curl -fsS -m 300 -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/reconcile" >/dev/null
+
 # ── Verifying it works ─────────────────────────────────────────────────────────
 # Run one by hand first; a healthy job answers 200 with {"ok":true,...}:
 #   curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3000/api/cron/recalls
