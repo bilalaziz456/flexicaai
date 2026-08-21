@@ -401,7 +401,7 @@ they land.** Ordered by consequence.
 
 | # | Delta | ADR | Status |
 |---|---|---|---|
-| D-01 | App files querying the DB directly. **Ratchet installed** — `eslint.config.mjs` bans `@/core/db` + `@/core/db/schema` from `src/app/**`, with a legacy allowlist that may only SHRINK | ADR-014 | Open — **55 left** (was 77). Delete lines from `LEGACY_DIRECT_DB_ACCESS` as they migrate; when it is empty, remove the exemption block |
+| D-01 | App files querying the DB directly. **Ratchet installed** — `eslint.config.mjs` bans `@/core/db` + `@/core/db/schema` from `src/app/**`, with a legacy allowlist that may only SHRINK | ADR-014 | Open — **52 left** (was 77). Delete lines from `LEGACY_DIRECT_DB_ACCESS` as they migrate; when it is empty, remove the exemption block. **A file that stops offending must be pruned from the list in the same change** — a stale exemption silently un-guards a file that had already been fixed |
 | D-07 | Trash loads every soft-deleted row of 9 tables into memory | ADR-006 | Open |
 | D-08 | Scribe is synchronous | ADR-020 | Open (interim in force) |
 | D-11 | `activity_logs` has no retention/partitioning; a view costs 2 queries | ADR-006 | Open |
@@ -409,6 +409,7 @@ they land.** Ordered by consequence.
 | D-13 | No test framework; no CI | ADR-005 | **On hold** (owner's direction, 2026-08-21) |
 | D-14 | Timezone is server-local; blocks a second region | ADR-009 | Open — required before the first GCC clinic |
 | D-15 | CSP is report-only | — | Open — enforce once the sink shows it clean |
+| D-18 | A draft whose author is deleted becomes unapprovable by ANYONE: `visits.doctor_id` is `ON DELETE SET NULL`, and approve/discard require `doctor_id = <caller>`. The draft is also invisible, since the list filters by author | ADR-007 | Open — needs a PRODUCT decision, not just code: either a `clinical:create` holder may adopt an orphaned draft (`doctor_id IS NULL`), or orphaned drafts surface in Trash. Found 2026-08-21 closing D-16 |
 
 **Closed:** two WhatsApp webhooks with duplicated pipelines (D-10, closed
 2026-08-21 — one shared `core/integrations/whatsapp/inbound.ts`; the two providers

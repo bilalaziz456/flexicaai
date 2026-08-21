@@ -52,8 +52,6 @@ const LEGACY_DIRECT_DB_ACCESS = [
   "src/app/api/patients/export/route.ts",
   "src/app/api/procedures/export/route.ts",
   "src/app/api/staff/export/route.ts",
-  "src/app/api/whatsapp/cloud/route.ts",
-  "src/app/api/whatsapp/webhook/route.ts",
   "src/app/clinic/actions.ts",
   "src/app/clinic/appointments/[id]/invoice/page.tsx",
   "src/app/clinic/appointments/[id]/receipt/page.tsx",
