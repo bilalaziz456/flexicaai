@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { SalesFilters } from "@/app/clinic/sales/sales-filters";
+import { SalesFilters } from "@/core/ui/report-filters";
 import { NoShowsTable } from "./no-shows-table";
 
 /**

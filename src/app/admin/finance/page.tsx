@@ -4,7 +4,7 @@ import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin } from "@/core/auth/admin-permissions";
 import { getCompanyPnl } from "@/core/admin/pnl";
 import { resolveSalesRange } from "@/core/sales/report";
-import { MultiBarChart } from "@/app/clinic/sales/multi-bar-chart";
+import { MultiBarChart } from "@/core/ui/multi-bar-chart";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import {

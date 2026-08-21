@@ -78,6 +78,9 @@ note above it; obvious logic gets none.
   soft-deletable table. Both, always. (`.claude/database.md` §1)
 - Cross-tenant work (super admin, crons) wraps in `unscoped("reason", …)` — explicit
   and greppable, never silent.
+- **A route group is not a library** (ADR-019). If two groups need the same file, it
+  belongs in `core/ui` (presentation) or `core/<domain>` (logic) — never imported
+  across `src/app/<group>` boundaries. That count is currently zero; keep it there.
 - **Queries belong in `core/<domain>`**, not in pages or actions (ADR-014) — enforced
   by lint: `src/app/**` may not import `@/core/db` or `@/core/db/schema` (type-only
   imports are fine). The legacy allowlist in `eslint.config.mjs` only ever shrinks;

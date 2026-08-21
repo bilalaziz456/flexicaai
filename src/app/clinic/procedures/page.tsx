@@ -3,7 +3,7 @@ import { getClinic } from "@/core/clinics/get-clinic";
 
 import { requireWorkspace } from "@/core/auth/user";
 import { clinicHasFeature } from "@/core/lib/features";
-import { ProceduresPanel } from "@/app/reception/procedures-panel";
+import { ProceduresPanel } from "@/app/clinic/procedures/procedures-panel";
 
 /** Clinic Admin: manage the procedure catalog (gated by the `sales` feature). */
 export default async function ClinicProceduresPage() {

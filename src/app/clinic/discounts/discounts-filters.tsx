@@ -6,7 +6,7 @@ import { DateRangeFields } from "@/core/ui/date-range-fields";
 import {
   FilterSelect,
   PeriodTabs,
-} from "@/app/clinic/sales/sales-filters";
+} from "@/core/ui/report-filters";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 
 const BORNE_OPTIONS = [

@@ -8,7 +8,7 @@ import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireAdminCapability } from "@/core/auth/user";
 import { hashPassword } from "@/core/auth/password";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
-import { getSession, setSessionImpersonation } from "@/core/auth/session";
+import { setSessionImpersonation } from "@/core/auth/session";
 import { consumeBackupCode, verifyTotp } from "@/core/auth/totp";
 import { logActivityAs } from "@/core/audit/log";
 import { db } from "@/core/db";
@@ -680,29 +680,6 @@ export async function startImpersonation(
   redirect("/clinic");
 }
 
-/**
- * Ends impersonation. Reads the REAL session user (during impersonation the
- * resolved role is clinic_admin, so we can't use requireRole here). Clears the
- * flag, audits, and returns the super-admin to the clinic they were viewing.
- */
-export async function endImpersonation(): Promise<void> {
-  const session = await getSession();
-  if (!session || session.user.role !== "super_admin") redirect("/login");
-  const target = session!.impersonatedClinicId;
-
-  await setSessionImpersonation(null);
-  await logActivityAs(
-    { clinicId: target, userId: session!.user.id, name: session!.user.username, role: "super_admin" },
-    {
-      action: "login",
-      entity: "clinic",
-      entityId: target,
-      summary: "Ended clinic impersonation",
-    },
-  );
-  revalidatePath("/clinic", "layout");
-  redirect(target ? `/admin/clinics/${target}` : "/admin");
-}
 
 const priceSchema = z.object({
   monthlyPrice: z.coerce.number().int("Whole PKR only.").min(0, "Cannot be negative.").max(100_000_000),

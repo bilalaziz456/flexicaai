@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { AvatarForm, ProfileForm, PasswordForm } from "@/app/account/account-forms";
+import { AvatarForm, ProfileForm, PasswordForm } from "@/core/ui/account-forms";
 
 /** In-panel account settings for the admin panel — renders inside the admin shell
  *  (sidebar + top bar), reusing the shared account forms. Gated on account:view. */

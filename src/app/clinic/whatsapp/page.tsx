@@ -3,7 +3,7 @@ import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
-import { WhatsappQueue } from "@/app/reception/whatsapp-queue";
+import { WhatsappQueue } from "@/app/clinic/whatsapp/whatsapp-queue";
 import { WhatsappSettingsForm } from "./whatsapp-settings-form";
 import {
   Card,

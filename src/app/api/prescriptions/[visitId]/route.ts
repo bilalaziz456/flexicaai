@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiRequireWorkspace } from "@/core/auth/user";
-import { buildPrescriptionPdf } from "../build";
+import { buildPrescriptionPdf } from "@/core/patients/prescription-build";
 
 /**
  * GET /api/prescriptions/[visitId] — serves the visit's prescription PDF to

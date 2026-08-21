@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminCapability } from "@/core/auth/user";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { restoreGlobal, purgeGroup } from "@/core/trash";
-import { allModuleTrash } from "@/app/clinic/trash/module-trash";
+import { allModuleTrash } from "@/config/module-trash";
 import { logActivity } from "@/core/audit/log";
 
 /**

@@ -19,7 +19,7 @@ import {
 import { displayStaffName } from "@/core/types/auth";
 import { formatMrn } from "@/core/patients/mrn";
 import { getClinicLogoDataUri } from "@/core/clinics/logo";
-import { InvoicePrintFrame } from "@/app/reception/invoice-print";
+import { InvoicePrintFrame } from "@/core/ui/invoice-print";
 
 /**
  * Printable invoice for an appointment (Finance). Thermal / A5 / A4 via the print

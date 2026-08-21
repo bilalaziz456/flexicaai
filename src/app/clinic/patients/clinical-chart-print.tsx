@@ -6,7 +6,7 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, patients } from "@/core/db/schema";
 import { clinicalRecordFor } from "@/config/modules";
 import { formatMrn } from "@/core/patients/mrn";
-import { InvoicePrintFrame } from "@/app/reception/invoice-print";
+import { InvoicePrintFrame } from "@/core/ui/invoice-print";
 
 /**
  * Printable clinical chart — the patient's current odontogram + latest perio summary,

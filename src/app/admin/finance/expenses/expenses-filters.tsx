@@ -7,7 +7,7 @@ import {
   PeriodTabs,
   filterFieldCls,
   filterLabelCls,
-} from "@/app/clinic/sales/sales-filters";
+} from "@/core/ui/report-filters";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 import { Label } from "@/core/ui/label";
 import { Input } from "@/core/ui/input";

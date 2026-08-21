@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Megaphone, ShieldAlert } from "lucide-react";
 import { PaymentNoticePill } from "@/core/ui/payment-notice-pill";
 import { requireWorkspace } from "@/core/auth/user";
-import { endImpersonation } from "@/app/admin/actions";
+import { endImpersonation } from "@/core/auth/actions";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { getClinicBalanceSummary } from "@/core/admin/billing";
 import { listActiveForClinic } from "@/core/admin/announcements";

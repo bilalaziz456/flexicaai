@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/core/auth/user";
-import { AppointmentDetail } from "@/app/reception/appointment-detail";
+import { AppointmentDetail } from "@/app/clinic/appointments/appointment-detail";
 import { FlashToast } from "@/core/ui/toast";
 
 /** Clinic workspace: open an appointment to manage it (needs `appointments`). */

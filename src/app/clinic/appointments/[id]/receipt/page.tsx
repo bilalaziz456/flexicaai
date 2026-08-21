@@ -20,7 +20,7 @@ import {
 import { displayStaffName } from "@/core/types/auth";
 import { formatMrn } from "@/core/patients/mrn";
 import { getClinicLogoDataUri } from "@/core/clinics/logo";
-import { InvoicePrintFrame } from "@/app/reception/invoice-print";
+import { InvoicePrintFrame } from "@/core/ui/invoice-print";
 
 /**
  * Payment receipt for a visit (Finance) — acknowledges money received against this

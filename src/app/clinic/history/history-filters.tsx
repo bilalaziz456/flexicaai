@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
-import { FilterSelect, PeriodTabs } from "@/app/clinic/sales/sales-filters";
+import { FilterSelect, PeriodTabs } from "@/core/ui/report-filters";
 import { HISTORY_TABS } from "@/core/finance/imported-history-tabs";
 
 const TYPE_OPTIONS = HISTORY_TABS.map((t) => ({ value: t.id, label: t.label }));

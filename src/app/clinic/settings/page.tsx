@@ -14,7 +14,7 @@ import {
   AvatarForm,
   ProfileForm,
   PasswordForm,
-} from "@/app/account/account-forms";
+} from "@/core/ui/account-forms";
 import { PrintingForm } from "./printing-form";
 
 function initialsOf(name: string): string {

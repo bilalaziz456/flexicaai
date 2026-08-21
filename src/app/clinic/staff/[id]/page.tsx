@@ -4,7 +4,7 @@ import { and, asc, eq, gte } from "drizzle-orm";
 import { Ban, CalendarClock, CalendarOff, Percent, RotateCcw, ShieldCheck } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { setStaffActive } from "@/app/clinic/actions";
-import { DoctorLeaves } from "@/app/reception/doctor-leaves";
+import { DoctorLeaves } from "@/app/clinic/doctors/doctor-leaves";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, doctorLeaves, users } from "@/core/db/schema";

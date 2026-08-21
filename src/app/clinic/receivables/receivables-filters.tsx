@@ -8,7 +8,7 @@ import {
   PeriodTabs,
   filterFieldCls,
   filterLabelCls,
-} from "@/app/clinic/sales/sales-filters";
+} from "@/core/ui/report-filters";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 
 // Receivables is a point-in-time balance, so it defaults to ALL TIME (no date

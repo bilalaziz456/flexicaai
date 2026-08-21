@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   FilterSelect,
   PeriodTabs,
-} from "@/app/clinic/sales/sales-filters";
+} from "@/core/ui/report-filters";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 import { Button } from "@/core/ui/button";
 import { Toast } from "@/core/ui/toast";

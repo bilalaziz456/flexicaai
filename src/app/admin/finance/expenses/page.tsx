@@ -10,8 +10,8 @@ import {
   listRecurringCompanyExpenses,
 } from "@/core/admin/company-expenses";
 import { resolveSalesRange } from "@/core/sales/report";
-import { MultiBarChart } from "@/app/clinic/sales/multi-bar-chart";
-import { HBarChart } from "@/app/clinic/sales/h-bar-chart";
+import { MultiBarChart } from "@/core/ui/multi-bar-chart";
+import { HBarChart } from "@/core/ui/h-bar-chart";
 import { parsePage, parsePageSize, pageOffset } from "@/core/lib/pagination";
 import { Pagination } from "@/core/ui/pagination";
 import {

@@ -18,7 +18,7 @@ import {
   DiscountApprovalForm,
   ProfileForm,
   PasswordForm,
-} from "./account-forms";
+} from "@/core/ui/account-forms";
 
 /** Account settings — any signed-in user manages their own profile, picture and
  * password. Standalone (not inside a panel); reached from the identity pill. */

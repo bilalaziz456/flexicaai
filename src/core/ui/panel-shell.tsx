@@ -102,7 +102,7 @@ function SelfAvatar({ className, version, initials }: { className?: string; vers
     />
   );
 }
-export type PanelId = "admin" | "clinic" | "doctor" | "reception";
+export type PanelId = "admin" | "clinic";
 
 /**
  * Per-panel navigation. Icons live here (a client module) so the server layouts
@@ -182,29 +182,11 @@ const NAV_BY_PANEL: Record<PanelId, { brand: string; nodes: NavNode[] }> = {
       },
     ],
   },
-  doctor: {
-    brand: "/doctor",
-    nodes: [
-      { href: "/doctor", label: "Voice scribe", Icon: Stethoscope, exact: true, resource: "clinical" },
-      { href: "/doctor/appointments", label: "Appointments", Icon: CalendarClock, resource: "appointments" },
-      { href: "/doctor/patients", label: "Patients", Icon: Contact, resource: "patients" },
-    ],
-  },
-  reception: {
-    brand: "/reception",
-    nodes: [
-      { href: "/reception", label: "Appointments", Icon: CalendarClock, exact: true, resource: "appointments" },
-      { href: "/reception/doctors", label: "Doctors", Icon: Stethoscope, resource: "leave" },
-      { href: "/reception/procedures", label: "Procedures", Icon: ClipboardList, resource: "procedures" },
-      { href: "/reception/whatsapp", label: "WhatsApp", Icon: MessageCircle, resource: "whatsapp" },
-    ],
-  },
 };
 
 /** Nav hrefs gated by the `sales` feature (hidden until the super admin enables it). */
 const SALES_HREFS = new Set([
   "/clinic/procedures",
-  "/reception/procedures",
   "/clinic/sales",
   "/clinic/discounts",
   "/clinic/payments",
@@ -311,14 +293,10 @@ export function PanelShell({
       ? n.items.map((i) => ({ href: i.href, label: i.label, group: n.group }))
       : [{ href: n.href, label: n.label }],
   );
-  // Patients and appointments live under each panel's own base; only the clinic
-  // workspace has the invoice/receipt print pages.
-  const searchBase =
-    panel === "reception"
-      ? { patients: "/reception/patients", appts: "/reception/appointments", docs: false }
-      : panel === "doctor"
-        ? { patients: "/doctor/patients", appts: "/doctor/appointments", docs: false }
-        : { patients: "/clinic/patients", appts: "/clinic/appointments", docs: true };
+  // Only two panels remain: the company's (/admin) and the clinic workspace
+  // (/clinic). The old per-doctor and per-reception panels were folded into the
+  // workspace (ADR-019); `panel === "admin"` skips search entirely below.
+  const searchBase = { patients: "/clinic/patients", appts: "/clinic/appointments", docs: true };
   const searchBox =
     panel === "admin" ? null : (
       <GlobalSearch

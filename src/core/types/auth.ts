@@ -103,17 +103,20 @@ export const ROLE_HOME_ROUTE: Record<UserRole, string> = {
 };
 
 /**
- * Which roles may access each protected route prefix. Middleware uses this to
- * block, e.g., a receptionist from opening /admin. Order matters: longer, more
- * specific prefixes should be checked first (see matchProtectedPrefix).
+ * Which roles may access each protected route prefix. The Edge proxy uses this for a
+ * coarse bounce; the REAL gate is `requireRole` server-side. Order matters: longer,
+ * more specific prefixes should be checked first (see matchProtectedPrefix).
+ *
+ * There are only two panels: the company's and the clinic workspace. `/doctor` and
+ * `/reception` are gone — folded into `/clinic` (ADR-019) — and are deliberately NOT
+ * listed, so their catch-all redirect stubs are reachable by any signed-in staff
+ * member rather than bounced by role first.
  */
 export const ROUTE_ROLE_ACCESS: { prefix: string; roles: UserRole[] }[] = [
   { prefix: "/admin", roles: ["super_admin"] },
   // The unified clinic workspace — every clinic staff role; each page is gated by
   // the user's per-resource permissions (requireWorkspace).
   { prefix: "/clinic", roles: ["clinic_admin", "manager", "doctor", "receptionist"] },
-  { prefix: "/doctor", roles: ["doctor"] },
-  { prefix: "/reception", roles: ["receptionist", "manager"] },
 ];
 
 export function matchProtectedPrefix(pathname: string) {

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireWorkspace } from "@/core/auth/user";
 import { restoreForClinic } from "@/core/trash";
-import { clinicTrashProvider } from "./module-trash";
+import { clinicTrashProvider } from "@/config/module-trash";
 import { logActivity } from "@/core/audit/log";
 
 /**

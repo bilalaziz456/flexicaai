@@ -4,7 +4,7 @@ import { appointmentDoctorScope } from "@/core/appointments/scope";
 import {
   AppointmentsList,
   type AppointmentsListSearchParams,
-} from "@/app/reception/appointments-list";
+} from "@/app/clinic/appointments/appointments-list";
 
 /** Clinic workspace: the appointments list (shared component, permission-gated). */
 export default async function ClinicAppointmentsPage({

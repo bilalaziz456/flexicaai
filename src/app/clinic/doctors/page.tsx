@@ -1,6 +1,6 @@
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
-import { DoctorsPanel } from "@/app/reception/doctors-panel";
+import { DoctorsPanel } from "@/app/clinic/doctors/doctors-panel";
 
 /**
  * Clinic workspace: doctor leave (+ daily caps for non-doctors). Needs `leave`.

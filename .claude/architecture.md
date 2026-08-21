@@ -345,14 +345,24 @@ decorative. It found a real unscoped query within minutes of being wired up.
 trains people to ignore it — fix the query, don't mute the guard.
 
 **ADR-019 — Route groups are routing boundaries, never libraries** · *2026-08-21* ·
-`Accepted` *(target; see delta D-04)*
+`Accepted` *(implemented for the app layer — D-04 closed; D-05 remains)*
 Shared presentation → `core/ui`. Panel-specific → colocated under that panel. The nav
 map is **data passed into** `PanelShell`, not baked into it.
 **Why:** `/doctor` and `/reception` redirect to `/clinic` yet still hold 30+ live
 files that `/clinic` and `/admin` import, and `core/ui/panel-shell.tsx` encodes every
 route, feature flag and capability slug in the product.
-**Consequence:** a reader can currently not tell which code is live. That is the cost
-being paid.
+**Consequence:** a reader could not tell which code was live. Resolved by moving the
+27 still-reachable files into the clinic workspace beside the routes that use them
+(and the genuinely shared ones into `core/ui`), then deleting the 19 route shells.
+`/doctor` and `/reception` are now a single optional catch-all redirect each, so old
+bookmarks still land — the redirect was never the problem, the live tree beneath it
+was. **Cross-group imports under `src/app` are now zero**, verified mechanically.
+
+Two placements worth knowing: `config/module-trash.ts` resolves module trash
+providers, so it sits at the registry layer — the only layer allowed to name modules —
+not in core and not in a route group. And `endImpersonation` moved to
+`core/auth/actions.ts` because the CLINIC shell renders its Exit button; importing it
+from `@/app/admin/actions` pulled a 1,300-line module into every clinic page's graph.
 
 **ADR-020 — The scribe becomes an async job** · *2026-08-21* · `Interim`
 Today: synchronous, budgeted at 300s (Whisper 120s + Claude 90s×2), needing a matching
@@ -373,8 +383,7 @@ they land.** Ordered by consequence.
 | # | Delta | ADR | Status |
 |---|---|---|---|
 | D-01 | App files querying the DB directly. **Ratchet installed** — `eslint.config.mjs` bans `@/core/db` + `@/core/db/schema` from `src/app/**`, with a legacy allowlist that may only SHRINK | ADR-014 | Open — **55 left** (was 77). Delete lines from `LEGACY_DIRECT_DB_ACCESS` as they migrate; when it is empty, remove the exemption block |
-| D-04 | `/doctor` + `/reception` dead shells hold live code; cross-group imports | ADR-019 | Open |
-| D-05 | `core/ui/panel-shell.tsx` owns the whole app's route map | ADR-019 | Open |
+| D-05 | `core/ui/panel-shell.tsx` still owns the route map for the two REMAINING panels (admin + clinic); the nav should be data passed in | ADR-019 | Open — the dead panels' trees are gone, `PanelId` is down to `"admin" | "clinic"` |
 | D-07 | Trash loads every soft-deleted row of 9 tables into memory | ADR-006 | Open |
 | D-08 | Scribe is synchronous | ADR-020 | Open (interim in force) |
 | D-09 | `schema.ts` is a 1,977-line god module (156 importers) | — | Open |

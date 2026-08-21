@@ -10,7 +10,7 @@ import { clinicHasFeature } from "@/core/lib/features";
 import { getPatientAccount } from "@/core/billing/account";
 import { formatPkr } from "@/core/appointments/fee";
 import { formatMrn } from "@/core/patients/mrn";
-import { InvoicePrintFrame } from "@/app/reception/invoice-print";
+import { InvoicePrintFrame } from "@/core/ui/invoice-print";
 
 /**
  * Printable patient statement (Finance) — the patient's account on one sheet:

@@ -4,10 +4,10 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, users } from "@/core/db/schema";
 import { listAllTrash, parseTrashFilters } from "@/core/trash";
-import { TrashTable } from "@/app/clinic/trash/trash-table";
-import { TrashFilters } from "@/app/clinic/trash/trash-filters";
+import { TrashTable } from "@/core/ui/trash-table";
+import { TrashFilters } from "@/core/ui/trash-filters";
 import { restoreTrashGlobal, purgeTrashGlobal } from "./actions";
-import { allModuleTrashRows } from "@/app/clinic/trash/module-trash";
+import { allModuleTrashRows } from "@/config/module-trash";
 
 const TYPE_OPTIONS = [
   { value: "clinic", label: "Clinic" },

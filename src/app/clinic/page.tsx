@@ -28,7 +28,7 @@ import { Sparkline } from "@/core/ui/sparkline";
 import { OnboardingChecklist } from "@/core/ui/onboarding-checklist";
 import { DeltaBadge } from "@/core/ui/delta-badge";
 import { AvgVisitValueForm } from "./avg-visit-value-form";
-import { DoctorLeaves } from "@/app/reception/doctor-leaves";
+import { DoctorLeaves } from "@/app/clinic/doctors/doctor-leaves";
 import { CLINIC_STAFF_ROLES, CLINIC_STAFF_SUMMARY } from "@/core/types/auth";
 
 /**

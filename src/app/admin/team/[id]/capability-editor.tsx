@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { setSuperAdminCapabilitiesAction } from "../actions";
-import { PermissionMatrix } from "@/app/clinic/staff/[id]/permission-matrix";
+import { PermissionMatrix } from "@/core/ui/permission-matrix";
 import {
   ADMIN_RESOURCES,
   ADMIN_SUBROLE_META,

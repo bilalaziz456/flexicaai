@@ -9,7 +9,7 @@ import {
 import { Button } from "@/core/ui/button";
 import { Toast } from "@/core/ui/toast";
 import type { PermResource } from "@/core/auth/permissions";
-import { PermissionMatrix } from "./permission-matrix";
+import { PermissionMatrix } from "@/core/ui/permission-matrix";
 
 /**
  * Edit an existing staff member's permissions — wraps the shared matrix in a form

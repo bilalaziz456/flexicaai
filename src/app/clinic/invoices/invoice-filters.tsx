@@ -8,7 +8,7 @@ import {
   PeriodTabs,
   filterFieldCls,
   filterLabelCls,
-} from "@/app/clinic/sales/sales-filters";
+} from "@/core/ui/report-filters";
 
 // The register defaults to ALL TIME (no date bound); presets narrow by issued date.
 const inputCls =

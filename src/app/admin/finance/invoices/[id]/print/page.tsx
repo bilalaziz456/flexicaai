@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdminCapability } from "@/core/auth/user";
 import { getClinicInvoiceForPrint } from "@/core/admin/clinic-invoices";
-import { InvoicePrintFrame } from "@/app/reception/invoice-print";
+import { InvoicePrintFrame } from "@/core/ui/invoice-print";
 
 const fmtMoney = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 const fmtDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });

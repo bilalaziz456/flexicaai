@@ -14,9 +14,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { MultiBarChart } from "@/app/clinic/sales/multi-bar-chart";
+import { MultiBarChart } from "@/core/ui/multi-bar-chart";
 import { LineChart } from "@/app/clinic/sales/line-chart";
-import { SalesFilters } from "@/app/clinic/sales/sales-filters";
+import { SalesFilters } from "@/core/ui/report-filters";
 import { RecordPayoutForm } from "./payout-ui";
 import { SettlementForm, VoidSettlementButton, SETTLEMENT_LABEL } from "./settlement-ui";
 import { BalancesTable, PayoutsTable } from "./shares-tables";

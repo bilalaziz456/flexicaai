@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/core/auth/user";
-import { NewAppointmentPanel } from "@/app/reception/new-appointment-panel";
+import { NewAppointmentPanel } from "@/app/clinic/appointments/new-appointment-panel";
 
 /** Clinic workspace: schedule a new appointment (needs `appointments:create`).
  *  `?patientId=` pre-selects a patient (from "Book" on a patient row/detail). */

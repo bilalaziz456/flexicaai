@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { PeriodTabs } from "@/app/clinic/sales/sales-filters";
+import { PeriodTabs } from "@/core/ui/report-filters";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 
 /**

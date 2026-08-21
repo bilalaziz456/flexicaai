@@ -8,7 +8,7 @@ import {
   FilterSelect,
   filterFieldCls,
   filterLabelCls,
-} from "@/app/clinic/sales/sales-filters";
+} from "@/core/ui/report-filters";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 
 type Opt = { value: string; label: string };

@@ -12,7 +12,7 @@ import {
   listClinicInvoices,
 } from "@/core/admin/clinic-invoices";
 import { resolveSalesRange } from "@/core/sales/report";
-import { MultiBarChart } from "@/app/clinic/sales/multi-bar-chart";
+import { MultiBarChart } from "@/core/ui/multi-bar-chart";
 import { parsePage, parsePageSize, pageOffset } from "@/core/lib/pagination";
 import { Pagination } from "@/core/ui/pagination";
 import {

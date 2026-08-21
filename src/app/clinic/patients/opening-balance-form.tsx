@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
-import { recordOpeningPayment } from "@/app/reception/payment-actions";
+import { recordOpeningPayment } from "@/app/clinic/payments/payment-actions";
 
 const METHODS = ["cash", "bank", "cheque", "other"];
 

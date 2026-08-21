@@ -11,7 +11,7 @@ import { db } from "@/core/db";
 import { clinics, patients, visits } from "@/core/db/schema";
 import { dentalCharts, dentalRecords } from "@/modules/dental/db/schema";
 import { listClinicTrash, restoreForClinic } from "@/core/trash";
-import { clinicModuleTrashRows, clinicTrashProvider } from "@/app/clinic/trash/module-trash";
+import { clinicModuleTrashRows, clinicTrashProvider } from "@/config/module-trash";
 import {
   deleteToothRecord,
   editToothRecord,

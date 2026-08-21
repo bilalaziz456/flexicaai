@@ -14,7 +14,7 @@ import {
 } from "@/core/auth/permissions";
 import { cn } from "@/core/lib/utils";
 import { STAFF_PREFIXES, type UserRole } from "@/core/types/auth";
-import { PermissionMatrix } from "./[id]/permission-matrix";
+import { PermissionMatrix } from "@/core/ui/permission-matrix";
 
 const selectCls =
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron";

@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { setClinicCapabilities } from "../../actions";
-import { PermissionMatrix } from "@/app/clinic/staff/[id]/permission-matrix";
+import { PermissionMatrix } from "@/core/ui/permission-matrix";
 import { permId, type PermResource } from "@/core/auth/permissions";
 import { Button } from "@/core/ui/button";
 

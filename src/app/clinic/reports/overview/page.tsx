@@ -14,9 +14,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { HBarChart } from "@/app/clinic/sales/h-bar-chart";
+import { HBarChart } from "@/core/ui/h-bar-chart";
 import { WaterfallChart } from "@/app/clinic/sales/waterfall-chart";
-import { SalesFilters } from "@/app/clinic/sales/sales-filters";
+import { SalesFilters } from "@/core/ui/report-filters";
 import { PrintButton } from "@/app/clinic/shares/payout-ui";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
 import { OverviewByDoctorTable, OverviewCashTable, OverviewDiscountsTable } from "./overview-tables";

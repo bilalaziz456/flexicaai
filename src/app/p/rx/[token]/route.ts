@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyToken } from "@/core/lib/signed-link";
-import { buildPrescriptionPdf } from "@/app/api/prescriptions/build";
+import { buildPrescriptionPdf } from "@/core/patients/prescription-build";
 
 /**
  * GET /p/rx/[token] — public, no-session prescription PDF. The signed token IS

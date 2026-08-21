@@ -18,8 +18,8 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { AreaChart } from "./area-chart";
-import { HBarChart } from "./h-bar-chart";
-import { SalesFilters } from "./sales-filters";
+import { HBarChart } from "@/core/ui/h-bar-chart";
+import { SalesFilters } from "@/core/ui/report-filters";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",

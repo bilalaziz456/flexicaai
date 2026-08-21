@@ -6,9 +6,9 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, users } from "@/core/db/schema";
 import { listClinicTrash, parseTrashFilters } from "@/core/trash";
 import { restoreTrashItem } from "./actions";
-import { TrashTable } from "./trash-table";
-import { TrashFilters } from "./trash-filters";
-import { clinicModuleTrashRows } from "./module-trash";
+import { TrashTable } from "@/core/ui/trash-table";
+import { TrashFilters } from "@/core/ui/trash-filters";
+import { clinicModuleTrashRows } from "@/config/module-trash";
 
 const TYPE_OPTIONS = [
   { value: "patient", label: "Patient" },

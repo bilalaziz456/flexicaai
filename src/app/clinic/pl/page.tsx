@@ -15,9 +15,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { MultiBarChart } from "@/app/clinic/sales/multi-bar-chart";
-import { HBarChart } from "@/app/clinic/sales/h-bar-chart";
-import { SalesFilters } from "@/app/clinic/sales/sales-filters";
+import { MultiBarChart } from "@/core/ui/multi-bar-chart";
+import { HBarChart } from "@/core/ui/h-bar-chart";
+import { SalesFilters } from "@/core/ui/report-filters";
 import { PlByPeriodTable } from "./pl-tables";
 
 const money = new Intl.NumberFormat("en-PK", {

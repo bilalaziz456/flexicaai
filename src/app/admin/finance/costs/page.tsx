@@ -2,7 +2,7 @@ import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin } from "@/core/auth/admin-permissions";
 import { computeServingCost, effectiveTaxPct, getCostRates } from "@/core/admin/cost";
 import { resolveSalesRange } from "@/core/sales/report";
-import { MultiBarChart } from "@/app/clinic/sales/multi-bar-chart";
+import { MultiBarChart } from "@/core/ui/multi-bar-chart";
 import {
   Card,
   CardContent,
