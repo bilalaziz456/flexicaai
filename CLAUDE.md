@@ -109,6 +109,15 @@ the server's timezone, which availability and "tomorrow" reminders read from.
 
 ## 3. Folder structure (enforce strictly)
 
+> **The architecture source of truth is `.claude/architecture.md`** — layer
+> contracts, dependency rules, the numbered decision log (ADRs), the deltas between
+> code and intent, and the scaling triggers. Read it before any structural work.
+> **If your change alters a layer boundary, a dependency rule, the module contract,
+> the deployment shape, or makes/reverses an architectural decision, update that file
+> in the SAME commit** (see its §0). Ordinary features and fixes need no update.
+
+@.claude/architecture.md
+
 ```
 /src
   /app                          # Next.js App Router routes
@@ -443,10 +452,12 @@ If adding a module requires changing core logic, the core was not properly abstr
 - Respects `modules_enabled` (hidden/shown correctly)
 - Filters by `clinic_id` everywhere
 - AI outputs are draft-then-approved
-- Errors handled gracefully
-- No secrets in client code
+- Errors handled gracefully — a swallowed failure is `report()`ed, never silent
+- No secrets in client code, and no patient PII in logs or reports
 - TypeScript compiles with no errors
 - Core has no knowledge of specific specialties
+- **If it changed the architecture, `.claude/architecture.md` was updated in the
+  same commit** (its §0 defines "changed the architecture")
 
 ---
 
@@ -458,8 +469,11 @@ Before writing any code, ask:
 3. **Is patient data filtered by clinic_id?**
 4. **Is AI output approved by its author, not auto-finalized?**
 5. **Am I staying in MVP scope?**
+6. **Which layer owns this?** A query belongs in `core/<domain>`, never in a page or
+   action; anything two panels share belongs in `core/ui`. (`.claude/architecture.md` §2)
 
-If all five pass, proceed. If not, rethink before coding.
+If all six pass, proceed. If not, rethink before coding.
+`.claude/architecture.md` §8 is the longer version of this checklist.
 
 ---
 
@@ -478,7 +492,7 @@ Keep the **always-true guardrails** in this root file. Move **reference detail**
 /CLAUDE.md                    # short: golden rules + imports + build order
 /.claude/
   database.md                 # schema, multi-tenancy, RLS (section 5) — DONE (imported by §5)
-  architecture.md             # folder structure, module system (sections 3-4) — not yet split
+  architecture.md             # layers, dependency rules, DECISION LOG, deltas — DONE (imported by §3)
   ai-scribe.md                # scribe engine rules (section 8) — not yet split
   conventions.md              # coding style + security (sections 9-10) — not yet split
   /modules/
@@ -486,19 +500,27 @@ Keep the **always-true guardrails** in this root file. Move **reference detail**
     derma.md                  # later
     hair.md                   # later
 ```
-**Status:** `.claude/database.md` is split out and imported from §5. The others
-remain inline in this file (still under the ~500-line budget); split them the same
-way if/when they grow.
+**Status:** `.claude/database.md` (imported from §5) and `.claude/architecture.md`
+(imported from §3) are split out. `ai-scribe.md` and `conventions.md` remain inline;
+split them the same way if/when they grow.
+
+`architecture.md` went further than a §3/§4 extraction: it is the **living**
+architecture record — layer contracts, dependency rules, a numbered decision log
+(ADRs, each dated, never deleted, only superseded), the deltas between the code and
+the intended design, and the triggers that would force a change. It is the one file
+to update when an architectural decision is made or reversed; its §0 states exactly
+when that is required.
 
 ### How to reference imported files from root
-Use Claude Code's import syntax in the root CLAUDE.md so the detail is pulled in automatically:
-```
-Read these before coding:
-@.claude/architecture.md
-@.claude/database.md
-@.claude/ai-scribe.md
-@.claude/conventions.md
-```
+Use Claude Code's import syntax (`@` + path, on its own line) at the point in this
+file where the detail belongs, so it is pulled in automatically. Live imports today —
+each sits inside the section it expands, not in a list here:
+
+- `@.claude/architecture.md` → imported by §3
+- `@.claude/database.md` → imported by §5
+
+`ai-scribe.md` and `conventions.md` are **planned, not yet created** — do not add an
+import line for a file that doesn't exist yet.
 
 ### Rule when splitting
 Moving content into a new file must not change its meaning. After splitting, verify the root still contains every non-negotiable guardrail, and that no rule was lost in a file Claude Code doesn't load. Split content, never dilute it.
