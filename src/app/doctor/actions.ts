@@ -188,16 +188,26 @@ export async function approveVisit(
       updatedAt: new Date(),
     })
     .where(
-      and(
-        eq(visits.id, visitId),
-        eq(visits.clinicId, user.clinicId),
-        eq(visits.status, "draft"),
+      byClinic(
+        visits.clinicId,
+        user.clinicId,
         notDeleted(visits.deletedAt),
+        eq(visits.id, visitId),
+        eq(visits.status, "draft"),
+        // AUTHOR ONLY. A draft belongs to whoever dictated it (CLAUDE.md §8) — the
+        // same condition `loadDraft` applies when opening one. Without it, anyone
+        // holding `clinical:create` could sign off a colleague's note, and the
+        // record would then carry THEIR name in `approved_by` over someone else's
+        // clinical judgement. The UI never surfaces another clinician's draft, so
+        // this is the guard behind that, not a duplicate of it.
+        eq(visits.doctorId, user.id),
       ),
     )
     .returning({ id: visits.id, patientId: visits.patientId, module: visits.module });
 
-  if (!updated) return { error: "Draft not found." };
+  // One query, so "not yours" and "not there" are indistinguishable here — say both
+  // rather than a misleading "not found" to someone looking at a real draft.
+  if (!updated) return { error: "Draft not found, or it belongs to another clinician." };
 
   // Persist the specialty structured record + fold the living chart (e.g. the dental
   // odontogram), via the enabled module's contract. App-level resolution, like the
@@ -268,16 +278,22 @@ export async function discardDraft(
     .update(visits)
     .set(softDeleteValues(user.id, newDeleteGroup()))
     .where(
-      and(
-        eq(visits.id, visitId),
-        eq(visits.clinicId, user.clinicId),
-        eq(visits.status, "draft"),
+      byClinic(
+        visits.clinicId,
+        user.clinicId,
         notDeleted(visits.deletedAt),
+        eq(visits.id, visitId),
+        eq(visits.status, "draft"),
+        // AUTHOR ONLY — same rule as approving. Discarding is the more destructive
+        // of the two: it bins work someone else dictated and has not yet reviewed.
+        eq(visits.doctorId, user.id),
       ),
     )
     .returning({ id: visits.id });
 
-  if (result.length === 0) return { error: "Draft not found." };
+  if (result.length === 0) {
+    return { error: "Draft not found, or it belongs to another clinician." };
+  }
   revalidatePath("/clinic/scribe");
   revalidatePath("/doctor");
   return { ok: true };

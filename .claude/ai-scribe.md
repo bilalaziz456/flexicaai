@@ -18,8 +18,9 @@
    In this market the clinic owner is usually the practising dentist. A role check
    here locks out the primary persona; that was a real bug, fixed 2026-08-21.
 3. **A draft belongs to whoever dictated it.** Only its author reopens, approves or
-   discards it. *(Enforced on reopen; see delta D-16 — approve/discard currently
-   check the clinic only.)*
+   discards it — not another doctor, not the clinic admin. Enforced in the WHERE
+   clause of all three (`eq(visits.doctorId, user.id)`), not just hidden in the UI.
+   Guarded by `scripts/test-draft-ownership.ts`.
 4. **The engine is generic.** `core/ai/*` receives a prompt string. It must never
    know dental from derma; the specialty lives in `modules/<id>/prompts`.
 5. **Drug names are validated against the module formulary** before being shown, and

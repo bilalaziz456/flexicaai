@@ -331,13 +331,13 @@ they land.** Ordered by consequence.
 | D-13 | No test framework; no CI | ADR-005 | **On hold** (owner's direction, 2026-08-21) |
 | D-14 | Timezone is server-local; blocks a second region | ADR-009 | Open — required before the first GCC clinic |
 | D-15 | CSP is report-only | — | Open — enforce once the sink shows it clean |
-| D-16 | Draft ownership is enforced on reopen but **not on approve/discard** — `approveVisit` and `discardDraft` scope to the clinic, not the author, so any holder of `clinical:create` can finalise or bin a colleague's dictated note | ADR-007 | Open — found 2026-08-21 while splitting the docs; ~2 lines (`eq(visits.doctorId, user.id)`, as `loadDraft` already does) |
 
 **Closed:** local-FS storage on an ephemeral host (ADR-010) · in-memory limiter on a
 multi-instance host (ADR-011) · API routes bypassing the auth chokepoint (ADR-013) ·
 no observability (ADR-017) · silent tenant-guard (ADR-018) · webhook replay
 double-booking · unbounded AI provider calls · cron secret timing leak · unsigned
-webhooks accepted in production.
+webhooks accepted in production · **D-16 draft ownership unenforced on
+approve/discard (ADR-007, closed 2026-08-21 — `scripts/test-draft-ownership.ts`)**.
 
 ---
 
