@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Printer } from "lucide-react";
-import { asc, eq } from "drizzle-orm";
+import { asc } from "drizzle-orm";
 import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin } from "@/core/auth/admin-permissions";
 import { db } from "@/core/db";

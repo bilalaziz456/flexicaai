@@ -1,13 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { getClinic } from "@/core/clinics/get-clinic";
+
 import { requireRole } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { displayStaffName } from "@/core/types/auth";
 import type { CurrentUser } from "@/core/types/auth";
-import { db } from "@/core/db";
-import { clinics } from "@/core/db/schema";
 import { treatmentTemplatesFor } from "@/config/modules";
 import {
   addPlanItem,
@@ -35,8 +34,8 @@ function done(patientId: string): State {
   return { ok: true };
 }
 async function clinicModule(clinicId: string): Promise<string> {
-  const [c] = await db.select({ m: clinics.modulesEnabled }).from(clinics).where(eq(clinics.id, clinicId)).limit(1);
-  return c?.m?.[0] ?? "";
+  const c = await getClinic(clinicId);
+  return c?.modulesEnabled?.[0] ?? "";
 }
 
 export async function createPlanAction(patientId: string, title: string, note?: string): Promise<State> {
@@ -104,6 +103,6 @@ export async function deletePlanAction(planId: string, patientId: string): Promi
 }
 
 async function moduleList(clinicId: string): Promise<string[]> {
-  const [c] = await db.select({ m: clinics.modulesEnabled }).from(clinics).where(eq(clinics.id, clinicId)).limit(1);
-  return c?.m ?? [];
+  const c = await getClinic(clinicId);
+  return c?.modulesEnabled ?? [];
 }

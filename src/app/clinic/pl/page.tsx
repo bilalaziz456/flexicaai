@@ -1,9 +1,8 @@
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { getClinic } from "@/core/clinics/get-clinic";
+
 import { Download } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { clinics } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import Link from "next/link";
 import { resolveSalesRange } from "@/core/sales/report";
@@ -40,11 +39,7 @@ export default async function ProfitLossPage({
   const user = await requireWorkspace("finance");
   const { clinicId } = user;
 
-  const [clinic] = await db
-    .select({ featuresEnabled: clinics.featuresEnabled, createdAt: clinics.createdAt })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinic = await getClinic(clinicId);
   if (!clinicHasFeature(clinic?.featuresEnabled, "finance")) notFound();
 
   const sp = await searchParams;

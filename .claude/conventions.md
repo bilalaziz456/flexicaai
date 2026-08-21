@@ -78,7 +78,13 @@ note above it; obvious logic gets none.
   soft-deletable table. Both, always. (`.claude/database.md` §1)
 - Cross-tenant work (super admin, crons) wraps in `unscoped("reason", …)` — explicit
   and greppable, never silent.
-- **Queries belong in `core/<domain>`**, not in pages or actions (ADR-014).
+- **Queries belong in `core/<domain>`**, not in pages or actions (ADR-014) — enforced
+  by lint: `src/app/**` may not import `@/core/db` or `@/core/db/schema` (type-only
+  imports are fine). The legacy allowlist in `eslint.config.mjs` only ever shrinks;
+  never add to it.
+- **Reading the clinic row? Use `getClinic(clinicId)`.** It is request-cached, so
+  repeated reads in one render collapse to a single query — an inline
+  `select … from clinics` is both a lint violation and a duplicate round trip.
 - **Derived state writes in ONE transaction, and joins its source's where the source
   is the triggering event** (ADR-016). A function handed a `Tx` must READ through it
   too — on the pool it cannot see the caller's uncommitted row, so it derives from

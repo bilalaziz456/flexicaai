@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { getClinic } from "@/core/clinics/get-clinic";
+
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
-import { db } from "@/core/db";
-import { clinics } from "@/core/db/schema";
 import { listPendingApprovalsForUser } from "@/core/appointments/approvals";
 import { normalizeDiscountType } from "@/core/appointments/fee";
 import {
@@ -65,12 +64,8 @@ export default async function ApprovalsPage() {
   // Clinic admins can toggle the clinic-borne approval requirement here.
   let policyInitial: boolean | null = null;
   if (user.role === "clinic_admin") {
-    const [clinic] = await db
-      .select({ needs: clinics.discountNeedsApproval })
-      .from(clinics)
-      .where(eq(clinics.id, user.clinicId))
-      .limit(1);
-    policyInitial = Boolean(clinic?.needs);
+    const clinic = await getClinic(user.clinicId);
+    policyInitial = Boolean(clinic?.discountNeedsApproval);
   }
 
   return (

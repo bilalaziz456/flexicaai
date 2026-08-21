@@ -1,15 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { getClinic } from "@/core/clinics/get-clinic";
+
 import { z } from "zod";
 import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireRole } from "@/core/auth/user";
 import { can, type PermAction } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
 import { displayStaffName } from "@/core/types/auth";
-import { db } from "@/core/db";
-import { clinics } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import {
   createCategory,
@@ -29,12 +28,8 @@ async function requireExpenses(
 ): Promise<{ user: CurrentUser; clinicId: string } | { error: string }> {
   const user = await requireRole(["clinic_admin", "manager", "doctor", "receptionist"]);
   if (!user.clinicId) return { error: "No clinic access." };
-  const [c] = await db
-    .select({ f: clinics.featuresEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, user.clinicId))
-    .limit(1);
-  if (!clinicHasFeature(c?.f, "finance")) return { error: "Expenses aren't enabled for this clinic." };
+  const c = await getClinic(user.clinicId);
+  if (!clinicHasFeature(c?.featuresEnabled, "finance")) return { error: "Expenses aren't enabled for this clinic." };
   if (!can(user, "expenses", action)) return { error: "You don't have permission for that." };
   return { user, clinicId: user.clinicId };
 }

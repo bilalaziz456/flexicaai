@@ -256,6 +256,11 @@ rather than a structure, and none of it is testable.
 would add indirection without removing coupling.
 **Consequence:** enforced by an ESLint `no-restricted-imports` rule with an
 allowlist that only ever shrinks — a visible debt counter, no big-bang refactor.
+Type-only imports stay legal (they carry no query, and banning them would push
+callers into hand-rolling row shapes). Two traps worth knowing if you touch the
+config: a dynamic-route segment must be glob-escaped or its entry silently exempts
+nothing, and a config that fails to parse reports ZERO problems — which reads exactly
+like passing. Verify a rule fires on a deliberate violation before believing it.
 
 **ADR-015 — One bill formula, with SQL bound to it by test** · *2026-08-21* ·
 `Accepted` *(implemented — D-02 closed)*
@@ -367,7 +372,7 @@ they land.** Ordered by consequence.
 
 | # | Delta | ADR | Status |
 |---|---|---|---|
-| D-01 | 77 app files query the DB directly; no lint rule yet | ADR-014 | Open |
+| D-01 | App files querying the DB directly. **Ratchet installed** — `eslint.config.mjs` bans `@/core/db` + `@/core/db/schema` from `src/app/**`, with a legacy allowlist that may only SHRINK | ADR-014 | Open — **55 left** (was 77). Delete lines from `LEGACY_DIRECT_DB_ACCESS` as they migrate; when it is empty, remove the exemption block |
 | D-04 | `/doctor` + `/reception` dead shells hold live code; cross-group imports | ADR-019 | Open |
 | D-05 | `core/ui/panel-shell.tsx` owns the whole app's route map | ADR-019 | Open |
 | D-07 | Trash loads every soft-deleted row of 9 tables into memory | ADR-006 | Open |

@@ -1,8 +1,7 @@
-import { eq } from "drizzle-orm";
+
+import { getClinic } from "@/core/clinics/get-clinic";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
-import { db } from "@/core/db";
-import { clinics } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { PatientDetail } from "../patient-detail";
 
@@ -16,11 +15,7 @@ export default async function PatientDetailPage({
   const { id } = await params;
 
   // The Finance account card needs the sales feature + billing view access.
-  const [clinic] = await db
-    .select({ featuresEnabled: clinics.featuresEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, user.clinicId))
-    .limit(1);
+  const clinic = await getClinic(user.clinicId);
   const showFinancials =
     clinicHasFeature(clinic?.featuresEnabled, "sales") && can(user, "billing", "view");
 

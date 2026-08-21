@@ -1,8 +1,6 @@
 import "server-only";
+import { getClinic } from "@/core/clinics/get-clinic";
 
-import { eq } from "drizzle-orm";
-import { db } from "@/core/db";
-import { clinics } from "@/core/db/schema";
 import { clinicalRecordFor, moduleTrashProviders } from "@/config/modules";
 import type { ModuleTrash, ModuleTrashRow } from "@/core/types/module";
 
@@ -14,11 +12,7 @@ import type { ModuleTrash, ModuleTrashRow } from "@/core/types/module";
  * fetches them — the same indirection every other module call already uses.
  */
 export async function clinicTrashProvider(clinicId: string): Promise<ModuleTrash | undefined> {
-  const [row] = await db
-    .select({ modulesEnabled: clinics.modulesEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const row = await getClinic(clinicId);
   return clinicalRecordFor(row?.modulesEnabled ?? [])?.trash;
 }
 

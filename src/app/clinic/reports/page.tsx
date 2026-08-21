@@ -1,10 +1,9 @@
 import Link from "next/link";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
-import { db } from "@/core/db";
-import { clinics } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import {
   Card,
@@ -22,13 +21,9 @@ import {
 export default async function ReportsHubPage() {
   const user = await requireWorkspace();
   const { clinicId } = user;
-  const [clinic] = await db
-    .select({ features: clinics.featuresEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
-  const sales = clinicHasFeature(clinic?.features, "sales");
-  const finance = clinicHasFeature(clinic?.features, "finance");
+  const clinic = await getClinic(clinicId);
+  const sales = clinicHasFeature(clinic?.featuresEnabled, "sales");
+  const finance = clinicHasFeature(clinic?.featuresEnabled, "finance");
   if (!sales) notFound();
 
   const reports = [

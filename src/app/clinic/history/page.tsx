@@ -1,9 +1,8 @@
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { getClinic } from "@/core/clinics/get-clinic";
+
 import { Archive } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { clinics } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { resolveSalesRange } from "@/core/sales/report";
 import {
@@ -36,11 +35,7 @@ export default async function HistoryPage({
   const user = await requireWorkspace("billing");
   const { clinicId } = user;
 
-  const [clinic] = await db
-    .select({ featuresEnabled: clinics.featuresEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinic = await getClinic(clinicId);
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales")) notFound();
 
   const sp = await searchParams;

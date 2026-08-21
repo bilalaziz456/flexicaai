@@ -1,10 +1,9 @@
 import Link from "next/link";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
-import { db } from "@/core/db";
-import { clinics } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { resolveSalesRange } from "@/core/sales/report";
 import {
@@ -55,11 +54,7 @@ export default async function ExpensesPage({
   const user = await requireWorkspace("expenses");
   const { clinicId } = user;
 
-  const [clinic] = await db
-    .select({ featuresEnabled: clinics.featuresEnabled, createdAt: clinics.createdAt })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinic = await getClinic(clinicId);
   if (!clinicHasFeature(clinic?.featuresEnabled, "finance")) notFound();
 
   await ensureDefaultCategories(clinicId);

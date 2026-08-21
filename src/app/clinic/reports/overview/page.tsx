@@ -1,9 +1,8 @@
 import Link from "next/link";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+
 import { requireWorkspace } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { clinics } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { getSalesDoctors, resolveSalesRange } from "@/core/sales/report";
 import { getOverview } from "@/core/finance/overview";
@@ -43,11 +42,7 @@ export default async function OverviewPage({
   searchParams: Promise<{ period?: string; from?: string; to?: string; doctorId?: string }>;
 }) {
   const { clinicId } = await requireWorkspace("finance");
-  const [clinic] = await db
-    .select({ featuresEnabled: clinics.featuresEnabled, name: clinics.name, createdAt: clinics.createdAt })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinic = await getClinic(clinicId);
   if (!clinicHasFeature(clinic?.featuresEnabled, "finance")) notFound();
 
   const sp = await searchParams;

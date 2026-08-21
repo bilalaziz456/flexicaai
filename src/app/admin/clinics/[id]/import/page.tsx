@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { getClinic } from "@/core/clinics/get-clinic";
+
 import { Breadcrumbs } from "@/core/ui/breadcrumbs";
-import { db } from "@/core/db";
-import { clinics } from "@/core/db/schema";
 import { requireAdminCapability } from "@/core/auth/user";
 import { canManageTeam } from "@/core/auth/admin-permissions";
 import { listBatches } from "@/core/admin/import";
@@ -18,11 +17,7 @@ export default async function ClinicImportPage({
   const { id } = await params;
   const admin = await requireAdminCapability("import:create");
 
-  const [clinic] = await db
-    .select({ id: clinics.id, name: clinics.name, assignedTo: clinics.assignedTo })
-    .from(clinics)
-    .where(eq(clinics.id, id))
-    .limit(1);
+  const clinic = await getClinic(id);
   if (!clinic) notFound();
   // Same visibility scope as the clinic detail page.
   if (!canManageTeam(admin) && clinic.assignedTo !== admin.id) notFound();

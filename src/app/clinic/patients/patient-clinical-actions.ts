@@ -1,14 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { getClinic } from "@/core/clinics/get-clinic";
+
 import { requireRole } from "@/core/auth/user";
 import { can, type PermAction } from "@/core/auth/permissions";
 import { displayStaffName } from "@/core/types/auth";
 import type { CurrentUser } from "@/core/types/auth";
 import type { ChartItemHistoryEntry, ModuleLab } from "@/core/types/module";
-import { db } from "@/core/db";
-import { clinics } from "@/core/db/schema";
 import { clinicalRecordFor } from "@/config/modules";
 import { saveMedicalHistory } from "@/core/patients/medical-history";
 import { asMedicalHistory } from "@/core/lib/medical-history";
@@ -189,11 +188,7 @@ export async function setItemBaselineAction(
 
 /** The enabled module's clinical-record bundle for this clinic, or null. */
 async function clinicalRecordForUser(clinicId: string) {
-  const [clinicRow] = await db
-    .select({ modulesEnabled: clinics.modulesEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinicRow = await getClinic(clinicId);
   return clinicalRecordFor(clinicRow?.modulesEnabled ?? []);
 }
 
@@ -212,11 +207,7 @@ export async function savePerioExamAction(
     return { error: "You don't have permission to edit clinical records." };
   }
 
-  const [clinicRow] = await db
-    .select({ modulesEnabled: clinics.modulesEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, user.clinicId))
-    .limit(1);
+  const clinicRow = await getClinic(user.clinicId);
   const clinicalRecord = clinicalRecordFor(clinicRow?.modulesEnabled ?? []);
   if (!clinicalRecord?.perio) return { error: "Periodontal charting isn't available." };
 
@@ -275,8 +266,8 @@ async function labGuard(
   const user = await requireRole(["clinic_admin", "doctor", "manager", "receptionist"]);
   if (!user.clinicId) return { error: "No clinic access." };
   if (!can(user, "lab", action)) return { error: "You don't have permission for lab cases." };
-  const [c] = await db.select({ m: clinics.modulesEnabled }).from(clinics).where(eq(clinics.id, user.clinicId)).limit(1);
-  const lab = clinicalRecordFor(c?.m ?? [])?.lab;
+  const c = await getClinic(user.clinicId);
+  const lab = clinicalRecordFor(c?.modulesEnabled ?? [])?.lab;
   if (!lab) return { error: "Lab tracking isn't available." };
   return { user, clinicId: user.clinicId, lab };
 }

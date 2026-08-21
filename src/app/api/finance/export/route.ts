@@ -1,8 +1,7 @@
-import { eq } from "drizzle-orm";
+
+import { getClinic } from "@/core/clinics/get-clinic";
 import { apiRequireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
-import { db } from "@/core/db";
-import { clinics } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { toCsv } from "@/core/lib/csv";
 import { streamCsvResponse } from "@/core/lib/csv-stream";
@@ -33,13 +32,9 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const type = url.searchParams.get("type") ?? "";
 
-  const [clinic] = await db
-    .select({ features: clinics.featuresEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
-  const hasSales = clinicHasFeature(clinic?.features, "sales");
-  const hasFinance = clinicHasFeature(clinic?.features, "finance");
+  const clinic = await getClinic(clinicId);
+  const hasSales = clinicHasFeature(clinic?.featuresEnabled, "sales");
+  const hasFinance = clinicHasFeature(clinic?.featuresEnabled, "finance");
 
   // Sales & payments are the two ledgers that grow without bound, so they STREAM:
   // a keyset cursor pages the DB and rows are emitted as they arrive, keeping server
