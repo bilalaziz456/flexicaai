@@ -3,7 +3,7 @@ import { requireRole } from "@/core/auth/user";
 import { adminCapabilitySet } from "@/core/auth/admin-permissions";
 import { getThemeCookie } from "@/core/theme/server";
 import { displayStaffName, staffInitials } from "@/core/types/auth";
-import { PanelShell } from "@/core/ui/panel-shell";
+import { AdminShell } from "@/app/admin/admin-shell";
 
 /**
  * Super Admin panel shell. Guards EVERY /admin/* route to super_admin — if a
@@ -20,8 +20,7 @@ export default async function AdminLayout({
   const theme = await getThemeCookie();
 
   return (
-    <PanelShell
-      panel="admin"
+    <AdminShell
       identityLabel="Super admin"
       userName={displayStaffName(user.prefix, user.fullName, user.username)}
       userInitials={staffInitials(user.fullName, user.username)}
@@ -31,6 +30,6 @@ export default async function AdminLayout({
       adminCapabilities={[...adminCapabilitySet(user)]}
     >
       {children}
-    </PanelShell>
+    </AdminShell>
   );
 }

@@ -5,63 +5,24 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConnectionStatus } from "@/core/ui/connection-status";
 import { GlobalSearch, type SearchNavItem } from "@/core/ui/global-search";
-import {
-  BadgeCheck,
-  BellRing,
-  Building2,
-  CalendarClock,
-  CalendarX2,
-  ChevronRight,
-  ClipboardList,
-  Contact,
-  Archive,
-  FileSpreadsheet,
-  FileText,
-  HandCoins,
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  Megaphone,
-  MessageCircle,
-  Mic,
-  PieChart,
-  Receipt,
-  ScrollText,
-  Settings,
-  ShieldCheck,
-  Stethoscope,
-  TicketPercent,
-  Trash2,
-  TrendingUp,
-  UserCog,
-  UserRound,
-  Users,
-  Wallet,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+// Only the icons the CHROME itself draws. Every route icon moved out with the nav
+// (ADR-019) — this list shrinking from 33 to 5 is the clearest measure of how much
+// application knowledge was living in shared UI.
+import { ChevronRight, LogOut, Menu, UserRound, X } from "lucide-react";
 import { signOut } from "@/core/auth/actions";
 import { Logo } from "@/core/ui/logo";
 import { NotificationBell } from "@/core/ui/notification-bell";
 import { ThemeToggle } from "@/core/ui/theme-toggle";
 import type { ThemePreference } from "@/core/theme/theme";
 import { cn } from "@/core/lib/utils";
+import {
+  isNavGroup as isGroup,
+  type NavGroup,
+  type NavItem,
+  type NavNode,
+  type PanelNav,
+} from "@/core/ui/panel-nav";
 
-type NavItem = {
-  href: string;
-  label: string;
-  Icon: LucideIcon;
-  exact?: boolean;
-  /** Permission resource this item maps to; hidden if the user can't access it. */
-  resource?: string;
-  /** ADMIN panel: required admin capability slug; hidden if the user lacks it. */
-  cap?: string;
-};
-
-/** A collapsible parent tab that groups related items under a ">" disclosure. */
-type NavGroup = { group: string; Icon: LucideIcon; items: NavItem[] };
-type NavNode = NavItem | NavGroup;
-const isGroup = (n: NavNode): n is NavGroup => "group" in n;
 
 /** The signed-in user's own avatar (from /api/me/avatar); falls back to the name
  * initials (matching the settings page), or a generic icon when there's no name.
@@ -102,125 +63,20 @@ function SelfAvatar({ className, version, initials }: { className?: string; vers
     />
   );
 }
-export type PanelId = "admin" | "clinic";
-
-/**
- * Per-panel navigation. Icons live here (a client module) so the server layouts
- * only pass a serializable panel id — you can't hand a component across the
- * server/client boundary. Every role gets the same chrome; only the items and
- * the brand link differ.
- */
-const NAV_BY_PANEL: Record<PanelId, { brand: string; nodes: NavNode[] }> = {
-  admin: {
-    brand: "/admin/overview",
-    nodes: [
-      { href: "/admin/overview", label: "Overview", Icon: LayoutDashboard, exact: true, cap: "metrics:view" },
-      { href: "/admin", label: "Clinics", Icon: Building2, exact: true, cap: "clinics:view" },
-      { href: "/admin/logs", label: "Activity log", Icon: ScrollText },
-      { href: "/admin/announcements", label: "Announcements", Icon: Megaphone, cap: "announcements:view" },
-      { href: "/admin/team", label: "Team", Icon: Users, cap: "team:view" },
-      {
-        group: "Company finance",
-        Icon: Wallet,
-        items: [
-          { href: "/admin/finance", label: "P&L", Icon: TrendingUp, exact: true, cap: "pnl:view" },
-          { href: "/admin/finance/costs", label: "Serving cost", Icon: Wallet, cap: "serving_cost:view" },
-          { href: "/admin/finance/expenses", label: "Operating expenses", Icon: Receipt, cap: "expenses:view" },
-          { href: "/admin/finance/invoices", label: "Subscription invoices", Icon: FileText, cap: "sub_invoices:view" },
-        ],
-      },
-      { href: "/admin/security", label: "Security", Icon: ShieldCheck },
-      { href: "/admin/account", label: "Account settings", Icon: UserCog, cap: "account:view" },
-      { href: "/admin/trash", label: "Trash", Icon: Trash2, cap: "clinics:edit" },
-    ],
-  },
-  clinic: {
-    brand: "/clinic",
-    // Top-level items stay flat; the rest are grouped under collapsible parents.
-    nodes: [
-      { href: "/clinic", label: "Dashboard", Icon: LayoutDashboard, exact: true },
-      { href: "/clinic/appointments", label: "Appointments", Icon: CalendarClock, resource: "appointments" },
-      { href: "/clinic/patients", label: "Patients", Icon: Contact, resource: "patients" },
-      { href: "/clinic/scribe", label: "Voice scribe", Icon: Mic, resource: "clinical" },
-      {
-        group: "Finance",
-        Icon: Wallet,
-        items: [
-          { href: "/clinic/sales", label: "Sales", Icon: TrendingUp, resource: "sales" },
-          { href: "/clinic/payments", label: "Payments", Icon: HandCoins, resource: "billing" },
-          { href: "/clinic/invoices", label: "Invoices", Icon: FileText, resource: "billing" },
-          { href: "/clinic/receivables", label: "Receivables", Icon: HandCoins, resource: "receivables" },
-          { href: "/clinic/discounts", label: "Discounts", Icon: TicketPercent, resource: "discounts" },
-          { href: "/clinic/shares", label: "Revenue shares", Icon: PieChart, resource: "shares" },
-          { href: "/clinic/expenses", label: "Expenses", Icon: Receipt, resource: "expenses" },
-          { href: "/clinic/pl", label: "Profit & Loss", Icon: Wallet, resource: "finance" },
-          { href: "/clinic/reports", label: "Reports", Icon: FileSpreadsheet },
-          { href: "/clinic/history", label: "History", Icon: Archive, resource: "billing" },
-          { href: "/clinic/approvals", label: "Discount approvals", Icon: BadgeCheck },
-        ],
-      },
-      {
-        group: "Operations",
-        Icon: ClipboardList,
-        items: [
-          { href: "/clinic/procedures", label: "Procedures", Icon: ClipboardList, resource: "procedures" },
-          { href: "/clinic/doctors", label: "Doctors", Icon: UserCog, resource: "leave" },
-          { href: "/clinic/no-shows", label: "No-shows", Icon: CalendarX2, resource: "appointments" },
-          { href: "/clinic/whatsapp", label: "WhatsApp", Icon: MessageCircle, resource: "whatsapp" },
-          { href: "/clinic/recalls", label: "Recalls", Icon: BellRing, resource: "recalls" },
-        ],
-      },
-      {
-        group: "Admin",
-        Icon: Users,
-        items: [
-          { href: "/clinic/staff", label: "Staff", Icon: Users, resource: "staff" },
-          { href: "/clinic/settings", label: "Settings", Icon: Settings },
-          { href: "/clinic/trash", label: "Trash", Icon: Trash2, resource: "trash" },
-          { href: "/clinic/logs", label: "Activity log", Icon: ScrollText },
-        ],
-      },
-    ],
-  },
-};
-
-/** Nav hrefs gated by the `sales` feature (hidden until the super admin enables it). */
-const SALES_HREFS = new Set([
-  "/clinic/procedures",
-  "/clinic/sales",
-  "/clinic/discounts",
-  "/clinic/payments",
-  "/clinic/invoices",
-  "/clinic/history",
-]);
 
 /**
  * Shared panel chrome for every role — desktop left sidebar (logo + icon/text
  * nav + sign out with label) and a mobile top bar with an animated hamburger
  * drawer (sign out is icon-only on mobile). Client component: tracks the active
- * route and drawer state. Server layouts pass the panel id, the identity label
- * (username or clinic name), and the saved theme.
+ * route and drawer state.
+ *
+ * It knows NOTHING about what routes exist: each panel hands it a `nav`, and gating
+ * is declared on the items themselves (ADR-019, delta D-05). Adding a page to a panel
+ * is a change to that panel's `nav.ts`, never to this file.
  */
-export function PanelShell({
-  panel,
-  identityLabel,
-  userName,
-  userInitials = "",
-  accountHref = "/account",
-  avatarVersion = "none",
-  notificationCount = 0,
-  theme,
-  logsEnabled = true,
-  salesEnabled = false,
-  financeEnabled = false,
-  approvalsEnabled = false,
-  accessibleResources,
-  adminCapabilities,
-  banner,
-  bottomPill,
-  children,
-}: {
-  panel: PanelId;
+export type PanelShellProps = {
+  /** This panel's navigation map, owned by the panel rather than by this shell. */
+  nav: PanelNav;
   identityLabel: string;
   /** The signed-in user's display name (with prefix, e.g. "Dr. Bilal Aziz"). */
   userName: string;
@@ -233,15 +89,14 @@ export function PanelShell({
   /** Initial unread notification count (server-rendered so the badge has no flash). */
   notificationCount?: number;
   theme: ThemePreference;
-  /** Clinic panel: hide the Activity-log nav item when the clinic has no log access. */
-  logsEnabled?: boolean;
-  /** Hide Procedures/Sales nav items unless the clinic has the `sales` feature. */
-  salesEnabled?: boolean;
-  /** Hide Expenses/P&L nav items unless the clinic has the `finance` feature. */
-  financeEnabled?: boolean;
-  /** Show the Discount-approvals nav only for potential approvers (a doctor, or a
-   * user holding the discount-approval capability). */
-  approvalsEnabled?: boolean;
+  /** Clinic features that are on, keyed by the `feature` a nav item declares (e.g.
+   *  `{ sales: true, finance: false }`). An item naming a feature that isn't true
+   *  here is hidden. */
+  features?: Readonly<Record<string, boolean>>;
+  /** Per-request booleans, keyed by the `gate` a nav item declares (e.g.
+   *  `{ logs: true, approvals: false }`) — conditions the panel works out that are
+   *  neither a permission nor a feature. */
+  gates?: Readonly<Record<string, boolean>>;
   /**
    * Permission resources the current user can access (any V/C/E/D). When
    * provided, nav items tagged with a `resource` the user can't access are
@@ -257,27 +112,42 @@ export function PanelShell({
    *  (e.g. the clinic payment-due notice). Shares one stack so the two never clash. */
   bottomPill?: React.ReactNode;
   children: React.ReactNode;
-}) {
-  const { brand, nodes } = NAV_BY_PANEL[panel];
+};
+
+export function PanelShell({
+  nav,
+  identityLabel,
+  userName,
+  userInitials = "",
+  accountHref = "/account",
+  avatarVersion = "none",
+  notificationCount = 0,
+  theme,
+  features,
+  gates,
+  accessibleResources,
+  adminCapabilities,
+  banner,
+  bottomPill,
+  children,
+}: PanelShellProps) {
+  const { brand, nodes, search } = nav;
   const canSee = accessibleResources ? new Set(accessibleResources) : null;
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  // Per-item gating, in order: feature flags (Activity log / Sales / Finance) then
-  // per-user permissions (a resource-tagged item needs access to that resource).
+  // Per-item gating, entirely from what the item DECLARES. This used to be a chain of
+  // seven hardcoded `/clinic/...` hrefs, so every new gated page meant editing shared
+  // chrome — and the shell silently decided policy for a panel it shouldn't know.
   const adminCaps = adminCapabilities ? new Set(adminCapabilities) : null;
   const visible = (i: NavItem): boolean => {
-    // ADMIN panel: gate by admin capability (Feature 9). Owner has adminCaps=null
-    // → every cap-tagged item shows.
+    // Admin capability (Feature 9). The owner has adminCaps=null → unrestricted.
     if (i.cap && adminCaps && !adminCaps.has(i.cap)) return false;
-    if (i.href === "/clinic/logs") return logsEnabled;
-    if (i.href === "/clinic/approvals") return approvalsEnabled;
-    if (i.href === "/clinic/expenses") return financeEnabled && (!canSee || canSee.has("expenses"));
-    if (i.href === "/clinic/pl") return financeEnabled && (!canSee || canSee.has("finance"));
-    if (i.href === "/clinic/receivables")
-      return salesEnabled && (!canSee || canSee.has("receivables"));
-    if (i.href === "/clinic/reports") return salesEnabled; // the hub gates each card itself
-    if (SALES_HREFS.has(i.href) && !salesEnabled) return false;
+    // A clinic feature the super admin switches on.
+    if (i.feature && !features?.[i.feature]) return false;
+    // A condition the panel worked out for this request.
+    if (i.gate && !gates?.[i.gate]) return false;
+    // Per-user permission. canSee=null (super admin) → unrestricted.
     if (i.resource && canSee && !canSee.has(i.resource)) return false;
     return true;
   };
@@ -293,19 +163,16 @@ export function PanelShell({
       ? n.items.map((i) => ({ href: i.href, label: i.label, group: n.group }))
       : [{ href: n.href, label: n.label }],
   );
-  // Only two panels remain: the company's (/admin) and the clinic workspace
-  // (/clinic). The old per-doctor and per-reception panels were folded into the
-  // workspace (ADR-019); `panel === "admin"` skips search entirely below.
-  const searchBase = { patients: "/clinic/patients", appts: "/clinic/appointments", docs: true };
-  const searchBox =
-    panel === "admin" ? null : (
-      <GlobalSearch
-        navItems={searchNavItems}
-        patientBase={searchBase.patients}
-        appointmentBase={searchBase.appts}
-        documentPages={searchBase.docs}
-      />
-    );
+  // Where search sends its results is the panel's business too. `search: null` — the
+  // cross-tenant admin panel — means no search box at all.
+  const searchBox = search ? (
+    <GlobalSearch
+      navItems={searchNavItems}
+      patientBase={search.patientBase}
+      appointmentBase={search.appointmentBase}
+      documentPages={search.documentPages}
+    />
+  ) : null;
 
   const isActive = (item: NavItem) =>
     item.exact ? pathname === item.href : pathname.startsWith(item.href);

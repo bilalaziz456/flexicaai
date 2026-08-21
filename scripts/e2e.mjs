@@ -590,6 +590,24 @@ async function run() {
 
     // Billing-gated + STREAMED exports: enable the sales + finance features on Clinic A.
     await pool.query("update clinics set features_enabled = ARRAY['revenue_dashboard','sales','finance'] where id = $1", [ids.clinics[0]]);
+
+    // ── NAV GATING (the sidebar is now data: app/clinic/nav.ts + PanelShell) ──
+    // Clinic A has sales+finance; Clinic B has neither. The nav items that declare
+    // `feature: "sales"` must appear for one and not the other. This is the only
+    // check that the declarative gating actually reaches the rendered sidebar —
+    // everything else here is API-level and would pass with the nav wired wrong.
+    {
+      const a = await req("/clinic", { cookie: S.adminA });
+      const b = await req("/clinic", { cookie: S.adminB });
+      record("nav: sales-gated item shows for a clinic WITH the feature", a.text.includes("/clinic/sales"));
+      record("nav: …and is hidden for a clinic without it", !b.text.includes("/clinic/sales"));
+      record("nav: finance-gated item follows the same flag", a.text.includes("/clinic/pl") && !b.text.includes("/clinic/pl"));
+      // Ungated items must still render for both — a gating bug that hid everything
+      // would otherwise look like a pass above.
+      record("nav: ungated items render for both", a.text.includes("/clinic/patients") && b.text.includes("/clinic/patients"));
+      // The dead panels' nav is gone (D-04); nothing should link into them.
+      record("nav: no links into the removed /doctor or /reception panels", !a.text.includes('href="/reception') && !a.text.includes('href="/doctor'));
+    }
     {
       const r = await req("/api/finance/export?type=sales&period=year", { cookie: S.adminA });
       record("sales CSV (streamed) → text/csv + footer + header", okCsv(r, "Date,Patient,Phone,Doctor,Gross"), okCsv(r, "Date,Patient,Phone,Doctor,Gross") ? "" : `status=${r.status} ct=${r.ct}`);

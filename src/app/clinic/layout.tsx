@@ -11,7 +11,7 @@ import { clinicHasFeature } from "@/core/lib/features";
 import { getUnreadCount } from "@/core/notifications/in-app";
 import { accessibleResourceIds, can } from "@/core/auth/permissions";
 import { displayStaffName, staffInitials } from "@/core/types/auth";
-import { PanelShell } from "@/core/ui/panel-shell";
+import { ClinicShell } from "@/app/clinic/clinic-shell";
 
 /**
  * Clinic Admin panel shell. Guards to clinic_admin (with a guaranteed clinicId)
@@ -113,8 +113,7 @@ export default async function ClinicLayout({
   const banner = notices.length ? <>{notices}</> : null;
 
   return (
-    <PanelShell
-      panel="clinic"
+    <ClinicShell
       banner={banner}
       identityLabel={clinic?.name ?? user.username}
       userName={displayStaffName(user.prefix, user.fullName, user.username)}
@@ -123,14 +122,17 @@ export default async function ClinicLayout({
       avatarVersion={user.avatarKey ?? "none"}
       notificationCount={unread}
       theme={theme}
-      logsEnabled={logsEnabled}
-      salesEnabled={clinicHasFeature(clinic?.featuresEnabled, "sales")}
-      financeEnabled={clinicHasFeature(clinic?.featuresEnabled, "finance")}
-      approvalsEnabled={approvalsEnabled}
+      // Keyed by what the nav items declare, so adding a gated page is a change to
+      // nav.ts alone (ADR-019).
+      features={{
+        sales: clinicHasFeature(clinic?.featuresEnabled, "sales"),
+        finance: clinicHasFeature(clinic?.featuresEnabled, "finance"),
+      }}
+      gates={{ logs: logsEnabled, approvals: approvalsEnabled }}
       accessibleResources={navResources}
       bottomPill={paymentPill}
     >
       {children}
-    </PanelShell>
+    </ClinicShell>
   );
 }

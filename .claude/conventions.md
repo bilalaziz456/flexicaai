@@ -81,6 +81,9 @@ note above it; obvious logic gets none.
 - **A route group is not a library** (ADR-019). If two groups need the same file, it
   belongs in `core/ui` (presentation) or `core/<domain>` (logic) — never imported
   across `src/app/<group>` boundaries. That count is currently zero; keep it there.
+- **A shared component must not know your routes.** Nav lives in each panel's
+  `nav.ts` and is passed to `PanelShell` as data, with gating declared on the item
+  (`resource` / `cap` / `feature` / `gate`). Adding a page never edits `core/ui`.
 - **Queries belong in `core/<domain>`**, not in pages or actions (ADR-014) — enforced
   by lint: `src/app/**` may not import `@/core/db` or `@/core/db/schema` (type-only
   imports are fine). The legacy allowlist in `eslint.config.mjs` only ever shrinks;

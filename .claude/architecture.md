@@ -352,7 +352,7 @@ decorative. It found a real unscoped query within minutes of being wired up.
 trains people to ignore it — fix the query, don't mute the guard.
 
 **ADR-019 — Route groups are routing boundaries, never libraries** · *2026-08-21* ·
-`Accepted` *(implemented for the app layer — D-04 closed; D-05 remains)*
+`Accepted` *(implemented — D-04 and D-05 both closed)*
 Shared presentation → `core/ui`. Panel-specific → colocated under that panel. The nav
 map is **data passed into** `PanelShell`, not baked into it.
 **Why:** `/doctor` and `/reception` redirect to `/clinic` yet still hold 30+ live
@@ -370,6 +370,18 @@ providers, so it sits at the registry layer — the only layer allowed to name m
 not in core and not in a route group. And `endImpersonation` moved to
 `core/auth/actions.ts` because the CLINIC shell renders its Exit button; importing it
 from `@/app/admin/actions` pulled a 1,300-line module into every clinic page's graph.
+
+**The nav is data now (D-05).** `core/ui/panel-shell.tsx` renders whatever `PanelNav`
+it is handed; each panel owns its own map (`app/clinic/nav.ts`, `app/admin/nav.ts`).
+Gating is declared ON the item — `resource` / `cap` / `feature` / `gate` — and applied
+uniformly, replacing a `visible()` chain that hardcoded seven `/clinic/...` hrefs
+inside shared chrome. The shell's icon imports went from 33 to 5, which is the
+clearest measure of how much application knowledge was living in `core/ui`.
+
+One mechanical constraint shapes this: a nav item carries a Lucide COMPONENT, and a
+function can't cross the server→client boundary as a prop. So each panel has a
+three-line client wrapper (`clinic-shell.tsx`, `admin-shell.tsx`) that imports its own
+nav and forwards the rest. Adding a page is a change to that panel's `nav.ts` alone.
 
 **ADR-020 — The scribe becomes an async job** · *2026-08-21* · `Interim`
 Today: synchronous, budgeted at 300s (Whisper 120s + Claude 90s×2), needing a matching
@@ -390,7 +402,6 @@ they land.** Ordered by consequence.
 | # | Delta | ADR | Status |
 |---|---|---|---|
 | D-01 | App files querying the DB directly. **Ratchet installed** — `eslint.config.mjs` bans `@/core/db` + `@/core/db/schema` from `src/app/**`, with a legacy allowlist that may only SHRINK | ADR-014 | Open — **55 left** (was 77). Delete lines from `LEGACY_DIRECT_DB_ACCESS` as they migrate; when it is empty, remove the exemption block |
-| D-05 | `core/ui/panel-shell.tsx` still owns the route map for the two REMAINING panels (admin + clinic); the nav should be data passed in | ADR-019 | Open — the dead panels' trees are gone, `PanelId` is down to `"admin" | "clinic"` |
 | D-07 | Trash loads every soft-deleted row of 9 tables into memory | ADR-006 | Open |
 | D-08 | Scribe is synchronous | ADR-020 | Open (interim in force) |
 | D-09 | `schema.ts` is a 1,977-line god module (156 importers) | — | Open |
@@ -401,7 +412,9 @@ they land.** Ordered by consequence.
 | D-14 | Timezone is server-local; blocks a second region | ADR-009 | Open — required before the first GCC clinic |
 | D-15 | CSP is report-only | — | Open — enforce once the sink shows it clean |
 
-**Closed:** local-FS storage on an ephemeral host (ADR-010) · in-memory limiter on a
+**Closed:** the nav map living in shared chrome (ADR-019, D-05 closed 2026-08-21 —
+e2e asserts feature-gated items appear for a clinic with the feature and not without)
+· local-FS storage on an ephemeral host (ADR-010) · in-memory limiter on a
 multi-instance host (ADR-011) · API routes bypassing the auth chokepoint (ADR-013) ·
 no observability (ADR-017) · silent tenant-guard (ADR-018) · webhook replay
 double-booking · unbounded AI provider calls · cron secret timing leak · unsigned
