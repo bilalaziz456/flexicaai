@@ -9,6 +9,7 @@ import { handleRescheduleReply } from "@/core/appointments/reschedule";
 import { handleBookingReply } from "@/core/appointments/booking";
 import { notifyInboundWhatsApp } from "@/core/notifications/triggers";
 import { serverEnv } from "@/core/lib/env";
+import { enrichContext, report, withRequestContext } from "@/core/observability";
 
 /**
  * POST /api/whatsapp/webhook — inbound WhatsApp from AiSensy (incoming patient
@@ -41,6 +42,19 @@ const STATUS_MAP: Record<string, "sent" | "delivered" | "read" | "failed"> = {
 };
 
 export async function POST(request: Request) {
+  // Same reasoning as the Cloud webhook: nobody is watching this run, so give it a
+  // correlation id and report a crash instead of letting the provider see a bare 500.
+  return withRequestContext("webhook.whatsapp.aisensy", request, async () => {
+    try {
+      return await handleAisensyWebhook(request);
+    } catch (e) {
+      report(e, { op: "webhook.whatsapp.aisensy" });
+      return NextResponse.json({ ok: false }, { status: 200 });
+    }
+  });
+}
+
+async function handleAisensyWebhook(request: Request) {
   const url = new URL(request.url);
   // Prefer a header (keeps the secret out of the URL / access logs); fall back to the
   // query param for providers that can only append it to the webhook URL.
@@ -116,6 +130,8 @@ export async function POST(request: Request) {
     : [];
   const exact = candidates.filter((c) => normalisePhone(c.phone ?? "") === phone);
   const matched = exact.length === 1 ? exact[0] : null;
+  // Attribution resolved — carry the clinic on every later report in this run.
+  if (matched) enrichContext({ clinicId: matched.clinicId });
 
   // IDEMPOTENT INSERT — see the Cloud webhook and the partial unique index in
   // schema.ts. AiSensy redelivers when it doesn't get a timely 200, and the

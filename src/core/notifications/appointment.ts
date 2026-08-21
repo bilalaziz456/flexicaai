@@ -9,6 +9,7 @@ import { computeAppointmentTotal, effectiveDiscountValue } from "@/core/appointm
 import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
+import { report } from "@/core/observability";
 
 /** "Rs 1,500" or "Not specified" for a 0/absent fee. */
 function formatFee(fee: number | null): string {
@@ -90,8 +91,10 @@ export async function notifyAppointmentsCancelled(
         body: `Your appointment with ${doctor} on ${when} has been cancelled.`,
       });
     }
-  } catch {
-    // Best-effort: never let a notification error affect the cancellation.
+  } catch (e) {
+    // Best-effort: never let a notification error affect the cancellation. But the
+    // patient was NOT told, so staff may need to ring them — worth surfacing.
+    report(e, { op: "notifications.appointmentsCancelled", clinicId });
   }
 }
 
@@ -183,8 +186,10 @@ export async function notifyAppointmentBooked(
       ],
       body,
     });
-  } catch {
-    // Best-effort: never let a notification error affect the booking.
+  } catch (e) {
+    // Best-effort: never let a notification error affect the booking. The patient
+    // simply never received their confirmation, which they will ask about.
+    report(e, { op: "notifications.appointmentBooked", clinicId, ids: { appointmentId } });
   }
 }
 

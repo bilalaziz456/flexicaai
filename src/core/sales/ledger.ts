@@ -18,6 +18,7 @@ import {
   voidDiscountSettlementForAppointment,
 } from "@/core/sales/settlement-ledger";
 import { syncLineWaives } from "@/core/sales/appointment-lines";
+import { report } from "@/core/observability";
 
 /**
  * Snapshots (upserts) the sale for a COMPLETED appointment on a **collected** basis
@@ -116,8 +117,16 @@ export async function recordSaleForAppointment(
           occurredAt: row.scheduledAt,
         },
       });
-  } catch {
-    // best-effort
+  } catch (e) {
+    // Still best-effort — a ledger hiccup must not block the status change or the
+    // payment that triggered it. But this is REVENUE: swallowed silently, a clinic's
+    // sales could stop being recorded and nobody would know until they questioned
+    // their own numbers. The nightly reconciliation re-derives from this signal.
+    report(e, {
+      op: "sales.recordSaleForAppointment",
+      clinicId,
+      ids: { appointmentId },
+    });
   }
   // The per-doctor earnings (collected-basis) + the discount-settlement ledger
   // (accrual) are snapshotted in lockstep with the sale; any per-line waives re-sync
@@ -136,8 +145,10 @@ export async function voidSaleForAppointment(
     await db
       .delete(sales)
       .where(byClinic(sales.clinicId, clinicId, eq(sales.appointmentId, appointmentId)));
-  } catch {
-    // best-effort
+  } catch (e) {
+    // A failed void leaves revenue on the books for a visit that is no longer
+    // completed — an OVER-statement, so it matters as much as a failed record.
+    report(e, { op: "sales.voidSaleForAppointment", clinicId, ids: { appointmentId } });
   }
   await voidSaleSharesForAppointment(clinicId, appointmentId);
   await voidDiscountSettlementForAppointment(clinicId, appointmentId);
@@ -216,7 +227,9 @@ export async function backfillClinicSales(clinicId: string): Promise<void> {
       await recordSaleSharesForAppointment(clinicId, r.id);
       await recordDiscountSettlementForAppointment(clinicId, r.id);
     }
-  } catch {
-    // best-effort
+  } catch (e) {
+    // The backfill runs once when the super admin enables the `sales` feature. If it
+    // dies half-way the clinic sees a partial history and reads it as data loss.
+    report(e, { op: "sales.backfillClinicSales", clinicId });
   }
 }

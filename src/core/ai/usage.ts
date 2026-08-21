@@ -4,6 +4,7 @@ import { db } from "@/core/db";
 import { aiUsage } from "@/core/db/schema";
 import { getCostRates } from "@/core/admin/cost";
 import type { ScribeUsage } from "@/core/ai/scribe-engine";
+import { report } from "@/core/observability";
 
 /**
  * AI usage metering — records the PAID calls of a scribe run for precise serving
@@ -47,7 +48,10 @@ export async function recordScribeUsage(args: {
         costPkr: Math.round(claudeUsd * fx),
       },
     ]);
-  } catch {
+  } catch (e) {
+    // Metering feeds the company P&L: unrecorded usage silently UNDERSTATES what it
+    // costs us to serve a clinic, so margins look better than they are.
+    report(e, { op: "ai.recordScribeUsage", clinicId: args.clinicId, ids: { visitId: args.visitId } });
     // Metering is best-effort; swallow so the scribe response is never blocked.
   }
 }

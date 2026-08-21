@@ -6,6 +6,7 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { notifications, users } from "@/core/db/schema";
 import { can, type PermAction } from "@/core/auth/permissions";
 import type { UserRole } from "@/core/types/auth";
+import { report } from "@/core/observability";
 
 /**
  * In-app notifications — CORE, specialty-agnostic (the bell). One ROW per recipient;
@@ -48,7 +49,7 @@ function rowFor(clinicId: string, userId: string, p: NotifyPayload) {
 
 function failed(where: string, e: unknown): void {
   // Best-effort: a notification never breaks the action that triggered it.
-  console.error(`[notify] ${where} failed:`, e instanceof Error ? e.message : e);
+  report(e, { op: `notifications.inApp.${where}` });
 }
 
 // ---- Writes ---------------------------------------------------------------

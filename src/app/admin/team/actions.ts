@@ -22,6 +22,7 @@ import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import { clinics, sessions, users } from "@/core/db/schema";
 import { logActivity } from "@/core/audit/log";
 import { USERNAME_REGEX } from "@/core/types/auth";
+import { report } from "@/core/observability";
 
 export type TeamActionState = { error?: string; saved?: boolean };
 
@@ -91,7 +92,10 @@ export async function createSuperAdminAction(
       permissions: permsForSubRole(parsed.data.subRole),
       mustChangePassword: true,
     });
-  } catch {
+  } catch (e) {
+    // Assumed to be a unique-violation, and nearly always is — but a connection or
+    // constraint error would also surface to the operator as "username in use".
+    report(e, { op: "admin.team.createMember", severity: "warn" });
     return { error: "That username is already in use." };
   }
 
@@ -186,7 +190,8 @@ export async function editTeamMemberProfileAction(
       .update(users)
       .set({ fullName: parsed.data.fullName, username: parsed.data.username, updatedAt: new Date() })
       .where(and(eq(users.id, userId), eq(users.role, "super_admin")));
-  } catch {
+  } catch (e) {
+    report(e, { op: "admin.team.updateMember", severity: "warn", ids: { userId } });
     return { error: "That username is already in use." };
   }
   await logActivity({

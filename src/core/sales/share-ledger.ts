@@ -6,6 +6,7 @@ import { byClinic } from "@/core/db/tenant";
 import { appointments, saleShares, users } from "@/core/db/schema";
 import { computeShare } from "@/core/appointments/shares";
 import { getAppointmentShareContext } from "@/core/appointments/share-context";
+import { report } from "@/core/observability";
 
 /**
  * Per-doctor EARNINGS ledger — each doctor's share of a COMPLETED appointment on a
@@ -72,8 +73,10 @@ export async function recordSaleSharesForAppointment(
         occurredAt: ctx.occurredAt as Date,
       })),
     );
-  } catch {
-    // best-effort
+  } catch (e) {
+    // Doctor EARNINGS. A dropped write understates what a doctor is owed and the
+    // payout balance is derived from these rows, so the error must be visible.
+    report(e, { op: "sales.recordSaleShares", clinicId, ids: { appointmentId } });
   }
 }
 
@@ -86,7 +89,8 @@ export async function voidSaleSharesForAppointment(
     await db
       .delete(saleShares)
       .where(byClinic(saleShares.clinicId, clinicId, eq(saleShares.appointmentId, appointmentId)));
-  } catch {
-    // best-effort
+  } catch (e) {
+    // A failed void leaves a doctor credited for a visit that no longer qualifies.
+    report(e, { op: "sales.voidSaleShares", clinicId, ids: { appointmentId } });
   }
 }

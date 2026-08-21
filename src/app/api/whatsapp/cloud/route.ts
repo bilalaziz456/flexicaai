@@ -11,6 +11,7 @@ import { handleRescheduleReply } from "@/core/appointments/reschedule";
 import { handleBookingReply } from "@/core/appointments/booking";
 import { notifyInboundWhatsApp } from "@/core/notifications/triggers";
 import { serverEnv, isProduction } from "@/core/lib/env";
+import { enrichContext, report, withRequestContext } from "@/core/observability";
 
 /**
  * Meta WhatsApp Cloud API webhook (per-clinic numbers). Unlike the AiSensy webhook,
@@ -85,6 +86,22 @@ type CloudValue = {
 };
 
 export async function POST(request: Request) {
+  // A webhook has no user watching it either: if this handler throws, the symptom is
+  // a patient message that silently never arrives. Wrapped so the run gets a
+  // correlation id and any crash is reported. We still answer 200 on a crash — Meta
+  // retries non-2xx, and a redelivery of a payload we already stored is pointless
+  // (the insert is idempotent, but the retry storm is not free).
+  return withRequestContext("webhook.whatsapp.cloud", request, async () => {
+    try {
+      return await handleCloudWebhook(request);
+    } catch (e) {
+      report(e, { op: "webhook.whatsapp.cloud" });
+      return NextResponse.json({ ok: false }, { status: 200 });
+    }
+  });
+}
+
+async function handleCloudWebhook(request: Request) {
   const raw = await request.text();
   if (!signatureOk(raw, request.headers.get("x-hub-signature-256"))) {
     return NextResponse.json({ error: "Bad signature." }, { status: 401 });
@@ -109,6 +126,8 @@ export async function POST(request: Request) {
       const clinicId = phoneNumberId
         ? await getClinicIdByPhoneNumberId(phoneNumberId)
         : null;
+      // Now that routing resolved, every later report in this run carries the clinic.
+      if (clinicId) enrichContext({ clinicId });
 
       // ---- Delivery/read receipts: advance the outbound row by its wamid ----
       for (const s of value.statuses ?? []) {

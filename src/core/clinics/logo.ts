@@ -1,6 +1,7 @@
 import "server-only";
 
 import { readFileByKey } from "@/core/integrations/storage";
+import { report } from "@/core/observability";
 
 const MIME: Record<string, string> = {
   jpg: "image/jpeg",
@@ -22,7 +23,10 @@ export async function getClinicLogoDataUri(logoKey: string | null | undefined): 
     const ext = logoKey.split(".").pop()?.toLowerCase() ?? "";
     const mime = MIME[ext] ?? "application/octet-stream";
     return `data:${mime};base64,${data.toString("base64")}`;
-  } catch {
+  } catch (e) {
+    // A logo key that no longer resolves means invoices silently print without the
+    // clinic branding — visible to patients, invisible to us until now.
+    report(e, { op: "clinics.getLogoDataUri", severity: "warn", ids: { logoKey } });
     return null; // missing file → show nothing
   }
 }

@@ -15,6 +15,7 @@ import { checkDoctorSlot } from "@/core/appointments/availability";
 import { queueSessionKey, withQueueNumber } from "@/core/appointments/queue";
 import { parseWhen } from "@/core/appointments/parse-when";
 import type { DayAvailability } from "@/core/lib/availability";
+import { report } from "@/core/observability";
 
 /** "Mon 13 Jul, 15:00" for the reschedule confirmation. */
 function fmtWhen(d: Date): string {
@@ -168,7 +169,10 @@ export async function handleRescheduleReply(args: {
       const [{ hasProcedures }] = await db
         .select({ hasProcedures: appointmentHasProceduresSql() })
         .from(appointments)
-        .where(eq(appointments.id, appt.id))
+        // Scoped even though `appt` was already resolved within this clinic: the
+        // rule is every query filters by clinic_id, and an id-only lookup here is
+        // what the tenant guard is built to flag. (It flagged exactly this.)
+        .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appt.id)))
         .limit(1);
       const check = await checkDoctorSlot(clinicId, appt.doctorId, when, {
         excludeAppointmentId: appt.id,
@@ -238,8 +242,10 @@ export async function handleRescheduleReply(args: {
       `Your appointment has been rescheduled to ${fmtWhen(when)} with ${doctorName}.${feeStr}${tokenStr}`,
     );
     return { handled: true, rescheduled: true, appointmentId: appt.id };
-  } catch {
+  } catch (e) {
     // Best-effort: an inbound webhook must never fail on a reschedule attempt.
+    // Same reasoning as booking — the patient is left with silence.
+    report(e, { op: "appointments.handleRescheduleReply", clinicId, ids: { patientId } });
     return { handled: true, rescheduled: false };
   }
 }

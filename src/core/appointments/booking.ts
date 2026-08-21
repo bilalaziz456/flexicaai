@@ -9,6 +9,7 @@ import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import { checkDoctorSlot } from "@/core/appointments/availability";
 import { withQueueNumber } from "@/core/appointments/queue";
 import { parseWhen } from "@/core/appointments/parse-when";
+import { report } from "@/core/observability";
 import {
   describeAvailability,
   type DayAvailability,
@@ -254,7 +255,10 @@ export async function handleBookingReply(args: {
       `Thanks! Your booking request for ${doctor.name} on ${fmtWhen(when)} has been received.${tokenStr} The clinic will confirm it shortly and you'll get a confirmation message.`,
     );
     return { handled: true, booked: true, appointmentId: created?.id ?? null };
-  } catch {
+  } catch (e) {
+    // An inbound webhook must never fail on a booking attempt — but to the patient
+    // a silent failure looks like the clinic ignored their message.
+    report(e, { op: "appointments.handleBookingReply", clinicId, ids: { patientId } });
     return { handled: true, booked: false };
   }
 }

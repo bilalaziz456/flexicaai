@@ -3,6 +3,7 @@ import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { serverEnv, isProduction } from "@/core/lib/env";
+import { report, reportEvent, withRequestContext } from "@/core/observability";
 
 /**
  * Cron authorization — CORE. Vercel Cron calls our job routes with
@@ -41,6 +42,48 @@ function secretEquals(a: string, b: string): boolean {
  *     …
  *   }
  */
+/**
+ * Runs an authorized cron job inside a request context and reports a crash.
+ *
+ * A cron has no user watching it: if the nightly reminder sweep throws, the only
+ * symptom is patients quietly not being reminded. So the job body is wrapped once,
+ * here, rather than each route growing its own try/catch — and the correlation id
+ * ties every `report()` the job emits back to the run that produced it.
+ *
+ *   export async function GET(request: Request) {
+ *     return runCron(request, "cron.reminders", async () => {
+ *       const result = await sendDueAppointmentReminders();
+ *       return NextResponse.json({ ok: true, ...result });
+ *     });
+ *   }
+ */
+export async function runCron(
+  request: Request,
+  entry: string,
+  job: () => Promise<Response>,
+): Promise<Response> {
+  const denied = requireCron(request);
+  if (denied) return denied;
+  return withRequestContext(entry, request, async () => {
+    const startedAt = Date.now();
+    try {
+      const res = await job();
+      reportEvent("cron completed", {
+        op: entry,
+        severity: "info",
+        extra: { ms: Date.now() - startedAt },
+      });
+      return res;
+    } catch (e) {
+      // Unlike the rest of the app, a cron failure has no user-visible surface at
+      // all — this report IS the alarm.
+      report(e, { op: entry, extra: { ms: Date.now() - startedAt } });
+      return NextResponse.json({ error: "Job failed." }, { status: 500 });
+    }
+  });
+}
+
+/** The auth check on its own, for a route that wants to own its response shape. */
 export function requireCron(request: Request): Response | null {
   const url = new URL(request.url);
   const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");

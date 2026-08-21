@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { users } from "@/core/db/schema";
 import { readFileByKey } from "@/core/integrations/storage";
+import { report } from "@/core/observability";
 
 /**
  * GET /api/me/avatar — serves the SIGNED-IN user's own profile picture (never
@@ -40,7 +41,13 @@ export async function GET() {
         "Cache-Control": "no-store",
       },
     });
-  } catch {
+  } catch (e) {
+    // The row says this file exists but the bytes could not be read, so the DB and
+    // the file store disagree. Returning 404 is right for the caller, but it makes a
+    // MISSING FILE look identical to a missing record — the exact shape data loss on
+    // an ephemeral filesystem would take. Warn: the request is handled, the estate
+    // is not.
+    report(e, { op: "storage.serveAvatar", severity: "warn", userId: user.id });
     return new Response("Not found", { status: 404 });
   }
 }

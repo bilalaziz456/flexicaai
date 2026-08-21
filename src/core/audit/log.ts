@@ -4,6 +4,7 @@ import { and, eq, gte, isNull } from "drizzle-orm";
 import { db } from "@/core/db";
 import { activityLogs } from "@/core/db/schema";
 import { getCurrentUser } from "@/core/auth/user";
+import { report } from "@/core/observability";
 
 /**
  * Window for de-duplicating record VIEWS: if the same user re-opens/refreshes
@@ -43,8 +44,15 @@ export async function logActivity(input: LogInput): Promise<void> {
       summary: input.summary,
       metadata: input.metadata ?? null,
     });
-  } catch {
-    // best-effort
+  } catch (e) {
+    // Still best-effort — logging must never break the action it records. But
+    // CLAUDE.md §10 requires an audit trail over patient data, so a DROPPED audit
+    // row is a compliance gap, and one nobody could previously see. The summary is
+    // omitted from the report: it is human prose that can name a patient.
+    report(e, {
+      op: "audit.logActivity",
+      ids: { entityId: input.entityId, action: input.action, entity: input.entity },
+    });
   }
 }
 
@@ -92,8 +100,8 @@ export async function logView(
       entityId: entityId ?? null,
       summary,
     });
-  } catch {
-    // best-effort
+  } catch (e) {
+    report(e, { op: "audit.logView", ids: { entity, entityId } });
   }
 }
 
@@ -122,7 +130,13 @@ export async function logActivityAs(
       summary: input.summary,
       metadata: input.metadata ?? null,
     });
-  } catch {
-    // best-effort
+  } catch (e) {
+    // The login path. A dropped row here means a sign-in with no audit record.
+    report(e, {
+      op: "audit.logActivityAs",
+      userId: actor.userId,
+      clinicId: actor.clinicId,
+      ids: { entityId: input.entityId, action: input.action, entity: input.entity },
+    });
   }
 }

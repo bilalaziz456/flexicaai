@@ -18,6 +18,7 @@ import { scheduleRecall } from "@/core/recall";
 import { clinicalRecordFor, getClinicWorkspace } from "@/config/modules";
 import { getPatientAllergies } from "@/core/patients/medical-history";
 import { noteWarnings } from "@/core/ai/note-warnings";
+import { report } from "@/core/observability";
 
 /**
  * Scribe actions — CLAUDE.md §8: AI output is a DRAFT until a clinician approves it.
@@ -219,8 +220,15 @@ export async function approveVisit(
         chart: chart ?? undefined,
       });
     }
-  } catch {
-    // Non-fatal — the chart can be rebuilt from records later.
+  } catch (e) {
+    // Non-fatal — the chart can be rebuilt from records later. Still CLINICAL data
+    // that did not persist when the doctor pressed Approve, so it must be visible.
+    report(e, {
+      op: "clinical.saveModuleRecord",
+      clinicId: user.clinicId,
+      userId: user.id,
+      ids: { visitId, patientId: updated.patientId, module: updated.module },
+    });
   }
 
   // Capture a recall from the note's nextVisit ({ reason, afterDays }) — the

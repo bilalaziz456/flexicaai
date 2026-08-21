@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { serverEnv } from "@/core/lib/env";
+import { report } from "@/core/observability";
 
 /**
  * File storage — CORE, specialty-agnostic. Local filesystem for now; the whole
@@ -75,7 +76,9 @@ export async function readFileByKey(key: string): Promise<Buffer> {
 export async function deleteFileByKey(key: string): Promise<void> {
   try {
     await rm(resolveKey(key), { force: true });
-  } catch {
-    // best-effort
+  } catch (e) {
+    // Orphaned file: harmless per occurrence, but it never self-heals and the disk
+    // only grows. Warn — the caller (replacing an avatar) genuinely succeeded.
+    report(e, { op: "storage.deleteFileByKey", severity: "warn", ids: { key } });
   }
 }

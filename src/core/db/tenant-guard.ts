@@ -4,6 +4,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { is } from "drizzle-orm";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import * as schema from "@/core/db/schema";
+import { reportEvent } from "@/core/observability";
 
 /**
  * Tenant-scope guard — CORE defense-in-depth for the query layer. Multi-tenancy is
@@ -86,5 +87,19 @@ export function checkSql(text: string): void {
     `[tenant-guard] query touches "${table}" without a clinic_id scope. Add byClinic()/a clinic_id filter, or wrap an intentional cross-tenant query in unscoped("reason", …).\nSQL: ${text.slice(0, 400)}`,
   );
   if (STRICT) throw err;
-  console.error(err.message);
+  // A violation is a potential CROSS-TENANT LEAK — the single most serious thing
+  // this codebase can do wrong. In warn mode it used to go to console.error, which
+  // in a deployed app is an unmonitored void, so the backstop was effectively
+  // decorative. Routed through the sink it becomes alertable. Severity "error"
+  // regardless of it being non-fatal: this should page someone.
+  //
+  // NOTE the SQL text is passed as `extra` so it gets deep-redacted — a statement
+  // can carry inlined literals, and this is exactly the query we're least sure is
+  // scoped correctly. The table name (never PII) is the grouping signal.
+  reportEvent(`tenant-guard: unscoped query on "${table}"`, {
+    op: "db.tenantGuard.violation",
+    severity: "error",
+    ids: { table },
+    extra: { sql: text.slice(0, 400) },
+  });
 }

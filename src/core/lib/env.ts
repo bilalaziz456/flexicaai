@@ -102,6 +102,16 @@ const serverSchema = z.object({
     .transform((v) => v === "true"),
   // The From header, e.g. "FlexicaAI <no-reply@flexicaai.com>". Falls back to SMTP_USER.
   EMAIL_FROM: z.string().optional(),
+
+  // ---- Observability (core/observability) ----
+  // Lowest severity to emit. "error" quietens routine warnings in a noisy prod;
+  // "info" (the default) keeps the operational breadcrumbs.
+  LOG_LEVEL: z.enum(["error", "warn", "info"]).default("info"),
+  // OPTIONAL external error sink. Every report is ALWAYS written to stdout/stderr as
+  // structured JSON (which every host already collects), so this is purely additive:
+  // set it to a Sentry/Betterstack/Slack-style ingest URL and reports are POSTed
+  // there too, fire-and-forget with a 3s timeout. Unset = local logs only.
+  OBSERVABILITY_WEBHOOK_URL: z.string().url().optional(),
 });
 
 export const serverEnv = serverSchema.parse({
@@ -137,6 +147,8 @@ export const serverEnv = serverSchema.parse({
   SMTP_PASS: process.env.SMTP_PASS,
   SMTP_SECURE: process.env.SMTP_SECURE,
   EMAIL_FROM: process.env.EMAIL_FROM,
+  LOG_LEVEL: process.env.LOG_LEVEL,
+  OBSERVABILITY_WEBHOOK_URL: process.env.OBSERVABILITY_WEBHOOK_URL,
 });
 
 export const isProduction = serverEnv.NODE_ENV === "production";

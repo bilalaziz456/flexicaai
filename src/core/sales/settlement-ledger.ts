@@ -7,6 +7,7 @@ import { discountSettlements, users } from "@/core/db/schema";
 import { computeShare } from "@/core/appointments/shares";
 import { computeBearing } from "@/core/appointments/discount-bearing";
 import { getAppointmentShareContext } from "@/core/appointments/share-context";
+import { report } from "@/core/observability";
 
 /**
  * Discount settlement ledger (discount-bearing, phase 2) — snapshots how a completed
@@ -90,8 +91,10 @@ export async function recordDiscountSettlementForAppointment(
         occurredAt: ctx.occurredAt as Date,
       })),
     );
-  } catch {
-    // best-effort
+  } catch (e) {
+    // The doctor/clinic discount-bearing snapshot. Missing rows silently shift who
+    // absorbed a discount, which surfaces later as a disputed balance.
+    report(e, { op: "sales.recordDiscountSettlement", clinicId, ids: { appointmentId } });
   }
 }
 
@@ -104,7 +107,7 @@ export async function voidDiscountSettlementForAppointment(
     await db
       .delete(discountSettlements)
       .where(byClinic(discountSettlements.clinicId, clinicId, eq(discountSettlements.appointmentId, appointmentId)));
-  } catch {
-    // best-effort
+  } catch (e) {
+    report(e, { op: "sales.voidDiscountSettlement", clinicId, ids: { appointmentId } });
   }
 }

@@ -81,6 +81,13 @@ export async function proxy(request: NextRequest) {
   const nonce = makeNonce();
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
+  // Correlation id for observability: minted here so ONE id spans the proxy and
+  // everything the Node runtime does for this request. Node-side entry points pick it
+  // up via `withRequestContext` (core/observability/context.ts) — ALS can't cross the
+  // Edge→Node boundary, so a header is the only thing that can. An id supplied by an
+  // upstream proxy/load balancer is honoured so traces join up end to end.
+  const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID();
+  requestHeaders.set("x-request-id", requestId);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set(

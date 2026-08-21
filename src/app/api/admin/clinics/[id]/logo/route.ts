@@ -5,6 +5,7 @@ import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
 import { notDeleted } from "@/core/db/tenant";
 import { readFileByKey } from "@/core/integrations/storage";
+import { report } from "@/core/observability";
 
 /**
  * GET /api/admin/clinics/[id]/logo — serves a clinic's logo for the ADMIN preview, so
@@ -42,7 +43,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         "Cache-Control": "no-store",
       },
     });
-  } catch {
+  } catch (e) {
+    // The row says this file exists but the bytes could not be read, so the DB and
+    // the file store disagree. Returning 404 is right for the caller, but it makes a
+    // MISSING FILE look identical to a missing record — the exact shape data loss on
+    // an ephemeral filesystem would take. Warn: the request is handled, the estate
+    // is not.
+    report(e, { op: "storage.serveClinicLogo", severity: "warn", ids: { clinicId: id } });
     return new Response("Not found", { status: 404 });
   }
 }

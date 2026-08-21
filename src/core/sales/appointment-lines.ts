@@ -6,6 +6,7 @@ import { byClinic } from "@/core/db/tenant";
 import { appointments, doctorSettlementActions, users } from "@/core/db/schema";
 import { getAppointmentShareContext } from "@/core/appointments/share-context";
 import { displayStaffName } from "@/core/types/auth";
+import { report } from "@/core/observability";
 
 /**
  * A doctor's earning line on a completed appointment (the consultation or one
@@ -134,7 +135,9 @@ export async function syncLineWaives(clinicId: string, appointmentId: string): P
           .where(byClinic(doctorSettlementActions.clinicId, clinicId, eq(doctorSettlementActions.id, w.id)));
       }
     }
-  } catch {
-    // best-effort
+  } catch (e) {
+    // Per-line waives re-sync to the current earned share; a failure here leaves a
+    // stale waive deducting from a doctor balance forever.
+    report(e, { op: "sales.syncLineWaives", clinicId, ids: { appointmentId } });
   }
 }
