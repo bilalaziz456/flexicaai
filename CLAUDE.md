@@ -64,57 +64,42 @@ Do not introduce new libraries or frameworks without a clear reason. Prefer bori
 
 ## 2a. What the Linux server means (read before touching infra)
 
-The app was architected **single-node-first** on purpose. A persistent Linux box is
-the deployment that assumption was written for, so several things stop being
-liabilities:
+The app was architected **single-node-first** on purpose, and a persistent Linux box
+is the deployment that assumption was written for. Two things that would be
+liabilities on a serverless host are therefore *correct* here: **local-filesystem
+storage** (a real disk persists, so clinical attachments are safe) and the
+**in-memory rate limiter** (one Node process, so brute-force protection works).
 
-- **Local-filesystem storage is now correct, not a workaround.** A serverless host
-  has an ephemeral, read-only filesystem, which would have lost clinical
-  attachments. A real disk persists, so `STORAGE_DIR` is a sound choice. It stays
-  behind `core/integrations/storage` so S3 remains a one-module swap when it's
-  needed — see the horizontal-scaling caveat below.
-- **The in-memory rate limiter is now effective.** `core/security/rate-limit.ts`
-  keeps counters in process memory. On ONE Node process that is exactly right and
-  brute-force protection genuinely works. It silently stops working under PM2
-  cluster mode or multiple app instances — see below.
-- **Cron secrets and long requests are ours to control**, not a platform's.
-
-**The three constraints this moves — do not lose these:**
+**Three constraints this moves — do not lose these:**
 
 1. **Nothing schedules the jobs unless you configure it.** There is no platform
-   cron. `vercel.json` is inert here. Five endpoints must be invoked by system cron
-   or systemd timers with `Authorization: Bearer $CRON_SECRET` — recalls, reminders,
-   expenses, company-expenses, billing. Miss this and recalls and reminders simply
-   never fire, silently. Schedules: see `vercel.json` (kept only as the reference
-   list of paths and times).
-2. **nginx's `proxy_read_timeout` is the new request ceiling** (default **60s**).
-   The AI scribe budgets up to 300s (Whisper 120s + Claude 90s×2) and
-   `maxDuration` — a platform hint — does nothing here. nginx must be raised to
-   match on `/api/ai/scribe` or the doctor gets a 504 mid-dictation. Keep the two
-   numbers in step.
-3. **Single node is now an assumption with teeth.** The moment a second app
-   instance or a PM2 cluster appears, local storage and the in-memory limiter both
-   break — quietly. Going multi-instance means doing the S3 swap and a Redis-backed
-   `Limiter` FIRST (`docs/scale-plan.md` §1).
+   cron; `vercel.json` is inert. Install `deploy/flexicaai.cron`. Miss it and recalls
+   and reminders simply never fire — silently, because a job that is never invoked
+   raises no error.
+2. **nginx's `proxy_read_timeout` is the request ceiling** (default **60s**). The
+   scribe budgets 300s and `maxDuration` is a platform hint that does nothing here,
+   so nginx must be raised on `/api/ai/scribe` or the doctor gets a 504 mid-dictation.
+3. **Single node is an assumption with teeth.** A second instance or PM2 *cluster*
+   mode breaks local storage and the limiter **quietly**. Going multi-instance means
+   doing the S3 and Redis swaps FIRST.
 
-**Also now ours to own:** TLS/HSTS at nginx; a process manager (systemd or PM2 in
-*fork* mode, not cluster) to keep `next start` alive and restart on boot; **backups
-of both Postgres and `STORAGE_DIR`** (they are one unit — a DB restore without the
-matching files leaves rows pointing at missing attachments); disk-space monitoring,
-since nothing is ever hard-deleted; log collection — the observability sink writes
-structured JSON to stdout/stderr, which journald captures with no extra work; and
-the server's timezone, which availability and "tomorrow" reminders read from.
+**Also ours to own:** TLS/HSTS at nginx · a process manager (systemd, or PM2 in
+*fork* mode) · **backups of Postgres and `STORAGE_DIR` together** (one dataset —
+restoring one without the other leaves rows pointing at missing attachments) · disk
+monitoring · the server timezone that availability and reminders read from.
+
+Full detail, and the triggers that force each change: `.claude/architecture.md` §7.
 
 ---
 
 ## 3. Folder structure (enforce strictly)
 
-> **The architecture source of truth is `.claude/architecture.md`** — layer
-> contracts, dependency rules, the numbered decision log (ADRs), the deltas between
-> code and intent, and the scaling triggers. Read it before any structural work.
-> **If your change alters a layer boundary, a dependency rule, the module contract,
-> the deployment shape, or makes/reverses an architectural decision, update that file
-> in the SAME commit** (see its §0). Ordinary features and fixes need no update.
+> **Architecture source of truth: `.claude/architecture.md`** — layer contracts,
+> dependency rules, the decision log (ADRs), the deltas between code and intent, and
+> the scaling triggers. Read it before any structural work, and **if your change
+> alters a layer boundary, a dependency rule, the module contract, the deployment
+> shape, or an architectural decision, update it in the SAME commit** (its §0 defines
+> when). Ordinary features and fixes need no update.
 
 @.claude/architecture.md
 
@@ -274,27 +259,28 @@ Default to server components. Only use client components for genuine interactivi
 
 ## 8. The AI scribe engine (core) — the most important feature
 
-Flow:
-1. Doctor records voice (client component, browser MediaRecorder)
-2. Audio uploaded to file storage (local filesystem for now; S3-compatible later)
-3. `/api/ai/scribe` route: audio → Whisper (transcript) → Claude (structured note)
-4. Claude uses the ENABLED MODULE's prompt (dental prompt for a dental clinic)
-5. Return structured note as JSON
-6. Doctor reviews, edits, approves (draft → approved)
-7. Approved note saves to `visits` table
+Flow: doctor records (MediaRecorder) → `/api/ai/scribe` → Whisper transcribes →
+Claude structures it using the ENABLED MODULE's prompt → saved as a **draft** visit →
+doctor reviews, edits, approves. Full flow map, timeout budget and failure taxonomy:
+`@.claude/ai-scribe.md`.
 
-### Critical AI rules
+### Critical AI rules (non-negotiable)
 - The scribe engine in `/core` is generic. It receives a prompt; it does not know dental from derma.
 - The dental prompt lives in `/modules/dental/prompts`.
 - **Every AI output is a DRAFT.** A clinician must review and approve before it becomes the record. Never auto-finalize medical notes or prescriptions. Who may approve is the `clinical:create` PERMISSION, not the `doctor` role — in this market the clinic owner is usually the practising dentist, so the scribe actions gate on `can()` and admit any workspace role holding that grant. A draft still belongs to whoever dictated it: only its author can reopen or approve it.
 - Drug names must be validated against the module's drug formulary before showing.
 - Always include confidence handling: if transcription is unclear, flag it for the doctor rather than guessing.
 - Log every AI interaction (input, output, doctor's edits) for the accuracy flywheel.
+- **Never log a transcript or note** to console or an error tracker (§10).
 
 ### Claude API usage
-- Use `claude-sonnet-4-6` for scribe (quality matters).
+- Use `claude-sonnet-4-6` for scribe (quality matters). Pinned in one place: `core/ai/prompt-runner`.
 - Use a cheaper model (Haiku) for simple WhatsApp auto-replies.
 - Prompt the model to return ONLY JSON for structured notes; parse safely; handle malformed responses.
+
+Read the imported contract before touching anything under `core/ai`.
+
+@.claude/ai-scribe.md
 
 ---
 
@@ -303,13 +289,15 @@ Flow:
 - TypeScript strict mode. No `any` unless truly unavoidable (comment why).
 - Use server actions or API routes for mutations; never expose secrets to the client.
 - All secrets (API keys) in environment variables, never committed.
-- Validate all inputs (use zod).
-- Every database query filters by `clinic_id`.
+- Validate all inputs (use zod) — including anything written into a `jsonb` column.
+- Every database query filters by `clinic_id`; every read of a soft-deletable table
+  filters `deleted_at IS NULL`.
 - Keep functions small and single-purpose.
 - Name things clearly: `generateDentalNote` not `genNote`.
 - Prefer composition over inheritance.
 - Write a brief comment above any non-obvious logic explaining WHY (not what).
 - Handle errors explicitly — especially around AI calls, WhatsApp, and payments (these fail often).
+- **A swallowed failure is `report()`ed, never silent** (`core/observability`).
 
 ---
 
@@ -321,9 +309,16 @@ Flow:
   add native Postgres RLS later as defense-in-depth.
 - Role-based access: a receptionist should not see clinical notes unless the clinic allows it.
 - Audit log every action that touches patient data.
-- Never log patient PII to console or error trackers in plain text.
+- Never log patient PII to console or error trackers in plain text. Report **ids, not names**.
 - Consent: track patient consent for data use and (later) photo use.
 - Data residency: architect so Pakistan data can stay in a Pakistan/nearby region and GCC data in-region later.
+- Public surfaces (webhooks, cron endpoints, signed links) verify their secret in
+  **constant time** and **fail closed in production**.
+
+Working detail for §9 and §10 — server/client boundary, action shapes, the `report()`
+contract, tenant guard, PII redaction, audit snapshots, consent, public surfaces:
+
+@.claude/conventions.md
 
 ---
 
@@ -493,16 +488,17 @@ Keep the **always-true guardrails** in this root file. Move **reference detail**
 /.claude/
   database.md                 # schema, multi-tenancy, RLS (section 5) — DONE (imported by §5)
   architecture.md             # layers, dependency rules, DECISION LOG, deltas — DONE (imported by §3)
-  ai-scribe.md                # scribe engine rules (section 8) — not yet split
-  conventions.md              # coding style + security (sections 9-10) — not yet split
+  ai-scribe.md                # scribe engine rules (section 8) — DONE (imported by §8)
+  conventions.md              # coding style + security (sections 9-10) — DONE (imported by §9/§10)
   /modules/
     dental.md                 # dental module spec (build now)
     derma.md                  # later
     hair.md                   # later
 ```
-**Status:** `.claude/database.md` (imported from §5) and `.claude/architecture.md`
-(imported from §3) are split out. `ai-scribe.md` and `conventions.md` remain inline;
-split them the same way if/when they grow.
+**Status:** all four are split out and imported from the section each expands —
+`architecture.md` (§3), `database.md` (§5), `ai-scribe.md` (§8), `conventions.md`
+(§9/§10). Root keeps the non-negotiables inline so they are impossible to miss; the
+imported file carries the working detail. The `/modules/*.md` specs are still to come.
 
 `architecture.md` went further than a §3/§4 extraction: it is the **living**
 architecture record — layer contracts, dependency rules, a numbered decision log
@@ -518,9 +514,10 @@ each sits inside the section it expands, not in a list here:
 
 - `@.claude/architecture.md` → imported by §3
 - `@.claude/database.md` → imported by §5
+- `@.claude/ai-scribe.md` → imported by §8
+- `@.claude/conventions.md` → imported by §9/§10
 
-`ai-scribe.md` and `conventions.md` are **planned, not yet created** — do not add an
-import line for a file that doesn't exist yet.
+Do not add an import line for a file that does not exist yet.
 
 ### Rule when splitting
 Moving content into a new file must not change its meaning. After splitting, verify the root still contains every non-negotiable guardrail, and that no rule was lost in a file Claude Code doesn't load. Split content, never dilute it.
