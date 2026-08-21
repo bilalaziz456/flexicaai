@@ -409,6 +409,7 @@ they land.** Ordered by consequence.
 | D-13 | No test framework; no CI | ADR-005 | **On hold** (owner's direction, 2026-08-21) |
 | D-14 | Timezone is server-local; blocks a second region | ADR-009 | Open — required before the first GCC clinic |
 | D-15 | CSP is report-only | — | Open — enforce once the sink shows it clean |
+| D-19 | `deploy/flexicaai.cron` is not installed — no scheduled job runs | ADR-012 | **On hold** (owner's direction, 2026-08-21), and safe while pre-launch: with no live clinics all six are no-ops. Unhold in TWO parts — **WhatsApp keys** → `recalls` + `reminders` (the only two that need an API; none need Whisper/Claude). **First live clinic** → `expenses`, `company-expenses`, `billing`, `reconcile`, which are pure DB and gated on real data, not on keys. `reconcile` is the one not to miss: ADR-016 leaves the payment path best-effort *because* it repairs drift nightly |
 | D-18 | A draft whose author is deleted becomes unapprovable by ANYONE: `visits.doctor_id` is `ON DELETE SET NULL`, and approve/discard require `doctor_id = <caller>`. The draft is also invisible, since the list filters by author | ADR-007 | Open — needs a PRODUCT decision, not just code: either a `clinical:create` holder may adopt an orphaned draft (`doctor_id IS NULL`), or orphaned drafts surface in Trash. Found 2026-08-21 closing D-16 |
 
 **Closed:** two WhatsApp webhooks with duplicated pipelines (D-10, closed

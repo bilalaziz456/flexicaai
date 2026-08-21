@@ -9,6 +9,16 @@
 # `vercel.json` is inert on this deployment; these schedules are the live ones and
 # mirror it so the two don't drift.
 #
+# ── STATUS: HELD (2026-08-21) ──────────────────────────────────────────────────
+# Not installed yet, by the owner's direction — safe while there are no live clinics,
+# since all six jobs are then no-ops. Install in two parts as the triggers arrive:
+#   WhatsApp keys      -> recalls, reminders   (the only two needing an API; no cron
+#                                               touches Whisper or Claude)
+#   First live clinic  -> expenses, company-expenses, billing, reconcile  (pure DB,
+#                                               gated on real data rather than keys)
+# Do not let `reconcile` slip past the first PAYING clinic: the payment path is
+# deliberately best-effort because this repairs ledger drift nightly (ADR-016).
+#
 # ── Install ────────────────────────────────────────────────────────────────────
 #   sudo install -m 0644 -o root -g root deploy/flexicaai.cron /etc/cron.d/flexicaai
 #   sudo install -m 0600 -o root -g root <secret file> /etc/flexicaai/cron.env
