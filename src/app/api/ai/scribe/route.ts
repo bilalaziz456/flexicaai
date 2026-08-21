@@ -4,7 +4,8 @@ import { apiRequireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { clinics, patients, visits } from "@/core/db/schema";
-import { getClinicWorkspace } from "@/config/modules";
+import { clinicalSchemasFor, getClinicWorkspace } from "@/config/modules";
+import { parseClinicalNote } from "@/core/clinical/note-schema";
 import { saveClinicFile } from "@/core/integrations/storage";
 import { runScribe, AiTimeoutError } from "@/core/ai/scribe-engine";
 import { recordScribeUsage } from "@/core/ai/usage";
@@ -135,12 +136,27 @@ export async function POST(request: Request) {
       scribePrompt,
     });
 
+    // The model is an untrusted producer too: it returns free-form JSON that the
+    // prompt only ASKED to be shaped a certain way. Validate before it becomes a
+    // draft, so a malformed note is a clean, retryable 502 rather than a record that
+    // renders wrong — or not at all — later (ADR-007).
+    const parsedNote = parseClinicalNote(
+      note,
+      clinicalSchemasFor(clinic?.modulesEnabled ?? []).noteSchema,
+    );
+    if (!parsedNote.ok) {
+      return NextResponse.json(
+        { error: `The AI returned a note we can't store: ${parsedNote.error}`, retryable: true },
+        { status: 502 },
+      );
+    }
+
     // Flag prescribed drugs that are not in the module formulary, and any that
     // conflict with a recorded allergy (CLAUDE.md §8). Warnings for the doctor, not
     // a hard block. Shared with the resume-a-draft path so the two can't drift.
     const allergies = await getPatientAllergies(clinicId, patientId);
     const { drugWarnings, allergyWarnings } = noteWarnings(
-      note,
+      parsedNote.value,
       workspace.drugFormulary,
       allergies,
     );
@@ -154,8 +170,8 @@ export async function POST(request: Request) {
         module: moduleId,
         status: "draft",
         transcript,
-        note,
-        aiDraft: note, // frozen original for the flywheel
+        note: parsedNote.value,
+        aiDraft: parsedNote.value, // frozen original for the flywheel
         audioKey,
       })
       .returning({ id: visits.id });

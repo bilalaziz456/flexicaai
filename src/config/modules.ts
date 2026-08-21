@@ -116,6 +116,25 @@ export function clinicalRecordFor(
   return undefined;
 }
 
+/**
+ * The note + chart shapes contributed by a clinic's enabled modules — the first that
+ * supplies them, matching how `clinicalRecordFor` picks the chart UI. Core calls this
+ * before writing `visits.note`, so validation follows the clinic's specialty without
+ * core ever naming one. `{}` when no enabled module declares a shape: the note then
+ * gets core's generic bounds only, which is still a check, never a bypass.
+ */
+export function clinicalSchemasFor(modulesEnabled: readonly ModuleId[]): {
+  noteSchema?: ModuleDefinition["noteSchema"];
+  chartSchema?: ModuleDefinition["chartSchema"];
+} {
+  for (const m of loadModules(modulesEnabled)) {
+    if (m.noteSchema || m.chartSchema) {
+      return { noteSchema: m.noteSchema, chartSchema: m.chartSchema };
+    }
+  }
+  return {};
+}
+
 /** The specialty ids a clinic is allowed to enable right now. */
 export function availableSpecialtyIds(): ModuleId[] {
   return SPECIALTY_CATALOG.filter((s) => s.status === "available").map(

@@ -57,8 +57,10 @@ note above it; obvious logic gets none.
 - **zod at every boundary** — Server Actions and Route Handlers both. Parse the raw
   `FormData`/JSON into a typed object; never read untyped fields straight into a query.
 - `core/lib/zod-error.ts#zodErrorMessage` renders the first issue for the user.
-- **jsonb is not an exemption.** A `Record<string, unknown>` written from client input
-  into `visits.note` is unvalidated data in a medical record (delta D-06).
+- **jsonb is not an exemption.** Anything written into a `jsonb` column from client
+  input is validated and BOUNDED first — shape where the app reads it, plus size and
+  depth always (`core/clinical/note-schema.ts`). An unbounded object from a browser is
+  both a storage-abuse vector and arbitrary structure in a medical record.
 - Validation failure returns a user-facing message; it is **not** an incident and is
   not reported to the observability sink.
 

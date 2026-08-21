@@ -1,5 +1,6 @@
 import type { ModuleDefinition } from "@/core/types/module";
 import { dentalScribePrompt } from "@/modules/dental/prompts/scribe";
+import { dentalChartSchema, dentalNoteSchema } from "@/modules/dental/note-schema";
 import { dentalRecallRules } from "@/modules/dental/recall-rules";
 import { dentalDrugFormulary } from "@/modules/dental/drug-formulary";
 import { dentalProcedureTemplates } from "@/modules/dental/procedure-templates";
@@ -35,6 +36,10 @@ export const dentalModule: ModuleDefinition = {
   id: "dental",
   name: "Dental",
   scribePrompt: dentalScribePrompt,
+  // What the prompt above asks for, as a check on what actually came back — and on
+  // what the dentist edits it into before it becomes the record.
+  noteSchema: dentalNoteSchema,
+  chartSchema: dentalChartSchema,
   recallRules: dentalRecallRules,
   drugFormulary: dentalDrugFormulary,
   procedureTemplates: dentalProcedureTemplates,

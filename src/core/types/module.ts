@@ -1,3 +1,4 @@
+import type { z } from "zod";
 /**
  * The module system contract — CORE (CLAUDE.md §4).
  *
@@ -307,6 +308,16 @@ export interface ModuleDefinition {
   name: string;
   /** Specialty system prompt fed to the AI scribe engine. */
   scribePrompt: string;
+  /**
+   * Shape of the clinical note this specialty produces — the counterpart to
+   * `scribePrompt`, which ASKS for that shape. Applied to both the AI's output and
+   * the clinician's edited version before either reaches `visits.note` (ADR-007).
+   * Optional: without it a note still gets core's generic bounds, so nothing is ever
+   * stored unchecked (`core/clinical/note-schema.ts`).
+   */
+  noteSchema?: z.ZodType<Record<string, unknown>>;
+  /** Shape of this specialty's living chart (the odontogram, for dental). */
+  chartSchema?: z.ZodType;
   recallRules: RecallRule[];
   drugFormulary: Drug[];
   /**

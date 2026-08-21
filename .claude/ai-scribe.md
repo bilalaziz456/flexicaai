@@ -28,7 +28,11 @@
 6. **Unclear transcription is flagged, never guessed.**
 7. **Every interaction is logged** — transcript, the model's original output, and the
    clinician's edits — for the accuracy flywheel.
-8. **No patient PII in logs or error reports.** Transcripts and notes are the most
+8. **The note is validated before it is stored** — on the AI's output AND on the
+   clinician's edited version, since both are untrusted producers writing `jsonb`.
+   Core bounds it; the module declares the shape (`noteSchema` / `chartSchema`).
+   Permissive by design — see `core/clinical/note-schema.ts` for why.
+9. **No patient PII in logs or error reports.** Transcripts and notes are the most
    sensitive text in the system (`core/observability/redact.ts` masks them by key).
 
 ---
@@ -48,6 +52,7 @@ POST /api/ai/scribe                          app/api/ai/scribe/route.ts
    ├─ saveClinicFile(audio)                      kept for the flywheel / re-runs
    ├─ runScribe()  ──► Whisper  (transcript + duration)
    │                └► Claude   (module prompt + transcript → JSON note)
+   ├─ parseClinicalNote(note, module.noteSchema)  bounds + shape, before storing
    ├─ noteWarnings(note, formulary, allergies)   drug + allergy flags
    ├─ INSERT visits: status='draft', note, ai_draft (frozen), transcript, audio_key
    └─ recordScribeUsage()                        ai_usage rows → serving cost
@@ -57,7 +62,8 @@ Doctor reviews / edits in the workspace       app/doctor/scribe-workspace.tsx
         │
         ▼
 approveVisit()                                app/doctor/actions.ts
-   ├─ can(clinical:create)                     re-checked server-side
+   ├─ can(clinical:create) + author-only            re-checked server-side
+   ├─ parseClinicalNote / parseClinicalChart        the EDITED note is untrusted too
    ├─ UPDATE visits SET status='approved', approved_by, note = the EDITED note
    ├─ module.saveRecord()                      specialty chart (best-effort, rebuildable)
    └─ scheduleRecall() from note.nextVisit     { reason, afterDays }
@@ -134,6 +140,7 @@ is constructed with both values.
 |---|---|---|
 | `MissingApiKeyError` | 400 | Not configured — fix the environment |
 | `AiParseError` | 502 | Model returned unusable JSON — retry is reasonable |
+| note fails validation | 502 + `retryable: true` (AI path) / error string (approve path) | The shape can't be stored; nothing is written |
 | `AiTimeoutError` | 504 + `retryable: true` | Provider too slow; **audio is saved**, so the client offers retry without re-recording |
 | over 25 MB | 413 | Rejected before buffering |
 | over 20 runs / 10 min | 429 + `Retry-After` | Bounds paid spend |

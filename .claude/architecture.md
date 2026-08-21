@@ -191,6 +191,14 @@ approves it, and only its author may approve. The frozen `ai_draft` is kept.
 **Consequence:** gate on the PERMISSION, never the `doctor` role — in this market the
 owner is usually the practising dentist. (A role check here was a real bug, fixed
 2026-08-21.)
+**And the note is VALIDATED before it becomes the record.** It arrives as `jsonb`
+from the browser, so core applies generic bounds (object, depth, size, list length —
+`core/clinical/note-schema.ts`) and the enabled module supplies the SHAPE
+(`ModuleDefinition.noteSchema` / `chartSchema`, declared beside the `scribePrompt`
+that asks for it). Deliberately permissive: unknown keys are KEPT, every field is
+optional, and only the fields the app actually reads are type-checked — several valid
+note shapes already exist (the scribe's, and imported historical visits), and
+over-strictness would reject real records rather than fail safe.
 
 **ADR-008 — Two-tier access control** · *2026-07-xx* · `Accepted`
 Effective access = **clinic capability ∩ user permission**. Super admin sets the
@@ -362,7 +370,6 @@ they land.** Ordered by consequence.
 | D-01 | 77 app files query the DB directly; no lint rule yet | ADR-014 | Open |
 | D-04 | `/doctor` + `/reception` dead shells hold live code; cross-group imports | ADR-019 | Open |
 | D-05 | `core/ui/panel-shell.tsx` owns the whole app's route map | ADR-019 | Open |
-| D-06 | Clinical `note`/`chart` jsonb written from client input with no zod schema | ADR-007 | Open |
 | D-07 | Trash loads every soft-deleted row of 9 tables into memory | ADR-006 | Open |
 | D-08 | Scribe is synchronous | ADR-020 | Open (interim in force) |
 | D-09 | `schema.ts` is a 1,977-line god module (156 importers) | — | Open |
@@ -384,7 +391,9 @@ approve/discard (ADR-007, closed 2026-08-21 — `scripts/test-draft-ownership.ts
 `fee.ts#billFromTotals`, one SQL expression in `bill-sql.ts`, bound by
 `scripts/test-bill-parity.ts`)** · **D-03 untransacted derived ledgers (ADR-016,
 closed 2026-08-21 — one transaction per derived set, joined to the completion event,
-plus the nightly `reconcile` cron; `scripts/test-sales-reconcile.ts`)**.
+plus the nightly `reconcile` cron; `scripts/test-sales-reconcile.ts`)** · **D-06
+unvalidated clinical jsonb (ADR-007, closed 2026-08-21 — core bounds +
+module-declared shapes; `scripts/test-clinical-validation.ts`)**.
 
 ---
 

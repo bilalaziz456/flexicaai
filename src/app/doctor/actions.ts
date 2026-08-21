@@ -15,7 +15,8 @@ import { serverEnv } from "@/core/lib/env";
 import { isPublicLinkingEnabled, signToken } from "@/core/lib/signed-link";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import { scheduleRecall } from "@/core/recall";
-import { clinicalRecordFor, getClinicWorkspace } from "@/config/modules";
+import { clinicalRecordFor, clinicalSchemasFor, getClinicWorkspace } from "@/config/modules";
+import { parseClinicalChart, parseClinicalNote } from "@/core/clinical/note-schema";
 import { getPatientAllergies } from "@/core/patients/medical-history";
 import { noteWarnings } from "@/core/ai/note-warnings";
 import { report } from "@/core/observability";
@@ -178,10 +179,38 @@ export async function approveVisit(
     return { error: "You don't have permission to save clinical notes." };
   }
 
+  // BOTH arguments come straight from the browser and both land in `jsonb`. This is
+  // the moment a draft becomes the legal record, so it is the one place that must not
+  // trust its input: without this, arbitrary client-supplied structure (and any
+  // amount of it) was written into a medical note. Validation follows the CLINIC's
+  // enabled module — core never names a specialty (ADR-007, CLAUDE.md §9).
+  //
+  // WHY THIS CAN'T STRAND EXISTING RECORDS: this is the ONLY writer of `visits.note`,
+  // and it only matches `status = 'draft'`, so an already-approved note is never
+  // re-validated — nothing in the archive can be made unsaveable by tightening the
+  // shape. The exposure is limited to open drafts, and a draft that somehow can't
+  // satisfy the schema can still be discarded (`discardDraft` takes no note) and
+  // re-dictated. The schema is also permissive by construction: only the fields the
+  // app actually reads are type-checked.
+  // One lookup, used twice: to pick the validation shapes here, and the clinical
+  // record contract further down.
+  const [clinicRow] = await db
+    .select({ modulesEnabled: clinics.modulesEnabled })
+    .from(clinics)
+    .where(eq(clinics.id, user.clinicId))
+    .limit(1);
+  const modulesEnabled = clinicRow?.modulesEnabled ?? [];
+  const schemas = clinicalSchemasFor(modulesEnabled);
+
+  const parsedNote = parseClinicalNote(note, schemas.noteSchema);
+  if (!parsedNote.ok) return { error: parsedNote.error };
+  const parsedChart = parseClinicalChart(chart, schemas.chartSchema);
+  if (!parsedChart.ok) return { error: parsedChart.error };
+
   const [updated] = await db
     .update(visits)
     .set({
-      note,
+      note: parsedNote.value,
       status: "approved",
       approvedAt: new Date(),
       approvedBy: user.id,
@@ -214,20 +243,15 @@ export async function approveVisit(
   // recall capture below — core stays specialty-agnostic. Best-effort: the chart is
   // always recomputable, so a hiccup here must not fail the approval.
   try {
-    const [clinicRow] = await db
-      .select({ modulesEnabled: clinics.modulesEnabled })
-      .from(clinics)
-      .where(eq(clinics.id, user.clinicId))
-      .limit(1);
-    const clinicalRecord = clinicalRecordFor(clinicRow?.modulesEnabled ?? []);
+    const clinicalRecord = clinicalRecordFor(modulesEnabled);
     if (clinicalRecord) {
       await clinicalRecord.saveRecord(user.clinicId, {
         visitId,
         patientId: updated.patientId,
-        note,
+        note: parsedNote.value,
         // The doctor's confirmed chart from the in-scribe editor (else the module
-        // derives it from the note).
-        chart: chart ?? undefined,
+        // derives it from the note). Validated above.
+        chart: parsedChart.value,
       });
     }
   } catch (e) {
@@ -244,7 +268,7 @@ export async function approveVisit(
   // Capture a recall from the note's nextVisit ({ reason, afterDays }) — the
   // scribe extracts it; approving schedules it (CLAUDE.md §10). Reading the note
   // shape is fine here (app-level), not in /core.
-  const nextVisit = note.nextVisit;
+  const nextVisit = parsedNote.value.nextVisit;
   if (nextVisit && typeof nextVisit === "object") {
     const nv = nextVisit as { reason?: unknown; afterDays?: unknown };
     const afterDays = Number(nv.afterDays);
