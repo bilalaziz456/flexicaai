@@ -1,23 +1,24 @@
 import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { and, eq, isNotNull, sql } from "drizzle-orm";
-import { db } from "@/core/db";
-import { notDeleted } from "@/core/db/tenant";
-import { patients, whatsappMessages } from "@/core/db/schema";
 import { normalisePhone } from "@/core/integrations/whatsapp";
-import { unscoped } from "@/core/db/tenant-guard";
+import {
+  applyDeliveryReceipt,
+  matchPatientInClinic,
+  recordInboundMessage,
+} from "@/core/integrations/whatsapp/inbound";
 import { getClinicIdByPhoneNumberId } from "@/core/notifications/clinic-whatsapp";
-import { handleRescheduleReply } from "@/core/appointments/reschedule";
-import { handleBookingReply } from "@/core/appointments/booking";
-import { notifyInboundWhatsApp } from "@/core/notifications/triggers";
 import { serverEnv, isProduction } from "@/core/lib/env";
-import { enrichContext, report, withRequestContext } from "@/core/observability";
+import { report, withRequestContext } from "@/core/observability";
 
 /**
- * Meta WhatsApp Cloud API webhook (per-clinic numbers). Unlike the AiSensy webhook,
- * this routes by the RECEIVING number: `metadata.phone_number_id` → clinic (a
- * clinic OWNS its number), then the patient is matched WITHIN that clinic. See
- * docs/whatsapp-cloud-plan.md.
+ * Meta WhatsApp Cloud API webhook (per-clinic numbers). See docs/whatsapp-cloud-plan.md.
+ *
+ * An ADAPTER, like the AiSensy route: it verifies the signature, unwraps Meta's
+ * envelope, and resolves the sender. Everything after that is the shared pipeline in
+ * `core/integrations/whatsapp/inbound.ts` (delta D-10). What differs here is that a
+ * clinic OWNS its number, so `metadata.phone_number_id` identifies the tenant and the
+ * patient lookup is scoped to it — the safer strategy, available only because this
+ * provider supplies a routing key.
  *
  *  - GET  → Meta's verification handshake (echo hub.challenge if the verify token
  *           matches).
@@ -27,13 +28,6 @@ import { enrichContext, report, withRequestContext } from "@/core/observability"
  *
  * Always answers 200 on POST so Meta doesn't retry a payload we've already stored.
  */
-
-const STATUS_MAP: Record<string, "sent" | "delivered" | "read" | "failed"> = {
-  sent: "sent",
-  delivered: "delivered",
-  read: "read",
-  failed: "failed",
-};
 
 /** Meta webhook verification (GET ?hub.mode=subscribe&hub.verify_token=…&hub.challenge=…). */
 export async function GET(request: Request) {
@@ -121,144 +115,39 @@ async function handleCloudWebhook(request: Request) {
     for (const change of entry.changes ?? []) {
       const value = change.value;
       if (!value) continue;
+
+      // THE PROVIDER-SPECIFIC PART: this API gives each clinic its own number, so the
+      // RECEIVING number identifies the tenant before we look at the sender at all.
+      // An unknown number is ignored safely. (AiSensy has one number for everyone and
+      // therefore resolves the other way round — see `matchPatientAcrossPlatform`.)
       const phoneNumberId = value.metadata?.phone_number_id;
-      // Route by the receiving number → clinic. Unknown number = ignore safely.
       const clinicId = phoneNumberId
         ? await getClinicIdByPhoneNumberId(phoneNumberId)
         : null;
-      // Now that routing resolved, every later report in this run carries the clinic.
-      if (clinicId) enrichContext({ clinicId });
 
-      // ---- Delivery/read receipts: advance the outbound row by its wamid ----
+      // ---- Delivery/read receipts ----
       for (const s of value.statuses ?? []) {
-        const mapped = s.status ? STATUS_MAP[s.status.toLowerCase()] : undefined;
-        const wamid = s.id;
-        if (mapped && wamid) {
-          // Receipt matches the outbound row by its global wamid, across clinics.
-          await unscoped("whatsapp cloud: match outbound by wamid", () =>
-            db
-              .update(whatsappMessages)
-              .set({ status: mapped, updatedAt: new Date() })
-              .where(eq(whatsappMessages.externalId, wamid)),
-          );
-          statuses++;
-        }
+        if (await applyDeliveryReceipt(s.id, s.status)) statuses++;
       }
 
-      // ---- Inbound messages: log + match a patient WITHIN the routed clinic ----
+      // ---- Inbound messages ----
       for (const m of value.messages ?? []) {
         if (!m.from) continue;
         const phone = normalisePhone(m.from);
-        const text = m.text?.body ?? null;
-
-        const matched = clinicId
-          ? await matchPatientInClinic(clinicId, phone)
-          : null;
-
-        // IDEMPOTENT INSERT. Meta redelivers a webhook whenever it doesn't get a
-        // timely 200, and everything below this line has side effects the patient
-        // can see — a replay used to be able to book a second appointment from one
-        // message. `returning()` tells us whether WE wrote the row: an empty result
-        // means the unique index rejected it as a duplicate, so this delivery has
-        // already been handled and we skip straight past the side effects.
-        const insertedRows = m.id
-          ? await db
-              .insert(whatsappMessages)
-              .values({
-                clinicId,
-                patientId: matched,
-                direction: "inbound",
-                phone,
-                status: "received",
-                body: text,
-                externalId: m.id,
-                payload: value as Record<string, unknown>,
-              })
-              // `where` here is the CONFLICT TARGET predicate (DO NOTHING has only
-              // one WHERE position). It must repeat the partial index's predicate,
-              // or Postgres can't infer which index this conflict targets.
-              .onConflictDoNothing({
-                target: whatsappMessages.externalId,
-                where: sql`${whatsappMessages.externalId} is not null and ${whatsappMessages.direction} = 'inbound'`,
-              })
-              .returning({ id: whatsappMessages.id })
-          : await db
-              .insert(whatsappMessages)
-              .values({
-                clinicId,
-                patientId: matched,
-                direction: "inbound",
-                phone,
-                status: "received",
-                body: text,
-                externalId: null,
-                payload: value as Record<string, unknown>,
-              })
-              .returning({ id: whatsappMessages.id });
-
-        // A message with no provider id can't be deduped — process it (the old
-        // behaviour) rather than dropping it.
-        if (insertedRows.length === 0) continue; // replay: already handled
-        inbound++;
-
-        // Self-service for a matched patient: reschedule, else book.
-        let outcome: "booked" | "rescheduled" | "message" = "message";
-        let apptId: string | null = null;
-        if (clinicId && matched && text) {
-          const resched = await handleRescheduleReply({ clinicId, patientId: matched, phone, text });
-          if (resched.rescheduled) {
-            outcome = "rescheduled";
-            apptId = resched.appointmentId ?? null;
-          } else if (!resched.handled) {
-            const booking = await handleBookingReply({ clinicId, patientId: matched, phone, text });
-            if (booking.booked) {
-              outcome = "booked";
-              apptId = booking.appointmentId ?? null;
-            }
-          }
-        }
-        // In-app bell: front desk (booking/reschedule) or whatsapp:view (message).
-        await notifyInboundWhatsApp({ clinicId, patientId: matched, phone, text, outcome, appointmentId: apptId });
+        const result = await recordInboundMessage({
+          clinicId,
+          // Scoped to the routed clinic — the safer of the two strategies, and only
+          // available because this provider gave us a clinic to scope to.
+          patientId: clinicId ? await matchPatientInClinic(clinicId, phone) : null,
+          phone,
+          text: m.text?.body ?? null,
+          externalId: m.id ?? null,
+          payload: value as Record<string, unknown>,
+        });
+        if (result.kind === "handled") inbound++;
       }
     }
   }
 
   return NextResponse.json({ ok: true, inbound, statuses });
-}
-
-/**
- * Exact phone match within one clinic (clinic already known from the number).
- * Compares on DIGITS ONLY (Postgres `regexp_replace`) so stored formatting —
- * spaces, +, dashes — never breaks the match. Clinic-scoped, so the scan is small.
- *
- * ONE match or nobody. A household commonly shares a single mobile number — nothing
- * stops several patients being registered on it, and in this market that is the norm
- * rather than an edge case. This used to take the first row of a `LIMIT 1` with no
- * ORDER BY, so a shared number resolved to an arbitrary, not even deterministic,
- * family member. That id then drives self-service reschedule and booking, so a
- * mother texting "reschedule" could have moved her son's appointment.
- *
- * Returning null instead leaves the message unattributed in the WhatsApp queue for
- * staff to place, which is the same thing the legacy webhook does and the right
- * trade: a message a human has to route beats an appointment silently moved on the
- * wrong patient.
- */
-async function matchPatientInClinic(
-  clinicId: string,
-  phone: string,
-): Promise<string | null> {
-  if (!phone) return null;
-  const rows = await db
-    .select({ id: patients.id })
-    .from(patients)
-    .where(
-      and(
-        eq(patients.clinicId, clinicId),
-        notDeleted(patients.deletedAt),
-        isNotNull(patients.phone),
-        sql`regexp_replace(${patients.phone}, '[^0-9]', '', 'g') = ${phone}`,
-      ),
-    )
-    .limit(2);
-  return rows.length === 1 ? rows[0].id : null;
 }

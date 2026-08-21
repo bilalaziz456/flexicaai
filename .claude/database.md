@@ -172,7 +172,11 @@ null`, **nullable** — an unknown inbound number may be unattributed), `directi
 campaign), `body` (preview text), `media_url`, `external_id` (provider id for
 receipts), `error`, `payload` jsonb (raw), timestamps. Every send is recorded first
 so nothing is lost when the provider is unconfigured; also the source for the
-receptionist WhatsApp queue and inbound reschedule.
+receptionist WhatsApp queue and inbound reschedule. Inbound rows are written by ONE
+pipeline (`core/integrations/whatsapp/inbound.ts`) shared by both provider webhooks;
+only the sender-resolution differs, because AiSensy has a single number for every
+clinic (cross-tenant lookup, `unscoped`) while the Cloud API gives each clinic its
+own (scoped to the routed clinic).
 Indexes: `clinic_id`; `patient_id`; `phone`; (`clinic_id`,`created_at`);
 `external_id`.
 

@@ -404,14 +404,17 @@ they land.** Ordered by consequence.
 | D-01 | App files querying the DB directly. **Ratchet installed** — `eslint.config.mjs` bans `@/core/db` + `@/core/db/schema` from `src/app/**`, with a legacy allowlist that may only SHRINK | ADR-014 | Open — **55 left** (was 77). Delete lines from `LEGACY_DIRECT_DB_ACCESS` as they migrate; when it is empty, remove the exemption block |
 | D-07 | Trash loads every soft-deleted row of 9 tables into memory | ADR-006 | Open |
 | D-08 | Scribe is synchronous | ADR-020 | Open (interim in force) |
-| D-10 | Two WhatsApp webhook implementations with divergent patient matching | — | Open |
 | D-11 | `activity_logs` has no retention/partitioning; a view costs 2 queries | ADR-006 | Open |
 | D-12 | Reports aggregate unbounded row sets in application code | — | Open |
 | D-13 | No test framework; no CI | ADR-005 | **On hold** (owner's direction, 2026-08-21) |
 | D-14 | Timezone is server-local; blocks a second region | ADR-009 | Open — required before the first GCC clinic |
 | D-15 | CSP is report-only | — | Open — enforce once the sink shows it clean |
 
-**Closed:** the 1,977-line god schema (D-09, closed 2026-08-21 — split by domain
+**Closed:** two WhatsApp webhooks with duplicated pipelines (D-10, closed
+2026-08-21 — one shared `core/integrations/whatsapp/inbound.ts`; the two providers
+keep DIFFERENT sender-resolution strategies because AiSensy has one number for all
+clinics and the Cloud API has one per clinic, and both are now documented side by
+side so neither gets "tidied" into the other) · the 1,977-line god schema (D-09, closed 2026-08-21 — split by domain
 behind a barrel; `drizzle-kit generate` reports no changes, and the tenant guard
 still discovers all 39 tables / 32 tenant tables) · the nav map living in shared chrome (ADR-019, D-05 closed 2026-08-21 —
 e2e asserts feature-gated items appear for a clinic with the feature and not without)

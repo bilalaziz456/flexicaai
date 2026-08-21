@@ -327,6 +327,15 @@ async function run() {
       const r = await req(`/api/whatsapp/webhook?token=${WH_TOKEN}`, { method: "POST", body, headers: json });
       const row = (await pool.query("select patient_id, direction from whatsapp_messages where body=$1 order by created_at desc limit 1", ["E2E inbound probe message"])).rows[0];
       record("webhook inbound (valid token) → 200 + logged & patient-matched", r.status === 200 && row && row.direction === "inbound" && row.patient_id === ids.patients[0]);
+      // Both providers now share ONE pipeline (D-10), so the idempotency the Cloud
+      // route proves must hold here too — this is the assertion that the AiSensy
+      // adapter is genuinely feeding it and not a leftover copy.
+      const mid = `e2e-aisensy-${Date.now()}`;
+      const dupBody = JSON.stringify({ mobile: "+923009990001", text: "E2E replay probe", messageId: mid });
+      const first = await req(`/api/whatsapp/webhook?token=${WH_TOKEN}`, { method: "POST", body: dupBody, headers: json });
+      const again = await req(`/api/whatsapp/webhook?token=${WH_TOKEN}`, { method: "POST", body: dupBody, headers: json });
+      const n = (await pool.query("select count(*)::int c from whatsapp_messages where external_id=$1 and direction='inbound'", [mid])).rows[0].c;
+      record("webhook replay is idempotent → still one row", first.status === 200 && again.status === 200 && n === 1, `rows=${n}`);
     }
     {
       const body = JSON.stringify({ messageId: "E2E-EXT-1", status: "read" });
