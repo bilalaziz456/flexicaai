@@ -32,9 +32,10 @@ launch. (On serverless/multi-instance, both become launch blockers — see scale
 - [ ] **Seed the first super admin** in prod, then change its password.
 - [ ] **Server timezone** = the clinic region (e.g. Asia/Karachi). Availability, "tomorrow"
       reminders and day-bounds use the server's local TZ (see .claude/database.md caveat).
-- [ ] **Cron scheduling on the host** — hit `/api/cron/recalls`, `/api/cron/reminders`,
-      `/api/cron/expenses` with `Authorization: Bearer $CRON_SECRET`. `vercel.json` covers
-      Vercel; on a VM use system cron (Linux) / Task Scheduler (Windows).
+- [ ] **Cron scheduling on the host** — `sudo ./deploy/install-cron.sh all` installs all
+      six jobs (`core` = the four needing no API); it refuses to write unless the app
+      answers and `CRON_SECRET` really authenticates. Confirm the next day with
+      `./deploy/install-cron.sh check`. `vercel.json` is inert on this deployment.
 - [ ] **`serverActions.allowedOrigins`** (next.config) = the prod domain(s), so Server
       Actions accept posts behind the real origin/proxy.
 - [ ] **AI keys** — `ANTHROPIC_API_KEY` + `OPENAI_API_KEY`, then a live record→transcribe→

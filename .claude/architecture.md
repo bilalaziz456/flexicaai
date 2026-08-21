@@ -231,12 +231,21 @@ never cluster.** See §7.
 
 **ADR-012 — Jobs are triggered by system cron, not a platform scheduler** ·
 *2026-08-21* · `Accepted`
-`deploy/flexicaai.cron` calls the `/api/cron/*` endpoints on loopback with
-`CRON_SECRET`. `vercel.json` is inert and kept only as the reference schedule.
-**Why:** follows from ADR-009.
-**Consequence:** *a job that is never invoked produces no error*. Installing the
-crontab is a deployment step that fails silently if skipped — hence `runCron` logs
-every completion, so absence is detectable.
+`deploy/install-cron.sh` is the ONE definition of the six jobs and their schedules;
+it renders and installs `/etc/cron.d/flexicaai`, calling `/api/cron/*` on loopback
+with `CRON_SECRET`. `vercel.json` is inert. Installing is a two-part step —
+`core` (4 pure-DB jobs) then `all` (+ the 2 that need WhatsApp).
+**Why:** follows from ADR-009. The schedule was briefly duplicated between a static
+`deploy/flexicaai.cron` and the installer; that file is gone, since two copies of a
+schedule drift exactly like two copies of a bill formula (ADR-014).
+**Consequence:** *a job that is never invoked produces no error*, so every failure
+mode here is silent and the installer has to catch them up front rather than leave
+them to be noticed weeks later. It refuses to write anything until the app answers
+and the secret really authenticates (a 401/503 caught at install, not at 03:00), and
+`install-cron.sh check` re-asserts the two that break quietly afterwards: the cron
+user existing, and that user being able to READ the secret file — the env file is
+`0640 root:<run-user>`, because `0600 root:root` is unreadable by the very user the
+cron line runs as. `runCron` logs every completion, so absence is detectable too.
 
 **ADR-013 — One access predicate, two renderings** · *2026-08-21* · `Accepted`
 `checkAccess()` decides; `requireWorkspace` renders a denial as a redirect,
@@ -409,7 +418,7 @@ they land.** Ordered by consequence.
 | D-13 | No test framework; no CI | ADR-005 | **On hold** (owner's direction, 2026-08-21) |
 | D-14 | Timezone is server-local; blocks a second region | ADR-009 | Open — required before the first GCC clinic |
 | D-15 | CSP is report-only | — | Open — enforce once the sink shows it clean |
-| D-19 | `deploy/flexicaai.cron` is not installed — no scheduled job runs | ADR-012 | **On hold** (owner's direction, 2026-08-21), and safe while pre-launch: with no live clinics all six are no-ops. Unhold in TWO parts — **WhatsApp keys** → `recalls` + `reminders` (the only two that need an API; none need Whisper/Claude). **First live clinic** → `expenses`, `company-expenses`, `billing`, `reconcile`, which are pure DB and gated on real data, not on keys. `reconcile` is the one not to miss: ADR-016 leaves the payment path best-effort *because* it repairs drift nightly |
+| D-19 | No scheduled job runs on the server — the crontab is not installed | ADR-012 | **Routes done and proven** (2026-08-21: all six run, idempotent on a second pass, zero errors) and the install is now one command, `deploy/install-cron.sh`. **Installing stays on hold** (owner's direction), which is safe while pre-launch: with no live clinics all six are no-ops. Unhold in TWO parts — **WhatsApp keys** → `sudo ./deploy/install-cron.sh all` (`recalls` + `reminders` are the only two needing an API; none need Whisper/Claude). **First live clinic** → `sudo ./deploy/install-cron.sh core`, the four pure-DB jobs, gated on real data rather than keys. `reconcile` is the one not to miss: ADR-016 leaves the payment path best-effort *because* it repairs drift nightly |
 | D-18 | A draft whose author is deleted becomes unapprovable by ANYONE: `visits.doctor_id` is `ON DELETE SET NULL`, and approve/discard require `doctor_id = <caller>`. The draft is also invisible, since the list filters by author | ADR-007 | Open — needs a PRODUCT decision, not just code: either a `clinical:create` holder may adopt an orphaned draft (`doctor_id IS NULL`), or orphaned drafts surface in Trash. Found 2026-08-21 closing D-16 |
 
 **Closed:** two WhatsApp webhooks with duplicated pipelines (D-10, closed

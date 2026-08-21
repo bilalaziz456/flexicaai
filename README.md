@@ -44,9 +44,9 @@ FlexicaAI runs on a **self-managed Linux server** (single node): Node serving
 neighbouring one. `CLAUDE.md` §2a is the authoritative deployment contract; the
 three things most easily missed:
 
-1. **Install the cron jobs.** There is no platform scheduler — see
-   `deploy/flexicaai.cron`. Without it, recalls and reminders never fire, and
-   nothing reports it.
+1. **Install the cron jobs** — `sudo ./deploy/install-cron.sh all`, then
+   `./deploy/install-cron.sh check`. There is no platform scheduler, so without this
+   recalls and reminders never fire, and nothing reports it.
 2. **Raise nginx's `proxy_read_timeout` for `/api/ai/scribe`** (default 60s cuts
    off a normal dictation; the route budgets 300s).
 3. **Back up `STORAGE_DIR` together with Postgres.** The database rows and the

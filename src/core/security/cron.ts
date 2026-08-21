@@ -14,14 +14,15 @@ import { report, reportEvent, withRequestContext } from "@/core/observability";
  * DEPLOY NOTE: nothing schedules these for us. There is no platform cron on a
  * self-managed server, so if the crontab/timers are not installed, recalls and
  * reminders never fire and NOTHING reports it — a job that is never invoked produces
- * no error to report. `vercel.json` is inert; it survives only as the reference list
- * of paths and schedules. Example (`/etc/cron.d/flexicaai`, times mirror vercel.json):
+ * no error to report. `vercel.json` is inert.
  *
- *   0 9  * * *  flexica  curl -fsS -H "Authorization: Bearer ${CRON_SECRET}" http://127.0.0.1:3000/api/cron/recalls
- *   0 18 * * *  flexica  curl -fsS -H "Authorization: Bearer ${CRON_SECRET}" http://127.0.0.1:3000/api/cron/reminders
+ *   sudo ./deploy/install-cron.sh all     # or `core` for the four needing no API
+ *   ./deploy/install-cron.sh check        # confirm it is actually running
  *
- * Call the LOCAL port directly so a job never traverses nginx (no proxy timeout, no
- * TLS, and it keeps the secret off the public interface).
+ * That script holds the ONE definition of the six jobs and their schedules — add a
+ * job here and add it there, or it will never run. It calls the LOCAL port directly
+ * so a job never traverses nginx (no proxy timeout, no TLS, and it keeps the secret
+ * off the public interface).
  *
  * This block used to be copy-pasted, byte for byte, into all five cron routes. It
  * lives here once so the policy has ONE place to change and the five can't drift.
