@@ -523,7 +523,7 @@ they land.** Ordered by consequence.
 
 | # | Delta | ADR | Status |
 |---|---|---|---|
-| D-01 | App files querying the DB directly. **Ratchet installed** — `eslint.config.mjs` bans `@/core/db` + `@/core/db/schema` from `src/app/**`, with a legacy allowlist that may only SHRINK | ADR-014 | Open — **52 left** (was 77). Delete lines from `LEGACY_DIRECT_DB_ACCESS` as they migrate; when it is empty, remove the exemption block. **A file that stops offending must be pruned from the list in the same change** — a stale exemption silently un-guards a file that had already been fixed |
+| D-01 | App files querying the DB directly. **Ratchet installed** — `eslint.config.mjs` bans `@/core/db` + `@/core/db/schema` from `src/app/**`, with a legacy allowlist that may only SHRINK | ADR-014 | Open — **42 left** (was 77, then 52). Delete lines from `LEGACY_DIRECT_DB_ACCESS` as they migrate; when it is empty, remove the exemption block. **A file that stops offending must be pruned from the list in the same change** — a stale exemption silently un-guards a file that had already been fixed |
 | ~~D-07~~ | Trash loaded every soft-deleted row of 9 tables into memory | ADR-006 / ADR-024 | **Closed 2026-08-22** — see ADR-024. Every filter pushed into SQL, each source bounded to `offset + limit`, both pages paginated. `scripts/test-trash-paging.ts` |
 | D-08 | Scribe is synchronous | ADR-020 | Open (interim in force) |
 | ~~D-11~~ | `activity_logs` had no retention; a view cost 2 queries, the second unindexed | ADR-006 / ADR-023 | **Closed 2026-08-22** — see ADR-023. One indexed statement per view, plus an opt-in retention window (default: keep everything). Partitioning was NOT done and is not needed at this size; the trigger is in ADR-023. `scripts/test-log-retention.ts` |

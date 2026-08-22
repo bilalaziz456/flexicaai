@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { Printer } from "lucide-react";
-import { asc } from "drizzle-orm";
+import { listClinicOptionsWithPrice } from "@/core/clinics/options";
+
 import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin } from "@/core/auth/admin-permissions";
-import { db } from "@/core/db";
-import { notDeleted } from "@/core/db/tenant";
-import { clinics } from "@/core/db/schema";
 import {
   invoicedTotal,
   invoicedTrend,
@@ -58,11 +56,7 @@ export default async function ClinicInvoicesPage({
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
 
-  const clinicList = await db
-    .select({ id: clinics.id, name: clinics.name, monthlyPrice: clinics.monthlyPrice })
-    .from(clinics)
-    .where(notDeleted(clinics.deletedAt))
-    .orderBy(asc(clinics.name));
+  const clinicList = await listClinicOptionsWithPrice();
 
   const [{ rows, total }, invTotal, trend] = await Promise.all([
     listClinicInvoices({

@@ -1,11 +1,8 @@
-import { and, desc, ilike, inArray, or } from "drizzle-orm";
 import { apiRequireWorkspace } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { users } from "@/core/db/schema";
+import { listStaffForExport } from "@/core/users/staff-export";
 import { toCsv } from "@/core/lib/csv";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
-import { CLINIC_STAFF_ROLES, displayStaffName } from "@/core/types/auth";
+import { displayStaffName } from "@/core/types/auth";
 import { describeAvailability } from "@/core/lib/availability";
 
 /**
@@ -19,32 +16,7 @@ export async function GET(req: Request) {
   const { clinicId } = auth;
   const query = new URL(req.url).searchParams.get("q")?.trim() || "";
 
-  const roleFilter = inArray(users.role, [...CLINIC_STAFF_ROLES]);
-  const search = query
-    ? or(ilike(users.fullName, `%${query}%`), ilike(users.username, `%${query}%`))
-    : undefined;
-  const where = byClinic(
-    users.clinicId,
-    clinicId,
-    notDeleted(users.deletedAt),
-    search ? and(roleFilter, search) : roleFilter,
-  );
-
-  const rows = await db
-    .select({
-      username: users.username,
-      prefix: users.prefix,
-      fullName: users.fullName,
-      role: users.role,
-      email: users.email,
-      isActive: users.isActive,
-      availability: users.availability,
-      dailyLimit: users.dailyAppointmentLimit,
-      fee: users.consultationFee,
-    })
-    .from(users)
-    .where(where)
-    .orderBy(desc(users.createdAt));
+  const rows = await listStaffForExport(clinicId, query);
 
   const csv = toCsv(
     ["Name", "Username", "Role", "Email", "Status", "Consultation fee (PKR)", "Daily limit", "Availability"],

@@ -1,7 +1,5 @@
-import { eq } from "drizzle-orm";
 import { getCurrentUser } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { users } from "@/core/db/schema";
+import { getMyAvatarKey } from "@/core/users/profile";
 import { readFileByKey } from "@/core/integrations/storage";
 import { report } from "@/core/observability";
 
@@ -24,16 +22,12 @@ export async function GET() {
   const user = await getCurrentUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
 
-  const [row] = await db
-    .select({ avatarKey: users.avatarKey })
-    .from(users)
-    .where(eq(users.id, user.id))
-    .limit(1);
-  if (!row?.avatarKey) return new Response("Not found", { status: 404 });
+  const avatarKey = await getMyAvatarKey(user.id);
+  if (!avatarKey) return new Response("Not found", { status: 404 });
 
   try {
-    const data = await readFileByKey(row.avatarKey);
-    const ext = row.avatarKey.split(".").pop()?.toLowerCase() ?? "";
+    const data = await readFileByKey(avatarKey);
+    const ext = avatarKey.split(".").pop()?.toLowerCase() ?? "";
     return new Response(new Uint8Array(data), {
       status: 200,
       headers: {

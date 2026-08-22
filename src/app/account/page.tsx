@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
 import { requireUser } from "@/core/auth/user";
+import { getMyProfile } from "@/core/users/profile";
 import { canUseAccount } from "@/core/auth/admin-permissions";
-import { db } from "@/core/db";
-import { users } from "@/core/db/schema";
 import { ROLE_HOME_ROUTE, ROLE_LABELS, staffInitials } from "@/core/types/auth";
 import {
   Card,
@@ -26,19 +24,7 @@ export default async function AccountPage() {
   const current = await requireUser();
   // Account settings are ACL-gated for super-admins (Feature 9); clinic staff pass.
   if (!canUseAccount(current, "view")) redirect(ROLE_HOME_ROUTE[current.role]);
-  const [u] = await db
-    .select({
-      prefix: users.prefix,
-      fullName: users.fullName,
-      email: users.email,
-      username: users.username,
-      role: users.role,
-      avatarKey: users.avatarKey,
-      discountNeedsApproval: users.discountNeedsApproval,
-    })
-    .from(users)
-    .where(eq(users.id, current.id))
-    .limit(1);
+  const u = await getMyProfile(current.id);
   if (!u) return null;
 
   return (

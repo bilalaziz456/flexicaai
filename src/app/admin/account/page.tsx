@@ -1,7 +1,5 @@
-import { eq } from "drizzle-orm";
 import { requireAdminCapability } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { users } from "@/core/db/schema";
+import { getMyProfile } from "@/core/users/profile";
 import { staffInitials } from "@/core/types/auth";
 import {
   Card,
@@ -17,17 +15,7 @@ import { AvatarForm, ProfileForm, PasswordForm } from "@/core/ui/account-forms";
 export default async function AdminAccountPage() {
   const current = await requireAdminCapability("account:view");
 
-  const [u] = await db
-    .select({
-      prefix: users.prefix,
-      fullName: users.fullName,
-      email: users.email,
-      username: users.username,
-      avatarKey: users.avatarKey,
-    })
-    .from(users)
-    .where(eq(users.id, current.id))
-    .limit(1);
+  const u = await getMyProfile(current.id);
   if (!u) return null;
 
   return (

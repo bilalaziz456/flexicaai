@@ -1,8 +1,6 @@
-import { desc, eq } from "drizzle-orm";
 import { apiRequireWorkspace } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { clinics, procedures } from "@/core/db/schema";
+import { getClinic } from "@/core/clinics/get-clinic";
+import { listProceduresForExport } from "@/core/appointments/procedures";
 import { clinicHasFeature } from "@/core/lib/features";
 import { toCsv } from "@/core/lib/csv";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
@@ -17,24 +15,15 @@ export async function GET() {
   if (!auth.ok) return auth.response;
   const { clinicId } = auth;
 
-  const [clinic] = await db
-    .select({ featuresEnabled: clinics.featuresEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  // `getClinic` is request-cached, so repeated reads in one render collapse to one
+  // query — an inline `select … from clinics` is both a lint violation and a
+  // duplicate round trip (conventions.md §6).
+  const clinic = await getClinic(clinicId);
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales")) {
     return new Response("Forbidden", { status: 403 });
   }
 
-  const rows = await db
-    .select({
-      name: procedures.name,
-      price: procedures.price,
-      isActive: procedures.isActive,
-    })
-    .from(procedures)
-    .where(byClinic(procedures.clinicId, clinicId, notDeleted(procedures.deletedAt)))
-    .orderBy(desc(procedures.createdAt));
+  const rows = await listProceduresForExport(clinicId);
 
   const csv = toCsv(
     ["Procedure", "Price (PKR)", "Status"],

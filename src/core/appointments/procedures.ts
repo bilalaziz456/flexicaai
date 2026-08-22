@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import {
@@ -231,4 +231,20 @@ export async function getAppointmentProcedureItems(
     ...r,
     discountType: r.discountType === "percent" ? "percent" : "amount",
   }));
+}
+
+/**
+ * The clinic's procedure catalog for the CSV export — CORE per ADR-014. Newest first,
+ * matching the catalog page so the export is the same list the user was looking at.
+ */
+export async function listProceduresForExport(clinicId: string) {
+  return db
+    .select({
+      name: procedures.name,
+      price: procedures.price,
+      isActive: procedures.isActive,
+    })
+    .from(procedures)
+    .where(byClinic(procedures.clinicId, clinicId, notDeleted(procedures.deletedAt)))
+    .orderBy(desc(procedures.createdAt));
 }

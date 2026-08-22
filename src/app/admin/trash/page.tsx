@@ -1,9 +1,6 @@
-import { asc } from "drizzle-orm";
 import { requireAdminCapability } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { clinics, users } from "@/core/db/schema";
 import { listAllTrash, parseTrashFilters } from "@/core/trash";
+import { listClinicActorOptions, listClinicOptions } from "@/core/clinics/options";
 import { Pagination } from "@/core/ui/pagination";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { TrashTable } from "@/core/ui/trash-table";
@@ -54,17 +51,14 @@ export default async function AdminTrashPage({
 
   const [trash, clinicRows, staff] = await Promise.all([
     allModuleTrashRows(filters.clinicId).then((rows) => listAllTrash(filters, rows, paging)),
-    db.select({ id: clinics.id, name: clinics.name }).from(clinics).orderBy(asc(clinics.name)),
+    // includeDeleted: a TRASHED clinic still has trash, so it must stay filterable.
+    listClinicOptions({ includeDeleted: true }),
     // Actor options depend on the chosen clinic (like the activity-log filter).
     filters.clinicId
-      ? db
-          .select({ id: users.id, fullName: users.fullName, username: users.username })
-          .from(users)
-          .where(byClinic(users.clinicId, filters.clinicId, notDeleted(users.deletedAt)))
-          .orderBy(asc(users.fullName))
-      : Promise.resolve([] as { id: string; fullName: string | null; username: string }[]),
+      ? listClinicActorOptions(filters.clinicId, { liveOnly: true })
+      : Promise.resolve([]),
   ]);
-  const actors = staff.map((s) => ({ id: s.id, name: s.fullName ?? s.username }));
+  const actors = staff;
 
   return (
     <div className="space-y-6">

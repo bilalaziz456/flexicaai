@@ -1,9 +1,7 @@
-import { and, asc } from "drizzle-orm";
+
 import { requireAdminCapability } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { notDeleted } from "@/core/db/tenant";
-import { clinics } from "@/core/db/schema";
 import { listAllAnnouncements } from "@/core/admin/announcements";
+import { listClinicOptions } from "@/core/clinics/options";
 import { Badge } from "@/core/ui/badge";
 import {
   Card,
@@ -21,11 +19,7 @@ export default async function AnnouncementsPage() {
 
   const [rows, clinicList] = await Promise.all([
     listAllAnnouncements(),
-    db
-      .select({ id: clinics.id, name: clinics.name })
-      .from(clinics)
-      .where(and(notDeleted(clinics.deletedAt)))
-      .orderBy(asc(clinics.name)),
+    listClinicOptions(),
   ]);
 
   return (

@@ -1,22 +1,19 @@
-import { and, asc, count, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { requireRole } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { activityLogs, clinics, users } from "@/core/db/schema";
 import { ActivityLogList } from "@/core/ui/activity-log";
 import { LogFilters } from "@/core/ui/log-filters";
 import { Pagination } from "@/core/ui/pagination";
 import { parseLogFilters } from "@/core/audit/log-filters";
-import { unscoped } from "@/core/db/tenant-guard";
 import {
   CLINIC_LOG_ROLES,
   LOG_ACTIONS,
   LOG_ACTION_IDS,
 } from "@/core/audit/access";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
+import { listClinicActorOptions, listClinicOptions } from "@/core/clinics/options";
 import { getActivityLogRetentionDays } from "@/core/admin/company-settings";
 import { getActivityLogStats } from "@/core/audit/retention";
+import { listAdminActivityLogs } from "@/core/audit/log-query";
 import { RetentionForm } from "./retention-form";
-import type { UserRole } from "@/core/types/auth";
 
 /**
  * Super Admin: the full platform activity log — every clinic, every action.
@@ -45,59 +42,17 @@ export default async function AdminLogsPage({
   // The super admin can filter by any known action category.
   const activeAction = LOG_ACTION_IDS.includes(action) ? action : "";
 
-  const conds = [
-    gte(activityLogs.createdAt, start),
-    lt(activityLogs.createdAt, endExclusive),
-  ];
-  if (clinic) conds.push(eq(activityLogs.clinicId, clinic));
-  // The employee filter only applies within a chosen clinic (its list is
-  // clinic-scoped), so ignore a stray actor when no clinic is selected.
-  if (clinic && actor) conds.push(eq(activityLogs.actorUserId, actor));
-  if (activeAction) conds.push(eq(activityLogs.action, activeAction));
-
-  const where = and(...conds);
-  // Super-admin view spans every clinic by design — opt out of the tenant guard.
-  const [rows, clinicRows, actorRows, [{ total }]] = await unscoped(
-    "admin: activity logs across all clinics",
-    () => Promise.all([
-    db
-      .select({
-        id: activityLogs.id,
-        createdAt: activityLogs.createdAt,
-        actorName: activityLogs.actorName,
-        actorRole: activityLogs.actorRole,
-        action: activityLogs.action,
-        summary: activityLogs.summary,
-        clinicName: clinics.name,
-      })
-      .from(activityLogs)
-      .leftJoin(clinics, eq(activityLogs.clinicId, clinics.id))
-      .where(where)
-      .orderBy(desc(activityLogs.createdAt))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
-    db
-      .select({ id: clinics.id, name: clinics.name })
-      .from(clinics)
-      .orderBy(asc(clinics.name)),
+  const [{ rows, total }, clinicRows, actors] = await Promise.all([
+    listAdminActivityLogs(
+      { start, endExclusive, clinicId: clinic, actorId: actor, action: activeAction },
+      { offset: pageOffset(page, pageSize), limit: pageSize },
+    ),
+    // includeDeleted: a TRASHED clinic still has logs, so it must stay filterable.
+    listClinicOptions({ includeDeleted: true }),
     // Employee options exist ONLY once a clinic is picked — that clinic's staff
     // (from the users table, so everyone appears even without logs yet).
-    clinic
-      ? db
-          .select({ id: users.id, fullName: users.fullName, username: users.username })
-          .from(users)
-          .where(
-            and(
-              eq(users.clinicId, clinic),
-              inArray(users.role, [...CLINIC_LOG_ROLES] as UserRole[]),
-            ),
-          )
-          .orderBy(asc(users.fullName))
-      : Promise.resolve([] as { id: string; fullName: string | null; username: string }[]),
-    db.select({ total: count() }).from(activityLogs).where(where),
-    ]),
-  );
-  const actors = actorRows.map((s) => ({ id: s.id, name: s.fullName ?? s.username }));
+    clinic ? listClinicActorOptions(clinic, { roles: CLINIC_LOG_ROLES }) : Promise.resolve([]),
+  ]);
   // Retention state, shown with the table's real size so the window is chosen
   // against what is actually stored rather than guessed (D-11).
   const [retentionDays, logStats] = await Promise.all([
