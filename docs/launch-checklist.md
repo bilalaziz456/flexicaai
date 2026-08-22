@@ -30,11 +30,9 @@ launch. (On serverless/multi-instance, both become launch blockers — see scale
 - [ ] **Secrets set in prod** (`.env`): `DATABASE_URL`, `APP_URL` (the public URL),
       `STORAGE_DIR` (an ABSOLUTE path), `CRON_SECRET`, `LINK_SIGNING_SECRET` (public
       prescription links), `WHATSAPP_WEBHOOK_TOKEN`, `SEED_ADMIN_*`.
-      ⚠️ **`.env.example` does not list them all** (checked 2026-08-22: `APP_URL`,
-      `STORAGE_DIR`, `LINK_SIGNING_SECRET`, `WHATSAPP_WEBHOOK_TOKEN`, `ANTHROPIC_API_KEY`,
-      `OPENAI_API_KEY` and the three `AISENSY_API_*`/`RX` vars are read by
-      `core/lib/env.ts` but absent from the example), so provisioning by copying it
-      leaves gaps. `env.ts` is the authoritative list.
+      `.env.example` now documents all 33 (fixed 2026-08-22 — nine were missing), and
+      `npm run verify` fails if the two ever drift apart again. `env.ts` stays the
+      authoritative list.
       ⚠️ **Two of those fail SILENTLY rather than loudly**, which is the dangerous kind:
       `STORAGE_DIR` defaults to the RELATIVE `./storage` — resolved against the process
       CWD, so a systemd unit with a different WorkingDirectory, or a deploy that replaces
@@ -54,10 +52,10 @@ launch. (On serverless/multi-instance, both become launch blockers — see scale
       eight jobs (`core` = the six needing no API); it refuses to write unless the app
       answers and `CRON_SECRET` really authenticates. Confirm the next day with
       `./deploy/install-cron.sh check`. `vercel.json` is inert on this deployment.
-- [ ] **`serverActions.allowedOrigins`** (next.config) = the prod domain(s), so Server
-      Actions accept posts behind the real origin/proxy. **Still unset as of 2026-08-22** —
-      verified. Every mutation in the app is a Server Action, so getting this wrong behind
-      nginx means the app renders perfectly and nothing can be saved.
+- [x] **`serverActions.allowedOrigins`** (next.config) = the prod domain(s), so Server
+      Actions accept posts behind the real origin/proxy. **Done 2026-08-22** — derived
+      from `APP_URL`, so setting that one variable configures it and the domain lives in
+      exactly one place. Nothing to edit here; just set `APP_URL` to the real https URL.
 - [ ] **AI keys** — `ANTHROPIC_API_KEY` + `OPENAI_API_KEY`, then a live record→transcribe→
       note test. *Without them the app runs but the flagship voice scribe is off.*
 - [ ] **WhatsApp go-live** — **the longest-lead item; start FIRST.** Either AiSensy
@@ -128,8 +126,8 @@ the loud ones look scarier and cost less:
    Miss it and recalls, reminders and the nightly sales `reconcile` simply never run.
    `reconcile` is the one not to skip: the payment path is deliberately best-effort
    *because* it repairs drift nightly (ADR-016).
-5. **`allowedOrigins` and HTTPS** — loud, immediate, and discovered in the first five
-   minutes of testing. Fix and move on.
+5. **HTTPS** — loud, immediate, discovered in the first five minutes of testing.
+   (`allowedOrigins` is handled: it derives from `APP_URL`.)
 6. **AI keys + one live dictation** — the scribe's async path has never run against a
    real provider (ADR-020 records this as owed). The app is fully usable without it;
    the flagship feature is not.

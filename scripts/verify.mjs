@@ -1,10 +1,11 @@
 /**
  * `npm run verify` — the one command to answer "did I break anything?"
  *
- * Runs the three checks that don't need a server, in the order that fails fastest:
+ * Runs the four checks that don't need a server, in the order that fails fastest:
  *   1. typecheck   — must pass
  *   2. lint        — must not get WORSE (see the baseline below)
- *   3. unit tests  — must pass
+ *   3. env coverage — .env.example must document every var env.ts reads
+ *   4. unit tests  — must pass
  *
  * The end-to-end suite is deliberately NOT here: it needs the app running
  * (`npm start`) and a WhatsApp app secret to exercise the signed webhook path. Run it
@@ -25,6 +26,7 @@
  * green, which is the wrong trade.
  */
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 /** Lint problems that already existed. LOWER THESE as they're fixed; never raise. */
 const BASELINE = { problems: 40, errors: 33 };
@@ -37,7 +39,7 @@ const DIM = "[2m";
 const OFF = "[0m";
 
 let failed = 0;
-const step = (n, label) => console.log(`\n${BOLD}[${n}/3] ${label}${OFF}`);
+const step = (n, label) => console.log(`\n${BOLD}[${n}/4] ${label}${OFF}`);
 const pass = (msg) => console.log(`  ${GREEN}✓${OFF} ${msg}`);
 const fail = (msg) => {
   failed++;
@@ -107,8 +109,37 @@ step(2, "Lint");
   }
 }
 
-// ── 3. Unit tests ───────────────────────────────────────────────────────────
-step(3, "Unit tests");
+// ── 3. Env coverage ─────────────────────────────────────────────────────────
+// `.env.example` is what a production box gets provisioned from, so a variable that
+// exists only in the zod schema is one nobody knows to set. That already happened:
+// nine were missing, including STORAGE_DIR and APP_URL — the two whose defaults are
+// silently WRONG in production rather than absent (attachments written outside the
+// backup; prescription links texted to patients pointing at localhost).
+//
+// A grep, deliberately, not an import: env.ts is `server-only` and validates on load,
+// so importing it here would need a full valid environment just to list key names.
+step(3, "Env coverage");
+{
+  const read = (p) => readFileSync(new URL(p, import.meta.url), "utf8");
+  const declared = new Set(
+    [...read("../src/core/lib/env.ts").matchAll(/^\s{2}([A-Z][A-Z0-9_]*):/gm)].map((m) => m[1]),
+  );
+  const documented = new Set(
+    [...read("../.env.example").matchAll(/^#?\s?([A-Z][A-Z0-9_]*)=/gm)].map((m) => m[1]),
+  );
+  // NODE_ENV is set by the runtime (`next build` / `next start`), never by an operator.
+  declared.delete("NODE_ENV");
+
+  const missing = [...declared].filter((k) => !documented.has(k));
+  if (missing.length === 0) pass(`${declared.size} env vars, all documented in .env.example`);
+  else {
+    fail(`read by env.ts but missing from .env.example: ${missing.join(", ")}`);
+    console.log(`      ${DIM}add them there in the same commit — that file is what prod is provisioned from${OFF}`);
+  }
+}
+
+// ── 4. Unit tests ───────────────────────────────────────────────────────────
+step(4, "Unit tests");
 {
   // Streamed, not captured: these take a while and the per-assertion output is the
   // point. Needs DATABASE_URL — several suites run against a real Postgres.

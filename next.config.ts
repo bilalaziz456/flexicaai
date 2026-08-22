@@ -17,10 +17,43 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=()" },
 ];
 
+/**
+ * Hostnames allowed to invoke Server Actions.
+ *
+ * Every mutation in this app is a Server Action, and Next guards them with a CSRF
+ * check that compares the request's `Origin` against its `Host` / `X-Forwarded-Host`.
+ * Behind nginx those can legitimately differ, and the symptom is nasty to diagnose
+ * because it looks like nothing is wrong: the app renders perfectly, and every single
+ * save is silently rejected.
+ *
+ * Derived from `APP_URL` rather than hardcoded, so the production domain is declared
+ * in exactly ONE place (the env file) instead of drifting between there and here.
+ *
+ * Returns [] for localhost or an unset/unparseable value — Next's own same-origin
+ * check already covers local development, and an empty list leaves it untouched. Both
+ * `hostname` and `host` are listed because a proxy may or may not present the port.
+ */
+function serverActionOrigins(): string[] {
+  const raw = process.env.APP_URL;
+  if (!raw) return [];
+  try {
+    const { hostname, host } = new URL(raw);
+    if (hostname === "localhost" || hostname === "127.0.0.1") return [];
+    return [...new Set([hostname, host])];
+  } catch {
+    // A malformed APP_URL is env.ts's problem to report, not the build's to crash on.
+    return [];
+  }
+}
+
+const allowedOrigins = serverActionOrigins();
+
 const nextConfig: NextConfig = {
   // Don't advertise the framework/version.
   poweredByHeader: false,
   experimental: {
+    // Omitted entirely when empty, so local dev keeps Next's default behaviour.
+    ...(allowedOrigins.length ? { serverActions: { allowedOrigins } } : {}),
     // WHY: in `next dev`, opening a dynamic-segment route ([id]/[slug] — staff
     // profiles, appointment/patient details, any dynamic list) makes Next fork a
     // separate "static-paths" Node child process to load that page's full server
