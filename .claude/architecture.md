@@ -615,6 +615,12 @@ unmatched case consistent rather than exceptional.
 Each is a known, accepted gap with a decision behind it. **Tick items off here as
 they land.** Ordered by consequence.
 
+**As of 2026-08-22 nothing here is merely outstanding:** every delta is either closed
+or explicitly **on hold at the owner's direction** (D-13, D-14, D-19). A hold is a
+decision, not a backlog item — so each one records the condition that makes it safe to
+keep holding, and the event that ends it. Read that column before assuming a hold can
+just continue.
+
 | # | Delta | ADR | Status |
 |---|---|---|---|
 | ~~D-01~~ | App files querying the DB directly — 77 of them, each a place to forget `byClinic()` | ADR-014 | **Closed 2026-08-22** — 77 → 52 → 42 → 36 → 33 → 30 → 27 → 22 → 20 → 18 → 17 → 16 → 12 → 8 → 5 → 2 → **0**. `LEGACY_DIRECT_DB_ACCESS` is empty and the exemption block is DELETED, so `eslint.config.mjs` bans `@/core/db` + `@/core/db/schema` from all of `src/app/**` with nothing exempted; re-proved by a deliberate violation. Never reintroduce an allowlist. The last file, `admin/actions.ts`, is now `core/admin/clinics.ts` + `scripts/test-admin-clinics.ts` |
@@ -623,7 +629,7 @@ they land.** Ordered by consequence.
 | ~~D-11~~ | `activity_logs` had no retention; a view cost 2 queries, the second unindexed | ADR-006 / ADR-023 | **Closed 2026-08-22** — see ADR-023. One indexed statement per view, plus an opt-in retention window (default: keep everything). Partitioning was NOT done and is not needed at this size; the trigger is in ADR-023. `scripts/test-log-retention.ts` |
 | ~~D-12~~ | Reports aggregated unbounded row sets in application code | ADR-015 / ADR-025 | **Closed 2026-08-22** — see ADR-025. P&L, cash summary, discounts and receivables all aggregate in SQL now; the two list reports page. `scripts/test-report-aggregation.ts` |
 | D-13 | No test framework; no CI | ADR-005 | **On hold** (owner's direction, 2026-08-21) |
-| D-14 | Timezone is server-local; blocks a second region | ADR-009 | Open — required before the first GCC clinic |
+| D-14 | Timezone is server-local; blocks a second region | ADR-009 | **On hold** (owner's direction, 2026-08-22) — the GCC work is not being done now. Safe while every clinic is in one country: availability, "tomorrow" reminders and day boundaries all read the SERVER's timezone and agree with each other. It stops being safe the moment a clinic sits in a different offset, so this is the **gate on the first GCC clinic**, not a nice-to-have — unhold before signing one, not after |
 | ~~D-15~~ | CSP was report-only — i.e. advisory, enforcing nothing | ADR-026 | **Closed 2026-08-22** — see ADR-026. Enforced on every response, at two strengths, because a nonce and a prerendered page are mutually exclusive. The old trigger ("once the sink shows it clean") rested on a false premise: the policy was never clean and could not be. 14 e2e assertions; verified by walking the app in a browser against the live report sink |
 | D-19 | No scheduled job runs on the server — the crontab is not installed | ADR-012 | **Routes done and proven** (2026-08-21: all six run, idempotent on a second pass, zero errors) and the install is now one command, `deploy/install-cron.sh`. **Installing stays on hold** (owner's direction), which is safe while pre-launch: with no live clinics all six are no-ops. Unhold in TWO parts — **WhatsApp keys** → `sudo ./deploy/install-cron.sh all` (`recalls` + `reminders` are the only two needing an API; none need Whisper/Claude). **First live clinic** → `sudo ./deploy/install-cron.sh core`, the four pure-DB jobs, gated on real data rather than keys. `reconcile` is the one not to miss: ADR-016 leaves the payment path best-effort *because* it repairs drift nightly |
 
