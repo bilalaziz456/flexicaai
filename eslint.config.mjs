@@ -36,7 +36,6 @@ const LEGACY_DIRECT_DB_ACCESS = [
   "src/app/admin/team/[id]/page.tsx",
   "src/app/api/admin/clinics/[id]/logo/route.ts",
   "src/app/api/appointments/export/route.ts",
-  "src/app/clinic/actions.ts",
   "src/app/clinic/appointments/actions.ts",
   "src/app/clinic/appointments/appointments-list.tsx",
   "src/app/clinic/approvals/actions.ts",

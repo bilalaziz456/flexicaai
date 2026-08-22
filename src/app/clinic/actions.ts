@@ -3,7 +3,6 @@
 import { redirect } from "next/navigation";
 import { toE164 } from "@/core/lib/phone";
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireClinicAdmin, requireRole, requireWorkspace } from "@/core/auth/user";
@@ -11,21 +10,22 @@ import { can, type PermAction } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
 import { hashPassword } from "@/core/auth/password";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import {
-  appointments,
-  clinics,
-  discountSettlements,
-  patients,
-  recalls,
-  sales,
-  saleShares,
-  sessions,
-  users,
-  visits,
-} from "@/core/db/schema";
+  createClinicStaff,
+  findEditableStaff,
+  resetClinicStaffPassword,
+  setClinicStaffActive,
+  setClinicStaffPermissions,
+  setDoctorShareRates,
+  softDeleteClinicStaff,
+  updateClinicStaffProfile,
+} from "@/core/users/clinic-staff";
+import {
+  createPatient as createPatientRecord,
+  softDeletePatient,
+  updatePatient as updatePatientRecord,
+} from "@/core/patients/manage";
+import { setAvgVisitValue, setWhatsappSignature } from "@/core/clinics/settings";
 import { replaceDoctorProcedureShares } from "@/core/appointments/share-config";
 import { TIME_RE, timeToMinutes, type DayAvailability } from "@/core/lib/availability";
 import { dobFromAgeField } from "@/core/lib/age";
@@ -36,7 +36,6 @@ import { sanitizePermissions } from "@/core/auth/permissions";
 export type ClinicActionState = { error?: string; saved?: boolean };
 
 /** Drizzle-friendly mutable copy of the manageable-staff role list. */
-const STAFF_ROLES = [...CLINIC_STAFF_ROLES];
 
 /** Validates the doctor schedule JSON emitted by DoctorScheduleFields. */
 const availabilitySchema = z
@@ -148,13 +147,10 @@ export async function updateWhatsappSettings(
 ): Promise<ClinicActionState> {
   const user = await requireWorkspace("settings", "edit");
 
-  await db
-    .update(clinics)
-    .set({
-      whatsappSignature: emptyToNull(formData.get("signature"))?.slice(0, 200) ?? null,
-      updatedAt: new Date(),
-    })
-    .where(eq(clinics.id, user.clinicId));
+  await setWhatsappSignature(
+    user.clinicId,
+    emptyToNull(formData.get("signature"))?.slice(0, 200) ?? null,
+  );
 
   await logActivity({
     action: "update",
@@ -220,25 +216,19 @@ export async function createStaff(
   const passwordHash = await hashPassword(parsed.data.password);
   let createdId: string | undefined;
   try {
-    const [created] = await db
-      .insert(users)
-      .values({
-        clinicId,
-        username: parsed.data.username,
-        passwordHash,
-        role: parsed.data.role,
-        prefix: parsed.data.prefix ?? null,
-        fullName: parsed.data.fullName,
-        mustChangePassword: true,
-        // Permissions chosen on the create form (prefilled from role defaults).
-        permissions: sanitizePermissions(formData.getAll("perm").map(String)),
-        availability,
-        flexibleHours,
-        dailyAppointmentLimit: dailyLimit,
-        consultationFee: fee,
-      })
-      .returning({ id: users.id });
-    createdId = created.id;
+    createdId = await createClinicStaff(clinicId, {
+      username: parsed.data.username,
+      passwordHash,
+      role: parsed.data.role,
+      prefix: parsed.data.prefix ?? null,
+      fullName: parsed.data.fullName,
+      // Permissions chosen on the create form (prefilled from role defaults).
+      permissions: sanitizePermissions(formData.getAll("perm").map(String)),
+      availability,
+      flexibleHours,
+      dailyAppointmentLimit: dailyLimit,
+      consultationFee: fee,
+    });
   } catch (err) {
     if (isUniqueViolation(err)) {
       return { error: "That username is already in use." };
@@ -268,15 +258,7 @@ export async function setStaffActive(
 ): Promise<void> {
   const { clinicId } = await requireClinicAdmin();
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(users)
-      .set({ isActive, updatedAt: new Date() })
-      .where(byClinic(users.clinicId, clinicId, eq(users.id, userId)));
-    if (!isActive) {
-      await tx.delete(sessions).where(eq(sessions.userId, userId));
-    }
-  });
+  await setClinicStaffActive(clinicId, userId, isActive);
 
   await logActivity({
     action: "update",
@@ -308,20 +290,8 @@ export async function deleteStaff(
     return { error: "Incorrect password." };
   }
 
-  const [row] = await db
-    .update(users)
-    .set(softDeleteValues(admin.id, newDeleteGroup()))
-    .where(
-      byClinic(
-        users.clinicId,
-        clinicId,
-        notDeleted(users.deletedAt),
-        and(eq(users.id, userId), inArray(users.role, STAFF_ROLES)),
-      ),
-    )
-    .returning({ id: users.id });
-  // Revoke their login immediately (sessions are ephemeral, not trashed).
-  if (row) await db.delete(sessions).where(eq(sessions.userId, userId));
+  // Revokes their login too — sessions are ephemeral, not trashed.
+  await softDeleteClinicStaff(clinicId, userId, admin.id);
 
   await logActivity({
     action: "delete",
@@ -353,13 +323,7 @@ export async function resetStaffPassword(
   }
 
   const passwordHash = await hashPassword(parsed.data.password);
-  await db.transaction(async (tx) => {
-    await tx
-      .update(users)
-      .set({ passwordHash, mustChangePassword: true, updatedAt: new Date() })
-      .where(byClinic(users.clinicId, clinicId, eq(users.id, userId)));
-    await tx.delete(sessions).where(eq(sessions.userId, userId));
-  });
+  await resetClinicStaffPassword(clinicId, userId, passwordHash);
 
   await logActivity({
     action: "update",
@@ -410,18 +374,7 @@ export async function updateStaffProfile(
 
   // Fetch the (clinic-scoped, editable) member so we know whether to also save a
   // doctor schedule from the same form.
-  const [member] = await db
-    .select({ role: users.role })
-    .from(users)
-    .where(
-      byClinic(
-        users.clinicId,
-        clinicId,
-        notDeleted(users.deletedAt),
-        and(eq(users.id, userId), inArray(users.role, STAFF_ROLES)),
-      ),
-    )
-    .limit(1);
+  const member = await findEditableStaff(clinicId, userId);
   if (!member) return { error: "Staff member not found." };
 
   // Only doctors carry a schedule; a bad schedule blocks the whole save (same as
@@ -444,27 +397,13 @@ export async function updateStaffProfile(
   }
 
   try {
-    const result = await db
-      .update(users)
-      .set({
-        fullName: parsed.data.fullName,
-        prefix: parsed.data.prefix ?? null,
-        username: parsed.data.username,
-        updatedAt: new Date(),
-        ...(scheduleValues ?? {}),
-      })
-      .where(
-        byClinic(
-          users.clinicId,
-          clinicId,
-          and(
-            eq(users.id, userId),
-            inArray(users.role, STAFF_ROLES),
-          ),
-        ),
-      )
-      .returning({ id: users.id });
-    if (result.length === 0) return { error: "Staff member not found." };
+    const saved = await updateClinicStaffProfile(clinicId, userId, {
+      fullName: parsed.data.fullName,
+      prefix: parsed.data.prefix ?? null,
+      username: parsed.data.username,
+      ...(scheduleValues ?? {}),
+    });
+    if (!saved) return { error: "Staff member not found." };
   } catch (err) {
     if (isUniqueViolation(err)) {
       return { error: "That username is already in use." };
@@ -502,31 +441,10 @@ export async function updateStaffPermissions(
 
   const permissions = sanitizePermissions(formData.getAll("perm").map(String));
 
-  const [member] = await db
-    .select({ role: users.role, fullName: users.fullName, username: users.username })
-    .from(users)
-    .where(
-      byClinic(
-        users.clinicId,
-        clinicId,
-        notDeleted(users.deletedAt),
-        and(eq(users.id, userId), inArray(users.role, STAFF_ROLES)),
-      ),
-    )
-    .limit(1);
+  const member = await findEditableStaff(clinicId, userId);
   if (!member) return { error: "Staff member not found." };
 
-  await db
-    .update(users)
-    .set({ permissions, updatedAt: new Date() })
-    .where(
-      byClinic(
-        users.clinicId,
-        clinicId,
-        notDeleted(users.deletedAt),
-        and(eq(users.id, userId), inArray(users.role, STAFF_ROLES)),
-      ),
-    );
+  await setClinicStaffPermissions(clinicId, userId, permissions);
 
   await logActivity({
     action: "update",
@@ -548,18 +466,7 @@ export async function resetStaffPermissions(
 ): Promise<ClinicActionState> {
   const { clinicId } = await requireClinicAdmin();
 
-  const [member] = await db
-    .update(users)
-    .set({ permissions: null, updatedAt: new Date() })
-    .where(
-      byClinic(
-        users.clinicId,
-        clinicId,
-        notDeleted(users.deletedAt),
-        and(eq(users.id, userId), inArray(users.role, STAFF_ROLES)),
-      ),
-    )
-    .returning({ fullName: users.fullName, username: users.username });
+  const member = await setClinicStaffPermissions(clinicId, userId, null);
   if (!member) return { error: "Staff member not found." };
 
   await logActivity({
@@ -604,18 +511,7 @@ export async function updateDoctorShares(
   const needsApproval = formData.get("discountNeedsApproval") === "on";
 
   // Confirm the target is a doctor in this clinic before writing anything.
-  const [member] = await db
-    .select({ role: users.role, fullName: users.fullName, username: users.username })
-    .from(users)
-    .where(
-      byClinic(
-        users.clinicId,
-        clinicId,
-        notDeleted(users.deletedAt),
-        and(eq(users.id, doctorId), eq(users.role, "doctor")),
-      ),
-    )
-    .limit(1);
+  const member = await findEditableStaff(clinicId, doctorId, { role: "doctor" });
   if (!member) return { error: "Doctor not found." };
 
   const overrides = formData
@@ -627,15 +523,11 @@ export async function updateDoctorShares(
     })
     .filter((o) => o.procedureId);
 
-  await db
-    .update(users)
-    .set({
-      consultationSharePct: consult.data,
-      procedureSharePct: proc.data,
-      discountNeedsApproval: needsApproval,
-      updatedAt: new Date(),
-    })
-    .where(byClinic(users.clinicId, clinicId, eq(users.id, doctorId)));
+  await setDoctorShareRates(clinicId, doctorId, {
+    consultationSharePct: consult.data,
+    procedureSharePct: proc.data,
+    discountNeedsApproval: needsApproval,
+  });
   await replaceDoctorProcedureShares(clinicId, doctorId, overrides);
 
   await logActivity({
@@ -691,40 +583,18 @@ export async function createPatient(
     return { error: zodErrorMessage(parsed.error) };
   }
 
-  const createdPatient = await db.transaction(async (tx) => {
-    // Allocate the next per-clinic MRN by locking the clinic row so concurrent
-    // registrations can't collide (mirrors invoice numbering — core/patients/mrn.ts).
-    const [c] = await tx
-      .select({ nextMrn: clinics.nextMrn })
-      .from(clinics)
-      .where(eq(clinics.id, clinicId))
-      .for("update")
-      .limit(1);
-    const mrn = c?.nextMrn ?? 1;
-    await tx
-      .update(clinics)
-      .set({ nextMrn: mrn + 1, updatedAt: new Date() })
-      .where(eq(clinics.id, clinicId));
-
-    const [row] = await tx
-      .insert(patients)
-      .values({
-        clinicId,
-        mrn,
-        fullName: parsed.data.fullName,
-        // Stored E.164, so every way the same number can be typed converges and
-        // inbound WhatsApp can find it.
-        phone: parsed.data.phone,
-        email: emptyToNull(formData.get("email")),
-        // Patients are entered by age; we store the derived birth date (see age.ts).
-        dateOfBirth: dobFromAgeField(formData.get("age")),
-        gender: emptyToNull(formData.get("gender")),
-        address: emptyToNull(formData.get("address")),
-        reference: emptyToNull(formData.get("reference")),
-        dataConsent: formData.get("dataConsent") === "on",
-      })
-      .returning({ id: patients.id });
-    return row;
+  const createdPatient = await createPatientRecord(clinicId, {
+    fullName: parsed.data.fullName,
+    // Stored E.164, so every way the same number can be typed converges and
+    // inbound WhatsApp can find it.
+    phone: parsed.data.phone,
+    email: emptyToNull(formData.get("email")),
+    // Patients are entered by age; we store the derived birth date (see age.ts).
+    dateOfBirth: dobFromAgeField(formData.get("age")),
+    gender: emptyToNull(formData.get("gender")),
+    address: emptyToNull(formData.get("address")),
+    reference: emptyToNull(formData.get("reference")),
+    dataConsent: formData.get("dataConsent") === "on",
   });
 
   await logActivity({
@@ -755,29 +625,17 @@ export async function updatePatient(
     return { error: zodErrorMessage(parsed.error) };
   }
 
-  const result = await db
-    .update(patients)
-    .set({
-      fullName: parsed.data.fullName,
-      phone: parsed.data.phone,
-      email: emptyToNull(formData.get("email")),
-      dateOfBirth: dobFromAgeField(formData.get("age")),
-      gender: emptyToNull(formData.get("gender")),
-      address: emptyToNull(formData.get("address")),
-      reference: emptyToNull(formData.get("reference")),
-      dataConsent: formData.get("dataConsent") === "on",
-      updatedAt: new Date(),
-    })
-    .where(
-      byClinic(
-        patients.clinicId,
-        clinicId,
-        notDeleted(patients.deletedAt),
-        eq(patients.id, patientId),
-      ),
-    )
-    .returning({ id: patients.id });
-  if (result.length === 0) return { error: "Patient not found." };
+  const saved = await updatePatientRecord(clinicId, patientId, {
+    fullName: parsed.data.fullName,
+    phone: parsed.data.phone,
+    email: emptyToNull(formData.get("email")),
+    dateOfBirth: dobFromAgeField(formData.get("age")),
+    gender: emptyToNull(formData.get("gender")),
+    address: emptyToNull(formData.get("address")),
+    reference: emptyToNull(formData.get("reference")),
+    dataConsent: formData.get("dataConsent") === "on",
+  });
+  if (!saved) return { error: "Patient not found." };
 
   await logActivity({
     action: "update",
@@ -812,82 +670,8 @@ export async function deletePatient(
     return { error: "Incorrect password." };
   }
 
-  const group = newDeleteGroup();
-  const parent = softDeleteValues(user.id, group);
-  const child = softDeleteValues(user.id, group, true);
-
-  let notFound = false;
-  await db.transaction(async (tx) => {
-    const [row] = await tx
-      .update(patients)
-      .set(parent)
-      .where(
-        byClinic(
-          patients.clinicId,
-          clinicId,
-          notDeleted(patients.deletedAt),
-          eq(patients.id, patientId),
-        ),
-      )
-      .returning({ id: patients.id });
-    if (!row) {
-      notFound = true;
-      return;
-    }
-
-    // Cascade-hide only rows that are still live (so an independently-trashed
-    // child keeps its own group and isn't revived by restoring this patient).
-    await tx
-      .update(appointments)
-      .set(child)
-      .where(
-        byClinic(
-          appointments.clinicId,
-          clinicId,
-          notDeleted(appointments.deletedAt),
-          eq(appointments.patientId, patientId),
-        ),
-      );
-    await tx
-      .update(visits)
-      .set(child)
-      .where(
-        byClinic(
-          visits.clinicId,
-          clinicId,
-          notDeleted(visits.deletedAt),
-          eq(visits.patientId, patientId),
-        ),
-      );
-    await tx
-      .update(recalls)
-      .set(child)
-      .where(
-        byClinic(
-          recalls.clinicId,
-          clinicId,
-          notDeleted(recalls.deletedAt),
-          eq(recalls.patientId, patientId),
-        ),
-      );
-
-    // Void the patient's realised-revenue rows (sales + per-doctor shares are
-    // derived, kept only for live completed appointments; re-snapshotted on restore).
-    const patientApptIds = tx
-      .select({ id: appointments.id })
-      .from(appointments)
-      .where(byClinic(appointments.clinicId, clinicId, eq(appointments.patientId, patientId)));
-    await tx
-      .delete(sales)
-      .where(and(eq(sales.clinicId, clinicId), inArray(sales.appointmentId, patientApptIds)));
-    await tx
-      .delete(saleShares)
-      .where(and(eq(saleShares.clinicId, clinicId), inArray(saleShares.appointmentId, patientApptIds)));
-    await tx
-      .delete(discountSettlements)
-      .where(and(eq(discountSettlements.clinicId, clinicId), inArray(discountSettlements.appointmentId, patientApptIds)));
-  });
-  if (notFound) return { error: "Patient not found." };
+  const removed = await softDeletePatient(clinicId, patientId, user.id);
+  if (!removed) return { error: "Patient not found." };
 
   await logActivity({
     action: "delete",
@@ -921,10 +705,7 @@ export async function updateClinicSettings(
     return { error: zodErrorMessage(parsed.error) };
   }
 
-  await db
-    .update(clinics)
-    .set({ avgVisitValue: parsed.data.avgVisitValue, updatedAt: new Date() })
-    .where(eq(clinics.id, clinicId));
+  await setAvgVisitValue(clinicId, parsed.data.avgVisitValue);
 
   await logActivity({
     action: "update",

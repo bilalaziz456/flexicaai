@@ -19,3 +19,22 @@ export async function setInvoicePaper(clinicId: string, paper: string): Promise<
     .set({ invoicePaper: paper, updatedAt: new Date() })
     .where(eq(clinics.id, clinicId));
 }
+
+/** The clinic's WhatsApp message footer. */
+export async function setWhatsappSignature(
+  clinicId: string,
+  signature: string | null,
+): Promise<void> {
+  await db
+    .update(clinics)
+    .set({ whatsappSignature: signature, updatedAt: new Date() })
+    .where(eq(clinics.id, clinicId));
+}
+
+/** The clinic's average visit value — the multiplier behind "Revenue Recovered". */
+export async function setAvgVisitValue(clinicId: string, value: number): Promise<void> {
+  await db
+    .update(clinics)
+    .set({ avgVisitValue: value, updatedAt: new Date() })
+    .where(eq(clinics.id, clinicId));
+}
