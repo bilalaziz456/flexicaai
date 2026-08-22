@@ -1,15 +1,17 @@
 "use server";
 
-import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
-import { db } from "@/core/db";
 import { getClinic } from "@/core/clinics/get-clinic";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
-import { appointments, clinics, patients, visits } from "@/core/db/schema";
-import { draftAccessCondition } from "@/core/clinical/drafts";
+import {
+  approveDraftRow,
+  discardDraftRow,
+  getAppointmentDoctorId,
+  getVisitForPrescription,
+  loadDraftRow,
+  searchScribePatients,
+} from "@/core/clinical/scribe";
 import { getScribeRunStatus, retryScribeRun, runScribeJob } from "@/core/ai/scribe-job";
 import { after } from "next/server";
 import { applyAppointmentStatus } from "@/core/appointments/set-status";
@@ -53,19 +55,8 @@ export async function advanceMyQueue(
   // A doctor may only push a patient forward through the two in-room states.
   if (status !== "in_progress" && status !== "completed") return;
 
-  const [appt] = await db
-    .select({ doctorId: appointments.doctorId })
-    .from(appointments)
-    .where(
-      byClinic(
-        appointments.clinicId,
-        user.clinicId,
-        notDeleted(appointments.deletedAt),
-        eq(appointments.id, appointmentId),
-      ),
-    )
-    .limit(1);
-  if (!appt || appt.doctorId !== user.id) return; // only your own patients
+  const apptDoctorId = await getAppointmentDoctorId(user.clinicId, appointmentId);
+  if (apptDoctorId !== user.id) return; // only your own patients (undefined = not here)
 
   const changed = await applyAppointmentStatus(user.clinicId, appointmentId, status);
   if (changed) {
@@ -83,11 +74,7 @@ export async function advanceMyQueue(
 export async function loadPatientChart(patientId: string): Promise<unknown> {
   const user = await requireWorkspace();
   if (!can(user, "clinical", "view")) return null;
-  const [clinicRow] = await db
-    .select({ modulesEnabled: clinics.modulesEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, user.clinicId))
-    .limit(1);
+  const clinicRow = await getClinic(user.clinicId);
   const clinicalRecord = clinicalRecordFor(clinicRow?.modulesEnabled ?? []);
   return clinicalRecord ? clinicalRecord.loadChart(user.clinicId, patientId) : null;
 }
@@ -121,28 +108,7 @@ export async function loadDraft(visitId: string): Promise<{
   if (!can(user, "clinical", "create")) return null;
   const canHandover = can(user, "handover", "view");
 
-  const [row] = await db
-    .select({
-      id: visits.id,
-      transcript: visits.transcript,
-      note: visits.note,
-      patientId: patients.id,
-      patientName: patients.fullName,
-      patientPhone: patients.phone,
-    })
-    .from(visits)
-    .innerJoin(patients, eq(visits.patientId, patients.id))
-    .where(
-      byClinic(
-        visits.clinicId,
-        user.clinicId,
-        notDeleted(visits.deletedAt),
-        eq(visits.id, visitId),
-        eq(visits.status, "draft"),
-        draftAccessCondition(user.id, canHandover),
-      ),
-    )
-    .limit(1);
+  const row = await loadDraftRow(user.clinicId, user.id, visitId, canHandover);
   if (!row) return null;
 
   const note = (row.note ?? {}) as Record<string, unknown>;
@@ -150,11 +116,7 @@ export async function loadDraft(visitId: string): Promise<{
   // Warnings aren't stored on the visit, so recompute them against the formulary and
   // the patient's allergies as they stand NOW — a drug the clinic has since removed,
   // or an allergy recorded after the dictation, has to show before this is approved.
-  const [clinicRow] = await db
-    .select({ modulesEnabled: clinics.modulesEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, user.clinicId))
-    .limit(1);
+  const clinicRow = await getClinic(user.clinicId);
   const allergies = await getPatientAllergies(user.clinicId, row.patientId);
   const { drugWarnings, allergyWarnings } = noteWarnings(
     note,
@@ -212,35 +174,13 @@ export async function approveVisit(
   const parsedChart = parseClinicalChart(chart, schemas.chartSchema);
   if (!parsedChart.ok) return { error: parsedChart.error };
 
-  const [updated] = await db
-    .update(visits)
-    .set({
-      note: parsedNote.value,
-      status: "approved",
-      approvedAt: new Date(),
-      approvedBy: user.id,
-      updatedAt: new Date(),
-    })
-    .where(
-      byClinic(
-        visits.clinicId,
-        user.clinicId,
-        notDeleted(visits.deletedAt),
-        eq(visits.id, visitId),
-        eq(visits.status, "draft"),
-        // AUTHOR ONLY, plus the narrow `handover` exception. A draft belongs to
-        // whoever dictated it (CLAUDE.md §8) — the same condition `loadDraft` applies
-        // when opening one. Without it, anyone holding `clinical:create` could sign
-        // off a colleague's note, and the record would then carry THEIR name in
-        // `approved_by` over someone else's clinical judgement. The one relaxation is
-        // an author who can no longer log in: that is not a colleague being
-        // overridden, it is a note nobody could otherwise ever reach (D-18). The
-        // dictating author stays on `doctor_id`, so the record still says who saw
-        // the patient and who signed.
-        draftAccessCondition(user.id, can(user, "handover", "create")),
-      ),
-    )
-    .returning({ id: visits.id, patientId: visits.patientId, module: visits.module });
+  const updated = await approveDraftRow(
+    user.clinicId,
+    user.id,
+    visitId,
+    parsedNote.value,
+    can(user, "handover", "create"),
+  );
 
   // One query, so "not yours" and "not there" are indistinguishable here — say both
   // rather than a misleading "not found" to someone looking at a real draft.
@@ -306,30 +246,13 @@ export async function discardDraft(
     return { error: "You don't have permission to modify clinical drafts." };
   }
 
-  const result = await db
-    .update(visits)
-    .set(softDeleteValues(user.id, newDeleteGroup()))
-    .where(
-      byClinic(
-        visits.clinicId,
-        user.clinicId,
-        notDeleted(visits.deletedAt),
-        eq(visits.id, visitId),
-        // `failed` too (D-08): a run the AI could not complete leaves a real row with
-        // a real recording, and the doctor must be able to bin it. `transcribing` is
-        // deliberately NOT here — binning a run mid-flight would leave the job about
-        // to write a note onto a soft-deleted visit.
-        inArray(visits.status, ["draft", "failed"]),
-        // AUTHOR ONLY — same rule as approving, and the same narrow `handover`
-        // exception. Discarding is the more destructive of the two: it bins work
-        // someone else dictated and has not yet reviewed. It still soft-deletes, so a
-        // stranded draft binned by mistake is recoverable from Trash.
-        draftAccessCondition(user.id, can(user, "handover", "delete")),
-      ),
-    )
-    .returning({ id: visits.id });
-
-  if (result.length === 0) {
+  const discarded = await discardDraftRow(
+    user.clinicId,
+    user.id,
+    visitId,
+    can(user, "handover", "delete"),
+  );
+  if (!discarded) {
     return { error: "Draft not found, or it belongs to another clinician." };
   }
   revalidatePath("/clinic/scribe");
@@ -345,35 +268,7 @@ export async function searchPatients(
   // This was the one action here with no permission check, which did not matter while
   // only a doctor could reach it. Now that the whole workspace can, it needs its own.
   if (!can(user, "patients", "view")) return [];
-  const q = query.trim();
-
-  const { patients } = await import("@/core/db/schema");
-  const { ilike, or, and: and2, desc } = await import("drizzle-orm");
-
-  return db
-    .select({
-      id: patients.id,
-      fullName: patients.fullName,
-      phone: patients.phone,
-    })
-    .from(patients)
-    .where(
-      q
-        ? and2(
-            eq(patients.clinicId, user.clinicId),
-            notDeleted(patients.deletedAt),
-            or(
-              ilike(patients.fullName, `%${q}%`),
-              ilike(patients.phone, `%${q}%`),
-            ),
-          )
-        : and2(
-            eq(patients.clinicId, user.clinicId),
-            notDeleted(patients.deletedAt),
-          ),
-    )
-    .orderBy(desc(patients.createdAt))
-    .limit(20);
+  return searchScribePatients(user.clinicId, query);
 }
 
 /**
@@ -390,26 +285,12 @@ export async function sendPrescriptionToWhatsApp(
     return { error: "You don't have permission to send prescriptions." };
   }
 
-  const [row] = await db
-    .select({
-      clinicId: visits.clinicId,
-      status: visits.status,
-      patientId: visits.patientId,
-      patientName: patients.fullName,
-      patientPhone: patients.phone,
-      clinicName: clinics.name,
-    })
-    .from(visits)
-    .innerJoin(patients, eq(visits.patientId, patients.id))
-    .innerJoin(clinics, eq(visits.clinicId, clinics.id))
-    .where(
-      and(
-        eq(visits.id, visitId),
-        eq(visits.clinicId, user.clinicId),
-        notDeleted(visits.deletedAt),
-      ),
-    )
-    .limit(1);
+  // The clinic NAME came from a third join purely to label the message; `getClinic`
+  // is request-cached, so asking for it separately costs nothing.
+  const [row, clinicRow] = await Promise.all([
+    getVisitForPrescription(user.clinicId, visitId),
+    getClinic(user.clinicId),
+  ]);
 
   if (!row) return { error: "Visit not found." };
   if (row.status !== "approved") return { error: "Approve the visit first." };
@@ -433,7 +314,7 @@ export async function sendPrescriptionToWhatsApp(
     campaignName: serverEnv.AISENSY_RX_CAMPAIGN,
     userName: row.patientName,
     // Template body params — map these to your approved AiSensy template.
-    templateParams: [row.patientName, row.clinicName],
+    templateParams: [row.patientName, clinicRow?.name ?? ""],
     media: { url, filename: "prescription.pdf" },
     body: `Prescription sent to ${row.patientName}`,
   });

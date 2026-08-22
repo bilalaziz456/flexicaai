@@ -1,10 +1,8 @@
 import { NextResponse, after } from "next/server";
-import { and, eq } from "drizzle-orm";
 import { apiRequireWorkspace } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { notDeleted } from "@/core/db/tenant";
-import { clinics, patients, visits } from "@/core/db/schema";
 import { getClinicWorkspace } from "@/config/modules";
+import { getClinic } from "@/core/clinics/get-clinic";
+import { createScribeRun, patientBelongsToClinic } from "@/core/clinical/scribe";
 import { saveClinicFile } from "@/core/integrations/storage";
 import { runScribeJob } from "@/core/ai/scribe-job";
 import { report } from "@/core/observability";
@@ -83,28 +81,13 @@ export async function POST(request: Request) {
   }
 
   // Tenant guard: the patient must belong to THIS doctor's clinic.
-  const [patient] = await db
-    .select({ id: patients.id })
-    .from(patients)
-    .where(
-      and(
-        eq(patients.id, patientId),
-        eq(patients.clinicId, clinicId),
-        notDeleted(patients.deletedAt),
-      ),
-    )
-    .limit(1);
-  if (!patient) {
+  if (!(await patientBelongsToClinic(clinicId, patientId))) {
     return NextResponse.json({ error: "Patient not found." }, { status: 404 });
   }
 
   // Resolve the clinic's enabled module + its scribe prompt (module-agnostic:
   // core reads modules_enabled, never hardcodes "dental").
-  const [clinic] = await db
-    .select({ modulesEnabled: clinics.modulesEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinic = await getClinic(clinicId);
   const moduleId = clinic?.modulesEnabled?.[0];
   const workspace = getClinicWorkspace(clinic?.modulesEnabled ?? []);
   const scribePrompt = moduleId ? workspace.scribePrompts[moduleId] : undefined;
@@ -128,26 +111,22 @@ export async function POST(request: Request) {
     // afterwards. The doctor gets an answer in milliseconds instead of minutes, and
     // a run that dies leaves a row someone can see and retry rather than a lost
     // upload and a billed API call.
-    const [visit] = await db
-      .insert(visits)
-      .values({
-        clinicId,
-        patientId,
-        doctorId: user.id,
-        module: moduleId,
-        status: "transcribing",
-        audioKey,
-      })
-      .returning({ id: visits.id });
+    const visitId = await createScribeRun({
+      clinicId,
+      patientId,
+      doctorId: user.id,
+      module: moduleId,
+      audioKey,
+    });
 
     // `after` runs the callback once the response is flushed (Next 16, sanctioned for
     // Route Handlers). The job never throws and writes every outcome to the visit, so
     // there is nothing here to catch — see `core/ai/scribe-job.ts`.
-    after(() => runScribeJob(visit.id));
+    after(() => runScribeJob(visitId));
 
     // 202: accepted, not done. The client polls `getScribeRunStatus` until it leaves
     // `transcribing`.
-    return NextResponse.json({ visitId: visit.id, status: "transcribing" }, { status: 202 });
+    return NextResponse.json({ visitId, status: "transcribing" }, { status: 202 });
   } catch (e) {
     // Only the SYNCHRONOUS part can fail here now — storing the audio and creating the
     // row. Everything the AI can do wrong is the job's business and lands on the visit.

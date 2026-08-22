@@ -1,12 +1,9 @@
-import { desc, eq, or } from "drizzle-orm";
 import { can } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
-import { db } from "@/core/db";
 import { getClinic } from "@/core/clinics/get-clinic";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { patients, visits } from "@/core/db/schema";
 import { getDayQueue } from "@/core/appointments/queue";
 import { listStrandedDrafts } from "@/core/clinical/drafts";
+import { listOwnDrafts, listRecentVisits, listScribePatients } from "@/core/clinical/scribe";
 import { listScribeRuns } from "@/core/ai/scribe-job";
 import { ScribeRuns } from "@/app/clinic/scribe/scribe-runs";
 import { DoctorQueue } from "@/app/clinic/scribe/doctor-queue";
@@ -45,54 +42,9 @@ export async function ScribePanel({
   const clinicRow = await getClinic(clinicId);
 
   const [recentPatients, recentVisits, pendingDrafts, queue, strandedDrafts, scribeRuns] = await Promise.all([
-    db
-      .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })
-      .from(patients)
-      .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt)))
-      .orderBy(desc(patients.createdAt))
-      .limit(20),
-    // Approved notes, plus your own drafts — the same rule the patient's clinical
-    // history follows. An unapproved note is the author's until they sign it off.
-    db
-      .select({
-        id: visits.id,
-        status: visits.status,
-        visitDate: visits.visitDate,
-        patientName: patients.fullName,
-      })
-      .from(visits)
-      .innerJoin(patients, eq(visits.patientId, patients.id))
-      .where(
-        byClinic(
-          visits.clinicId,
-          clinicId,
-          notDeleted(visits.deletedAt),
-          or(eq(visits.status, "approved"), eq(visits.doctorId, user.id)),
-        ),
-      )
-      .orderBy(desc(visits.visitDate))
-      .limit(10),
-    // Drafts this doctor started and never approved. Oldest first: the one left
-    // longest is the one most likely to be forgotten.
-    db
-      .select({
-        id: visits.id,
-        visitDate: visits.visitDate,
-        patientName: patients.fullName,
-      })
-      .from(visits)
-      .innerJoin(patients, eq(visits.patientId, patients.id))
-      .where(
-        byClinic(
-          visits.clinicId,
-          clinicId,
-          notDeleted(visits.deletedAt),
-          eq(visits.status, "draft"),
-          eq(visits.doctorId, user.id),
-        ),
-      )
-      .orderBy(visits.visitDate)
-      .limit(20),
+    listScribePatients(clinicId),
+    listRecentVisits(clinicId, user.id),
+    listOwnDrafts(clinicId, user.id),
     getDayQueue(clinicId, new Date(), { doctorId: user.id }),
     canSeeStranded ? listStrandedDrafts(clinicId) : Promise.resolve([]),
     canCreateClinical ? listScribeRuns(clinicId, user.id) : Promise.resolve([]),
