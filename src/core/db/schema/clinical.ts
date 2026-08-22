@@ -26,7 +26,22 @@ import { softDeleteColumns } from "@/core/db/schema/_shared";
  */
 
 /** AI notes are DRAFT until a doctor approves them (CLAUDE.md §8). */
-export const visitStatus = pgEnum("visit_status", ["draft", "approved"]);
+/**
+ * `transcribing` and `failed` are the two states a scribe run passes through before it
+ * becomes a draft (delta D-08 / ADR-020). They are STATUSES rather than a separate
+ * table because a scribe run IS a visit from the moment the audio is stored — it has
+ * the patient, the doctor and the recording; only the note is missing.
+ *
+ * Every existing read filters `= 'draft'` or `= 'approved'`, so both new states are
+ * excluded from clinical surfaces by construction — an in-flight or failed run can
+ * never be mistaken for a record. The scribe workspace opts INTO them explicitly.
+ */
+export const visitStatus = pgEnum("visit_status", [
+  "transcribing",
+  "draft",
+  "approved",
+  "failed",
+]);
 
 /**
  * Visits — shared; stores the generated note. `module` tags specialty. The
@@ -61,6 +76,13 @@ export const visits = pgTable(
     aiDraft: jsonb("ai_draft").$type<Record<string, unknown>>(),
     // Storage key of the source audio (for the flywheel / re-transcription).
     audioKey: text("audio_key"),
+    // When the async scribe run started. The recovery sweep uses it to find runs the
+    // process died in the middle of — without it a killed job leaves a visit stuck in
+    // `transcribing` forever, and nothing anywhere would say so (D-08).
+    transcribeStartedAt: timestamp("transcribe_started_at", { withTimezone: true }),
+    // Why a run failed, shown to the doctor so "try again" is an informed choice
+    // rather than a guess. Never carries provider payloads — just the reason.
+    transcribeError: text("transcribe_error"),
     // True when this note was IMPORTED from a clinic's old system (not authored in
     // FlexicaAI) — freeform text lives in `note.summary`, shown as "Imported" in the
     // clinical timeline. See docs/import-plan.md (Phase 2).

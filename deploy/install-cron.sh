@@ -34,6 +34,7 @@ JOBS=$(cat <<'EOF'
 0 3 * * *|billing|-|Subscription sweep: active <-> past_due as time passes
 30 3 * * *|reconcile|-|Sales reconciliation: re-derive any drifted ledger row
 45 3 * * *|log-retention|-|Prune activity_logs past the retention window (no-op until set)
+*/10 * * * *|scribe-recover|-|Fail scribe runs the process died in the middle of
 EOF
 )
 

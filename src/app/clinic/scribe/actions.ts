@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
@@ -9,6 +9,8 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import { appointments, clinics, patients, visits } from "@/core/db/schema";
 import { draftAccessCondition } from "@/core/clinical/drafts";
+import { getScribeRunStatus, retryScribeRun, runScribeJob } from "@/core/ai/scribe-job";
+import { after } from "next/server";
 import { applyAppointmentStatus } from "@/core/appointments/set-status";
 import type { AppointmentStatus } from "@/core/appointments/status";
 import { revalidateFinance } from "@/app/clinic/finance-revalidate";
@@ -316,7 +318,11 @@ export async function discardDraft(
         user.clinicId,
         notDeleted(visits.deletedAt),
         eq(visits.id, visitId),
-        eq(visits.status, "draft"),
+        // `failed` too (D-08): a run the AI could not complete leaves a real row with
+        // a real recording, and the doctor must be able to bin it. `transcribing` is
+        // deliberately NOT here — binning a run mid-flight would leave the job about
+        // to write a note onto a soft-deleted visit.
+        inArray(visits.status, ["draft", "failed"]),
         // AUTHOR ONLY — same rule as approving, and the same narrow `handover`
         // exception. Discarding is the more destructive of the two: it bins work
         // someone else dictated and has not yet reviewed. It still soft-deletes, so a
@@ -438,4 +444,33 @@ export async function sendPrescriptionToWhatsApp(
   revalidatePath("/clinic/scribe");
   revalidatePath("/doctor");
   return result.ok ? { ok: true } : { error: result.error ?? "Send failed." };
+}
+
+/**
+ * Poll target while a scribe run is in flight (delta D-08). Author-only and
+ * clinic-scoped like every other draft operation — a status is a small leak, but it
+ * still tells you a named patient was seen, so it follows the same rule.
+ */
+export async function getScribeStatus(
+  visitId: string,
+): Promise<{ status: string; error: string | null } | null> {
+  const user = await requireWorkspace();
+  if (!can(user, "clinical", "create")) return null;
+  return getScribeRunStatus(user.clinicId, user.id, visitId);
+}
+
+/** Retry a FAILED run on the audio already stored — no re-dictation (delta D-08). */
+export async function retryScribe(
+  visitId: string,
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireWorkspace();
+  if (!can(user, "clinical", "create")) {
+    return { error: "You don't have permission to modify clinical drafts." };
+  }
+  const r = await retryScribeRun(user.clinicId, user.id, visitId);
+  if ("error" in r) return r;
+  // Kick it off now; the recovery sweep is the backstop if this process dies.
+  after(() => runScribeJob(visitId));
+  revalidatePath("/clinic/scribe");
+  return { ok: true };
 }

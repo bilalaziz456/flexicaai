@@ -6,6 +6,8 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, patients, visits } from "@/core/db/schema";
 import { getDayQueue } from "@/core/appointments/queue";
 import { listStrandedDrafts } from "@/core/clinical/drafts";
+import { listScribeRuns } from "@/core/ai/scribe-job";
+import { ScribeRuns } from "@/app/clinic/scribe/scribe-runs";
 import { DoctorQueue } from "@/app/clinic/scribe/doctor-queue";
 import { Badge } from "@/core/ui/badge";
 import {
@@ -45,7 +47,7 @@ export async function ScribePanel({
     .where(eq(clinics.id, clinicId))
     .limit(1);
 
-  const [recentPatients, recentVisits, pendingDrafts, queue, strandedDrafts] = await Promise.all([
+  const [recentPatients, recentVisits, pendingDrafts, queue, strandedDrafts, scribeRuns] = await Promise.all([
     db
       .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })
       .from(patients)
@@ -96,6 +98,7 @@ export async function ScribePanel({
       .limit(20),
     getDayQueue(clinicId, new Date(), { doctorId: user.id }),
     canSeeStranded ? listStrandedDrafts(clinicId) : Promise.resolve([]),
+    canCreateClinical ? listScribeRuns(clinicId, user.id) : Promise.resolve([]),
   ]);
 
   return (
@@ -108,6 +111,8 @@ export async function ScribePanel({
       </div>
 
       <DoctorQueue sessions={queue} />
+
+      <ScribeRuns runs={scribeRuns.map((r) => ({ id: r.id, status: r.status, error: r.error, patientName: r.patientName }))} />
 
       {canCreateClinical ? (
         <ScribeWorkspace

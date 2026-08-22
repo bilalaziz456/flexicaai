@@ -79,9 +79,12 @@ storage** (a real disk persists, so clinical attachments are safe) and the
    never invoked raises no error. Verify afterwards with `./deploy/install-cron.sh
    check`. **Currently held** until launch (delta D-19), which is safe only while
    there are no live clinics.
-2. **nginx's `proxy_read_timeout` is the request ceiling** (default **60s**). The
-   scribe budgets 300s and `maxDuration` is a platform hint that does nothing here,
-   so nginx must be raised on `/api/ai/scribe` or the doctor gets a 504 mid-dictation.
+2. **nginx's `proxy_read_timeout` is the request ceiling** (default **60s**), and
+   `maxDuration` is a platform hint that does nothing here. The scribe no longer needs
+   it raised — it returns 202 and the AI runs in a background job (ADR-020) — but
+   **`client_max_body_size 25m` on `/api/ai/scribe` is still required**, or a normal
+   dictation is rejected at the proxy before the app sees it. Any future route that
+   does hold a connection open still has to reckon with the 60s default.
 3. **Single node is an assumption with teeth.** A second instance or PM2 *cluster*
    mode breaks local storage and the limiter **quietly**. Going multi-instance means
    doing the S3 and Redis swaps FIRST.

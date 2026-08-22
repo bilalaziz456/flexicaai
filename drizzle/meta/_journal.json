@@ -575,6 +575,13 @@
       "when": 1787338903498,
       "tag": "0081_powerful_thing",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1787375637222,
+      "tag": "0082_fine_firebrand",
+      "breakpoints": true
     }
   ]
 }

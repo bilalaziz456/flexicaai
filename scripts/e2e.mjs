@@ -446,10 +446,36 @@ async function run() {
   };
   record("doctor scribe on cross-tenant patient → 404", (await req("/api/ai/scribe", { cookie: S.docA, method: "POST", body: mkForm(ids.patients[2]) })).status === 404);
   {
-    // With no AI keys configured this must fail GRACEFULLY (400), never 500.
+    // The route ACCEPTS the recording and returns 202 (delta D-08 / ADR-020) — it no
+    // longer waits for the AI, so an unconfigured provider is no longer a request-time
+    // error. What must still hold: the visit exists with the audio stored, and the
+    // failure lands ON IT rather than vanishing. Asserted below by polling the row.
     const r = await req("/api/ai/scribe", { cookie: S.docA, method: "POST", body: mkForm(ids.patients[0]) });
-    const okGraceful = r.status === 200 || r.status === 400; // 200 only if keys ARE configured
-    record("doctor scribe → graceful (200 configured / 400 unconfigured, not 500)", okGraceful, `status=${r.status}`);
+    record("doctor scribe → 202 accepted (the AI runs after the response)", r.status === 202, `status=${r.status}`);
+
+    // `req` returns raw text, not parsed JSON.
+    let visitId;
+    try { visitId = JSON.parse(r.text)?.visitId; } catch { visitId = undefined; }
+    record("…and it returns the visit it created", typeof visitId === "string", `visitId=${visitId}`);
+
+    if (visitId) {
+      // The job runs in `after()`, so give it a moment, then read the row directly.
+      let row = null;
+      for (let i = 0; i < 20 && !row?.settled; i++) {
+        await new Promise((res) => setTimeout(res, 250));
+        const q = await pool.query(
+          `select status, transcribe_error, audio_key from visits where id = $1`,
+          [visitId],
+        );
+        const v = q.rows[0];
+        row = v ? { ...v, settled: v.status !== "transcribing" } : null;
+      }
+      // With no keys the run fails — which is the graceful outcome this used to assert
+      // as a 400, now expressed where it actually belongs: on the visit.
+      record("the run settles out of `transcribing` (no keys → failed)", row?.status === "failed", `status=${row?.status}`);
+      record("with a reason the doctor can read", Boolean(row?.transcribe_error), `err=${row?.transcribe_error}`);
+      record("and the recording was kept, so it can be retried", Boolean(row?.audio_key), `key=${row?.audio_key}`);
+    }
   }
   {
     // The scribe gates on the `clinical:create` PERMISSION, not the `doctor` ROLE

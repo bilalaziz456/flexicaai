@@ -64,7 +64,7 @@
 | `user_role` | super_admin, clinic_admin, manager, doctor, receptionist |
 | `theme_preference` | system, light, dark |
 | `appointment_status` | scheduled, confirmed, completed, cancelled, no_show |
-| `visit_status` | draft, approved |
+| `visit_status` | transcribing, draft, approved, failed |
 | `recall_status` | pending, scheduled, sent, booked, completed, cancelled |
 | `whatsapp_direction` | inbound, outbound |
 | `whatsapp_status` | queued, sent, delivered, read, failed, received |
@@ -655,3 +655,16 @@ these for churn-risk + usage/cost anomaly flags.
   busier. **Do not rewrite the null-`entity_id` branch as `IS NOT DISTINCT FROM`:** it
   is not btree-indexable and silently drops the plan from an Index Only Scan to a
   bitmap scan plus filter (verified on 60k rows).
+- Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
+  `transcribing` and `failed` to the `visit_status` enum, plus
+  `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).
+  `POST /api/ai/scribe` now stores the audio, inserts the visit as `transcribing` and
+  returns **202**; `core/ai/scribe-job.ts` fills it in from Next's `after()`. **Both new
+  states are invisible to every clinical surface by construction** — each one filters
+  `= 'draft'` or `= 'approved'` — which is worth preserving if you ever add a status.
+  `transcribe_started_at` is the CLAIM: the job sets it before calling a provider, so a
+  retry racing the recovery cron does the paid work once. The recovery sweep
+  (`/api/cron/scribe-recover`, the 8th job) matches on
+  **`coalesce(transcribe_started_at, created_at) < cutoff`** — a run whose `after()`
+  callback never fired has a NULL start time, and `null < cutoff` is NULL, so a plain
+  comparison would miss forever exactly the runs it exists to catch.

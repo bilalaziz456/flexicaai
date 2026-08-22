@@ -505,14 +505,39 @@ safe (ADR-015), and it is why a sale is seeded at 23:30: the day grouping depend
 Postgres and Node agreeing where a day ends, which is the D-14 single-timezone
 assumption and will need revisiting with per-clinic timezones.
 
-**ADR-020 — The scribe becomes an async job** · *2026-08-21* · `Interim`
-Today: synchronous, budgeted at 300s (Whisper 120s + Claude 90s×2), needing a matching
-nginx `proxy_read_timeout`.
-Target: `POST` persists audio and returns a visit in a `transcribing` state; a job
-fills the draft; the client revalidates.
-**Why interim:** the timeouts make it survivable, not correct. Holding a request open
-for minutes is a poor use of the single node, and there is no resume path.
-**Consequence:** add one `visits.status` value rather than a new table.
+**ADR-020 — The scribe is an async job** · *2026-08-21, implemented 2026-08-22* ·
+`Accepted` *(was `Interim` — D-08 closed)*
+`POST /api/ai/scribe` stores the audio, creates the visit as `transcribing` and
+returns **202**. `core/ai/scribe-job.ts` runs Whisper + Claude from `after()` and lands
+the result on the visit; the client polls until it leaves `transcribing`.
+**Why the interim was not good enough:** the timeouts made a minutes-long request
+survivable, not correct — it tied up a connection on the single node, forced nginx's
+`proxy_read_timeout` to 300s, and had **no resume path**: a dropped run left the audio
+stored and the APIs billed with nothing to show for it.
+
+**It cost TWO statuses, not one.** The original note said "add one `visits.status`
+value". `failed` is the second, and it is not optional: without it a run that dies has
+nowhere to say so, and the doctor is left staring at a spinner over a real recording of
+a real consultation. Both new states are excluded from every clinical surface *by
+construction*, because every existing read filters `= 'draft'` or `= 'approved'`.
+
+**Three properties hold the design up:**
+- **Idempotent by claim** — the job moves the row out of `transcribing` before calling
+  the provider, so a retry racing the recovery sweep does the PAID work once.
+- **Recovery is a cron** (`/api/cron/scribe-recover`, 8th job). Work not tied to a
+  request has nothing to retry it, so something must go looking. It marks stalled runs
+  `failed` and deliberately does **not** re-run them: spending money on a provider
+  unasked, in a loop, is a worse failure than a note waiting for a human to click.
+- **`coalesce(transcribe_started_at, created_at)`** in that sweep. A run whose
+  `after()` callback never fired has a NULL start time, and `null < cutoff` is NULL —
+  so the naive comparison misses forever exactly the case the sweep exists for.
+
+**Consequence for the deployment:** nginx no longer needs `proxy_read_timeout 300s` on
+this route. `client_max_body_size 25m` is still required (CLAUDE.md §2a).
+**Still unverified end to end:** no Whisper/Claude keys exist yet, so the state machine
+is tested (`scripts/test-scribe-async.ts`, and e2e asserts the run settles to `failed`
+with the recording kept) but a real transcription has never run through this path. One
+live dictation is required when the keys land.
 
 ---
 
@@ -525,7 +550,7 @@ they land.** Ordered by consequence.
 |---|---|---|---|
 | D-01 | App files querying the DB directly. **Ratchet installed** — `eslint.config.mjs` bans `@/core/db` + `@/core/db/schema` from `src/app/**`, with a legacy allowlist that may only SHRINK | ADR-014 | Open — **42 left** (was 77, then 52). Delete lines from `LEGACY_DIRECT_DB_ACCESS` as they migrate; when it is empty, remove the exemption block. **A file that stops offending must be pruned from the list in the same change** — a stale exemption silently un-guards a file that had already been fixed |
 | ~~D-07~~ | Trash loaded every soft-deleted row of 9 tables into memory | ADR-006 / ADR-024 | **Closed 2026-08-22** — see ADR-024. Every filter pushed into SQL, each source bounded to `offset + limit`, both pages paginated. `scripts/test-trash-paging.ts` |
-| D-08 | Scribe is synchronous | ADR-020 | Open (interim in force) |
+| ~~D-08~~ | Scribe was synchronous — a minutes-long request with no resume path | ADR-020 | **Closed 2026-08-22** — 202 + `after()` job + `transcribing`/`failed` states + a recovery cron. `scripts/test-scribe-async.ts`. **A live dictation is still owed** once the AI keys exist |
 | ~~D-11~~ | `activity_logs` had no retention; a view cost 2 queries, the second unindexed | ADR-006 / ADR-023 | **Closed 2026-08-22** — see ADR-023. One indexed statement per view, plus an opt-in retention window (default: keep everything). Partitioning was NOT done and is not needed at this size; the trigger is in ADR-023. `scripts/test-log-retention.ts` |
 | ~~D-12~~ | Reports aggregated unbounded row sets in application code | ADR-015 / ADR-025 | **Closed 2026-08-22** — see ADR-025. P&L, cash summary, discounts and receivables all aggregate in SQL now; the two list reports page. `scripts/test-report-aggregation.ts` |
 | D-13 | No test framework; no CI | ADR-005 | **On hold** (owner's direction, 2026-08-21) |

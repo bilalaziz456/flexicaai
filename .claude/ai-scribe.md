@@ -57,13 +57,23 @@ POST /api/ai/scribe                          app/api/ai/scribe/route.ts
    ├─ verify the patient belongs to THIS clinic  tenant boundary
    ├─ resolve the module prompt                  getClinicWorkspace(modules_enabled)
    ├─ saveClinicFile(audio)                      kept for the flywheel / re-runs
+   ├─ INSERT visits: status='transcribing', audio_key
+   └─ 202 { visitId }  ◄── THE REQUEST ENDS HERE (ADR-020)
+        │
+        │  after(() => runScribeJob(visitId))     Next 16, post-response
+        ▼
+core/ai/scribe-job.ts
+   ├─ CLAIM the row (transcribing → started)     idempotent; paid work runs once
    ├─ runScribe()  ──► Whisper  (transcript + duration)
    │                └► Claude   (module prompt + transcript → JSON note)
    ├─ parseClinicalNote(note, module.noteSchema)  bounds + shape, before storing
-   ├─ noteWarnings(note, formulary, allergies)   drug + allergy flags
-   ├─ INSERT visits: status='draft', note, ai_draft (frozen), transcript, audio_key
-   └─ recordScribeUsage()                        ai_usage rows → serving cost
+   ├─ UPDATE visits: status='draft', note, ai_draft (frozen), transcript
+   ├─ recordScribeUsage()                        ai_usage rows → serving cost
+   └─ on ANY failure → status='failed' + a doctor-facing reason; audio kept
         │
+        │  client polls getScribeStatus() until it leaves `transcribing`
+        │  GET /api/cron/scribe-recover fails runs the process died inside
+        ▼
         ▼
 Doctor reviews / edits in the workspace       app/doctor/scribe-workspace.tsx
         │
@@ -128,14 +138,17 @@ Two slow paid calls run back to back. Real dictation is minutes of audio.
 |---|---|---|
 | Whisper | 120s | `WHISPER_TIMEOUT_MS`, `core/ai/scribe-engine` |
 | Claude | 90s × 2 attempts | `CLAUDE_TIMEOUT_MS` + `maxRetries: 1`, `core/ai/prompt-runner` |
-| **Route ceiling** | **300s** | `maxDuration`, `app/api/ai/scribe/route.ts` |
-| **nginx** | **must be ≥ 300s** | `proxy_read_timeout` — default is **60s** |
+| **Stall cutoff** | **15 min** | `SCRIBE_STALL_MINUTES`, `core/ai/scribe-job` |
+| **Route ceiling** | 60s | `maxDuration` — now only bounds storing the upload |
 
-**These four numbers are one chain.** Change one, re-check the others. The nginx line
-is the one that bites: `maxDuration` is a serverless hint and does nothing under
-`next start`, so on the Linux deployment nginx's 60s default is the real ceiling and
-would cut off a normal dictation with the audio already stored and the APIs already
-billed. Also set `client_max_body_size 25m` to match the upload cap.
+**The provider budget must stay INSIDE the stall cutoff.** Whisper 120s + Claude 90s×2
+is ~5 minutes worst case; the sweep gives up at 15. Raise a provider timeout past that
+and the recovery cron will mark live runs as failed while they are still working.
+
+**nginx no longer needs `proxy_read_timeout` raised for this route** — nothing here
+holds a connection across the provider calls (ADR-020). **`client_max_body_size 25m`
+is still required**, matching the upload cap, or a normal dictation is rejected at the
+proxy before the app ever sees it.
 
 Without an explicit timeout the Anthropic SDK defaults to **10 minutes with 2
 retries** — a hung provider could hold a request ~30 minutes. That is why the client
@@ -158,17 +171,38 @@ the single place the vendor is known.
 
 ---
 
-## 6. Current shape vs. target
+## 6. The run is a JOB, not a request (ADR-020, 2026-08-22)
 
-**Today the run is synchronous** — the doctor's request stays open for the whole
-Whisper + Claude round trip. The timeouts make that survivable, not correct: it holds
-a request open for minutes on a single-node server and there is no resume path if it
-dies.
+`POST` stores the audio, creates the visit as **`transcribing`** and returns **202**.
+`core/ai/scribe-job.ts` does the Whisper + Claude work from Next's `after()` and lands
+the result on the visit; the client polls `getScribeStatus` until it leaves that state.
 
-**Target (ADR-020):** `POST` persists the audio and returns a visit in a
-`transcribing` state; a job performs the run and fills the draft; the client
-revalidates. Add one `visits.status` value — the state machine already exists — not a
-new table.
+**The four states:** `transcribing` → `draft` (the doctor reviews) → `approved`. A run
+that cannot finish goes to **`failed`**, carrying a doctor-facing reason, and keeps its
+recording so **Try again** costs a click rather than another dictation. Both new states
+are invisible to every clinical surface by construction — they all filter `= 'draft'`
+or `= 'approved'`.
+
+**What the doctor sees:** an in-flight or failed run appears in *"Recordings being
+written up"* on the scribe workspace, which self-refreshes while anything is in flight.
+That card is not decoration — a background failure is no longer something the doctor
+watches happen, so it has to be somewhere they will find it.
+
+**Three rules hold this up:**
+
+1. **Claim before you call.** The job leaves `transcribing` in its first statement, so
+   a retry racing the recovery sweep does the PAID work once.
+2. **Something must go looking.** Work not tied to a request has nothing to retry it,
+   so `GET /api/cron/scribe-recover` marks stalled runs `failed`. It does **not**
+   re-run them: billing a provider unasked, on a loop, is worse than waiting for a human.
+3. **`coalesce(transcribe_started_at, created_at)`** in that sweep — a run whose
+   `after()` never fired has a NULL start time, and `null < cutoff` is NULL, so the
+   obvious comparison misses forever exactly the case it exists for.
+
+**Not yet proven end to end:** with no Whisper/Claude keys, the state machine is tested
+(`scripts/test-scribe-async.ts`; e2e asserts a run settles to `failed` with the audio
+kept) but no real transcription has gone through this path. Do one live dictation when
+the keys land.
 
 ---
 

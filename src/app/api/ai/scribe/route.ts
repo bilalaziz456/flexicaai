@@ -1,17 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { apiRequireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { clinics, patients, visits } from "@/core/db/schema";
-import { clinicalSchemasFor, getClinicWorkspace } from "@/config/modules";
-import { parseClinicalNote } from "@/core/clinical/note-schema";
+import { getClinicWorkspace } from "@/config/modules";
 import { saveClinicFile } from "@/core/integrations/storage";
-import { runScribe, AiTimeoutError } from "@/core/ai/scribe-engine";
-import { recordScribeUsage } from "@/core/ai/usage";
-import { MissingApiKeyError, AiParseError } from "@/core/ai/prompt-runner";
-import { getPatientAllergies } from "@/core/patients/medical-history";
-import { noteWarnings } from "@/core/ai/note-warnings";
+import { runScribeJob } from "@/core/ai/scribe-job";
+import { report } from "@/core/observability";
 import { aiScribeByUser, throttle, tooManyRequests } from "@/core/security/rate-limit";
 
 /** Cap the audio upload — bounds memory + the paid Whisper call. A few minutes of
@@ -19,35 +15,31 @@ import { aiScribeByUser, throttle, tooManyRequests } from "@/core/security/rate-
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB
 
 /**
- * This route runs TWO paid, slow provider calls back to back (Whisper, then Claude),
- * so it needs far more than a default request budget: real dictation is minutes of
- * audio. 300s is the ceiling the provider timeouts are budgeted against (Whisper
- * 120s + Claude 90s × 2 attempts) — raising either means raising this too, see the
- * SCRIBE TIME BUDGET note in `core/ai/scribe-engine/index.ts`.
+ * The request no longer waits for the AI (delta D-08 / ADR-020), so this is now only
+ * the budget for storing an upload — seconds, not minutes. It stays declared because
+ * the number belongs next to the route it bounds, and a future serverless host would
+ * read it.
  *
- * ⚠ ON THE LINUX DEPLOYMENT THIS EXPORT DOES NOTHING BY ITSELF. `maxDuration` is a
- * hint consumed by serverless platforms; a plain `next start` has no such limit. The
- * real ceiling is **nginx's `proxy_read_timeout`, which defaults to 60 SECONDS** —
- * well inside a normal dictation, so the doctor would get a 504 mid-note while the
- * audio is already stored and the AI already billed. nginx must be raised to match:
- *
- *   location /api/ai/scribe {
- *     proxy_read_timeout 300s;
- *     proxy_send_timeout 300s;
- *     client_max_body_size 25m;   # matches MAX_AUDIO_BYTES below
- *   }
- *
- * Kept as an export so the number lives next to the budget it belongs to, and so a
- * future move to a serverless host is already correct. (CLAUDE.md §2a.)
+ * ⚠ WHAT THIS CHANGES FOR nginx: `proxy_read_timeout` no longer has to be raised to
+ * 300s for this route, because nothing here holds a connection open across two
+ * provider calls. **`client_max_body_size 25m` is still required** — it must match
+ * `MAX_AUDIO_BYTES` below, or a normal dictation is rejected at the proxy before the
+ * app ever sees it. (CLAUDE.md §2a.)
  */
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 /**
  * POST /api/ai/scribe — CORE, specialty-agnostic voice scribe (CLAUDE.md §8).
- * Doctor uploads audio (+ patientId); we transcribe (Whisper) and generate a
- * structured note (Claude) using the CLINIC'S ENABLED MODULE prompt, then save
- * a DRAFT visit. The doctor reviews/edits/approves it separately — never
- * auto-finalized. Every query is scoped to the doctor's own clinic_id.
+ *
+ * ACCEPTS the recording and returns **202** immediately: the audio is stored and a
+ * visit is created in `transcribing`. `core/ai/scribe-job.ts` then transcribes
+ * (Whisper) and structures the note (Claude) with the CLINIC'S ENABLED MODULE prompt,
+ * landing it as a DRAFT the doctor reviews and approves — never auto-finalized.
+ *
+ * Everything up to and including storing the audio is still synchronous and still
+ * validated here, because those are the failures worth telling the caller about
+ * straight away: no permission, wrong clinic's patient, no module, file too large.
+ * Every query is scoped to the doctor's own clinic_id.
  */
 export async function POST(request: Request) {
   // Generating a note is a clinical authoring action, gated on the PERMISSION and
@@ -130,37 +122,12 @@ export async function POST(request: Request) {
     // Keep the audio for the accuracy flywheel / re-transcription.
     const audioKey = await saveClinicFile(clinicId, "audio", buffer, ext);
 
-    const { transcript, note, usage } = await runScribe({
-      audio: buffer,
-      filename: audio.name || `recording.${ext}`,
-      scribePrompt,
-    });
-
-    // The model is an untrusted producer too: it returns free-form JSON that the
-    // prompt only ASKED to be shaped a certain way. Validate before it becomes a
-    // draft, so a malformed note is a clean, retryable 502 rather than a record that
-    // renders wrong — or not at all — later (ADR-007).
-    const parsedNote = parseClinicalNote(
-      note,
-      clinicalSchemasFor(clinic?.modulesEnabled ?? []).noteSchema,
-    );
-    if (!parsedNote.ok) {
-      return NextResponse.json(
-        { error: `The AI returned a note we can't store: ${parsedNote.error}`, retryable: true },
-        { status: 502 },
-      );
-    }
-
-    // Flag prescribed drugs that are not in the module formulary, and any that
-    // conflict with a recorded allergy (CLAUDE.md §8). Warnings for the doctor, not
-    // a hard block. Shared with the resume-a-draft path so the two can't drift.
-    const allergies = await getPatientAllergies(clinicId, patientId);
-    const { drugWarnings, allergyWarnings } = noteWarnings(
-      parsedNote.value,
-      workspace.drugFormulary,
-      allergies,
-    );
-
+    // THE REQUEST ENDS HERE (delta D-08 / ADR-020). The visit exists the moment the
+    // recording is stored — it has the patient, the doctor and the audio; only the
+    // note is missing — so it is created in `transcribing` and the AI fills it in
+    // afterwards. The doctor gets an answer in milliseconds instead of minutes, and
+    // a run that dies leaves a row someone can see and retry rather than a lost
+    // upload and a billed API call.
     const [visit] = await db
       .insert(visits)
       .values({
@@ -168,47 +135,24 @@ export async function POST(request: Request) {
         patientId,
         doctorId: user.id,
         module: moduleId,
-        status: "draft",
-        transcript,
-        note: parsedNote.value,
-        aiDraft: parsedNote.value, // frozen original for the flywheel
+        status: "transcribing",
         audioKey,
       })
       .returning({ id: visits.id });
 
-    // Meter the paid AI calls for precise serving cost (best-effort, never blocks).
-    await recordScribeUsage({ clinicId, visitId: visit.id, usage });
+    // `after` runs the callback once the response is flushed (Next 16, sanctioned for
+    // Route Handlers). The job never throws and writes every outcome to the visit, so
+    // there is nothing here to catch — see `core/ai/scribe-job.ts`.
+    after(() => runScribeJob(visit.id));
 
-    return NextResponse.json({
-      visitId: visit.id,
-      transcript,
-      note,
-      drugWarnings,
-      allergyWarnings,
-    });
+    // 202: accepted, not done. The client polls `getScribeRunStatus` until it leaves
+    // `transcribing`.
+    return NextResponse.json({ visitId: visit.id, status: "transcribing" }, { status: 202 });
   } catch (e) {
-    if (e instanceof MissingApiKeyError) {
-      return NextResponse.json({ error: e.message }, { status: 400 });
-    }
-    if (e instanceof AiParseError) {
-      return NextResponse.json(
-        { error: "The AI returned an unreadable note. Please try again." },
-        { status: 502 },
-      );
-    }
-    // A provider stalled past its budget (Whisper) or past the SDK timeout (Claude).
-    // 504 + `retryable` so the client can offer "Try again" on the SAME recording
-    // rather than making the doctor dictate it a second time.
-    if (e instanceof AiTimeoutError) {
-      return NextResponse.json(
-        {
-          error: "The AI service took too long to respond. Your recording was saved — please try again.",
-          retryable: true,
-        },
-        { status: 504 },
-      );
-    }
-    const message = e instanceof Error ? e.message : "Scribe failed.";
+    // Only the SYNCHRONOUS part can fail here now — storing the audio and creating the
+    // row. Everything the AI can do wrong is the job's business and lands on the visit.
+    report(e, { op: "ai.scribe.accept", clinicId, ids: { patientId } });
+    const message = e instanceof Error ? e.message : "Could not start the scribe.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

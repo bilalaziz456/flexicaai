@@ -19,6 +19,7 @@ import {
   loadDraft,
   loadPatientChart,
   searchPatients,
+  getScribeStatus,
 } from "@/app/clinic/scribe/actions";
 
 type Patient = { id: string; fullName: string; phone: string | null };
@@ -144,14 +145,56 @@ export function ScribeWorkspace({
         setError(data.error ?? "Scribe failed.");
         return;
       }
-      setDraft(data as Draft);
-      setNote((data as Draft).note);
-      await seedChart(patient.id, (data as Draft).note);
+      // The route now ACCEPTS the recording and returns 202 (delta D-08): the audio is
+      // stored and the visit exists, but the note is still being written. Wait for it.
+      await waitForDraft(data.visitId as string);
     } catch {
       setError("Could not reach the scribe. Check your connection.");
     } finally {
       setProcessing(false);
     }
+  }
+
+  /**
+   * Polls until the run leaves `transcribing`, then opens the draft.
+   *
+   * Polling rather than a socket: one doctor waiting on one note is not worth a
+   * persistent connection on a single-node server, and a poll survives the tab being
+   * backgrounded or the network blinking — which a socket does not.
+   *
+   * The recording is already saved by the time this runs, so giving up here loses
+   * nothing: the visit is on the workspace list either way, and the doctor can open it
+   * when it lands. That is the whole point of the change — the work no longer belongs
+   * to this browser tab.
+   */
+  async function waitForDraft(visitId: string) {
+    const deadline = Date.now() + 6 * 60_000; // beyond the provider budget
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const s = await getScribeStatus(visitId);
+      if (!s) break;
+      if (s.status === "failed") {
+        setError(s.error ?? "The scribe failed. Your recording was kept — try again.");
+        return;
+      }
+      if (s.status === "draft") {
+        const d = await loadDraft(visitId);
+        if (!d) break;
+        setDraft({
+          visitId: d.visitId,
+          transcript: d.transcript,
+          note: d.note,
+          drugWarnings: d.drugWarnings,
+          allergyWarnings: d.allergyWarnings,
+        });
+        setNote(d.note);
+        await seedChart(d.patient.id, d.note);
+        return;
+      }
+    }
+    setError(
+      "The note is still being written. Your recording is saved — it will appear in “Pending approval” when it is ready.",
+    );
   }
 
   /**
