@@ -2,7 +2,6 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, desc, eq, gte, ilike, inArray, lt, or } from "drizzle-orm";
 import { z } from "zod";
 import { zodErrorMessage } from "@/core/lib/zod-error";
 import { MAX_DISCOUNT_PERCENT, discountError } from "@/core/appointments/fee";
@@ -10,18 +9,25 @@ import { requireRole } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
-import { db } from "@/core/db";
+import {
+  findAppointmentForEdit,
+  insertAppointment,
+  getDoctorScheduleFields,
+  setDoctorDailyLimit as setDoctorDailyLimitRecord,
+  softDeleteAppointment,
+  updateAppointmentFields,
+} from "@/core/appointments/manage";
+import {
+  addDoctorLeave as addDoctorLeaveRecord,
+  findClinicDoctor,
+  findLeave,
+  softDeleteLeave,
+  updateDoctorLeave as updateDoctorLeaveRange,
+} from "@/core/appointments/leave";
+import { findClinicPatient } from "@/core/patients/manage";
+import { listRecentPatients, searchPatientsForPicker } from "@/core/patients/list";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { formatMrn } from "@/core/patients/mrn";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
-import {
-  appointments,
-  clinics,
-  doctorLeaves,
-  patients,
-  users,
-} from "@/core/db/schema";
 import {
   windowKind,
   windowsForWeekday,
@@ -31,7 +37,6 @@ import {
 import {
   checkDoctorSlot,
   countDoctorDay,
-  dateFromStr,
   doctorOnLeave,
   localDateStr,
 } from "@/core/appointments/availability";
@@ -189,17 +194,7 @@ export async function createAppointment(
   const chargeConsultation = formData.get("chargeConsultation") !== "0";
 
   // Tenant guards: patient (and doctor, if set) must belong to this clinic.
-  const [patient] = await db
-    .select({ id: patients.id })
-    .from(patients)
-    .where(
-      and(
-        eq(patients.id, parsed.data.patientId),
-        eq(patients.clinicId, clinicId),
-        notDeleted(patients.deletedAt),
-      ),
-    )
-    .limit(1);
+  const patient = await findClinicPatient(clinicId, parsed.data.patientId);
   if (!patient) return { error: "Patient not found." };
 
   // Queue context comes from the slot check so we don't re-query the schedule.
@@ -218,14 +213,10 @@ export async function createAppointment(
   }
 
   // Tag the appointment with the clinic's first enabled module (if any).
-  const [clinic] = await db
-    .select({ modulesEnabled: clinics.modulesEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinic = await getClinic(clinicId);
 
   // Assign the patient's queue token within the doctor's window session.
-  const [created] = await withQueueNumber(
+  const created = await withQueueNumber(
     {
       clinicId,
       doctorId: parsed.data.doctorId ?? null,
@@ -234,9 +225,7 @@ export async function createAppointment(
       flexible: queueFlexible,
     },
     (q) =>
-      db
-        .insert(appointments)
-        .values({
+      insertAppointment({
           clinicId,
           patientId: parsed.data.patientId,
           doctorId: parsed.data.doctorId ?? null,
@@ -252,8 +241,7 @@ export async function createAppointment(
           chargeConsultation,
           queueSession: q.queueSession,
           queueNumber: q.queueNumber,
-        })
-        .returning({ id: appointments.id }),
+        }),
   );
 
   // Attach the selected procedures (snapshotted prices) before notifying, so the
@@ -356,22 +344,7 @@ export async function updateAppointment(
   const when = new Date(parsed.data.scheduledAt);
   if (Number.isNaN(when.getTime())) return { error: "Invalid date & time." };
 
-  const [appt] = await db
-    .select({
-      id: appointments.id,
-      queueSession: appointments.queueSession,
-      status: appointments.status,
-    })
-    .from(appointments)
-    .where(
-      byClinic(
-        appointments.clinicId,
-        clinicId,
-        notDeleted(appointments.deletedAt),
-        eq(appointments.id, appointmentId),
-      ),
-    )
-    .limit(1);
+  const appt = await findAppointmentForEdit(clinicId, appointmentId);
   if (!appt) return { error: "Appointment not found." };
 
   let queueAvailability: DayAvailability[] = [];
@@ -390,11 +363,6 @@ export async function updateAppointment(
     queueFlexible = check.flexible;
   }
 
-  const where = byClinic(
-    appointments.clinicId,
-    clinicId,
-    eq(appointments.id, appointmentId),
-  );
   const baseSet = {
     doctorId: parsed.data.doctorId ?? null,
     scheduledAt: when,
@@ -417,13 +385,14 @@ export async function updateAppointment(
 
   if (newSession === appt.queueSession) {
     // Same window (or still no doctor) → keep the existing token number.
-    await db.update(appointments).set(baseSet).where(where);
+    await updateAppointmentFields(clinicId, appointmentId, baseSet);
   } else if (!parsed.data.doctorId) {
     // Moved to "Any doctor" → drop the token.
-    await db
-      .update(appointments)
-      .set({ ...baseSet, queueSession: null, queueNumber: null })
-      .where(where);
+    await updateAppointmentFields(clinicId, appointmentId, {
+      ...baseSet,
+      queueSession: null,
+      queueNumber: null,
+    });
   } else {
     // Moved to a different doctor/window → issue a fresh token there.
     await withQueueNumber(
@@ -435,10 +404,11 @@ export async function updateAppointment(
         flexible: queueFlexible,
       },
       (q) =>
-        db
-          .update(appointments)
-          .set({ ...baseSet, queueSession: q.queueSession, queueNumber: q.queueNumber })
-          .where(where),
+        updateAppointmentFields(clinicId, appointmentId, {
+          ...baseSet,
+          queueSession: q.queueSession,
+          queueNumber: q.queueNumber,
+        }),
     );
   }
 
@@ -490,20 +460,9 @@ export async function deleteAppointment(
     return { error: "Incorrect password." };
   }
 
-  const [row] = await db
-    .update(appointments)
-    .set(softDeleteValues(user.id, newDeleteGroup()))
-    .where(
-      byClinic(
-        appointments.clinicId,
-        clinicId,
-        notDeleted(appointments.deletedAt),
-        eq(appointments.id, appointmentId),
-      ),
-    )
-    .returning({ id: appointments.id });
+  const removed = await softDeleteAppointment(clinicId, appointmentId, user.id);
   // A trashed appointment must not count as realised revenue.
-  if (row) await voidSaleForAppointment(clinicId, appointmentId);
+  if (removed) await voidSaleForAppointment(clinicId, appointmentId);
 
   await logActivity({
     action: "delete",
@@ -548,26 +507,8 @@ export async function searchClinicPatients(
 
   const [clinic, rows] = await Promise.all([
     getClinic(clinicId),
-    db
-      .select({
-        id: patients.id,
-        fullName: patients.fullName,
-        phone: patients.phone,
-        mrn: patients.mrn,
-        createdAt: patients.createdAt,
-      })
-      .from(patients)
-      .where(
-        q
-          ? and(
-              eq(patients.clinicId, clinicId),
-              notDeleted(patients.deletedAt),
-              or(ilike(patients.fullName, `%${q}%`), ilike(patients.phone, `%${q}%`)),
-            )
-          : and(eq(patients.clinicId, clinicId), notDeleted(patients.deletedAt)),
-      )
-      .orderBy(desc(patients.createdAt))
-      .limit(20),
+    // Same picker shape the booking panel uses (core/patients/list).
+    q ? searchPatientsForPicker(clinicId, q) : listRecentPatients(clinicId, 20),
   ]);
 
   return rows.map((p) => ({
@@ -602,22 +543,7 @@ export async function doctorDayAvailability(
   const { clinicId } = await requireAppointmentsAccess();
   const when = new Date(dateStr);
 
-  const [doc] = await db
-    .select({
-      availability: users.availability,
-      flexibleHours: users.flexibleHours,
-      dailyLimit: users.dailyAppointmentLimit,
-    })
-    .from(users)
-    .where(
-      byClinic(
-        users.clinicId,
-        clinicId,
-        notDeleted(users.deletedAt),
-        and(eq(users.id, doctorId), eq(users.role, "doctor")),
-      ),
-    )
-    .limit(1);
+  const doc = await getDoctorScheduleFields(clinicId, doctorId);
 
   if (!doc || Number.isNaN(when.getTime())) {
     return {
@@ -690,19 +616,8 @@ export async function setDoctorDailyLimit(
     return { error: parsed.error.issues[0]?.message ?? "Invalid limit." };
   }
 
-  const result = await db
-    .update(users)
-    .set({ dailyAppointmentLimit: parsed.data, updatedAt: new Date() })
-    .where(
-      byClinic(
-        users.clinicId,
-        clinicId,
-        notDeleted(users.deletedAt),
-        and(eq(users.id, doctorId), eq(users.role, "doctor")),
-      ),
-    )
-    .returning({ id: users.id });
-  if (result.length === 0) return { error: "Doctor not found." };
+  const limitSaved = await setDoctorDailyLimitRecord(clinicId, doctorId, parsed.data);
+  if (!limitSaved) return { error: "Doctor not found." };
 
   await logActivity({
     action: "update",
@@ -762,51 +677,13 @@ export async function addDoctorLeave(
     return { error: parsed.error.issues[0]?.message ?? "Invalid dates." };
   }
 
-  const [doc] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(
-      byClinic(
-        users.clinicId,
-        clinicId,
-        notDeleted(users.deletedAt),
-        and(eq(users.id, doctorId), eq(users.role, "doctor")),
-      ),
-    )
-    .limit(1);
+  const doc = await findClinicDoctor(clinicId, doctorId);
   if (!doc) return { error: "Doctor not found." };
 
-  let cancelledIds: string[] = [];
-  await db.transaction(async (tx) => {
-    await tx.insert(doctorLeaves).values({
-      clinicId,
-      doctorId,
-      startDate: parsed.data.startDate,
-      endDate: parsed.data.endDate,
-      reason: parsed.data.reason ?? null,
-    });
-
-    // Cancel active appointments within [start, end] (inclusive of the last day).
-    const start = dateFromStr(parsed.data.startDate);
-    const end = dateFromStr(parsed.data.endDate);
-    end.setDate(end.getDate() + 1); // exclusive upper bound
-    const cancelledRows = await tx
-      .update(appointments)
-      .set({ status: "cancelled", updatedAt: new Date() })
-      .where(
-        byClinic(
-          appointments.clinicId,
-          clinicId,
-          and(
-            eq(appointments.doctorId, doctorId),
-            inArray(appointments.status, ["scheduled", "confirmed"]),
-            gte(appointments.scheduledAt, start),
-            lt(appointments.scheduledAt, end),
-          ),
-        ),
-      )
-      .returning({ id: appointments.id });
-    cancelledIds = cancelledRows.map((r) => r.id);
+  const cancelledIds = await addDoctorLeaveRecord(clinicId, doctorId, {
+    startDate: parsed.data.startDate,
+    endDate: parsed.data.endDate,
+    reason: parsed.data.reason ?? null,
   });
 
   // Notify affected patients (doctor + time) after the cancellations commit.
@@ -853,18 +730,7 @@ export async function updateDoctorLeave(
   }
 
   // Load the entry (clinic-scoped) so we know whose leave it is.
-  const [lv] = await db
-    .select({ doctorId: doctorLeaves.doctorId })
-    .from(doctorLeaves)
-    .where(
-      byClinic(
-        doctorLeaves.clinicId,
-        clinicId,
-        notDeleted(doctorLeaves.deletedAt),
-        eq(doctorLeaves.id, leaveId),
-      ),
-    )
-    .limit(1);
+  const lv = await findLeave(clinicId, leaveId);
   if (!lv) return { error: "Leave not found." };
   // A doctor may only edit their OWN leave.
   if (user.role === "doctor" && lv.doctorId !== user.id) {
@@ -872,38 +738,10 @@ export async function updateDoctorLeave(
   }
 
   const doctorId = lv.doctorId;
-  let cancelledIds: string[] = [];
-  await db.transaction(async (tx) => {
-    await tx
-      .update(doctorLeaves)
-      .set({
-        startDate: parsed.data.startDate,
-        endDate: parsed.data.endDate,
-        reason: parsed.data.reason ?? null,
-      })
-      .where(byClinic(doctorLeaves.clinicId, clinicId, eq(doctorLeaves.id, leaveId)));
-
-    // Cancel active appointments within the new [start, end] range.
-    const start = dateFromStr(parsed.data.startDate);
-    const end = dateFromStr(parsed.data.endDate);
-    end.setDate(end.getDate() + 1); // exclusive upper bound
-    const cancelledRows = await tx
-      .update(appointments)
-      .set({ status: "cancelled", updatedAt: new Date() })
-      .where(
-        byClinic(
-          appointments.clinicId,
-          clinicId,
-          and(
-            eq(appointments.doctorId, doctorId),
-            inArray(appointments.status, ["scheduled", "confirmed"]),
-            gte(appointments.scheduledAt, start),
-            lt(appointments.scheduledAt, end),
-          ),
-        ),
-      )
-      .returning({ id: appointments.id });
-    cancelledIds = cancelledRows.map((r) => r.id);
+  const cancelledIds = await updateDoctorLeaveRange(clinicId, leaveId, doctorId, {
+    startDate: parsed.data.startDate,
+    endDate: parsed.data.endDate,
+    reason: parsed.data.reason ?? null,
   });
 
   if (cancelledIds.length > 0) {
@@ -936,18 +774,7 @@ export async function removeDoctorLeave(
   if (!can(user, "leave", "delete")) redirect(home);
   // A doctor may only remove their OWN leave.
   if (user.role === "doctor") {
-    const [lv] = await db
-      .select({ doctorId: doctorLeaves.doctorId })
-      .from(doctorLeaves)
-      .where(
-        byClinic(
-          doctorLeaves.clinicId,
-          clinicId,
-          notDeleted(doctorLeaves.deletedAt),
-          eq(doctorLeaves.id, leaveId),
-        ),
-      )
-      .limit(1);
+    const lv = await findLeave(clinicId, leaveId);
     if (!lv || lv.doctorId !== user.id) redirect(home);
   }
 
@@ -955,17 +782,7 @@ export async function removeDoctorLeave(
     return { error: "Incorrect password." };
   }
 
-  await db
-    .update(doctorLeaves)
-    .set(softDeleteValues(user.id, newDeleteGroup()))
-    .where(
-      byClinic(
-        doctorLeaves.clinicId,
-        clinicId,
-        notDeleted(doctorLeaves.deletedAt),
-        eq(doctorLeaves.id, leaveId),
-      ),
-    );
+  await softDeleteLeave(clinicId, leaveId, user.id);
 
   await logActivity({
     action: "delete",

@@ -156,3 +156,15 @@ export async function softDeletePatient(
   });
   return found;
 }
+
+/** The patient behind an id, if they belong to THIS clinic and are not trashed. */
+export async function findClinicPatient(clinicId: string, patientId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ id: patients.id })
+    .from(patients)
+    .where(
+      byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt), eq(patients.id, patientId)),
+    )
+    .limit(1);
+  return row?.id ?? null;
+}

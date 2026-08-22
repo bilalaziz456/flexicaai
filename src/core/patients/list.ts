@@ -138,3 +138,17 @@ export async function getPatientHeader(clinicId: string, patientId: string) {
     .limit(1);
   return row ?? null;
 }
+
+/** The picker's SEARCH — name or phone, in the same shape as `listRecentPatients`. */
+export async function searchPatientsForPicker(clinicId: string, q: string, limit = 20) {
+  const query = q.trim();
+  const search = query
+    ? or(ilike(patients.fullName, `%${query}%`), ilike(patients.phone, `%${query}%`))
+    : undefined;
+  return db
+    .select(PATIENT_PICKER_COLUMNS)
+    .from(patients)
+    .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt), search))
+    .orderBy(desc(patients.createdAt))
+    .limit(limit);
+}
