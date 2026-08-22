@@ -1,13 +1,10 @@
-import { and, eq, isNotNull } from "drizzle-orm";
+import { listCompanyTeam } from "@/core/admin/team";
 import { requireAdminCapability } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { notDeleted } from "@/core/db/tenant";
-import { users } from "@/core/db/schema";
 import { adminAccountState, adminSubRoleOf, canAdmin, isOwner } from "@/core/auth/admin-permissions";
 import {
   Card,
   CardContent,
-  CardDescription,
+
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
@@ -23,26 +20,7 @@ export default async function TeamPage() {
   const viewerIsOwner = isOwner(viewer);
   const canCreate = canAdmin(viewer, "team:create");
 
-  const rows = await db
-    .select({
-      id: users.id,
-      username: users.username,
-      fullName: users.fullName,
-      isActive: users.isActive,
-      deactivatedAt: users.deactivatedAt,
-      permissions: users.permissions,
-      role: users.role,
-    })
-    .from(users)
-    .where(
-      and(
-        eq(users.role, "super_admin"),
-        notDeleted(users.deletedAt),
-        // Non-owners never see the owner account (NULL permissions = owner).
-        viewerIsOwner ? undefined : isNotNull(users.permissions),
-      ),
-    )
-    .orderBy(users.username);
+  const rows = await listCompanyTeam(viewerIsOwner);
 
   return (
     <div className="space-y-6">

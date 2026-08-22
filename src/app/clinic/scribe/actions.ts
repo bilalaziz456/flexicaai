@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { db } from "@/core/db";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import { appointments, clinics, patients, visits } from "@/core/db/schema";
@@ -202,11 +203,7 @@ export async function approveVisit(
   // app actually reads are type-checked.
   // One lookup, used twice: to pick the validation shapes here, and the clinical
   // record contract further down.
-  const [clinicRow] = await db
-    .select({ modulesEnabled: clinics.modulesEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, user.clinicId))
-    .limit(1);
+  const clinicRow = await getClinic(user.clinicId);
   const modulesEnabled = clinicRow?.modulesEnabled ?? [];
   const schemas = clinicalSchemasFor(modulesEnabled);
 

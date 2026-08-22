@@ -1,8 +1,9 @@
 import { and, asc, count, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { requireClinicAdmin } from "@/core/auth/user";
 import { db } from "@/core/db";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { byClinic } from "@/core/db/tenant";
-import { activityLogs, clinics, users } from "@/core/db/schema";
+import { activityLogs, users } from "@/core/db/schema";
 import { ActivityLogList } from "@/core/ui/activity-log";
 import { LogFilters } from "@/core/ui/log-filters";
 import { Pagination } from "@/core/ui/pagination";
@@ -36,11 +37,7 @@ export default async function ClinicLogsPage({
   const { fromStr, toStr, today, actor, action, start, endExclusive } =
     parseLogFilters(sp);
 
-  const [clinic] = await db
-    .select({ logAccess: clinics.logAccess })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinic = await getClinic(clinicId);
   const allowedActions = clinic?.logAccess ?? [];
 
   // No categories granted → the clinic has no log access at all.

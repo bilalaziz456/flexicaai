@@ -27,7 +27,7 @@
 import { spawnSync } from "node:child_process";
 
 /** Lint problems that already existed. LOWER THESE as they're fixed; never raise. */
-const BASELINE = { problems: 41, errors: 33 };
+const BASELINE = { problems: 40, errors: 33 };
 
 const BOLD = "[1m";
 const RED = "[31m";

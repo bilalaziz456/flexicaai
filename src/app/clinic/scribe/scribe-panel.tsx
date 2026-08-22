@@ -2,8 +2,9 @@ import { desc, eq, or } from "drizzle-orm";
 import { can } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
 import { db } from "@/core/db";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { clinics, patients, visits } from "@/core/db/schema";
+import { patients, visits } from "@/core/db/schema";
 import { getDayQueue } from "@/core/appointments/queue";
 import { listStrandedDrafts } from "@/core/clinical/drafts";
 import { listScribeRuns } from "@/core/ai/scribe-job";
@@ -41,11 +42,7 @@ export async function ScribePanel({
   const canViewRx = can(user, "prescriptions", "view");
   const canSendRx = can(user, "prescriptions", "create");
 
-  const [clinicRow] = await db
-    .select({ modulesEnabled: clinics.modulesEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinicRow = await getClinic(clinicId);
 
   const [recentPatients, recentVisits, pendingDrafts, queue, strandedDrafts, scribeRuns] = await Promise.all([
     db

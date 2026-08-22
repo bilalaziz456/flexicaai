@@ -1,9 +1,6 @@
-import { desc } from "drizzle-orm";
 import { Download } from "lucide-react";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { procedures } from "@/core/db/schema";
 import { procedureTemplatesFor } from "@/config/modules";
+import { listProcedureCatalog } from "@/core/appointments/procedures";
 import { getCurrentUser } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { buttonVariants } from "@/core/ui/button";
@@ -37,16 +34,7 @@ export async function ProceduresPanel({
     );
   }
 
-  const list = await db
-    .select({
-      id: procedures.id,
-      name: procedures.name,
-      price: procedures.price,
-      isActive: procedures.isActive,
-    })
-    .from(procedures)
-    .where(byClinic(procedures.clinicId, clinicId, notDeleted(procedures.deletedAt)))
-    .orderBy(desc(procedures.createdAt));
+  const list = await listProcedureCatalog(clinicId);
 
   const templatesAvailable = procedureTemplatesFor(modulesEnabled).length > 0;
 

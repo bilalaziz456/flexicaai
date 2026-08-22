@@ -1,8 +1,9 @@
 import { and, asc, eq, sql, type SQL } from "drizzle-orm";
 import { apiRequireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, clinics, patients, users } from "@/core/db/schema";
+import { appointments, patients, users } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { streamCsvResponse } from "@/core/lib/csv-stream";
 import {
@@ -36,11 +37,7 @@ export async function GET(req: Request) {
   const { q, status, type, start, endExclusive, fromStr, toStr } = parseListFilters(sp);
   const session = typeof sp.session === "string" ? sp.session : "";
 
-  const [clinicRow] = await db
-    .select({ featuresEnabled: clinics.featuresEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinicRow = await getClinic(clinicId);
   const billingOn = clinicHasFeature(clinicRow?.featuresEnabled, "sales");
   const payment = billingOn && typeof sp.payment === "string" ? sp.payment : "";
 

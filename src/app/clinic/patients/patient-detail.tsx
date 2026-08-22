@@ -4,8 +4,9 @@ import { CalendarPlus, Printer } from "lucide-react";
 import { and, desc, eq, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/core/db";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, clinics, patients, users, visits } from "@/core/db/schema";
+import { appointments, patients, users, visits } from "@/core/db/schema";
 import { clinicalRecordFor } from "@/config/modules";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
@@ -248,11 +249,7 @@ export async function PatientDetail({
 
   // The clinic's enabled modules — drives every module-agnostic clinical section
   // (chart / perio / plans / lab), resolved via the contract (core never knows dental).
-  const [clinicModulesRow] = await db
-    .select({ modulesEnabled: clinics.modulesEnabled, mrnPrefix: clinics.mrnPrefix })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinicModulesRow = await getClinic(clinicId);
   const modulesEnabled: string[] = clinicModulesRow?.modulesEnabled ?? [];
   const mrnLabel = formatMrn(clinicModulesRow?.mrnPrefix, patient.mrn, patient.createdAt);
 

@@ -1,8 +1,9 @@
-import { desc, eq, ilike, or } from "drizzle-orm";
+import { desc, ilike, or } from "drizzle-orm";
 import { apiRequireWorkspace } from "@/core/auth/user";
 import { db } from "@/core/db";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { clinics, patients } from "@/core/db/schema";
+import { patients } from "@/core/db/schema";
 import { toCsv } from "@/core/lib/csv";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
 import { formatMrn, mrnDigits, mrnMatchesSql } from "@/core/patients/mrn";
@@ -29,11 +30,7 @@ export async function GET(req: Request) {
   }
   const where = byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt), search);
 
-  const [clinicRow] = await db
-    .select({ mrnPrefix: clinics.mrnPrefix })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinicRow = await getClinic(clinicId);
   const mrnPrefix = clinicRow?.mrnPrefix ?? "";
 
   const rows = await db

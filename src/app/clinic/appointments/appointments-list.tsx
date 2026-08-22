@@ -2,8 +2,9 @@ import Link from "next/link";
 import { ChevronRight, Download, Plus } from "lucide-react";
 import { and, asc, count, eq } from "drizzle-orm";
 import { db } from "@/core/db";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, clinics, patients, users } from "@/core/db/schema";
+import { appointments, patients, users } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
@@ -115,11 +116,7 @@ export async function AppointmentsList({
 
   // Payment status (Paid/Partial/Unpaid) only applies when the clinic bills (sales
   // feature). It's derived from the bill vs amount_collected.
-  const [clinicRow] = await db
-    .select({ featuresEnabled: clinics.featuresEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinicRow = await getClinic(clinicId);
   const billingOn = clinicHasFeature(clinicRow?.featuresEnabled, "sales");
   const payment = billingOn && typeof sp.payment === "string" ? sp.payment : "";
 

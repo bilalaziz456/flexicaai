@@ -1,6 +1,6 @@
 import { apiRequireWorkspace } from "@/core/auth/user";
 import { getClinic } from "@/core/clinics/get-clinic";
-import { listProceduresForExport } from "@/core/appointments/procedures";
+import { listProcedureCatalog } from "@/core/appointments/procedures";
 import { clinicHasFeature } from "@/core/lib/features";
 import { toCsv } from "@/core/lib/csv";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
@@ -23,7 +23,7 @@ export async function GET() {
     return new Response("Forbidden", { status: 403 });
   }
 
-  const rows = await listProceduresForExport(clinicId);
+  const rows = await listProcedureCatalog(clinicId);
 
   const csv = toCsv(
     ["Procedure", "Price (PKR)", "Status"],

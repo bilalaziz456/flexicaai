@@ -9,9 +9,10 @@ import { requireRole } from "@/core/auth/user";
 import { can, type PermAction } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
 import { db } from "@/core/db";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
-import { clinics, procedures } from "@/core/db/schema";
+import { procedures } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { procedureTemplatesFor } from "@/config/modules";
 import { logActivity } from "@/core/audit/log";
@@ -30,11 +31,7 @@ async function requireProcedureAccess(
   const user = await requireRole(["clinic_admin", "receptionist", "manager"]);
   if (!user.clinicId) redirect("/login?error=no_access");
 
-  const [clinic] = await db
-    .select({ featuresEnabled: clinics.featuresEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, user.clinicId))
-    .limit(1);
+  const clinic = await getClinic(user.clinicId);
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales")) {
     redirect("/login?error=no_access");
   }
@@ -75,11 +72,7 @@ export async function createProcedure(
     return { error: zodErrorMessage(parsed.error) };
   }
 
-  const [clinic] = await db
-    .select({ modulesEnabled: clinics.modulesEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinic = await getClinic(clinicId);
 
   const [created] = await db
     .insert(procedures)
@@ -183,11 +176,7 @@ export async function deleteProcedure(procedureId: string): Promise<void> {
 export async function importProcedureDefaults(): Promise<ProcedureActionState> {
   const { clinicId } = await requireProcedureAccess("create");
 
-  const [clinic] = await db
-    .select({ modulesEnabled: clinics.modulesEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinic = await getClinic(clinicId);
 
   const templates = procedureTemplatesFor(clinic?.modulesEnabled ?? []);
   if (templates.length === 0) return { saved: true };

@@ -234,12 +234,13 @@ export async function getAppointmentProcedureItems(
 }
 
 /**
- * The clinic's procedure catalog for the CSV export — CORE per ADR-014. Newest first,
+ * The clinic's procedure catalog — CORE per ADR-014. Newest first, matching the
  * matching the catalog page so the export is the same list the user was looking at.
  */
-export async function listProceduresForExport(clinicId: string) {
+export async function listProcedureCatalog(clinicId: string) {
   return db
     .select({
+      id: procedures.id,
       name: procedures.name,
       price: procedures.price,
       isActive: procedures.isActive,

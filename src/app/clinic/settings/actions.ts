@@ -1,10 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { setInvoicePaper } from "@/core/clinics/settings";
 import { requireWorkspace } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { clinics } from "@/core/db/schema";
 import { logActivity } from "@/core/audit/log";
 
 export type SettingsActionState = { error?: string; saved?: boolean };
@@ -28,10 +26,7 @@ export async function setClinicPrintPaper(
   const paper = String(formData.get("paper") ?? "");
   if (!PAPERS.includes(paper)) return { error: "Choose a valid paper size." };
 
-  await db
-    .update(clinics)
-    .set({ invoicePaper: paper, updatedAt: new Date() })
-    .where(eq(clinics.id, user.clinicId));
+  await setInvoicePaper(user.clinicId, paper);
 
   await logActivity({
     action: "update",

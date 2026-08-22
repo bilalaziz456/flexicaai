@@ -1,7 +1,5 @@
-import { eq } from "drizzle-orm";
+import { getMyProfile } from "@/core/users/profile";
 import { requireWorkspace } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { users } from "@/core/db/schema";
 import { getClinic } from "@/core/clinics/get-clinic";
 import {
   Card,
@@ -33,17 +31,7 @@ function initialsOf(name: string): string {
  */
 export default async function ClinicSettingsPage() {
   const current = await requireWorkspace();
-  const [u] = await db
-    .select({
-      prefix: users.prefix,
-      fullName: users.fullName,
-      email: users.email,
-      username: users.username,
-      avatarKey: users.avatarKey,
-    })
-    .from(users)
-    .where(eq(users.id, current.id))
-    .limit(1);
+  const u = await getMyProfile(current.id);
   if (!u) return null;
 
   const displayName = u.fullName ?? u.username;

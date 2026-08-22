@@ -1,9 +1,7 @@
-import { asc, eq } from "drizzle-orm";
+import { listClinicActorOptions } from "@/core/clinics/options";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { clinics, users } from "@/core/db/schema";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { listClinicTrash, parseTrashFilters } from "@/core/trash";
 import { Pagination } from "@/core/ui/pagination";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
@@ -47,12 +45,8 @@ export default async function ClinicTrashPage({
   const sp = await searchParams;
   const { filters, ui } = parseTrashFilters(sp);
 
-  const [clinic] = await db
-    .select({ retention: clinics.trashRetentionDays })
-    .from(clinics)
-    .where(eq(clinics.id, user.clinicId))
-    .limit(1);
-  const retention = clinic?.retention ?? 30;
+  const clinic = await getClinic(user.clinicId);
+  const retention = clinic?.trashRetentionDays ?? 30;
 
   const moduleRows = await clinicModuleTrashRows(user.clinicId, retention);
 
@@ -63,13 +57,9 @@ export default async function ClinicTrashPage({
   const [trash, staff] = await Promise.all([
     listClinicTrash(user.clinicId, retention, filters, moduleRows, paging),
     // "Deleted by" options — this clinic's staff (anyone who could have deleted).
-    db
-      .select({ id: users.id, fullName: users.fullName, username: users.username })
-      .from(users)
-      .where(byClinic(users.clinicId, user.clinicId, notDeleted(users.deletedAt)))
-      .orderBy(asc(users.fullName)),
+    listClinicActorOptions(user.clinicId, { liveOnly: true }),
   ]);
-  const actors = staff.map((s) => ({ id: s.id, name: s.fullName ?? s.username }));
+  const actors = staff;
   const canRestore = can(user, "trash", "create");
 
   return (

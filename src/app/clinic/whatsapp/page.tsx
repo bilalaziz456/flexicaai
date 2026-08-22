@@ -1,8 +1,6 @@
-import { eq } from "drizzle-orm";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
-import { db } from "@/core/db";
-import { clinics } from "@/core/db/schema";
 import { WhatsappQueue } from "@/app/clinic/whatsapp/whatsapp-queue";
 import { WhatsappSettingsForm } from "./whatsapp-settings-form";
 import {
@@ -26,16 +24,7 @@ export default async function ClinicWhatsAppPage({
   const sp = await searchParams;
 
   const canEditSignature = can(user, "settings", "edit");
-  const [clinic] = canEditSignature
-    ? await db
-        .select({
-          displayNumber: clinics.whatsappDisplayNumber,
-          signature: clinics.whatsappSignature,
-        })
-        .from(clinics)
-        .where(eq(clinics.id, user.clinicId))
-        .limit(1)
-    : [null];
+  const clinic = canEditSignature ? await getClinic(user.clinicId) : null;
 
   return (
     <div className="space-y-6">
@@ -46,8 +35,8 @@ export default async function ClinicWhatsAppPage({
           </CardHeader>
           <CardContent>
             <WhatsappSettingsForm
-              displayNumber={clinic.displayNumber}
-              signature={clinic.signature}
+              displayNumber={clinic.whatsappDisplayNumber}
+              signature={clinic.whatsappSignature}
             />
           </CardContent>
         </Card>
