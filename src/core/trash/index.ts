@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { ModuleTrash, ModuleTrashRow } from "@/core/types/module";
-import { and, desc, eq, gte, inArray, isNotNull, lt, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, isNotNull, lt, or, sql, type SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/core/db";
 import {
@@ -16,6 +16,7 @@ import {
   visits,
 } from "@/core/db/schema";
 import { restoreValues } from "@/core/db/soft-delete";
+import { unscoped } from "@/core/db/tenant-guard";
 import {
   backfillClinicSales,
   recordSaleForAppointment,
@@ -74,7 +75,8 @@ type Scope =
 
 /**
  * Optional Trash filters (all combine with AND). `q` is a free-text match on the
- * built label/detail (applied after the queries, since labels span columns);
+ * row's own text, its deleter's name or its clinic's name — pushed into SQL, because
+ * a filter applied after the page is cut returns short pages and a wrong total.
  * `type` narrows to one record kind; `deletedBy` to one actor; `from`/`toExclusive`
  * to a deletion-date window; `clinicId` (super admin only) to one clinic.
  */
@@ -87,32 +89,92 @@ export type TrashFilters = {
   clinicId?: string;
 };
 
+/** One page of Trash, plus the total across every source so the pager can size itself. */
+export type TrashPage = { items: TrashItem[]; total: number };
+
+/** Where a page starts and how long it is. */
+export type TrashPaging = { offset: number; limit: number };
+
 /**
- * Collects the trashed ENTRIES for a scope. For a clinic it is that clinic's rows
- * within its retention window; for the super admin it is every trashed row across
- * all clinics (no window), including trashed clinics themselves. `filters` narrow
- * the set (type / actor / date range / clinic / text search).
+ * Collects one PAGE of trashed entries for a scope. For a clinic it is that clinic's
+ * rows within its retention window; for the super admin it is every trashed row
+ * across all clinics (no window), including trashed clinics themselves. `filters`
+ * narrow the set (type / actor / date range / clinic / text search).
+ *
+ * WHY IT IS SHAPED LIKE THIS (delta D-07). This used to select EVERY soft-deleted row
+ * of nine tables with no limit, merge them in memory, then filter and sort in
+ * JavaScript. Under ADR-006 nothing is ever removed, so that set only grows — and the
+ * super admin's view has no retention window at all, so it was every trashed row the
+ * platform had ever produced, on one page.
+ *
+ * Every filter — including the free-text search — is now pushed into SQL, and each
+ * source returns at most `offset + limit` rows. Merging ordered sources and slicing
+ * is the standard way to page across several of them: to know the global page you do
+ * need each source's first `offset + limit`, but that is bounded by the page you
+ * asked for rather than by the size of the table.
+ *
+ * NOT a nine-branch SQL UNION, deliberately. That would page in one round trip, but
+ * every label and detail expression (`Rs 400 · 12 Jan`, a leave's date range, a
+ * visit's patient name) would have to be rewritten in SQL and kept in step with the
+ * TypeScript that renders them — and modules cannot join a core union at all, since
+ * core must never import a specialty table. The bound is what mattered; one query was
+ * not worth trading the boundary and the readability for.
  */
 async function collect(
   scope: Scope,
   filters: TrashFilters = {},
   moduleRows: ModuleTrashRow[] = [],
-): Promise<TrashItem[]> {
+  paging: TrashPaging = { offset: 0, limit: 50 },
+): Promise<TrashPage> {
   const wantType = (e: TrashEntity) => !filters.type || filters.type === e;
+  // What each source must supply for the merge to be able to cut a correct page.
+  const need = paging.offset + paging.limit;
 
   // Per-entity WHERE: directly-deleted rows, plus scope (clinic + retention window,
-  // or the super admin's optional clinic filter) and the shared filters. A
-  // type-excluded entity gets `false` so it returns nothing but keeps its result
-  // shape (simpler than skipping the query).
+  // or the super admin's optional clinic filter) and the shared filters.
+  //
+  // The search used to run in JS over the assembled label/detail/deleter/clinic, so
+  // it could not be pushed down. It matched deleter and clinic NAMES as well as the
+  // row's own text — behaviour worth keeping — so those two are resolved to id sets
+  // first (two small indexed lookups) and folded into each entity's WHERE alongside
+  // an ILIKE on that entity's own searchable columns.
+  const q = filters.q?.trim();
+  const like = q ? `%${q}%` : null;
+  const [actorMatches, clinicMatches] = like
+    ? await Promise.all([
+        db
+          .select({ id: users.id })
+          .from(users)
+          .where(or(ilike(users.fullName, like), ilike(users.username, like)))
+          .limit(500),
+        db.select({ id: clinics.id }).from(clinics).where(ilike(clinics.name, like)).limit(500),
+      ])
+    : [[], []];
+  const actorIdMatches = actorMatches.map((r) => r.id);
+  const clinicIdMatches = clinicMatches.map((r) => r.id);
+
   const cond = (
     entity: TrashEntity,
     clinicCol: PgColumn,
     deletedCol: PgColumn,
     cascadeCol: PgColumn,
     byCol: PgColumn,
+    /** This entity's own text columns, as the label/detail are built from them. */
+    searchCols: PgColumn[] = [],
   ): SQL | undefined => {
-    if (!wantType(entity)) return sql`false`;
     const parts: (SQL | undefined)[] = [isNotNull(deletedCol), eq(cascadeCol, false)];
+    // A type-excluded entity contributes nothing, but the clinic scope below is still
+    // appended — returning a bare `false` produced a query with no `clinic_id` in it,
+    // which the tenant guard rightly flagged (ADR-018). The planner discards the whole
+    // scan on the constant anyway, so this costs nothing.
+    if (!wantType(entity)) parts.push(sql`false`);
+    if (like) {
+      const any: (SQL | undefined)[] = searchCols.map((c) => ilike(c, like));
+      if (actorIdMatches.length) any.push(inArray(byCol, actorIdMatches));
+      if (clinicIdMatches.length) any.push(inArray(clinicCol, clinicIdMatches));
+      // No column can match → this entity contributes nothing for this search.
+      parts.push(any.length ? or(...any) : sql`false`);
+    }
     if (scope.kind === "clinic") {
       parts.push(eq(clinicCol, scope.clinicId));
       parts.push(gte(deletedCol, scope.cutoff));
@@ -137,8 +199,9 @@ async function collect(
         name: patients.fullName,
       })
       .from(patients)
-      .where(cond("patient", patients.clinicId, patients.deletedAt, patients.deletedByCascade, patients.deletedBy))
-      .orderBy(desc(patients.deletedAt)),
+      .where(cond("patient", patients.clinicId, patients.deletedAt, patients.deletedByCascade, patients.deletedBy, [patients.fullName]))
+      .orderBy(desc(patients.deletedAt))
+      .limit(need),
     db
       .select({
         id: appointments.id,
@@ -151,8 +214,9 @@ async function collect(
       })
       .from(appointments)
       .leftJoin(patients, eq(appointments.patientId, patients.id))
-      .where(cond("appointment", appointments.clinicId, appointments.deletedAt, appointments.deletedByCascade, appointments.deletedBy))
-      .orderBy(desc(appointments.deletedAt)),
+      .where(cond("appointment", appointments.clinicId, appointments.deletedAt, appointments.deletedByCascade, appointments.deletedBy, [patients.fullName]))
+      .orderBy(desc(appointments.deletedAt))
+      .limit(need),
     db
       .select({
         id: visits.id,
@@ -165,8 +229,9 @@ async function collect(
       })
       .from(visits)
       .leftJoin(patients, eq(visits.patientId, patients.id))
-      .where(cond("visit", visits.clinicId, visits.deletedAt, visits.deletedByCascade, visits.deletedBy))
-      .orderBy(desc(visits.deletedAt)),
+      .where(cond("visit", visits.clinicId, visits.deletedAt, visits.deletedByCascade, visits.deletedBy, [patients.fullName]))
+      .orderBy(desc(visits.deletedAt))
+      .limit(need),
     db
       .select({
         id: recalls.id,
@@ -179,8 +244,9 @@ async function collect(
       })
       .from(recalls)
       .leftJoin(patients, eq(recalls.patientId, patients.id))
-      .where(cond("recall", recalls.clinicId, recalls.deletedAt, recalls.deletedByCascade, recalls.deletedBy))
-      .orderBy(desc(recalls.deletedAt)),
+      .where(cond("recall", recalls.clinicId, recalls.deletedAt, recalls.deletedByCascade, recalls.deletedBy, [patients.fullName, recalls.reason]))
+      .orderBy(desc(recalls.deletedAt))
+      .limit(need),
     db
       .select({
         id: procedures.id,
@@ -192,8 +258,9 @@ async function collect(
         price: procedures.price,
       })
       .from(procedures)
-      .where(cond("procedure", procedures.clinicId, procedures.deletedAt, procedures.deletedByCascade, procedures.deletedBy))
-      .orderBy(desc(procedures.deletedAt)),
+      .where(cond("procedure", procedures.clinicId, procedures.deletedAt, procedures.deletedByCascade, procedures.deletedBy, [procedures.name]))
+      .orderBy(desc(procedures.deletedAt))
+      .limit(need),
     db
       .select({
         id: expenses.id,
@@ -207,8 +274,9 @@ async function collect(
         note: expenses.note,
       })
       .from(expenses)
-      .where(cond("expense", expenses.clinicId, expenses.deletedAt, expenses.deletedByCascade, expenses.deletedBy))
-      .orderBy(desc(expenses.deletedAt)),
+      .where(cond("expense", expenses.clinicId, expenses.deletedAt, expenses.deletedByCascade, expenses.deletedBy, [expenses.vendor, expenses.note]))
+      .orderBy(desc(expenses.deletedAt))
+      .limit(need),
     db
       .select({
         id: doctorLeaves.id,
@@ -223,8 +291,9 @@ async function collect(
       })
       .from(doctorLeaves)
       .leftJoin(users, eq(doctorLeaves.doctorId, users.id))
-      .where(cond("leave", doctorLeaves.clinicId, doctorLeaves.deletedAt, doctorLeaves.deletedByCascade, doctorLeaves.deletedBy))
-      .orderBy(desc(doctorLeaves.deletedAt)),
+      .where(cond("leave", doctorLeaves.clinicId, doctorLeaves.deletedAt, doctorLeaves.deletedByCascade, doctorLeaves.deletedBy, [users.fullName, users.username]))
+      .orderBy(desc(doctorLeaves.deletedAt))
+      .limit(need),
     db
       .select({
         id: users.id,
@@ -237,8 +306,9 @@ async function collect(
         role: users.role,
       })
       .from(users)
-      .where(cond("staff", users.clinicId, users.deletedAt, users.deletedByCascade, users.deletedBy))
-      .orderBy(desc(users.deletedAt)),
+      .where(cond("staff", users.clinicId, users.deletedAt, users.deletedByCascade, users.deletedBy, [users.fullName, users.username]))
+      .orderBy(desc(users.deletedAt))
+      .limit(need),
     // Clinics only appear in the super-admin (all) scope. Its own id is the
     // "clinic" column for the clinic filter.
     scope.kind === "all"
@@ -251,8 +321,9 @@ async function collect(
             name: clinics.name,
           })
           .from(clinics)
-          .where(cond("clinic", clinics.id, clinics.deletedAt, clinics.deletedByCascade, clinics.deletedBy))
+          .where(cond("clinic", clinics.id, clinics.deletedAt, clinics.deletedByCascade, clinics.deletedBy, [clinics.name]))
           .orderBy(desc(clinics.deletedAt))
+          .limit(need)
       : Promise.resolve([] as { id: string; group: string | null; deletedAt: Date | null; deletedBy: string | null; name: string }[]),
   ]);
 
@@ -283,11 +354,10 @@ async function collect(
   // specialty table must never be imported here. They are already scoped and
   // window-filtered; only the shared type/actor/date filters still apply.
   for (const r of moduleRows) {
-    if (filters.type && filters.type !== "clinical_record") break;
-    if (filters.deletedBy && r.deletedById !== filters.deletedBy) continue;
-    if (filters.from && r.deletedAt < filters.from) continue;
-    if (filters.toExclusive && r.deletedAt >= filters.toExclusive) continue;
-    if (filters.clinicId && r.clinicId !== filters.clinicId) continue;
+    // ONE predicate, shared with the count — see `moduleRowMatches`. It also applies
+    // the text search, which for core entities happens in SQL; a module's label is
+    // built in JS from its own columns, so core can only match it here.
+    if (!moduleRowMatches(filters, r)) continue;
     push({
       entity: "clinical_record",
       id: r.id,
@@ -300,41 +370,98 @@ async function collect(
     });
   }
 
+  // Cut the page BEFORE resolving names. Each source gave us its first `need` rows,
+  // so the merge holds at most `sources × need` — this is where it becomes `limit`,
+  // and the two name lookups below then run over one page rather than everything.
+  const ordered = items.sort((a, b) => b.deletedAt.getTime() - a.deletedAt.getTime());
+  const page = ordered.slice(paging.offset, paging.offset + paging.limit);
+
   // Resolve deleter names (users may themselves be trashed — no notDeleted filter)
   // and clinic names (super-admin scope), in one query each.
-  const actorIds = [...new Set(items.map((i) => i.deletedById).filter((x): x is string => Boolean(x)))];
+  const actorIds = [...new Set(page.map((i) => i.deletedById).filter((x): x is string => Boolean(x)))];
   if (actorIds.length) {
     const actors = await db
       .select({ id: users.id, fullName: users.fullName, username: users.username })
       .from(users)
       .where(inArray(users.id, actorIds));
     const nameById = new Map(actors.map((a) => [a.id, a.fullName ?? a.username]));
-    for (const it of items) it.deletedByName = it.deletedById ? nameById.get(it.deletedById) ?? null : null;
+    for (const it of page) it.deletedByName = it.deletedById ? nameById.get(it.deletedById) ?? null : null;
   }
 
   if (scope.kind === "all") {
-    const clinicIds = [...new Set(items.map((i) => i.clinicId).filter((x): x is string => Boolean(x)))];
+    const clinicIds = [...new Set(page.map((i) => i.clinicId).filter((x): x is string => Boolean(x)))];
     if (clinicIds.length) {
       const rows = await db
         .select({ id: clinics.id, name: clinics.name })
         .from(clinics)
         .where(inArray(clinics.id, clinicIds));
       const byId = new Map(rows.map((c) => [c.id, c.name]));
-      for (const it of items) it.clinicName = it.clinicId ? byId.get(it.clinicId) ?? null : null;
+      for (const it of page) it.clinicName = it.clinicId ? byId.get(it.clinicId) ?? null : null;
     }
   }
 
-  // Free-text search runs last (labels/details span columns, so it can't be one
-  // SQL predicate) — match label, detail, deleter, or clinic name.
-  const q = filters.q?.trim().toLowerCase();
-  const filtered = q
-    ? items.filter((it) =>
-        [it.label, it.detail, it.deletedByName, it.clinicName]
-          .some((s) => s?.toLowerCase().includes(q)),
-      )
-    : items;
+  // The search no longer runs here — it is part of every source's WHERE (see `cond`).
+  // Filtering after the fact would have made pagination wrong: the page would be cut
+  // first and then thinned, so pages would come back short and the total would lie.
+  return { items: page, total: await countAll(scope, filters, cond, moduleRows) };
+}
 
-  return filtered.sort((a, b) => b.deletedAt.getTime() - a.deletedAt.getTime());
+/**
+ * How many entries match, across every source — what the pager needs to know.
+ *
+ * It reuses the very `cond` closure the page queries were built from, so the count
+ * and the page can never disagree about what "matching" means. That is the whole
+ * reason it takes the closure rather than rebuilding the predicates: two copies of a
+ * filter drift exactly like two copies of a bill formula (ADR-015).
+ */
+async function countAll(
+  scope: Scope,
+  filters: TrashFilters,
+  cond: (
+    entity: TrashEntity,
+    clinicCol: PgColumn,
+    deletedCol: PgColumn,
+    cascadeCol: PgColumn,
+    byCol: PgColumn,
+    searchCols?: PgColumn[],
+  ) => SQL | undefined,
+  moduleRows: ModuleTrashRow[],
+): Promise<number> {
+  const n = sql<number>`count(*)::int`;
+  const counts = await Promise.all([
+    db.select({ n }).from(patients).where(cond("patient", patients.clinicId, patients.deletedAt, patients.deletedByCascade, patients.deletedBy, [patients.fullName])),
+    db.select({ n }).from(appointments).leftJoin(patients, eq(appointments.patientId, patients.id)).where(cond("appointment", appointments.clinicId, appointments.deletedAt, appointments.deletedByCascade, appointments.deletedBy, [patients.fullName])),
+    db.select({ n }).from(visits).leftJoin(patients, eq(visits.patientId, patients.id)).where(cond("visit", visits.clinicId, visits.deletedAt, visits.deletedByCascade, visits.deletedBy, [patients.fullName])),
+    db.select({ n }).from(recalls).leftJoin(patients, eq(recalls.patientId, patients.id)).where(cond("recall", recalls.clinicId, recalls.deletedAt, recalls.deletedByCascade, recalls.deletedBy, [patients.fullName, recalls.reason])),
+    db.select({ n }).from(procedures).where(cond("procedure", procedures.clinicId, procedures.deletedAt, procedures.deletedByCascade, procedures.deletedBy, [procedures.name])),
+    db.select({ n }).from(expenses).where(cond("expense", expenses.clinicId, expenses.deletedAt, expenses.deletedByCascade, expenses.deletedBy, [expenses.vendor, expenses.note])),
+    db.select({ n }).from(doctorLeaves).leftJoin(users, eq(doctorLeaves.doctorId, users.id)).where(cond("leave", doctorLeaves.clinicId, doctorLeaves.deletedAt, doctorLeaves.deletedByCascade, doctorLeaves.deletedBy, [users.fullName, users.username])),
+    db.select({ n }).from(users).where(cond("staff", users.clinicId, users.deletedAt, users.deletedByCascade, users.deletedBy, [users.fullName, users.username])),
+    scope.kind === "all"
+      ? db.select({ n }).from(clinics).where(cond("clinic", clinics.id, clinics.deletedAt, clinics.deletedByCascade, clinics.deletedBy, [clinics.name]))
+      : Promise.resolve([{ n: 0 }]),
+  ]);
+
+  // Module rows are already an in-memory array (core cannot query a specialty table),
+  // so they are counted the same way they are filtered — see the loop in `collect`.
+  const moduleCount = countModuleRows(filters, moduleRows);
+  return counts.reduce((sum, [row]) => sum + (row?.n ?? 0), 0) + moduleCount;
+}
+
+/** The module-row filter, expressed once so the page and the count agree. */
+function moduleRowMatches(filters: TrashFilters, r: ModuleTrashRow): boolean {
+  if (filters.type && filters.type !== "clinical_record") return false;
+  if (filters.deletedBy && r.deletedById !== filters.deletedBy) return false;
+  if (filters.from && r.deletedAt < filters.from) return false;
+  if (filters.toExclusive && r.deletedAt >= filters.toExclusive) return false;
+  if (filters.clinicId && r.clinicId !== filters.clinicId) return false;
+  const q = filters.q?.trim().toLowerCase();
+  if (q && ![r.label, r.detail].some((s) => s?.toLowerCase().includes(q))) return false;
+  return true;
+}
+
+function countModuleRows(filters: TrashFilters, rows: ModuleTrashRow[]): number {
+  return rows.reduce((n, r) => (moduleRowMatches(filters, r) ? n + 1 : n), 0);
 }
 
 /** A clinic admin's Trash: this clinic's entries within its retention window. */
@@ -343,17 +470,29 @@ export async function listClinicTrash(
   retentionDays: number,
   filters: TrashFilters = {},
   moduleRows: ModuleTrashRow[] = [],
-): Promise<TrashItem[]> {
+  paging?: TrashPaging,
+): Promise<TrashPage> {
   const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-  return collect({ kind: "clinic", clinicId, cutoff }, filters, moduleRows);
+  return collect({ kind: "clinic", clinicId, cutoff }, filters, moduleRows, paging);
 }
 
-/** The super admin's Trash: every trashed entry across all clinics, no window. */
+/**
+ * The super admin's Trash: every trashed entry across all clinics, no window.
+ *
+ * Cross-tenant BY DEFINITION — this is the company's own view of everything that has
+ * ever been deleted — so it says so with `unscoped` rather than quietly emitting
+ * queries with no `clinic_id` for the tenant guard to flag (ADR-005 / ADR-018). It
+ * had been doing exactly that; the guard's report only surfaced once a test drove
+ * this path, which is the whole argument for keeping that output at zero.
+ */
 export async function listAllTrash(
   filters: TrashFilters = {},
   moduleRows: ModuleTrashRow[] = [],
-): Promise<TrashItem[]> {
-  return collect({ kind: "all" }, filters, moduleRows);
+  paging?: TrashPaging,
+): Promise<TrashPage> {
+  return unscoped("super admin lists trash across all clinics", () =>
+    collect({ kind: "all" }, filters, moduleRows, paging),
+  );
 }
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;

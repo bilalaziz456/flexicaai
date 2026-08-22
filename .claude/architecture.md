@@ -451,6 +451,30 @@ at this size a nightly `DELETE` on an indexed timestamp is enough, and range par
 add DDL maintenance forever. Revisit when the table passes ~50M rows or the nightly
 prune stops finishing quickly.
 
+**ADR-024 — A list over many tables pages by bounding each source, not by unioning
+them** · *2026-08-22* · `Accepted` *(implemented — D-07 closed)*
+Trash spans nine core tables plus whatever the enabled module contributes. It now
+pushes every filter — including the free-text search — into SQL, asks each source for
+at most `offset + limit` rows, merges, and cuts the page; `countAll` reuses the very
+same predicate closure so the total and the pages cannot disagree.
+**Why not one SQL UNION**, which would page in a single round trip: every label and
+detail is a formatted string (`Rs 400 · 12 Jan`, a leave's date range, a visit's
+patient name) that would have to be rewritten in SQL and kept in step with the
+TypeScript rendering it — and **a module cannot join a core union at all**, because
+core must never import a specialty table (ADR-001). The bound was the point; one query
+was not worth trading the boundary and the readability for.
+**The load-bearing constraint:** a filter applied AFTER the page is cut returns short
+pages and a lying total, so search had to move into SQL rather than stay in JS. It
+matched deleter and clinic NAMES too, so those resolve to id sets first and fold into
+each entity's WHERE.
+**Consequence:** the merge holds `sources × (offset + limit)`, not the table. Deep
+paging still grows linearly with the offset — acceptable, and the trigger to revisit
+is someone actually paging deep, not a hypothetical.
+**Two things this surfaced.** `listAllTrash` is cross-tenant by definition and was
+emitting unscoped queries the guard flagged into a void; it says `unscoped` now. And a
+type-excluded entity used to short-circuit to a bare `false`, producing SQL with no
+`clinic_id` — the scope is appended regardless now, so the guard stays at zero.
+
 **ADR-020 — The scribe becomes an async job** · *2026-08-21* · `Interim`
 Today: synchronous, budgeted at 300s (Whisper 120s + Claude 90s×2), needing a matching
 nginx `proxy_read_timeout`.
@@ -470,7 +494,7 @@ they land.** Ordered by consequence.
 | # | Delta | ADR | Status |
 |---|---|---|---|
 | D-01 | App files querying the DB directly. **Ratchet installed** — `eslint.config.mjs` bans `@/core/db` + `@/core/db/schema` from `src/app/**`, with a legacy allowlist that may only SHRINK | ADR-014 | Open — **52 left** (was 77). Delete lines from `LEGACY_DIRECT_DB_ACCESS` as they migrate; when it is empty, remove the exemption block. **A file that stops offending must be pruned from the list in the same change** — a stale exemption silently un-guards a file that had already been fixed |
-| D-07 | Trash loads every soft-deleted row of 9 tables into memory | ADR-006 | Open |
+| ~~D-07~~ | Trash loaded every soft-deleted row of 9 tables into memory | ADR-006 / ADR-024 | **Closed 2026-08-22** — see ADR-024. Every filter pushed into SQL, each source bounded to `offset + limit`, both pages paginated. `scripts/test-trash-paging.ts` |
 | D-08 | Scribe is synchronous | ADR-020 | Open (interim in force) |
 | ~~D-11~~ | `activity_logs` had no retention; a view cost 2 queries, the second unindexed | ADR-006 / ADR-023 | **Closed 2026-08-22** — see ADR-023. One indexed statement per view, plus an opt-in retention window (default: keep everything). Partitioning was NOT done and is not needed at this size; the trigger is in ADR-023. `scripts/test-log-retention.ts` |
 | D-12 | Reports aggregate unbounded row sets in application code | — | Open |
@@ -505,7 +529,9 @@ module-declared shapes; `scripts/test-clinical-validation.ts`)** · **D-18 draft
 stranded by their author's deletion (ADR-022, closed 2026-08-21 — warned at delete
 time, plus one narrow opt-in `handover` grant; `scripts/test-orphaned-drafts.ts`)** ·
 **D-11 unbounded `activity_logs` + an unindexed view lookup (ADR-023, closed
-2026-08-22 — migration `0081`; `scripts/test-log-retention.ts`)**.
+2026-08-22 — migration `0081`; `scripts/test-log-retention.ts`)** · **D-07 Trash
+loading every soft-deleted row (ADR-024, closed 2026-08-22 —
+`scripts/test-trash-paging.ts`)**.
 
 ---
 

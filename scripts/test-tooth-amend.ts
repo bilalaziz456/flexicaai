@@ -8,6 +8,7 @@
  */
 import { eq } from "drizzle-orm";
 import { db } from "@/core/db";
+import { unscoped } from "@/core/db/tenant-guard";
 import { clinics, patients, visits } from "@/core/db/schema";
 import { dentalCharts, dentalRecords } from "@/modules/dental/db/schema";
 import { listClinicTrash, restoreForClinic } from "@/core/trash";
@@ -107,9 +108,11 @@ async function main() {
         check("it says which tooth", mine[0]?.label.includes("tooth 18"), true);
         check("it says what it was", mine[0]?.detail, "Crown");
 
-        const items = await listClinicTrash(clinic.id, 30, { type: "clinical_record" }, rows);
-        check("the type filter finds it", items.some((i) => i.id === crownRec.id), true);
-        check("and excludes everything else", items.every((i) => i.entity === "clinical_record"), true);
+        // Returns a PAGE now (delta D-07) — `{ items, total }`, not a bare array.
+        const listed = await listClinicTrash(clinic.id, 30, { type: "clinical_record" }, rows);
+        check("the type filter finds it", listed.items.some((i) => i.id === crownRec.id), true);
+        check("and excludes everything else", listed.items.every((i) => i.entity === "clinical_record"), true);
+        check("the total counts it", listed.total >= 1, true);
 
         await restoreForClinic(clinic.id, mine[0].group, await clinicTrashProvider(clinic.id));
         check("restoring puts the chart back", (await getPatientChart(clinic.id, p3.id))["18"], { status: "crown" });
@@ -117,7 +120,7 @@ async function main() {
       } finally {
         await db.delete(dentalRecords).where(eq(dentalRecords.patientId, p3.id));
         await db.delete(dentalCharts).where(eq(dentalCharts.patientId, p3.id));
-        await db.delete(patients).where(eq(patients.id, p3.id));
+        await unscoped("test teardown", () => db.delete(patients).where(eq(patients.id, p3.id)));
       }
     }
 
@@ -148,7 +151,7 @@ async function main() {
       } finally {
         await db.delete(dentalRecords).where(eq(dentalRecords.patientId, p4.id));
         await db.delete(dentalCharts).where(eq(dentalCharts.patientId, p4.id));
-        await db.delete(patients).where(eq(patients.id, p4.id));
+        await unscoped("test teardown", () => db.delete(patients).where(eq(patients.id, p4.id)));
       }
     }
 
@@ -167,9 +170,9 @@ async function main() {
     check("a visit entry is marked as such", (await toothHistoryFor(clinic.id, pid, "18"))[0].source, "visit");
   } finally {
     await db.delete(dentalRecords).where(eq(dentalRecords.patientId, pid));
-    await db.delete(visits).where(eq(visits.patientId, pid));
+    await unscoped("test teardown", () => db.delete(visits).where(eq(visits.patientId, pid)));
     await db.delete(dentalCharts).where(eq(dentalCharts.patientId, pid));
-    await db.delete(patients).where(eq(patients.id, pid));
+    await unscoped("test teardown", () => db.delete(patients).where(eq(patients.id, pid)));
     console.log("\nprobe patient removed");
   }
 

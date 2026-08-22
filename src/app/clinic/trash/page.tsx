@@ -5,6 +5,8 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, users } from "@/core/db/schema";
 import { listClinicTrash, parseTrashFilters } from "@/core/trash";
+import { Pagination } from "@/core/ui/pagination";
+import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { restoreTrashItem } from "./actions";
 import { TrashTable } from "@/core/ui/trash-table";
 import { TrashFilters } from "@/core/ui/trash-filters";
@@ -37,6 +39,8 @@ export default async function ClinicTrashPage({
     by?: string;
     from?: string;
     to?: string;
+    page?: string;
+    size?: string;
   }>;
 }) {
   const user = await requireWorkspace("trash");
@@ -52,8 +56,12 @@ export default async function ClinicTrashPage({
 
   const moduleRows = await clinicModuleTrashRows(user.clinicId, retention);
 
-  const [items, staff] = await Promise.all([
-    listClinicTrash(user.clinicId, retention, filters, moduleRows),
+  const page = parsePage(sp.page);
+  const pageSize = parsePageSize(sp.size);
+  const paging = { offset: pageOffset(page, pageSize), limit: pageSize };
+
+  const [trash, staff] = await Promise.all([
+    listClinicTrash(user.clinicId, retention, filters, moduleRows, paging),
     // "Deleted by" options — this clinic's staff (anyone who could have deleted).
     db
       .select({ id: users.id, fullName: users.fullName, username: users.username })
@@ -82,7 +90,15 @@ export default async function ClinicTrashPage({
         typeOptions={TYPE_OPTIONS}
         actors={actors}
       />
-      <TrashTable items={items} canRestore={canRestore} onRestore={restoreTrashItem} />
+      <TrashTable items={trash.items} canRestore={canRestore} onRestore={restoreTrashItem} />
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={trash.total}
+        basePath="/clinic/trash"
+        searchParams={sp}
+        unit="item"
+      />
     </div>
   );
 }

@@ -4,6 +4,8 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, users } from "@/core/db/schema";
 import { listAllTrash, parseTrashFilters } from "@/core/trash";
+import { Pagination } from "@/core/ui/pagination";
+import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { TrashTable } from "@/core/ui/trash-table";
 import { TrashFilters } from "@/core/ui/trash-filters";
 import { restoreTrashGlobal, purgeTrashGlobal } from "./actions";
@@ -38,14 +40,20 @@ export default async function AdminTrashPage({
     from?: string;
     to?: string;
     clinic?: string;
+    page?: string;
+    size?: string;
   }>;
 }) {
   await requireAdminCapability("clinics:edit");
   const sp = await searchParams;
   const { filters, ui } = parseTrashFilters(sp);
 
-  const [items, clinicRows, staff] = await Promise.all([
-    allModuleTrashRows(filters.clinicId).then((rows) => listAllTrash(filters, rows)),
+  const page = parsePage(sp.page);
+  const pageSize = parsePageSize(sp.size);
+  const paging = { offset: pageOffset(page, pageSize), limit: pageSize };
+
+  const [trash, clinicRows, staff] = await Promise.all([
+    allModuleTrashRows(filters.clinicId).then((rows) => listAllTrash(filters, rows, paging)),
     db.select({ id: clinics.id, name: clinics.name }).from(clinics).orderBy(asc(clinics.name)),
     // Actor options depend on the chosen clinic (like the activity-log filter).
     filters.clinicId
@@ -79,11 +87,19 @@ export default async function AdminTrashPage({
         clinics={clinicRows}
       />
       <TrashTable
-        items={items}
+        items={trash.items}
         canRestore
         showClinic
         onRestore={restoreTrashGlobal}
         onPurge={purgeTrashGlobal}
+      />
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={trash.total}
+        basePath="/admin/trash"
+        searchParams={sp}
+        unit="item"
       />
     </div>
   );
