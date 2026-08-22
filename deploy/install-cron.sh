@@ -2,14 +2,21 @@
 #
 # Installs FlexicaAI's scheduled jobs on a Linux host.
 #
-#   sudo ./deploy/install-cron.sh core     # the 5 jobs that need no API
-#   sudo ./deploy/install-cron.sh all      # those + the 2 WhatsApp ones (7 total)
+#   sudo ./deploy/install-cron.sh core     # the 6 jobs that need no API
+#   sudo ./deploy/install-cron.sh all      # those + the 2 WhatsApp ones (8 total)
 #   ./deploy/install-cron.sh check         # verify what's installed (no root needed)
 #   ./deploy/install-cron.sh print [core|all]   # show the crontab without writing it
 #
 # WHY TWO MODES: only `recalls` and `reminders` need an API (WhatsApp — no job touches
-# Whisper or Claude). The other five are pure database work and are gated on having
+# Whisper or Claude). The other six are pure database work and are gated on having
 # real clinics, not on keys, and those triggers arrive independently. See delta D-19.
+#
+# LINUX + PRODUCTION ONLY. This writes /etc/cron.d and /etc/flexicaai as root, so it
+# cannot run on a Windows dev box — and should not run on any dev box: `recalls` and
+# `reminders` SEND WhatsApp messages to whatever numbers are in the database, and the
+# send path has no NODE_ENV guard. Pointed at a seeded dev DB with provider keys set,
+# it would message real phone numbers. To exercise a job locally, curl it by hand; to
+# see what would be installed, use `print`.
 #
 # WHY A SCRIPT AT ALL: a job that is never invoked raises no error, so a botched
 # install is silent — the failure mode is "recalls stopped going out three weeks ago
