@@ -1,9 +1,8 @@
+import { getClinic } from "@/core/clinics/get-clinic";
+import { getPatientHeader } from "@/core/patients/list";
+import { getTreatmentPlan, listTreatmentPlanItems } from "@/core/patients/treatment-plans";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, asc, eq } from "drizzle-orm";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { clinics, patients, treatmentPlanItems, treatmentPlans } from "@/core/db/schema";
 import { formatPkr } from "@/core/appointments/fee";
 import { formatMrn } from "@/core/patients/mrn";
 import { InvoicePrintFrame } from "@/core/ui/invoice-print";
@@ -24,39 +23,16 @@ export async function TreatmentEstimate({
   planId: string;
   backHref: string;
 }) {
-  const [plan] = await db
-    .select({ id: treatmentPlans.id, title: treatmentPlans.title, status: treatmentPlans.status, note: treatmentPlans.note, createdAt: treatmentPlans.createdAt })
-    .from(treatmentPlans)
-    .where(
-      byClinic(
-        treatmentPlans.clinicId,
-        clinicId,
-        notDeleted(treatmentPlans.deletedAt),
-        and(eq(treatmentPlans.id, planId), eq(treatmentPlans.patientId, patientId)),
-      ),
-    )
-    .limit(1);
+  const plan = await getTreatmentPlan(clinicId, planId);
   if (!plan) notFound();
 
-  const [patient] = await db
-    .select({ fullName: patients.fullName, phone: patients.phone, mrn: patients.mrn, createdAt: patients.createdAt })
-    .from(patients)
-    .where(byClinic(patients.clinicId, clinicId, eq(patients.id, patientId)))
-    .limit(1);
+  const patient = await getPatientHeader(clinicId, patientId);
   if (!patient) notFound();
 
-  const [clinic] = await db
-    .select({ name: clinics.name, invoicePaper: clinics.invoicePaper, signature: clinics.whatsappSignature, mrnPrefix: clinics.mrnPrefix })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinic = await getClinic(clinicId);
   const mrnLabel = formatMrn(clinic?.mrnPrefix, patient.mrn, patient.createdAt);
 
-  const items = await db
-    .select()
-    .from(treatmentPlanItems)
-    .where(byClinic(treatmentPlanItems.clinicId, clinicId, eq(treatmentPlanItems.planId, planId)))
-    .orderBy(asc(treatmentPlanItems.sort), asc(treatmentPlanItems.createdAt));
+  const items = await listTreatmentPlanItems(clinicId, planId);
 
   const total = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
   const fmtDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -127,7 +103,7 @@ export async function TreatmentEstimate({
 
         <div className="mt-3 border-t border-black/20 pt-2 text-center text-[0.8em] opacity-70">
           <div>This is an estimate. The final cost may vary with treatment.</div>
-          {clinic?.signature ? <div>{clinic.signature}</div> : null}
+          {clinic?.whatsappSignature ? <div>{clinic.whatsappSignature}</div> : null}
         </div>
       </InvoicePrintFrame>
     </div>

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
 import { clinics, users } from "@/core/db/schema";
 import type { UserRole } from "@/core/types/auth";
@@ -80,4 +80,81 @@ export async function listClinicActorOptions(
       .orderBy(asc(users.fullName)),
   );
   return rows.map((r) => ({ id: r.id, name: r.fullName ?? r.username }));
+}
+
+/**
+ * The super admin's clinics list — one page, with each clinic's account manager
+ * resolved. CORE per ADR-014.
+ *
+ * The `assignedTo` join filters `deleted_at IS NULL` on the USER, not the clinic: a
+ * clinic whose manager was deleted still belongs in the list, it just has nobody
+ * assigned. An inner join here would make clinics vanish from the company's own view
+ * because of something that happened to a staff account.
+ *
+ * `assigneeActive === false` is surfaced separately from "no manager": a suspended
+ * manager is a clinic that LOOKS covered and is not, which is exactly what the list
+ * needs to show.
+ */
+export async function listClinicsPage(
+  where: SQL | undefined,
+  paging: { offset: number; limit: number },
+) {
+  return unscoped("super admin lists every clinic", async () => {
+    const [rows, [totalRow]] = await Promise.all([
+      db
+        .select({
+          clinic: clinics,
+          assigneeName: users.fullName,
+          assigneeUsername: users.username,
+          assigneeActive: users.isActive,
+        })
+        .from(clinics)
+        .leftJoin(users, and(eq(clinics.assignedTo, users.id), isNull(users.deletedAt)))
+        .where(where)
+        .orderBy(desc(clinics.createdAt))
+        .limit(paging.limit)
+        .offset(paging.offset),
+      db.select({ total: count() }).from(clinics).where(where),
+    ]);
+    return { rows, total: totalRow?.total ?? 0 };
+  });
+}
+
+/** What the super admin's clinic list can be narrowed by. */
+export type ClinicListFilters = {
+  /** Name search. */
+  q?: string;
+  status?: string;
+  /**
+   * Restricts to one account manager. `null` means UNASSIGNED specifically — distinct
+   * from `undefined`, which means "don't filter by manager at all".
+   */
+  assignedTo?: string | null;
+  /**
+   * The billing filter is resolved to ids by the caller, because billing health is
+   * COMPUTED (paid-through dates, grace periods) rather than a column. An empty array
+   * means "the filter was set and nothing matched" and must yield no rows — not, as a
+   * missing filter would, every row.
+   */
+  billingIds?: string[];
+};
+
+/** Builds the list's WHERE, including the always-on "not trashed" rule. */
+export function clinicListWhere(filters: ClinicListFilters): SQL | undefined {
+  return and(
+    // Trashed clinics live in the admin Trash, never in this list.
+    notDeleted(clinics.deletedAt),
+    filters.q ? ilike(clinics.name, `%${filters.q}%`) : undefined,
+    filters.status ? eq(clinics.status, filters.status) : undefined,
+    filters.assignedTo === null
+      ? isNull(clinics.assignedTo)
+      : filters.assignedTo
+        ? eq(clinics.assignedTo, filters.assignedTo)
+        : undefined,
+    filters.billingIds
+      ? filters.billingIds.length
+        ? inArray(clinics.id, filters.billingIds)
+        : sql`false`
+      : undefined,
+  );
 }

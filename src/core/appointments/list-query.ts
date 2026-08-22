@@ -193,3 +193,58 @@ export async function listClinicAppointments(
   ]);
   return { rows, total: totalRow?.total ?? 0 };
 }
+
+/**
+ * One keyset batch of the appointments export — CORE per ADR-014.
+ *
+ * KEYSET, not offset: a CSV of a busy clinic's whole history walks the table, and an
+ * OFFSET scan re-reads everything before the cursor on each page. The cursor is
+ * `(scheduled_at, id)` because timestamps repeat and a bare timestamp cursor would
+ * skip or duplicate rows at a boundary.
+ *
+ * The cursor timestamp is TEXT at FULL precision on purpose: round-tripping it through
+ * a JS `Date` truncates microseconds, which silently drops every row inside the
+ * truncated instant — the kind of loss a CSV cannot show you.
+ */
+export async function listAppointmentExportBatch(
+  clinicId: string,
+  conds: (SQL | undefined)[],
+  cursor: { ts: string; id: string } | null,
+  batchSize: number,
+) {
+  const all = [...conds];
+  if (cursor) {
+    all.push(
+      sql`(${appointments.scheduledAt} > ${cursor.ts}::timestamptz or (${appointments.scheduledAt} = ${cursor.ts}::timestamptz and ${appointments.id} > ${cursor.id}::uuid))`,
+    );
+  }
+  return db
+    .select({
+      id: appointments.id,
+      scheduledAt: appointments.scheduledAt,
+      cursorTs: sql<string>`${appointments.scheduledAt}::text`,
+      status: appointments.status,
+      reason: appointments.reason,
+      discountType: appointments.discountType,
+      discountValue: appointments.discountValue,
+      discountStatus: appointments.discountStatus,
+      chargeConsultation: appointments.chargeConsultation,
+      amountCollected: appointments.amountCollected,
+      queueNumber: appointments.queueNumber,
+      patientName: patients.fullName,
+      patientPhone: patients.phone,
+      doctorName: users.fullName,
+      doctorUsername: users.username,
+      doctorPrefix: users.prefix,
+      consultationFee: users.consultationFee,
+      proceduresGross: appointmentProceduresGrossSql(),
+      proceduresTotal: appointmentProceduresNetSql(),
+      hasProcedures: appointmentHasProceduresSql(),
+    })
+    .from(appointments)
+    .innerJoin(patients, eq(appointments.patientId, patients.id))
+    .leftJoin(users, eq(appointments.doctorId, users.id))
+    .where(byClinic(appointments.clinicId, clinicId, notDeleted(appointments.deletedAt), and(...all)))
+    .orderBy(asc(appointments.scheduledAt), asc(appointments.id))
+    .limit(batchSize);
+}

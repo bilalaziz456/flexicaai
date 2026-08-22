@@ -1,9 +1,6 @@
+import { clinicListWhere, listClinicsPage } from "@/core/clinics/options";
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import { and, count, desc, eq, ilike, inArray, isNull, sql } from "drizzle-orm";
-import { db } from "@/core/db";
-import { notDeleted } from "@/core/db/tenant";
-import { clinics, users } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
 import { CLINIC_STATUSES, CLINIC_STATUS_LABEL, isClinicStatus } from "@/core/clinics/status";
 import { requireRole } from "@/core/auth/user";
@@ -46,19 +43,19 @@ export default async function AdminHome({
   // VISIBILITY SCOPE: owner + super_admin see every clinic; other team members
   // (sales / support / billing) see ONLY clinics assigned to them.
   const seesAll = canManageTeam(user);
-  const scopeWhere = seesAll ? undefined : eq(clinics.assignedTo, user.id);
+  // A scoped team member is pinned to their own clinics; full access sees all.
+  const scopeAssignee = seesAll ? undefined : user.id;
 
   // Assigned-to filter: "me" · "unassigned" · a team-member id. (Full-access only —
   // scoped users already see only their own.)
   const assignedFilter = seesAll ? sp.assigned?.trim() || undefined : undefined;
-  const assignedWhere =
+  // `null` = UNASSIGNED specifically; `undefined` = do not filter by manager.
+  const assignedTo =
     assignedFilter === "unassigned"
-      ? isNull(clinics.assignedTo)
+      ? null
       : assignedFilter === "me"
-        ? eq(clinics.assignedTo, user.id)
-        : assignedFilter
-          ? eq(clinics.assignedTo, assignedFilter)
-          : undefined;
+        ? user.id
+        : (assignedFilter ?? scopeAssignee);
 
   // Billing filter: due | overdue — filters the list by computed billing health.
   const billingFilter = sp.billing === "due" || sp.billing === "overdue" ? sp.billing : undefined;
@@ -91,36 +88,14 @@ export default async function AdminHome({
   const billingIds = billingFilter
     ? dueClinics.filter((c) => c.balance.billingStatus === billingFilter).map((c) => c.id)
     : undefined;
-  const billingWhere = billingFilter
-    ? billingIds && billingIds.length
-      ? inArray(clinics.id, billingIds)
-      : sql`false` // filter set but nothing matches → empty
-    : undefined;
-
-  // Super-admin clinic list excludes trashed clinics (they live in the admin Trash).
-  const where = and(
-    notDeleted(clinics.deletedAt),
-    query ? ilike(clinics.name, `%${query}%`) : undefined,
-    statusFilter ? eq(clinics.status, statusFilter) : undefined,
-    assignedWhere,
-    scopeWhere,
-    billingWhere,
-  );
-  const [clinicRows, [{ total }], metrics, team] = await Promise.all([
-    db
-      .select({
-        clinic: clinics,
-        assigneeName: users.fullName,
-        assigneeUsername: users.username,
-        assigneeActive: users.isActive,
-      })
-      .from(clinics)
-      .leftJoin(users, and(eq(clinics.assignedTo, users.id), isNull(users.deletedAt)))
-      .where(where)
-      .orderBy(desc(clinics.createdAt))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
-    db.select({ total: count() }).from(clinics).where(where),
+  const where = clinicListWhere({
+    q: query,
+    status: statusFilter,
+    assignedTo,
+    billingIds,
+  });
+  const [{ rows: clinicRows, total }, metrics, team] = await Promise.all([
+    listClinicsPage(where, { offset: pageOffset(page, pageSize), limit: pageSize }),
     // Scope the financial panel like the list: full access → company-wide; a
     // scoped team member → only the clinics assigned to them. Serving cost + margin
     // are folded in only for viewers who may see the money figures (revenue:view).

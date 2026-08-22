@@ -233,3 +233,28 @@ export async function scheduleItemsOnAppointment(
     }
   });
 }
+
+/** One treatment plan's header, for the printed estimate. */
+export async function getTreatmentPlan(clinicId: string, planId: string) {
+  const [row] = await db
+    .select({
+      id: treatmentPlans.id,
+      title: treatmentPlans.title,
+      status: treatmentPlans.status,
+      note: treatmentPlans.note,
+      createdAt: treatmentPlans.createdAt,
+    })
+    .from(treatmentPlans)
+    .where(byClinic(treatmentPlans.clinicId, clinicId, eq(treatmentPlans.id, planId)))
+    .limit(1);
+  return row ?? null;
+}
+
+/** A plan's line items, in the order the clinician arranged them. */
+export async function listTreatmentPlanItems(clinicId: string, planId: string) {
+  return db
+    .select()
+    .from(treatmentPlanItems)
+    .where(byClinic(treatmentPlanItems.clinicId, clinicId, eq(treatmentPlanItems.planId, planId)))
+    .orderBy(asc(treatmentPlanItems.sort), asc(treatmentPlanItems.createdAt));
+}

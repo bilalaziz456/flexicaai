@@ -1,20 +1,13 @@
-import { and, asc, eq, sql, type SQL } from "drizzle-orm";
+import { listAppointmentExportBatch } from "@/core/appointments/list-query";
+import { type SQL } from "drizzle-orm";
 import { apiRequireWorkspace } from "@/core/auth/user";
-import { db } from "@/core/db";
 import { getClinic } from "@/core/clinics/get-clinic";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, patients, users } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { streamCsvResponse } from "@/core/lib/csv-stream";
 import {
   billFromTotals,
   effectiveDiscountValue,
 } from "@/core/appointments/fee";
-import {
-  appointmentHasProceduresSql,
-  appointmentProceduresGrossSql,
-  appointmentProceduresNetSql,
-} from "@/core/appointments/procedures";
 import { parseListFilters } from "@/core/appointments/list-filters";
 import { buildAppointmentConds } from "@/core/appointments/list-query";
 import { appointmentDoctorScope } from "@/core/appointments/scope";
@@ -59,42 +52,7 @@ export async function GET(req: Request) {
   const rows = async function* () {
     let cursor: { ts: string; id: string } | null = null;
     for (;;) {
-      const conds = baseConds();
-      if (cursor) {
-        // Full-precision text cursor (a JS Date truncates microseconds → skipped rows).
-        conds.push(
-          sql`(${appointments.scheduledAt} > ${cursor.ts}::timestamptz or (${appointments.scheduledAt} = ${cursor.ts}::timestamptz and ${appointments.id} > ${cursor.id}::uuid))`,
-        );
-      }
-      const batch = await db
-        .select({
-          id: appointments.id,
-          scheduledAt: appointments.scheduledAt,
-          cursorTs: sql<string>`${appointments.scheduledAt}::text`,
-          status: appointments.status,
-          reason: appointments.reason,
-          discountType: appointments.discountType,
-          discountValue: appointments.discountValue,
-          discountStatus: appointments.discountStatus,
-          chargeConsultation: appointments.chargeConsultation,
-          amountCollected: appointments.amountCollected,
-          queueNumber: appointments.queueNumber,
-          patientName: patients.fullName,
-          patientPhone: patients.phone,
-          doctorName: users.fullName,
-          doctorUsername: users.username,
-          doctorPrefix: users.prefix,
-          consultationFee: users.consultationFee,
-          proceduresGross: appointmentProceduresGrossSql(),
-          proceduresTotal: appointmentProceduresNetSql(),
-          hasProcedures: appointmentHasProceduresSql(),
-        })
-        .from(appointments)
-        .innerJoin(patients, eq(appointments.patientId, patients.id))
-        .leftJoin(users, eq(appointments.doctorId, users.id))
-        .where(byClinic(appointments.clinicId, clinicId, notDeleted(appointments.deletedAt), and(...conds)))
-        .orderBy(asc(appointments.scheduledAt), asc(appointments.id))
-        .limit(BATCH);
+      const batch = await listAppointmentExportBatch(clinicId, baseConds(), cursor, BATCH);
 
       for (const r of batch) {
         const { net } = billFromTotals(

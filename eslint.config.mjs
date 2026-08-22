@@ -31,10 +31,7 @@ const DB_IMPORT_MESSAGE =
  */
 const LEGACY_DIRECT_DB_ACCESS = [
   "src/app/admin/actions.ts",
-  "src/app/admin/page.tsx",
-  "src/app/api/appointments/export/route.ts",
   "src/app/clinic/patients/patient-detail.tsx",
-  "src/app/clinic/patients/treatment-estimate.tsx",
 ];
 
 /**
