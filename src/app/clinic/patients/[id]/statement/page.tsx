@@ -1,11 +1,9 @@
+import { getPatientHeader } from "@/core/patients/list";
+import { getClinic } from "@/core/clinics/get-clinic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { clinics, patients } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { getPatientAccount } from "@/core/billing/account";
 import { formatPkr } from "@/core/appointments/fee";
@@ -27,26 +25,10 @@ export default async function PatientStatementPage({
   const { clinicId } = user;
   const { id } = await params;
 
-  const [patient] = await db
-    .select({ id: patients.id, mrn: patients.mrn, createdAt: patients.createdAt, fullName: patients.fullName, phone: patients.phone })
-    .from(patients)
-    .where(
-      byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt), eq(patients.id, id)),
-    )
-    .limit(1);
+  const patient = await getPatientHeader(clinicId, id);
   if (!patient) notFound();
 
-  const [clinic] = await db
-    .select({
-      name: clinics.name,
-      featuresEnabled: clinics.featuresEnabled,
-      invoicePaper: clinics.invoicePaper,
-      signature: clinics.whatsappSignature,
-      mrnPrefix: clinics.mrnPrefix,
-    })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinic = await getClinic(clinicId);
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales") || !can(user, "billing", "view")) {
     notFound();
   }
@@ -181,7 +163,7 @@ export default async function PatientStatementPage({
         ) : null}
 
         <div className="mt-3 border-t border-black/20 pt-2 text-center text-[0.85em] opacity-70">
-          {clinic?.signature ? <div>{clinic.signature}</div> : null}
+          {clinic?.whatsappSignature ? <div>{clinic.whatsappSignature}</div> : null}
           <div>Thank you.</div>
         </div>
       </InvoicePrintFrame>

@@ -116,3 +116,25 @@ export async function getPatientForPicker(clinicId: string, patientId: string) {
     .limit(1);
   return row ?? null;
 }
+
+/**
+ * The identity block a printed document puts at the top — name, MRN, phone.
+ *
+ * Shared by the account statement and the clinical chart print: both were selecting
+ * the same four columns inline, and a printed record that disagreed with another
+ * printed record about who the patient is would be a serious thing to ship.
+ */
+export async function getPatientHeader(clinicId: string, patientId: string) {
+  const [row] = await db
+    .select({
+      id: patients.id,
+      fullName: patients.fullName,
+      phone: patients.phone,
+      mrn: patients.mrn,
+      createdAt: patients.createdAt,
+    })
+    .from(patients)
+    .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt), eq(patients.id, patientId)))
+    .limit(1);
+  return row ?? null;
+}

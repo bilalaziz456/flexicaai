@@ -1,9 +1,7 @@
+import { getPatientHeader } from "@/core/patients/list";
+import { getClinic } from "@/core/clinics/get-clinic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { clinics, patients } from "@/core/db/schema";
 import { clinicalRecordFor } from "@/config/modules";
 import { formatMrn } from "@/core/patients/mrn";
 import { InvoicePrintFrame } from "@/core/ui/invoice-print";
@@ -22,18 +20,10 @@ export async function ClinicalChartPrint({
   patientId: string;
   backHref: string;
 }) {
-  const [patient] = await db
-    .select({ fullName: patients.fullName, phone: patients.phone, mrn: patients.mrn, createdAt: patients.createdAt })
-    .from(patients)
-    .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt), eq(patients.id, patientId)))
-    .limit(1);
+  const patient = await getPatientHeader(clinicId, patientId);
   if (!patient) notFound();
 
-  const [clinic] = await db
-    .select({ name: clinics.name, modulesEnabled: clinics.modulesEnabled, invoicePaper: clinics.invoicePaper, signature: clinics.whatsappSignature, mrnPrefix: clinics.mrnPrefix })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinic = await getClinic(clinicId);
   const mrnLabel = formatMrn(clinic?.mrnPrefix, patient.mrn, patient.createdAt);
 
   const clinicalRecord = clinicalRecordFor(clinic?.modulesEnabled ?? []);
@@ -86,7 +76,7 @@ export async function ClinicalChartPrint({
         ) : null}
 
         <div className="mt-3 border-t border-black/20 pt-2 text-center text-[0.8em] opacity-70">
-          {clinic?.signature ? <div>{clinic.signature}</div> : null}
+          {clinic?.whatsappSignature ? <div>{clinic.whatsappSignature}</div> : null}
         </div>
       </InvoicePrintFrame>
     </div>

@@ -234,3 +234,51 @@ export async function issueInvoice(
     };
   });
 }
+
+/**
+ * Everything a printed invoice or receipt puts on the page — CORE per ADR-014.
+ *
+ * ONE query for both documents. They were selecting the same joins and all but three
+ * of the same columns in two places, and two printed money documents disagreeing about
+ * a visit is the worst possible place for a drifted query. The status is here for the
+ * invoice (it refuses to print a cancelled visit) and the receipt numbers for the
+ * receipt; each caller reads what it needs.
+ *
+ * The bill itself is NOT selected — it is derived at render from `computeBill`, the
+ * same formula the lists aggregate in SQL (ADR-015).
+ */
+export async function getAppointmentForDocument(clinicId: string, appointmentId: string) {
+  const [row] = await db
+    .select({
+      status: appointments.status,
+      scheduledAt: appointments.scheduledAt,
+      queueNumber: appointments.queueNumber,
+      receiptNo: appointments.receiptNo,
+      receiptYear: appointments.receiptYear,
+      chargeConsultation: appointments.chargeConsultation,
+      discountType: appointments.discountType,
+      discountValue: appointments.discountValue,
+      discountStatus: appointments.discountStatus,
+      patientName: patients.fullName,
+      patientPhone: patients.phone,
+      patientMrn: patients.mrn,
+      patientCreatedAt: patients.createdAt,
+      doctorPrefix: users.prefix,
+      doctorName: users.fullName,
+      doctorUsername: users.username,
+      doctorFee: users.consultationFee,
+    })
+    .from(appointments)
+    .innerJoin(patients, eq(patients.id, appointments.patientId))
+    .leftJoin(users, eq(users.id, appointments.doctorId))
+    .where(
+      byClinic(
+        appointments.clinicId,
+        clinicId,
+        notDeleted(appointments.deletedAt),
+        eq(appointments.id, appointmentId),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}

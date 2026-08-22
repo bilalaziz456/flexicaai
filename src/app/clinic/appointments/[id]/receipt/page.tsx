@@ -1,11 +1,9 @@
+import { getAppointmentForDocument } from "@/core/billing/invoice";
+import { getClinic } from "@/core/clinics/get-clinic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, clinics, patients, users } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { getAppointmentProcedureItems } from "@/core/appointments/procedures";
 import { getAppointmentBill } from "@/core/billing/bill";
@@ -37,52 +35,10 @@ export default async function ReceiptPage({
   const { clinicId } = user;
   const { id } = await params;
 
-  const [row] = await db
-    .select({
-      scheduledAt: appointments.scheduledAt,
-      queueNumber: appointments.queueNumber,
-      receiptNo: appointments.receiptNo,
-      receiptYear: appointments.receiptYear,
-      chargeConsultation: appointments.chargeConsultation,
-      discountType: appointments.discountType,
-      discountValue: appointments.discountValue,
-      discountStatus: appointments.discountStatus,
-      patientName: patients.fullName,
-      patientPhone: patients.phone,
-      patientMrn: patients.mrn,
-      patientCreatedAt: patients.createdAt,
-      doctorPrefix: users.prefix,
-      doctorName: users.fullName,
-      doctorUsername: users.username,
-      doctorFee: users.consultationFee,
-    })
-    .from(appointments)
-    .innerJoin(patients, eq(patients.id, appointments.patientId))
-    .leftJoin(users, eq(users.id, appointments.doctorId))
-    .where(
-      byClinic(
-        appointments.clinicId,
-        clinicId,
-        notDeleted(appointments.deletedAt),
-        eq(appointments.id, id),
-      ),
-    )
-    .limit(1);
+  const row = await getAppointmentForDocument(clinicId, id);
   if (!row) notFound();
 
-  const [clinic] = await db
-    .select({
-      name: clinics.name,
-      featuresEnabled: clinics.featuresEnabled,
-      invoicePaper: clinics.invoicePaper,
-      signature: clinics.whatsappSignature,
-      mrnPrefix: clinics.mrnPrefix,
-      receiptPrefix: clinics.receiptPrefix,
-      logoKey: clinics.logoKey,
-    })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinic = await getClinic(clinicId);
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales") || !can(user, "billing", "view")) {
     notFound();
   }
@@ -269,7 +225,7 @@ export default async function ReceiptPage({
         </div>
 
         <div className="mt-3 border-t border-black/20 pt-2 text-center text-[0.85em] opacity-70">
-          {clinic?.signature ? <div>{clinic.signature}</div> : null}
+          {clinic?.whatsappSignature ? <div>{clinic.whatsappSignature}</div> : null}
           <div>Thank you.</div>
         </div>
       </InvoicePrintFrame>

@@ -1,14 +1,11 @@
+import { listClinicDoctors } from "@/core/appointments/doctors";
+import { getClinic } from "@/core/clinics/get-clinic";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
 import { requireWorkspace } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { clinics, users } from "@/core/db/schema";
 import { getDoctorBalance, listPayouts } from "@/core/sales/payouts";
 import { listDoctorEarnings, listDoctorSettlements } from "@/core/sales/share-report";
 import { listSettlementActions } from "@/core/sales/settlement-actions";
-import { displayStaffName } from "@/core/types/auth";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
 import { PrintButton } from "../payout-ui";
 import { SETTLEMENT_LABEL } from "../settlement-ui";
@@ -45,18 +42,12 @@ export default async function ShareStatementPage({
   const doctorId = user.role === "doctor" ? user.id : sp.doctorId?.trim();
   if (!doctorId) redirect("/clinic/shares");
 
-  const [doctor] = await db
-    .select({ prefix: users.prefix, fullName: users.fullName, username: users.username })
-    .from(users)
-    .where(byClinic(users.clinicId, clinicId, notDeleted(users.deletedAt), eq(users.id, doctorId)))
-    .limit(1);
+  // `listClinicDoctors` already formats the display name (prefix + fallback), so the
+  // statement header and every doctor picker spell it the same way.
+  const [doctor] = await listClinicDoctors(clinicId, { doctorId });
   if (!doctor) redirect("/clinic/shares");
 
-  const [clinic] = await db
-    .select({ name: clinics.name })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinic = await getClinic(clinicId);
 
   const [balance, earnings, settlements, actions, payments] = await Promise.all([
     getDoctorBalance(clinicId, doctorId),
@@ -66,7 +57,7 @@ export default async function ShareStatementPage({
     listPayouts(clinicId, doctorId),
   ]);
 
-  const doctorName = displayStaffName(doctor.prefix, doctor.fullName, doctor.username);
+  const doctorName = doctor.name; // already formatted by listClinicDoctors
   const backHref = user.role === "doctor" ? "/clinic/shares" : `/clinic/shares?doctorId=${doctorId}`;
   const borneTotal = balance.borne + balance.adjustments; // discount bearing + waives
   const owes = balance.outstanding < 0;
