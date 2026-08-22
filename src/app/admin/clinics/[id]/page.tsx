@@ -1,10 +1,8 @@
+import { getClinic } from "@/core/clinics/get-clinic";
+import { listAllClinicUsers } from "@/core/users/clinic-staff";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
 import { Breadcrumbs } from "@/core/ui/breadcrumbs";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { clinics, users } from "@/core/db/schema";
 import { SPECIALTY_CATALOG } from "@/config/modules";
 import { CLINIC_FEATURES } from "@/core/lib/features";
 import { resourcesForClinic } from "@/core/auth/permissions";
@@ -48,11 +46,7 @@ export default async function ClinicDetailPage({
 }) {
   const { id } = await params;
 
-  const [clinic] = await db
-    .select()
-    .from(clinics)
-    .where(eq(clinics.id, id))
-    .limit(1);
+  const clinic = await getClinic(id);
 
   if (!clinic) notFound();
 
@@ -74,16 +68,7 @@ export default async function ClinicDetailPage({
   const team = await listAssignableTeam();
 
   // Tenant-scoped: this clinic's staff only (byClinic = the isolation boundary).
-  const staff = await db
-    .select({
-      id: users.id,
-      username: users.username,
-      role: users.role,
-      fullName: users.fullName,
-      isActive: users.isActive,
-    })
-    .from(users)
-    .where(byClinic(users.clinicId, id, notDeleted(users.deletedAt)));
+  const staff = await listAllClinicUsers(id);
 
   return (
     <div className="space-y-6">

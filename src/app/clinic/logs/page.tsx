@@ -1,16 +1,13 @@
-import { and, asc, count, desc, eq, gte, inArray, lt } from "drizzle-orm";
+import { listClinicActivityLogs } from "@/core/audit/log-query";
+import { listClinicActorOptions } from "@/core/clinics/options";
 import { requireClinicAdmin } from "@/core/auth/user";
-import { db } from "@/core/db";
 import { getClinic } from "@/core/clinics/get-clinic";
-import { byClinic } from "@/core/db/tenant";
-import { activityLogs, users } from "@/core/db/schema";
 import { ActivityLogList } from "@/core/ui/activity-log";
 import { LogFilters } from "@/core/ui/log-filters";
 import { Pagination } from "@/core/ui/pagination";
 import { parseLogFilters } from "@/core/audit/log-filters";
 import { CLINIC_LOG_ROLES, logActionLabel } from "@/core/audit/access";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
-import type { UserRole } from "@/core/types/auth";
 
 /**
  * Clinic Admin: their clinic's activity log — but only if the super admin has
@@ -59,51 +56,17 @@ export default async function ClinicLogsPage({
   // out-of-scope value is ignored (never widens access).
   const activeAction = allowedActions.includes(action) ? action : "";
 
-  // Base scope: this clinic, only the granted action categories, and only the
-  // clinic's OWN staff — never super-admin actions (those are super-admin-only).
-  const conds = [
-    // A specific granted action if filtered, otherwise all granted categories.
-    activeAction
-      ? eq(activityLogs.action, activeAction)
-      : inArray(activityLogs.action, allowedActions),
-    inArray(activityLogs.actorRole, [...CLINIC_LOG_ROLES]),
-  ];
-  conds.push(gte(activityLogs.createdAt, start));
-  conds.push(lt(activityLogs.createdAt, endExclusive));
-  if (actor) conds.push(eq(activityLogs.actorUserId, actor));
-
-  const where = byClinic(activityLogs.clinicId, clinicId, and(...conds));
-  const [rows, staff, [{ total }]] = await Promise.all([
-    db
-      .select({
-        id: activityLogs.id,
-        createdAt: activityLogs.createdAt,
-        actorName: activityLogs.actorName,
-        actorRole: activityLogs.actorRole,
-        action: activityLogs.action,
-        summary: activityLogs.summary,
-      })
-      .from(activityLogs)
-      .where(where)
-      .orderBy(desc(activityLogs.createdAt))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+  const [{ rows, total }, actors] = await Promise.all([
+    // Scope, granted categories and the clinic-own-staff rule all live in core.
+    listClinicActivityLogs(
+      clinicId,
+      { start, endExclusive, allowedActions, action: activeAction || undefined, actorId: actor || undefined },
+      { offset: pageOffset(page, pageSize), limit: pageSize },
+    ),
     // Employee options = the clinic's OWN staff (from the users table), so the
-    // dropdown lists everyone even before they've generated any logs.
-    db
-      .select({ id: users.id, fullName: users.fullName, username: users.username })
-      .from(users)
-      .where(
-        byClinic(
-          users.clinicId,
-          clinicId,
-          inArray(users.role, [...CLINIC_LOG_ROLES] as UserRole[]),
-        ),
-      )
-      .orderBy(asc(users.fullName)),
-    db.select({ total: count() }).from(activityLogs).where(where),
+    // dropdown lists everyone even before they have generated any logs.
+    listClinicActorOptions(clinicId, { roles: CLINIC_LOG_ROLES }),
   ]);
-  const actors = staff.map((s) => ({ id: s.id, name: s.fullName ?? s.username }));
 
   return (
     <div className="space-y-6">

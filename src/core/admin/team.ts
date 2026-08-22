@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, count, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/core/db";
 import { clinics, sessions, users } from "@/core/db/schema";
 import { notDeleted } from "@/core/db/tenant";
@@ -203,4 +203,32 @@ export async function softDeleteTeamMember(userId: string, actorId: string): Pro
       .set({ assignedTo: null, updatedAt: new Date() })
       .where(eq(clinics.assignedTo, userId));
   });
+}
+
+/** One team member's full record, for the detail page. */
+export async function getTeamMember(userId: string) {
+  const [row] = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      fullName: users.fullName,
+      isActive: users.isActive,
+      deactivatedAt: users.deactivatedAt,
+      permissions: users.permissions,
+      role: users.role,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .where(and(eq(users.id, userId), eq(users.role, "super_admin"), notDeleted(users.deletedAt)))
+    .limit(1);
+  return row ?? null;
+}
+
+/** How many live clinics this member is the account manager for. */
+export async function countManagedClinics(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(clinics)
+    .where(and(eq(clinics.assignedTo, userId), notDeleted(clinics.deletedAt)));
+  return row?.n ?? 0;
 }

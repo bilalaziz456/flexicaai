@@ -1,8 +1,5 @@
-import { asc, count, eq } from "drizzle-orm";
+import { listClinicRecalls } from "@/core/recall/list";
 import { requireWorkspace } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { patients, recalls } from "@/core/db/schema";
 import { Badge } from "@/core/ui/badge";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { Pagination } from "@/core/ui/pagination";
@@ -36,25 +33,10 @@ export default async function ClinicRecallsPage({
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
 
-  const where = byClinic(recalls.clinicId, clinicId, notDeleted(recalls.deletedAt));
-  const [rows, [{ total }]] = await Promise.all([
-    db
-      .select({
-        id: recalls.id,
-        reason: recalls.reason,
-        dueAt: recalls.dueAt,
-        status: recalls.status,
-        patientName: patients.fullName,
-        patientPhone: patients.phone,
-      })
-      .from(recalls)
-      .innerJoin(patients, eq(recalls.patientId, patients.id))
-      .where(where)
-      .orderBy(asc(recalls.dueAt))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
-    db.select({ total: count() }).from(recalls).where(where),
-  ]);
+  const { rows, total } = await listClinicRecalls(clinicId, {
+    offset: pageOffset(page, pageSize),
+    limit: pageSize,
+  });
 
   const fmt = (d: Date) =>
     d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });

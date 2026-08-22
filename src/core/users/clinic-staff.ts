@@ -220,3 +220,24 @@ export async function setDoctorShareRates(
     .set({ ...input, updatedAt: new Date() })
     .where(byClinic(users.clinicId, clinicId, eq(users.id, doctorId)));
 }
+
+/**
+ * EVERY user of a clinic, including its admin — the super admin's clinic-detail view.
+ *
+ * Distinct from `listClinicStaff`, which narrows to `STAFF_ROLES` because a clinic
+ * admin must not see or edit another admin. The company has no such limit: it is
+ * looking at the whole account, and hiding the owner from that view would make the
+ * page lie about who can sign in.
+ */
+export async function listAllClinicUsers(clinicId: string) {
+  return db
+    .select({
+      id: users.id,
+      username: users.username,
+      role: users.role,
+      fullName: users.fullName,
+      isActive: users.isActive,
+    })
+    .from(users)
+    .where(byClinic(users.clinicId, clinicId, notDeleted(users.deletedAt)));
+}

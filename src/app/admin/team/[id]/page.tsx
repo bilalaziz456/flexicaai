@@ -1,10 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, count, eq } from "drizzle-orm";
 import { requireAdminCapability } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { notDeleted } from "@/core/db/tenant";
-import { clinics, users } from "@/core/db/schema";
 import {
   ADMIN_SUBROLE_META,
   adminAccountState,
@@ -14,6 +10,7 @@ import {
   isOwner,
 } from "@/core/auth/admin-permissions";
 import { listActiveTeam } from "@/core/admin/assignment";
+import { countManagedClinics, getTeamMember } from "@/core/admin/team";
 import { Badge } from "@/core/ui/badge";
 import {
   Card,
@@ -39,19 +36,7 @@ export default async function TeamMemberPage({
   const canDelete = canAdmin(viewer, "team:delete");
   const { id } = await params;
 
-  const [member] = await db
-    .select({
-      id: users.id,
-      username: users.username,
-      fullName: users.fullName,
-      isActive: users.isActive,
-      deactivatedAt: users.deactivatedAt,
-      permissions: users.permissions,
-      role: users.role,
-    })
-    .from(users)
-    .where(and(eq(users.id, id), eq(users.role, "super_admin"), notDeleted(users.deletedAt)))
-    .limit(1);
+  const member = await getTeamMember(id);
 
   if (!member) notFound();
 
@@ -60,8 +45,8 @@ export default async function TeamMemberPage({
   if (memberIsOwner && !isOwner(viewer)) notFound();
 
   // Managed clinics (for bulk reassign) + the active team to move them to.
-  const [[{ managed }], activeTeam] = await Promise.all([
-    db.select({ managed: count() }).from(clinics).where(and(eq(clinics.assignedTo, member.id), notDeleted(clinics.deletedAt))),
+  const [managed, activeTeam] = await Promise.all([
+    countManagedClinics(member.id),
     listActiveTeam(),
   ]);
   const reassignTargets = activeTeam.filter((m) => m.id !== member.id);
