@@ -1,18 +1,19 @@
 "use server";
 
+import {
+  addMissingProcedures,
+  createProcedure as createProcedureRecord,
+  softDeleteProcedure,
+  updateProcedure as updateProcedureRecord,
+} from "@/core/appointments/procedures";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireRole } from "@/core/auth/user";
 import { can, type PermAction } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
-import { db } from "@/core/db";
 import { getClinic } from "@/core/clinics/get-clinic";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
-import { procedures } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { procedureTemplatesFor } from "@/config/modules";
 import { logActivity } from "@/core/audit/log";
@@ -74,20 +75,16 @@ export async function createProcedure(
 
   const clinic = await getClinic(clinicId);
 
-  const [created] = await db
-    .insert(procedures)
-    .values({
-      clinicId,
-      name: parsed.data.name,
-      price: parsed.data.price,
-      module: clinic?.modulesEnabled?.[0] ?? null,
-    })
-    .returning({ id: procedures.id });
+  const createdId = await createProcedureRecord(clinicId, {
+    name: parsed.data.name,
+    price: parsed.data.price,
+    module: clinic?.modulesEnabled?.[0] ?? null,
+  });
 
   await logActivity({
     action: "create",
     entity: "procedure",
-    entityId: created.id,
+    entityId: createdId,
     summary: `Added procedure ${parsed.data.name} (Rs ${parsed.data.price})`,
   });
   revalidateProcedures();
@@ -111,24 +108,12 @@ export async function updateProcedure(
   }
   const isActive = formData.get("isActive") === "on";
 
-  const result = await db
-    .update(procedures)
-    .set({
-      name: parsed.data.name,
-      price: parsed.data.price,
-      isActive,
-      updatedAt: new Date(),
-    })
-    .where(
-      byClinic(
-        procedures.clinicId,
-        clinicId,
-        notDeleted(procedures.deletedAt),
-        eq(procedures.id, procedureId),
-      ),
-    )
-    .returning({ id: procedures.id });
-  if (result.length === 0) return { error: "Procedure not found." };
+  const saved = await updateProcedureRecord(clinicId, procedureId, {
+    name: parsed.data.name,
+    price: parsed.data.price,
+    isActive,
+  });
+  if (!saved) return { error: "Procedure not found." };
 
   await logActivity({
     action: "update",
@@ -147,17 +132,7 @@ export async function updateProcedure(
 export async function deleteProcedure(procedureId: string): Promise<void> {
   const { user, clinicId } = await requireProcedureAccess("delete");
 
-  await db
-    .update(procedures)
-    .set(softDeleteValues(user.id, newDeleteGroup()))
-    .where(
-      byClinic(
-        procedures.clinicId,
-        clinicId,
-        notDeleted(procedures.deletedAt),
-        eq(procedures.id, procedureId),
-      ),
-    );
+  await softDeleteProcedure(clinicId, procedureId, user.id);
 
   await logActivity({
     action: "delete",
@@ -181,28 +156,17 @@ export async function importProcedureDefaults(): Promise<ProcedureActionState> {
   const templates = procedureTemplatesFor(clinic?.modulesEnabled ?? []);
   if (templates.length === 0) return { saved: true };
 
-  const existing = await db
-    .select({ name: procedures.name })
-    .from(procedures)
-    .where(byClinic(procedures.clinicId, clinicId, notDeleted(procedures.deletedAt)));
-  const have = new Set(existing.map((p) => p.name.toLowerCase()));
-
-  const toAdd = templates.filter((t) => !have.has(t.name.toLowerCase()));
-  if (toAdd.length === 0) return { saved: true };
-
-  await db.insert(procedures).values(
-    toAdd.map((t) => ({
-      clinicId,
-      name: t.name,
-      price: t.price,
-      module: clinic?.modulesEnabled?.[0] ?? null,
-    })),
+  const added = await addMissingProcedures(
+    clinicId,
+    templates,
+    clinic?.modulesEnabled?.[0] ?? null,
   );
+  if (added === 0) return { saved: true };
 
   await logActivity({
     action: "create",
     entity: "procedure",
-    summary: `Imported ${toAdd.length} default procedure${toAdd.length === 1 ? "" : "s"}`,
+    summary: `Imported ${added} default procedure${added === 1 ? "" : "s"}`,
   });
   revalidateProcedures();
   return { saved: true };

@@ -1,10 +1,14 @@
 import "server-only";
 
-import { eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, patients } from "@/core/db/schema";
-import { appointmentHasProceduresSql } from "@/core/appointments/procedures";
+import { appointments, patients, users } from "@/core/db/schema";
+import {
+  appointmentHasProceduresSql,
+  appointmentProceduresGrossSql,
+  appointmentProceduresNetSql,
+} from "@/core/appointments/procedures";
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
 import type { StatusFilter, VisitTypeFilter } from "./list-filters";
 
@@ -124,4 +128,68 @@ export async function getAppointmentDetail(clinicId: string, appointmentId: stri
     )
     .limit(1);
   return row ?? null;
+}
+
+/**
+ * One page of the appointments list, plus its total — CORE per ADR-014.
+ *
+ * The bill columns come from `appointmentProcedures*Sql`, so the list, the invoice and
+ * the reports all aggregate the SAME expression (ADR-015) rather than three that
+ * happen to agree today.
+ *
+ * ORDER depends on the view: a QUEUE view sorts by token number, because that is the
+ * order patients are actually seen in; every other view sorts by time. Sorting a queue
+ * by clock time would show the list in an order the waiting room disagrees with.
+ */
+export async function listClinicAppointments(
+  clinicId: string,
+  conds: (SQL | undefined)[],
+  paging: { offset: number; limit: number },
+  opts: { byQueueNumber?: boolean } = {},
+) {
+  // Tenant scoping and the soft-delete filter belong HERE, not at the call site — the
+  // page supplies only what the user filtered by (`buildAppointmentConds`).
+  const where = byClinic(
+    appointments.clinicId,
+    clinicId,
+    notDeleted(appointments.deletedAt),
+    and(...conds),
+  );
+  const [rows, [totalRow]] = await Promise.all([
+    db
+      .select({
+        id: appointments.id,
+        scheduledAt: appointments.scheduledAt,
+        status: appointments.status,
+        reason: appointments.reason,
+        discountType: appointments.discountType,
+        discountValue: appointments.discountValue,
+        discountStatus: appointments.discountStatus,
+        chargeConsultation: appointments.chargeConsultation,
+        amountCollected: appointments.amountCollected,
+        queueNumber: appointments.queueNumber,
+        patientName: patients.fullName,
+        patientPhone: patients.phone,
+        doctorName: users.fullName,
+        doctorUsername: users.username,
+        doctorPrefix: users.prefix,
+        consultationFee: users.consultationFee,
+        proceduresGross: appointmentProceduresGrossSql(),
+        proceduresTotal: appointmentProceduresNetSql(),
+        hasProcedures: appointmentHasProceduresSql(),
+      })
+      .from(appointments)
+      .innerJoin(patients, eq(appointments.patientId, patients.id))
+      .leftJoin(users, eq(appointments.doctorId, users.id))
+      .where(where)
+      .orderBy(opts.byQueueNumber ? asc(appointments.queueNumber) : asc(appointments.scheduledAt))
+      .limit(paging.limit)
+      .offset(paging.offset),
+    db
+      .select({ total: count() })
+      .from(appointments)
+      .innerJoin(patients, eq(appointments.patientId, patients.id))
+      .where(where),
+  ]);
+  return { rows, total: totalRow?.total ?? 0 };
 }

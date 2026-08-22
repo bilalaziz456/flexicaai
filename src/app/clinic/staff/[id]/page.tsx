@@ -1,13 +1,12 @@
+import { getClinic } from "@/core/clinics/get-clinic";
+import { getClinicStaffMember } from "@/core/users/clinic-staff";
+import { listUpcomingLeaves } from "@/core/appointments/availability";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, asc, eq, gte } from "drizzle-orm";
 import { Ban, CalendarClock, CalendarOff, Percent, RotateCcw, ShieldCheck } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { setStaffActive } from "@/app/clinic/actions";
 import { DoctorLeaves } from "@/app/clinic/doctors/doctor-leaves";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { clinics, doctorLeaves, users } from "@/core/db/schema";
 import { getBookingProcedures } from "@/core/appointments/procedures";
 import { countOpenDrafts } from "@/core/clinical/drafts";
 import { getDoctorProcedureOverrides } from "@/core/appointments/share-config";
@@ -51,33 +50,7 @@ export default async function StaffDetailPage({
   const isAdmin = viewer.role === "clinic_admin";
   const { id } = await params;
 
-  const [member] = await db
-    .select({
-      id: users.id,
-      prefix: users.prefix,
-      fullName: users.fullName,
-      username: users.username,
-      role: users.role,
-      isActive: users.isActive,
-      availability: users.availability,
-      flexibleHours: users.flexibleHours,
-      dailyLimit: users.dailyAppointmentLimit,
-      fee: users.consultationFee,
-      permissions: users.permissions,
-      consultationSharePct: users.consultationSharePct,
-      procedureSharePct: users.procedureSharePct,
-      discountNeedsApproval: users.discountNeedsApproval,
-    })
-    .from(users)
-    .where(
-      byClinic(
-        users.clinicId,
-        clinicId,
-        notDeleted(users.deletedAt),
-        eq(users.id, id),
-      ),
-    )
-    .limit(1);
+  const member = await getClinicStaffMember(clinicId, id);
 
   // Clinic-scoped and only manageable staff (manager/doctor/receptionist) here.
   if (!member || !(CLINIC_STAFF_ROLES as readonly string[]).includes(member.role)) {
@@ -88,11 +61,7 @@ export default async function StaffDetailPage({
 
   // Permission grid inputs: the resources this clinic can use, and the member's
   // effective permissions (their overrides, or the role defaults when unset).
-  const [clinic] = await db
-    .select({ featuresEnabled: clinics.featuresEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinic = await getClinic(clinicId);
   const permResources = resourcesForClinic(clinic?.featuresEnabled);
   const roleDefaults = defaultPermissionsForRole(member.role);
   const effectivePermissions = member.permissions ?? roleDefaults;
@@ -103,26 +72,7 @@ export default async function StaffDetailPage({
   const today = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
   const leaves =
     member.role === "doctor"
-      ? await db
-          .select({
-            id: doctorLeaves.id,
-            startDate: doctorLeaves.startDate,
-            endDate: doctorLeaves.endDate,
-            reason: doctorLeaves.reason,
-          })
-          .from(doctorLeaves)
-          .where(
-            byClinic(
-              doctorLeaves.clinicId,
-              clinicId,
-              notDeleted(doctorLeaves.deletedAt),
-              and(
-                eq(doctorLeaves.doctorId, member.id),
-                gte(doctorLeaves.endDate, today),
-              ),
-            ),
-          )
-          .orderBy(asc(doctorLeaves.startDate))
+      ? await listUpcomingLeaves(clinicId, today, { doctorId: member.id })
       : [];
 
   // Revenue-share config inputs (doctors only): the clinic's priced procedures for

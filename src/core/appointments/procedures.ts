@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
+import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import {
   appointmentProcedures,
   appointments,
@@ -248,4 +249,87 @@ export async function listProcedureCatalog(clinicId: string) {
     .from(procedures)
     .where(byClinic(procedures.clinicId, clinicId, notDeleted(procedures.deletedAt)))
     .orderBy(desc(procedures.createdAt));
+}
+
+/** Adds one priced procedure to the clinic's catalog. Returns its id. */
+export async function createProcedure(
+  clinicId: string,
+  input: { name: string; price: number; module: string | null },
+): Promise<string> {
+  const [row] = await db
+    .insert(procedures)
+    .values({ clinicId, ...input })
+    .returning({ id: procedures.id });
+  return row.id;
+}
+
+/** Edits a procedure. Returns false when the id is not this clinic's (or trashed). */
+export async function updateProcedure(
+  clinicId: string,
+  procedureId: string,
+  input: { name: string; price: number; isActive: boolean },
+): Promise<boolean> {
+  const rows = await db
+    .update(procedures)
+    .set({ ...input, updatedAt: new Date() })
+    .where(
+      byClinic(
+        procedures.clinicId,
+        clinicId,
+        notDeleted(procedures.deletedAt),
+        eq(procedures.id, procedureId),
+      ),
+    )
+    .returning({ id: procedures.id });
+  return rows.length > 0;
+}
+
+/**
+ * Trashes a procedure. Past appointments keep their SNAPSHOTTED name and price
+ * (`appointment_procedures`), so removing one from the catalog never rewrites a bill
+ * that was already issued.
+ */
+export async function softDeleteProcedure(
+  clinicId: string,
+  procedureId: string,
+  actorId: string,
+): Promise<void> {
+  await db
+    .update(procedures)
+    .set(softDeleteValues(actorId, newDeleteGroup()))
+    .where(
+      byClinic(
+        procedures.clinicId,
+        clinicId,
+        notDeleted(procedures.deletedAt),
+        eq(procedures.id, procedureId),
+      ),
+    );
+}
+
+/**
+ * Seeds the catalog from the module's suggested defaults, skipping any the clinic
+ * already has BY NAME (case-insensitively).
+ *
+ * The name match is what makes this safe to run twice: a clinic that already added
+ * "Scaling" by hand must not end up with two, and matching on name is the only handle
+ * available since a template has no id in the clinic's catalog.
+ */
+export async function addMissingProcedures(
+  clinicId: string,
+  templates: { name: string; price: number }[],
+  module: string | null,
+): Promise<number> {
+  if (templates.length === 0) return 0;
+  const existing = await db
+    .select({ name: procedures.name })
+    .from(procedures)
+    .where(byClinic(procedures.clinicId, clinicId, notDeleted(procedures.deletedAt)));
+  const have = new Set(existing.map((p) => p.name.toLowerCase()));
+  const toAdd = templates.filter((t) => !have.has(t.name.toLowerCase()));
+  if (toAdd.length === 0) return 0;
+  await db
+    .insert(procedures)
+    .values(toAdd.map((t) => ({ clinicId, name: t.name, price: t.price, module })));
+  return toAdd.length;
 }

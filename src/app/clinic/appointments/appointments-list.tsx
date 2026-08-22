@@ -1,10 +1,7 @@
+import { listClinicAppointments } from "@/core/appointments/list-query";
 import Link from "next/link";
 import { ChevronRight, Download, Plus } from "lucide-react";
-import { and, asc, count, eq } from "drizzle-orm";
-import { db } from "@/core/db";
 import { getClinic } from "@/core/clinics/get-clinic";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, patients, users } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
@@ -14,11 +11,6 @@ import {
   effectiveDiscountValue,
   formatPkr,
 } from "@/core/appointments/fee";
-import {
-  appointmentHasProceduresSql,
-  appointmentProceduresGrossSql,
-  appointmentProceduresNetSql,
-} from "@/core/appointments/procedures";
 import { getDayQueue } from "@/core/appointments/queue";
 import { parseListFilters } from "@/core/appointments/list-filters";
 import { buildAppointmentConds } from "@/core/appointments/list-query";
@@ -147,53 +139,19 @@ export async function AppointmentsList({
     doctorId: doctorScope,
   });
 
-  const whereClause = byClinic(
-    appointments.clinicId,
-    clinicId,
-    notDeleted(appointments.deletedAt),
-    and(...conds),
-  );
   // The calendar sits above the table showing the month around the current
   // range. It browses independently (`?month=`), so stepping months doesn't
   // disturb which day the table is showing.
   const month = monthBounds(parseMonth(sp.month) ?? start);
   const calCollapsed = sp.cal === "0";
-  const [rows, queue, [{ total }], calendarDays] = await Promise.all([
-    db
-      .select({
-        id: appointments.id,
-        scheduledAt: appointments.scheduledAt,
-        status: appointments.status,
-        reason: appointments.reason,
-        discountType: appointments.discountType,
-        discountValue: appointments.discountValue,
-        discountStatus: appointments.discountStatus,
-        chargeConsultation: appointments.chargeConsultation,
-        amountCollected: appointments.amountCollected,
-        queueNumber: appointments.queueNumber,
-        patientName: patients.fullName,
-        patientPhone: patients.phone,
-        doctorName: users.fullName,
-        doctorUsername: users.username,
-        doctorPrefix: users.prefix,
-        consultationFee: users.consultationFee,
-        proceduresGross: appointmentProceduresGrossSql(),
-        proceduresTotal: appointmentProceduresNetSql(),
-        hasProcedures: appointmentHasProceduresSql(),
-      })
-      .from(appointments)
-      .innerJoin(patients, eq(appointments.patientId, patients.id))
-      .leftJoin(users, eq(appointments.doctorId, users.id))
-      .where(whereClause)
-      .orderBy(session ? asc(appointments.queueNumber) : asc(appointments.scheduledAt))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+  const [{ rows, total }, queue, calendarDays] = await Promise.all([
+    listClinicAppointments(
+      clinicId,
+      conds,
+      { offset: pageOffset(page, pageSize), limit: pageSize },
+      { byQueueNumber: Boolean(session) },
+    ),
     getDayQueue(clinicId, new Date(), doctorScope ? { doctorId: doctorScope } : undefined),
-    db
-      .select({ total: count() })
-      .from(appointments)
-      .innerJoin(patients, eq(appointments.patientId, patients.id))
-      .where(whereClause),
     // A queue view has no date range for a calendar to sit against.
     session
       ? Promise.resolve([])

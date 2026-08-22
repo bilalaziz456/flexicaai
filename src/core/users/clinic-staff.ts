@@ -241,3 +241,35 @@ export async function listAllClinicUsers(clinicId: string) {
     .from(users)
     .where(byClinic(users.clinicId, clinicId, notDeleted(users.deletedAt)));
 }
+
+/**
+ * One staff member's full record for their detail page.
+ *
+ * NOT narrowed to `STAFF_ROLES`, unlike the write functions: a clinic admin may VIEW
+ * their own record and their colleagues' here, and the page decides which controls to
+ * offer. Editing is where the role limit bites, and that is enforced in the write
+ * functions rather than by hiding the row.
+ */
+export async function getClinicStaffMember(clinicId: string, userId: string) {
+  const [row] = await db
+    .select({
+      id: users.id,
+      prefix: users.prefix,
+      fullName: users.fullName,
+      username: users.username,
+      role: users.role,
+      isActive: users.isActive,
+      availability: users.availability,
+      flexibleHours: users.flexibleHours,
+      dailyLimit: users.dailyAppointmentLimit,
+      fee: users.consultationFee,
+      permissions: users.permissions,
+      consultationSharePct: users.consultationSharePct,
+      procedureSharePct: users.procedureSharePct,
+      discountNeedsApproval: users.discountNeedsApproval,
+    })
+    .from(users)
+    .where(byClinic(users.clinicId, clinicId, notDeleted(users.deletedAt), eq(users.id, userId)))
+    .limit(1);
+  return row ?? null;
+}
