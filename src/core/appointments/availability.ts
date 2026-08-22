@@ -198,7 +198,11 @@ export async function checkDoctorSlot(
  * `start_date >= from`: leave that STARTED last week and runs through next week is
  * still current, and dropping it would show a doctor as available while they are away.
  */
-export async function listUpcomingLeaves(clinicId: string, from: string) {
+export async function listUpcomingLeaves(
+  clinicId: string,
+  from: string,
+  opts: { doctorId?: string } = {},
+) {
   return db
     .select({
       id: doctorLeaves.id,
@@ -213,7 +217,11 @@ export async function listUpcomingLeaves(clinicId: string, from: string) {
         doctorLeaves.clinicId,
         clinicId,
         notDeleted(doctorLeaves.deletedAt),
-        gte(doctorLeaves.endDate, from),
+        and(
+          gte(doctorLeaves.endDate, from),
+          // A doctor's own dashboard shows only their leave.
+          opts.doctorId ? eq(doctorLeaves.doctorId, opts.doctorId) : undefined,
+        ),
       ),
     )
     .orderBy(asc(doctorLeaves.startDate));

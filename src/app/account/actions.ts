@@ -1,15 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireUser } from "@/core/auth/user";
 import { canUseAccount } from "@/core/auth/admin-permissions";
 import { hashPassword } from "@/core/auth/password";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
-import { db } from "@/core/db";
-import { users } from "@/core/db/schema";
+import {
+  setMyAvatarKey,
+  setMyDiscountApproval,
+  setMyPasswordHash,
+  updateMyProfile as updateMyProfileRecord,
+} from "@/core/users/profile";
 import { logActivity } from "@/core/audit/log";
 import { STAFF_PREFIXES } from "@/core/types/auth";
 import {
@@ -48,15 +51,11 @@ export async function updateMyProfile(
   }
 
   try {
-    await db
-      .update(users)
-      .set({
-        fullName: parsed.data.fullName,
-        prefix: parsed.data.prefix ?? null,
-        email: parsed.data.email ?? null,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, user.id));
+    await updateMyProfileRecord(user.id, {
+      fullName: parsed.data.fullName,
+      prefix: parsed.data.prefix ?? null,
+      email: parsed.data.email ?? null,
+    });
   } catch (err) {
     const code =
       (err as { cause?: { code?: string }; code?: string })?.cause?.code ??
@@ -88,10 +87,7 @@ export async function updateMyDiscountApproval(
   if (user.role !== "doctor") return { error: "Only doctors have this setting." };
 
   const needsApproval = formData.get("discountNeedsApproval") === "on";
-  await db
-    .update(users)
-    .set({ discountNeedsApproval: needsApproval, updatedAt: new Date() })
-    .where(eq(users.id, user.id));
+  await setMyDiscountApproval(user.id, needsApproval);
 
   await logActivity({
     action: "update",
@@ -137,10 +133,7 @@ export async function changeMyPassword(
   }
 
   const passwordHash = await hashPassword(parsed.data.password);
-  await db
-    .update(users)
-    .set({ passwordHash, mustChangePassword: false, updatedAt: new Date() })
-    .where(eq(users.id, user.id));
+  await setMyPasswordHash(user.id, passwordHash);
 
   await logActivity({
     action: "update",
@@ -176,20 +169,10 @@ export async function uploadMyAvatar(
   const data = Buffer.from(await file.arrayBuffer());
   const key = await saveUserFile(user.id, "avatar", data, ext);
 
-  const [prev] = await db
-    .select({ avatarKey: users.avatarKey })
-    .from(users)
-    .where(eq(users.id, user.id))
-    .limit(1);
-
-  await db
-    .update(users)
-    .set({ avatarKey: key, updatedAt: new Date() })
-    .where(eq(users.id, user.id));
-
-  // Remove the old file after the new one is saved.
-  if (prev?.avatarKey && prev.avatarKey !== key) {
-    await deleteFileByKey(prev.avatarKey);
+  // Remove the old file only AFTER the new key is stored.
+  const previousKey = await setMyAvatarKey(user.id, key);
+  if (previousKey && previousKey !== key) {
+    await deleteFileByKey(previousKey);
   }
 
   await logActivity({
@@ -206,16 +189,8 @@ export async function uploadMyAvatar(
 export async function removeMyAvatar(): Promise<void> {
   const user = await requireUser();
   if (!canUseAccount(user, "edit")) return;
-  const [prev] = await db
-    .select({ avatarKey: users.avatarKey })
-    .from(users)
-    .where(eq(users.id, user.id))
-    .limit(1);
-  await db
-    .update(users)
-    .set({ avatarKey: null, updatedAt: new Date() })
-    .where(eq(users.id, user.id));
-  if (prev?.avatarKey) await deleteFileByKey(prev.avatarKey);
+  const previousKey = await setMyAvatarKey(user.id, null);
+  if (previousKey) await deleteFileByKey(previousKey);
   revalidatePath("/account");
   revalidatePath("/", "layout");
 }

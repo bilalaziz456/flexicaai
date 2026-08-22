@@ -30,7 +30,6 @@ const DB_IMPORT_MESSAGE =
  * bracket escaping happens in `escapeGlob` below rather than here.
  */
 const LEGACY_DIRECT_DB_ACCESS = [
-  "src/app/account/actions.ts",
   "src/app/admin/actions.ts",
   "src/app/admin/clinics/[id]/page.tsx",
   "src/app/admin/page.tsx",
@@ -44,7 +43,6 @@ const LEGACY_DIRECT_DB_ACCESS = [
   "src/app/clinic/appointments/appointments-list.tsx",
   "src/app/clinic/approvals/actions.ts",
   "src/app/clinic/logs/page.tsx",
-  "src/app/clinic/page.tsx",
   "src/app/clinic/patients/patient-detail.tsx",
   "src/app/clinic/patients/treatment-estimate.tsx",
   "src/app/clinic/payments/payment-actions.ts",

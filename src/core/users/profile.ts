@@ -57,3 +57,67 @@ export async function getMyTotpState(
     .limit(1);
   return { enabled: row?.enabled ?? false, backupCount: row?.backup?.length ?? 0 };
 }
+
+/**
+ * Self-service WRITES — a user changing their own record.
+ *
+ * Every one filters `id = userId`, so no caller can write to somebody else's row even
+ * by mistake. That is the whole reason these live apart from `core/admin/team`, which
+ * is capability-gated and edits OTHER people: same table, different authority, and a
+ * function that could take either id is one refactor from taking the wrong one.
+ */
+
+/** Name, title and email — what the account form edits. */
+export async function updateMyProfile(
+  userId: string,
+  input: { fullName: string; prefix: string | null; email: string | null },
+): Promise<void> {
+  await db
+    .update(users)
+    .set({ ...input, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+}
+
+/** A doctor's own "my discounts need approval" switch. */
+export async function setMyDiscountApproval(userId: string, needsApproval: boolean): Promise<void> {
+  await db
+    .update(users)
+    .set({ discountNeedsApproval: needsApproval, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+}
+
+/**
+ * Sets a new password hash and clears the force-change flag.
+ *
+ * Takes the HASH, never a plaintext password: hashing belongs to `core/auth`, and a
+ * query-layer function that accepted a raw password would be an invitation to store
+ * one. The caller verifies the current password first.
+ */
+export async function setMyPasswordHash(userId: string, passwordHash: string): Promise<void> {
+  await db
+    .update(users)
+    .set({ passwordHash, mustChangePassword: false, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+}
+
+/**
+ * Points the avatar at a new file and returns the PREVIOUS key, so the caller can
+ * delete the old file only after the new one is safely referenced. Returning it
+ * rather than deleting here keeps storage out of the query layer — and an ordering
+ * mistake would leave a user with no picture rather than a stale one.
+ */
+export async function setMyAvatarKey(
+  userId: string,
+  key: string | null,
+): Promise<string | null> {
+  const [prev] = await db
+    .select({ avatarKey: users.avatarKey })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  await db
+    .update(users)
+    .set({ avatarKey: key, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+  return prev?.avatarKey ?? null;
+}

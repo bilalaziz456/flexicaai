@@ -1,16 +1,8 @@
+import { listUpcomingLeaves } from "@/core/appointments/availability";
+import { getClinicDashboardCounts, getRecoveredCount, getRecoveredTrend } from "@/core/clinics/dashboard";
 import Link from "next/link";
-import { and, asc, count, eq, gte, inArray, sql } from "drizzle-orm";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import {
-  appointments,
-  doctorLeaves,
-  patients,
-  recalls,
-  users,
-} from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { getSalesSummary, resolveSalesRange } from "@/core/sales/report";
@@ -29,7 +21,7 @@ import { OnboardingChecklist } from "@/core/ui/onboarding-checklist";
 import { DeltaBadge } from "@/core/ui/delta-badge";
 import { AvgVisitValueForm } from "./avg-visit-value-form";
 import { DoctorLeaves } from "@/app/clinic/doctors/doctor-leaves";
-import { CLINIC_STAFF_ROLES, CLINIC_STAFF_SUMMARY } from "@/core/types/auth";
+import { CLINIC_STAFF_SUMMARY } from "@/core/types/auth";
 
 /**
  * Owner dashboard (CLAUDE.md §11 Step 12). The hero metric is "Revenue
@@ -71,26 +63,7 @@ export default async function ClinicDashboard() {
   const p = (n: number) => String(n).padStart(2, "0");
   const today = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
   const myLeave = isDoctor
-    ? await db
-        .select({
-          id: doctorLeaves.id,
-          startDate: doctorLeaves.startDate,
-          endDate: doctorLeaves.endDate,
-          reason: doctorLeaves.reason,
-        })
-        .from(doctorLeaves)
-        .where(
-          byClinic(
-            doctorLeaves.clinicId,
-            clinicId,
-            notDeleted(doctorLeaves.deletedAt),
-            and(
-              eq(doctorLeaves.doctorId, user.id),
-              gte(doctorLeaves.endDate, today),
-            ),
-          ),
-        )
-        .orderBy(asc(doctorLeaves.startDate))
+    ? await listUpcomingLeaves(clinicId, today, { doctorId: user.id })
     : [];
 
   // Net sales over the last 30 days for the dashboard card (only when the feature
@@ -104,114 +77,29 @@ export default async function ClinicDashboard() {
     ? getNoShowStats(clinicId, resolveSalesRange("30d", undefined, undefined))
     : Promise.resolve(null);
 
-  const [[staff], [patientRows], [recallsSent], [upcoming], recoveredRes, recoveredTrendRes, [apptTotal]] =
-    await Promise.all([
-      db
-        .select({ value: count() })
-        .from(users)
-        .where(
-          and(
-            eq(users.clinicId, clinicId),
-            notDeleted(users.deletedAt),
-            inArray(users.role, [...CLINIC_STAFF_ROLES]),
-          ),
-        ),
-      db
-        .select({ value: count() })
-        .from(patients)
-        .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt))),
-      db
-        .select({ value: count() })
-        .from(recalls)
-        .where(
-          byClinic(
-            recalls.clinicId,
-            clinicId,
-            notDeleted(recalls.deletedAt),
-            inArray(recalls.status, ["sent", "booked", "completed"]),
-          ),
-        ),
-      db
-        .select({ value: count() })
-        .from(appointments)
-        .where(
-          byClinic(
-            appointments.clinicId,
-            clinicId,
-            notDeleted(appointments.deletedAt),
-            and(
-              inArray(appointments.status, ["scheduled", "confirmed"]),
-              gte(appointments.scheduledAt, now),
-            ),
-          ),
-        ),
-      // "Recovered" = a recall that was sent AND the patient then had a completed
-      // appointment on/after the reminder. Correlated EXISTS — the analytics case
-      // where hand-written SQL on the same pool is clearest (db/index.ts policy).
-      // Only run it when the Revenue feature is on.
-      revenueEnabled
-        ? db.execute(sql`
-            SELECT count(DISTINCT r.id)::int AS recovered
-            FROM recalls r
-            WHERE r.clinic_id = ${clinicId}
-              AND r.deleted_at IS NULL
-              AND r.status IN ('sent', 'booked', 'completed')
-              AND EXISTS (
-                SELECT 1 FROM appointments a
-                WHERE a.patient_id = r.patient_id
-                  AND a.clinic_id = r.clinic_id
-                  AND a.deleted_at IS NULL
-                  AND a.status = 'completed'
-                  AND a.scheduled_at >= COALESCE(r.sent_at, r.due_at)
-              )
-          `)
-        : Promise.resolve({ rows: [] as { recovered?: number }[] }),
-      // Recovered return VISITS per month (last 6 months) for the hero sparkline.
-      revenueEnabled
-        ? db.execute(sql`
-            SELECT to_char(date_trunc('month', a.scheduled_at), 'YYYY-MM') AS m, count(*)::int AS n
-            FROM appointments a
-            WHERE a.clinic_id = ${clinicId}
-              AND a.deleted_at IS NULL
-              AND a.status = 'completed'
-              AND a.scheduled_at >= date_trunc('month', now()) - interval '5 months'
-              AND EXISTS (
-                SELECT 1 FROM recalls r
-                WHERE r.patient_id = a.patient_id
-                  AND r.clinic_id = a.clinic_id
-                  AND r.deleted_at IS NULL
-                  AND r.status IN ('sent', 'booked', 'completed')
-                  AND a.scheduled_at >= COALESCE(r.sent_at, r.due_at)
-              )
-            GROUP BY m ORDER BY m
-          `)
-        : Promise.resolve({ rows: [] as { m: string; n: number }[] }),
-      // Total appointments ever (for the first-run onboarding checklist).
-      db
-        .select({ value: count() })
-        .from(appointments)
-        .where(byClinic(appointments.clinicId, clinicId, notDeleted(appointments.deletedAt))),
-    ]);
+  const [counts, recovered, recoveredTrendRows] = await Promise.all([
+    getClinicDashboardCounts(clinicId, now),
+    // Only run the metric queries when the Revenue feature is on.
+    revenueEnabled ? getRecoveredCount(clinicId) : Promise.resolve(0),
+    revenueEnabled ? getRecoveredTrend(clinicId) : Promise.resolve([]),
+  ]);
 
   // First-run setup guide — shown to the clinic admin until the three essentials are
   // in place, then it hides itself (no manual dismiss needed).
   const onboardingSteps = isAdmin
     ? [
-        { label: "Add your team", description: "Invite doctors and receptionists.", href: "/clinic/staff", cta: "Add staff", done: staff.value > 0 },
-        { label: "Add your first patient", description: "Register a patient to start booking.", href: "/clinic/patients", cta: "Add patient", done: patientRows.value > 0 },
-        { label: "Book the first appointment", description: "Schedule a visit for a patient.", href: "/clinic/appointments/new", cta: "Book", done: apptTotal.value > 0 },
+        { label: "Add your team", description: "Invite doctors and receptionists.", href: "/clinic/staff", cta: "Add staff", done: counts.staff > 0 },
+        { label: "Add your first patient", description: "Register a patient to start booking.", href: "/clinic/patients", cta: "Add patient", done: counts.patients > 0 },
+        { label: "Book the first appointment", description: "Schedule a visit for a patient.", href: "/clinic/appointments/new", cta: "Book", done: counts.appointmentsEver > 0 },
       ]
     : [];
   const showOnboarding = onboardingSteps.length > 0 && onboardingSteps.some((s) => !s.done);
 
-  const recovered = Number(
-    (recoveredRes.rows[0] as { recovered?: number } | undefined)?.recovered ?? 0,
-  );
   const revenueRecovered = recovered * avgVisitValue;
   // Last 6 months of recovered revenue (visits × avg value), gap-filled → sparkline.
   const recoveredTrend = (() => {
     const byMonth = new Map<string, number>();
-    for (const r of (recoveredTrendRes.rows as { m: string; n: number }[])) byMonth.set(r.m, Number(r.n));
+    for (const r of recoveredTrendRows) byMonth.set(r.m, Number(r.n));
     return Array.from({ length: 6 }, (_, i) => {
       const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -268,8 +156,8 @@ export default async function ClinicDashboard() {
     ...(revenueEnabled
       ? [{ title: "Return visits", value: recovered, note: "From recall reminders" }]
       : []),
-    { title: "Recalls sent", value: recallsSent.value, note: "Reminders delivered", href: "/clinic/recalls" },
-    { title: "Upcoming appts", value: upcoming.value, note: "Scheduled ahead", href: "/clinic/appointments" },
+    { title: "Recalls sent", value: counts.recallsSent, note: "Reminders delivered", href: "/clinic/recalls" },
+    { title: "Upcoming appts", value: counts.upcoming, note: "Scheduled ahead", href: "/clinic/appointments" },
     ...(noShow && noShow.attended > 0
       ? [
           {
@@ -280,8 +168,8 @@ export default async function ClinicDashboard() {
           },
         ]
       : []),
-    { title: "Patients", value: patientRows.value, note: "Registered", href: "/clinic/patients" },
-    { title: "Staff", value: staff.value, note: CLINIC_STAFF_SUMMARY, href: "/clinic/staff" },
+    { title: "Patients", value: counts.patients, note: "Registered", href: "/clinic/patients" },
+    { title: "Staff", value: counts.staff, note: CLINIC_STAFF_SUMMARY, href: "/clinic/staff" },
   ];
 
   return (
