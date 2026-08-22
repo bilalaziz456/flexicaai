@@ -1,6 +1,7 @@
 import "server-only";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/core/db";
 import {
   appointments,
@@ -10,9 +11,13 @@ import {
   recalls,
   saleShares,
   sales,
+  users,
   visits,
 } from "@/core/db/schema";
 import { byClinic, notDeleted } from "@/core/db/tenant";
+
+/** `users` joined a SECOND time as the approver — a visit references two people. */
+const approver = alias(users, "approver");
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 
 /** The fields a clinic edits on a patient. Age is stored as a derived birth date. */
@@ -167,4 +172,125 @@ export async function findClinicPatient(clinicId: string, patientId: string): Pr
     )
     .limit(1);
   return row?.id ?? null;
+}
+
+/** The full patient row for their detail page. */
+export async function getPatient(clinicId: string, patientId: string) {
+  const [row] = await db
+    .select()
+    .from(patients)
+    .where(
+      byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt), eq(patients.id, patientId)),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+/** A patient's recent appointments, newest first, with the doctor resolved. */
+export async function listPatientAppointments(clinicId: string, patientId: string, limit = 20) {
+  return db
+    .select({
+      id: appointments.id,
+      scheduledAt: appointments.scheduledAt,
+      status: appointments.status,
+      doctorName: users.fullName,
+      doctorUsername: users.username,
+    })
+    .from(appointments)
+    .leftJoin(users, eq(appointments.doctorId, users.id))
+    .where(
+      byClinic(
+        appointments.clinicId,
+        clinicId,
+        notDeleted(appointments.deletedAt),
+        eq(appointments.patientId, patientId),
+      ),
+    )
+    .orderBy(desc(appointments.scheduledAt))
+    .limit(limit);
+}
+
+/**
+ * A patient's clinical timeline: APPROVED notes, plus the viewer's OWN drafts.
+ *
+ * A draft is unreviewed AI output and never counts as the record until a clinician
+ * signs it off (ADR-007), so it must not read as clinical fact to a manager or to
+ * another doctor. Its AUTHOR is the exception: a scribe session that ends before
+ * approval leaves a draft row, and this timeline is the only place its text is
+ * legible — filtering it from the author too would make what they dictated
+ * unreachable. `approver` is joined separately so an adopted draft (D-18) can show
+ * who signed it as well as who dictated it.
+ */
+export async function listPatientVisits(
+  clinicId: string,
+  patientId: string,
+  viewerId: string | null,
+  limit = 30,
+) {
+  return db
+    .select({
+      id: visits.id,
+      visitDate: visits.visitDate,
+      status: visits.status,
+      note: visits.note,
+      doctorName: users.fullName,
+      doctorUsername: users.username,
+      doctorPrefix: users.prefix,
+      doctorId: visits.doctorId,
+      approvedByName: approver.fullName,
+      approvedByPrefix: approver.prefix,
+      approvedById: visits.approvedBy,
+    })
+    .from(visits)
+    .leftJoin(users, eq(visits.doctorId, users.id))
+    .leftJoin(approver, eq(visits.approvedBy, approver.id))
+    .where(
+      byClinic(
+        visits.clinicId,
+        clinicId,
+        notDeleted(visits.deletedAt),
+        eq(visits.patientId, patientId),
+        viewerId
+          ? or(eq(visits.status, "approved"), eq(visits.doctorId, viewerId))
+          : eq(visits.status, "approved"),
+      ),
+    )
+    .orderBy(desc(visits.visitDate))
+    .limit(limit);
+}
+
+/**
+ * APPROVED visits, for the prescription reprint list.
+ *
+ * Approved ONLY — no viewer-own-drafts exception here, unlike the clinical timeline.
+ * A prescription is a thing a patient acts on, so an unsigned draft must never appear
+ * in a list someone might print from. The CALLER projects just the drug lines out of
+ * the note, so no other clinical data reaches a prescriptions-only viewer.
+ */
+export async function listPatientPrescriptionVisits(
+  clinicId: string,
+  patientId: string,
+  limit = 50,
+) {
+  return db
+    .select({
+      id: visits.id,
+      visitDate: visits.visitDate,
+      note: visits.note,
+      doctorName: users.fullName,
+      doctorUsername: users.username,
+      doctorPrefix: users.prefix,
+    })
+    .from(visits)
+    .leftJoin(users, eq(visits.doctorId, users.id))
+    .where(
+      byClinic(
+        visits.clinicId,
+        clinicId,
+        notDeleted(visits.deletedAt),
+        and(eq(visits.patientId, patientId), eq(visits.status, "approved")),
+      ),
+    )
+    .orderBy(desc(visits.visitDate))
+    .limit(limit);
 }

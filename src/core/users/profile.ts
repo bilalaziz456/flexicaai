@@ -154,3 +154,23 @@ export async function setMyBackupCodes(userId: string, backupHashes: string[]): 
     .set({ totpBackup: backupHashes, updatedAt: new Date() })
     .where(and(eq(users.id, userId), notDeleted(users.deletedAt)));
 }
+
+/**
+ * Your own TOTP secret and backup hashes — for a step-up challenge.
+ *
+ * Separate from `getMyTotpState`, which returns only whether 2FA is on and how many
+ * codes remain: that one feeds a settings PAGE, and a page has no business holding the
+ * secret. This is for verifying a code, and nothing else should call it.
+ */
+export async function getMyTotpSecrets(userId: string) {
+  const [row] = await db
+    .select({
+      totpEnabled: users.totpEnabled,
+      totpSecret: users.totpSecret,
+      totpBackup: users.totpBackup,
+    })
+    .from(users)
+    .where(and(eq(users.id, userId), notDeleted(users.deletedAt)))
+    .limit(1);
+  return row ?? null;
+}

@@ -87,10 +87,11 @@ BROWSER
 | **Modules** | `src/modules/<specialty>` | Own specialty prompts, components, schema, rules | Be imported by core |
 | **Registry** | `src/config/modules.ts` | Import concrete modules; aggregate their contributions | Leak a specialty name upward |
 
-**The rule that is most often broken:** a page or action that writes its own query.
+**The rule that used to be broken most:** a page or action that writes its own query.
 Every query belongs in a `core/<domain>` module. This is not about abstraction — it
 is that a query written at a call site is one more place to forget `byClinic()`, and
-it cannot be tested or reused. See ADR-014.
+it cannot be tested or reused. 77 app files did it; as of 2026-08-22 **none do**, and
+lint now enforces it with no exemptions. See ADR-014.
 
 ---
 
@@ -256,20 +257,38 @@ must-change-password gates — a suspended clinic could still export its patient
 **Consequence:** never add an auth check outside `core/auth`.
 
 **ADR-014 — Queries live in core domain modules, enforced by lint** · *2026-08-21* ·
-`Accepted` *(target; see delta D-01)*
+`Accepted` *(implemented — D-01 closed 2026-08-22)*
 Every query lives in a `core/<domain>` module taking `clinicId` first. `src/app/**`
 may not import `@/core/db` or `@/core/db/schema`.
-**Why:** 77 app files currently build queries inline, so tenant scoping is a habit
-rather than a structure, and none of it is testable.
+**Why:** 77 app files built queries inline, so tenant scoping was a habit rather than
+a structure, and none of it was testable.
 **Explicitly NOT a repository pattern.** Drizzle *is* the abstraction; wrapping it
 would add indirection without removing coupling.
-**Consequence:** enforced by an ESLint `no-restricted-imports` rule with an
-allowlist that only ever shrinks — a visible debt counter, no big-bang refactor.
-Type-only imports stay legal (they carry no query, and banning them would push
-callers into hand-rolling row shapes). Two traps worth knowing if you touch the
-config: a dynamic-route segment must be glob-escaped or its entry silently exempts
-nothing, and a config that fails to parse reports ZERO problems — which reads exactly
-like passing. Verify a rule fires on a deliberate violation before believing it.
+**Consequence:** enforced by an ESLint `no-restricted-imports` rule that ran as a
+RATCHET — an allowlist that could only shrink, a visible debt counter rather than a
+big-bang refactor. **It reached zero on 2026-08-22 and the exemption block is gone**,
+so the rule now applies to `src/app/**` with no escape hatch. Type-only imports stay
+legal (they carry no query, and banning them would push callers into hand-rolling row
+shapes).
+
+Three traps, all of which cost real time on the way down:
+
+- A config that fails to PARSE reports ZERO problems, which reads exactly like
+  passing. Verify the rule fires on a deliberate violation before believing it.
+- A dynamic-route segment had to be glob-escaped: `[id]` is a character class in
+  minimatch *and* in sed, so three allowlist entries silently exempted nothing and two
+  attempts to prune them silently no-oped.
+- **Codemods must be constrained by what the projection SELECTS**, not by the table in
+  the FROM clause. A pass swapping inline clinic reads for `getClinic` also matched
+  queries that merely JOIN `clinics`, renaming their variable and breaking eight files;
+  a greedy `[\s\S]*?` in another pass ate the boundary between two functions and
+  deleted ~100 lines that tsc was perfectly happy about. Prefer exact-substring edits
+  that assert a match count.
+
+The end of the list was also the hard part: `admin/actions.ts` held 33 statements
+including three transactions e2e cannot reach (it signs in as clinic staff, so clinic
+creation, suspension and deletion were untested). They are now `core/admin/clinics.ts`,
+covered by `scripts/test-admin-clinics.ts`.
 
 **ADR-015 — One bill formula, with SQL bound to it by test** · *2026-08-21* ·
 `Accepted` *(implemented — D-02 closed)*
@@ -548,7 +567,7 @@ they land.** Ordered by consequence.
 
 | # | Delta | ADR | Status |
 |---|---|---|---|
-| D-01 | App files querying the DB directly. **Ratchet installed** — `eslint.config.mjs` bans `@/core/db` + `@/core/db/schema` from `src/app/**`, with a legacy allowlist that may only SHRINK | ADR-014 | Open — **2 left** (77 → 52 → 42 → 36 → 33 → 30 → 27 → 22 → 20 → 18 → 17 → 16 → 12 → 8 → 5 → 2). Only `admin/actions.ts` (28 statements) and `patients/patient-detail.tsx` remain. Delete lines from `LEGACY_DIRECT_DB_ACCESS` as they migrate; when it is empty, remove the exemption block. **A file that stops offending must be pruned from the list in the same change** — a stale exemption silently un-guards a file that had already been fixed. **If you codemod this, constrain the match by what the projection SELECTS** — a first pass at swapping inline clinic reads for `getClinic` matched queries that merely JOIN `clinics` and broke eight files |
+| ~~D-01~~ | App files querying the DB directly — 77 of them, each a place to forget `byClinic()` | ADR-014 | **Closed 2026-08-22** — 77 → 52 → 42 → 36 → 33 → 30 → 27 → 22 → 20 → 18 → 17 → 16 → 12 → 8 → 5 → 2 → **0**. `LEGACY_DIRECT_DB_ACCESS` is empty and the exemption block is DELETED, so `eslint.config.mjs` bans `@/core/db` + `@/core/db/schema` from all of `src/app/**` with nothing exempted; re-proved by a deliberate violation. Never reintroduce an allowlist. The last file, `admin/actions.ts`, is now `core/admin/clinics.ts` + `scripts/test-admin-clinics.ts` |
 | ~~D-07~~ | Trash loaded every soft-deleted row of 9 tables into memory | ADR-006 / ADR-024 | **Closed 2026-08-22** — see ADR-024. Every filter pushed into SQL, each source bounded to `offset + limit`, both pages paginated. `scripts/test-trash-paging.ts` |
 | ~~D-08~~ | Scribe was synchronous — a minutes-long request with no resume path | ADR-020 | **Closed 2026-08-22** — 202 + `after()` job + `transcribing`/`failed` states + a recovery cron. `scripts/test-scribe-async.ts`. **A live dictation is still owed** once the AI keys exist |
 | ~~D-11~~ | `activity_logs` had no retention; a view cost 2 queries, the second unindexed | ADR-006 / ADR-023 | **Closed 2026-08-22** — see ADR-023. One indexed statement per view, plus an opt-in retention window (default: keep everything). Partitioning was NOT done and is not needed at this size; the trigger is in ADR-023. `scripts/test-log-retention.ts` |

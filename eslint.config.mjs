@@ -8,39 +8,24 @@ import nextTs from "eslint-config-next/typescript";
  * Every query belongs in a `core/<domain>` module that takes `clinicId` first. A
  * query written inline in a page or action is one more place to forget `byClinic()`
  * or `notDeleted()`, it can't be unit-tested, and it can't be reused — which is how
- * dozens of files ended up each holding a slightly different version of the same read.
+ * 77 files ended up each holding a slightly different version of the same read.
  *
- * This is a RATCHET, not a big-bang refactor. The rule applies to all of
- * `src/app/**`; the files that predate it are exempted below. **That list may only
- * ever shrink.** It is the debt counter: when it reaches zero, delete the exemption
- * block and the rule stands on its own. Never add to it — if a new page needs data,
- * the query goes in `core`.
+ * This began as a RATCHET with an exemption list of those 77 files, shrinking as each
+ * was migrated. **The list reached zero on 2026-08-22 and the exemption block is
+ * gone**, so the rule now applies to all of `src/app/**` with no escape hatch. Don't
+ * reintroduce one: if a new page needs data, the query goes in `core`.
  *
  * Type-only imports are allowed: `import type { Patient } from "@/core/db/schema"` is
  * erased at compile time and carries no query with it, so banning it would only push
  * callers into re-declaring row shapes by hand, which the conventions warn against.
+ *
+ * One trap worth knowing if you ever edit this file: a config that fails to PARSE
+ * reports zero problems, which reads exactly like passing. After changing the rule,
+ * prove it still fires by adding a deliberate `import { db } from "@/core/db"` to any
+ * app file and watching it fail.
  */
 const DB_IMPORT_MESSAGE =
   "Don't query the database from the app layer (ADR-014). Put the query in a core/<domain> module that takes clinicId first, and call that. Type-only imports are fine.";
-
-/**
- * Files that queried the DB directly before the rule existed. ONLY EVER SHRINKS.
- *
- * Kept as plain, readable paths so lines are easy to delete as they're migrated. The
- * bracket escaping happens in `escapeGlob` below rather than here.
- */
-const LEGACY_DIRECT_DB_ACCESS = [
-  "src/app/admin/actions.ts",
-  "src/app/clinic/patients/patient-detail.tsx",
-];
-
-/**
- * A dynamic-route segment is a LITERAL path part, not a minimatch character class.
- * Unescaped, `[id]` matches the single characters "i" or "d", so the entry silently
- * fails to exempt its own file — and the rule then looks like it is passing on code
- * it never actually matched. (It did exactly that while this was being written.)
- */
-const escapeGlob = (p) => p.replaceAll("[", "\\[").replaceAll("]", "\\]");
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -58,10 +43,6 @@ const eslintConfig = defineConfig([
         },
       ],
     },
-  },
-  {
-    files: LEGACY_DIRECT_DB_ACCESS.map(escapeGlob),
-    rules: { "@typescript-eslint/no-restricted-imports": "off" },
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([

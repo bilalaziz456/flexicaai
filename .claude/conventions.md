@@ -86,8 +86,9 @@ note above it; obvious logic gets none.
   (`resource` / `cap` / `feature` / `gate`). Adding a page never edits `core/ui`.
 - **Queries belong in `core/<domain>`**, not in pages or actions (ADR-014) — enforced
   by lint: `src/app/**` may not import `@/core/db` or `@/core/db/schema` (type-only
-  imports are fine). The legacy allowlist in `eslint.config.mjs` only ever shrinks;
-  never add to it.
+  imports are fine). The legacy allowlist reached zero on 2026-08-22 and was removed,
+  so the rule now has NO exemptions. Don't reintroduce one — if a new page needs data,
+  the query goes in `core`.
 - **Reading the clinic row? Use `getClinic(clinicId)`.** It is request-cached, so
   repeated reads in one render collapse to a single query — an inline
   `select … from clinics` is both a lint violation and a duplicate round trip.

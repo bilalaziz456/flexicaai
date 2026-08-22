@@ -1,12 +1,13 @@
+import {
+  getPatient,
+  listPatientAppointments,
+  listPatientPrescriptionVisits,
+  listPatientVisits,
+} from "@/core/patients/manage";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarPlus, Printer } from "lucide-react";
-import { and, desc, eq, or } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
-import { db } from "@/core/db";
 import { getClinic } from "@/core/clinics/get-clinic";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, patients, users, visits } from "@/core/db/schema";
 import { clinicalRecordFor } from "@/config/modules";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
@@ -45,13 +46,6 @@ import { OpeningBalanceForm } from "./opening-balance-form";
  * return to; `canEdit`/`canDelete` gate the edit form and delete (view-only shows
  * the details read-only).
  */
-/**
- * `users` joined a SECOND time, as the approver. A visit references two people —
- * whoever dictated it (`doctor_id`) and whoever signed it (`approved_by`) — and one
- * join cannot serve both.
- */
-const approver = alias(users, "approver");
-
 export async function PatientDetail({
   clinicId,
   patientId,
@@ -117,40 +111,10 @@ export async function PatientDetail({
   /** Allow recording an opening-balance payment (billing:create). */
   canRecordPayment?: boolean;
 }) {
-  const [patient] = await db
-    .select()
-    .from(patients)
-    .where(
-      byClinic(
-        patients.clinicId,
-        clinicId,
-        notDeleted(patients.deletedAt),
-        eq(patients.id, patientId),
-      ),
-    )
-    .limit(1);
+  const patient = await getPatient(clinicId, patientId);
   if (!patient) notFound();
 
-  const appts = await db
-    .select({
-      id: appointments.id,
-      scheduledAt: appointments.scheduledAt,
-      status: appointments.status,
-      doctorName: users.fullName,
-      doctorUsername: users.username,
-    })
-    .from(appointments)
-    .leftJoin(users, eq(appointments.doctorId, users.id))
-    .where(
-      byClinic(
-        appointments.clinicId,
-        clinicId,
-        notDeleted(appointments.deletedAt),
-        eq(appointments.patientId, patientId),
-      ),
-    )
-    .orderBy(desc(appointments.scheduledAt))
-    .limit(20);
+  const appts = await listPatientAppointments(clinicId, patientId);
 
   // Clinical history — the visit record timeline. Phase 0 reads the existing
   // `visits` (transcript + module-shaped note); later phases add the structured
@@ -164,40 +128,7 @@ export async function PatientDetail({
   // place its text is legible — filtering it from the author too would make what
   // they dictated unreachable. Their own drafts stay, badged Draft.
   const clinicalVisits = canViewClinical
-    ? await db
-        .select({
-          id: visits.id,
-          visitDate: visits.visitDate,
-          status: visits.status,
-          note: visits.note,
-          doctorName: users.fullName,
-          doctorUsername: users.username,
-          doctorPrefix: users.prefix,
-          // Who SIGNED it, which is usually the same person who dictated it. It
-          // differs only when a stranded draft was adopted under the `handover`
-          // grant (D-18), and then the record must say so — a note that showed only
-          // one name would imply that person examined the patient.
-          approvedByName: approver.fullName,
-          approvedByPrefix: approver.prefix,
-          approvedById: visits.approvedBy,
-          doctorId: visits.doctorId,
-        })
-        .from(visits)
-        .leftJoin(users, eq(visits.doctorId, users.id))
-        .leftJoin(approver, eq(visits.approvedBy, approver.id))
-        .where(
-          byClinic(
-            visits.clinicId,
-            clinicId,
-            notDeleted(visits.deletedAt),
-            eq(visits.patientId, patientId),
-            viewerId
-              ? or(eq(visits.status, "approved"), eq(visits.doctorId, viewerId))
-              : eq(visits.status, "approved"),
-          ),
-        )
-        .orderBy(desc(visits.visitDate))
-        .limit(30)
+    ? await listPatientVisits(clinicId, patientId, viewerId ?? null)
     : [];
 
   // Prescription history — reprint list, gated by `prescriptions:view` (independent
@@ -208,27 +139,7 @@ export async function PatientDetail({
   type RxVisit = { visitId: string; date: Date | null; doctor: string; drugs: RxLine[] };
   const prescriptionVisits: RxVisit[] = canViewPrescriptions
     ? (
-        await db
-          .select({
-            id: visits.id,
-            visitDate: visits.visitDate,
-            note: visits.note,
-            doctorName: users.fullName,
-            doctorUsername: users.username,
-            doctorPrefix: users.prefix,
-          })
-          .from(visits)
-          .leftJoin(users, eq(visits.doctorId, users.id))
-          .where(
-            byClinic(
-              visits.clinicId,
-              clinicId,
-              notDeleted(visits.deletedAt),
-              and(eq(visits.patientId, patientId), eq(visits.status, "approved")),
-            ),
-          )
-          .orderBy(desc(visits.visitDate))
-          .limit(50)
+        await listPatientPrescriptionVisits(clinicId, patientId)
       ).flatMap((v) => {
         const note = (v.note && typeof v.note === "object" ? v.note : {}) as Record<string, unknown>;
         const drugs: RxLine[] = (Array.isArray(note.prescriptions) ? (note.prescriptions as Record<string, unknown>[]) : [])

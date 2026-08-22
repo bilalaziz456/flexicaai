@@ -2,7 +2,6 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireAdminCapability } from "@/core/auth/user";
@@ -11,23 +10,20 @@ import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { setSessionImpersonation } from "@/core/auth/session";
 import { consumeBackupCode, verifyTotp } from "@/core/auth/totp";
 import { logActivityAs } from "@/core/audit/log";
-import { db } from "@/core/db";
-import { notDeleted } from "@/core/db/tenant";
-import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import {
-  appointments,
-  clinics,
-  doctorLeaves,
-  patients,
-  discountSettlements,
-  procedures,
-  recalls,
-  sales,
-  saleShares,
-  sessions,
-  users,
-  visits,
-} from "@/core/db/schema";
+  createClinicWithAdmin as createClinicWithAdminRecord,
+  findAssignableManager,
+  getLiveClinic,
+  resetClinicUserPassword,
+  setClinicStatusFields,
+  setClinicUserActive,
+  softDeleteClinic,
+  updateClinicFields,
+  updateClinicUserProfile,
+} from "@/core/admin/clinics";
+import { getClinic } from "@/core/clinics/get-clinic";
+import { getMyTotpSecrets, setMyBackupCodes } from "@/core/users/profile";
+import { getTeamMember } from "@/core/admin/team";
 import { availableSpecialtyIds } from "@/config/modules";
 import { CLINIC_FEATURE_IDS } from "@/core/lib/features";
 import { isClinicStatus, isClinicUsable, type ClinicStatus } from "@/core/clinics/status";
@@ -113,35 +109,22 @@ export async function createClinicWithAdmin(
   const assigneeId = String(formData.get("assignedTo") ?? "").trim() || null;
   let assignedTo: string | null = null;
   if (assigneeId) {
-    const [m] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(and(eq(users.id, assigneeId), eq(users.role, "super_admin"), notDeleted(users.deletedAt)))
-      .limit(1);
-    if (!m) return { error: "Not a valid team member for account manager." };
-    assignedTo = m.id;
+    const found = await findAssignableManager(assigneeId);
+    if (!found) return { error: "Not a valid team member for account manager." };
+    assignedTo = found;
   }
 
   const passwordHash = await hashPassword(parsed.data.adminPassword);
 
   let newClinicId: string | undefined;
   try {
-    await db.transaction(async (tx) => {
-      const [clinic] = await tx
-        .insert(clinics)
-        .values({ name: parsed.data.clinicName, modulesEnabled, assignedTo })
-        .returning({ id: clinics.id });
-      newClinicId = clinic.id;
-
-      await tx.insert(users).values({
-        clinicId: clinic.id,
-        username: parsed.data.adminUsername,
-        passwordHash,
-        role: "clinic_admin",
-        fullName: parsed.data.adminFullName,
-        // Temp password — force them to set their own on first login.
-        mustChangePassword: true,
-      });
+    newClinicId = await createClinicWithAdminRecord({
+      clinicName: parsed.data.clinicName,
+      modulesEnabled,
+      assignedTo,
+      adminUsername: parsed.data.adminUsername,
+      adminPasswordHash: passwordHash,
+      adminFullName: parsed.data.adminFullName,
     });
   } catch (err) {
     if (isUniqueViolation(err)) {
@@ -158,7 +141,7 @@ export async function createClinicWithAdmin(
     const ext = LOGO_EXT[logoFile.type];
     if (ext && logoFile.size <= MAX_LOGO_BYTES) {
       const key = await saveClinicFile(newClinicId, "logo", Buffer.from(await logoFile.arrayBuffer()), ext);
-      await db.update(clinics).set({ logoKey: key }).where(eq(clinics.id, newClinicId));
+      await updateClinicFields(newClinicId, { logoKey: key });
     }
   }
 
@@ -227,14 +210,11 @@ export async function updateClinic(
 
   // Was the sales feature off before this save? If so, and it's on now, we backfill
   // the ledger below so the report shows history the moment the feature is enabled.
-  const [before] = await db
-    .select({
-      featuresEnabled: clinics.featuresEnabled,
-      capabilities: clinics.capabilities,
-    })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  // `getClinic`, NOT `getLiveClinic`: this read has never filtered `deleted_at`,
+  // unlike the other admin actions, and adding that guard here would be a silent
+  // behaviour change smuggled in with a refactor. Worth settling deliberately one day
+  // — a trashed clinic arguably should not be editable — but not as a side effect.
+  const before = await getClinic(clinicId);
   const salesNewlyEnabled =
     featuresEnabled.includes("sales") &&
     !(before?.featuresEnabled ?? []).includes("sales");
@@ -254,22 +234,19 @@ export async function updateClinic(
   }
 
   try {
-    await db
-      .update(clinics)
-      .set({
-        name: parsed.data.name,
-        modulesEnabled,
-        featuresEnabled,
-        capabilities,
-        trashRetentionDays: parsed.data.trashRetentionDays,
-        // Per-clinic WhatsApp sender (empty → cleared). phone_number_id is unique
-        // across clinics (the inbound routing key) — a duplicate is rejected below.
-        whatsappPhoneNumberId: parsed.data.whatsappPhoneNumberId || null,
-        whatsappDisplayNumber: parsed.data.whatsappDisplayNumber || null,
-        whatsappSenderName: parsed.data.whatsappSenderName || null,
-        updatedAt: new Date(),
-      })
-      .where(eq(clinics.id, clinicId));
+    await updateClinicFields(clinicId, {
+      name: parsed.data.name,
+      modulesEnabled,
+      featuresEnabled,
+      capabilities,
+      trashRetentionDays: parsed.data.trashRetentionDays,
+      // Per-clinic WhatsApp sender (empty → cleared). phone_number_id is unique
+      // across clinics (the inbound routing key) — a duplicate is rejected below.
+      whatsappPhoneNumberId: parsed.data.whatsappPhoneNumberId || null,
+      whatsappDisplayNumber: parsed.data.whatsappDisplayNumber || null,
+      whatsappSenderName: parsed.data.whatsappSenderName || null,
+      updatedAt: new Date(),
+    });
   } catch (err) {
     const code = (err as { cause?: { code?: string }; code?: string })?.cause?.code ??
       (err as { code?: string })?.code;
@@ -298,19 +275,6 @@ export async function updateClinic(
   redirect("/admin?updated=1");
 }
 
-/** Revoke every session of a clinic's staff (immediate lock-out) inside a tx. */
-async function revokeClinicSessions(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  clinicId: string,
-): Promise<void> {
-  const staff = await tx
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.clinicId, clinicId));
-  const ids = staff.map((s) => s.id);
-  if (ids.length) await tx.delete(sessions).where(inArray(sessions.userId, ids));
-}
-
 /**
  * Sets a clinic's lifecycle status (super-admin control plane, Feature 2). Moving
  * to a NON-usable status (suspended / past_due / cancelled) revokes all staff
@@ -328,11 +292,7 @@ export async function setClinicStatus(
   if (!isClinicStatus(status)) return { error: "Unknown status." };
   const target = status as ClinicStatus;
 
-  const [before] = await db
-    .select({ name: clinics.name, status: clinics.status, trialStartAt: clinics.trialStartAt })
-    .from(clinics)
-    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
-    .limit(1);
+  const before = await getLiveClinic(clinicId);
   if (!before) return { error: "Clinic not found." };
 
   const now = new Date();
@@ -366,10 +326,7 @@ export async function setClinicStatus(
     patch.suspendReason = reason?.trim() || null;
   }
 
-  await db.transaction(async (tx) => {
-    await tx.update(clinics).set(patch).where(eq(clinics.id, clinicId));
-    if (nowUnusable) await revokeClinicSessions(tx, clinicId);
-  });
+  await setClinicStatusFields(clinicId, patch, nowUnusable);
 
   await logActivity({
     action: "update",
@@ -401,20 +358,14 @@ export async function extendTrial(
     return { error: "Enter 1–365 days." };
   }
 
-  const [before] = await db
-    .select({ name: clinics.name, trialEndsAt: clinics.trialEndsAt, trialStartAt: clinics.trialStartAt })
-    .from(clinics)
-    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
-    .limit(1);
+  const before = await getLiveClinic(clinicId);
   if (!before) return { error: "Clinic not found." };
 
   const now = Date.now();
   const base = Math.max(now, before.trialEndsAt?.getTime() ?? now);
   const newEnd = new Date(base + n * 24 * 60 * 60 * 1000);
 
-  await db
-    .update(clinics)
-    .set({
+  await updateClinicFields(clinicId, {
       status: "trial",
       // Stamp the trial start the first time (starting or extending a fresh trial).
       trialStartAt: before.trialStartAt ?? new Date(),
@@ -423,8 +374,7 @@ export async function extendTrial(
       suspendedAt: null,
       suspendReason: null,
       updatedAt: new Date(),
-    })
-    .where(eq(clinics.id, clinicId));
+    });
 
   await logActivity({
     action: "update",
@@ -460,11 +410,7 @@ export async function setClinicCapabilities(
 ): Promise<AdminActionState> {
   await requireAdminCapability("clinics:edit");
 
-  const [before] = await db
-    .select({ name: clinics.name, featuresEnabled: clinics.featuresEnabled })
-    .from(clinics)
-    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
-    .limit(1);
+  const before = await getLiveClinic(clinicId);
   if (!before) return { error: "Clinic not found." };
 
   const usable = usableCapabilitySlugs(before.featuresEnabled);
@@ -474,10 +420,7 @@ export async function setClinicCapabilities(
   // All usable allowed → NULL (unrestricted); otherwise store the explicit whitelist.
   const capabilities = checked.length >= usable.length ? null : checked;
 
-  await db
-    .update(clinics)
-    .set({ capabilities, updatedAt: new Date() })
-    .where(eq(clinics.id, clinicId));
+  await updateClinicFields(clinicId, { capabilities, updatedAt: new Date() });
 
   await logActivity({
     action: "update",
@@ -505,18 +448,11 @@ export async function setClinicLogAccess(
 ): Promise<AdminActionState> {
   await requireAdminCapability("clinics:edit");
 
-  const [before] = await db
-    .select({ name: clinics.name })
-    .from(clinics)
-    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
-    .limit(1);
+  const before = await getLiveClinic(clinicId);
   if (!before) return { error: "Clinic not found." };
 
   const logAccess = sanitizeLogAccess(ids);
-  await db
-    .update(clinics)
-    .set({ logAccess, updatedAt: new Date() })
-    .where(eq(clinics.id, clinicId));
+  await updateClinicFields(clinicId, { logAccess, updatedAt: new Date() });
 
   await logActivity({
     action: "update",
@@ -581,16 +517,10 @@ export async function updateClinicContact(
   const d = parsed.data;
   const orNull = (v?: string) => (v && v.length ? v : null);
 
-  const [before] = await db
-    .select({ name: clinics.name })
-    .from(clinics)
-    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
-    .limit(1);
+  const before = await getLiveClinic(clinicId);
   if (!before) return { error: "Clinic not found." };
 
-  await db
-    .update(clinics)
-    .set({
+  await updateClinicFields(clinicId, {
       ownerName: orNull(d.ownerName),
       ownerEmail: orNull(d.ownerEmail),
       ownerPhone: orNull(d.ownerPhone),
@@ -601,8 +531,7 @@ export async function updateClinicContact(
       timezone: d.timezone,
       notes: orNull(d.notes),
       updatedAt: new Date(),
-    })
-    .where(eq(clinics.id, clinicId));
+    });
 
   await logActivity({
     action: "update",
@@ -634,15 +563,7 @@ export async function startImpersonation(
   }
 
   // 2FA step-up for a super-admin who enrolled it (Feature 1 deferred item).
-  const [me] = await db
-    .select({
-      totpEnabled: users.totpEnabled,
-      totpSecret: users.totpSecret,
-      totpBackup: users.totpBackup,
-    })
-    .from(users)
-    .where(eq(users.id, admin.id))
-    .limit(1);
+  const me = await getMyTotpSecrets(admin.id);
   if (me?.totpEnabled && me.totpSecret) {
     const code = (totp ?? "").trim();
     if (!code) return { error: "Enter your 6-digit authenticator code.", needsTotp: true };
@@ -651,17 +572,13 @@ export async function startImpersonation(
       const remaining = consumeBackupCode(me.totpBackup ?? [], code);
       if (remaining) {
         ok = true;
-        await db.update(users).set({ totpBackup: remaining }).where(eq(users.id, admin.id));
+        await setMyBackupCodes(admin.id, remaining);
       }
     }
     if (!ok) return { error: "Invalid authentication code.", needsTotp: true };
   }
 
-  const [clinic] = await db
-    .select({ name: clinics.name })
-    .from(clinics)
-    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
-    .limit(1);
+  const clinic = await getLiveClinic(clinicId);
   if (!clinic) return { error: "Clinic not found." };
 
   await setSessionImpersonation(clinicId);
@@ -702,22 +619,15 @@ export async function setClinicPrice(
   });
   if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
 
-  const [before] = await db
-    .select({ name: clinics.name })
-    .from(clinics)
-    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
-    .limit(1);
+  const before = await getLiveClinic(clinicId);
   if (!before) return { error: "Clinic not found." };
 
-  await db
-    .update(clinics)
-    .set({
+  await updateClinicFields(clinicId, {
       monthlyPrice: parsed.data.monthlyPrice,
       billingCycle: parsed.data.billingCycle,
       graceDays: parsed.data.graceDays,
       updatedAt: new Date(),
-    })
-    .where(eq(clinics.id, clinicId));
+    });
   await syncClinicBillingStatus(clinicId);
 
   await logActivity({
@@ -808,17 +718,13 @@ export async function setClinicAssigneeAction(
   let assigned: string | null = null;
   let name = "unassigned";
   if (assigneeId) {
-    const [m] = await db
-      .select({ id: users.id, fullName: users.fullName, username: users.username })
-      .from(users)
-      .where(and(eq(users.id, assigneeId), eq(users.role, "super_admin"), notDeleted(users.deletedAt)))
-      .limit(1);
+    const m = await getTeamMember(assigneeId);
     if (!m) return { error: "Not a valid team member." };
     assigned = m.id;
     name = m.fullName ?? m.username;
   }
 
-  await db.update(clinics).set({ assignedTo: assigned, updatedAt: new Date() }).where(eq(clinics.id, clinicId));
+  await updateClinicFields(clinicId, { assignedTo: assigned, updatedAt: new Date() });
   await logActivity({
     action: "update",
     entity: "clinic",
@@ -844,11 +750,7 @@ export async function setHealthFollowupAction(
   const admin = await requireAdminCapability("metrics:view");
 
   // Scope: a non-full admin (account manager) may only action their own clinics.
-  const [c] = await db
-    .select({ name: clinics.name, assignedTo: clinics.assignedTo })
-    .from(clinics)
-    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
-    .limit(1);
+  const c = await getLiveClinic(clinicId);
   if (!c) return { error: "Clinic not found." };
   if (!canManageTeam(admin) && c.assignedTo !== admin.id) {
     return { error: "You can only follow up on clinics assigned to you." };
@@ -882,11 +784,7 @@ export async function setPaymentCommitmentAction(
 ): Promise<AdminActionState> {
   const admin = await requireAdminCapability("billing:edit");
 
-  const [c] = await db
-    .select({ name: clinics.name, assignedTo: clinics.assignedTo })
-    .from(clinics)
-    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
-    .limit(1);
+  const c = await getLiveClinic(clinicId);
   if (!c) return { error: "Clinic not found." };
   if (!canManageTeam(admin) && c.assignedTo !== admin.id) {
     return { error: "You can only follow up on clinics assigned to you." };
@@ -921,11 +819,7 @@ export async function setPaymentNoticeEnabledAction(
 ): Promise<AdminActionState> {
   const admin = await requireAdminCapability("metrics:view");
 
-  const [c] = await db
-    .select({ name: clinics.name, assignedTo: clinics.assignedTo })
-    .from(clinics)
-    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
-    .limit(1);
+  const c = await getLiveClinic(clinicId);
   if (!c) return { error: "Clinic not found." };
   if (!canManageTeam(admin) && c.assignedTo !== admin.id) {
     return { error: "You can only change clinics assigned to you." };
@@ -954,11 +848,7 @@ export async function setPaymentReminderDaysAction(
 ): Promise<AdminActionState> {
   const admin = await requireAdminCapability("metrics:view");
 
-  const [c] = await db
-    .select({ name: clinics.name, assignedTo: clinics.assignedTo })
-    .from(clinics)
-    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
-    .limit(1);
+  const c = await getLiveClinic(clinicId);
   if (!c) return { error: "Clinic not found." };
   if (!canManageTeam(admin) && c.assignedTo !== admin.id) {
     return { error: "You can only change clinics assigned to you." };
@@ -987,11 +877,7 @@ async function assertCanEditClinicLogo(
   clinicId: string,
 ): Promise<{ error: string } | { logoKey: string | null }> {
   const admin = await requireAdminCapability("clinics:edit");
-  const [c] = await db
-    .select({ assignedTo: clinics.assignedTo, logoKey: clinics.logoKey })
-    .from(clinics)
-    .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
-    .limit(1);
+  const c = await getLiveClinic(clinicId);
   if (!c) return { error: "Clinic not found." };
   if (!canManageTeam(admin) && c.assignedTo !== admin.id) {
     return { error: "You can only change clinics assigned to you." };
@@ -1016,7 +902,7 @@ export async function uploadClinicLogo(
 
   const data = Buffer.from(await file.arrayBuffer());
   const key = await saveClinicFile(clinicId, "logo", data, ext);
-  await db.update(clinics).set({ logoKey: key, updatedAt: new Date() }).where(eq(clinics.id, clinicId));
+  await updateClinicFields(clinicId, { logoKey: key, updatedAt: new Date() });
   if (gate.logoKey && gate.logoKey !== key) await deleteFileByKey(gate.logoKey);
 
   await logActivity({ action: "update", entity: "clinic", entityId: clinicId, clinicId, summary: "Updated the clinic logo" });
@@ -1028,7 +914,7 @@ export async function uploadClinicLogo(
 export async function removeClinicLogo(clinicId: string): Promise<AdminActionState> {
   const gate = await assertCanEditClinicLogo(clinicId);
   if ("error" in gate) return gate;
-  await db.update(clinics).set({ logoKey: null, updatedAt: new Date() }).where(eq(clinics.id, clinicId));
+  await updateClinicFields(clinicId, { logoKey: null, updatedAt: new Date() });
   if (gate.logoKey) await deleteFileByKey(gate.logoKey);
   await logActivity({ action: "update", entity: "clinic", entityId: clinicId, clinicId, summary: "Removed the clinic logo" });
   revalidatePath(`/admin/clinics/${clinicId}`);
@@ -1086,14 +972,10 @@ export async function updateStaffProfile(
   }
 
   try {
-    await db
-      .update(users)
-      .set({
-        fullName: parsed.data.fullName,
-        username: parsed.data.username,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, userId));
+    await updateClinicUserProfile(userId, {
+      fullName: parsed.data.fullName,
+      username: parsed.data.username,
+    });
   } catch (err) {
     if (isUniqueViolation(err)) {
       return { error: "That username is already in use." };
@@ -1135,13 +1017,7 @@ export async function resetUserPassword(
   }
 
   const passwordHash = await hashPassword(parsed.data.password);
-  await db.transaction(async (tx) => {
-    await tx
-      .update(users)
-      .set({ passwordHash, mustChangePassword: true, updatedAt: new Date() })
-      .where(eq(users.id, userId));
-    await tx.delete(sessions).where(eq(sessions.userId, userId));
-  });
+  await resetClinicUserPassword(userId, passwordHash);
 
   await logActivity({
     action: "update",
@@ -1163,40 +1039,10 @@ export async function setUserActive(
 ): Promise<void> {
   await requireAdminCapability("clinics:edit");
 
-  await db.transaction(async (tx) => {
-    const [target] = await tx
-      .update(users)
-      .set({ isActive, updatedAt: new Date() })
-      .where(eq(users.id, userId))
-      .returning({ role: users.role, clinicId: users.clinicId });
-
-    if (!isActive) {
-      await tx.delete(sessions).where(eq(sessions.userId, userId));
-    }
-
-    // A CLINIC ADMIN's active state cascades to their whole clinic in ONE
-    // action: suspending takes the clinic offline (staff suspended + logged
-    // out); reactivating brings the whole clinic back (staff re-enabled).
-    if (target?.role === "clinic_admin" && target.clinicId) {
-      const staff = await tx
-        .update(users)
-        .set({ isActive, updatedAt: new Date() })
-        .where(
-          and(
-            eq(users.clinicId, target.clinicId),
-            inArray(users.role, ["doctor", "receptionist"]),
-          ),
-        )
-        .returning({ id: users.id });
-      // Only on suspend do we revoke staff sessions (log them out now).
-      if (!isActive) {
-        const staffIds = staff.map((s) => s.id);
-        if (staffIds.length > 0) {
-          await tx.delete(sessions).where(inArray(sessions.userId, staffIds));
-        }
-      }
-    }
-  });
+  // A CLINIC ADMIN's active state cascades to their whole clinic in ONE action:
+  // suspending takes the clinic offline (staff suspended + logged out), reactivating
+  // brings it back. See `setClinicUserActive` for why that is one transaction.
+  await setClinicUserActive(userId, isActive);
 
   await logActivity({
     action: "update",
@@ -1227,41 +1073,8 @@ export async function deleteClinic(
     return { error: "Incorrect password." };
   }
 
-  const group = newDeleteGroup();
-  const parent = softDeleteValues(admin.id, group);
-  const child = softDeleteValues(admin.id, group, true);
-
-  let notFound = false;
-  await db.transaction(async (tx) => {
-    const [row] = await tx
-      .update(clinics)
-      .set(parent)
-      .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
-      .returning({ id: clinics.id });
-    if (!row) {
-      notFound = true;
-      return;
-    }
-
-    // Cascade-hide every live child row of this clinic.
-    await tx.update(users).set(child).where(and(eq(users.clinicId, clinicId), notDeleted(users.deletedAt)));
-    await tx.update(patients).set(child).where(and(eq(patients.clinicId, clinicId), notDeleted(patients.deletedAt)));
-    await tx.update(appointments).set(child).where(and(eq(appointments.clinicId, clinicId), notDeleted(appointments.deletedAt)));
-    await tx.update(visits).set(child).where(and(eq(visits.clinicId, clinicId), notDeleted(visits.deletedAt)));
-    await tx.update(recalls).set(child).where(and(eq(recalls.clinicId, clinicId), notDeleted(recalls.deletedAt)));
-    await tx.update(procedures).set(child).where(and(eq(procedures.clinicId, clinicId), notDeleted(procedures.deletedAt)));
-    await tx.update(doctorLeaves).set(child).where(and(eq(doctorLeaves.clinicId, clinicId), notDeleted(doctorLeaves.deletedAt)));
-
-    // Lock the clinic's staff out (sessions are ephemeral, not trashed) and void
-    // its realised-revenue rows (re-backfilled on restore).
-    const staff = await tx.select({ id: users.id }).from(users).where(eq(users.clinicId, clinicId));
-    const staffIds = staff.map((s) => s.id);
-    if (staffIds.length) await tx.delete(sessions).where(inArray(sessions.userId, staffIds));
-    await tx.delete(sales).where(eq(sales.clinicId, clinicId));
-    await tx.delete(saleShares).where(eq(saleShares.clinicId, clinicId));
-    await tx.delete(discountSettlements).where(eq(discountSettlements.clinicId, clinicId));
-  });
-  if (notFound) return { error: "Clinic not found." };
+  const removed = await softDeleteClinic(clinicId, admin.id);
+  if (!removed) return { error: "Clinic not found." };
 
   await logActivity({
     action: "delete",
