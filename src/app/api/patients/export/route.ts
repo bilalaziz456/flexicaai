@@ -1,12 +1,9 @@
-import { desc, ilike, or } from "drizzle-orm";
 import { apiRequireWorkspace } from "@/core/auth/user";
-import { db } from "@/core/db";
 import { getClinic } from "@/core/clinics/get-clinic";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { patients } from "@/core/db/schema";
 import { toCsv } from "@/core/lib/csv";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
-import { formatMrn, mrnDigits, mrnMatchesSql } from "@/core/patients/mrn";
+import { formatMrn } from "@/core/patients/mrn";
+import { listPatientsForExport } from "@/core/patients/list";
 import { ageFromDob } from "@/core/lib/age";
 
 /**
@@ -21,32 +18,11 @@ export async function GET(req: Request) {
   const { clinicId } = auth;
   const query = new URL(req.url).searchParams.get("q")?.trim() || "";
 
-  let search;
-  if (query) {
-    const conds = [ilike(patients.fullName, `%${query}%`), ilike(patients.phone, `%${query}%`)];
-    const digits = mrnDigits(query);
-    if (digits) conds.push(mrnMatchesSql(digits));
-    search = or(...conds);
-  }
-  const where = byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt), search);
+  const rows = await listPatientsForExport(clinicId, query);
 
   const clinicRow = await getClinic(clinicId);
   const mrnPrefix = clinicRow?.mrnPrefix ?? "";
 
-  const rows = await db
-    .select({
-      mrn: patients.mrn,
-      createdAt: patients.createdAt,
-      fullName: patients.fullName,
-      phone: patients.phone,
-      email: patients.email,
-      gender: patients.gender,
-      dateOfBirth: patients.dateOfBirth,
-      reference: patients.reference,
-    })
-    .from(patients)
-    .where(where)
-    .orderBy(desc(patients.createdAt));
 
   const csv = toCsv(
     ["MRN", "Name", "Phone", "Email", "Gender", "Age", "Reference", "Registered"],

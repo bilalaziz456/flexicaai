@@ -40,7 +40,6 @@ const LEGACY_DIRECT_DB_ACCESS = [
   "src/app/api/admin/clinics/[id]/logo/route.ts",
   "src/app/api/ai/scribe/route.ts",
   "src/app/api/appointments/export/route.ts",
-  "src/app/api/patients/export/route.ts",
   "src/app/clinic/actions.ts",
   "src/app/clinic/appointments/[id]/invoice/page.tsx",
   "src/app/clinic/appointments/[id]/receipt/page.tsx",
@@ -55,7 +54,6 @@ const LEGACY_DIRECT_DB_ACCESS = [
   "src/app/clinic/patients/[id]/statement/page.tsx",
   "src/app/clinic/patients/clinical-chart-print.tsx",
   "src/app/clinic/patients/patient-detail.tsx",
-  "src/app/clinic/patients/patients-list.tsx",
   "src/app/clinic/patients/treatment-estimate.tsx",
   "src/app/clinic/payments/payment-actions.ts",
   "src/app/clinic/procedures/procedure-actions.ts",
@@ -64,7 +62,6 @@ const LEGACY_DIRECT_DB_ACCESS = [
   "src/app/clinic/scribe/scribe-panel.tsx",
   "src/app/clinic/shares/statement/page.tsx",
   "src/app/clinic/staff/[id]/page.tsx",
-  "src/app/clinic/staff/page.tsx",
   "src/app/clinic/whatsapp/whatsapp-queue.tsx",
 ];
 

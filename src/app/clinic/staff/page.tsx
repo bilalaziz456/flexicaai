@@ -1,10 +1,7 @@
 import Link from "next/link";
 import { ChevronRight, Download, Plus } from "lucide-react";
-import { and, count, desc, ilike, inArray, or } from "drizzle-orm";
 import { requireWorkspace } from "@/core/auth/user";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { users } from "@/core/db/schema";
+import { listClinicStaff } from "@/core/users/staff-list";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
@@ -19,7 +16,7 @@ import {
   TableRow,
 } from "@/core/ui/table";
 import { describeAvailability } from "@/core/lib/availability";
-import { CLINIC_STAFF_ROLES, displayStaffName } from "@/core/types/auth";
+import { displayStaffName } from "@/core/types/auth";
 import { FlashToast } from "@/core/ui/toast";
 import { RowLink } from "@/core/ui/row-link";
 import { StaffSearch } from "./staff-search";
@@ -50,40 +47,11 @@ export default async function ClinicStaffPage({
       ? "Staff member updated."
       : null;
 
-  const roleFilter = inArray(users.role, [...CLINIC_STAFF_ROLES]);
-  const search = query
-    ? or(
-        ilike(users.fullName, `%${query}%`),
-        ilike(users.username, `%${query}%`),
-      )
-    : undefined;
-
-  const where = byClinic(
-    users.clinicId,
-    clinicId,
-    notDeleted(users.deletedAt),
-    search ? and(roleFilter, search) : roleFilter,
-  );
-  const [staff, [{ total }]] = await Promise.all([
-    db
-      .select({
-        id: users.id,
-        username: users.username,
-        prefix: users.prefix,
-        fullName: users.fullName,
-        role: users.role,
-        isActive: users.isActive,
-        availability: users.availability,
-        dailyLimit: users.dailyAppointmentLimit,
-        fee: users.consultationFee,
-      })
-      .from(users)
-      .where(where)
-      .orderBy(desc(users.createdAt))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
-    db.select({ total: count() }).from(users).where(where),
-  ]);
+  // Search + role filter + paging live in core, shared with the CSV export (ADR-014).
+  const { rows: staff, total } = await listClinicStaff(clinicId, query ?? "", {
+    offset: pageOffset(page, pageSize),
+    limit: pageSize,
+  });
 
   return (
     <div className="space-y-6">

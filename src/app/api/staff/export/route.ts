@@ -1,5 +1,5 @@
 import { apiRequireWorkspace } from "@/core/auth/user";
-import { listStaffForExport } from "@/core/users/staff-export";
+import { listStaffForExport } from "@/core/users/staff-list";
 import { toCsv } from "@/core/lib/csv";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
 import { displayStaffName } from "@/core/types/auth";
