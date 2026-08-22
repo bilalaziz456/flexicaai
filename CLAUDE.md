@@ -73,8 +73,8 @@ storage** (a real disk persists, so clinical attachments are safe) and the
 **Three constraints this moves — do not lose these:**
 
 1. **Nothing schedules the jobs unless you configure it.** There is no platform
-   cron; `vercel.json` is inert. Run `sudo ./deploy/install-cron.sh all` (six jobs;
-   `core` installs only the four needing no API). Miss it and recalls, reminders and
+   cron; `vercel.json` is inert. Run `sudo ./deploy/install-cron.sh all` (eight jobs;
+   `core` installs only the six needing no API). Miss it and recalls, reminders and
    the nightly sales **reconciliation** never fire — silently, because a job that is
    never invoked raises no error. Verify afterwards with `./deploy/install-cron.sh
    check`. **Currently held** until launch (delta D-19), which is safe only while

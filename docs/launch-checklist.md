@@ -51,7 +51,7 @@ launch. (On serverless/multi-instance, both become launch blockers — see scale
       out — and nothing errors, the numbers are just wrong. Set it before the first
       clinic, and re-check it after any VM rebuild.
 - [ ] **Cron scheduling on the host** — `sudo ./deploy/install-cron.sh all` installs all
-      six jobs (`core` = the four needing no API); it refuses to write unless the app
+      eight jobs (`core` = the six needing no API); it refuses to write unless the app
       answers and `CRON_SECRET` really authenticates. Confirm the next day with
       `./deploy/install-cron.sh check`. `vercel.json` is inert on this deployment.
 - [ ] **`serverActions.allowedOrigins`** (next.config) = the prod domain(s), so Server

@@ -232,10 +232,10 @@ never cluster.** See §7.
 
 **ADR-012 — Jobs are triggered by system cron, not a platform scheduler** ·
 *2026-08-21* · `Accepted`
-`deploy/install-cron.sh` is the ONE definition of the six jobs and their schedules;
+`deploy/install-cron.sh` is the ONE definition of the eight jobs and their schedules;
 it renders and installs `/etc/cron.d/flexicaai`, calling `/api/cron/*` on loopback
 with `CRON_SECRET`. `vercel.json` is inert. Installing is a two-part step —
-`core` (4 pure-DB jobs) then `all` (+ the 2 that need WhatsApp).
+`core` (6 pure-DB jobs) then `all` (+ the 2 that need WhatsApp).
 **Why:** follows from ADR-009. The schedule was briefly duplicated between a static
 `deploy/flexicaai.cron` and the installer; that file is gone, since two copies of a
 schedule drift exactly like two copies of a bill formula (ADR-014).
@@ -631,7 +631,7 @@ just continue.
 | D-13 | No test framework; no CI | ADR-005 | **On hold** (owner's direction, 2026-08-21) |
 | D-14 | Timezone is server-local; blocks a second region | ADR-009 | **On hold** (owner's direction, 2026-08-22) — the GCC work is not being done now. Safe while every clinic is in one country: availability, "tomorrow" reminders and day boundaries all read the SERVER's timezone and agree with each other. It stops being safe the moment a clinic sits in a different offset, so this is the **gate on the first GCC clinic**, not a nice-to-have — unhold before signing one, not after |
 | ~~D-15~~ | CSP was report-only — i.e. advisory, enforcing nothing | ADR-026 | **Closed 2026-08-22** — see ADR-026. Enforced on every response, at two strengths, because a nonce and a prerendered page are mutually exclusive. The old trigger ("once the sink shows it clean") rested on a false premise: the policy was never clean and could not be. 14 e2e assertions; verified by walking the app in a browser against the live report sink |
-| D-19 | No scheduled job runs on the server — the crontab is not installed | ADR-012 | **Routes done and proven** (2026-08-21: all six run, idempotent on a second pass, zero errors) and the install is now one command, `deploy/install-cron.sh`. **Installing stays on hold** (owner's direction), which is safe while pre-launch: with no live clinics all six are no-ops. Unhold in TWO parts — **WhatsApp keys** → `sudo ./deploy/install-cron.sh all` (`recalls` + `reminders` are the only two needing an API; none need Whisper/Claude). **First live clinic** → `sudo ./deploy/install-cron.sh core`, the four pure-DB jobs, gated on real data rather than keys. `reconcile` is the one not to miss: ADR-016 leaves the payment path best-effort *because* it repairs drift nightly |
+| D-19 | No scheduled job runs on the server — the crontab is not installed | ADR-012 | **Routes done and proven** (2026-08-21: every job runs, idempotent on a second pass, zero errors) and the install is one command, `deploy/install-cron.sh`. **EIGHT jobs now** — `scribe-recover` (ADR-020) and `log-retention` (ADR-023) joined the original six, so `core` is 6 and `all` is 8; re-check the count against the `JOBS` table in the script rather than trusting prose. **Installing stays on hold** (owner's direction), safe ONLY while pre-launch: with no live clinics they are all no-ops. Unhold in TWO parts — **First live clinic** → `sudo ./deploy/install-cron.sh core` (the 6 pure-DB jobs, gated on real data rather than keys). **WhatsApp keys** → `…install-cron.sh all` (`recalls` + `reminders` are the only two needing an API; none need Whisper/Claude). Two not to miss: `reconcile`, because ADR-016 deliberately leaves the payment path best-effort *on the basis that* drift is repaired nightly — skip it and a failed ledger write stays wrong forever; and `scribe-recover`, without which a died-mid-transcription visit leaves the doctor on a spinner with no way back (ADR-020) |
 
 **Closed:** two WhatsApp webhooks with duplicated pipelines (D-10, closed
 2026-08-21 — one shared `core/integrations/whatsapp/inbound.ts`; the two providers
