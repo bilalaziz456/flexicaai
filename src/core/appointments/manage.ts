@@ -158,3 +158,40 @@ export async function insertAppointment(
     .returning({ id: appointments.id });
   return row;
 }
+
+/** The patient an appointment belongs to — the billing actions' tenant check. */
+export async function getAppointmentPatientId(
+  clinicId: string,
+  appointmentId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ patientId: appointments.patientId })
+    .from(appointments)
+    .where(
+      byClinic(
+        appointments.clinicId,
+        clinicId,
+        notDeleted(appointments.deletedAt),
+        eq(appointments.id, appointmentId),
+      ),
+    )
+    .limit(1);
+  return row?.patientId ?? null;
+}
+
+/**
+ * An appointment's status. Used after a discount decision to ask whether the sale
+ * needs re-snapshotting — no `notDeleted`, because a trashed appointment's sale was
+ * already voided and asking about it is harmless.
+ */
+export async function getAppointmentStatus(
+  clinicId: string,
+  appointmentId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ status: appointments.status })
+    .from(appointments)
+    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
+    .limit(1);
+  return row?.status ?? null;
+}

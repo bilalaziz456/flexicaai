@@ -1,13 +1,13 @@
 "use server";
 
+import { getApprovalRow } from "@/core/appointments/approvals";
+import { setDiscountNeedsApproval } from "@/core/clinics/settings";
+import { getAppointmentStatus } from "@/core/appointments/manage";
+
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { requireClinicAdmin, requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
-import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
-import { appointmentDiscountApprovals, appointments, clinics } from "@/core/db/schema";
 import {
   canDecideRow,
   decideDiscountApproval,
@@ -48,20 +48,7 @@ export async function decideApproval(
   if (!parsed.success) return { error: "Invalid request." };
 
   // Load the row (clinic-scoped) to authorise the specific decision.
-  const [row] = await db
-    .select({
-      approverKind: appointmentDiscountApprovals.approverKind,
-      approverDoctorId: appointmentDiscountApprovals.approverDoctorId,
-    })
-    .from(appointmentDiscountApprovals)
-    .where(
-      byClinic(
-        appointmentDiscountApprovals.clinicId,
-        clinicId,
-        eq(appointmentDiscountApprovals.id, parsed.data.rowId),
-      ),
-    )
-    .limit(1);
+  const row = await getApprovalRow(clinicId, parsed.data.rowId);
   if (!row) return { error: "Approval not found." };
 
   const isClinicApprover = can(user, "discount_approval", "view");
@@ -79,12 +66,8 @@ export async function decideApproval(
   if ("error" in result) return { error: result.error };
 
   // Re-snapshot the sale if the appointment is already completed (best-effort).
-  const [appt] = await db
-    .select({ status: appointments.status })
-    .from(appointments)
-    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, result.appointmentId)))
-    .limit(1);
-  if (appt?.status === "completed") {
+  const status = await getAppointmentStatus(clinicId, result.appointmentId);
+  if (status === "completed") {
     await recordSaleForAppointment(clinicId, result.appointmentId);
   }
 
@@ -118,10 +101,7 @@ export async function updateClinicDiscountPolicy(
   });
   if (!parsed.success) return { error: "Invalid request." };
 
-  await db
-    .update(clinics)
-    .set({ discountNeedsApproval: parsed.data.requireApproval, updatedAt: new Date() })
-    .where(eq(clinics.id, clinicId));
+  await setDiscountNeedsApproval(clinicId, parsed.data.requireApproval);
 
   await logActivity({
     action: "update",

@@ -319,3 +319,22 @@ export function canDecideRow(
   if (row.approverKind === "clinic") return user.isClinicApprover;
   return row.approverDoctorId === user.id;
 }
+
+/** Who one approval row is waiting on — the caller checks it may decide this row. */
+export async function getApprovalRow(clinicId: string, rowId: string) {
+  const [row] = await db
+    .select({
+      approverKind: appointmentDiscountApprovals.approverKind,
+      approverDoctorId: appointmentDiscountApprovals.approverDoctorId,
+    })
+    .from(appointmentDiscountApprovals)
+    .where(
+      byClinic(
+        appointmentDiscountApprovals.clinicId,
+        clinicId,
+        eq(appointmentDiscountApprovals.id, rowId),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}

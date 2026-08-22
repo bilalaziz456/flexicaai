@@ -1,7 +1,4 @@
-import { count, desc, eq } from "drizzle-orm";
-import { db } from "@/core/db";
-import { byClinic } from "@/core/db/tenant";
-import { patients, whatsappMessages } from "@/core/db/schema";
+import { listWhatsappQueue } from "@/core/integrations/whatsapp/queue";
 import { Badge } from "@/core/ui/badge";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { Pagination } from "@/core/ui/pagination";
@@ -33,26 +30,10 @@ export async function WhatsappQueue({
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
 
-  const where = byClinic(whatsappMessages.clinicId, clinicId);
-  const [rows, [{ total }]] = await Promise.all([
-    db
-      .select({
-        id: whatsappMessages.id,
-        direction: whatsappMessages.direction,
-        phone: whatsappMessages.phone,
-        status: whatsappMessages.status,
-        body: whatsappMessages.body,
-        createdAt: whatsappMessages.createdAt,
-        patientName: patients.fullName,
-      })
-      .from(whatsappMessages)
-      .leftJoin(patients, eq(whatsappMessages.patientId, patients.id))
-      .where(where)
-      .orderBy(desc(whatsappMessages.createdAt))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
-    db.select({ total: count() }).from(whatsappMessages).where(where),
-  ]);
+  const { rows, total } = await listWhatsappQueue(clinicId, {
+    offset: pageOffset(page, pageSize),
+    limit: pageSize,
+  });
 
   const fmt = (d: Date) =>
     d.toLocaleString("en-GB", {

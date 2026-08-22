@@ -38,3 +38,14 @@ export async function setAvgVisitValue(clinicId: string, value: number): Promise
     .set({ avgVisitValue: value, updatedAt: new Date() })
     .where(eq(clinics.id, clinicId));
 }
+
+/** Whether CLINIC-borne discounts need sign-off before they apply. */
+export async function setDiscountNeedsApproval(
+  clinicId: string,
+  requireApproval: boolean,
+): Promise<void> {
+  await db
+    .update(clinics)
+    .set({ discountNeedsApproval: requireApproval, updatedAt: new Date() })
+    .where(eq(clinics.id, clinicId));
+}

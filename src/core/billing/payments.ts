@@ -378,3 +378,23 @@ export async function voidPayment(
   if (row.appointmentId) await recordSaleForAppointment(clinicId, row.appointmentId);
   return { ok: true };
 }
+
+/** What kind of ledger entry a payment id refers to — a void needs to know. */
+export async function getPaymentKind(
+  clinicId: string,
+  paymentId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ kind: patientPayments.kind })
+    .from(patientPayments)
+    .where(
+      byClinic(
+        patientPayments.clinicId,
+        clinicId,
+        notDeleted(patientPayments.deletedAt),
+        eq(patientPayments.id, paymentId),
+      ),
+    )
+    .limit(1);
+  return row?.kind ?? null;
+}

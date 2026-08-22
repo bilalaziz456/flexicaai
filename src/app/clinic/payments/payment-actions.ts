@@ -1,16 +1,15 @@
 "use server";
 
+import { getAppointmentPatientId } from "@/core/appointments/manage";
+import { getPaymentKind } from "@/core/billing/payments";
+
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireRole } from "@/core/auth/user";
 import { can, type PermAction } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
 import { displayStaffName } from "@/core/types/auth";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, patientPayments } from "@/core/db/schema";
 import {
   recordPayment,
   applyAdvance,
@@ -40,22 +39,11 @@ async function requireBilling(
   return { user, clinicId: user.clinicId };
 }
 
-/** The appointment's patient (clinic-scoped) — every payment is tied to a patient. */
-async function apptPatient(clinicId: string, appointmentId: string): Promise<string | null> {
-  const [a] = await db
-    .select({ patientId: appointments.patientId })
-    .from(appointments)
-    .where(
-      byClinic(
-        appointments.clinicId,
-        clinicId,
-        notDeleted(appointments.deletedAt),
-        eq(appointments.id, appointmentId),
-      ),
-    )
-    .limit(1);
-  return a?.patientId ?? null;
-}
+/**
+ * The appointment's patient (clinic-scoped) — every payment is tied to a patient, so
+ * this doubles as the tenant check each money action makes before touching anything.
+ */
+const apptPatient = getAppointmentPatientId;
 
 const actorOf = (u: CurrentUser) => ({
   id: u.id,
@@ -244,21 +232,10 @@ export async function voidAppointmentPayment(
   if (!user.clinicId) return { error: "No clinic access." };
   const clinicId = user.clinicId;
 
-  const [row] = await db
-    .select({ kind: patientPayments.kind })
-    .from(patientPayments)
-    .where(
-      byClinic(
-        patientPayments.clinicId,
-        clinicId,
-        notDeleted(patientPayments.deletedAt),
-        eq(patientPayments.id, paymentId),
-      ),
-    )
-    .limit(1);
-  if (!row) return { error: "Payment not found." };
+  const kind = await getPaymentKind(clinicId, paymentId);
+  if (!kind) return { error: "Payment not found." };
 
-  const resource = row.kind === "refund" ? "refund" : "billing";
+  const resource = kind === "refund" ? "refund" : "billing";
   if (!can(user, resource, "delete")) return { error: "You don't have permission for that." };
 
   const res = await voidPayment(clinicId, paymentId, actorOf(user));
@@ -268,7 +245,7 @@ export async function voidAppointmentPayment(
     action: "delete",
     entity: "appointment",
     entityId: appointmentId,
-    summary: row.kind === "refund" ? "Reversed a refund" : "Voided a payment",
+    summary: kind === "refund" ? "Reversed a refund" : "Voided a payment",
   });
   revalidateAppt(appointmentId, await apptPatient(clinicId, appointmentId));
   return { saved: true };

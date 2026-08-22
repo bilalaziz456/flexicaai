@@ -1,9 +1,6 @@
-import { and, eq } from "drizzle-orm";
+import { getClinicLogoAccess } from "@/core/clinics/logo";
 import { requireAdminCapability } from "@/core/auth/user";
 import { canManageTeam } from "@/core/auth/admin-permissions";
-import { db } from "@/core/db";
-import { clinics } from "@/core/db/schema";
-import { notDeleted } from "@/core/db/tenant";
 import { readFileByKey } from "@/core/integrations/storage";
 import { report } from "@/core/observability";
 
@@ -24,11 +21,7 @@ const CONTENT_TYPE: Record<string, string> = {
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const admin = await requireAdminCapability("clinics:view");
-  const [c] = await db
-    .select({ logoKey: clinics.logoKey, assignedTo: clinics.assignedTo })
-    .from(clinics)
-    .where(and(eq(clinics.id, id), notDeleted(clinics.deletedAt)))
-    .limit(1);
+  const c = await getClinicLogoAccess(id);
   if (!c || !c.logoKey) return new Response("Not found", { status: 404 });
   if (!canManageTeam(admin) && c.assignedTo !== admin.id) {
     return new Response("Forbidden", { status: 403 });
