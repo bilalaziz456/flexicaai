@@ -1,9 +1,8 @@
+import { listClinicDoctors } from "@/core/appointments/doctors";
+import { getAppointmentDetail } from "@/core/appointments/list-query";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { Breadcrumbs } from "@/core/ui/breadcrumbs";
 import { notFound } from "next/navigation";
-import { desc, eq, inArray } from "drizzle-orm";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, clinics, patients, users } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { getAppointmentBill } from "@/core/billing/bill";
 import { getPatientCredit, listAppointmentPayments } from "@/core/billing/payments";
@@ -52,57 +51,13 @@ export async function AppointmentDetail({
   appointmentId: string;
   backHref: string;
 }) {
-  const [appt] = await db
-    .select({
-      id: appointments.id,
-      doctorId: appointments.doctorId,
-      scheduledAt: appointments.scheduledAt,
-      durationMinutes: appointments.durationMinutes,
-      status: appointments.status,
-      reason: appointments.reason,
-      source: appointments.source,
-      discountType: appointments.discountType,
-      discountValue: appointments.discountValue,
-      discountBorneBy: appointments.discountBorneBy,
-      discountSplitType: appointments.discountSplitType,
-      discountSplitValue: appointments.discountSplitValue,
-      discountStatus: appointments.discountStatus,
-      chargeConsultation: appointments.chargeConsultation,
-      patientId: patients.id,
-      patientName: patients.fullName,
-    })
-    .from(appointments)
-    .innerJoin(patients, eq(appointments.patientId, patients.id))
-    .where(
-      byClinic(
-        appointments.clinicId,
-        clinicId,
-        notDeleted(appointments.deletedAt),
-        eq(appointments.id, appointmentId),
-      ),
-    )
-    .limit(1);
+  const appt = await getAppointmentDetail(clinicId, appointmentId);
   if (!appt) notFound();
 
   const [doctors, bookingProcedures, procedureItems] = await Promise.all([
-    db
-      .select({
-        id: users.id,
-        fullName: users.fullName,
-        username: users.username,
-        flexibleHours: users.flexibleHours,
-        consultationFee: users.consultationFee,
-      })
-      .from(users)
-      .where(
-        byClinic(
-          users.clinicId,
-          clinicId,
-          notDeleted(users.deletedAt),
-          inArray(users.role, ["doctor"]),
-        ),
-      )
-      .orderBy(desc(users.createdAt)),
+    // `newest` keeps this list in the order it was already in — a display order is
+    // still behaviour, and a refactor is not the place to change one.
+    listClinicDoctors(clinicId, { order: "newest" }),
     getBookingProcedures(clinicId),
     getAppointmentProcedureItems(clinicId, appointmentId),
   ]);
@@ -150,11 +105,7 @@ export async function AppointmentDetail({
   // Billing (Finance) — shown when the clinic has the sales feature and the user can
   // view billing. Bill = the approval-gated net; collected + status come from the
   // ledger. The panel handles collect / apply-advance / void / invoice per ACL.
-  const [clinicRow] = await db
-    .select({ featuresEnabled: clinics.featuresEnabled })
-    .from(clinics)
-    .where(eq(clinics.id, clinicId))
-    .limit(1);
+  const clinicRow = await getClinic(clinicId);
   const billingOn =
     clinicHasFeature(clinicRow?.featuresEnabled, "sales") &&
     Boolean(currentUser && can(currentUser, "billing", "view"));

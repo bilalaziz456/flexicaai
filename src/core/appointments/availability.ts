@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, count, eq, gte, inArray, lt, lte, ne } from "drizzle-orm";
+import { and, asc, count, eq, gte, inArray, lt, lte, ne } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, doctorLeaves, users } from "@/core/db/schema";
@@ -188,4 +188,33 @@ export async function checkDoctorSlot(
     availability,
     flexible: doc.flexibleHours,
   };
+}
+
+/**
+ * A clinic's leave entries that have not yet ended — CORE per ADR-014, for the
+ * doctors/leave panel.
+ *
+ * `from` is a YYYY-MM-DD day, and the filter is `end_date >= from` rather than
+ * `start_date >= from`: leave that STARTED last week and runs through next week is
+ * still current, and dropping it would show a doctor as available while they are away.
+ */
+export async function listUpcomingLeaves(clinicId: string, from: string) {
+  return db
+    .select({
+      id: doctorLeaves.id,
+      doctorId: doctorLeaves.doctorId,
+      startDate: doctorLeaves.startDate,
+      endDate: doctorLeaves.endDate,
+      reason: doctorLeaves.reason,
+    })
+    .from(doctorLeaves)
+    .where(
+      byClinic(
+        doctorLeaves.clinicId,
+        clinicId,
+        notDeleted(doctorLeaves.deletedAt),
+        gte(doctorLeaves.endDate, from),
+      ),
+    )
+    .orderBy(asc(doctorLeaves.startDate));
 }

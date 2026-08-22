@@ -1,8 +1,5 @@
 import Link from "next/link";
-import { desc, eq, inArray } from "drizzle-orm";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { patients, users } from "@/core/db/schema";
+import { getPatientForPicker, listRecentPatients } from "@/core/patients/list";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { formatMrn } from "@/core/patients/mrn";
 import {
@@ -14,6 +11,7 @@ import {
 } from "@/core/ui/card";
 import { NewAppointmentForm } from "@/app/clinic/appointments/new-appointment-form";
 import { getBookingProcedures } from "@/core/appointments/procedures";
+import { listClinicDoctors } from "@/core/appointments/doctors";
 import { getUnscheduledItems } from "@/core/patients/treatment-plans";
 
 /**
@@ -44,54 +42,13 @@ export async function NewAppointmentPanel({
     phone: p.phone,
     mrn: formatMrn(clinic?.mrnPrefix, p.mrn, p.createdAt),
   });
-  const patientCols = {
-    id: patients.id,
-    fullName: patients.fullName,
-    phone: patients.phone,
-    mrn: patients.mrn,
-    createdAt: patients.createdAt,
-  };
-
   const [recentRows, doctors, bookingProcedures, preselectedRow] = await Promise.all([
-    db
-      .select(patientCols)
-      .from(patients)
-      .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt)))
-      .orderBy(desc(patients.createdAt))
-      .limit(10),
-    db
-      .select({
-        id: users.id,
-        fullName: users.fullName,
-        username: users.username,
-        flexibleHours: users.flexibleHours,
-        consultationFee: users.consultationFee,
-      })
-      .from(users)
-      .where(
-        byClinic(
-          users.clinicId,
-          clinicId,
-          notDeleted(users.deletedAt),
-          inArray(users.role, ["doctor"]),
-        ),
-      )
-      .orderBy(desc(users.createdAt)),
+    listRecentPatients(clinicId),
+    // `newest` preserves this picker's existing order (see appointment-detail).
+    listClinicDoctors(clinicId, { order: "newest" }),
     getBookingProcedures(clinicId),
     preselectedPatientId
-      ? db
-          .select(patientCols)
-          .from(patients)
-          .where(
-            byClinic(
-              patients.clinicId,
-              clinicId,
-              notDeleted(patients.deletedAt),
-              eq(patients.id, preselectedPatientId),
-            ),
-          )
-          .limit(1)
-          .then((r) => r[0] ?? null)
+      ? getPatientForPicker(clinicId, preselectedPatientId)
       : Promise.resolve(null),
   ]);
   const recentPatients = recentRows.map(toPatient);

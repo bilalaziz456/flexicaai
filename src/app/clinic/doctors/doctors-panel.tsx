@@ -1,7 +1,5 @@
-import { asc, desc, eq, gte, inArray } from "drizzle-orm";
-import { db } from "@/core/db";
-import { byClinic, notDeleted } from "@/core/db/tenant";
-import { doctorLeaves, users } from "@/core/db/schema";
+import { listClinicDoctors } from "@/core/appointments/doctors";
+import { listUpcomingLeaves } from "@/core/appointments/availability";
 import { describeAvailability } from "@/core/lib/availability";
 import {
   Card,
@@ -42,44 +40,10 @@ export async function DoctorsPanel({
   const today = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
 
   const [docs, leaveRows] = await Promise.all([
-    db
-      .select({
-        id: users.id,
-        fullName: users.fullName,
-        username: users.username,
-        availability: users.availability,
-        dailyLimit: users.dailyAppointmentLimit,
-      })
-      .from(users)
-      .where(
-        byClinic(
-          users.clinicId,
-          clinicId,
-          notDeleted(users.deletedAt),
-          selfDoctorId
-            ? eq(users.id, selfDoctorId)
-            : inArray(users.role, ["doctor"]),
-        ),
-      )
-      .orderBy(desc(users.createdAt)),
-    db
-      .select({
-        id: doctorLeaves.id,
-        doctorId: doctorLeaves.doctorId,
-        startDate: doctorLeaves.startDate,
-        endDate: doctorLeaves.endDate,
-        reason: doctorLeaves.reason,
-      })
-      .from(doctorLeaves)
-      .where(
-        byClinic(
-          doctorLeaves.clinicId,
-          clinicId,
-          notDeleted(doctorLeaves.deletedAt),
-          gte(doctorLeaves.endDate, today),
-        ),
-      )
-      .orderBy(asc(doctorLeaves.startDate)),
+    // A doctor viewing their own schedule is scoped to themselves; everyone else sees
+    // the clinic's doctors. `newest` preserves the panel's existing order.
+    listClinicDoctors(clinicId, { doctorId: selfDoctorId ?? undefined, order: "newest" }),
+    listUpcomingLeaves(clinicId, today),
   ]);
 
   const leavesByDoctor = new Map<string, LeaveItem[]>();

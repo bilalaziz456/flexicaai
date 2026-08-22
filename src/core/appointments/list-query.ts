@@ -1,6 +1,8 @@
 import "server-only";
 
 import { eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
+import { db } from "@/core/db";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, patients } from "@/core/db/schema";
 import { appointmentHasProceduresSql } from "@/core/appointments/procedures";
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
@@ -81,4 +83,45 @@ export function buildAppointmentConds(f: AppointmentFilterInput): SQL[] {
   }
 
   return conds;
+}
+
+/**
+ * One appointment with its patient, for the detail page — CORE per ADR-014.
+ *
+ * Every field the detail view reads, in one clinic-scoped query. The DISCOUNT columns
+ * come along because the read-only bill is derived from them at render (`computeBill`),
+ * not stored — see ADR-015.
+ */
+export async function getAppointmentDetail(clinicId: string, appointmentId: string) {
+  const [row] = await db
+    .select({
+      id: appointments.id,
+      doctorId: appointments.doctorId,
+      scheduledAt: appointments.scheduledAt,
+      durationMinutes: appointments.durationMinutes,
+      status: appointments.status,
+      reason: appointments.reason,
+      source: appointments.source,
+      discountType: appointments.discountType,
+      discountValue: appointments.discountValue,
+      discountBorneBy: appointments.discountBorneBy,
+      discountSplitType: appointments.discountSplitType,
+      discountSplitValue: appointments.discountSplitValue,
+      discountStatus: appointments.discountStatus,
+      chargeConsultation: appointments.chargeConsultation,
+      patientId: patients.id,
+      patientName: patients.fullName,
+    })
+    .from(appointments)
+    .innerJoin(patients, eq(appointments.patientId, patients.id))
+    .where(
+      byClinic(
+        appointments.clinicId,
+        clinicId,
+        notDeleted(appointments.deletedAt),
+        eq(appointments.id, appointmentId),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
 }

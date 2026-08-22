@@ -1,6 +1,6 @@
 import "server-only";
 
-import { count, desc, ilike, or, type SQL } from "drizzle-orm";
+import { count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
 import { patients } from "@/core/db/schema";
 import { byClinic, notDeleted } from "@/core/db/tenant";
@@ -87,3 +87,32 @@ export type PatientListRow = {
   dateOfBirth: string | null;
   reference: string | null;
 };
+
+/** The booking picker's shape: enough to identify a patient and show their MRN. */
+const PATIENT_PICKER_COLUMNS = {
+  id: patients.id,
+  fullName: patients.fullName,
+  phone: patients.phone,
+  mrn: patients.mrn,
+  createdAt: patients.createdAt,
+} as const;
+
+/** Most recently added patients, for the booking form's picker. */
+export async function listRecentPatients(clinicId: string, limit = 10) {
+  return db
+    .select(PATIENT_PICKER_COLUMNS)
+    .from(patients)
+    .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt)))
+    .orderBy(desc(patients.createdAt))
+    .limit(limit);
+}
+
+/** One patient in the picker's shape — the "book for THIS patient" preselect. */
+export async function getPatientForPicker(clinicId: string, patientId: string) {
+  const [row] = await db
+    .select(PATIENT_PICKER_COLUMNS)
+    .from(patients)
+    .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt), eq(patients.id, patientId)))
+    .limit(1);
+  return row ?? null;
+}
