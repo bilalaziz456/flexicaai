@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, gte, lt } from "drizzle-orm";
+import { and, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { expenses, patientPayments } from "@/core/db/schema";
@@ -75,8 +75,14 @@ export async function getDayBook(clinicId: string, dayStr: string): Promise<DayB
 
   const [payRows, expRows] = await Promise.all([
     db
-      .select({ kind: patientPayments.kind, method: patientPayments.method, amount: patientPayments.amount })
+      // Pre-summed per (kind, method) in SQL — delta D-12. This used to select every
+      // payment in the range so JS could fold it into at most four method buckets;
+      // over a year that is the whole cash ledger in memory to produce four numbers.
+      // `aggregateCash` accumulates whatever rows it is given, so pre-summing needs no
+      // change there at all.
+      .select({ kind: patientPayments.kind, method: patientPayments.method, amount: sql<number>`sum(${patientPayments.amount})::int` })
       .from(patientPayments)
+      .groupBy(patientPayments.kind, patientPayments.method)
       .where(
         byClinic(
           patientPayments.clinicId,
@@ -86,8 +92,9 @@ export async function getDayBook(clinicId: string, dayStr: string): Promise<DayB
         ),
       ),
     db
-      .select({ method: expenses.method, amount: expenses.amount })
+      .select({ method: expenses.method, amount: sql<number>`sum(${expenses.amount})::int` })
       .from(expenses)
+      .groupBy(expenses.method)
       .where(byClinic(expenses.clinicId, clinicId, notDeleted(expenses.deletedAt), eq(expenses.incurredOn, dayStr))),
   ]);
 
@@ -105,8 +112,14 @@ export async function getCashSummary(
 ): Promise<CashSummary> {
   const [payRows, expRows] = await Promise.all([
     db
-      .select({ kind: patientPayments.kind, method: patientPayments.method, amount: patientPayments.amount })
+      // Pre-summed per (kind, method) in SQL — delta D-12. This used to select every
+      // payment in the range so JS could fold it into at most four method buckets;
+      // over a year that is the whole cash ledger in memory to produce four numbers.
+      // `aggregateCash` accumulates whatever rows it is given, so pre-summing needs no
+      // change there at all.
+      .select({ kind: patientPayments.kind, method: patientPayments.method, amount: sql<number>`sum(${patientPayments.amount})::int` })
       .from(patientPayments)
+      .groupBy(patientPayments.kind, patientPayments.method)
       .where(
         byClinic(
           patientPayments.clinicId,
@@ -116,8 +129,9 @@ export async function getCashSummary(
         ),
       ),
     db
-      .select({ method: expenses.method, amount: expenses.amount })
+      .select({ method: expenses.method, amount: sql<number>`sum(${expenses.amount})::int` })
       .from(expenses)
+      .groupBy(expenses.method)
       .where(
         byClinic(
           expenses.clinicId,

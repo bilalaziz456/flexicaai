@@ -1,6 +1,7 @@
 import "server-only";
 
-import { and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
+import type { PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import {
@@ -62,24 +63,44 @@ export async function getProfitAndLoss(
 ): Promise<ProfitAndLoss> {
   const { start, end, granularity } = range;
 
+  // AGGREGATED BY DAY IN SQL, not row by row (delta D-12). These five used to select
+  // every sale, share, settlement, action and expense in the range and fold them in
+  // JavaScript — five unbounded scans to produce four scalars and a handful of chart
+  // buckets, so a clinic's P&L for a year pulled a year of transactions into memory.
+  //
+  // The day is the finest bucket the report can ask for, so grouping there loses
+  // nothing and bounds every result by the LENGTH OF THE RANGE (≈365 rows for a year)
+  // rather than by how busy the clinic is. Days are then folded into the requested
+  // granularity by the same `startOfBucket` the report already used — deliberately NOT
+  // mirroring that function in SQL, because a second copy of a bucketing rule drifts
+  // exactly like a second copy of a bill formula (ADR-015).
+  //
+  // `date_trunc` on a timestamptz truncates in the session's timezone, which is the
+  // server's — the same clock the TS side reads. That is the D-14 assumption, and it
+  // is why this is safe today and must be revisited with per-clinic timezones.
+  const day = (col: PgColumn) => sql<string>`date_trunc('day', ${col})::date::text`;
+
   const [saleRows, shareRows, settleRows, expRows, expByCat, sharesByDoctor, settleByDoctor, actionRows] = await Promise.all([
     db
-      .select({ net: sales.netAmount, occurredAt: sales.occurredAt })
+      .select({ net: sql<number>`sum(${sales.netAmount})::int`, day: day(sales.occurredAt) })
       .from(sales)
       .where(byClinic(sales.clinicId, clinicId, and(gte(sales.occurredAt, start), lt(sales.occurredAt, end))))
-      .orderBy(asc(sales.occurredAt)),
+      .groupBy(day(sales.occurredAt)),
     db
-      .select({ amount: saleShares.shareAmount, occurredAt: saleShares.occurredAt })
+      .select({ amount: sql<number>`sum(${saleShares.shareAmount})::int`, day: day(saleShares.occurredAt) })
       .from(saleShares)
-      .where(byClinic(saleShares.clinicId, clinicId, and(gte(saleShares.occurredAt, start), lt(saleShares.occurredAt, end)))),
+      .where(byClinic(saleShares.clinicId, clinicId, and(gte(saleShares.occurredAt, start), lt(saleShares.occurredAt, end))))
+      .groupBy(day(saleShares.occurredAt)),
     // Discount settlements (doctor rows) — the accrual bearing folds into "doctor share".
     db
-      .select({ amount: discountSettlements.settlementAmount, occurredAt: discountSettlements.occurredAt })
+      .select({ amount: sql<number>`sum(${discountSettlements.settlementAmount})::int`, day: day(discountSettlements.occurredAt) })
       .from(discountSettlements)
-      .where(byClinic(discountSettlements.clinicId, clinicId, and(eq(discountSettlements.party, "doctor"), gte(discountSettlements.occurredAt, start), lt(discountSettlements.occurredAt, end)))),
+      .where(byClinic(discountSettlements.clinicId, clinicId, and(eq(discountSettlements.party, "doctor"), gte(discountSettlements.occurredAt, start), lt(discountSettlements.occurredAt, end))))
+      .groupBy(day(discountSettlements.occurredAt)),
     db
-      .select({ amount: expenses.amount, incurredOn: expenses.incurredOn })
+      .select({ amount: sql<number>`sum(${expenses.amount})::int`, incurredOn: expenses.incurredOn })
       .from(expenses)
+      .groupBy(expenses.incurredOn)
       .where(
         byClinic(
           expenses.clinicId,
@@ -113,12 +134,23 @@ export async function getProfitAndLoss(
       .from(discountSettlements)
       .where(byClinic(discountSettlements.clinicId, clinicId, and(eq(discountSettlements.party, "doctor"), gte(discountSettlements.occurredAt, start), lt(discountSettlements.occurredAt, end))))
       .groupBy(discountSettlements.doctorName),
-    // Settlement actions in the range — their P&L cost (see plActionEffect).
+    // Settlement actions — grouped by (day, kind), since `plActionEffect` decides the
+    // SIGN from the kind. Bounded by days × the five kinds, not by how many were made.
     db
-      .select({ kind: doctorSettlementActions.kind, amount: doctorSettlementActions.amount, occurredAt: doctorSettlementActions.occurredAt, name: doctorSettlementActions.doctorName })
+      .select({
+        kind: doctorSettlementActions.kind,
+        name: doctorSettlementActions.doctorName,
+        amount: sql<number>`sum(${doctorSettlementActions.amount})::int`,
+        day: day(doctorSettlementActions.occurredAt),
+      })
       .from(doctorSettlementActions)
-      .where(byClinic(doctorSettlementActions.clinicId, clinicId, and(gte(doctorSettlementActions.occurredAt, start), lt(doctorSettlementActions.occurredAt, end)))),
+      .where(byClinic(doctorSettlementActions.clinicId, clinicId, and(gte(doctorSettlementActions.occurredAt, start), lt(doctorSettlementActions.occurredAt, end))))
+      // Also grouped by doctor, because these rows feed the per-doctor breakdown too.
+      .groupBy(doctorSettlementActions.kind, doctorSettlementActions.doctorName, day(doctorSettlementActions.occurredAt)),
   ]);
+
+  /** A grouped day back to a local Date, so `startOfBucket` sees what it always saw. */
+  const dayDate = (d: string) => new Date(`${d}T12:00:00`);
 
   const revenue = saleRows.reduce((s, r) => s + r.net, 0);
   // Doctor shares (the clinic's cost to doctors) = gross earnings + settlements (the
@@ -141,19 +173,19 @@ export async function getProfitAndLoss(
     buckets.push({ label: bucketLabel(cur, granularity), revenue: 0, share: 0, expense: 0 });
   }
   for (const r of saleRows) {
-    const b = idx.get(startOfBucket(r.occurredAt, granularity).getTime());
+    const b = idx.get(startOfBucket(dayDate(r.day), granularity).getTime());
     if (b !== undefined) buckets[b].revenue += r.net;
   }
   for (const r of shareRows) {
-    const b = idx.get(startOfBucket(r.occurredAt, granularity).getTime());
+    const b = idx.get(startOfBucket(dayDate(r.day), granularity).getTime());
     if (b !== undefined) buckets[b].share += r.amount;
   }
   for (const r of settleRows) {
-    const b = idx.get(startOfBucket(r.occurredAt, granularity).getTime());
+    const b = idx.get(startOfBucket(dayDate(r.day), granularity).getTime());
     if (b !== undefined) buckets[b].share += r.amount;
   }
   for (const r of actionRows) {
-    const b = idx.get(startOfBucket(r.occurredAt, granularity).getTime());
+    const b = idx.get(startOfBucket(dayDate(r.day), granularity).getTime());
     if (b !== undefined) buckets[b].share += plActionEffect(r.kind, r.amount);
   }
   for (const r of expRows) {

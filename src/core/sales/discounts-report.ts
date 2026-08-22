@@ -1,10 +1,11 @@
 import "server-only";
 
-import { and, desc, eq, gt, gte, inArray, lt } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointmentDiscountApprovals, appointments, patients, users } from "@/core/db/schema";
 import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
+import { appointmentDiscountSql } from "@/core/appointments/bill-sql";
 import { computeFee, normalizeDiscountType } from "@/core/appointments/fee";
 import { discountBorneSplit } from "@/core/appointments/discount-bearing";
 import type { BearBorneBy } from "@/core/appointments/discount-bearing";
@@ -27,7 +28,7 @@ export type DiscountRow = {
 };
 
 export type DiscountsReport = {
-  rows: DiscountRow[];
+  rows: DiscountRow[]; // ONE PAGE — `count` is the full match
   count: number;
   totalApplied: number; // Σ amount where the discount actually applies (none/approved)
   totalPending: number; // Σ amount awaiting approval
@@ -44,6 +45,7 @@ export async function getDiscountsReport(
   clinicId: string,
   range: ResolvedRange,
   filters: { doctorId?: string | null; borneBy?: string; status?: string } = {},
+  paging: { offset: number; limit: number } = { offset: 0, limit: 200 },
 ): Promise<DiscountsReport> {
   const conds = [
     gte(appointments.scheduledAt, range.start),
@@ -76,7 +78,12 @@ export async function getDiscountsReport(
     .innerJoin(patients, eq(patients.id, appointments.patientId))
     .leftJoin(users, eq(users.id, appointments.doctorId))
     .where(byClinic(appointments.clinicId, clinicId, notDeleted(appointments.deletedAt), and(...conds)))
-    .orderBy(desc(appointments.scheduledAt));
+    .orderBy(desc(appointments.scheduledAt))
+    // ONE PAGE (delta D-12). This used to select every discounted appointment in the
+    // range — a year of them — map each in JS, then `reduce` for two totals. The
+    // totals now come from SQL below, so the page no longer has to BE the whole set.
+    .limit(paging.limit)
+    .offset(paging.offset);
 
   const out: DiscountRow[] = rows.map((r) => {
     const type = normalizeDiscountType(r.discountType);
@@ -143,11 +150,28 @@ export async function getDiscountsReport(
     for (const row of out) row.approvedBy = approverMap.get(row.appointmentId)?.join(" · ") ?? null;
   }
 
-  const applied = (s: string) => s === "none" || s === "approved";
+  // Totals over the WHOLE match, in SQL — not over `out`, which is now one page.
+  //
+  // The rupee amount is `appointmentDiscountSql({ raw: true })`, the very expression
+  // the bill is built from (ADR-015), asked for the un-gated value because this report
+  // shows a pending discount at what it WOULD take off. So the SQL total and the
+  // per-row `computeFee` figure are two renderings of one formula, not two formulas —
+  // `scripts/test-bill-parity.ts` is what keeps them honest.
+  const amountSql = appointmentDiscountSql({ raw: true });
+  const [totals] = await db
+    .select({
+      count: sql<number>`count(*)::int`,
+      applied: sql<number>`coalesce(sum(${amountSql}) filter (where ${appointments.discountStatus} in ('none','approved')), 0)::int`,
+      pending: sql<number>`coalesce(sum(${amountSql}) filter (where ${appointments.discountStatus} = 'pending'), 0)::int`,
+    })
+    .from(appointments)
+    .leftJoin(users, eq(users.id, appointments.doctorId))
+    .where(byClinic(appointments.clinicId, clinicId, notDeleted(appointments.deletedAt), and(...conds)));
+
   return {
     rows: out,
-    count: out.length,
-    totalApplied: out.filter((r) => applied(r.status)).reduce((s, r) => s + r.amount, 0),
-    totalPending: out.filter((r) => r.status === "pending").reduce((s, r) => s + r.amount, 0),
+    count: totals?.count ?? 0,
+    totalApplied: totals?.applied ?? 0,
+    totalPending: totals?.pending ?? 0,
   };
 }

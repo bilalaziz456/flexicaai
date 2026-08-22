@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, gte, ilike, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
@@ -81,6 +81,8 @@ export type ReceivablesFilters = {
 export async function getReceivablesReport(
   clinicId: string,
   filters: ReceivablesFilters = {},
+  /** `patients` is this page; `total` and `patientCount` always describe the whole set. */
+  paging: { offset: number; limit: number } = { offset: 0, limit: 500 },
 ): Promise<ReceivablesReport> {
   const net = appointmentNetSql();
   const conds = [eq(appointments.status, "completed"), sql`${net} > ${appointments.amountCollected}`];
@@ -89,50 +91,46 @@ export async function getReceivablesReport(
   if (filters.from) conds.push(gte(appointments.scheduledAt, filters.from));
   if (filters.toExclusive) conds.push(lt(appointments.scheduledAt, filters.toExclusive));
 
-  const rows = await db
+  // GROUPED BY PATIENT IN SQL (delta D-12). This used to select every unpaid completed
+  // appointment in the range and fold them into patients in JavaScript — an unbounded
+  // scan whose result is a list of PATIENTS, so the rows were only ever a means to an
+  // end. Grouping in SQL bounds it by patients-who-owe, which is a fraction of the
+  // appointments and is bounded by the clinic's patient list rather than by its
+  // history. The per-visit detail is then fetched only for the page (see below).
+  //
+  // `greatest(0, …)` mirrors the `Math.max(0, …)` the JS fold applied per visit, so an
+  // overpaid visit still contributes nothing rather than a negative.
+  const perVisitOutstanding = sql<number>`greatest(0, ${net} - ${appointments.amountCollected})`;
+  const grouped = await db
     .select({
-      appointmentId: appointments.id,
-      scheduledAt: appointments.scheduledAt,
-      bill: net,
-      collected: appointments.amountCollected,
       patientId: patients.id,
       patientName: patients.fullName,
       patientPhone: patients.phone,
-      doctorPrefix: users.prefix,
-      doctorName: users.fullName,
-      doctorUsername: users.username,
+      billed: sql<number>`coalesce(sum(${net}), 0)::int`,
+      collected: sql<number>`coalesce(sum(${appointments.amountCollected}), 0)::int`,
+      outstanding: sql<number>`coalesce(sum(${perVisitOutstanding}), 0)::int`,
     })
     .from(appointments)
     .innerJoin(patients, eq(patients.id, appointments.patientId))
     .leftJoin(users, eq(users.id, appointments.doctorId))
     .where(byClinic(appointments.clinicId, clinicId, notDeleted(appointments.deletedAt), and(...conds)))
-    .orderBy(desc(appointments.scheduledAt));
+    .groupBy(patients.id, patients.fullName, patients.phone);
 
   const map = new Map<string, ReceivablePatient>();
-  for (const r of rows) {
-    const bill = Number(r.bill);
-    const outstanding = Math.max(0, bill - r.collected);
-    if (outstanding <= 0) continue;
-    let p = map.get(r.patientId);
-    if (!p) {
-      p = { patientId: r.patientId, name: r.patientName, phone: r.patientPhone, billed: 0, collected: 0, outstanding: 0, openingBalance: 0, visits: [] };
-      map.set(r.patientId, p);
-    }
-    p.billed += bill;
-    p.collected += r.collected;
-    p.outstanding += outstanding;
-    p.visits.push({
-      appointmentId: r.appointmentId,
-      scheduledAt: r.scheduledAt,
-      doctorName:
-        r.doctorName || r.doctorUsername
-          ? displayStaffName(r.doctorPrefix, r.doctorName, r.doctorUsername ?? "")
-          : null,
-      bill,
-      collected: r.collected,
-      outstanding,
+  for (const r of grouped) {
+    if (r.outstanding <= 0) continue;
+    map.set(r.patientId, {
+      patientId: r.patientId,
+      name: r.patientName,
+      phone: r.patientPhone,
+      billed: Number(r.billed),
+      collected: Number(r.collected),
+      outstanding: Number(r.outstanding),
+      openingBalance: 0,
+      visits: [],
     });
   }
+
 
   // Merge in imported opening balances (net of any `opening` payments). These aren't
   // tied to a visit/doctor/date, so only when the view is unfiltered by doctor/date.
@@ -163,9 +161,56 @@ export async function getReceivablesReport(
   }
 
   const patientsList = [...map.values()].sort((a, b) => b.outstanding - a.outstanding);
-  return {
-    total: patientsList.reduce((s, p) => s + p.outstanding, 0),
-    patientCount: patientsList.length,
-    patients: patientsList,
-  };
+  const total = patientsList.reduce((s, p) => s + p.outstanding, 0);
+  const page = patientsList.slice(paging.offset, paging.offset + paging.limit);
+
+  // The per-visit breakdown, for THIS PAGE's patients only. It is presentation detail
+  // under each patient row, so fetching it for everyone was the expensive half of the
+  // old query — and the totals above never needed it.
+  if (page.length > 0) {
+    const byId = new Map(page.map((p) => [p.patientId, p]));
+    const visitRows = await db
+      .select({
+        appointmentId: appointments.id,
+        scheduledAt: appointments.scheduledAt,
+        bill: net,
+        collected: appointments.amountCollected,
+        patientId: appointments.patientId,
+        doctorPrefix: users.prefix,
+        doctorName: users.fullName,
+        doctorUsername: users.username,
+      })
+      .from(appointments)
+      .leftJoin(users, eq(users.id, appointments.doctorId))
+      .where(
+        byClinic(
+          appointments.clinicId,
+          clinicId,
+          notDeleted(appointments.deletedAt),
+          and(...conds, inArray(appointments.patientId, [...byId.keys()])),
+        ),
+      )
+      .orderBy(desc(appointments.scheduledAt));
+
+    for (const r of visitRows) {
+      const p = byId.get(r.patientId);
+      if (!p) continue;
+      const bill = Number(r.bill);
+      const outstanding = Math.max(0, bill - r.collected);
+      if (outstanding <= 0) continue;
+      p.visits.push({
+        appointmentId: r.appointmentId,
+        scheduledAt: r.scheduledAt,
+        doctorName:
+          r.doctorName || r.doctorUsername
+            ? displayStaffName(r.doctorPrefix, r.doctorName, r.doctorUsername ?? "")
+            : null,
+        bill,
+        collected: r.collected,
+        outstanding,
+      });
+    }
+  }
+
+  return { total, patientCount: patientsList.length, patients: page };
 }

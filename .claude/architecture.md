@@ -475,6 +475,36 @@ emitting unscoped queries the guard flagged into a void; it says `unscoped` now.
 type-excluded entity used to short-circuit to a bare `false`, producing SQL with no
 `clinic_id` — the scope is appended regardless now, so the guard stays at zero.
 
+**ADR-025 — A report aggregates at the grain it reports, and bounds itself by TIME,
+not by row count** · *2026-08-22* · `Accepted` *(implemented — D-12 closed)*
+Four reports selected every row in a date range and folded it in JavaScript. Each now
+aggregates in SQL at the grain it actually displays:
+
+- **P&L** — `GROUP BY date_trunc('day', …)`. The day is the finest bucket the report
+  offers, so grouping there loses nothing and bounds the result by the LENGTH OF THE
+  RANGE (~365 rows for a year) instead of by how busy the clinic is. Days are folded
+  into weeks/months by the existing TS `startOfBucket`, so the bucketing rule is **not**
+  duplicated into SQL.
+- **Cash summary / day book** — `GROUP BY (kind, method)`. `aggregateCash` accumulates
+  whatever rows it is handed, so pre-summing needed no logic change at all.
+- **Discounts** — totals via `sum(…) filter (where status …)`; the row list pages.
+- **Receivables** — `GROUP BY patient`, since the output was always a list of PATIENTS
+  and the appointments were only a means to it. Per-visit detail is fetched for the
+  page alone.
+
+**Where the money math lives is the constraint.** The discounts total needed the
+discount in rupees, which `computeFee` owns — so `bill-sql.ts` gained ONE
+`appointmentDiscountSql({ raw })` that `appointmentNetSql` is now expressed in terms
+of, rather than a second copy of the clamp. Raw vs approval-gated is a parameter, not
+a fork: the report shows a pending discount at its would-be value, the bill does not.
+
+**Consequence:** `scripts/test-report-aggregation.ts` is a DIFFERENTIAL test, not a
+unit test — it recomputes each figure the old way, row by row in TypeScript, from the
+same seeded rows. That is the only thing that makes rewriting money arithmetic in SQL
+safe (ADR-015), and it is why a sale is seeded at 23:30: the day grouping depends on
+Postgres and Node agreeing where a day ends, which is the D-14 single-timezone
+assumption and will need revisiting with per-clinic timezones.
+
 **ADR-020 — The scribe becomes an async job** · *2026-08-21* · `Interim`
 Today: synchronous, budgeted at 300s (Whisper 120s + Claude 90s×2), needing a matching
 nginx `proxy_read_timeout`.
@@ -497,7 +527,7 @@ they land.** Ordered by consequence.
 | ~~D-07~~ | Trash loaded every soft-deleted row of 9 tables into memory | ADR-006 / ADR-024 | **Closed 2026-08-22** — see ADR-024. Every filter pushed into SQL, each source bounded to `offset + limit`, both pages paginated. `scripts/test-trash-paging.ts` |
 | D-08 | Scribe is synchronous | ADR-020 | Open (interim in force) |
 | ~~D-11~~ | `activity_logs` had no retention; a view cost 2 queries, the second unindexed | ADR-006 / ADR-023 | **Closed 2026-08-22** — see ADR-023. One indexed statement per view, plus an opt-in retention window (default: keep everything). Partitioning was NOT done and is not needed at this size; the trigger is in ADR-023. `scripts/test-log-retention.ts` |
-| D-12 | Reports aggregate unbounded row sets in application code | — | Open |
+| ~~D-12~~ | Reports aggregated unbounded row sets in application code | ADR-015 / ADR-025 | **Closed 2026-08-22** — see ADR-025. P&L, cash summary, discounts and receivables all aggregate in SQL now; the two list reports page. `scripts/test-report-aggregation.ts` |
 | D-13 | No test framework; no CI | ADR-005 | **On hold** (owner's direction, 2026-08-21) |
 | D-14 | Timezone is server-local; blocks a second region | ADR-009 | Open — required before the first GCC clinic |
 | D-15 | CSP is report-only | — | Open — enforce once the sink shows it clean |
@@ -531,7 +561,7 @@ time, plus one narrow opt-in `handover` grant; `scripts/test-orphaned-drafts.ts`
 **D-11 unbounded `activity_logs` + an unindexed view lookup (ADR-023, closed
 2026-08-22 — migration `0081`; `scripts/test-log-retention.ts`)** · **D-07 Trash
 loading every soft-deleted row (ADR-024, closed 2026-08-22 —
-`scripts/test-trash-paging.ts`)**.
+`scripts/test-trash-paging.ts`)** · **D-12 reports aggregating unbounded row sets (ADR-025, closed 2026-08-22 — `scripts/test-report-aggregation.ts`)**.
 
 ---
 

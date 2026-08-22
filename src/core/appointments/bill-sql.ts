@@ -66,6 +66,22 @@ export function appointmentSubtotalSql(): SQL<number> {
  * every list, report and KPI that needs "the bill" uses THIS, so they can't disagree
  * with each other or with the printed invoice.
  */
+/**
+ * The discount in RUPEES that the appointment's own discount takes off the subtotal —
+ * clamped to `0 ≤ discount ≤ subtotal`, exactly as `fee.ts#computeFee` does.
+ *
+ * `raw: true` ignores the approval gate and returns what the discount WOULD take off.
+ * The discounts report needs that (it shows pending discounts at their would-be value
+ * and totals them separately), while the bill needs the gated one. Both come from
+ * this single expression rather than a second copy of the clamp — ADR-015.
+ */
+export function appointmentDiscountSql(opts?: { raw?: boolean }): SQL<number> {
+  const subtotal = appointmentSubtotalSql();
+  const v = opts?.raw ? sql`${appointments.discountValue}` : effectiveDiscountSql();
+  // NUMERIC before the percent multiply — see the note on `appointmentNetSql`.
+  return sql<number>`(least(greatest(round(case when ${appointments.discountType} = 'percent' then ${subtotal}::numeric * ${v} / 100.0 else ${v}::numeric end), 0), ${subtotal}))::int`;
+}
+
 export function appointmentNetSql(): SQL<number> {
   const subtotal = appointmentSubtotalSql();
   const eff = effectiveDiscountSql();
