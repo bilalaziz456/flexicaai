@@ -202,8 +202,17 @@ at all when `log_access` is empty. The super admin (`/admin/logs`) always sees
 everything across clinics. Both pages default to TODAY with date-range + employee
 filters (+ clinic filter for the super admin). Written via best-effort
 `logActivity`/`logActivityAs` (never throws/blocks); views come from a client
-`ViewLogger` (avoids prefetch phantom logs).
-Indexes: (`clinic_id`,`created_at`); (`created_at`); `actor_user_id`.
+`ViewLogger` (avoids prefetch phantom logs). A view is written by ONE statement
+(`INSERT … SELECT … WHERE NOT EXISTS`) that both de-duplicates within
+`VIEW_DEDUPE_MINUTES` and inserts — see ADR-023, and note the `IS NOT DISTINCT FROM`
+trap recorded there before touching it. **Retention:** append-only under ADR-006, so
+`company_settings.activity_log_retention_days` bounds it (0 = keep everything, the
+default; 90-day floor on anything set), pruned nightly by `GET /api/cron/log-retention`
+— the only hard delete in the audit path.
+Indexes: (`clinic_id`,`created_at`); (`created_at`); `actor_user_id`; partial
+(`actor_user_id`,`entity`,`entity_id`,`created_at` desc) `WHERE action = 'view'` — the
+dedupe lookup, which runs on every record open and was previously unindexed
+(migration `0081`).
 
 ### `procedures` — priced services (Sales feature, phase 1)
 `id`, `clinic_id` → clinics (`cascade`), `name`, `price` int (whole PKR),
@@ -635,3 +644,14 @@ these for churn-risk + usage/cost anomaly flags.
   The migration clamps existing rows first, because `ADD CONSTRAINT` validates
   existing data and one stale row would fail the deploy. A flat AMOUNT stays
   unbounded — the bill clamps it, and a large write-off is legitimate.
+- Migration **`0081`** bounds `activity_logs` (delta D-11 / ADR-023). Adds
+  `company_settings.activity_log_retention_days` (int, default **0 = keep everything**
+  — deliberately inert, since how long an access log over patient data must survive is
+  a regulatory decision) and the partial index
+  `activity_logs_view_dedupe_idx (actor_user_id, entity, entity_id, created_at desc)
+  WHERE action = 'view'`. That index serves `logView`'s de-dupe check, which ran on
+  every record open with NO index at all — Postgres walked the global `created_at`
+  index and filtered, so one user opening one patient got slower as OTHER clinics got
+  busier. **Do not rewrite the null-`entity_id` branch as `IS NOT DISTINCT FROM`:** it
+  is not btree-indexable and silently drops the plan from an Index Only Scan to a
+  bitmap scan plus filter (verified on 60k rows).

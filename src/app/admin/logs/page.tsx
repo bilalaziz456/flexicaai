@@ -13,6 +13,9 @@ import {
   LOG_ACTION_IDS,
 } from "@/core/audit/access";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
+import { getActivityLogRetentionDays } from "@/core/admin/company-settings";
+import { getActivityLogStats } from "@/core/audit/retention";
+import { RetentionForm } from "./retention-form";
 import type { UserRole } from "@/core/types/auth";
 
 /**
@@ -95,6 +98,12 @@ export default async function AdminLogsPage({
     ]),
   );
   const actors = actorRows.map((s) => ({ id: s.id, name: s.fullName ?? s.username }));
+  // Retention state, shown with the table's real size so the window is chosen
+  // against what is actually stored rather than guessed (D-11).
+  const [retentionDays, logStats] = await Promise.all([
+    getActivityLogRetentionDays(),
+    getActivityLogStats(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -105,6 +114,12 @@ export default async function AdminLogsPage({
           selected range.
         </p>
       </div>
+      <RetentionForm
+        retentionDays={retentionDays}
+        rows={logStats.rows}
+        oldest={logStats.oldest}
+        sizePretty={logStats.sizePretty}
+      />
       <LogFilters
         from={fromStr}
         to={toStr}

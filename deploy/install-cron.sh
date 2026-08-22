@@ -2,13 +2,13 @@
 #
 # Installs FlexicaAI's scheduled jobs on a Linux host.
 #
-#   sudo ./deploy/install-cron.sh core     # the 4 jobs that need no API
-#   sudo ./deploy/install-cron.sh all      # those + the 2 WhatsApp ones
+#   sudo ./deploy/install-cron.sh core     # the 5 jobs that need no API
+#   sudo ./deploy/install-cron.sh all      # those + the 2 WhatsApp ones (7 total)
 #   ./deploy/install-cron.sh check         # verify what's installed (no root needed)
 #   ./deploy/install-cron.sh print [core|all]   # show the crontab without writing it
 #
 # WHY TWO MODES: only `recalls` and `reminders` need an API (WhatsApp — no job touches
-# Whisper or Claude). The other four are pure database work and are gated on having
+# Whisper or Claude). The other five are pure database work and are gated on having
 # real clinics, not on keys, and those triggers arrive independently. See delta D-19.
 #
 # WHY A SCRIPT AT ALL: a job that is never invoked raises no error, so a botched
@@ -33,6 +33,7 @@ JOBS=$(cat <<'EOF'
 5 2 * * *|company-expenses|-|Recurring FlexicaAI company expenses
 0 3 * * *|billing|-|Subscription sweep: active <-> past_due as time passes
 30 3 * * *|reconcile|-|Sales reconciliation: re-derive any drifted ledger row
+45 3 * * *|log-retention|-|Prune activity_logs past the retention window (no-op until set)
 EOF
 )
 

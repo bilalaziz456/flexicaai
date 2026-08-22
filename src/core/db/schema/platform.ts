@@ -308,6 +308,13 @@ export const companySettings = pgTable("company_settings", {
   thinMarginPct: integer("thin_margin_pct").notNull().default(50),
   spikeMultiple: integer("spike_multiple").notNull().default(3),
   spikeFloorPkr: integer("spike_floor_pkr").notNull().default(200),
+  // How long `activity_logs` rows are kept. **0 = keep forever, and that is the
+  // default deliberately**: this is an audit trail over patient data (CLAUDE.md §10),
+  // so how long it must survive is a COMPLIANCE decision for the owner, not a number
+  // an engineer should pick. The pruning machinery exists so the table can be bounded
+  // when it needs to be; it does nothing until someone sets a window. See
+  // core/audit/retention.ts.
+  activityLogRetentionDays: integer("activity_log_retention_days").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -388,6 +395,14 @@ export const activityLogs = pgTable(
     // Global (super-admin) date-window scan across clinics.
     index("activity_logs_created_idx").on(t.createdAt),
     index("activity_logs_actor_idx").on(t.actorUserId),
+    // The view-dedupe lookup, which runs on EVERY record view (`logView`). Without
+    // it Postgres walks `activity_logs_created_idx` over the whole dedupe window and
+    // filters — so the cost of one user opening one patient scaled with PLATFORM-WIDE
+    // activity in that window, not with their own. Partial, because `view` is the
+    // only action deduped and the index has no reason to carry the rest.
+    index("activity_logs_view_dedupe_idx")
+      .on(t.actorUserId, t.entity, t.entityId, t.createdAt.desc())
+      .where(sql`action = 'view'`),
   ],
 );
 

@@ -568,6 +568,13 @@
       "when": 1787309315640,
       "tag": "0080_early_human_torch",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1787338903498,
+      "tag": "0081_powerful_thing",
+      "breakpoints": true
     }
   ]
 }

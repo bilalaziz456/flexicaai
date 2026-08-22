@@ -423,6 +423,34 @@ patient timeline now renders the second only when it differs from the first.
 D-16 was precisely the bug of that rule living in one of the three and being forgotten
 in the other two, so it must never be inlined at a call site again.
 
+**ADR-023 — The audit log is bounded by an owner's choice, not by an engineer's
+default** · *2026-08-22* · `Accepted` *(implemented — D-11 closed)*
+`activity_logs` is append-only under ADR-006 and `view` rows dominate it. Retention is
+now configurable (`company_settings.activity_log_retention_days`, pruned nightly by
+`GET /api/cron/log-retention`), **defaulting to 0 = keep everything**, with a 90-day
+floor on any window that is set.
+**Why default to off:** this is the audit trail over patient data (CLAUDE.md §10) —
+evidence of who opened which record. How long it must survive is a regulatory question
+for the market, not a number to pick in code. The machinery exists so the table CAN be
+bounded; it stays inert until someone decides. This is also the only hard delete in the
+audit path, deliberately — soft-deleting audit rows would leave the growth problem
+exactly as it was.
+**The second half was the real defect.** `logView` ran a SELECT then an INSERT, and
+**no index served the SELECT** — Postgres walked the global `created_at` index across
+the dedupe window and filtered, so one user opening one patient cost more as OTHER
+clinics got busier. Now one `INSERT … SELECT … WHERE NOT EXISTS` against a partial
+index (`activity_logs_view_dedupe_idx`, migration `0081`), which also removes the
+check-then-insert race.
+**Consequence — a trap worth remembering:** `IS NOT DISTINCT FROM` is NOT
+btree-indexable. Collapsing the null-`entity_id` branch into that one tidy expression
+silently drops the plan from an Index Only Scan to a bitmap scan plus filter, i.e. it
+gives back the entire optimisation while looking cleaner. Verified on 60k rows. Keep
+the two branches.
+**Partitioning was considered and rejected for now** — it buys cheap bulk expiry, but
+at this size a nightly `DELETE` on an indexed timestamp is enough, and range partitions
+add DDL maintenance forever. Revisit when the table passes ~50M rows or the nightly
+prune stops finishing quickly.
+
 **ADR-020 — The scribe becomes an async job** · *2026-08-21* · `Interim`
 Today: synchronous, budgeted at 300s (Whisper 120s + Claude 90s×2), needing a matching
 nginx `proxy_read_timeout`.
@@ -444,7 +472,7 @@ they land.** Ordered by consequence.
 | D-01 | App files querying the DB directly. **Ratchet installed** — `eslint.config.mjs` bans `@/core/db` + `@/core/db/schema` from `src/app/**`, with a legacy allowlist that may only SHRINK | ADR-014 | Open — **52 left** (was 77). Delete lines from `LEGACY_DIRECT_DB_ACCESS` as they migrate; when it is empty, remove the exemption block. **A file that stops offending must be pruned from the list in the same change** — a stale exemption silently un-guards a file that had already been fixed |
 | D-07 | Trash loads every soft-deleted row of 9 tables into memory | ADR-006 | Open |
 | D-08 | Scribe is synchronous | ADR-020 | Open (interim in force) |
-| D-11 | `activity_logs` has no retention/partitioning; a view costs 2 queries | ADR-006 | Open |
+| ~~D-11~~ | `activity_logs` had no retention; a view cost 2 queries, the second unindexed | ADR-006 / ADR-023 | **Closed 2026-08-22** — see ADR-023. One indexed statement per view, plus an opt-in retention window (default: keep everything). Partitioning was NOT done and is not needed at this size; the trigger is in ADR-023. `scripts/test-log-retention.ts` |
 | D-12 | Reports aggregate unbounded row sets in application code | — | Open |
 | D-13 | No test framework; no CI | ADR-005 | **On hold** (owner's direction, 2026-08-21) |
 | D-14 | Timezone is server-local; blocks a second region | ADR-009 | Open — required before the first GCC clinic |
@@ -475,7 +503,9 @@ percent discounts unbounded (ADR-021, closed 2026-08-21 — migration `0080` +
 unvalidated clinical jsonb (ADR-007, closed 2026-08-21 — core bounds +
 module-declared shapes; `scripts/test-clinical-validation.ts`)** · **D-18 drafts
 stranded by their author's deletion (ADR-022, closed 2026-08-21 — warned at delete
-time, plus one narrow opt-in `handover` grant; `scripts/test-orphaned-drafts.ts`)**.
+time, plus one narrow opt-in `handover` grant; `scripts/test-orphaned-drafts.ts`)** ·
+**D-11 unbounded `activity_logs` + an unindexed view lookup (ADR-023, closed
+2026-08-22 — migration `0081`; `scripts/test-log-retention.ts`)**.
 
 ---
 

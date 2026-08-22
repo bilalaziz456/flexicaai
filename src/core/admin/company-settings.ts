@@ -3,6 +3,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/core/db";
 import { companySettings } from "@/core/db/schema";
+import { RETENTION_DAYS_OPTIONS } from "@/core/audit/retention-options";
 
 /**
  * Company-wide settings (Owner) — the singleton `company_settings` row. CORE, not a
@@ -63,4 +64,30 @@ async function upsertSettings(patch: Partial<typeof companySettings.$inferInsert
   } else {
     await db.insert(companySettings).values(patch);
   }
+}
+
+/**
+ * `activity_logs` retention window in days — 0 means keep everything, and that is the
+ * default on purpose (see `core/audit/retention.ts` for why this is a compliance
+ * decision rather than an engineering one).
+ *
+ * The option LIST lives in a pure module and is re-exported here for server callers:
+ * this file imports `server-only`, and the client form needs the same values — a
+ * client importing it would drag the DB into the browser bundle (conventions.md §3).
+ */
+export { RETENTION_DAYS_OPTIONS } from "@/core/audit/retention-options";
+
+export async function getActivityLogRetentionDays(): Promise<number> {
+  const [row] = await db
+    .select({ d: companySettings.activityLogRetentionDays })
+    .from(companySettings)
+    .limit(1);
+  return row ? row.d : 0;
+}
+
+/** Saves the retention window. An unrecognised value falls back to 0 (keep forever) —
+ *  the safe direction, since the alternative is deleting evidence by typo. */
+export async function setActivityLogRetentionDays(days: number): Promise<void> {
+  const d = (RETENTION_DAYS_OPTIONS as readonly number[]).includes(days) ? days : 0;
+  await upsertSettings({ activityLogRetentionDays: d });
 }

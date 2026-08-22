@@ -1,0 +1,2 @@
+ALTER TABLE "company_settings" ADD COLUMN "activity_log_retention_days" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+CREATE INDEX "activity_logs_view_dedupe_idx" ON "activity_logs" USING btree ("actor_user_id","entity","entity_id","created_at" DESC NULLS LAST) WHERE action = 'view';
