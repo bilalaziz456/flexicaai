@@ -1,6 +1,5 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
 import { requireRole } from "@/core/auth/user";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import {
@@ -11,9 +10,12 @@ import {
   verifyTotp,
 } from "@/core/auth/totp";
 import { logActivity } from "@/core/audit/log";
-import { db } from "@/core/db";
-import { notDeleted } from "@/core/db/tenant";
-import { users } from "@/core/db/schema";
+import {
+  disableMyTotp,
+  enableMyTotp,
+  getMyTotpState,
+  setMyBackupCodes,
+} from "@/core/users/profile";
 
 /**
  * Super-admin 2FA (TOTP) enrolment — CORE. Only a super_admin manages their own
@@ -65,10 +67,7 @@ export async function confirmTotpEnrollment(
   }
 
   const { codes, hashes } = generateBackupCodes(10);
-  await db
-    .update(users)
-    .set({ totpSecret: secret, totpEnabled: true, totpBackup: hashes, updatedAt: new Date() })
-    .where(and(eq(users.id, user.id), notDeleted(users.deletedAt)));
+  await enableMyTotp(user.id, secret, hashes);
 
   await logActivity({
     action: "update",
@@ -93,10 +92,7 @@ export async function disableTotp(
     return { error: "Incorrect password." };
   }
 
-  await db
-    .update(users)
-    .set({ totpSecret: null, totpEnabled: false, totpBackup: null, updatedAt: new Date() })
-    .where(and(eq(users.id, user.id), notDeleted(users.deletedAt)));
+  await disableMyTotp(user.id);
 
   await logActivity({
     action: "update",
@@ -121,18 +117,11 @@ export async function regenerateBackupCodes(
     return { error: "Incorrect password." };
   }
   // Only meaningful while 2FA is on.
-  const [row] = await db
-    .select({ enabled: users.totpEnabled })
-    .from(users)
-    .where(and(eq(users.id, user.id), notDeleted(users.deletedAt)))
-    .limit(1);
-  if (!row?.enabled) return { error: "Enable two-factor authentication first." };
+  const totp = await getMyTotpState(user.id);
+  if (!totp.enabled) return { error: "Enable two-factor authentication first." };
 
   const { codes, hashes } = generateBackupCodes(10);
-  await db
-    .update(users)
-    .set({ totpBackup: hashes, updatedAt: new Date() })
-    .where(and(eq(users.id, user.id), notDeleted(users.deletedAt)));
+  await setMyBackupCodes(user.id, hashes);
 
   await logActivity({
     action: "update",

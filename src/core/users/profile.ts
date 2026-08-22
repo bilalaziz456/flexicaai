@@ -121,3 +121,36 @@ export async function setMyAvatarKey(
     .where(eq(users.id, userId));
   return prev?.avatarKey ?? null;
 }
+
+/**
+ * Two-factor secrets and backup codes for the signed-in user.
+ *
+ * Self-service like the rest of this module — `id = userId` and nothing else — because
+ * nobody may enable, disable or re-issue somebody else's second factor. What is stored
+ * is the secret and HASHED backup codes; the plaintext codes are shown to the user
+ * once by the caller and never persisted.
+ */
+export async function enableMyTotp(
+  userId: string,
+  secret: string,
+  backupHashes: string[],
+): Promise<void> {
+  await db
+    .update(users)
+    .set({ totpSecret: secret, totpEnabled: true, totpBackup: backupHashes, updatedAt: new Date() })
+    .where(and(eq(users.id, userId), notDeleted(users.deletedAt)));
+}
+
+export async function disableMyTotp(userId: string): Promise<void> {
+  await db
+    .update(users)
+    .set({ totpSecret: null, totpEnabled: false, totpBackup: null, updatedAt: new Date() })
+    .where(and(eq(users.id, userId), notDeleted(users.deletedAt)));
+}
+
+export async function setMyBackupCodes(userId: string, backupHashes: string[]): Promise<void> {
+  await db
+    .update(users)
+    .set({ totpBackup: backupHashes, updatedAt: new Date() })
+    .where(and(eq(users.id, userId), notDeleted(users.deletedAt)));
+}

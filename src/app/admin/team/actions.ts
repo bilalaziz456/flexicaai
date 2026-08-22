@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireAdminCapability } from "@/core/auth/user";
@@ -16,10 +15,19 @@ import {
   type AssignableSubRole,
 } from "@/core/auth/admin-permissions";
 import type { CurrentUser } from "@/core/types/auth";
-import { db } from "@/core/db";
-import { notDeleted } from "@/core/db/tenant";
-import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
-import { clinics, sessions, users } from "@/core/db/schema";
+import {
+  createSuperAdmin,
+  deactivateTeamMember,
+  findActiveTeamMember,
+  getTeamMemberIdentity,
+  reactivateTeamMember,
+  reassignClinics,
+  resetTeamMemberPassword,
+  setTeamMemberCapabilities,
+  softDeleteTeamMember,
+  suspendTeamMember,
+  updateTeamMemberProfile,
+} from "@/core/admin/team";
 import { logActivity } from "@/core/audit/log";
 import { USERNAME_REGEX } from "@/core/types/auth";
 import { report } from "@/core/observability";
@@ -38,11 +46,7 @@ function permsForSubRole(role: AssignableSubRole): string[] {
  */
 async function ownerGuard(actor: CurrentUser, targetUserId: string): Promise<string | null> {
   if (isOwner(actor)) return null; // the owner may manage anyone
-  const [t] = await db
-    .select({ role: users.role, permissions: users.permissions })
-    .from(users)
-    .where(eq(users.id, targetUserId))
-    .limit(1);
+  const t = await getTeamMemberIdentity(targetUserId);
   if (t && isOwner({ role: t.role, permissions: t.permissions })) {
     return "Only the owner can manage the owner account.";
   }
@@ -83,14 +87,11 @@ export async function createSuperAdminAction(
 
   const passwordHash = await hashPassword(parsed.data.password);
   try {
-    await db.insert(users).values({
-      clinicId: null,
+    await createSuperAdmin({
       username: parsed.data.username,
       passwordHash,
-      role: "super_admin",
       fullName: parsed.data.fullName,
       permissions: permsForSubRole(parsed.data.subRole),
-      mustChangePassword: true,
     });
   } catch (e) {
     // Assumed to be a unique-violation, and nearly always is — but a connection or
@@ -122,10 +123,7 @@ async function guardStateChange(userId: string) {
 export async function suspendMemberAction(userId: string): Promise<TeamActionState> {
   const g = await guardStateChange(userId);
   if ("error" in g) return { error: g.error };
-  await db.transaction(async (tx) => {
-    await tx.update(users).set({ isActive: false, deactivatedAt: null, updatedAt: new Date() }).where(eq(users.id, userId));
-    await tx.delete(sessions).where(eq(sessions.userId, userId));
-  });
+  await suspendTeamMember(userId);
   await logActivity({ action: "update", entity: "staff", entityId: userId, summary: "Suspended a team member" });
   revalidatePath("/admin/team");
   revalidatePath(`/admin/team/${userId}`);
@@ -136,11 +134,7 @@ export async function suspendMemberAction(userId: string): Promise<TeamActionSta
 export async function deactivateMemberAction(userId: string): Promise<TeamActionState> {
   const g = await guardStateChange(userId);
   if ("error" in g) return { error: g.error };
-  await db.transaction(async (tx) => {
-    await tx.update(users).set({ isActive: false, deactivatedAt: new Date(), updatedAt: new Date() }).where(eq(users.id, userId));
-    await tx.delete(sessions).where(eq(sessions.userId, userId));
-    await tx.update(clinics).set({ assignedTo: null, updatedAt: new Date() }).where(eq(clinics.assignedTo, userId));
-  });
+  await deactivateTeamMember(userId);
   await logActivity({ action: "update", entity: "staff", entityId: userId, summary: "Deactivated a team member (clinics unassigned)" });
   revalidatePath("/admin/team");
   revalidatePath(`/admin/team/${userId}`);
@@ -152,7 +146,7 @@ export async function deactivateMemberAction(userId: string): Promise<TeamAction
 export async function reactivateMemberAction(userId: string): Promise<TeamActionState> {
   const g = await guardStateChange(userId);
   if ("error" in g) return { error: g.error };
-  await db.update(users).set({ isActive: true, deactivatedAt: null, updatedAt: new Date() }).where(eq(users.id, userId));
+  await reactivateTeamMember(userId);
   await logActivity({ action: "update", entity: "staff", entityId: userId, summary: "Reactivated a team member" });
   revalidatePath("/admin/team");
   revalidatePath(`/admin/team/${userId}`);
@@ -186,10 +180,10 @@ export async function editTeamMemberProfileAction(
   if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
 
   try {
-    await db
-      .update(users)
-      .set({ fullName: parsed.data.fullName, username: parsed.data.username, updatedAt: new Date() })
-      .where(and(eq(users.id, userId), eq(users.role, "super_admin")));
+    await updateTeamMemberProfile(userId, {
+      fullName: parsed.data.fullName,
+      username: parsed.data.username,
+    });
   } catch (e) {
     report(e, { op: "admin.team.updateMember", severity: "warn", ids: { userId } });
     return { error: "That username is already in use." };
@@ -221,13 +215,7 @@ export async function resetTeamMemberPasswordAction(
   if (password.length < 8) return { error: "Password must be at least 8 characters." };
 
   const passwordHash = await hashPassword(password);
-  await db.transaction(async (tx) => {
-    await tx
-      .update(users)
-      .set({ passwordHash, mustChangePassword: true, updatedAt: new Date() })
-      .where(and(eq(users.id, userId), eq(users.role, "super_admin")));
-    await tx.delete(sessions).where(eq(sessions.userId, userId));
-  });
+  await resetTeamMemberPassword(userId, passwordHash);
   await logActivity({ action: "update", entity: "staff", entityId: userId, summary: "Reset a team member's password" });
   return { saved: true };
 }
@@ -244,11 +232,7 @@ export async function setSuperAdminCapabilitiesAction(
   if (blocked) return { error: blocked };
 
   // The owner account (NULL perms) always has full access — not editable here.
-  const [target] = await db
-    .select({ role: users.role, permissions: users.permissions })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
+  const target = await getTeamMemberIdentity(userId);
   if (target && isOwner({ role: target.role, permissions: target.permissions })) {
     return { error: "The owner always has full access." };
   }
@@ -262,10 +246,7 @@ export async function setSuperAdminCapabilitiesAction(
   if (userId === actor.id && !isFull) {
     return { error: "You can't reduce your own access." };
   }
-  await db
-    .update(users)
-    .set({ permissions: caps, updatedAt: new Date() })
-    .where(and(eq(users.id, userId), eq(users.role, "super_admin")));
+  await setTeamMemberCapabilities(userId, caps);
   await logActivity({
     action: "update",
     entity: "staff",
@@ -290,25 +271,17 @@ export async function reassignClinicsAction(
   let target: string | null = null;
   if (toAssigneeId) {
     if (toAssigneeId === fromUserId) return { error: "Pick a different team member." };
-    const [m] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(and(eq(users.id, toAssigneeId), eq(users.role, "super_admin"), notDeleted(users.deletedAt), eq(users.isActive, true)))
-      .limit(1);
-    if (!m) return { error: "Not a valid (active) team member." };
-    target = m.id;
+    const found = await findActiveTeamMember(toAssigneeId);
+    if (!found) return { error: "Not a valid (active) team member." };
+    target = found;
   }
 
-  const moved = await db
-    .update(clinics)
-    .set({ assignedTo: target, updatedAt: new Date() })
-    .where(eq(clinics.assignedTo, fromUserId))
-    .returning({ id: clinics.id });
+  const movedCount = await reassignClinics(fromUserId, target);
 
   await logActivity({
     action: "update",
     entity: "clinic",
-    summary: `Reassigned ${moved.length} clinic${moved.length === 1 ? "" : "s"} ${target ? "to another manager" : "to unassigned"}`,
+    summary: `Reassigned ${movedCount} clinic${movedCount === 1 ? "" : "s"} ${target ? "to another manager" : "to unassigned"}`,
   });
   revalidatePath(`/admin/team/${fromUserId}`);
   revalidatePath("/admin");
@@ -331,16 +304,7 @@ export async function deleteSuperAdminAction(
     return { error: "Incorrect password." };
   }
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(users)
-      .set(softDeleteValues(actor.id, newDeleteGroup()))
-      .where(eq(users.id, userId));
-    await tx.delete(sessions).where(eq(sessions.userId, userId));
-    // Unassign any clinics they managed — a deleted member can't be the account
-    // manager (soft-delete leaves the row, so the FK's set-null won't fire).
-    await tx.update(clinics).set({ assignedTo: null, updatedAt: new Date() }).where(eq(clinics.assignedTo, userId));
-  });
+  await softDeleteTeamMember(userId, actor.id);
   await logActivity({
     action: "delete",
     entity: "staff",
