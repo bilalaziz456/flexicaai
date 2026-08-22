@@ -3,9 +3,11 @@ import type { NextConfig } from "next";
 /**
  * Security response headers applied to every route. `microphone=(self)` is kept
  * enabled because the doctor voice scribe uses MediaRecorder; camera/geolocation are
- * off. HSTS is honoured only over HTTPS (ignored on http://localhost in dev). CSP is
- * intentionally NOT set here yet — it needs a nonce pass for the inline theme script +
- * Tailwind, so it's a separate, careful task (start report-only). See docs/scale-plan.md.
+ * off. HSTS is honoured only over HTTPS (ignored on http://localhost in dev).
+ *
+ * CSP is deliberately NOT here: it is set per-request in `src/proxy.ts`, because its
+ * `script-src` depends on whether the response is server-rendered (a nonce) or
+ * prerendered (it cannot be). A static header could only express one of the two.
  */
 const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },

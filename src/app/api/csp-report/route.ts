@@ -2,11 +2,16 @@ import { NextResponse } from "next/server";
 import { reportEvent } from "@/core/observability";
 
 /**
- * CSP violation sink (report-only pass). Browsers POST here when a page would violate
- * the `Content-Security-Policy-Report-Only` set by the proxy. Each violation goes to
- * the observability sink so the policy can be tuned before it is ENFORCED — that
- * tuning is the whole reason the CSP is still report-only, and it needs the reports
- * to be somewhere an operator will actually look. No auth, no DB, host-agnostic.
+ * CSP violation sink. Browsers POST here when a page violates the
+ * `Content-Security-Policy` set by the proxy. No auth, no DB, host-agnostic.
+ *
+ * The policy is ENFORCED now (D-15), which makes this endpoint more important rather
+ * than less: a refused script is a feature that silently does nothing, and the app
+ * raises no error of its own to explain it. A report here is the only thing that
+ * turns "a button stopped working" into a named directive and a URL.
+ *
+ * Its output should stay at ZERO (ADR-018). A recurring known violation trains people
+ * to ignore the sink, so fix the page or the policy — never learn to live with it.
  *
  * This endpoint is public and browser-driven, so the payload is untrusted: it goes
  * through `extra`, which is deep-redacted (a document-uri can carry query values).

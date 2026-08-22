@@ -79,7 +79,7 @@ async function req(pathname, { cookie, method = "GET", body, headers = {} } = {}
     const r = await fetch(BASE + pathname, { method, body, headers: h, redirect: "manual", signal: ctl.signal });
     const ct = r.headers.get("content-type") || "";
     const text = ct.includes("pdf") ? "" : await r.text().catch(() => "");
-    return { status: r.status, ct, text };
+    return { status: r.status, ct, text, headers: r.headers };
   } finally {
     clearTimeout(t);
   }
@@ -662,6 +662,63 @@ async function run() {
     {
       const r = await req("/api/finance/export?type=sales", { cookie: S.adminB });
       record("sales CSV forbidden without the sales feature (clinic B) → 403", r.status === 403, `status=${r.status}`);
+    }
+
+    // ---- CSP is ENFORCED, in two strengths (D-15) ----------------------------
+    // These guard the one property that makes the split correct and that nothing
+    // else would catch: a nonce can only be applied to a SERVER-RENDERED response.
+    // If Next ever stops noncing, or a panel response starts coming from the
+    // prerender cache, the panel's scripts are refused and the workspace goes blank
+    // — silently, because the app itself raises no error.
+    console.log("\n== CSP ==");
+    {
+      const csp = (r) => r.headers.get("content-security-policy") || "";
+      const reportOnly = (r) => r.headers.get("content-security-policy-report-only") || "";
+
+      const pub = await req("/privacy");
+      const panel = await req("/clinic", { cookie: S.adminA });
+
+      record("public page: CSP is enforced, not report-only", Boolean(csp(pub)) && !reportOnly(pub));
+      record("panel page: CSP is enforced, not report-only", Boolean(csp(panel)) && !reportOnly(panel));
+
+      // The public policy MUST NOT carry a nonce or a hash: under CSP3 either one
+      // disables 'unsafe-inline', and a prerendered page's ~36 inline flight scripts
+      // have no nonce to fall back on. That is the whole reason for two policies.
+      const pubScript = (csp(pub).match(/script-src[^;]*/) || [""])[0];
+      record("public script-src allows inline (prerender needs it)", pubScript.includes("'unsafe-inline'"), pubScript);
+      record("public script-src carries NO nonce or hash (they would void unsafe-inline)",
+        !pubScript.includes("nonce-") && !pubScript.includes("sha256-"));
+
+      // The panel policy is the strict one, and must NOT weaken to 'unsafe-inline'.
+      const panelScript = (csp(panel).match(/script-src[^;]*/) || [""])[0];
+      record("panel script-src is strict: nonce + strict-dynamic", panelScript.includes("nonce-") && panelScript.includes("'strict-dynamic'"), panelScript);
+      record("panel script-src does NOT allow inline", !panelScript.includes("'unsafe-inline'"));
+
+      // The load-bearing one: every script Next emits on a panel page carries the
+      // nonce from THIS response's header. A mismatch means a blank workspace.
+      const headerNonce = (csp(panel).match(/'nonce-([^']+)'/) || [])[1];
+      const panelScripts = panel.text.match(/<script[^>]*src=[^>]*>/g) || [];
+      const unNonced = panelScripts.filter((s) => !s.includes(`nonce="${headerNonce}"`));
+      record("every panel script carries this response's nonce", panelScripts.length > 0 && unNonced.length === 0,
+        `${panelScripts.length} scripts, ${unNonced.length} un-nonced`);
+
+      // Why the public side cannot use that policy, asserted rather than assumed.
+      const pubScripts = pub.text.match(/<script[^>]*src=[^>]*>/g) || [];
+      record("a prerendered page's scripts carry NO nonce (hence the second policy)",
+        pubScripts.length > 0 && pubScripts.every((s) => !s.includes("nonce=")), `${pubScripts.length} scripts`);
+
+      // An unmatched panel URL must be SERVER-RENDERED by the panel's catch-all, not
+      // served from the prerendered /_not-found — which carries no nonce and would
+      // have every script refused under the strict policy the path already got.
+      const panel404 = await req("/clinic/no-such-page-at-all", { cookie: S.adminA });
+      const p404Scripts = panel404.text.match(/<script[^>]*src=[^>]*>/g) || [];
+      record("unmatched panel URL is server-rendered, so its scripts are nonced",
+        p404Scripts.length > 0 && p404Scripts.every((s) => s.includes("nonce=")), `${p404Scripts.length} scripts`);
+
+      // Directives that are pure gain and must not silently disappear.
+      for (const d of ["frame-ancestors 'none'", "form-action 'self'", "base-uri 'self'", "connect-src 'self'", "object-src 'none'"]) {
+        record(`enforced on both policies: ${d}`, csp(pub).includes(d) && csp(panel).includes(d));
+      }
     }
   }
 }

@@ -262,6 +262,11 @@ UI must show/hide features based on `modules_enabled`. A dental-only clinic neve
 
 Default to server components. Only use client components for genuine interactivity.
 
+This split is now load-bearing for security, not just speed: **a CSP nonce can only be
+applied to a server-rendered response**, so the panels get a strict nonce-based
+`script-src` and the prerendered public pages cannot (ADR-026). Changing what is static
+here changes the CSP — check `src/proxy.ts` in the same breath.
+
 ---
 
 ## 8. The AI scribe engine (core) — the most important feature

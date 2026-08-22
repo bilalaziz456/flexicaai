@@ -80,11 +80,15 @@ deferred as "optional" — at scale it's mandatory: `delete read where read_at <
 
 ## 4. Deferred security items (from the A–D pass)
 
-- **CSP** — ✅ **report-only shipped** (2026-07-21): the proxy mints a per-request nonce +
-  sets `Content-Security-Policy-Report-Only`; Next auto-nonces its scripts + our theme
-  script; violations POST to `/api/csp-report` (logged). _Next:_ watch the reports in a
-  real browser for a bit, tune the policy, then flip the header name to enforcing
-  `Content-Security-Policy` (drop dev-only `'unsafe-eval'` in prod — already conditional).
+- **CSP** — ✅ **ENFORCED** (2026-08-22, ADR-026; report-only had shipped 2026-07-21).
+  `src/proxy.ts` sends `Content-Security-Policy` on every response, in two strengths,
+  because a nonce can only be applied to a server-rendered page: panels get
+  `'self' 'nonce-…' <theme-hash> 'strict-dynamic'`, public pages get
+  `'self' 'unsafe-inline'` (they may be prerendered, and ~36 inline flight scripts per
+  page have no nonce). **Never add a nonce or hash to the public policy** — under CSP3
+  either disables `'unsafe-inline'` and blanks the page. Violations still POST to
+  `/api/csp-report`; that output should stay at zero (ADR-018). One strict policy
+  everywhere requires dropping prerendering entirely — a CLAUDE.md §7 decision.
 - **Trusted proxy for rate-limit IP** — `x-forwarded-for` is spoofable unless the app is
   behind a trusted proxy that overwrites it; pin to the platform's client-IP header at §Z.
 - **Server Action origins** — set `serverActions.allowedOrigins` to the prod domain(s).

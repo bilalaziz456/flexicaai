@@ -558,6 +558,56 @@ is tested (`scripts/test-scribe-async.ts`, and e2e asserts the run settles to `f
 with the recording kept) but a real transcription has never run through this path. One
 live dictation is required when the keys land.
 
+**ADR-026 — The CSP is enforced, at two strengths, because a nonce and a prerendered
+page are mutually exclusive** · *2026-08-22* · `Accepted` *(implemented — D-15 closed)*
+`src/proxy.ts` sends an **enforced** `Content-Security-Policy` on every response.
+Everything outside `script-src` is identical in both policies. `script-src` is chosen
+by `matchProtectedPrefix` — the predicate that already defines "this is a panel":
+
+- **Panels** (`/admin`, `/clinic`) → `'self' 'nonce-…' <theme-hash> 'strict-dynamic'`.
+  Every page there reads the session, so the response is always server-rendered and
+  Next can nonce it. That is the entire patient-data surface.
+- **Everything else** → `'self' 'unsafe-inline'`. Public pages may be prerendered, and
+  they render no user input at all, so the XSS surface traded away is close to nil
+  while `'self'` still refuses any third-party script.
+
+**Why the old trigger could never fire.** D-15 said "enforce once the sink shows it
+clean". The sink was never going to: the report-only policy was NOT clean and could not
+be. A prerendered page's ~13 chunk tags and ~36 inline flight scripts carry no nonce —
+there is no request at build time to mint one — and under `'strict-dynamic'` the host
+source `'self'` is ignored, so every one of them is refused. Enforcing the old policy
+blanked the JavaScript on every marketing page. Next's own docs say the same thing in
+one line: nonces require that EVERY page be dynamically rendered. Making the whole app
+dynamic to satisfy that would have traded away the SSG decision in `CLAUDE.md` §7, so
+the policy bends instead.
+
+**The measurement is the point.** This was settled by enforcing locally and walking the
+app in a browser while watching `/api/csp-report` — 14 refusals per marketing page
+view, 0 across the workspace. **Reading the report COUNT understates it**: browsers
+dedupe by blocked-uri, so 36 refused inline scripts arrive as a single `"inline"` line.
+
+**The trap that decided the shape:** `/_not-found` is prerendered too, and ANY path can
+reach it — a 404 under `/clinic/…` was served from the prerender cache with all 14
+scripts refused. So "is this response prerendered" is **not** a property of the request
+path, and no route list could have expressed it. Each panel now owns a `[...rest]`
+catch-all so an unmatched panel URL is server-rendered and nonced. It costs the 404
+status (the layout has begun streaming before `notFound()` throws) — but every
+`notFound()` in the panel already returned 200 for that reason, so this makes the
+unmatched case consistent rather than exceptional.
+
+**Consequences.**
+- The public policy must carry **neither a nonce nor a hash**. Under CSP3 either one
+  disables `'unsafe-inline'`, which puts every prerendered page straight back to blank.
+  Adding the theme hash "for good measure" is the tempting mistake, and e2e asserts
+  against it.
+- `report-uri` stays on the ENFORCED policy. A refused script is a feature that
+  silently does nothing and raises no error of its own; the report is the only thing
+  that names it. Its output must stay at zero (ADR-018).
+- Enforcement is on in **development too** — verified clean, so there is no
+  works-in-dev-breaks-in-prod gap to fall into.
+- To reach one strict policy everywhere, prerendering has to go — that is the trigger,
+  and it is a `CLAUDE.md` §7 decision, not a CSP one.
+
 ---
 
 ## 6. Deltas — where the code is not yet the architecture
@@ -574,7 +624,7 @@ they land.** Ordered by consequence.
 | ~~D-12~~ | Reports aggregated unbounded row sets in application code | ADR-015 / ADR-025 | **Closed 2026-08-22** — see ADR-025. P&L, cash summary, discounts and receivables all aggregate in SQL now; the two list reports page. `scripts/test-report-aggregation.ts` |
 | D-13 | No test framework; no CI | ADR-005 | **On hold** (owner's direction, 2026-08-21) |
 | D-14 | Timezone is server-local; blocks a second region | ADR-009 | Open — required before the first GCC clinic |
-| D-15 | CSP is report-only | — | Open — enforce once the sink shows it clean |
+| ~~D-15~~ | CSP was report-only — i.e. advisory, enforcing nothing | ADR-026 | **Closed 2026-08-22** — see ADR-026. Enforced on every response, at two strengths, because a nonce and a prerendered page are mutually exclusive. The old trigger ("once the sink shows it clean") rested on a false premise: the policy was never clean and could not be. 14 e2e assertions; verified by walking the app in a browser against the live report sink |
 | D-19 | No scheduled job runs on the server — the crontab is not installed | ADR-012 | **Routes done and proven** (2026-08-21: all six run, idempotent on a second pass, zero errors) and the install is now one command, `deploy/install-cron.sh`. **Installing stays on hold** (owner's direction), which is safe while pre-launch: with no live clinics all six are no-ops. Unhold in TWO parts — **WhatsApp keys** → `sudo ./deploy/install-cron.sh all` (`recalls` + `reminders` are the only two needing an API; none need Whisper/Claude). **First live clinic** → `sudo ./deploy/install-cron.sh core`, the four pure-DB jobs, gated on real data rather than keys. `reconcile` is the one not to miss: ADR-016 leaves the payment path best-effort *because* it repairs drift nightly |
 
 **Closed:** two WhatsApp webhooks with duplicated pipelines (D-10, closed
@@ -605,7 +655,11 @@ time, plus one narrow opt-in `handover` grant; `scripts/test-orphaned-drafts.ts`
 **D-11 unbounded `activity_logs` + an unindexed view lookup (ADR-023, closed
 2026-08-22 — migration `0081`; `scripts/test-log-retention.ts`)** · **D-07 Trash
 loading every soft-deleted row (ADR-024, closed 2026-08-22 —
-`scripts/test-trash-paging.ts`)** · **D-12 reports aggregating unbounded row sets (ADR-025, closed 2026-08-22 — `scripts/test-report-aggregation.ts`)**.
+`scripts/test-trash-paging.ts`)** · **D-12 reports aggregating unbounded row sets (ADR-025, closed 2026-08-22 — `scripts/test-report-aggregation.ts`)** · **D-01 app files
+querying the DB directly, all 77 of them (ADR-014, closed 2026-08-22 —
+`scripts/test-admin-clinics.ts`; the lint exemption block is deleted)** · **D-15 an
+advisory report-only CSP (ADR-026, closed 2026-08-22 — enforced at two strengths;
+14 e2e assertions)**.
 
 ---
 

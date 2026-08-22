@@ -200,6 +200,13 @@ throw — use it in tests.
 ## 14. Encryption and residency
 
 - **In transit:** HTTPS everywhere; TLS terminates at nginx, with HSTS set.
+- **In the browser:** the CSP is **enforced** (ADR-026), set per-request in
+  `src/proxy.ts` — never in `next.config.ts`, because its `script-src` depends on
+  whether the response is server-rendered. Panels get a strict nonce +
+  `'strict-dynamic'` policy; public pages, which may be prerendered, get
+  `'self' 'unsafe-inline'`. **Never add a nonce or a hash to the public policy** —
+  under CSP3 either one disables `'unsafe-inline'` and blanks every prerendered page.
+  A page that needs an inline script inside a panel takes the request's `x-nonce`.
 - **At rest:** enable disk/volume encryption on the server, or `pgcrypto` for specific
   fields.
 - **Residency:** architected so Pakistan data can stay in a Pakistan/nearby region and

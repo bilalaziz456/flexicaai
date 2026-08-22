@@ -62,9 +62,10 @@ launch. (On serverless/multi-instance, both become launch blockers — see scale
 
 ## C. Optional at launch
 
-- [ ] **Enforce CSP** — currently report-only (safe). Observe reports in a browser, tune,
-      then flip the header to `Content-Security-Policy` (see scale-plan.md §4). Fine to
-      launch in report-only.
+- [x] **Enforce CSP** — done 2026-08-22 (ADR-026). Enforced on every response in two
+      strengths: strict nonce + `'strict-dynamic'` on the panels, `'self' 'unsafe-inline'`
+      on public pages, which may be prerendered and therefore cannot carry a nonce.
+      Watch `/api/csp-report` after launch — its output should stay at zero.
 - [ ] **Notification prune cron** — old read `notifications` cleanup (small; matters more
       as volume grows — scale-plan.md §2c).
 
