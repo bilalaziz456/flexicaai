@@ -2,8 +2,13 @@ import type { ReactNode } from "react";
 import { Logo } from "@/core/ui/logo";
 
 /**
- * Shared shell for auth pages (login). Public — no session required.
- * Specialty-agnostic: shows the platform brand, never a specific module.
+ * Shared shell for every credentials screen: login, forgot/reset password, and the
+ * forced change-password step. Specialty-agnostic — it shows the platform brand,
+ * never a specific module.
+ *
+ * This layout does NOT gate access; each page decides. Most are public, but
+ * `/change-password` calls `requireUser()`, so don't read this shell as a promise
+ * that anything under it is reachable signed-out.
  */
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
