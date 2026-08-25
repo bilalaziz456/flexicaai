@@ -384,7 +384,13 @@ are in `.env.example`.
   clinic admin → per-user `resource:action` grants (`users.permissions`; catalog +
   role defaults in `core/auth/permissions.ts`). A `manager` role was added. Unified
   `/clinic` workspace: all clinic staff share it, nav + pages gate on permissions
-  (`requireWorkspace`). Staff/settings management stays clinic-admin-only.
+  (`requireWorkspace`). Staff/settings management stays clinic-admin-only — but a
+  clinic may now have **more than one `clinic_admin`** (2026-08-26): admins are peers
+  and can create, edit, suspend and delete each other, because the alternative people
+  reach for is a shared login, which destroys the audit trail §10 exists to keep. The
+  one invariant that makes that safe: **a clinic can never be left with no active
+  admin** (`core/users/clinic-staff.ts#assertNotLastAdmin`; the last one's suspend and
+  delete controls are withheld in the UI and refused server-side).
 - **Sales** — priced `procedures`, per-appointment `appointment_procedures` line
   items (+ per-line & appointment discounts), and a realised-revenue `sales` ledger
   → the `/clinic/sales` report + dashboard card. Gated by the `sales` feature.

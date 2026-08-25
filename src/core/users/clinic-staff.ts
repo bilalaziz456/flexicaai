@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { db } from "@/core/db";
 import { sessions, users } from "@/core/db/schema";
 import { byClinic, notDeleted } from "@/core/db/tenant";
@@ -8,8 +8,8 @@ import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import { CLINIC_STAFF_ROLES } from "@/core/types/auth";
 import type { DayAvailability } from "@/core/lib/availability";
 
-/** The roles a CLINIC ADMIN may manage — deliberately excludes `clinic_admin`, which
- *  is what stops one admin editing or deleting another. */
+/** The roles a CLINIC ADMIN may manage. Includes `clinic_admin` since 2026-08-26 —
+ *  admins are peers. What keeps that safe is `assertNotLastAdmin`, never this list. */
 const STAFF_ROLES = [...CLINIC_STAFF_ROLES];
 
 /**
@@ -21,10 +21,77 @@ const STAFF_ROLES = [...CLINIC_STAFF_ROLES];
  * employees. Each is scoped to what its caller is allowed to reach, so no function
  * here can be handed an id from another tenant and do something with it.
  *
- * Every write takes `clinicId` first and filters on it. Most also narrow to
- * `STAFF_ROLES`, which is what stops a clinic admin editing ANOTHER admin — a rule
- * that would be easy to lose if it lived only at the call site.
+ * Every write takes `clinicId` first and filters on it, and narrows to `STAFF_ROLES`
+ * so no function here can be handed the id of a super admin.
  */
+
+/**
+ * Refuses an action that would leave the clinic with NO active admin.
+ *
+ * This one predicate is what makes peer admins safe (`CLINIC_STAFF_ROLES`). Admins can
+ * suspend and delete each other, which is the point — but the floor is one. Without
+ * it: two admins suspend each other, or the only admin deletes themselves, and the
+ * clinic can no longer reach its own staff or settings pages. Nothing in the product
+ * recovers from that; it takes a super admin.
+ *
+ * Counts ACTIVE, non-deleted admins other than the target. `is_active` matters as much
+ * as `deleted_at` — a suspended admin cannot log in, so leaving one behind is the same
+ * as leaving none.
+ *
+ * Returns an error STRING rather than throwing: every caller is a Server Action whose
+ * contract is `{ error }` for an expected outcome (conventions §5), and being the last
+ * admin is expected, not exceptional.
+ */
+export async function assertNotLastAdmin(
+  clinicId: string,
+  targetUserId: string,
+  what: "suspend" | "delete",
+): Promise<string | null> {
+  const [target] = await db
+    .select({ role: users.role })
+    .from(users)
+    .where(byClinic(users.clinicId, clinicId, notDeleted(users.deletedAt), eq(users.id, targetUserId)))
+    .limit(1);
+  // Only admins are load-bearing here; anyone else can go without stranding a clinic.
+  if (target?.role !== "clinic_admin") return null;
+
+  const others = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(
+      byClinic(
+        users.clinicId,
+        clinicId,
+        notDeleted(users.deletedAt),
+        eq(users.role, "clinic_admin"),
+        eq(users.isActive, true),
+        ne(users.id, targetUserId),
+      ),
+    )
+    .limit(1);
+  if (others.length > 0) return null;
+
+  return what === "delete"
+    ? "This is the clinic's only active admin. Add another admin first — deleting this one would lock the clinic out of staff and settings."
+    : "This is the clinic's only active admin. Suspending them would lock the clinic out of staff and settings.";
+}
+
+/** Active, non-deleted admins in a clinic — used by the super-admin suspend cascade. */
+export async function countActiveClinicAdmins(clinicId: string): Promise<number> {
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(
+      byClinic(
+        users.clinicId,
+        clinicId,
+        notDeleted(users.deletedAt),
+        eq(users.role, "clinic_admin"),
+        eq(users.isActive, true),
+      ),
+    );
+  return rows.length;
+}
 
 /**
  * The clinic-scoped, EDITABLE staff member behind an id from a form.
@@ -111,7 +178,8 @@ export async function setClinicStaffActive(
 
 /**
  * Trashes a staff member: soft delete + hard session revoke, narrowed to STAFF_ROLES
- * so a clinic admin can never delete another admin.
+ * so no id from outside the clinic's own staff can reach it. Admins ARE reachable
+ * (they are peers) — `assertNotLastAdmin` is what stops the last one going.
  *
  * Appointments and visits keep the now-trashed reference, so history and names
  * survive; pickers drop them because they filter `notDeleted`. Returns whether a row
@@ -224,10 +292,11 @@ export async function setDoctorShareRates(
 /**
  * EVERY user of a clinic, including its admin — the super admin's clinic-detail view.
  *
- * Distinct from `listClinicStaff`, which narrows to `STAFF_ROLES` because a clinic
- * admin must not see or edit another admin. The company has no such limit: it is
- * looking at the whole account, and hiding the owner from that view would make the
- * page lie about who can sign in.
+ * Distinct from `listClinicStaff`, which narrows to `STAFF_ROLES`. Since admins became
+ * peers (2026-08-26) that list includes them too, so the two now differ only by
+ * `super_admin` — but they stay separate functions because the REASON differs: this
+ * one is the company looking at a whole account, and it must keep showing everyone who
+ * can sign in even if the clinic's own view is ever narrowed again.
  */
 export async function listAllClinicUsers(clinicId: string) {
   return db

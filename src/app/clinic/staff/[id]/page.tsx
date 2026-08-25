@@ -1,5 +1,5 @@
 import { getClinic } from "@/core/clinics/get-clinic";
-import { getClinicStaffMember } from "@/core/users/clinic-staff";
+import { assertNotLastAdmin, getClinicStaffMember } from "@/core/users/clinic-staff";
 import { listUpcomingLeaves } from "@/core/appointments/availability";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -10,7 +10,7 @@ import { DoctorLeaves } from "@/app/clinic/doctors/doctor-leaves";
 import { getBookingProcedures } from "@/core/appointments/procedures";
 import { countOpenDrafts } from "@/core/clinical/drafts";
 import { getDoctorProcedureOverrides } from "@/core/appointments/share-config";
-import { CLINIC_STAFF_ROLES } from "@/core/types/auth";
+import { CLINIC_STAFF_ROLES, ROLE_LABELS } from "@/core/types/auth";
 import {
   defaultPermissionsForRole,
   resourcesForClinic,
@@ -36,7 +36,8 @@ import {
 /**
  * Clinic Admin: open a staff member and manage everything in one place — edit
  * profile, (doctors) working hours + daily cap + fee, reset password, suspend/
- * reactivate, and delete. Clinic-scoped + doctor/receptionist only.
+ * reactivate, and delete. Clinic-scoped, any clinic role including a peer admin —
+ * except that the LAST active admin cannot be suspended or deleted.
  */
 export default async function StaffDetailPage({
   params,
@@ -52,12 +53,20 @@ export default async function StaffDetailPage({
 
   const member = await getClinicStaffMember(clinicId, id);
 
-  // Clinic-scoped and only manageable staff (manager/doctor/receptionist) here.
+  // Clinic-scoped, and only roles a clinic admin may manage (which now includes
+  // clinic_admin — admins are peers). A super_admin id still 404s here.
   if (!member || !(CLINIC_STAFF_ROLES as readonly string[]).includes(member.role)) {
     notFound();
   }
 
   const label = member.fullName ?? member.username;
+
+  // Admins are peers and can manage each other — but the clinic must never be left
+  // with none, so the last active admin's suspend and delete controls are withheld.
+  // Computed here, once, because two cards below branch on it.
+  const isLastAdmin =
+    member.role === "clinic_admin" &&
+    Boolean(await assertNotLastAdmin(clinicId, member.id, "delete"));
 
   // Permission grid inputs: the resources this clinic can use, and the member's
   // effective permissions (their overrides, or the role defaults when unset).
@@ -105,7 +114,7 @@ export default async function StaffDetailPage({
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="text-xl font-semibold">{label}</h1>
-          <Badge variant="secondary">{member.role}</Badge>
+          <Badge variant="secondary">{ROLE_LABELS[member.role]}</Badge>
           {member.isActive ? (
             <Badge variant="outline">Active</Badge>
           ) : (
@@ -130,7 +139,7 @@ export default async function StaffDetailPage({
               </div>
               <div>
                 <dt className="text-muted-foreground">Role</dt>
-                <dd className="capitalize">{member.role}</dd>
+                <dd>{ROLE_LABELS[member.role]}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Status</dt>
@@ -234,9 +243,13 @@ export default async function StaffDetailPage({
             Permissions
           </CardTitle>
           <CardDescription>
-            What this {member.role} can do. Tick View / Create / Edit / Delete per
-            module. View is required for the others. Starts from the role&apos;s
-            defaults until you change it.
+            {/* The WHOLE sentence is one expression on purpose. Mixing `{expr}` with
+                adjacent JSX text drops the space between them — the original
+                `{member.role} can do` rendered as "clinic_admincan do", and moving
+                the interpolation just moved the join to "can do.Tick". One string
+                has no boundary to lose. ROLE_LABELS also keeps the enum slug off
+                the screen. */}
+            {`What this ${ROLE_LABELS[member.role].toLowerCase()} can do. Tick View / Create / Edit / Delete per module. View is required for the others. Starts from the role's defaults until you change it.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -265,44 +278,61 @@ export default async function StaffDetailPage({
         <CardHeader>
           <CardTitle>Account access</CardTitle>
           <CardDescription>
-            {member.isActive
-              ? "Suspend to block sign-in and end active sessions immediately."
-              : "This account is suspended. Reactivate to restore access."}
+            {isLastAdmin
+              ? "This is the clinic's only active admin. Add another admin before suspending or deleting this account — otherwise nobody can reach staff or settings."
+              : member.isActive
+                ? "Suspend to block sign-in and end active sessions immediately."
+                : "This account is suspended. Reactivate to restore access."}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={setStaffActive.bind(null, member.id, !member.isActive)}>
-            <Button type="submit" variant="outline">
-              {member.isActive ? (
-                <>
-                  <Ban className="size-4" aria-hidden="true" /> Suspend
-                </>
-              ) : (
-                <>
-                  <RotateCcw className="size-4" aria-hidden="true" /> Reactivate
-                </>
-              )}
-            </Button>
-          </form>
+          {/* Hidden rather than disabled-with-a-tooltip: there is nothing the admin
+              can do here until they add a second admin, and the server refuses it
+              anyway. `setStaffActive` returns void, so a refusal has nowhere to
+              render — the control must not be offered in the first place. */}
+          {isLastAdmin ? (
+            <p className="text-sm text-muted-foreground">
+              Suspending is unavailable while this is the last admin.
+            </p>
+          ) : (
+            <form action={setStaffActive.bind(null, member.id, !member.isActive)}>
+              <Button type="submit" variant="outline">
+                {member.isActive ? (
+                  <>
+                    <Ban className="size-4" aria-hidden="true" /> Suspend
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="size-4" aria-hidden="true" /> Reactivate
+                  </>
+                )}
+              </Button>
+            </form>
+          )}
         </CardContent>
       </Card>
 
-      <Card className="border-destructive/40">
-        <CardHeader>
-          <CardTitle className="text-destructive">Danger zone</CardTitle>
-          <CardDescription>
-            Permanently delete this staff member. Visit history is kept, and their
-            sessions end immediately. This cannot be undone.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DeleteStaffButton
-            userId={member.id}
-            label={label}
-            openDrafts={await countOpenDrafts(clinicId, member.id)}
-          />
-        </CardContent>
-      </Card>
+      {/* The whole card goes when this is the last admin — deleting them would leave
+          the clinic unable to reach staff or settings at all, and only the super
+          admin could undo it. The action refuses too; this stops the offer. */}
+      {isLastAdmin ? null : (
+        <Card className="border-destructive/40">
+          <CardHeader>
+            <CardTitle className="text-destructive">Danger zone</CardTitle>
+            <CardDescription>
+              Permanently delete this staff member. Visit history is kept, and their
+              sessions end immediately. This cannot be undone.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DeleteStaffButton
+              userId={member.id}
+              label={label}
+              openDrafts={await countOpenDrafts(clinicId, member.id)}
+            />
+          </CardContent>
+        </Card>
+      )}
         </>
       ) : null}
     </div>

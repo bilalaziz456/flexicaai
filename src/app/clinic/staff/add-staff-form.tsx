@@ -12,6 +12,7 @@ import {
   defaultPermissionsForRole,
   type PermResource,
 } from "@/core/auth/permissions";
+import { ROLE_LABELS } from "@/core/types/auth";
 import { cn } from "@/core/lib/utils";
 import { STAFF_PREFIXES, type UserRole } from "@/core/types/auth";
 import { PermissionMatrix } from "@/core/ui/permission-matrix";
@@ -81,6 +82,10 @@ export function AddStaffForm({ resources }: { resources: PermResource[] }) {
             <option value="doctor">Doctor</option>
             <option value="receptionist">Receptionist</option>
             <option value="manager">Manager</option>
+            {/* A second (or third) admin — a peer of whoever is adding them, with the
+                same access, including staff and settings. The clinic can never be
+                left with none: the last active admin cannot be suspended or deleted. */}
+            <option value="clinic_admin">Clinic admin</option>
           </select>
         </div>
         <div className="space-y-2">
@@ -113,8 +118,10 @@ export function AddStaffForm({ resources }: { resources: PermResource[] }) {
       <div className="space-y-2">
         <Label>Permissions</Label>
         <p className="text-xs text-muted-foreground">
-          Starts from the {role} defaults. Tick View / Create / Edit / Delete to
-          adjust. View is required for the others.
+          {/* ROLE_LABELS, not the raw role — the enum value would read
+              "clinic_admin defaults" on screen. */}
+          Starts from the {ROLE_LABELS[role].toLowerCase()} defaults. Tick View /
+          Create / Edit / Delete to adjust. View is required for the others.
         </p>
         <PermissionMatrix resources={resources} granted={granted} onChange={setGranted} />
       </div>

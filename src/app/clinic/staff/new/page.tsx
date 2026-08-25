@@ -12,7 +12,7 @@ import {
 } from "@/core/ui/card";
 import { AddStaffForm } from "../add-staff-form";
 
-/** Clinic Admin: add a doctor, receptionist or manager (with permissions). */
+/** Clinic Admin: add any clinic role — including a peer admin (with permissions). */
 export default async function NewStaffPage() {
   const { clinicId } = await requireClinicAdmin();
   const clinic = await getClinic(clinicId);
@@ -33,8 +33,9 @@ export default async function NewStaffPage() {
         <CardHeader>
           <CardTitle>New staff member</CardTitle>
           <CardDescription>
-            Create a doctor, receptionist or manager. They log in with the
-            username and temporary password you set, then choose their own.
+            Create a doctor, receptionist, manager, or another clinic admin with the
+            same access as you. They log in with the username and temporary password
+            you set, then choose their own.
           </CardDescription>
         </CardHeader>
         <CardContent>

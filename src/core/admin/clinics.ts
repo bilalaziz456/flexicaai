@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { db } from "@/core/db";
 import {
   appointments,
@@ -202,13 +202,21 @@ export async function resetClinicUserPassword(
 }
 
 /**
- * Suspends or reactivates one account — and CASCADES when that account is the clinic
- * admin.
+ * Suspends or reactivates one account — and CASCADES when that account is the clinic's
+ * LAST admin.
  *
- * Suspending a clinic admin takes the clinic offline in one action (staff suspended
- * and logged out); reactivating brings it back. That cascade is the whole reason this
- * is a transaction: an owner suspended while their staff stay logged in has not been
- * taken offline, they have just lost their own login.
+ * Suspending a clinic's only admin takes the clinic offline in one action (staff
+ * suspended and logged out); reactivating brings it back. That cascade is the whole
+ * reason this is a transaction: an owner suspended while their staff stay logged in
+ * has not been taken offline, they have just lost their own login.
+ *
+ * **"Last" is the load-bearing word, and it was added when clinics gained more than one
+ * admin (2026-08-26).** This function originally cascaded on ANY `clinic_admin`, which
+ * was correct while a clinic had exactly one — the admin WAS the clinic. With peer
+ * admins that reading breaks badly: suspending one partner would have suspended every
+ * doctor and receptionist and thrown them out mid-shift, while the other admin sat
+ * there able to sign in. So the cascade now fires only when nobody is left who can
+ * administer the clinic, which is the condition it always actually meant.
  *
  * Sessions are revoked only on SUSPEND. Reactivating gives people their access back;
  * it has no business ending sessions that were never cut.
@@ -224,6 +232,25 @@ export async function setClinicUserActive(userId: string, isActive: boolean): Pr
 
       if (!isActive) await tx.delete(sessions).where(eq(sessions.userId, userId));
       if (target?.role !== "clinic_admin" || !target.clinicId) return;
+
+      // Read through the SAME transaction (ADR-016 / core/db/tx.ts): the target's own
+      // row was just updated above, and on the pool this count would still see the
+      // pre-update value and mis-decide the cascade.
+      const otherAdmins = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            eq(users.clinicId, target.clinicId),
+            eq(users.role, "clinic_admin"),
+            eq(users.isActive, true),
+            isNull(users.deletedAt),
+            ne(users.id, userId),
+          ),
+        )
+        .limit(1);
+      // Another admin can still run the clinic — this was one account, not the clinic.
+      if (otherAdmins.length > 0) return;
 
       const staff = await tx
         .update(users)

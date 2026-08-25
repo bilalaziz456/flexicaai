@@ -11,6 +11,7 @@ import type { CurrentUser } from "@/core/types/auth";
 import { hashPassword } from "@/core/auth/password";
 import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import {
+  assertNotLastAdmin,
   createClinicStaff,
   findEditableStaff,
   resetClinicStaffPassword,
@@ -174,12 +175,14 @@ const createStaffSchema = z.object({
     .refine((s) => USERNAME_REGEX.test(s), {
       message: "Username may use lowercase letters, digits, and . _ - only.",
     }),
-  // A clinic admin can only create clinical/front-desk staff — never admins.
+  // Includes clinic_admin since 2026-08-26 — a clinic can have more than one person
+  // who runs it, and the alternative was a shared login, which destroys the audit
+  // trail. The floor of one active admin is enforced on suspend/delete, not here.
   role: z.enum(CLINIC_STAFF_ROLES),
   password: z.string().min(8, "Password must be at least 8 characters."),
 });
 
-/** Creates a doctor or receptionist inside the admin's own clinic. */
+/** Creates a staff member — any clinic role, including a peer admin. */
 export async function createStaff(
   _prevState: ClinicActionState,
   formData: FormData,
@@ -258,6 +261,13 @@ export async function setStaffActive(
 ): Promise<void> {
   const { clinicId } = await requireClinicAdmin();
 
+  // Admins are peers and may suspend one another — but never the last one, or the
+  // clinic loses its own staff and settings pages with no way back short of the
+  // super admin. This returns void (it is a form action), so a refusal has nowhere
+  // to render: the UI hides the control instead, and this is the backstop for a
+  // stale page or a hand-made POST.
+  if (!isActive && (await assertNotLastAdmin(clinicId, userId, "suspend"))) return;
+
   await setClinicStaffActive(clinicId, userId, isActive);
 
   await logActivity({
@@ -289,6 +299,11 @@ export async function deleteStaff(
   if (!(await verifyCurrentUserPassword(password))) {
     return { error: "Incorrect password." };
   }
+
+  // Never leave the clinic without an active admin — including the case of an admin
+  // deleting themselves, which the id makes look like any other delete.
+  const lastAdmin = await assertNotLastAdmin(clinicId, userId, "delete");
+  if (lastAdmin) return { error: lastAdmin };
 
   // Revokes their login too — sessions are ephemeral, not trashed.
   await softDeleteClinicStaff(clinicId, userId, admin.id);

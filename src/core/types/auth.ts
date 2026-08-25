@@ -19,10 +19,27 @@ export type UserRole = (typeof USER_ROLES)[number];
 
 /**
  * Roles a clinic admin creates and manages within their clinic — everyone but
- * themselves (clinic_admin) and platform staff (super_admin). Single source of
- * truth for the staff list, staff-management guards, and staff counts.
+ * platform staff (super_admin). Single source of truth for the staff list,
+ * staff-management guards, and staff counts.
+ *
+ * **`clinic_admin` is in this list on purpose** (added 2026-08-26): a clinic needs
+ * more than one person who can run it — an owner on leave, a practice manager, a
+ * second partner — and the alternative was handing out one shared login, which
+ * destroys the audit trail that CLAUDE.md §10 exists to keep. Admins are therefore
+ * PEERS: they can create, edit, suspend and delete each other.
+ *
+ * That peerage is safe because of exactly one invariant, enforced in
+ * `core/users/clinic-staff.ts#assertNotLastAdmin`: **a clinic can never be left with
+ * no active admin.** Without it the feature is a footgun — two admins suspend each
+ * other, or the only one deletes themselves, and the clinic is locked out of its own
+ * staff and settings pages with only the super admin able to rescue it.
  */
-export const CLINIC_STAFF_ROLES = ["manager", "doctor", "receptionist"] as const;
+export const CLINIC_STAFF_ROLES = [
+  "clinic_admin",
+  "manager",
+  "doctor",
+  "receptionist",
+] as const;
 
 /** Human display names for each role — the single source for UI role labels. */
 export const ROLE_LABELS: Record<UserRole, string> = {
