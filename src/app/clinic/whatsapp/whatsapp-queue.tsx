@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { listWhatsappQueue } from "@/core/integrations/whatsapp/queue";
 import { Badge } from "@/core/ui/badge";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
@@ -24,16 +25,20 @@ export async function WhatsappQueue({
 }: {
   clinicId: string;
   basePath: string;
-  searchParams: { page?: string; size?: string };
+  searchParams: { page?: string; size?: string; phone?: string };
 }) {
   const sp = searchParams;
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
+  // `?phone=` arrives from a "new WhatsApp message" notification, so the click opens
+  // that conversation rather than the top of the clinic-wide log.
+  const phone = sp.phone?.trim() || undefined;
 
-  const { rows, total } = await listWhatsappQueue(clinicId, {
-    offset: pageOffset(page, pageSize),
-    limit: pageSize,
-  });
+  const { rows, total } = await listWhatsappQueue(
+    clinicId,
+    { offset: pageOffset(page, pageSize), limit: pageSize },
+    { phone },
+  );
 
   const fmt = (d: Date) =>
     d.toLocaleString("en-GB", {
@@ -47,9 +52,21 @@ export async function WhatsappQueue({
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold">WhatsApp</h1>
-        <p className="text-sm text-muted-foreground">
-          {total} message{total === 1 ? "" : "s"} for your clinic, newest first.
-        </p>
+        {phone ? (
+          <p className="text-sm text-muted-foreground">
+            {/* The name is on the rows below; the NUMBER is the thing being filtered
+                on, and an unknown sender has no name to show at all. */}
+            {total} message{total === 1 ? "" : "s"} with{" "}
+            <span className="font-medium text-foreground">{phone}</span>.{" "}
+            <Link href={basePath} className="underline underline-offset-4">
+              Show all messages
+            </Link>
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {total} message{total === 1 ? "" : "s"} for your clinic, newest first.
+          </p>
+        )}
       </div>
 
       <Pagination
@@ -63,8 +80,22 @@ export async function WhatsappQueue({
 
       {rows.length === 0 ? (
         <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          No WhatsApp messages yet. Prescriptions and recall reminders you send
-          appear here, along with patient replies.
+          {phone ? (
+            // Distinct from "no messages at all": a filtered view with nothing in it
+            // means the number is wrong or the log was pruned, and the generic copy
+            // would read as "this clinic has never sent a message", which is a lie.
+            <>
+              No messages with {phone}.{" "}
+              <Link href={basePath} className="underline underline-offset-4">
+                Show all messages
+              </Link>
+            </>
+          ) : (
+            <>
+              No WhatsApp messages yet. Prescriptions and recall reminders you send
+              appear here, along with patient replies.
+            </>
+          )}
         </div>
       ) : (
         <ul className="space-y-3">

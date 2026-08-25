@@ -18,7 +18,7 @@ import {
 export default async function ClinicWhatsAppPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; size?: string }>;
+  searchParams: Promise<{ page?: string; size?: string; phone?: string }>;
 }) {
   const user = await requireWorkspace("whatsapp");
   const sp = await searchParams;

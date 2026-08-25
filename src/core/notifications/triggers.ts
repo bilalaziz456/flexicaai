@@ -69,7 +69,11 @@ export async function notifyInboundWhatsApp(args: {
       title: "New WhatsApp message",
       body: preview ? `${who}: ${preview}` : `${who} sent a message.`,
       entity: "whatsapp",
-      link: "/clinic/whatsapp",
+      // The queue filtered to THIS conversation. Keyed on the number rather than the
+      // patient because an unknown sender has no patient row yet — and those are
+      // exactly the messages someone needs to open. Encoded because an E.164 number
+      // starts with '+', which is a space once it is in a query string.
+      link: `/clinic/whatsapp?phone=${encodeURIComponent(phone)}`,
     });
   }
 }

@@ -124,7 +124,10 @@ export async function syncDiscountApprovals(
       body: prev?.patientName ? `${prev.patientName}. Review the discount.` : "Review a discount.",
       entity: "appointment",
       entityId: appointmentId,
-      link: "/clinic/approvals",
+      // The approvals queue NARROWED to this discount — the buttons live there, so
+      // this opens the exact record without stranding the approver on a page where
+      // they can only look at it.
+      link: `/clinic/approvals?appointment=${appointmentId}`,
     };
     if (clinicRequires) {
       await notifyUsersWithPermission(clinicId, "discount_approval", "view", payload);
@@ -269,16 +272,25 @@ export type PendingApproval = {
  */
 export async function listPendingApprovalsForUser(
   clinicId: string,
-  opts: { doctorId: string; isClinicApprover: boolean },
+  opts: { doctorId: string; isClinicApprover: boolean; appointmentId?: string },
 ): Promise<PendingApproval[]> {
   // A clinic approver may act on clinic rows AND their own doctor rows, so we scan
   // all this clinic's pending rows and narrow in JS below; a plain doctor only ever
   // sees their own rows, so we filter those in SQL.
+  // `appointmentId` narrows to ONE discount — what a "discount needs approval"
+  // notification links to. It stays on this page rather than deep-linking the
+  // appointment because Approve/Reject live HERE; the appointment detail only shows a
+  // "pending approval" badge, so linking there would show the approver the problem
+  // and give them no way to act on it.
+  const one = opts.appointmentId
+    ? eq(appointmentDiscountApprovals.appointmentId, opts.appointmentId)
+    : undefined;
   const kindFilter = opts.isClinicApprover
-    ? eq(appointmentDiscountApprovals.status, "pending")
+    ? and(eq(appointmentDiscountApprovals.status, "pending"), one)
     : and(
         eq(appointmentDiscountApprovals.status, "pending"),
         eq(appointmentDiscountApprovals.approverDoctorId, opts.doctorId),
+        one,
       );
 
   const rows = await db

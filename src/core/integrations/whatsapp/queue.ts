@@ -14,12 +14,23 @@ import { byClinic } from "@/core/db/tenant";
  *
  * The patient join is LEFT: an inbound message from an unknown number has no patient
  * yet, and dropping those would hide exactly the ones a receptionist needs to see.
+ *
+ * `phone` narrows to ONE conversation — what a "new WhatsApp message" notification
+ * links to, so the click lands on that exchange instead of the top of a clinic-wide
+ * log. It matches on the NUMBER rather than the patient id for the same reason the
+ * join is left: an unknown sender has no patient to key on, and those are precisely
+ * the messages someone needs to open.
  */
 export async function listWhatsappQueue(
   clinicId: string,
   paging: { offset: number; limit: number },
+  opts: { phone?: string } = {},
 ) {
-  const where = byClinic(whatsappMessages.clinicId, clinicId);
+  const where = byClinic(
+    whatsappMessages.clinicId,
+    clinicId,
+    opts.phone ? eq(whatsappMessages.phone, opts.phone) : undefined,
+  );
   const [rows, [totalRow]] = await Promise.all([
     db
       .select({
