@@ -10,9 +10,17 @@ import { BRAND_PHONE, BRAND_WEBSITE } from "@/core/lib/brand";
  * Env-driven like `core/lib/brand.ts` so sales can change without a deploy.
  */
 
-/** E.164 without the +, the form wa.me expects. Local 03000186120 → 92 300 0186120. */
+/**
+ * E.164 without the +, the form wa.me expects — and the SAME number as
+ * `BRAND_PHONE`, in the other format: local 03010186111 → 923010186111.
+ *
+ * Two formats rather than one derived from the other because each is required where
+ * it is used: wa.me and the `telephone` in the Organization structured data reject a
+ * local number, while a printed receipt for a Pakistani reader should show the form
+ * they will dial. Change one and change the other.
+ */
 export const SALES_WHATSAPP_NUMBER =
-  process.env.NEXT_PUBLIC_SALES_WHATSAPP?.trim() || "923000186120";
+  process.env.NEXT_PUBLIC_SALES_WHATSAPP?.trim() || "923010186111";
 
 /** Confirmed by the owner, 2026-08-05. */
 export const SALES_EMAIL =

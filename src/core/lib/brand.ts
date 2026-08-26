@@ -12,8 +12,12 @@
 export const BRAND_WEBSITE =
   process.env.NEXT_PUBLIC_BRAND_WEBSITE?.trim() || "www.flexicaai.com";
 
+// Local form (leading 0), not E.164: this is read by a Pakistani audience on a
+// printed receipt, and "0301…" is how they will dial it. The E.164 form of the same
+// number lives in `contact-details.ts` for the wa.me link and the structured data,
+// which both require it — keep the two in step.
 export const BRAND_PHONE =
-  process.env.NEXT_PUBLIC_BRAND_PHONE?.trim() || "03000186120";
+  process.env.NEXT_PUBLIC_BRAND_PHONE?.trim() || "03010186111";
 
 /** The one-line credit rendered at the bottom of exported / printed documents. */
 export const BRAND_POWERED_BY = `Powered by ${BRAND_WEBSITE} | ${BRAND_PHONE}`;
