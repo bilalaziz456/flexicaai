@@ -1,6 +1,6 @@
 import { listClinicAppointments } from "@/core/appointments/list-query";
 import Link from "next/link";
-import { ChevronRight, Download, Plus } from "lucide-react";
+import { ChevronRight, Download } from "lucide-react";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicHasFeature } from "@/core/lib/features";
 import { Badge } from "@/core/ui/badge";
@@ -16,6 +16,10 @@ import { parseListFilters } from "@/core/appointments/list-filters";
 import { buildAppointmentConds } from "@/core/appointments/list-query";
 import { getCalendarDays, monthBounds } from "@/core/appointments/calendar";
 import { AppointmentMonth } from "@/app/clinic/appointments/appointment-month";
+import {
+  HEADER_SENTINEL_ID,
+  NewAppointmentFab,
+} from "@/app/clinic/appointments/new-appointment-fab";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { displayStaffName } from "@/core/types/auth";
 import { QueueSummary } from "@/core/ui/queue-summary";
@@ -293,6 +297,10 @@ export async function AppointmentsList({
           ) : null}
         </div>
       </div>
+      {/* Marker the floating button watches: once THIS leaves the viewport the header
+          button is gone, so the floating one takes over. A zero-height element rather
+          than observing the button itself, which does not exist below `sm`. */}
+      <div id={HEADER_SENTINEL_ID} aria-hidden="true" className="h-px" />
 
       <QueueSummary sessions={queue} pathname={listPath} activeSession={session} />
 
@@ -516,18 +524,7 @@ export async function AppointmentsList({
         </>
       )}
 
-      {canCreate ? (
-        <Link
-          href={bookHref}
-          aria-label="New appointment"
-          className={cn(
-            buttonVariants({ size: "icon" }),
-            "fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg sm:hidden",
-          )}
-        >
-          <Plus className="size-6" aria-hidden="true" />
-        </Link>
-      ) : null}
+      {canCreate ? <NewAppointmentFab href={bookHref} /> : null}
     </div>
   );
 }
