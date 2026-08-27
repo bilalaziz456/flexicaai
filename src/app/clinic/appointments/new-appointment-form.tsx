@@ -68,6 +68,7 @@ export function NewAppointmentForm({
   appointmentId,
   fixedPatient,
   preselectedPatient,
+  preselectedDate,
   planItems = [],
   initial,
 }: {
@@ -82,6 +83,9 @@ export function NewAppointmentForm({
   /** Create mode: start with this patient chosen (from "Book" on a patient row),
    *  still changeable. */
   preselectedPatient?: Patient | null;
+  /** Create mode: start on this date (the day the appointments list was showing),
+   *  still changeable. Ignored in edit mode, where  is the real one. */
+  preselectedDate?: string;
   initial?: {
     doctorId: string;
     date: string;
@@ -108,7 +112,9 @@ export function NewAppointmentForm({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Patient[]>(initialPatients);
   const [doctorId, setDoctorId] = useState(initial?.doctorId ?? "");
-  const [date, setDate] = useState(initial?.date ?? "");
+  // `initial.date` wins over the prefill: in edit mode it IS the appointment's own
+  // date, and a stray `?date=` must never silently move a booking that exists.
+  const [date, setDate] = useState(initial?.date ?? preselectedDate ?? "");
   const [time, setTime] = useState(initial?.time ?? "09:00");
   const [duration, setDuration] = useState(initial?.durationMinutes ?? 30);
   const [reason, setReason] = useState(initial?.reason ?? "");

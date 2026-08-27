@@ -23,11 +23,15 @@ export async function NewAppointmentPanel({
   clinicId,
   backHref,
   preselectedPatientId,
+  preselectedDate,
 }: {
   clinicId: string;
   backHref: string;
   /** Start with this patient chosen (from "Book" on a patient row). */
   preselectedPatientId?: string;
+  /** Start on this date (from "New appointment" on the list, which carries the day
+   *  the calendar is showing). Already validated as YYYY-MM-DD by the caller. */
+  preselectedDate?: string;
 }) {
   const clinic = await getClinic(clinicId);
   const toPatient = (p: {
@@ -77,6 +81,7 @@ export async function NewAppointmentPanel({
             doctors={doctors}
             procedures={bookingProcedures}
             preselectedPatient={preselectedPatient}
+            preselectedDate={preselectedDate}
             planItems={
               preselectedPatientId
                 ? (await getUnscheduledItems(clinicId, preselectedPatientId)).map((i) => ({
