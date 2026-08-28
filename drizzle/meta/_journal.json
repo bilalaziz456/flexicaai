@@ -582,6 +582,13 @@
       "when": 1787375637222,
       "tag": "0082_fine_firebrand",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1787869694600,
+      "tag": "0083_common_the_fallen",
+      "breakpoints": true
     }
   ]
 }

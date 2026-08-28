@@ -1,0 +1,1 @@
+ALTER TABLE "clinical_attachments" ADD COLUMN "thumb_key" text;

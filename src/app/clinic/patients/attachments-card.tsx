@@ -1,5 +1,7 @@
 "use client";
 
+import { downscaleImage } from "@/core/lib/image-resize";
+
 import { useRef, useState, useTransition } from "react";
 import { FileText, Trash2, Upload } from "lucide-react";
 import { Button } from "@/core/ui/button";
@@ -57,6 +59,22 @@ export function AttachmentsCard({
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     start(async () => {
+      // Attach a small gallery copy alongside the ORIGINAL, which goes up untouched:
+      // these are diagnostic images and resizing one on the way in would discard
+      // detail a clinician may need months later. Best-effort — `downscaleImage`
+      // returns null for non-images and for anything it cannot decode, and a missing
+      // thumbnail only costs the grid its optimisation.
+      const picked = fd.get("file");
+      if (picked instanceof File && picked.type.startsWith("image/")) {
+        const thumb = await downscaleImage(picked, {
+          maxPx: 640,
+          quality: 0.7,
+          mime: "image/jpeg",
+          name: "thumb.jpg",
+        });
+        if (thumb) fd.append("thumb", thumb);
+      }
+
       const r = await uploadAttachmentAction(patientId, fd);
       if (r.error) flash(r.error, true);
       else {
@@ -101,8 +119,18 @@ export function AttachmentsCard({
               <li key={a.id} className="group relative overflow-hidden rounded-lg border">
                 <a href={`/api/clinical/attachment/${a.id}`} target="_blank" rel="noreferrer" className="block">
                   {isImage ? (
+                    // `?thumb=1` serves the small copy when one exists and silently
+                    // falls back to the original otherwise, so this grid no longer
+                    // downloads full-size diagnostic images to draw 150px squares.
+                    // The link around it still opens the untouched original.
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={`/api/clinical/attachment/${a.id}`} alt={a.caption ?? KIND_LABEL[a.kind] ?? a.kind} className="aspect-square w-full object-cover" />
+                    <img
+                      src={`/api/clinical/attachment/${a.id}?thumb=1`}
+                      alt={a.caption ?? KIND_LABEL[a.kind] ?? a.kind}
+                      loading="lazy"
+                      decoding="async"
+                      className="aspect-square w-full object-cover"
+                    />
                   ) : (
                     <div className="flex aspect-square w-full flex-col items-center justify-center gap-1 bg-muted text-muted-foreground">
                       <FileText className="size-8" aria-hidden="true" />

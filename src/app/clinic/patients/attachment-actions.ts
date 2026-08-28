@@ -21,6 +21,8 @@ const EXT_BY_MIME: Record<string, string> = {
   "application/pdf": "pdf",
 };
 const MAX_BYTES = 15 * 1024 * 1024; // 15 MB
+/** A 640px JPEG lands well under this; anything larger is not a thumbnail. */
+const MAX_THUMB_BYTES = 400 * 1024;
 
 function revalidate(patientId: string) {
   revalidatePath(`/clinic/patients/${patientId}`);
@@ -45,9 +47,21 @@ export async function uploadAttachmentAction(
   const ext = EXT_BY_MIME[file.type] ?? (file.name.split(".").pop() ?? "bin");
   const data = Buffer.from(await file.arrayBuffer());
 
+  // Optional gallery thumbnail, generated in the browser beside the original. Treated
+  // as untrusted like any other upload: it must be a small JPEG or it is dropped, and
+  // dropping it only costs the grid its optimisation.
+  const thumbFile = formData.get("thumb");
+  const thumb =
+    thumbFile instanceof File &&
+    thumbFile.size > 0 &&
+    thumbFile.size <= MAX_THUMB_BYTES &&
+    thumbFile.type === "image/jpeg"
+      ? Buffer.from(await thumbFile.arrayBuffer())
+      : null;
+
   const res = await createAttachment(
     user.clinicId,
-    { patientId, kind, caption, data, ext, mime: file.type || "application/octet-stream" },
+    { patientId, kind, caption, data, ext, mime: file.type || "application/octet-stream", thumb },
     { id: user.id, name: displayStaffName(user.prefix, user.fullName, user.username) },
   );
   if ("error" in res) return { error: res.error };

@@ -168,6 +168,16 @@ export const clinicalAttachments = pgTable(
     visitId: uuid("visit_id").references(() => visits.id, { onDelete: "set null" }),
     kind: text("kind").notNull(), // xray | photo | document | consent
     storageKey: text("storage_key").notNull(),
+    /**
+     * A small JPEG copy for the gallery grid. NULL is normal and permanent for
+     * non-images, for rows uploaded before this existed, and whenever the browser
+     * could not produce one — every reader falls back to `storage_key`.
+     *
+     * The ORIGINAL is never resized: these are diagnostic images a clinician may
+     * compare months apart. This exists only so a 150px thumbnail stops costing a
+     * full-size download.
+     */
+    thumbKey: text("thumb_key"),
     mime: text("mime"),
     caption: text("caption"),
     takenAt: timestamp("taken_at", { withTimezone: true }),
