@@ -11,13 +11,8 @@ import {
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 import { Label } from "@/core/ui/label";
 import { Input } from "@/core/ui/input";
-import { PAYMENT_METHOD_OPTIONS } from "@/core/finance/payment-methods";
+import { useVocabularyOptions } from "@/core/ui/vocabulary-provider";
 
-const METHOD_OPTIONS = [
-  { value: "", label: "All methods" },
-  ...PAYMENT_METHOD_OPTIONS,
-];
-const METHOD_LABELS = Object.fromEntries(METHOD_OPTIONS.map((o) => [o.value, o.label]));
 
 /** Filter bar for the company expenses ledger — period, category, method, search
  *  and a Trash toggle. Pushes the query params the server page reads. */
@@ -40,6 +35,10 @@ export function ExpensesFilters({
   deleted: boolean;
   categories: { id: string; name: string }[];
 }) {
+  const methodOptions = useVocabularyOptions("payment_methods");
+  // Methods come from the database (ADR-027), with the blank "any" entry prepended.
+  const METHOD_OPTIONS = [{ value: "", label: "All methods" }, ...methodOptions];
+  const METHOD_LABELS = Object.fromEntries(METHOD_OPTIONS.map((o) => [o.value, o.label]));
   const router = useRouter();
   const pathname = usePathname();
   const [periodV, setPeriodV] = useState(period);

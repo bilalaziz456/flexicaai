@@ -706,6 +706,38 @@ the same family as `sales.doctor_name`: it must survive the role vocabulary chan
 Converting it would tie an audit row to a mutable table and defeat the point of a
 snapshot (ADR-006's reasoning, applied to a vocabulary).
 
+**Completed 2026-09-02 — the compiled LABEL MAPS are gone.** `APPOINTMENT_STATUS_LABEL`,
+`ROLE_LABELS`, `PAYMENT_METHOD_LABEL`, `PAYMENT_METHOD_OPTIONS` and the `statusLabel` /
+`paymentMethodLabel` helpers are deleted. Every label, the order values appear in, and
+whether a value is still offered now comes from the database.
+
+**Server components** read `core/db/vocabulary-cache.ts` directly. **Client components**
+cannot — it is `server-only` — so the root layout takes one `vocabularySnapshot()` and
+provides it through `core/ui/vocabulary-provider.tsx`; `useVocabularyLabel` and
+`useVocabularyOptions` serve the sixteen that need it. A provider rather than props
+deliberately: threading labels through sixteen components is the churn this design
+exists to avoid.
+
+**The cache re-reads on a 60-second TTL, and that is not a detail.** Loaded once at
+start-up and never again, "renaming a label is a row update" would quietly have meant
+"a row update AND a restart" — most of the benefit gone. A stale refresh does not
+block the render: the current values are correct enough for one more request, and a
+failed refresh leaves them in place rather than taking a page down. Verified by
+renaming a method in the database and watching it change in the UI.
+
+**Two things stayed in code, for different reasons.**
+`APPOINTMENT_STATUS_VARIANT` maps a code to a shadcn Badge variant — a design-system
+decision, not a property of the vocabulary; a database row could name a variant the UI
+does not have. And `APPOINTMENT_STATUSES` remains, because the CODES are what the
+application branches on (`nextQueueAction`) and what gives the union its literal type.
+The database owns presentation; the code owns meaning, and this is where the line falls.
+
+**A consequence to remember when writing tests:** the whole snapshot is serialised into
+every page payload, so a bare text search over the HTML now finds every vocabulary label
+as DATA whether or not anything rendered it. An e2e assertion that a control is absent
+must look for the control, not for a status word (one such assertion broke exactly this
+way and was narrowed to the button's own text).
+
 **What this does NOT extend to.** Open vocabularies stay open: `module` above all — a
 table of specialties would put a specialty name in core and break ADR-001 — plus
 `activity_logs.action`/`entity`, `notifications.type`, `imported_transactions.type`

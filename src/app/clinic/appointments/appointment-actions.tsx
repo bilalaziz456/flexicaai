@@ -4,17 +4,13 @@ import { useTransition } from "react";
 import { Select } from "@base-ui/react/select";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { setAppointmentStatus } from "@/app/clinic/appointments/actions";
+import { useVocabularyOptions } from "@/core/ui/vocabulary-provider";
 import {
-  APPOINTMENT_STATUSES,
-  APPOINTMENT_STATUS_LABEL,
   nextQueueAction,
   type AppointmentStatus,
 } from "@/core/appointments/status";
 
 type Status = AppointmentStatus;
-
-// Value → label map so <Select.Value /> renders the label for the current status.
-const LABELS: Record<string, string> = APPOINTMENT_STATUS_LABEL;
 
 const triggerCls =
   "inline-flex h-8 items-center gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-3.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-ring disabled:pointer-events-none disabled:opacity-50";
@@ -49,6 +45,11 @@ export function AppointmentActions({
     });
   };
   // The primary one-tap step through the live queue: Arrived → Call in → Complete.
+  // The list AND its labels come from the database (ADR-027), so retiring a status
+  // there removes it from this picker with no deploy.
+  const statuses = useVocabularyOptions("appointment_statuses");
+  // <Select.Value /> renders the label for the CURRENT value, so it needs a map too.
+  const statusLabels = Object.fromEntries(statuses.map((o) => [o.value, o.label]));
   const advance = nextQueueAction(status);
 
   return (
@@ -65,7 +66,7 @@ export function AppointmentActions({
       ) : null}
 
       <Select.Root
-        items={LABELS}
+        items={statusLabels}
         value={status}
         disabled={pending}
         onValueChange={(next) => {
@@ -83,14 +84,14 @@ export function AppointmentActions({
         <Select.Portal>
           <Select.Positioner side="bottom" align="start" sideOffset={4} className="z-50">
             <Select.Popup className={popupCls}>
-              {APPOINTMENT_STATUSES.map((value) => (
+              {statuses.map(({ value, label }) => (
                 <Select.Item key={value} value={value} className={itemCls}>
                   <span className="flex w-4 shrink-0 items-center justify-center">
                     <Select.ItemIndicator>
                       <Check className="size-3.5" aria-hidden="true" />
                     </Select.ItemIndicator>
                   </span>
-                  <Select.ItemText>{APPOINTMENT_STATUS_LABEL[value]}</Select.ItemText>
+                  <Select.ItemText>{label}</Select.ItemText>
                 </Select.Item>
               ))}
             </Select.Popup>

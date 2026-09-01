@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { unscoped } from "@/core/db/tenant-guard";
 import { ALL_VOCABULARY_SEED, type VocabularyRow } from "@/core/db/vocabulary-seed";
+import { CLINIC_STAFF_ROLES } from "@/core/types/auth";
 
 /**
  * The vocabulary tables, read from the DATABASE and held in memory.
@@ -42,6 +43,18 @@ export type VocabularyEntry = {
 const cache = new Map<string, VocabularyEntry[]>();
 let loaded = false;
 let loading: Promise<void> | null = null;
+let loadedAt = 0;
+
+/**
+ * How stale the cache may get before it is re-read.
+ *
+ * Without this the cache is filled once at start-up and never again, so "renaming a
+ * label is a row update" would quietly mean "a row update AND a restart" — which is
+ * most of the benefit gone. Sixty seconds is a deliberate compromise: a label change
+ * shows up on its own within the minute, and the cost is sixteen tiny indexed reads
+ * per minute per process, not per request.
+ */
+const MAX_AGE_MS = 60_000;
 
 /** Rows for one vocabulary, in the database's own sort order. */
 export function vocabularyRows(table: string): VocabularyEntry[] {
@@ -83,8 +96,12 @@ export function vocabularyLabel(table: string, code: string | null | undefined):
  * different code, and a code the application branches on that the database has lost.
  */
 export async function loadVocabularies(): Promise<void> {
-  if (loaded) return;
+  // Already warm and fresh — nothing to do.
+  if (loaded && Date.now() - loadedAt < MAX_AGE_MS) return;
   if (loading) return loading;
+  // A stale refresh does NOT block: the caller is a page render and the current values
+  // are correct enough for one more request. Only the very first load is awaited.
+  const isRefresh = loaded;
   loading = (async () => {
     const problems: string[] = [];
     await unscoped("vocabulary tables are company-global reference data", async () => {
@@ -124,6 +141,8 @@ export async function loadVocabularies(): Promise<void> {
       }
     });
     loaded = true;
+    loadedAt = Date.now();
+    loading = null;
     if (problems.length > 0) {
       const { report } = await import("@/core/observability");
       report(new Error(`vocabulary drift: ${problems.join("; ")}`), {
@@ -131,10 +150,55 @@ export async function loadVocabularies(): Promise<void> {
       });
     }
   })();
+  if (isRefresh) {
+    // Fire and forget, but never unhandled: a failed refresh leaves the previous
+    // values in place, which is the right outcome — it must not take a page down.
+    void loading.catch(async (e) => {
+      loading = null;
+      const { report } = await import("@/core/observability");
+      report(e, { op: "db.vocabulary.refresh" });
+    });
+    return;
+  }
   return loading;
 }
 
 /** For tests: the cache as loaded, so a test can assert it really came from the DB. */
 export function vocabularyCacheLoaded(): boolean {
   return loaded;
+}
+
+/**
+ * The whole cache, as plain data, for handing to the browser.
+ *
+ * A server component reads the cache directly; a CLIENT component cannot — this
+ * module is `server-only` and the mapping lives in the server process. So each panel's
+ * layout takes this snapshot once and passes it to `VocabularyProvider`
+ * (`core/ui/vocabulary-provider.tsx`), which every client component below it reads.
+ *
+ * One snapshot per page render, not per component: the payload is nine dozen short
+ * rows, and the alternative — threading labels down as props through sixteen client
+ * components — is the churn this design exists to avoid.
+ */
+export function vocabularySnapshot(): Record<string, VocabularyEntry[]> {
+  const out: Record<string, VocabularyEntry[]> = {};
+  for (const table of Object.keys(ALL_VOCABULARY_SEED)) out[table] = vocabularyRows(table);
+  return out;
+}
+
+/**
+ * "Managers, doctors, receptionists" — the clinic-staff roles as prose, for the
+ * dashboard's Staff card.
+ *
+ * Was a module-level const in `core/types/auth.ts` built from a compiled label map.
+ * It cannot stay one: the labels live in the database now, and that module is
+ * client-safe so it cannot read this cache. Derived from CLINIC_STAFF_ROLES, so a role
+ * added or removed still updates the count and its prose together.
+ */
+export function clinicStaffSummary(): string {
+  const rows = vocabularyRows("user_roles");
+  const label = (code: string) => rows.find((r) => r.code === code)?.label ?? code;
+  return CLINIC_STAFF_ROLES.map((r, i) =>
+    i === 0 ? `${label(r)}s` : `${label(r).toLowerCase()}s`,
+  ).join(", ");
 }

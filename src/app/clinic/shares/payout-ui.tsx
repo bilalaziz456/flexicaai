@@ -9,7 +9,7 @@ import {
 } from "./actions";
 import { Button } from "@/core/ui/button";
 import { Toast } from "@/core/ui/toast";
-import { PAYMENT_METHOD_OPTIONS } from "@/core/finance/payment-methods";
+import { useVocabularyOptions } from "@/core/ui/vocabulary-provider";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -32,6 +32,8 @@ export function RecordPayoutForm({
   doctorId: string;
   outstanding: number;
 }) {
+  // Methods come from the database (ADR-027): active only, in its own order.
+  const methodOptions = useVocabularyOptions("payment_methods");
   const [state, formAction, pending] = useActionState<PayoutActionState, FormData>(
     recordDoctorPayout,
     {},
@@ -72,7 +74,7 @@ export function RecordPayoutForm({
             defaultValue="cash"
             className={`${inputCls} select-chevron pr-8`}
           >
-            {PAYMENT_METHOD_OPTIONS.map((m) => (
+            {methodOptions.map((m) => (
               <option key={m.value} value={m.value}>{m.label}</option>
             ))}
           </select>

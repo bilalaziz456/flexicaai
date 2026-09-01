@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { DataTable, type Column } from "@/core/ui/data-table";
 import { Badge } from "@/core/ui/badge";
-import { paymentMethodLabel } from "@/core/finance/payment-methods";
+import { labelFrom, useVocabulary } from "@/core/ui/vocabulary-provider";
 
 const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
 const dayFmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -28,8 +28,11 @@ type CashTotals = { collected: number; refunded: number; expenses: number; payou
 
 /** Overview "cash that moved" (client) — sortable + a totals footer + mobile cards. */
 export function OverviewCashTable({ rows, totals }: { rows: CashRow[]; totals: CashTotals }) {
+  // Labels come from the database (ADR-027). Read once here: a hook cannot run
+  // inside a cell callback, so the rows are captured and `labelFrom` used below.
+  const methods = useVocabulary("payment_methods");
   const columns: Column<CashRow>[] = [
-    { id: "method", header: "Method", cardTitle: true, sortValue: (r) => r.method, cell: (r) => <span>{paymentMethodLabel(r.method)}</span>, footer: () => "Total" },
+    { id: "method", header: "Method", cardTitle: true, sortValue: (r) => r.method, cell: (r) => <span>{labelFrom(methods, r.method)}</span>, footer: () => "Total" },
     { id: "collected", header: "Collected", align: "right", sortValue: (r) => r.collected, cell: (r) => <span className="tabular-nums">{money.format(r.collected)}</span>, footer: () => <span className="tabular-nums">{money.format(totals.collected)}</span> },
     { id: "refunded", header: "Refunded", align: "right", sortValue: (r) => r.refunded, cell: (r) => <span className="tabular-nums">{money.format(r.refunded)}</span>, footer: () => <span className="tabular-nums">{money.format(totals.refunded)}</span> },
     { id: "expenses", header: "Expenses", align: "right", sortValue: (r) => r.expenses, cell: (r) => <span className="tabular-nums">{money.format(r.expenses)}</span>, footer: () => <span className="tabular-nums">{money.format(totals.expenses)}</span> },

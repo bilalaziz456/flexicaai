@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/core/auth/user";
 import { getMyProfile } from "@/core/users/profile";
 import { canUseAccount } from "@/core/auth/admin-permissions";
-import { ROLE_HOME_ROUTE, ROLE_LABELS, staffInitials } from "@/core/types/auth";
+import { ROLE_HOME_ROUTE, staffInitials } from "@/core/types/auth";
 import {
   Card,
   CardContent,
@@ -17,6 +17,7 @@ import {
   ProfileForm,
   PasswordForm,
 } from "@/core/ui/account-forms";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 /** Account settings — any signed-in user manages their own profile, picture and
  * password. Standalone (not inside a panel); reached from the identity pill. */
@@ -38,7 +39,7 @@ export default async function AccountPage() {
         </Link>
         <h1 className="mt-2 text-xl font-semibold">Account settings</h1>
         <p className="text-sm text-muted-foreground">
-          {ROLE_LABELS[u.role]} · @{u.username}
+          {vocabularyLabel("user_roles", u.role)} · @{u.username}
         </p>
       </div>
 

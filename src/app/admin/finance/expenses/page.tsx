@@ -32,8 +32,8 @@ import {
 import { Badge } from "@/core/ui/badge";
 import { ExpensesFilters } from "./expenses-filters";
 import { AddCompanyExpenseForm, CompanyCategoryManager, CompanyExpenseRowActions, RecurringExpensesManager } from "./expense-ui";
-import { paymentMethodLabel } from "@/core/finance/payment-methods";
 import { asPaymentMethodCode } from "@/core/db/vocabulary-seed";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 
@@ -205,7 +205,7 @@ export default async function CompanyExpensesPage({
                       {r.vendor ?? ""}
                       {r.note ? <span className="text-muted-foreground">{r.vendor ? " · " : ""}{r.note}</span> : ""}
                     </TableCell>
-                    <TableCell>{paymentMethodLabel(r.method)}</TableCell>
+                    <TableCell>{vocabularyLabel("payment_methods", r.method)}</TableCell>
                     <TableCell className="text-right tabular-nums">{rs(r.amount)}</TableCell>
                     {canEdit ? (
                       <TableCell className="text-right">

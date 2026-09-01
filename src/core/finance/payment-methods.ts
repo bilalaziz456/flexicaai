@@ -21,35 +21,6 @@ export const PAYMENT_METHODS = ["cash", "bank", "cheque", "other"] as const;
 
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
-export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
-  cash: "Cash",
-  bank: "Bank transfer",
-  cheque: "Cheque",
-  other: "Other",
-};
-
-/** `{ value, label }` options for a `<select>` or a SearchableSelect. */
-export const PAYMENT_METHOD_OPTIONS: { value: PaymentMethod; label: string }[] =
-  PAYMENT_METHODS.map((value) => ({ value, label: PAYMENT_METHOD_LABEL[value] }));
-
-const SYSTEM_METHOD_LABEL: Record<SystemPaymentMethod, string> = {
-  advance: "Advance credit",
-};
-
-/**
- * Label for a method string straight off a DB row. Safe for untyped/legacy values:
- * imported history and rows written before this list existed may hold anything, so
- * an unknown value renders as itself rather than blank.
- */
-export function paymentMethodLabel(method: string | null | undefined): string {
-  if (!method) return "—";
-  return (
-    PAYMENT_METHOD_LABEL[method as PaymentMethod] ??
-    SYSTEM_METHOD_LABEL[method as SystemPaymentMethod] ??
-    method
-  );
-}
-
 /**
  * Fold any stored value into a known method — for GROUPING (the day book totals by
  * method, so an unrecognised value must land somewhere rather than create a stray

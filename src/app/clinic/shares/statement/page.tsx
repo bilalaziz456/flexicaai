@@ -9,7 +9,7 @@ import { listSettlementActions } from "@/core/sales/settlement-actions";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
 import { PrintButton } from "@/core/ui/print-button";
 import { SETTLEMENT_LABEL } from "../settlement-ui";
-import { paymentMethodLabel } from "@/core/finance/payment-methods";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -223,7 +223,7 @@ export default async function ShareStatementPage({
                 {payments.map((p) => (
                   <tr key={p.id} className="border-b last:border-0">
                     <td className="py-1.5">{fmtDate(p.createdAt)}</td>
-                    <td className="py-1.5">{paymentMethodLabel(p.method)}</td>
+                    <td className="py-1.5">{vocabularyLabel("payment_methods", p.method)}</td>
                     <td className="py-1.5">{p.reference ?? p.note ?? "—"}</td>
                     <td className="py-1.5 text-right tabular-nums">{money.format(p.amount)}</td>
                   </tr>

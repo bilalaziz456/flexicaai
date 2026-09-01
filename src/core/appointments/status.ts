@@ -22,15 +22,13 @@ export const APPOINTMENT_STATUSES = [
 
 export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
 
-export const APPOINTMENT_STATUS_LABEL: Record<AppointmentStatus, string> = {
-  scheduled: "Scheduled",
-  confirmed: "Confirmed",
-  arrived: "Arrived",
-  in_progress: "In progress",
-  completed: "Completed",
-  cancelled: "Cancelled",
-  no_show: "No-show",
-};
+// Labels are NOT here any more. They live in the `appointment_statuses` table and
+// reach the UI through core/db/vocabulary-cache.ts (server) or
+// core/ui/vocabulary-provider.tsx (client) — see ADR-027. Renaming a status is a row
+// update, not a deploy.
+//
+// The list below stays: the CODES are what the application branches on
+// (`nextQueueAction`), and they give the `AppointmentStatus` union its literal type.
 
 /** Badge look per status (shadcn Badge variants). */
 export const APPOINTMENT_STATUS_VARIANT: Record<
@@ -45,12 +43,6 @@ export const APPOINTMENT_STATUS_VARIANT: Record<
   cancelled: "destructive",
   no_show: "destructive",
 };
-
-export function statusLabel(status: string): string {
-  return (
-    APPOINTMENT_STATUS_LABEL[status as AppointmentStatus] ?? status.replace("_", " ")
-  );
-}
 
 /** Badge variant for a status string (safe for untyped/DB string values). */
 export function statusVariant(

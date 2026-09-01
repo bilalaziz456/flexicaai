@@ -12,10 +12,10 @@ import {
   defaultPermissionsForRole,
   type PermResource,
 } from "@/core/auth/permissions";
-import { ROLE_LABELS } from "@/core/types/auth";
 import { cn } from "@/core/lib/utils";
 import { STAFF_PREFIXES, type UserRole } from "@/core/types/auth";
 import { PermissionMatrix } from "@/core/ui/permission-matrix";
+import { useVocabularyLabel } from "@/core/ui/vocabulary-provider";
 
 const selectCls =
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron";
@@ -32,6 +32,8 @@ export function AddStaffForm({ resources }: { resources: PermResource[] }) {
   const [granted, setGranted] = useState<Set<string>>(
     () => new Set(defaultPermissionsForRole("doctor")),
   );
+  // The role's label comes from the database (ADR-027), not a compiled map.
+  const roleLabel = useVocabularyLabel("user_roles", role);
   // Re-pop the error toast on each failed submit (success redirects away).
   const [errorNonce, setErrorNonce] = useState(0);
   useEffect(() => {
@@ -118,9 +120,9 @@ export function AddStaffForm({ resources }: { resources: PermResource[] }) {
       <div className="space-y-2">
         <Label>Permissions</Label>
         <p className="text-xs text-muted-foreground">
-          {/* ROLE_LABELS, not the raw role — the enum value would read
+          {/* The database's label, not the raw code — that would read
               "clinic_admin defaults" on screen. */}
-          Starts from the {ROLE_LABELS[role].toLowerCase()} defaults. Tick View /
+          Starts from the {roleLabel.toLowerCase()} defaults. Tick View /
           Create / Edit / Delete to adjust. View is required for the others.
         </p>
         <PermissionMatrix resources={resources} granted={granted} onChange={setGranted} />

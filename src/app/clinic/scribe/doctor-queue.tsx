@@ -1,7 +1,8 @@
 import { Badge } from "@/core/ui/badge";
 import type { QueueSession } from "@/core/appointments/queue";
-import { statusLabel, statusVariant } from "@/core/appointments/status";
+import { statusVariant } from "@/core/appointments/status";
 import { QueueAdvanceButton } from "@/app/clinic/scribe/queue-advance-button";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 const timeFmt = (d: Date) =>
   d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
@@ -72,7 +73,7 @@ export function DoctorQueue({ sessions }: { sessions: QueueSession[] }) {
                       {it.patientName}
                     </span>
                     <Badge variant={statusVariant(it.status)}>
-                      {statusLabel(it.status)}
+                      {vocabularyLabel("appointment_statuses", it.status)}
                     </Badge>
                     <QueueAdvanceButton appointmentId={it.appointmentId} status={it.status} />
                   </li>

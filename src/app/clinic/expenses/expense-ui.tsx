@@ -16,7 +16,7 @@ import { Label } from "@/core/ui/label";
 import { DatePicker } from "@/core/ui/date-picker";
 import { Toast } from "@/core/ui/toast";
 import { SearchableSelect } from "@/core/ui/searchable-select";
-import { PAYMENT_METHOD_OPTIONS } from "@/core/finance/payment-methods";
+import { useVocabularyOptions } from "@/core/ui/vocabulary-provider";
 
 const inputCls =
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -34,6 +34,8 @@ export function AddExpenseForm({
 }: {
   categories: { id: string; name: string }[];
 }) {
+  // Methods come from the database (ADR-027): active only, in its own order.
+  const methodOptions = useVocabularyOptions("payment_methods");
   const [state, formAction, pending] = useActionState<ExpenseActionState, FormData>(
     saveExpense.bind(null, null),
     {},
@@ -91,7 +93,7 @@ export function AddExpenseForm({
         <div className="space-y-1">
           <Label htmlFor="ex-method" className="text-xs text-muted-foreground">Method</Label>
           <select id="ex-method" name="method" defaultValue="cash" className={selectCls}>
-            {PAYMENT_METHOD_OPTIONS.map((m) => (
+            {methodOptions.map((m) => (
               <option key={m.value} value={m.value}>{m.label}</option>
             ))}
           </select>

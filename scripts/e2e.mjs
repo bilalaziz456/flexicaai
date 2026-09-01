@@ -588,7 +588,12 @@ async function run() {
     await pool.query("update appointments set status=5 /* completed */ where id=$1", [ids.queueAppt]);
     {
       const r = await req("/clinic/scribe", { cookie: S.docA });
-      const ok = r.status === 200 && r.text.includes("Completed") && !r.text.includes("Call in") && !r.text.includes("In progress");
+      // "Call in" is the advance BUTTON's text (nextQueueAction), so its absence is the
+      // real assertion. The status label "In progress" is no longer usable as evidence:
+      // vocabulary labels come from the database and the whole snapshot is serialised
+      // into every page payload for client components, so a bare text search finds them
+      // as DATA whether or not anything rendered them (ADR-027).
+      const ok = r.status === 200 && r.text.includes("Completed") && !r.text.includes("Call in");
       record("doctor queue: Completed patient — no advance controls left", ok, ok ? "" : `status=${r.status}`);
     }
   }

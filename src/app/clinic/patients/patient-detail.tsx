@@ -23,7 +23,7 @@ import { ViewLogger } from "@/core/ui/view-logger";
 import { AllergyBanner } from "@/core/ui/allergy-banner";
 import { ageFromDob } from "@/core/lib/age";
 import { formatMrn } from "@/core/patients/mrn";
-import { APPOINTMENT_STATUS_VARIANT, statusLabel } from "@/core/appointments/status";
+import { APPOINTMENT_STATUS_VARIANT } from "@/core/appointments/status";
 import { getPatientAccount } from "@/core/billing/account";
 import { getMedicalHistory, getPatientAllergies } from "@/core/patients/medical-history";
 import type { MedicalHistoryData } from "@/core/lib/medical-history";
@@ -39,6 +39,7 @@ import { DeletePatientButton, EditPatientForm } from "./[id]/patient-admin";
 import { PatientChartCard } from "./patient-chart-card";
 import { PerioChartCard } from "./perio-chart-card";
 import { OpeningBalanceForm } from "./opening-balance-form";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 /**
  * Shared patient detail — used by the clinic-admin panel and any panel that
@@ -745,7 +746,7 @@ export async function PatientDetail({
                     </span>
                   </span>
                   <Badge variant={APPOINTMENT_STATUS_VARIANT[a.status] ?? "secondary"}>
-                    {statusLabel(a.status)}
+                    {vocabularyLabel("appointment_statuses", a.status)}
                   </Badge>
                 </li>
               ))}

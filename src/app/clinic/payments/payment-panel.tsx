@@ -16,7 +16,7 @@ import { Button, buttonVariants } from "@/core/ui/button";
 import { Toast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import { MessageCircle } from "lucide-react";
-import { PAYMENT_METHOD_OPTIONS } from "@/core/finance/payment-methods";
+import { useVocabularyOptions } from "@/core/ui/vocabulary-provider";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -89,6 +89,8 @@ export function PaymentPanel({
   /** Printable payment receipt link (shown once money has been collected). */
   receiptHref?: string;
 }) {
+  // Methods come from the database (ADR-027): active only, in its own order.
+  const methodOptions = useVocabularyOptions("payment_methods");
   const [state, formAction, pending] = useActionState<BillingActionState, FormData>(
     collectPayment.bind(null, appointmentId),
     {},
@@ -201,7 +203,7 @@ export function PaymentPanel({
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground" htmlFor="pp-method">Method</label>
               <select id="pp-method" name="method" defaultValue="cash" className={`${inputCls} select-chevron pr-8`}>
-                {PAYMENT_METHOD_OPTIONS.map((m) => (
+                {methodOptions.map((m) => (
                   <option key={m.value} value={m.value}>{m.label}</option>
                 ))}
               </select>
@@ -262,7 +264,7 @@ export function PaymentPanel({
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground" htmlFor="rf-method">Method</label>
                 <select id="rf-method" name="method" defaultValue="cash" className={`${inputCls} select-chevron pr-8`}>
-                  {PAYMENT_METHOD_OPTIONS.map((m) => (
+                  {methodOptions.map((m) => (
                     <option key={m.value} value={m.value}>{m.label}</option>
                   ))}
                 </select>

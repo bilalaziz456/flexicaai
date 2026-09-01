@@ -34,7 +34,8 @@ import {
 import { AppointmentActions } from "@/app/clinic/appointments/appointment-actions";
 import { DeleteAppointmentButton } from "@/app/clinic/appointments/edit-appointment-form";
 import { NewAppointmentForm } from "@/app/clinic/appointments/new-appointment-form";
-import { APPOINTMENT_STATUS_VARIANT, statusLabel } from "@/core/appointments/status";
+import { APPOINTMENT_STATUS_VARIANT } from "@/core/appointments/status";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -155,7 +156,7 @@ export async function AppointmentDetail({
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="text-xl font-semibold">{appt.patientName}</h1>
           <Badge variant={APPOINTMENT_STATUS_VARIANT[appt.status] ?? "secondary"}>
-            {statusLabel(appt.status)}
+            {vocabularyLabel("appointment_statuses", appt.status)}
           </Badge>
           {appt.source === "whatsapp" ? (
             <Badge variant="outline">via WhatsApp</Badge>

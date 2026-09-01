@@ -98,8 +98,11 @@ reclassify data already recorded. Never renumber; never reuse a retired id — s
 `scripts/test-vocabulary-tables.ts` asserts the database matches the constants row for row.
 
 **The database owns PRESENTATION; the code owns MEANING.** `core/db/vocabulary-cache.ts`
-loads the label, sort order and active flag at start-up, so renaming a status or
-reordering a dropdown is a row update. But `nextQueueAction` switches on a status and
+loads the label, sort order and active flag from the database and re-reads them on a
+60-second TTL, so renaming a status or reordering a dropdown really is just a row
+update — no deploy and no restart. Server components read that cache; client components
+get it through `core/ui/vocabulary-provider.tsx`, which the root layout supplies. There
+are no compiled label maps left. But `nextQueueAction` switches on a status and
 `can()` on a role — a row inserted into the database alone is stored and never acted on,
 so a NEW value is still a code change.
 

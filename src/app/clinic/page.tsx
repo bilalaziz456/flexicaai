@@ -21,7 +21,7 @@ import { OnboardingChecklist } from "@/core/ui/onboarding-checklist";
 import { DeltaBadge } from "@/core/ui/delta-badge";
 import { AvgVisitValueForm } from "./avg-visit-value-form";
 import { DoctorLeaves } from "@/app/clinic/doctors/doctor-leaves";
-import { CLINIC_STAFF_SUMMARY } from "@/core/types/auth";
+import { clinicStaffSummary } from "@/core/db/vocabulary-cache";
 
 /**
  * Owner dashboard (CLAUDE.md §11 Step 12). The hero metric is "Revenue
@@ -169,7 +169,7 @@ export default async function ClinicDashboard() {
         ]
       : []),
     { title: "Patients", value: counts.patients, note: "Registered", href: "/clinic/patients" },
-    { title: "Staff", value: counts.staff, note: CLINIC_STAFF_SUMMARY, href: "/clinic/staff" },
+    { title: "Staff", value: counts.staff, note: clinicStaffSummary(), href: "/clinic/staff" },
   ];
 
   return (

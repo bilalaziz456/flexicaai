@@ -1,7 +1,7 @@
 "use client";
 
 import { DataTable, type Column } from "@/core/ui/data-table";
-import { paymentMethodLabel } from "@/core/finance/payment-methods";
+import { labelFrom, useVocabulary } from "@/core/ui/vocabulary-provider";
 
 const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
 
@@ -9,8 +9,11 @@ type Row = { method: string; collected: number; refunded: number; expenses: numb
 
 /** Day-book by-method totals (client) — sortable + mobile cards via DataTable. */
 export function DaybookTable({ rows }: { rows: Row[] }) {
+  // Labels come from the database (ADR-027). Read once here: a hook cannot run
+  // inside a cell callback, so the rows are captured and `labelFrom` used below.
+  const methods = useVocabulary("payment_methods");
   const columns: Column<Row>[] = [
-    { id: "method", header: "Method", cardTitle: true, sortValue: (r) => r.method, cell: (r) => <span>{paymentMethodLabel(r.method)}</span> },
+    { id: "method", header: "Method", cardTitle: true, sortValue: (r) => r.method, cell: (r) => <span>{labelFrom(methods, r.method)}</span> },
     { id: "collected", header: "Collected", align: "right", sortValue: (r) => r.collected, cell: (r) => <span className="tabular-nums">{money.format(r.collected)}</span> },
     { id: "refunded", header: "Refunded", align: "right", sortValue: (r) => r.refunded, cell: (r) => <span className="tabular-nums">{money.format(r.refunded)}</span> },
     { id: "expenses", header: "Expenses", align: "right", sortValue: (r) => r.expenses, cell: (r) => <span className="tabular-nums">{money.format(r.expenses)}</span> },

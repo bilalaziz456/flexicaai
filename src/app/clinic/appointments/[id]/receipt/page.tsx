@@ -19,7 +19,7 @@ import { displayStaffName } from "@/core/types/auth";
 import { formatMrn } from "@/core/patients/mrn";
 import { getClinicLogoDataUri } from "@/core/clinics/logo";
 import { InvoicePrintFrame } from "@/core/ui/invoice-print";
-import { paymentMethodLabel } from "@/core/finance/payment-methods";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 /**
  * Payment receipt for a visit (Finance) — acknowledges money received against this
@@ -184,7 +184,7 @@ export default async function ReceiptPage({
                     <td className="py-1">{fmtDate(e.occurredAt)}</td>
                     <td className="py-1">
                       {KIND_LABEL[e.kind] ?? e.kind}
-                      {e.method ? <span className="opacity-70"> · {paymentMethodLabel(e.method)}</span> : null}
+                      {e.method ? <span className="opacity-70"> · {vocabularyLabel("payment_methods", e.method)}</span> : null}
                     </td>
                     <td className="py-1 text-right tabular-nums">
                       {e.kind === "refund" ? "−" : ""}
