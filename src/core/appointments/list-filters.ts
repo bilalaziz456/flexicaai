@@ -1,29 +1,18 @@
 import "server-only";
 
 import { dateFromStr, localDateStr } from "./availability";
+import {
+  APPOINTMENT_STATUS_ROWS,
+  type AppointmentStatusCode,
+} from "@/core/db/vocabulary-seed";
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Selectable appointment statuses ("" = all). */
-export type StatusFilter =
-  | ""
-  | "scheduled"
-  | "confirmed"
-  | "arrived"
-  | "in_progress"
-  | "completed"
-  | "cancelled"
-  | "no_show";
+/** A filter is any appointment status, or "" for all — derived, never restated. */
+export type StatusFilter = "" | AppointmentStatusCode;
 
-const STATUSES: StatusFilter[] = [
-  "scheduled",
-  "confirmed",
-  "arrived",
-  "in_progress",
-  "completed",
-  "cancelled",
-  "no_show",
-];
+const STATUSES: readonly StatusFilter[] = APPOINTMENT_STATUS_ROWS.map((r) => r.code);
 
 /** Visit type: what the appointment is FOR ("" = any). Derived from the
  *  consultation charge + whether any procedures are attached. */

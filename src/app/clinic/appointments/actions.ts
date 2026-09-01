@@ -59,6 +59,7 @@ import {
 import { logActivity } from "@/core/audit/log";
 import { APPOINTMENT_STATUSES, type AppointmentStatus } from "@/core/appointments/status";
 import { applyAppointmentStatus } from "@/core/appointments/set-status";
+import { DISCOUNT_BEARER_CODES } from "@/core/db/vocabulary-seed";
 
 export type ReceptionActionState = { error?: string; saved?: boolean };
 
@@ -94,7 +95,7 @@ const createSchema = z.object({
   reason: z.string().trim().optional(),
   discountType: z.enum(["amount", "percent"]).default("amount"),
   discountValue: z.coerce.number().int().min(0, "Discount can't be negative.").default(0),
-  discountBorneBy: z.enum(["clinic", "doctor", "split"]).default("clinic"),
+  discountBorneBy: z.enum(DISCOUNT_BEARER_CODES).default("clinic"),
   discountSplitType: z.enum(["amount", "percent"]).default("percent"),
   discountSplitValue: z.coerce.number().int().min(0).default(0),
 })
@@ -308,7 +309,7 @@ const updateSchema = z.object({
   reason: z.string().trim().optional(),
   discountType: z.enum(["amount", "percent"]).default("amount"),
   discountValue: z.coerce.number().int().min(0, "Discount can't be negative.").default(0),
-  discountBorneBy: z.enum(["clinic", "doctor", "split"]).default("clinic"),
+  discountBorneBy: z.enum(DISCOUNT_BEARER_CODES).default("clinic"),
   discountSplitType: z.enum(["amount", "percent"]).default("percent"),
   discountSplitValue: z.coerce.number().int().min(0).default(0),
 })

@@ -20,11 +20,23 @@
  *    If that mapping broke they would all be silently wrong rather than failing, so it
  *    is proven through a real write and read.
  */
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { unscoped } from "@/core/db/tenant-guard";
 import { appointments } from "@/core/db/schema";
-import { VOCABULARY_SEED, idOf, PAYMENT_KIND_ROWS } from "@/core/db/vocabulary-seed";
+import { ALL_VOCABULARY_SEED, VOCABULARY_SEED, idOf, PAYMENT_KIND_ROWS } from "@/core/db/vocabulary-seed";
+
+/** Every source file under src/, so the scan cannot miss a new offender. */
+function sourceFiles(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) sourceFiles(full, out);
+    else if (full.endsWith(".ts") || full.endsWith(".tsx")) out.push(full);
+  }
+  return out;
+}
 
 let pass = 0;
 let fail = 0;
@@ -173,6 +185,30 @@ async function main() {
       ok("reading it back gives the code again", readBack === "rejected", `got ${readBack}`);
     }
 
+    // The codes must not be written out a second time anywhere in core. Five modules
+    // used to restate them (APPOINTMENT_STATUSES, CLINIC_STATUSES, PAYMENT_METHODS,
+    // USER_ROLES, THEME_PREFERENCES) and are now derived from the seed instead — this
+    // is what stops the next one being pasted back in. A literal array of quoted codes
+    // that exactly matches a vocabulary is the shape to catch.
+    const seedFile = "src/core/db/vocabulary-seed.ts";
+    const duplicates: string[] = [];
+    for (const file of sourceFiles("src")) {
+      if (file.split("\\").join("/").endsWith(seedFile)) continue;
+      const text = stripComments(readFileSync(file, "utf8"));
+      const flat = text.replace(/\s+/g, "");
+      for (const [table, rows] of Object.entries(ALL_VOCABULARY_SEED)) {
+        if (rows.length < 3) continue; // two-value sets collide with unrelated pairs
+        const codes = rows.map((r) => r.code);
+        // Substring match on a whitespace-stripped copy, deliberately not a regex: the
+        // first attempt built one inside a template literal, where `\[` and `\s` lose
+        // their backslashes and become a character class that matches nearly every file.
+        if (flat.includes(codes.map((c) => `"${c}"`).join(","))) {
+          duplicates.push(`${file} restates ${table}`);
+        }
+      }
+    }
+    ok("no module restates a vocabulary's codes", duplicates.length === 0, duplicates.join("; "));
+
     let threw = false;
     try {
       idOf(PAYMENT_KIND_ROWS, "not_a_kind");
@@ -198,3 +234,8 @@ async function main() {
 }
 
 main();
+
+/** Comments removed, so prose that merely mentions a code list is not flagged. */
+function stripComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+}

@@ -17,9 +17,22 @@
  * archives whatever a clinic's previous system wrote, verbatim.
  */
 
-export const PAYMENT_METHODS = ["cash", "bank", "cheque", "other"] as const;
+import { PAYMENT_METHOD_ROWS, type PaymentMethodCode } from "@/core/db/vocabulary-seed";
 
-export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+/**
+ * The codes, derived from the payment_method vocabulary rather than restated.
+ *
+ * The list lives in ONE place — `core/db/vocabulary-seed.ts`, which is also the
+ * migration seed and what the start-up check compares the database against. Writing
+ * it out a second time here is exactly the drift this whole change removed.
+ * `vocabulary-seed` is client-safe (no `server-only`), so this module stays usable
+ * from a client component.
+ */
+export const PAYMENT_METHODS: readonly PaymentMethodCode[] = PAYMENT_METHOD_ROWS.filter(
+  (r) => r.isTender,
+).map((r) => r.code);
+
+export type PaymentMethod = PaymentMethodCode;
 
 /**
  * Fold any stored value into a known method — for GROUPING (the day book totals by
@@ -48,7 +61,9 @@ export function paymentMethodOrder(method: string): number {
  * zod schemas, and offering "Advance credit" as a tender would let someone record a
  * payment from credit without the balance arithmetic `applyAdvance` performs.
  */
-export const SYSTEM_PAYMENT_METHODS = ["advance"] as const;
+export const SYSTEM_PAYMENT_METHODS: readonly PaymentMethodCode[] = PAYMENT_METHOD_ROWS.filter(
+  (r) => !r.isTender,
+).map((r) => r.code);
 
 export type SystemPaymentMethod = (typeof SYSTEM_PAYMENT_METHODS)[number];
 

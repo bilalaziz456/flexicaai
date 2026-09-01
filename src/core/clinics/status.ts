@@ -1,4 +1,5 @@
 import type { Clinic } from "@/core/db/schema";
+import { CLINIC_STATUS_ROWS, type ClinicStatusCode } from "@/core/db/vocabulary-seed";
 
 /**
  * Clinic lifecycle status — CORE, specialty-agnostic (super-admin control plane).
@@ -8,14 +9,18 @@ import type { Clinic } from "@/core/db/schema";
  * Feature 2. super_admin has no clinic and is never subject to this.
  */
 
-export const CLINIC_STATUSES = [
-  "trial",
-  "active",
-  "suspended",
-  "past_due",
-  "cancelled",
-] as const;
-export type ClinicStatus = (typeof CLINIC_STATUSES)[number];
+/**
+ * The codes, derived from the clinic_status vocabulary rather than restated.
+ *
+ * The list lives in ONE place — `core/db/vocabulary-seed.ts`, which is also the
+ * migration seed and what the start-up check compares the database against. Writing
+ * it out a second time here is exactly the drift this whole change removed.
+ * `vocabulary-seed` is client-safe (no `server-only`), so this module stays usable
+ * from a client component.
+ */
+export const CLINIC_STATUSES: readonly ClinicStatusCode[] = CLINIC_STATUS_ROWS.map((r) => r.code);
+
+export type ClinicStatus = ClinicStatusCode;
 
 export function isClinicStatus(v: string): v is ClinicStatus {
   return (CLINIC_STATUSES as readonly string[]).includes(v);

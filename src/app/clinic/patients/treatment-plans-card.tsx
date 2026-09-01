@@ -17,14 +17,18 @@ import {
   setPlanStatusAction,
   updatePlanItemAction,
 } from "./treatment-plan-actions";
+import {
+  TREATMENT_ITEM_STATUS_ROWS,
+  TREATMENT_PLAN_STATUS_ROWS,
+} from "@/core/db/vocabulary-seed";
 
 export type PlanItemRow = { id: string; name: string; tooth: string | null; quantity: number; unitPrice: number; status: string };
 export type PlanRow = { id: string; title: string; status: string; note: string | null; items: PlanItemRow[] };
 type Proc = { id: string; name: string; price: number };
 
 const money = (n: number) => new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 }).format(n);
-const PLAN_STATUSES = ["proposed", "active", "completed", "cancelled"];
-const ITEM_STATUSES = ["planned", "in_progress", "done", "cancelled"];
+const PLAN_STATUSES = TREATMENT_PLAN_STATUS_ROWS.map((r) => r.code);
+const ITEM_STATUSES = TREATMENT_ITEM_STATUS_ROWS.map((r) => r.code);
 const PLAN_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = { proposed: "secondary", active: "default", completed: "outline", cancelled: "destructive" };
 
 const selectCls = "h-8 rounded-lg border border-input bg-[var(--input-bg)] pl-2 pr-8 text-sm outline-none select-chevron";

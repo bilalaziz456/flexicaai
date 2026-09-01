@@ -38,6 +38,7 @@ import { logActivity } from "@/core/audit/log";
 import { sanitizeLogAccess } from "@/core/audit/access";
 import { USERNAME_REGEX } from "@/core/types/auth";
 import { PAYMENT_METHODS } from "@/core/finance/payment-methods";
+import { BILLING_CYCLE_CODES, CLINIC_PAYMENT_KIND_CODES } from "@/core/db/vocabulary-seed";
 
 export type AdminActionState = { error?: string; saved?: boolean; needsTotp?: boolean };
 
@@ -601,7 +602,7 @@ export async function startImpersonation(
 
 const priceSchema = z.object({
   monthlyPrice: z.coerce.number().int("Whole PKR only.").min(0, "Cannot be negative.").max(100_000_000),
-  billingCycle: z.enum(["monthly", "2m", "quarter", "half", "annual"]),
+  billingCycle: z.enum(BILLING_CYCLE_CODES),
   graceDays: z.coerce.number().int().min(0, "Cannot be negative.").max(365),
 });
 
@@ -645,7 +646,7 @@ export async function setClinicPrice(
 
 const clinicPaymentSchema = z.object({
   amount: z.coerce.number().int("Whole PKR only.").positive("Amount must be positive."),
-  kind: z.enum(["payment", "refund", "credit"]).optional(),
+  kind: z.enum(CLINIC_PAYMENT_KIND_CODES).optional(),
   method: z.enum(PAYMENT_METHODS).optional(),
   reference: z.string().trim().max(120).optional(),
   note: z.string().trim().max(500).optional(),

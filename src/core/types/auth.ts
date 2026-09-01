@@ -7,15 +7,20 @@
  * into a role.
  */
 
-export const USER_ROLES = [
-  "super_admin", // FlexicaAI company staff — manages clinics & modules
-  "clinic_admin", // Clinic owner — manages their staff & settings
-  "manager", // Clinic operations manager — runs the front desk + oversight
-  "doctor", // Clinical user — voice scribe, records, prescriptions
-  "receptionist", // Front desk — appointments, WhatsApp, payments
-] as const;
+import { USER_ROLE_ROWS, type UserRoleCode } from "@/core/db/vocabulary-seed";
 
-export type UserRole = (typeof USER_ROLES)[number];
+/**
+ * The codes, derived from the user_role vocabulary rather than restated.
+ *
+ * The list lives in ONE place — `core/db/vocabulary-seed.ts`, which is also the
+ * migration seed and what the start-up check compares the database against. Writing
+ * it out a second time here is exactly the drift this whole change removed.
+ * `vocabulary-seed` is client-safe (no `server-only`), so this module stays usable
+ * from a client component.
+ */
+export const USER_ROLES: readonly UserRoleCode[] = USER_ROLE_ROWS.map((r) => r.code);
+
+export type UserRole = UserRoleCode;
 
 /**
  * Roles a clinic admin creates and manages within their clinic — everyone but

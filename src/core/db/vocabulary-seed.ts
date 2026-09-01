@@ -518,3 +518,26 @@ export const ALL_VOCABULARY_SEED: Record<string, readonly VocabularyRow[]> = {
   ...ENUM_VOCABULARY_SEED,
   ...FREE_TEXT_VOCABULARY_SEED,
 };
+
+/**
+ * Code TUPLES, for `z.enum(...)`.
+ *
+ * zod needs a non-empty readonly tuple of literals, which `rows.map(...)` cannot give
+ * it — the map widens to `string[]`. These are the derived form the actions use, so a
+ * zod schema never restates a vocabulary (`scripts/test-vocabulary-tables.ts` fails if
+ * one does).
+ */
+const codesOf = <T extends readonly VocabularyRow[]>(rows: T) =>
+  rows.map((r) => r.code) as unknown as {
+    [K in keyof T]: T[K] extends { code: infer C } ? C : never;
+  };
+
+export const PAYMENT_METHOD_CODES = codesOf(PAYMENT_METHOD_ROWS);
+export const PAYMENT_KIND_CODES = codesOf(PAYMENT_KIND_ROWS);
+export const CLINIC_PAYMENT_KIND_CODES = codesOf(CLINIC_PAYMENT_KIND_ROWS);
+export const SETTLEMENT_KIND_CODES = codesOf(SETTLEMENT_KIND_ROWS);
+export const DISCOUNT_TYPE_CODES = codesOf(DISCOUNT_TYPE_ROWS);
+export const DISCOUNT_BEARER_CODES = codesOf(DISCOUNT_BEARER_ROWS);
+export const BILLING_CYCLE_CODES = codesOf(BILLING_CYCLE_ROWS);
+export const CLINIC_STATUS_CODES = codesOf(CLINIC_STATUS_ROWS);
+export const INVOICE_PAPER_CODES = codesOf(INVOICE_PAPER_ROWS);
