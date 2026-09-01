@@ -2,7 +2,6 @@ import { sql } from "drizzle-orm";
 import {
   index,
   jsonb,
-  pgEnum,
   pgTable,
   text,
   timestamp,
@@ -28,22 +27,6 @@ import {
  *
  * Part of the schema split (delta D-09) — see `./index.ts`.
  */
-
-/** Direction of a WhatsApp message relative to the clinic. */
-export const whatsappDirection = pgEnum("whatsapp_direction", [
-  "inbound",
-  "outbound",
-]);
-
-/** Delivery lifecycle for a WhatsApp message (mirrors provider statuses). */
-export const whatsappStatus = pgEnum("whatsapp_status", [
-  "queued",
-  "sent",
-  "delivered",
-  "read",
-  "failed",
-  "received",
-]);
 
 /**
  * WhatsApp message log — shared/core. Every send is recorded (so nothing is lost

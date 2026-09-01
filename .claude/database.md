@@ -57,17 +57,58 @@
 
 ---
 
-## 2. Enums
+## 2. Vocabularies
 
-| Enum | Values |
-|---|---|
-| `user_role` | super_admin, clinic_admin, manager, doctor, receptionist |
-| `theme_preference` | system, light, dark |
-| `appointment_status` | scheduled, confirmed, completed, cancelled, no_show |
-| `visit_status` | transcribing, draft, approved, failed |
-| `recall_status` | pending, scheduled, sent, booked, completed, cancelled |
-| `whatsapp_direction` | inbound, outbound |
-| `whatsapp_status` | queued, sent, delivered, read, failed, received |
+**There are no Postgres enums.** Every closed vocabulary is a REFERENCE TABLE and the
+column carrying it is an `integer` foreign key (ADR-027, migrations `0087`–`0091`).
+Sixteen tables, all `(id, code, label, sort_order, is_active)`, company-global — no
+`clinic_id`, so the tenant guard ignores them and a clinic cannot invent its own.
+
+| Table | Codes | Column(s) it backs |
+|---|---|---|
+| `appointment_statuses` | scheduled, confirmed, arrived, in_progress, completed, cancelled, no_show | `appointments.status` |
+| `visit_statuses` | transcribing, draft, approved, failed | `visits.status` |
+| `recall_statuses` | pending, scheduled, sent, booked, completed, cancelled | `recalls.status` |
+| `user_roles` | super_admin, clinic_admin, manager, doctor, receptionist | `users.role` |
+| `theme_preferences` | system, light, dark | `users.theme` |
+| `whatsapp_directions` | inbound, outbound | `whatsapp_messages.direction` |
+| `whatsapp_statuses` | queued, sent, delivered, read, failed, received | `whatsapp_messages.status` |
+| `payment_kinds` | payment, advance, advance_applied, refund, opening | `patient_payments.kind` |
+| `clinic_payment_kinds` | payment, refund, credit | `clinic_payments.kind` |
+| `payment_methods` | cash, bank, cheque, other, **advance** (`is_tender = false`) | the five `method` columns |
+| `settlement_kinds` | doctor_waive, clinic_waive, repayment, write_off, reversal | `doctor_settlement_actions.kind` |
+| `settlement_parties` | clinic, doctor | `discount_settlements.party`, `appointment_discount_approvals.approver_kind` |
+| `approval_statuses` | pending, approved, rejected | `appointment_discount_approvals.status` |
+| `discount_statuses` | none, pending, approved, rejected | `appointments.discount_status` |
+| `discount_types` | amount, percent | the three `discount_type` / `discount_split_type` columns |
+| `discount_bearers` | clinic, doctor, split | `appointments.discount_borne_by` |
+
+**Three things to know before touching these.**
+
+**The application still reads and writes CODES.** `core/db/schema/vocabulary.ts#vocabularyRef`
+is a Drizzle `customType` storing the integer and presenting the code, so
+`eq(appointments.status, "completed")` compiles and emits `status = 5`. Raw SQL is the
+exception: it compares against `appointmentStatusId("completed")`, and a `pool.query`
+in a test gets the integer back — join the lookup to read a code.
+
+**Ids are written out, never assigned by a sequence** (`src/core/db/vocabulary-seed.ts`).
+A `serial` assigns by insertion order, so a re-seed in a different order would silently
+reclassify data already recorded. Never renumber; never reuse a retired id — set
+`is_active = false` so historical rows still resolve.
+`scripts/test-vocabulary-tables.ts` asserts the database matches the constants row for row.
+
+**The database owns PRESENTATION; the code owns MEANING.** `core/db/vocabulary-cache.ts`
+loads the label, sort order and active flag at start-up, so renaming a status or
+reordering a dropdown is a row update. But `nextQueueAction` switches on a status and
+`can()` on a role — a row inserted into the database alone is stored and never acted on,
+so a NEW value is still a code change.
+
+**Open vocabularies stay open** and must not be given a table: `module` above all (a
+table of specialties would put a specialty name in core and break ADR-001), plus
+`activity_logs.action`/`entity`, `notifications.type`, `imported_transactions.type` and
+`.method`, and `ai_usage.model`. `activity_logs.actor_role` stays TEXT for a different
+reason — it is a snapshot, like `sales.doctor_name`, and must survive the role
+vocabulary changing.
 
 ---
 
@@ -92,10 +133,10 @@ Indexes: GIN pg_trgm on `name` (fast ILIKE search); partial unique on
 ### `users` — staff accounts
 `id`, `clinic_id` → clinics (**nullable**; NULL for super_admin; `on delete set
 null`), `username` (**unique**, lowercased), `email` (**unique when present**),
-`password_hash` (bcrypt), `role` (enum), `prefix` (name title — Dr/Mr/Miss…, shown
+`password_hash` (bcrypt), `role` (→ `user_roles`), `prefix` (name title — Dr/Mr/Miss…, shown
 as "Dr. Bilal Aziz"), `full_name`, `avatar_key` (profile-picture storage key, served
 self-only via `GET /api/me/avatar`), `is_active` (default true),
-`must_change_password` (default false), `theme` (enum). **Doctor-only fields:**
+`must_change_password` (default false), `theme` (→ `theme_preferences`). **Doctor-only fields:**
 `availability` jsonb `DayAvailability[]` (per-weekday working windows — a weekday
 may appear multiple times for split shifts, e.g. Mon 09:00–12:00 AND 16:00–19:00), 
 `flexible_hours` bool (default false; true = bookable any time, hours not enforced —
@@ -124,7 +165,7 @@ on `full_name` and `phone`.
 ### `appointments` — shared
 `id`, `clinic_id` → clinics (`cascade`), `patient_id` → patients (`cascade`),
 `doctor_id` → users (`set null`), `module` (free-text tag), `scheduled_at`,
-`duration_minutes` (default 30), `status` (enum, default scheduled), `reason`,
+`duration_minutes` (default 30), `status` (→ `appointment_statuses`, default scheduled), `reason`,
 `discount_type` (free-text, default 'amount'; 'amount' = flat PKR, 'percent' = % of
 the doctor's fee), `discount_value` int (default 0; the raw figure — e.g. 500, or 20
 for 20%; **CHECK: a 'percent' value must be 0–100** — unbounded, it overflowed int4
@@ -152,7 +193,7 @@ Indexes: `clinic_id`; `patient_id`; (`clinic_id`,`scheduled_at`); `doctor_id`;
 
 ### `visits` — shared; stores the AI note
 `id`, `clinic_id` (`cascade`), `patient_id` (`cascade`), `appointment_id` → appts
-(`set null`), `doctor_id` → users (`set null`), `module`, `status` (enum, default
+(`set null`), `doctor_id` → users (`set null`), `module`, `status` (→ `visit_statuses`, default
 draft — **AI notes are draft until a doctor approves**), `transcript` (raw Whisper),
 `note` jsonb (module-shaped, doctor's approved version), `ai_draft` jsonb (frozen
 original for the accuracy flywheel), `audio_key` (storage key), `visit_date`,
@@ -162,13 +203,13 @@ Indexes: `clinic_id`; `patient_id`; (`clinic_id`,`visit_date`); `appointment_id`
 ### `recalls` — recall engine reads/advances these
 `id`, `clinic_id` (`cascade`), `patient_id` (`cascade`), `source_visit_id` → visits
 (`set null`), `module`, `reason` (e.g. "6-month cleaning"), `due_at`, `status`
-(enum, default pending), `sent_at`, timestamps.
+(→ `recall_statuses`, default pending), `sent_at`, timestamps.
 Indexes: `clinic_id`; `patient_id`; (`clinic_id`,`due_at`); `status`.
 
 ### `whatsapp_messages` — inbound + outbound log
 `id`, `clinic_id` → clinics (`cascade`, **nullable**), `patient_id` → patients (`set
 null`, **nullable** — an unknown inbound number may be unattributed), `direction`
-(enum), `phone`, `status` (enum, default queued), `template_name` (AiSensy
+(→ `whatsapp_directions`), `phone`, `status` (→ `whatsapp_statuses`, default queued), `template_name` (AiSensy
 campaign), `body` (preview text), `media_url`, `external_id` (provider id for
 receipts), `error`, `payload` jsonb (raw), timestamps. Every send is recorded first
 so nothing is lost when the provider is unconfigured; also the source for the
@@ -795,6 +836,12 @@ these for churn-risk + usage/cost anomaly flags.
   still owns what a value MEANS** — `nextQueueAction` switches on a status, `can()` on
   a role — so a row inserted into the database alone would be stored and never acted
   on. Adding a NEW value is still a code change; the database owns presentation.
+- Migration **`0091`** drops the seven enum TYPES themselves, now that `0090` has moved
+  every column off them; `pg_attribute` was checked first and showed zero columns using
+  each. The `pgEnum` declarations are gone from the schema files with them. **This is
+  the point of no easy return for `0090`** — recreating a type is trivial, but the data
+  would have to be mapped back from ids, which is why `0090` deliberately left them
+  standing until the conversion had been exercised.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

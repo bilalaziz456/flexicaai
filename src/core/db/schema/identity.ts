@@ -6,7 +6,6 @@ import {
   index,
   integer,
   jsonb,
-  pgEnum,
   pgTable,
   text,
   timestamp,
@@ -36,22 +35,6 @@ import {
  *
  * Part of the schema split (delta D-09) — see `./index.ts`.
  */
-
-/** Platform roles. Independent of which modules a clinic enables. */
-export const userRole = pgEnum("user_role", [
-  "super_admin",
-  "clinic_admin",
-  "manager",
-  "doctor",
-  "receptionist",
-]);
-
-/** Per-user theme preference. "system" follows the OS. */
-export const themePreference = pgEnum("theme_preference", [
-  "system",
-  "light",
-  "dark",
-]);
 
 /**
  * Tenants. `modulesEnabled` is the array the specialty checkboxes read/write —

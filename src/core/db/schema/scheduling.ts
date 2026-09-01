@@ -5,7 +5,6 @@ import {
   date,
   index,
   integer,
-  pgEnum,
   pgTable,
   text,
   timestamp,
@@ -42,20 +41,6 @@ import { softDeleteColumns } from "@/core/db/schema/_shared";
  *
  * Part of the schema split (delta D-09) — see `./index.ts`.
  */
-
-/** Appointment lifecycle. */
-export const appointmentStatus = pgEnum("appointment_status", [
-  "scheduled",
-  "confirmed",
-  // Live-queue states between confirmed and completed: `arrived` = checked in and
-  // waiting in the room; `in_progress` = called in / with the doctor now (the real
-  // "now serving"). See core/appointments/status.ts.
-  "arrived",
-  "in_progress",
-  "completed",
-  "cancelled",
-  "no_show",
-]);
 
 /**
  * Appointments — shared. `module` tags which specialty the appointment is for
@@ -220,16 +205,6 @@ export const appointments = pgTable(
     ),
   ],
 );
-
-/** Recall lifecycle — the recall engine reads and advances these. */
-export const recallStatus = pgEnum("recall_status", [
-  "pending",
-  "scheduled",
-  "sent",
-  "booked",
-  "completed",
-  "cancelled",
-]);
 
 /**
  * Recalls — shared. The recall engine (core) reads these, applies each module's

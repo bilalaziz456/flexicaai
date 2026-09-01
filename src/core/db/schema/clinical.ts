@@ -4,7 +4,6 @@ import {
   index,
   integer,
   jsonb,
-  pgEnum,
   pgTable,
   text,
   timestamp,
@@ -32,24 +31,6 @@ import {
  *
  * Part of the schema split (delta D-09) — see `./index.ts`.
  */
-
-/** AI notes are DRAFT until a doctor approves them (CLAUDE.md §8). */
-/**
- * `transcribing` and `failed` are the two states a scribe run passes through before it
- * becomes a draft (delta D-08 / ADR-020). They are STATUSES rather than a separate
- * table because a scribe run IS a visit from the moment the audio is stored — it has
- * the patient, the doctor and the recording; only the note is missing.
- *
- * Every existing read filters `= 'draft'` or `= 'approved'`, so both new states are
- * excluded from clinical surfaces by construction — an in-flight or failed run can
- * never be mistaken for a record. The scribe workspace opts INTO them explicitly.
- */
-export const visitStatus = pgEnum("visit_status", [
-  "transcribing",
-  "draft",
-  "approved",
-  "failed",
-]);
 
 /**
  * Visits — shared; stores the generated note. `module` tags specialty. The
