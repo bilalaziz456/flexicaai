@@ -182,3 +182,33 @@ export const whatsappDirections = pgTable("whatsapp_directions", { ...vocabulary
 
 /** `whatsapp_messages.status` — the provider's delivery receipt states. */
 export const whatsappStatuses = pgTable("whatsapp_statuses", { ...vocabularyColumns() });
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The remaining free-text vocabularies (migration `0092`). These had NO guard at
+ * all — no enum, no CHECK — so here the FK is genuine new integrity.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** `clinics.status` — the subscription lifecycle. */
+export const clinicStatuses = pgTable("clinic_statuses", { ...vocabularyColumns() });
+/** `clinics.billing_cycle`. */
+export const billingCycles = pgTable("billing_cycles", { ...vocabularyColumns() });
+/** `clinics.invoice_paper`. */
+export const invoicePapers = pgTable("invoice_papers", { ...vocabularyColumns() });
+/** `treatment_plans.status`. */
+export const treatmentPlanStatuses = pgTable("treatment_plan_statuses", { ...vocabularyColumns() });
+/** `treatment_plan_items.status`. */
+export const treatmentItemStatuses = pgTable("treatment_item_statuses", { ...vocabularyColumns() });
+/** `clinical_attachments.kind`. */
+export const attachmentKinds = pgTable("attachment_kinds", { ...vocabularyColumns() });
+/** `import_batches.status`. */
+export const importBatchStatuses = pgTable("import_batch_statuses", { ...vocabularyColumns() });
+/** `announcements.level`. */
+export const announcementLevels = pgTable("announcement_levels", { ...vocabularyColumns() });
+/** `ai_usage.provider` — NOT `.model`, which stays an open vocabulary. */
+export const aiProviders = pgTable("ai_providers", { ...vocabularyColumns() });
+/** `platform_cost_rates.tax_mode`. */
+export const taxModes = pgTable("tax_modes", { ...vocabularyColumns() });
+/** `expenses.recurrence` and `company_expenses.recurrence`. */
+export const recurrences = pgTable("recurrences", { ...vocabularyColumns() });
+/** `appointments.source`. */
+export const appointmentSources = pgTable("appointment_sources", { ...vocabularyColumns() });

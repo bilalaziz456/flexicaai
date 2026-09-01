@@ -738,6 +738,27 @@ as DATA whether or not anything rendered it. An e2e assertion that a control is 
 must look for the control, not for a status word (one such assertion broke exactly this
 way and was narrowed to the button's own text).
 
+**Finished 2026-09-02 (migration `0092`) — no closed vocabulary is loose text any more.**
+Twenty-eight tables covering thirty-six columns. The last twelve were the free-text
+ones: clinic status and billing cycle, invoice paper, the two treatment-plan statuses,
+attachment kind, import-batch status, announcement level, AI provider, tax mode,
+recurrence, and appointment source.
+
+**The FK earns the most here and mattered least.** These had NO guard — no enum, no
+CHECK, nothing — so unlike the enum set this is genuine new integrity; and unlike the
+money-path set a bad value's worst case was a wrong badge or paper size rather than a
+wrong figure, which is why they were done last. That ordering — worst consequence
+first — is the rule to reuse.
+
+**A trap that cost a build, worth carrying forward: "has no `use client` directive" is
+NOT the same as "is a server component."** `status-badge.tsx` had no directive, so it
+looked like a server component and was given the server-only cache — but two of its
+three consumers are client components, which put it in a client tree and dragged the
+pg pool toward the browser bundle. The build caught it; nothing else would have. When
+deciding server-cache vs client-hook, look at who IMPORTS the file, not at its first
+line. A component rendered from both trees must be a client component and use the hook,
+which works in both.
+
 **What this does NOT extend to.** Open vocabularies stay open: `module` above all — a
 table of specialties would put a specialty name in core and break ADR-001 — plus
 `activity_logs.action`/`entity`, `notifications.type`, `imported_transactions.type`

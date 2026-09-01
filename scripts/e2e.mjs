@@ -505,7 +505,7 @@ async function run() {
     const before = await req("/api/patients/export", { cookie: S.adminA });
     record("active clinic can export patients → 200", before.status === 200, `status=${before.status}`);
 
-    await pool.query("update clinics set status='suspended' where id=$1", [ids.clinics[0]]);
+    await pool.query("update clinics set status=3 /* suspended */ where id=$1", [ids.clinics[0]]);
     const paused = await req("/api/patients/export", { cookie: S.adminA });
     record("SUSPENDED clinic is refused the patients CSV → 403", paused.status === 403, `status=${paused.status}`);
     const pausedAppts = await req("/api/appointments/export", { cookie: S.adminA });
@@ -513,7 +513,7 @@ async function run() {
     const pausedScribe = await req("/api/ai/scribe", { cookie: S.adminA, method: "POST", body: mkForm(ids.patients[0]) });
     record("SUSPENDED clinic can't reach the PAID AI scribe → 403", pausedScribe.status === 403, `status=${pausedScribe.status}`);
 
-    await pool.query("update clinics set status='active' where id=$1", [ids.clinics[0]]);
+    await pool.query("update clinics set status=2 /* active */ where id=$1", [ids.clinics[0]]);
     const after = await req("/api/patients/export", { cookie: S.adminA });
     record("restoring the clinic restores API access → 200", after.status === 200, `status=${after.status}`);
   }

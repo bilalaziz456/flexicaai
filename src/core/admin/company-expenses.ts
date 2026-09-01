@@ -6,7 +6,7 @@ import { notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, restoreValues, softDeleteValues } from "@/core/db/soft-delete";
 import { companyExpenseCategories, companyExpenses } from "@/core/db/schema";
 import { nextRunFrom, normalizeRecurrence } from "@/core/expenses/recurring";
-import type { PaymentMethodCode } from "@/core/db/vocabulary-seed";
+import type { PaymentMethodCode, RecurrenceCode } from "@/core/db/vocabulary-seed";
 import {
   bucketLabel,
   nextBucket,
@@ -142,7 +142,7 @@ export type RecurringExpense = {
   method: PaymentMethodCode | null;
   reference: string | null;
   note: string | null;
-  recurrence: string | null;
+  recurrence: RecurrenceCode | null;
   nextRunOn: string | null;
 };
 
@@ -229,10 +229,10 @@ export type CompanyExpenseInput = {
   reference: string | null;
   note: string | null;
   recurring: boolean;
-  recurrence?: string | null;
+  recurrence?: RecurrenceCode | null;
 };
 
-function recurrenceFields(input: CompanyExpenseInput): { recurrence: string | null; nextRunOn: string | null } {
+function recurrenceFields(input: CompanyExpenseInput): { recurrence: RecurrenceCode | null; nextRunOn: string | null } {
   if (!input.recurring) return { recurrence: null, nextRunOn: null };
   const recurrence = normalizeRecurrence(input.recurrence);
   return { recurrence, nextRunOn: nextRunFrom(input.incurredOn, recurrence) };

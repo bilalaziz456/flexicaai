@@ -360,10 +360,7 @@ const ENUM_VOCABULARY_SEED: Record<string, readonly VocabularyRow[]> = {
  * runtime cache and the consistency test all walk this one list, so a vocabulary added
  * to the codebase but forgotten in one of the three is impossible.
  */
-export const ALL_VOCABULARY_SEED: Record<string, readonly VocabularyRow[]> = {
-  ...VOCABULARY_SEED,
-  ...ENUM_VOCABULARY_SEED,
-};
+
 
 /** Typed id lookups for the enum-backed vocabularies (migration `0090`). */
 export const appointmentStatusId = (c: AppointmentStatusCode) => idOf(APPOINTMENT_STATUS_ROWS, c);
@@ -373,3 +370,151 @@ export const userRoleId = (c: UserRoleCode) => idOf(USER_ROLE_ROWS, c);
 export const themePreferenceId = (c: ThemePreferenceCode) => idOf(THEME_PREFERENCE_ROWS, c);
 export const whatsappDirectionId = (c: WhatsappDirectionCode) => idOf(WHATSAPP_DIRECTION_ROWS, c);
 export const whatsappStatusId = (c: WhatsappStatusCode) => idOf(WHATSAPP_STATUS_ROWS, c);
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The remaining free-text vocabularies (migration `0092`).
+ *
+ * These had NOTHING guarding them — no enum, no CHECK, no FK — so unlike the enum set
+ * the FK is real integrity here; and unlike the money-path set a bad value's worst
+ * case was cosmetic rather than a wrong figure, which is why they came last.
+ *
+ * `appointments.source` is included because it does drive behaviour: `whatsapp` marks
+ * a patient self-booking that stays a request until staff confirm it.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** `clinics.status` — the subscription lifecycle. */
+export const CLINIC_STATUS_ROWS = [
+  { id: 1, code: "trial", label: "Trial", sortOrder: 1 },
+  { id: 2, code: "active", label: "Active", sortOrder: 2 },
+  { id: 3, code: "suspended", label: "Suspended", sortOrder: 3 },
+  { id: 4, code: "past_due", label: "Past due", sortOrder: 4 },
+  { id: 5, code: "cancelled", label: "Cancelled", sortOrder: 5 },
+] as const satisfies readonly VocabularyRow[];
+
+/** `clinics.billing_cycle` — the subscription package. */
+export const BILLING_CYCLE_ROWS = [
+  { id: 1, code: "monthly", label: "Monthly", sortOrder: 1 },
+  { id: 2, code: "2m", label: "2-monthly", sortOrder: 2 },
+  { id: 3, code: "quarter", label: "Quarterly", sortOrder: 3 },
+  { id: 4, code: "half", label: "Half-yearly", sortOrder: 4 },
+  { id: 5, code: "annual", label: "Annual", sortOrder: 5 },
+] as const satisfies readonly VocabularyRow[];
+
+/** `clinics.invoice_paper` — the default print size. */
+export const INVOICE_PAPER_ROWS = [
+  { id: 1, code: "thermal", label: "Thermal", sortOrder: 1 },
+  { id: 2, code: "a5", label: "A5", sortOrder: 2 },
+  { id: 3, code: "a4", label: "A4", sortOrder: 3 },
+] as const satisfies readonly VocabularyRow[];
+
+/** `treatment_plans.status`. */
+export const TREATMENT_PLAN_STATUS_ROWS = [
+  { id: 1, code: "proposed", label: "Proposed", sortOrder: 1 },
+  { id: 2, code: "active", label: "Active", sortOrder: 2 },
+  { id: 3, code: "completed", label: "Completed", sortOrder: 3 },
+  { id: 4, code: "cancelled", label: "Cancelled", sortOrder: 4 },
+] as const satisfies readonly VocabularyRow[];
+
+/** `treatment_plan_items.status`. */
+export const TREATMENT_ITEM_STATUS_ROWS = [
+  { id: 1, code: "planned", label: "Planned", sortOrder: 1 },
+  { id: 2, code: "in_progress", label: "In progress", sortOrder: 2 },
+  { id: 3, code: "done", label: "Done", sortOrder: 3 },
+  { id: 4, code: "cancelled", label: "Cancelled", sortOrder: 4 },
+] as const satisfies readonly VocabularyRow[];
+
+/** `clinical_attachments.kind`. Photo consent gates `photo` server-side. */
+export const ATTACHMENT_KIND_ROWS = [
+  { id: 1, code: "xray", label: "X-ray", sortOrder: 1 },
+  { id: 2, code: "photo", label: "Photo", sortOrder: 2 },
+  { id: 3, code: "document", label: "Document", sortOrder: 3 },
+  { id: 4, code: "consent", label: "Consent", sortOrder: 4 },
+] as const satisfies readonly VocabularyRow[];
+
+/** `import_batches.status`. */
+export const IMPORT_BATCH_STATUS_ROWS = [
+  { id: 1, code: "active", label: "Active", sortOrder: 1 },
+  { id: 2, code: "undone", label: "Undone", sortOrder: 2 },
+] as const satisfies readonly VocabularyRow[];
+
+/** `announcements.level`. */
+export const ANNOUNCEMENT_LEVEL_ROWS = [
+  { id: 1, code: "info", label: "Info", sortOrder: 1 },
+  { id: 2, code: "warning", label: "Warning", sortOrder: 2 },
+] as const satisfies readonly VocabularyRow[];
+
+/** `ai_usage.provider`. NOT `ai_usage.model`, which is an open vocabulary. */
+export const AI_PROVIDER_ROWS = [
+  { id: 1, code: "whisper", label: "Whisper", sortOrder: 1 },
+  { id: 2, code: "claude", label: "Claude", sortOrder: 2 },
+] as const satisfies readonly VocabularyRow[];
+
+/** `platform_cost_rates.tax_mode`. */
+export const TAX_MODE_ROWS = [
+  { id: 1, code: "itemized", label: "Itemised", sortOrder: 1 },
+  { id: 2, code: "total", label: "Single total", sortOrder: 2 },
+] as const satisfies readonly VocabularyRow[];
+
+/** `expenses.recurrence` and `company_expenses.recurrence` — both nullable. */
+export const RECURRENCE_ROWS = [
+  { id: 1, code: "monthly", label: "Monthly", sortOrder: 1 },
+  { id: 2, code: "weekly", label: "Weekly", sortOrder: 2 },
+] as const satisfies readonly VocabularyRow[];
+
+/** `appointments.source`. */
+export const APPOINTMENT_SOURCE_ROWS = [
+  { id: 1, code: "staff", label: "Staff", sortOrder: 1 },
+  { id: 2, code: "whatsapp", label: "WhatsApp", sortOrder: 2 },
+] as const satisfies readonly VocabularyRow[];
+
+export type ClinicStatusCode = (typeof CLINIC_STATUS_ROWS)[number]["code"];
+export type BillingCycleCode = (typeof BILLING_CYCLE_ROWS)[number]["code"];
+export type InvoicePaperCode = (typeof INVOICE_PAPER_ROWS)[number]["code"];
+export type TreatmentPlanStatusCode = (typeof TREATMENT_PLAN_STATUS_ROWS)[number]["code"];
+export type TreatmentItemStatusCode = (typeof TREATMENT_ITEM_STATUS_ROWS)[number]["code"];
+export type AttachmentKindCode = (typeof ATTACHMENT_KIND_ROWS)[number]["code"];
+export type ImportBatchStatusCode = (typeof IMPORT_BATCH_STATUS_ROWS)[number]["code"];
+export type AnnouncementLevelCode = (typeof ANNOUNCEMENT_LEVEL_ROWS)[number]["code"];
+export type AiProviderCode = (typeof AI_PROVIDER_ROWS)[number]["code"];
+export type TaxModeCode = (typeof TAX_MODE_ROWS)[number]["code"];
+export type RecurrenceCode = (typeof RECURRENCE_ROWS)[number]["code"];
+export type AppointmentSourceCode = (typeof APPOINTMENT_SOURCE_ROWS)[number]["code"];
+
+export const clinicStatusId = (c: ClinicStatusCode) => idOf(CLINIC_STATUS_ROWS, c);
+export const billingCycleId = (c: BillingCycleCode) => idOf(BILLING_CYCLE_ROWS, c);
+export const invoicePaperId = (c: InvoicePaperCode) => idOf(INVOICE_PAPER_ROWS, c);
+export const treatmentPlanStatusId = (c: TreatmentPlanStatusCode) => idOf(TREATMENT_PLAN_STATUS_ROWS, c);
+export const treatmentItemStatusId = (c: TreatmentItemStatusCode) => idOf(TREATMENT_ITEM_STATUS_ROWS, c);
+export const attachmentKindId = (c: AttachmentKindCode) => idOf(ATTACHMENT_KIND_ROWS, c);
+export const importBatchStatusId = (c: ImportBatchStatusCode) => idOf(IMPORT_BATCH_STATUS_ROWS, c);
+export const announcementLevelId = (c: AnnouncementLevelCode) => idOf(ANNOUNCEMENT_LEVEL_ROWS, c);
+export const aiProviderId = (c: AiProviderCode) => idOf(AI_PROVIDER_ROWS, c);
+export const taxModeId = (c: TaxModeCode) => idOf(TAX_MODE_ROWS, c);
+export const recurrenceId = (c: RecurrenceCode) => idOf(RECURRENCE_ROWS, c);
+export const appointmentSourceId = (c: AppointmentSourceCode) => idOf(APPOINTMENT_SOURCE_ROWS, c);
+
+const FREE_TEXT_VOCABULARY_SEED: Record<string, readonly VocabularyRow[]> = {
+  clinic_statuses: CLINIC_STATUS_ROWS,
+  billing_cycles: BILLING_CYCLE_ROWS,
+  invoice_papers: INVOICE_PAPER_ROWS,
+  treatment_plan_statuses: TREATMENT_PLAN_STATUS_ROWS,
+  treatment_item_statuses: TREATMENT_ITEM_STATUS_ROWS,
+  attachment_kinds: ATTACHMENT_KIND_ROWS,
+  import_batch_statuses: IMPORT_BATCH_STATUS_ROWS,
+  announcement_levels: ANNOUNCEMENT_LEVEL_ROWS,
+  ai_providers: AI_PROVIDER_ROWS,
+  tax_modes: TAX_MODE_ROWS,
+  recurrences: RECURRENCE_ROWS,
+  appointment_sources: APPOINTMENT_SOURCE_ROWS,
+};
+
+/**
+ * EVERY vocabulary table. The seed, the runtime cache and the consistency test all
+ * walk this one list, so a vocabulary added to the codebase but forgotten in one of
+ * the three is impossible.
+ */
+export const ALL_VOCABULARY_SEED: Record<string, readonly VocabularyRow[]> = {
+  ...VOCABULARY_SEED,
+  ...ENUM_VOCABULARY_SEED,
+  ...FREE_TEXT_VOCABULARY_SEED,
+};

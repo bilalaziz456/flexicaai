@@ -18,6 +18,13 @@ import {
   updatePlanItem,
 } from "@/core/patients/treatment-plans";
 import { logActivity } from "@/core/audit/log";
+import {
+  asCode,
+  TREATMENT_ITEM_STATUS_ROWS,
+  TREATMENT_PLAN_STATUS_ROWS,
+  type TreatmentItemStatusCode,
+  type TreatmentPlanStatusCode,
+} from "@/core/db/vocabulary-seed";
 
 type State = { ok?: true; error?: string };
 const actorOf = (u: CurrentUser) => ({ id: u.id, name: displayStaffName(u.prefix, u.fullName, u.username) });
@@ -76,7 +83,7 @@ export async function updatePlanItemAction(
 ): Promise<State> {
   const g = await guard("edit");
   if ("error" in g) return g;
-  await updatePlanItem(g.clinicId, itemId, patch);
+  await updatePlanItem(g.clinicId, itemId, { ...patch, status: asCode<TreatmentItemStatusCode>(TREATMENT_ITEM_STATUS_ROWS, patch.status) });
   return done(patientId);
 }
 
@@ -90,7 +97,9 @@ export async function deletePlanItemAction(itemId: string, patientId: string): P
 export async function setPlanStatusAction(planId: string, patientId: string, status: string): Promise<State> {
   const g = await guard("edit");
   if ("error" in g) return g;
-  await setPlanStatus(g.clinicId, planId, status);
+  const code = asCode<TreatmentPlanStatusCode>(TREATMENT_PLAN_STATUS_ROWS, status);
+  if (!code) return { error: "Unknown status." };
+  await setPlanStatus(g.clinicId, planId, code);
   return done(patientId);
 }
 

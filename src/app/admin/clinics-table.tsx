@@ -5,9 +5,9 @@ import { Building2, ChevronRight } from "lucide-react";
 import { DataTable, type Column } from "@/core/ui/data-table";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
-import { billingCycleLabel } from "@/core/clinics/status";
 import { ClinicStatusBadge } from "./clinics/status-badge";
 import { cn } from "@/core/lib/utils";
+import { labelFrom, useVocabulary } from "@/core/ui/vocabulary-provider";
 
 const fmtDate = (d: Date | null) =>
   d ? d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
@@ -34,11 +34,14 @@ export type ClinicRow = {
  * First payment) render only for billing viewers.
  */
 export function ClinicsTable({ rows, showBilling, empty }: { rows: ClinicRow[]; showBilling: boolean; empty: string }) {
+  // Billing-cycle labels come from the database (ADR-027); read once, since a hook
+  // cannot run inside a cell callback.
+  const cycles = useVocabulary("billing_cycles");
   const columns: Column<ClinicRow>[] = [
     { id: "name", header: "Clinic", cardTitle: true, sortValue: (r) => r.name.toLowerCase(), cell: (r) => <span className="font-medium">{r.name}</span> },
     { id: "status", header: "Status", sortValue: (r) => r.status, cell: (r) => <ClinicStatusBadge status={r.status} /> },
     ...(showBilling
-      ? [{ id: "package", header: "Package", sortValue: (r: ClinicRow) => r.billingCycle, cell: (r: ClinicRow) => <span className="whitespace-nowrap text-sm">{billingCycleLabel(r.billingCycle)}</span> } as Column<ClinicRow>]
+      ? [{ id: "package", header: "Package", sortValue: (r: ClinicRow) => r.billingCycle, cell: (r: ClinicRow) => <span className="whitespace-nowrap text-sm">{labelFrom(cycles, r.billingCycle)}</span> } as Column<ClinicRow>]
       : []),
     { id: "trial", header: "Trial start", sortValue: (r) => t(r.trialStartAt), cell: (r) => <span className="whitespace-nowrap text-sm text-muted-foreground">{fmtDate(r.trialStartAt)}</span> },
     { id: "active", header: "Active start", sortValue: (r) => t(r.activatedAt), cell: (r) => <span className="whitespace-nowrap text-sm text-muted-foreground">{fmtDate(r.activatedAt)}</span> },

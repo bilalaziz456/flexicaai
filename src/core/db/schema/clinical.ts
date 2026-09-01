@@ -18,10 +18,19 @@ import { softDeleteColumns } from "@/core/db/schema/_shared";
 import {
   VISIT_STATUS_ROWS,
   type VisitStatusCode,
+  TREATMENT_PLAN_STATUS_ROWS,
+  TREATMENT_ITEM_STATUS_ROWS,
+  ATTACHMENT_KIND_ROWS,
+  type TreatmentPlanStatusCode,
+  type TreatmentItemStatusCode,
+  type AttachmentKindCode,
 } from "@/core/db/vocabulary-seed";
 import {
   visitStatuses,
   vocabularyRef,
+  treatmentPlanStatuses,
+  treatmentItemStatuses,
+  attachmentKinds,
 } from "@/core/db/schema/vocabulary";
 
 /**
@@ -158,7 +167,9 @@ export const clinicalAttachments = pgTable(
       .notNull()
       .references(() => patients.id, { onDelete: "cascade" }),
     visitId: uuid("visit_id").references(() => visits.id, { onDelete: "set null" }),
-    kind: text("kind").notNull(), // xray | photo | document | consent
+    kind: vocabularyRef<AttachmentKindCode>(ATTACHMENT_KIND_ROWS, "kind")
+      .notNull()
+      .references(() => attachmentKinds.id),
     storageKey: text("storage_key").notNull(),
     /**
      * A small JPEG copy for the gallery grid. NULL is normal and permanent for
@@ -206,7 +217,10 @@ export const treatmentPlans = pgTable(
       .references(() => patients.id, { onDelete: "cascade" }),
     module: text("module").notNull().default(""),
     title: text("title").notNull(),
-    status: text("status").notNull().default("proposed"), // proposed|active|completed|cancelled
+    status: vocabularyRef<TreatmentPlanStatusCode>(TREATMENT_PLAN_STATUS_ROWS, "status")
+      .notNull()
+      .default("proposed")
+      .references(() => treatmentPlanStatuses.id),
     note: text("note"),
     createdBy: uuid("created_by"),
     createdByName: text("created_by_name"),
@@ -244,7 +258,10 @@ export const treatmentPlanItems = pgTable(
     unitPrice: integer("unit_price").notNull().default(0), // snapshot, PKR
     tooth: text("tooth"), // FDI, nullable
     quantity: integer("quantity").notNull().default(1),
-    status: text("status").notNull().default("planned"), // planned|in_progress|done|cancelled
+    status: vocabularyRef<TreatmentItemStatusCode>(TREATMENT_ITEM_STATUS_ROWS, "status")
+      .notNull()
+      .default("planned")
+      .references(() => treatmentItemStatuses.id),
     appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: "set null" }),
     sort: integer("sort").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -60,8 +60,9 @@
 ## 2. Vocabularies
 
 **There are no Postgres enums.** Every closed vocabulary is a REFERENCE TABLE and the
-column carrying it is an `integer` foreign key (ADR-027, migrations `0087`–`0091`).
-Sixteen tables, all `(id, code, label, sort_order, is_active)`, company-global — no
+column carrying it is an `integer` foreign key (ADR-027, migrations `0087`–`0092`).
+Twenty-eight tables covering thirty-six columns, all `(id, code, label, sort_order,
+is_active)`, company-global — no
 `clinic_id`, so the tenant guard ignores them and a clinic cannot invent its own.
 
 | Table | Codes | Column(s) it backs |
@@ -82,6 +83,18 @@ Sixteen tables, all `(id, code, label, sort_order, is_active)`, company-global �
 | `discount_statuses` | none, pending, approved, rejected | `appointments.discount_status` |
 | `discount_types` | amount, percent | the three `discount_type` / `discount_split_type` columns |
 | `discount_bearers` | clinic, doctor, split | `appointments.discount_borne_by` |
+| `clinic_statuses` | trial, active, suspended, past_due, cancelled | `clinics.status` |
+| `billing_cycles` | monthly, 2m, quarter, half, annual | `clinics.billing_cycle` |
+| `invoice_papers` | thermal, a5, a4 | `clinics.invoice_paper` |
+| `treatment_plan_statuses` | proposed, active, completed, cancelled | `treatment_plans.status` |
+| `treatment_item_statuses` | planned, in_progress, done, cancelled | `treatment_plan_items.status` |
+| `attachment_kinds` | xray, photo, document, consent | `clinical_attachments.kind` |
+| `import_batch_statuses` | active, undone | `import_batches.status` |
+| `announcement_levels` | info, warning | `announcements.level` |
+| `ai_providers` | whisper, claude | `ai_usage.provider` (NOT `.model`) |
+| `tax_modes` | itemized, total | `platform_cost_rates.tax_mode` |
+| `recurrences` | monthly, weekly | `expenses.recurrence`, `company_expenses.recurrence` |
+| `appointment_sources` | staff, whatsapp | `appointments.source` |
 
 **Three things to know before touching these.**
 
@@ -845,6 +858,18 @@ these for churn-risk + usage/cost anomaly flags.
   the point of no easy return for `0090`** — recreating a type is trivial, but the data
   would have to be mapped back from ids, which is why `0090` deliberately left them
   standing until the conversion had been exercised.
+- Migration **`0092`** converts the last twelve free-text vocabularies — `clinic_statuses`,
+  `billing_cycles`, `invoice_papers`, `treatment_plan_statuses`, `treatment_item_statuses`,
+  `attachment_kinds`, `import_batch_statuses`, `announcement_levels`, `ai_providers`,
+  `tax_modes`, `recurrences`, `appointment_sources` — covering thirteen columns
+  (`recurrences` backs both `expenses.recurrence` and `company_expenses.recurrence`).
+  **Here the FK is genuine NEW integrity:** these had no enum, no CHECK, nothing. They
+  came last because a bad value's worst case was a wrong badge or paper size rather
+  than a wrong money figure. `appointments.source` is included because it drives
+  behaviour — `whatsapp` marks a self-booking that stays a request until staff confirm.
+  Both `recurrence` columns and `ai_usage.provider` keep their nullability.
+  **Sixteen columns are now covered by `scripts/test-vocabulary-tables.ts` — thirty-six
+  in total across `0087`/`0090`/`0092`**, each asserted to carry its FK in `pg_constraint`.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

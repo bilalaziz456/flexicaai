@@ -3,6 +3,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
+import type { InvoicePaperCode } from "@/core/db/vocabulary-seed";
 
 /**
  * Clinic-owned settings a clinic admin changes about THEIR OWN clinic — CORE per
@@ -13,7 +14,7 @@ import { clinics } from "@/core/db/schema";
  * Takes `clinicId` first and filters on it, so a caller cannot write to another
  * tenant's row even by mistake.
  */
-export async function setInvoicePaper(clinicId: string, paper: string): Promise<void> {
+export async function setInvoicePaper(clinicId: string, paper: InvoicePaperCode): Promise<void> {
   await db
     .update(clinics)
     .set({ invoicePaper: paper, updatedAt: new Date() })

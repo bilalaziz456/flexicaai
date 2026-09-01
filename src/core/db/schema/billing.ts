@@ -28,6 +28,8 @@ import {
   type SettlementPartyCode,
   type ApprovalStatusCode,
   type DiscountTypeCode,
+  RECURRENCE_ROWS,
+  type RecurrenceCode,
 } from "@/core/db/vocabulary-seed";
 import {
   approvalStatuses,
@@ -37,6 +39,7 @@ import {
   settlementKinds,
   settlementParties,
   vocabularyRef,
+  recurrences,
 } from "@/core/db/schema/vocabulary";
 import { softDeleteColumns } from "@/core/db/schema/_shared";
 
@@ -567,7 +570,9 @@ export const expenses = pgTable(
     // When `recurring`, the repeat interval ('monthly' | 'weekly') and the next date
     // the cron should materialise a fresh (non-recurring) copy of this expense.
     // NULL on a one-off expense and on a generated copy. See core/expenses/recurring.ts.
-    recurrence: text("recurrence"),
+    recurrence: vocabularyRef<RecurrenceCode>(RECURRENCE_ROWS, "recurrence").references(
+      () => recurrences.id,
+    ),
     nextRunOn: date("next_run_on"),
     createdBy: uuid("created_by"),
     createdByName: text("created_by_name"),

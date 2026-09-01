@@ -2,7 +2,7 @@ import { clinicListWhere, listClinicsPage } from "@/core/clinics/options";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { SPECIALTY_CATALOG } from "@/config/modules";
-import { CLINIC_STATUSES, CLINIC_STATUS_LABEL, isClinicStatus } from "@/core/clinics/status";
+import { CLINIC_STATUSES, isClinicStatus } from "@/core/clinics/status";
 import { requireRole } from "@/core/auth/user";
 import { canAdmin, canManageTeam, canSeeBilling } from "@/core/auth/admin-permissions";
 import { getFirstPaymentDates, listDueClinics } from "@/core/admin/billing";
@@ -16,6 +16,7 @@ import { cn } from "@/core/lib/utils";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { Pagination } from "@/core/ui/pagination";
 import { FlashToast } from "@/core/ui/toast";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 const SPECIALTY_NAME = new Map(SPECIALTY_CATALOG.map((s) => [s.id, s.name]));
 
@@ -213,7 +214,7 @@ export default async function AdminHome({
         assigned={assignedFilter ?? ""}
         statusOptions={[
           { value: "", label: "All statuses" },
-          ...CLINIC_STATUSES.map((s) => ({ value: s, label: CLINIC_STATUS_LABEL[s] })),
+          ...CLINIC_STATUSES.map((s) => ({ value: s, label: vocabularyLabel("clinic_statuses", s) })),
         ]}
         showBilling={showBilling}
         showManager={seesAll}

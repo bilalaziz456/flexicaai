@@ -62,6 +62,28 @@ const COLUMNS: [string, string, string][] = [
   ["appointments", "discount_split_type_id", "discount_types"],
   ["appointments", "discount_borne_by_id", "discount_bearers"],
   ["appointments", "discount_status_id", "discount_statuses"],
+  // Enum-backed (migration 0090) — the column keeps its plain name.
+  ["appointments", "status", "appointment_statuses"],
+  ["visits", "status", "visit_statuses"],
+  ["recalls", "status", "recall_statuses"],
+  ["users", "role", "user_roles"],
+  ["users", "theme", "theme_preferences"],
+  ["whatsapp_messages", "direction", "whatsapp_directions"],
+  ["whatsapp_messages", "status", "whatsapp_statuses"],
+  // Formerly free text with no guard at all (migration 0092).
+  ["clinics", "status", "clinic_statuses"],
+  ["clinics", "billing_cycle", "billing_cycles"],
+  ["clinics", "invoice_paper", "invoice_papers"],
+  ["treatment_plans", "status", "treatment_plan_statuses"],
+  ["treatment_plan_items", "status", "treatment_item_statuses"],
+  ["clinical_attachments", "kind", "attachment_kinds"],
+  ["import_batches", "status", "import_batch_statuses"],
+  ["announcements", "level", "announcement_levels"],
+  ["ai_usage", "provider", "ai_providers"],
+  ["platform_cost_rates", "tax_mode", "tax_modes"],
+  ["expenses", "recurrence", "recurrences"],
+  ["company_expenses", "recurrence", "recurrences"],
+  ["appointments", "source", "appointment_sources"],
 ];
 
 async function main() {

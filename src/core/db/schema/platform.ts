@@ -19,11 +19,26 @@ import {
   PAYMENT_METHOD_ROWS,
   type ClinicPaymentKindCode,
   type PaymentMethodCode,
+  IMPORT_BATCH_STATUS_ROWS,
+  ANNOUNCEMENT_LEVEL_ROWS,
+  AI_PROVIDER_ROWS,
+  TAX_MODE_ROWS,
+  RECURRENCE_ROWS,
+  type ImportBatchStatusCode,
+  type AnnouncementLevelCode,
+  type AiProviderCode,
+  type TaxModeCode,
+  type RecurrenceCode,
 } from "@/core/db/vocabulary-seed";
 import {
   clinicPaymentKinds,
   paymentMethods,
   vocabularyRef,
+  importBatchStatuses,
+  announcementLevels,
+  aiProviders,
+  taxModes,
+  recurrences,
 } from "@/core/db/schema/vocabulary";
 import { softDeleteColumns } from "@/core/db/schema/_shared";
 
@@ -51,7 +66,10 @@ export const importBatches = pgTable(
     filename: text("filename"),
     // {imported, skipped, warnings, ...} snapshot for the summary.
     counts: jsonb("counts").$type<Record<string, number>>().notNull().default({}),
-    status: text("status").notNull().default("active"), // active | undone
+    status: vocabularyRef<ImportBatchStatusCode>(IMPORT_BATCH_STATUS_ROWS, "status")
+      .notNull()
+      .default("active")
+      .references(() => importBatchStatuses.id),
     createdBy: uuid("created_by"),
     createdByName: text("created_by_name"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -208,7 +226,10 @@ export const platformCostRates = pgTable(
     // extra). Applied as a % MARKUP on the PKR serving cost at report time (ai_usage
     // stays the raw provider cost). Two modes so the owner can either itemise or enter a
     // single figure; all default 0 → no markup until configured. See core/admin/cost.ts.
-    taxMode: text("tax_mode").notNull().default("itemized"), // 'itemized' | 'total'
+    taxMode: vocabularyRef<TaxModeCode>(TAX_MODE_ROWS, "tax_mode")
+      .notNull()
+      .default("itemized")
+      .references(() => taxModes.id),
     foreignTxnFeePct: numeric("foreign_txn_fee_pct", { precision: 12, scale: 4 }).notNull().default("0"),
     fedPct: numeric("fed_pct", { precision: 12, scale: 4 }).notNull().default("0"),
     advanceTaxPct: numeric("advance_tax_pct", { precision: 12, scale: 4 }).notNull().default("0"),
@@ -238,7 +259,9 @@ export const aiUsage = pgTable(
       .notNull()
       .references(() => clinics.id, { onDelete: "cascade" }),
     visitId: uuid("visit_id").references(() => visits.id, { onDelete: "set null" }),
-    provider: text("provider").notNull(), // 'whisper' | 'claude'
+    provider: vocabularyRef<AiProviderCode>(AI_PROVIDER_ROWS, "provider")
+      .notNull()
+      .references(() => aiProviders.id),
     model: text("model"),
     audioSeconds: integer("audio_seconds").notNull().default(0),
     inputTokens: integer("input_tokens").notNull().default(0),
@@ -290,7 +313,9 @@ export const companyExpenses = pgTable(
     reference: text("reference"),
     note: text("note"),
     recurring: boolean("recurring").notNull().default(false),
-    recurrence: text("recurrence"), // 'monthly' | 'weekly' when recurring
+    recurrence: vocabularyRef<RecurrenceCode>(RECURRENCE_ROWS, "recurrence").references(
+      () => recurrences.id,
+    ),
     nextRunOn: date("next_run_on"),
     createdBy: uuid("created_by"),
     createdByName: text("created_by_name"),
@@ -438,7 +463,10 @@ export const announcements = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     clinicId: uuid("clinic_id").references(() => clinics.id, { onDelete: "cascade" }), // NULL = all
-    level: text("level").notNull().default("info"), // info | warning
+    level: vocabularyRef<AnnouncementLevelCode>(ANNOUNCEMENT_LEVEL_ROWS, "level")
+      .notNull()
+      .default("info")
+      .references(() => announcementLevels.id),
     title: text("title").notNull(),
     body: text("body").notNull(),
     active: boolean("active").notNull().default(true),

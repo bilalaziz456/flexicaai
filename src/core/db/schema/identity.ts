@@ -19,11 +19,20 @@ import {
   THEME_PREFERENCE_ROWS,
   type UserRoleCode,
   type ThemePreferenceCode,
+  CLINIC_STATUS_ROWS,
+  BILLING_CYCLE_ROWS,
+  INVOICE_PAPER_ROWS,
+  type ClinicStatusCode,
+  type BillingCycleCode,
+  type InvoicePaperCode,
 } from "@/core/db/vocabulary-seed";
 import {
   userRoles,
   themePreferences,
   vocabularyRef,
+  clinicStatuses,
+  billingCycles,
+  invoicePapers,
 } from "@/core/db/schema/vocabulary";
 
 /**
@@ -72,7 +81,10 @@ export const clinics = pgTable(
     // (a4|a5|thermal); `invoicePrefix` prefixes the human invoice label (e.g.
     // "INV-"); `nextInvoiceNo` is the per-clinic counter atomically bumped when an
     // invoice is issued (so concurrent receptionists never collide). See core/billing.
-    invoicePaper: text("invoice_paper").notNull().default("a4"),
+    invoicePaper: vocabularyRef<InvoicePaperCode>(INVOICE_PAPER_ROWS, "invoice_paper")
+      .notNull()
+      .default("a4")
+      .references(() => invoicePapers.id),
     invoicePrefix: text("invoice_prefix").notNull().default("INV-"),
     nextInvoiceNo: integer("next_invoice_no").notNull().default(1),
     // The calendar year `next_invoice_no` currently belongs to. Invoice numbers RESET
@@ -114,7 +126,10 @@ export const clinics = pgTable(
     // Lifecycle status. `active` = usable; a non-usable status blocks all the clinic's
     // staff from logging in (enforced server-side). Default `active` so existing clinics
     // stay usable; NEW clinics may be created as `trial`.
-    status: text("status").notNull().default("active"), // trial|active|suspended|past_due|cancelled
+    status: vocabularyRef<ClinicStatusCode>(CLINIC_STATUS_ROWS, "status")
+      .notNull()
+      .default("active")
+      .references(() => clinicStatuses.id),
     // When the clinic's trial began (set when it first enters `trial`; open-ended until
     // `trial_ends_at`). NULL = never trialled. Distinct from `created_at`.
     trialStartAt: timestamp("trial_start_at", { withTimezone: true }),
@@ -137,7 +152,10 @@ export const clinics = pgTable(
     // owed/credit is derived (see core/admin/billing.ts). `capabilities` = the allowed
     // `resource:action` slugs for the whole clinic (NULL = all) — granular super-admin control.
     monthlyPrice: integer("monthly_price").notNull().default(0), // PKR
-    billingCycle: text("billing_cycle").notNull().default("monthly"), // monthly|2m|quarter|half|annual
+    billingCycle: vocabularyRef<BillingCycleCode>(BILLING_CYCLE_ROWS, "billing_cycle")
+      .notNull()
+      .default("monthly")
+      .references(() => billingCycles.id),
     graceDays: integer("grace_days").notNull().default(7),
     // How many days BEFORE the paid-through date to surface a "payment coming up"
     // reminder on the admin clinics + overview pages (a soft, pre-due heads-up; distinct

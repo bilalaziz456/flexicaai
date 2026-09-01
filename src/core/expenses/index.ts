@@ -6,7 +6,7 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, restoreValues, softDeleteValues } from "@/core/db/soft-delete";
 import { expenseCategories, expenses } from "@/core/db/schema";
 import { nextRunFrom, normalizeRecurrence } from "@/core/expenses/recurring";
-import type { PaymentMethodCode } from "@/core/db/vocabulary-seed";
+import type { PaymentMethodCode, RecurrenceCode } from "@/core/db/vocabulary-seed";
 
 /**
  * Expenses (Finance) — CORE data layer. Categories are per-clinic config (deactivate,
@@ -162,7 +162,7 @@ export type ExpenseInput = {
   reference: string | null;
   note: string | null;
   recurring: boolean;
-  recurrence?: string | null; // 'monthly' | 'weekly' — only meaningful when recurring
+  recurrence?: RecurrenceCode | null; // 'monthly' | 'weekly' — only meaningful when recurring
 };
 
 /**
@@ -170,7 +170,7 @@ export type ExpenseInput = {
  * one-off. The next run is one interval after the incurred date, so the original row
  * IS the first occurrence and the cron generates only subsequent ones.
  */
-function recurrenceFields(input: ExpenseInput): { recurrence: string | null; nextRunOn: string | null } {
+function recurrenceFields(input: ExpenseInput): { recurrence: RecurrenceCode | null; nextRunOn: string | null } {
   if (!input.recurring) return { recurrence: null, nextRunOn: null };
   const recurrence = normalizeRecurrence(input.recurrence);
   return { recurrence, nextRunOn: nextRunFrom(input.incurredOn, recurrence) };
