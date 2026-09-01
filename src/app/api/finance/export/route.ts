@@ -16,6 +16,7 @@ import { iteratePaymentsLedger, isMoneyOut } from "@/core/finance/payments-ledge
 import { getInvoicesList } from "@/core/billing/invoice";
 import { listImportedTransactions, HISTORY_TABS } from "@/core/finance/imported-history";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
+import { asPaymentMethodCode } from "@/core/db/vocabulary-seed";
 
 /**
  * GET /api/finance/export?type=daybook|expenses|discounts&… — a CSV download of a
@@ -63,7 +64,7 @@ export async function GET(req: Request) {
       from: range.start,
       toExclusive: range.end,
       doctorId: url.searchParams.get("doctorId") || undefined,
-      method: url.searchParams.get("method") || undefined,
+      method: asPaymentMethodCode(url.searchParams.get("method")),
       kind: url.searchParams.get("kind") || undefined,
       q: url.searchParams.get("q") || undefined,
     };
@@ -98,7 +99,7 @@ export async function GET(req: Request) {
       from: range.start,
       toExclusive: range.end,
       categoryId: url.searchParams.get("categoryId") || undefined,
-      method: url.searchParams.get("method") || undefined,
+      method: asPaymentMethodCode(url.searchParams.get("method")),
       q: url.searchParams.get("q") || undefined,
       limit: 10000,
     });

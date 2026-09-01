@@ -95,7 +95,14 @@ export async function getActivityLogStats(): Promise<{
     db
       .select({
         rows: sql<number>`count(*)::int`,
-        oldest: sql<Date | null>`min(${activityLogs.createdAt})`,
+        // `.mapWith` is what makes the declared type TRUE. `sql<Date>` is only an
+        // assertion: a bare aggregate carries no column metadata, so the driver hands
+        // back the raw timestamptz STRING and the value reaching the UI has no
+        // `toLocaleDateString` — a runtime crash on a page that type-checked cleanly.
+        // Passing the column applies its own driver mapper.
+        oldest: sql<Date | null>`min(${activityLogs.createdAt})`.mapWith(
+          activityLogs.createdAt,
+        ),
         sizePretty: sql<string>`pg_size_pretty(pg_total_relation_size('activity_logs'))`,
       })
       .from(activityLogs),

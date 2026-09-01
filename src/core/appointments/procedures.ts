@@ -6,13 +6,13 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import {
   appointmentProcedures,
-  appointments,
   clinics,
   procedures,
   users,
 } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { clampDiscountValue, type DiscountType } from "@/core/appointments/fee";
+import { discountTypeId, type DiscountTypeCode } from "@/core/db/vocabulary-seed";
 
 export type BookingProcedure = { id: string; name: string; price: number };
 
@@ -57,24 +57,58 @@ function clampQty(q: number): number {
  * discount: per-line `discount_value` is unbounded, and `gross * value` overflows
  * int4 on a large percentage, which makes Postgres throw where TS would clamp.
  */
+/**
+ * The OUTER `appointments.id`, spelled out, for the correlated subqueries below.
+ *
+ * WHY NOT `${appointments.id}`: Drizzle only qualifies a column when it thinks the
+ * query needs it. In a JOINed query it emits `"appointments"."id"` and everything
+ * works — which is every production call site, so this was invisible. In a
+ * single-table `from(appointments)` query it emits a bare `"id"`, and inside the
+ * subquery that binds to `appointment_procedures.id` instead: a correlation that
+ * matches nothing and returns 0 / NULL rather than raising. A money figure that is
+ * silently zero is the worst shape of bug, so the reference is pinned here.
+ */
+const outerAppointmentId = sql`${sql.identifier("appointments")}.${sql.identifier("id")}`;
+
 export function procedureRowNetSql(): SQL<number> {
   const gross = sql`(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity})`;
-  return sql<number>`(${gross} - least(greatest(round(case when ${appointmentProcedures.discountType} = 'percent' then ${gross}::numeric * ${appointmentProcedures.discountValue} / 100.0 else ${appointmentProcedures.discountValue}::numeric end), 0), ${gross}))::int`;
+  return sql<number>`(${gross} - least(greatest(round(case when ${appointmentProcedures.discountType} = ${discountTypeId("percent")} then ${gross}::numeric * ${appointmentProcedures.discountValue} / 100.0 else ${appointmentProcedures.discountValue}::numeric end), 0), ${gross}))::int`;
 }
 
 /** Correlated Σ of per-row NET for the OUTER `appointments.id` (0 when none). */
 export function appointmentProceduresNetSql(): SQL<number> {
-  return sql<number>`coalesce((select sum(${procedureRowNetSql()})::int from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${appointments.id}), 0)`;
+  return sql<number>`coalesce((select sum(${procedureRowNetSql()})::int from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${outerAppointmentId}), 0)`;
 }
 
 /** Correlated Σ of per-row GROSS (unit×qty) for the OUTER `appointments.id`. */
 export function appointmentProceduresGrossSql(): SQL<number> {
-  return sql<number>`coalesce((select sum(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity})::int from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${appointments.id}), 0)`;
+  return sql<number>`coalesce((select sum(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity})::int from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${outerAppointmentId}), 0)`;
+}
+
+/**
+ * Correlated comma-joined procedure NAMES for the OUTER `appointments.id` (NULL when
+ * none) — for telling the patient what their visit is FOR, in the WhatsApp
+ * confirmation and reminder.
+ *
+ * Reads the snapshot `appointment_procedures.name`, never the catalog: renaming a
+ * procedure must not rewrite what a patient was already told. A quantity above 1 is
+ * shown as "Filling ×2", since "Filling" alone understates a two-tooth visit.
+ */
+export function appointmentProcedureNamesSql(): SQL<string | null> {
+  return sql<string | null>`(
+    select string_agg(
+      ${appointmentProcedures.name} || case when ${appointmentProcedures.quantity} > 1
+        then ' ×' || ${appointmentProcedures.quantity} else '' end,
+      ', ' order by ${appointmentProcedures.name}
+    )
+    from ${appointmentProcedures}
+    where ${appointmentProcedures.appointmentId} = ${outerAppointmentId}
+  )`;
 }
 
 /** Correlated EXISTS — does the OUTER `appointments.id` have any procedure line? */
 export function appointmentHasProceduresSql(): SQL<boolean> {
-  return sql<boolean>`exists (select 1 from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${appointments.id})`;
+  return sql<boolean>`exists (select 1 from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${outerAppointmentId})`;
 }
 
 /**
@@ -187,7 +221,9 @@ export async function saveAppointmentProcedures(
         name: r.name,
         unitPrice: r.price,
         quantity: clampQty(s.quantity),
-        discountType: s.discountType === "percent" ? "percent" : "amount",
+        // The literals are pinned: inside a .map() TypeScript widens the ternary to
+        // `string`, which the column no longer accepts.
+        discountType: (s.discountType === "percent" ? "percent" : "amount") as DiscountTypeCode,
         // Clamped HERE, not just at the form: this is the single write path for a
         // procedure line, so a caller that skipped validation still can't store a
         // percentage above 100 (D-17). A flat amount stays unbounded — the bill

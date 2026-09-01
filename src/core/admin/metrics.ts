@@ -8,6 +8,7 @@ import { notDeleted } from "@/core/db/tenant";
 import { aiUsage, clinics, clinicPayments, visits, whatsappMessages } from "@/core/db/schema";
 import { getCostRates, taxMultiplier } from "./cost";
 import { listDueClinics } from "./billing";
+import { clinicPaymentKindId } from "@/core/db/vocabulary-seed";
 
 /**
  * Company financial metrics — CORE, super-admin control plane (Feature 8, "how much
@@ -63,8 +64,8 @@ export async function getCompanyMetrics(
       ? sql`exists (select 1 from ${clinics} where ${clinics.id} = ${clinicPayments.clinicId} and ${clinics.assignedTo} = ${assignedTo} and ${clinics.deletedAt} is null)`
       : undefined;
     // CASH collected: a payment counts in, a refund out, a non-cash credit is excluded.
-    const cashSum = sql<number>`coalesce(sum(case when ${clinicPayments.kind} = 'refund' then -${clinicPayments.amount} when ${clinicPayments.kind} = 'credit' then 0 else ${clinicPayments.amount} end),0)`;
-    const cashOrder = sql`sum(case when ${clinicPayments.kind} = 'refund' then -${clinicPayments.amount} when ${clinicPayments.kind} = 'credit' then 0 else ${clinicPayments.amount} end)`;
+    const cashSum = sql<number>`coalesce(sum(case when ${clinicPayments.kind} = ${clinicPaymentKindId("refund")} then -${clinicPayments.amount} when ${clinicPayments.kind} = ${clinicPaymentKindId("credit")} then 0 else ${clinicPayments.amount} end),0)`;
+    const cashOrder = sql`sum(case when ${clinicPayments.kind} = ${clinicPaymentKindId("refund")} then -${clinicPayments.amount} when ${clinicPayments.kind} = ${clinicPaymentKindId("credit")} then 0 else ${clinicPayments.amount} end)`;
 
     // Clinics by lifecycle status.
     const statusRows = await db

@@ -20,6 +20,7 @@ import {
 } from "@/core/expenses";
 import { logActivity } from "@/core/audit/log";
 import { revalidateFinance } from "@/app/clinic/finance-revalidate";
+import { PAYMENT_METHODS } from "@/core/finance/payment-methods";
 
 export type ExpenseActionState = { error?: string; saved?: boolean };
 
@@ -39,7 +40,7 @@ const expenseSchema = z.object({
   amount: z.coerce.number().int().positive("Enter an amount greater than zero."),
   incurredOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date."),
   vendor: z.string().trim().max(120).optional(),
-  method: z.string().trim().max(40).optional(),
+  method: z.enum(PAYMENT_METHODS).optional(),
   reference: z.string().trim().max(120).optional(),
   note: z.string().trim().max(500).optional(),
   recurring: z.boolean().optional(),

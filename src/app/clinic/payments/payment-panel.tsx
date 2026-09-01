@@ -16,6 +16,7 @@ import { Button, buttonVariants } from "@/core/ui/button";
 import { Toast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import { MessageCircle } from "lucide-react";
+import { PAYMENT_METHOD_OPTIONS } from "@/core/finance/payment-methods";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -200,10 +201,9 @@ export function PaymentPanel({
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground" htmlFor="pp-method">Method</label>
               <select id="pp-method" name="method" defaultValue="cash" className={`${inputCls} select-chevron pr-8`}>
-                <option value="cash">Cash</option>
-                <option value="bank">Bank transfer</option>
-                <option value="cheque">Cheque</option>
-                <option value="other">Other</option>
+                {PAYMENT_METHOD_OPTIONS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
               </select>
             </div>
             <div className="space-y-1">
@@ -262,10 +262,9 @@ export function PaymentPanel({
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground" htmlFor="rf-method">Method</label>
                 <select id="rf-method" name="method" defaultValue="cash" className={`${inputCls} select-chevron pr-8`}>
-                  <option value="cash">Cash</option>
-                  <option value="bank">Bank transfer</option>
-                  <option value="cheque">Cheque</option>
-                  <option value="other">Other</option>
+                  {PAYMENT_METHOD_OPTIONS.map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
                 </select>
               </div>
               <div className="space-y-1">

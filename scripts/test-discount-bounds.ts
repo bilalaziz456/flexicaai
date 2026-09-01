@@ -14,6 +14,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/core/db";
 import { appointments, clinics, patients } from "@/core/db/schema";
 import { unscoped } from "@/core/db/tenant-guard";
+import type { DiscountTypeCode } from "@/core/db/vocabulary-seed";
 import {
   MAX_DISCOUNT_PERCENT,
   clampDiscountValue,
@@ -77,7 +78,7 @@ async function main() {
     await db.insert(patients).values({ clinicId, fullName: "Bounds" }).returning({ id: patients.id })
   )[0].id;
 
-  const insert = (discountType: string, discountValue: number) =>
+  const insert = (discountType: DiscountTypeCode, discountValue: number) =>
     db.insert(appointments).values({
       clinicId,
       patientId,

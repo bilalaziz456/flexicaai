@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { HandCoins, Printer } from "lucide-react";
 import { DataTable, type Column } from "@/core/ui/data-table";
+import { paymentMethodLabel } from "@/core/finance/payment-methods";
 
 const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
 const dayFmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -46,7 +47,7 @@ export function PaymentsTable({ rows, empty }: { rows: Row[]; empty: string }) {
     },
     { id: "doctor", header: "Doctor", sortValue: (r) => r.doctorName ?? "", cell: (r) => r.doctorName ?? "—" },
     { id: "type", header: "Type", sortValue: (r) => r.kind, cell: (r) => KIND_LABEL[r.kind] ?? r.kind },
-    { id: "method", header: "Method", sortValue: (r) => r.method ?? "", cell: (r) => r.method ?? "—" },
+    { id: "method", header: "Method", sortValue: (r) => r.method ?? "", cell: (r) => paymentMethodLabel(r.method) },
     { id: "by", header: "By", cell: (r) => <span className="text-muted-foreground">{r.createdByName ?? "—"}</span> },
     {
       id: "amount",

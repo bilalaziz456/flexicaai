@@ -7,6 +7,7 @@ import { discountSettlements, users } from "@/core/db/schema";
 import { computeShare } from "@/core/appointments/shares";
 import { computeBearing } from "@/core/appointments/discount-bearing";
 import { getAppointmentShareContext } from "@/core/appointments/share-context";
+import type { SettlementPartyCode } from "@/core/db/vocabulary-seed";
 
 /**
  * Discount settlement ledger (discount-bearing, phase 2) — snapshots how a completed
@@ -58,7 +59,12 @@ export async function recordDiscountSettlementForAppointment(
     });
 
     // Rows for every party that actually bears/receives something (Σ = 0).
-    type Row = { party: string; doctorId: string | null; settlementAmount: number; grossShare: number };
+    type Row = {
+      party: SettlementPartyCode;
+      doctorId: string | null;
+      settlementAmount: number;
+      grossShare: number;
+    };
     const rows: Row[] = [];
     if (bearing.clinic !== 0) {
       rows.push({ party: "clinic", doctorId: null, settlementAmount: bearing.clinic, grossShare: clinicGross });

@@ -11,6 +11,14 @@ import { discountBorneSplit } from "@/core/appointments/discount-bearing";
 import type { BearBorneBy } from "@/core/appointments/discount-bearing";
 import { displayStaffName } from "@/core/types/auth";
 import type { ResolvedRange } from "@/core/sales/report";
+import { discountStatusId } from "@/core/db/vocabulary-seed";
+import {
+  asCode,
+  DISCOUNT_BEARER_ROWS,
+  DISCOUNT_STATUS_ROWS,
+  type DiscountBearerCode,
+  type DiscountStatusCode,
+} from "@/core/db/vocabulary-seed";
 
 export type DiscountRow = {
   appointmentId: string;
@@ -53,8 +61,10 @@ export async function getDiscountsReport(
     gt(appointments.discountValue, 0),
   ];
   if (filters.doctorId) conds.push(eq(appointments.doctorId, filters.doctorId));
-  if (filters.borneBy) conds.push(eq(appointments.discountBorneBy, filters.borneBy));
-  if (filters.status) conds.push(eq(appointments.discountStatus, filters.status));
+  const borneBy = asCode<DiscountBearerCode>(DISCOUNT_BEARER_ROWS, filters.borneBy);
+  if (borneBy) conds.push(eq(appointments.discountBorneBy, borneBy));
+  const status = asCode<DiscountStatusCode>(DISCOUNT_STATUS_ROWS, filters.status);
+  if (status) conds.push(eq(appointments.discountStatus, status));
 
   const rows = await db
     .select({
@@ -161,8 +171,8 @@ export async function getDiscountsReport(
   const [totals] = await db
     .select({
       count: sql<number>`count(*)::int`,
-      applied: sql<number>`coalesce(sum(${amountSql}) filter (where ${appointments.discountStatus} in ('none','approved')), 0)::int`,
-      pending: sql<number>`coalesce(sum(${amountSql}) filter (where ${appointments.discountStatus} = 'pending'), 0)::int`,
+      applied: sql<number>`coalesce(sum(${amountSql}) filter (where ${appointments.discountStatus} in (${discountStatusId("none")}, ${discountStatusId("approved")})), 0)::int`,
+      pending: sql<number>`coalesce(sum(${amountSql}) filter (where ${appointments.discountStatus} = ${discountStatusId("pending")}), 0)::int`,
     })
     .from(appointments)
     .leftJoin(users, eq(users.id, appointments.doctorId))

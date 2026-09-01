@@ -14,8 +14,18 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { DayAvailability } from "@/core/lib/availability";
-
 import { softDeleteColumns } from "@/core/db/schema/_shared";
+import {
+  USER_ROLE_ROWS,
+  THEME_PREFERENCE_ROWS,
+  type UserRoleCode,
+  type ThemePreferenceCode,
+} from "@/core/db/vocabulary-seed";
+import {
+  userRoles,
+  themePreferences,
+  vocabularyRef,
+} from "@/core/db/schema/vocabulary";
 
 /**
  * Tenants and people — clinics, staff, sessions, patients.
@@ -215,7 +225,9 @@ export const users = pgTable(
     // Optional contact email (for future notifications / password reset).
     email: text("email"),
     passwordHash: text("password_hash").notNull(),
-    role: userRole("role").notNull(),
+    role: vocabularyRef<UserRoleCode>(USER_ROLE_ROWS, "role")
+      .notNull()
+      .references(() => userRoles.id),
     // Optional name prefix/title (e.g. Dr, Mr, Miss) — shown as "Dr. Bilal Aziz"
     // in the UI and patient messages. Free text from a fixed dropdown.
     prefix: text("prefix"),
@@ -238,7 +250,10 @@ export const users = pgTable(
     // so the catalog can grow without a schema change.
     permissions: text("permissions").array(),
     // UI theme preference; "system" follows the OS.
-    theme: themePreference("theme").notNull().default("system"),
+    theme: vocabularyRef<ThemePreferenceCode>(THEME_PREFERENCE_ROWS, "theme")
+      .notNull()
+      .default("system")
+      .references(() => themePreferences.id),
     // Doctor scheduling (specialty-agnostic, core/lib/availability.ts). Empty for
     // non-doctors and for doctors with no restriction. `availability` is the
     // per-weekday working windows; `dailyAppointmentLimit` caps bookings per day

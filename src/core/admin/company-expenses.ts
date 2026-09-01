@@ -6,6 +6,7 @@ import { notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, restoreValues, softDeleteValues } from "@/core/db/soft-delete";
 import { companyExpenseCategories, companyExpenses } from "@/core/db/schema";
 import { nextRunFrom, normalizeRecurrence } from "@/core/expenses/recurring";
+import type { PaymentMethodCode } from "@/core/db/vocabulary-seed";
 import {
   bucketLabel,
   nextBucket,
@@ -70,7 +71,7 @@ export type CompanyExpenseRow = {
   amount: number;
   incurredOn: string;
   vendor: string | null;
-  method: string | null;
+  method: PaymentMethodCode | null;
   reference: string | null;
   note: string | null;
   recurring: boolean;
@@ -82,7 +83,7 @@ export type CompanyExpenseFilters = {
   from?: Date;
   toExclusive?: Date;
   categoryId?: string;
-  method?: string;
+  method?: PaymentMethodCode;
   q?: string;
   deleted?: boolean;
   limit?: number;
@@ -138,7 +139,7 @@ export type RecurringExpense = {
   amount: number;
   incurredOn: string;
   vendor: string | null;
-  method: string | null;
+  method: PaymentMethodCode | null;
   reference: string | null;
   note: string | null;
   recurrence: string | null;
@@ -224,7 +225,7 @@ export type CompanyExpenseInput = {
   amount: number;
   incurredOn: string; // YYYY-MM-DD
   vendor: string | null;
-  method: string | null;
+  method: PaymentMethodCode | null;
   reference: string | null;
   note: string | null;
   recurring: boolean;
@@ -249,7 +250,7 @@ export async function createCompanyExpense(
       amount: Math.max(0, Math.round(input.amount)),
       incurredOn: input.incurredOn,
       vendor: input.vendor?.slice(0, 120) || null,
-      method: input.method?.slice(0, 40) || null,
+      method: input.method ?? null,
       reference: input.reference?.slice(0, 120) || null,
       note: input.note?.slice(0, 500) || null,
       recurring: input.recurring,
@@ -271,7 +272,7 @@ export async function updateCompanyExpense(id: string, input: CompanyExpenseInpu
       amount: Math.max(0, Math.round(input.amount)),
       incurredOn: input.incurredOn,
       vendor: input.vendor?.slice(0, 120) || null,
-      method: input.method?.slice(0, 40) || null,
+      method: input.method ?? null,
       reference: input.reference?.slice(0, 120) || null,
       note: input.note?.slice(0, 500) || null,
       recurring: input.recurring,

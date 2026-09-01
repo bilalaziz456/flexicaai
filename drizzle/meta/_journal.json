@@ -589,6 +589,55 @@
       "when": 1787869694600,
       "tag": "0083_common_the_fallen",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1787946279037,
+      "tag": "0084_fluffy_kitty_pryde",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1788029861708,
+      "tag": "0085_rainy_raza",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1788032892759,
+      "tag": "0086_condemned_shen",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1788291386046,
+      "tag": "0087_nasty_shadowcat",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1788291595089,
+      "tag": "0088_overconfident_george_stacy",
+      "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1788293029531,
+      "tag": "0089_greedy_omega_flight",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1788294816981,
+      "tag": "0090_chief_vin_gonzales",
+      "breakpoints": true
     }
   ]
 }

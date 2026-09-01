@@ -16,6 +16,14 @@ import { appointments } from "@/core/db/schema/scheduling";
 import { clinics, patients, users } from "@/core/db/schema/identity";
 import { procedures } from "@/core/db/schema/billing";
 import { softDeleteColumns } from "@/core/db/schema/_shared";
+import {
+  VISIT_STATUS_ROWS,
+  type VisitStatusCode,
+} from "@/core/db/vocabulary-seed";
+import {
+  visitStatuses,
+  vocabularyRef,
+} from "@/core/db/schema/vocabulary";
 
 /**
  * The clinical record — visits (the AI note), medical history, attachments
@@ -66,7 +74,10 @@ export const visits = pgTable(
       onDelete: "set null",
     }),
     module: text("module"),
-    status: visitStatus("status").notNull().default("draft"),
+    status: vocabularyRef<VisitStatusCode>(VISIT_STATUS_ROWS, "status")
+      .notNull()
+      .default("draft")
+      .references(() => visitStatuses.id),
     // Raw Whisper transcript kept for the accuracy flywheel (CLAUDE.md §8).
     transcript: text("transcript"),
     // Module-shaped structured note (the doctor's approved/edited version).

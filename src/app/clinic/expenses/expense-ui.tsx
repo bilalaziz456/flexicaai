@@ -16,6 +16,7 @@ import { Label } from "@/core/ui/label";
 import { DatePicker } from "@/core/ui/date-picker";
 import { Toast } from "@/core/ui/toast";
 import { SearchableSelect } from "@/core/ui/searchable-select";
+import { PAYMENT_METHOD_OPTIONS } from "@/core/finance/payment-methods";
 
 const inputCls =
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -90,10 +91,9 @@ export function AddExpenseForm({
         <div className="space-y-1">
           <Label htmlFor="ex-method" className="text-xs text-muted-foreground">Method</Label>
           <select id="ex-method" name="method" defaultValue="cash" className={selectCls}>
-            <option value="cash">Cash</option>
-            <option value="bank">Bank transfer</option>
-            <option value="cheque">Cheque</option>
-            <option value="other">Other</option>
+            {PAYMENT_METHOD_OPTIONS.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
           </select>
         </div>
         <div className="space-y-1">

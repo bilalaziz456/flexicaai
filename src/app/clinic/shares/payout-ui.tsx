@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { Printer, Undo2 } from "lucide-react";
+import { Undo2 } from "lucide-react";
 import {
   recordDoctorPayout,
   voidDoctorPayout,
@@ -9,6 +9,7 @@ import {
 } from "./actions";
 import { Button } from "@/core/ui/button";
 import { Toast } from "@/core/ui/toast";
+import { PAYMENT_METHOD_OPTIONS } from "@/core/finance/payment-methods";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -71,10 +72,9 @@ export function RecordPayoutForm({
             defaultValue="cash"
             className={`${inputCls} select-chevron pr-8`}
           >
-            <option value="cash">Cash</option>
-            <option value="bank">Bank transfer</option>
-            <option value="cheque">Cheque</option>
-            <option value="other">Other</option>
+            {PAYMENT_METHOD_OPTIONS.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
           </select>
         </div>
         <div className="space-y-1">
@@ -125,14 +125,5 @@ export function VoidPayoutButton({ payoutId }: { payoutId: string }) {
       </button>
       <Toast message={err} variant="error" token={nonce} />
     </>
-  );
-}
-
-/** Triggers the browser's print dialog (hidden itself when printing). */
-export function PrintButton() {
-  return (
-    <Button type="button" variant="outline" size="sm" onClick={() => window.print()}>
-      <Printer className="size-4" aria-hidden="true" /> Print / Save PDF
-    </Button>
   );
 }

@@ -16,6 +16,7 @@
  * Run: `tsx --env-file=.env.local --tsconfig scripts/_seed/tsconfig.json scripts/test-draft-ownership.ts`
  */
 import { Pool } from "pg";
+import { userRoleId, visitStatusId } from "@/core/db/vocabulary-seed";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -35,9 +36,9 @@ function check(name: string, got: unknown, want: unknown) {
 //   byClinic(clinic_id) + notDeleted + id + status='draft' + doctor_id = <actor>
 const APPROVE = `
   update visits
-     set status = 'approved', approved_at = now(), approved_by = $3, updated_at = now()
+     set status = ${visitStatusId("approved")}, approved_at = now(), approved_by = $3, updated_at = now()
    where clinic_id = $1 and deleted_at is null and id = $2
-     and status = 'draft' and doctor_id = $3
+     and status = ${visitStatusId("draft")} and doctor_id = $3
   returning id`;
 
 const DISCARD = `
@@ -45,7 +46,7 @@ const DISCARD = `
      set deleted_at = now(), deleted_by = $3, delete_group = gen_random_uuid(),
          deleted_by_cascade = false
    where clinic_id = $1 and deleted_at is null and id = $2
-     and status = 'draft' and doctor_id = $3
+     and status = ${visitStatusId("draft")} and doctor_id = $3
   returning id`;
 
 const uniq = Date.now();
@@ -65,7 +66,7 @@ async function seed() {
     (
       await pool.query(
         `insert into users (clinic_id, username, password_hash, role, full_name)
-         values ($1, $2, 'x', 'doctor', $3) returning id`,
+         values ($1, $2, 'x', ${userRoleId("doctor")}, $3) returning id`,
         [clinicId, `d16_${n}_${uniq}`, `Doctor ${n}`],
       )
     ).rows[0].id;
@@ -84,7 +85,7 @@ async function seed() {
 async function newDraft(): Promise<string> {
   const r = await pool.query(
     `insert into visits (clinic_id, patient_id, doctor_id, module, status, note)
-     values ($1, $2, $3, 'dental', 'draft', '{}'::jsonb) returning id`,
+     values ($1, $2, $3, 'dental', ${visitStatusId("draft")}, '{}'::jsonb) returning id`,
     [clinicId, patientId, docA],
   );
   return r.rows[0].id;
@@ -100,14 +101,16 @@ async function main() {
     const byOther = await pool.query(APPROVE, [clinicId, v, docB]);
     check("another clinician CANNOT approve it", byOther.rowCount, 0);
 
-    const still = await pool.query(`select status, approved_by from visits where id = $1`, [v]);
+    const still = await pool.query(`select vs.code as status, v.approved_by from visits v
+       join visit_statuses vs on vs.id = v.status where v.id = $1`, [v]);
     check("…and it is untouched", still.rows[0].status, "draft");
     check("…with no approver recorded", still.rows[0].approved_by, null);
 
     const byAuthor = await pool.query(APPROVE, [clinicId, v, docA]);
     check("the author CAN approve it", byAuthor.rowCount, 1);
 
-    const done = await pool.query(`select status, approved_by from visits where id = $1`, [v]);
+    const done = await pool.query(`select vs.code as status, v.approved_by from visits v
+       join visit_statuses vs on vs.id = v.status where v.id = $1`, [v]);
     check("…status becomes approved", done.rows[0].status, "approved");
     check("…and approved_by is the author", done.rows[0].approved_by, docA);
 

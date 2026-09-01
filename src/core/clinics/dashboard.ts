@@ -5,6 +5,7 @@ import { db } from "@/core/db";
 import { appointments, patients, recalls, users } from "@/core/db/schema";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { CLINIC_STAFF_ROLES } from "@/core/types/auth";
+import { recallStatusId, appointmentStatusId } from "@/core/db/vocabulary-seed";
 
 /**
  * The clinic dashboard's numbers — CORE per ADR-014.
@@ -99,13 +100,13 @@ export async function getRecoveredCount(clinicId: string): Promise<number> {
     FROM recalls r
     WHERE r.clinic_id = ${clinicId}
       AND r.deleted_at IS NULL
-      AND r.status IN ('sent', 'booked', 'completed')
+      AND r.status IN (${recallStatusId("sent")}, ${recallStatusId("booked")}, ${recallStatusId("completed")})
       AND EXISTS (
         SELECT 1 FROM appointments a
         WHERE a.patient_id = r.patient_id
           AND a.clinic_id = r.clinic_id
           AND a.deleted_at IS NULL
-          AND a.status = 'completed'
+          AND a.status = ${appointmentStatusId("completed")}
           AND a.scheduled_at >= COALESCE(r.sent_at, r.due_at)
       )
   `);
@@ -122,14 +123,14 @@ export async function getRecoveredTrend(
     FROM appointments a
     WHERE a.clinic_id = ${clinicId}
       AND a.deleted_at IS NULL
-      AND a.status = 'completed'
+      AND a.status = ${appointmentStatusId("completed")}
       AND a.scheduled_at >= date_trunc('month', now()) - interval '5 months'
       AND EXISTS (
         SELECT 1 FROM recalls r
         WHERE r.patient_id = a.patient_id
           AND r.clinic_id = a.clinic_id
           AND r.deleted_at IS NULL
-          AND r.status IN ('sent', 'booked', 'completed')
+          AND r.status IN (${recallStatusId("sent")}, ${recallStatusId("booked")}, ${recallStatusId("completed")})
           AND a.scheduled_at >= COALESCE(r.sent_at, r.due_at)
       )
     GROUP BY m ORDER BY m

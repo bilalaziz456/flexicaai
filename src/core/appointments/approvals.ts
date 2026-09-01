@@ -95,7 +95,12 @@ export async function syncDiscountApprovals(
 
   const rows: (typeof appointmentDiscountApprovals.$inferInsert)[] = [];
   if (clinicRequires) {
-    rows.push({ clinicId, appointmentId, approverKind: "clinic", status: "pending" });
+    rows.push({
+      clinicId,
+      appointmentId,
+      approverKind: "clinic",
+      status: "pending",
+    });
   }
   for (const doctorId of requiringDoctorIds) {
     rows.push({

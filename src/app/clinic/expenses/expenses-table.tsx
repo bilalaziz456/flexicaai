@@ -3,6 +3,7 @@
 import { DataTable, type Column } from "@/core/ui/data-table";
 import { Badge } from "@/core/ui/badge";
 import { ExpenseRowActions } from "./expense-ui";
+import { paymentMethodLabel } from "@/core/finance/payment-methods";
 
 const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
 
@@ -45,7 +46,7 @@ export function ExpensesTable({ rows, canManage, empty }: { rows: Row[]; canMana
         </span>
       ),
     },
-    { id: "method", header: "Method", sortValue: (r) => r.method ?? "", cell: (r) => <span className="capitalize">{r.method ?? "—"}</span> },
+    { id: "method", header: "Method", sortValue: (r) => r.method ?? "", cell: (r) => <span>{paymentMethodLabel(r.method)}</span> },
     { id: "amount", header: "Amount", align: "right", sortValue: (r) => r.amount, cell: (r) => <span className="font-medium tabular-nums">{money.format(r.amount)}</span> },
     ...(canManage
       ? [{ id: "actions", header: "", align: "right", cell: (r: Row) => <ExpenseRowActions id={r.id} deleted={r.deleted} /> } as Column<Row>]

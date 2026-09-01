@@ -215,7 +215,7 @@ async function main() {
       { kind: "payment", method: "bank", amount: 4000 },
       { kind: "refund", method: "cash", amount: 300 },
       { kind: "advance", method: "bank", amount: 700 },
-    ];
+    ] as const;
     for (const p of pays) {
       await db.insert(patientPayments).values({
         clinicId,
@@ -254,7 +254,7 @@ async function main() {
       // A flat amount has no ceiling, so THIS is where the clamp still matters: the
       // discount must stop at the subtotal, in SQL exactly as `computeFee` does.
       { day: 2, type: "amount", value: 999999, status: "none" },
-    ];
+    ] as const;
     for (const d of discounts) {
       await db.insert(appointments).values({
         clinicId,

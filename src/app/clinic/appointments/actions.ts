@@ -40,7 +40,7 @@ import {
   doctorOnLeave,
   localDateStr,
 } from "@/core/appointments/availability";
-import { queueSessionKey, withQueueNumber } from "@/core/appointments/queue";
+import { queueSessionKey, sameDoctorDay, withQueueNumber } from "@/core/appointments/queue";
 import {
   saveAppointmentProcedures,
   type ProcedureSelection,
@@ -192,6 +192,12 @@ export async function createAppointment(
 
   // Procedure-only visits don't charge the consultation fee (checkbox off → "0").
   const chargeConsultation = formData.get("chargeConsultation") !== "0";
+  // Booked deliberately outside the doctor's windows (a 6pm procedure when they
+  // consult 1–3pm). Relaxes the hours check only — see checkDoctorSlot.
+  const requestedCustomTime = formData.get("customTime") === "1";
+  // Set from the slot check below: ticking the box while picking a time that is
+  // inside the doctor's hours anyway needs no override, so the flag is not stored.
+  let customTime = false;
 
   // Tenant guards: patient (and doctor, if set) must belong to this clinic.
   const patient = await findClinicPatient(clinicId, parsed.data.patientId);
@@ -206,10 +212,15 @@ export async function createAppointment(
     // Single source of truth for leave / working hours / daily cap.
     const check = await checkDoctorSlot(clinicId, parsed.data.doctorId, when, {
       hasProcedures: procedureSelections.length > 0,
+      customTime: requestedCustomTime,
     });
     if (!check.ok) return { error: check.reason };
     queueAvailability = check.availability;
     queueFlexible = check.flexible;
+    // Record the exception only when the time really is one. Storing it for a visit
+    // that sits in normal hours is a lie the queue then acts on — it would file the
+    // patient under "Outside visiting hours" while the doctor is in the room anyway.
+    customTime = requestedCustomTime && !check.withinHours;
   }
 
   // Tag the appointment with the clinic's first enabled module (if any).
@@ -239,6 +250,7 @@ export async function createAppointment(
     discountSplitType: parsed.data.discountSplitType,
     discountSplitValue: parsed.data.discountSplitValue,
           chargeConsultation,
+          customTime,
           queueSession: q.queueSession,
           queueNumber: q.queueNumber,
         }),
@@ -352,15 +364,22 @@ export async function updateAppointment(
   // The selection being SAVED decides which windows are acceptable — dropping the
   // last procedure narrows the visit back to consultation hours.
   const procedureSelections = parseProcedureSelections(formData);
+  // Unticking this on an edit re-imposes the doctor's hours, so a visit moved back
+  // into normal time stops being an exception. Same normalisation as create: the
+  // flag survives only if the chosen time actually needs it.
+  const requestedCustomTime = formData.get("customTime") === "1";
+  let editCustomTime = false;
   if (parsed.data.doctorId) {
     // Same leave / hours / cap enforcement as booking (excludes this appt).
     const check = await checkDoctorSlot(clinicId, parsed.data.doctorId, when, {
       excludeAppointmentId: appointmentId,
       hasProcedures: procedureSelections.length > 0,
+      customTime: requestedCustomTime,
     });
     if (!check.ok) return { error: check.reason };
     queueAvailability = check.availability;
     queueFlexible = check.flexible;
+    editCustomTime = requestedCustomTime && !check.withinHours;
   }
 
   const baseSet = {
@@ -374,6 +393,7 @@ export async function updateAppointment(
     discountSplitType: parsed.data.discountSplitType,
     discountSplitValue: parsed.data.discountSplitValue,
     chargeConsultation: formData.get("chargeConsultation") !== "0",
+    customTime: editCustomTime,
     reminderSentAt: null, // time may have changed → re-send the reminder
     updatedAt: new Date(),
   };
@@ -383,9 +403,23 @@ export async function updateAppointment(
     ? queueSessionKey(parsed.data.doctorId, when, queueAvailability, queueFlexible)
     : null;
 
+  // A token is unique per DOCTOR-DAY (core/appointments/queue.ts), so moving between
+  // windows WITHIN one day does not need a new one — the number is already unique
+  // there, and the patient has been told it. Only a change of doctor or of day
+  // requires re-issuing. Re-issuing on any session change (which was right while
+  // numbering was per-session) now also makes the row count ITSELF in the day's max,
+  // so simply switching AM to PM bumped #3 to #4.
+  const withinSameDay = sameDoctorDay(newSession, appt.queueSession);
+
   if (newSession === appt.queueSession) {
-    // Same window (or still no doctor) → keep the existing token number.
+    // Same window (or still no doctor) → nothing about the queue changes.
     await updateAppointmentFields(clinicId, appointmentId, baseSet);
+  } else if (withinSameDay) {
+    // Same doctor, same day, different window → move the card, keep the token.
+    await updateAppointmentFields(clinicId, appointmentId, {
+      ...baseSet,
+      queueSession: newSession,
+    });
   } else if (!parsed.data.doctorId) {
     // Moved to "Any doctor" → drop the token.
     await updateAppointmentFields(clinicId, appointmentId, {

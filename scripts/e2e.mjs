@@ -104,12 +104,12 @@ async function seed() {
     q("insert into users (clinic_id, username, password_hash, role, full_name, is_active) values ($1,$2,$3,$4,$5,true) returning id",
       [clinicId, uname, hash, role, uname]);
 
-  const sadmin = await mkUser(null, `e2e_super_${uniq}`, "super_admin");
-  const adminA = await mkUser(cA.id, `e2e_adminA_${uniq}`, "clinic_admin");
-  const docA = await mkUser(cA.id, `e2e_docA_${uniq}`, "doctor");
-  const recepA = await mkUser(cA.id, `e2e_recepA_${uniq}`, "receptionist");
-  const adminB = await mkUser(cB.id, `e2e_adminB_${uniq}`, "clinic_admin");
-  const suspU = await mkUser(cA.id, `e2e_susp_${uniq}`, "receptionist");
+  const sadmin = await mkUser(null, `e2e_super_${uniq}`, 1 /* super_admin */);
+  const adminA = await mkUser(cA.id, `e2e_adminA_${uniq}`, 2 /* clinic_admin */);
+  const docA = await mkUser(cA.id, `e2e_docA_${uniq}`, 4 /* doctor */);
+  const recepA = await mkUser(cA.id, `e2e_recepA_${uniq}`, 5 /* receptionist */);
+  const adminB = await mkUser(cB.id, `e2e_adminB_${uniq}`, 2 /* clinic_admin */);
+  const suspU = await mkUser(cA.id, `e2e_susp_${uniq}`, 5 /* receptionist */);
   ids.users = [sadmin, adminA, docA, recepA, adminB, suspU].map((u) => u.id);
   ids.suspUserId = suspU.id;
   ids.docAId = docA.id;
@@ -126,11 +126,11 @@ async function seed() {
   ids.patients = [patA1.id, patA2.id, patB1.id];
 
   // "Revenue Recovered" scenario: patA1 got a 'sent' recall 10d ago AND a completed appt 2d ago → 1 recovered × 4000.
-  await q("insert into appointments (clinic_id, patient_id, doctor_id, scheduled_at, status) values ($1,$2,$3, now()-interval '2 days','completed')", [cA.id, patA1.id, docA.id]);
-  ids.apptA = (await q("insert into appointments (clinic_id, patient_id, doctor_id, scheduled_at, status) values ($1,$2,$3, now()+interval '3 days','scheduled') returning id", [cA.id, patA1.id, docA.id])).id;
-  await q("insert into recalls (clinic_id, patient_id, reason, due_at, status, sent_at) values ($1,$2,'6-month cleaning', now()-interval '12 days','sent', now()-interval '10 days')", [cA.id, patA1.id]);
+  await q("insert into appointments (clinic_id, patient_id, doctor_id, scheduled_at, status) values ($1,$2,$3, now()-interval '2 days',5)", [cA.id, patA1.id, docA.id]);
+  ids.apptA = (await q("insert into appointments (clinic_id, patient_id, doctor_id, scheduled_at, status) values ($1,$2,$3, now()+interval '3 days',1) returning id", [cA.id, patA1.id, docA.id])).id;
+  await q("insert into recalls (clinic_id, patient_id, reason, due_at, status, sent_at) values ($1,$2,'6-month cleaning', now()-interval '12 days',3, now()-interval '10 days')", [cA.id, patA1.id]);
   // A due 'pending' recall whose patient has NO phone → cron should skip it.
-  await q("insert into recalls (clinic_id, patient_id, reason, due_at, status) values ($1,$2,'checkup', now()-interval '1 day','pending')", [cA.id, patA2.id]);
+  await q("insert into recalls (clinic_id, patient_id, reason, due_at, status) values ($1,$2,'checkup', now()-interval '1 day',1)", [cA.id, patA2.id]);
 
   const note = {
     diagnosis: "Dental caries, tooth 26",
@@ -138,20 +138,20 @@ async function seed() {
     treatmentPlan: ["Composite filling on 26", "Review in 2 weeks"],
   };
   const visit = await q(
-    "insert into visits (clinic_id, patient_id, doctor_id, module, status, note, approved_at, approved_by, visit_date) values ($1,$2,$3,'dental','approved',$4, now(), $3, now()) returning id",
+    "insert into visits (clinic_id, patient_id, doctor_id, module, status, note, approved_at, approved_by, visit_date) values ($1,$2,$3,'dental',3,$4, now(), $3, now()) returning id",
     [cA.id, patA1.id, docA.id, JSON.stringify(note)],
   );
   ids.visit = visit.id;
 
-  await q("insert into whatsapp_messages (clinic_id, patient_id, direction, phone, status, body) values ($1,$2,'inbound','+923009990001','received','Hello, I need an appointment')", [cA.id, patA1.id]);
-  await q("insert into whatsapp_messages (clinic_id, patient_id, direction, phone, status, template_name, body, external_id) values ($1,$2,'outbound','+923009990001','sent','recall_reminder','Your recall is due','E2E-EXT-1')", [cA.id, patA1.id]);
+  await q("insert into whatsapp_messages (clinic_id, patient_id, direction, phone, status, body) values ($1,$2,1,'+923009990001',6,'Hello, I need an appointment')", [cA.id, patA1.id]);
+  await q("insert into whatsapp_messages (clinic_id, patient_id, direction, phone, status, template_name, body, external_id) values ($1,$2,2,'+923009990001',2,'recall_reminder','Your recall is due','E2E-EXT-1')", [cA.id, patA1.id]);
 
   // --- Data for the CSV-export + live-queue sections ---
   // A completed visit that realised a sale + a cash payment, plus a procedure, so the
   // sales/payments/procedures CSV exports have real rows. Uses patA2 (a 'pending'
   // recall, NOT 'sent') so it can't skew the "1 return visit" revenue-recovered count.
   const saleAppt = await q(
-    "insert into appointments (clinic_id, patient_id, doctor_id, scheduled_at, status) values ($1,$2,$3, now()-interval '1 day','completed') returning id",
+    "insert into appointments (clinic_id, patient_id, doctor_id, scheduled_at, status) values ($1,$2,$3, now()-interval '1 day',5) returning id",
     [cA.id, patA2.id, docA.id],
   );
   await q(
@@ -159,7 +159,11 @@ async function seed() {
     [cA.id, saleAppt.id, docA.id],
   );
   await q(
-    "insert into patient_payments (clinic_id, patient_id, appointment_id, kind, amount, method, occurred_at, created_by, created_by_name) values ($1,$2,$3,'payment',5000,'cash', now()-interval '1 day', $4,'Recep E2E')",
+    // Raw SQL, so the vocabulary columns are the integer FKs (migration 0087):
+    // kind_id 1 = 'payment', method_id 1 = 'cash'. Kept as literals rather than a
+    // subselect so this seed still reads as one statement; src/core/db/vocabulary-seed.ts
+    // is the authority for the numbers.
+    "insert into patient_payments (clinic_id, patient_id, appointment_id, kind_id, amount, method_id, occurred_at, created_by, created_by_name) values ($1,$2,$3,1,5000,1, now()-interval '1 day', $4,'Recep E2E')",
     [cA.id, patA2.id, saleAppt.id, recepA.id],
   );
   await q("insert into procedures (clinic_id, name, price, module) values ($1,'Scaling & polishing',3000,'dental')", [cA.id]);
@@ -167,7 +171,7 @@ async function seed() {
   const todayStr = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD (local)
   ids.queueAppt = (
     await q(
-      "insert into appointments (clinic_id, patient_id, doctor_id, scheduled_at, status, queue_session, queue_number) values ($1,$2,$3, now(), 'scheduled', $4, 1) returning id",
+      "insert into appointments (clinic_id, patient_id, doctor_id, scheduled_at, status, queue_session, queue_number) values ($1,$2,$3, now(), 1, $4, 1) returning id",
       [cA.id, patA2.id, docA.id, `${docA.id}:${todayStr}:day`],
     )
   ).id;
@@ -325,7 +329,7 @@ async function run() {
     {
       const body = JSON.stringify({ mobile: "+923009990001", text: "E2E inbound probe message" });
       const r = await req(`/api/whatsapp/webhook?token=${WH_TOKEN}`, { method: "POST", body, headers: json });
-      const row = (await pool.query("select patient_id, direction from whatsapp_messages where body=$1 order by created_at desc limit 1", ["E2E inbound probe message"])).rows[0];
+      const row = (await pool.query("select m.patient_id, wd.code as direction from whatsapp_messages m join whatsapp_directions wd on wd.id = m.direction where m.body=$1 order by m.created_at desc limit 1", ["E2E inbound probe message"])).rows[0];
       record("webhook inbound (valid token) → 200 + logged & patient-matched", r.status === 200 && row && row.direction === "inbound" && row.patient_id === ids.patients[0]);
       // Both providers now share ONE pipeline (D-10), so the idempotency the Cloud
       // route proves must hold here too — this is the assertion that the AiSensy
@@ -334,14 +338,14 @@ async function run() {
       const dupBody = JSON.stringify({ mobile: "+923009990001", text: "E2E replay probe", messageId: mid });
       const first = await req(`/api/whatsapp/webhook?token=${WH_TOKEN}`, { method: "POST", body: dupBody, headers: json });
       const again = await req(`/api/whatsapp/webhook?token=${WH_TOKEN}`, { method: "POST", body: dupBody, headers: json });
-      const n = (await pool.query("select count(*)::int c from whatsapp_messages where external_id=$1 and direction='inbound'", [mid])).rows[0].c;
+      const n = (await pool.query("select count(*)::int c from whatsapp_messages where external_id=$1 and direction=1 /* inbound */", [mid])).rows[0].c;
       record("webhook replay is idempotent → still one row", first.status === 200 && again.status === 200 && n === 1, `rows=${n}`);
     }
     {
       const body = JSON.stringify({ messageId: "E2E-EXT-1", status: "read" });
       const r = await req(`/api/whatsapp/webhook?token=${WH_TOKEN}`, { method: "POST", body, headers: json });
       const row = (await pool.query("select status from whatsapp_messages where external_id='E2E-EXT-1'")).rows[0];
-      record("webhook status receipt → advances outbound to 'read'", r.status === 200 && row && row.status === "read");
+      record("webhook status receipt → advances outbound to 'read'", r.status === 200 && row && row.status === 4 /* read */);
     }
     {
       // Patient self-service reschedule via WhatsApp reply (docA has no hours
@@ -352,7 +356,7 @@ async function run() {
       const r = await req(`/api/whatsapp/webhook?token=${WH_TOKEN}`, { method: "POST", body, headers: json });
       let j = {};
       try { j = JSON.parse(r.text); } catch { /* ignore */ }
-      const moved = (await pool.query("select scheduled_at from appointments where clinic_id=$1 and patient_id=$2 and status='scheduled' order by scheduled_at desc limit 1", [ids.clinics[0], ids.patients[0]])).rows[0];
+      const moved = (await pool.query("select scheduled_at from appointments where clinic_id=$1 and patient_id=$2 and status=1 /* scheduled */ order by scheduled_at desc limit 1", [ids.clinics[0], ids.patients[0]])).rows[0];
       const hour = moved ? new Date(moved.scheduled_at).getHours() : null;
       record("webhook reschedule reply moves the appointment", r.status === 200 && j.rescheduled === true && hour === 14, `rescheduled=${j.rescheduled} hour=${hour}`);
     }
@@ -365,7 +369,7 @@ async function run() {
       const r = await req(`/api/whatsapp/webhook?token=${WH_TOKEN}`, { method: "POST", body, headers: json });
       let j = {};
       try { j = JSON.parse(r.text); } catch { /* ignore */ }
-      const rows = (await pool.query("select scheduled_at from appointments where clinic_id=$1 and patient_id=$2 and status='scheduled'", [ids.clinics[0], ids.patients[0]])).rows;
+      const rows = (await pool.query("select scheduled_at from appointments where clinic_id=$1 and patient_id=$2 and status=1 /* scheduled */", [ids.clinics[0], ids.patients[0]])).rows;
       const has3pm = rows.some((row) => new Date(row.scheduled_at).getHours() === 15);
       record("webhook 'book …' creates a new appointment", r.status === 200 && j.booked === true && has3pm, `booked=${j.booked}`);
     }
@@ -410,7 +414,7 @@ async function run() {
       // Idempotency (migration 0079): a provider REDELIVERY must not log the message
       // twice, because everything after the insert has patient-visible side effects.
       const again = await req("/api/whatsapp/cloud", { method: "POST", body, headers: hdr });
-      const cnt = (await pool.query("select count(*)::int c from whatsapp_messages where external_id=$1 and direction='inbound'", [inId])).rows[0].c;
+      const cnt = (await pool.query("select count(*)::int c from whatsapp_messages where external_id=$1 and direction=1 /* inbound */", [inId])).rows[0].c;
       record("cloud webhook replay is idempotent → still one row", again.status === 200 && cnt === 1, `status=${again.status} rows=${cnt}`);
 
       // A forged payload must never be accepted when the secret IS configured.
@@ -464,7 +468,8 @@ async function run() {
       for (let i = 0; i < 20 && !row?.settled; i++) {
         await new Promise((res) => setTimeout(res, 250));
         const q = await pool.query(
-          `select status, transcribe_error, audio_key from visits where id = $1`,
+          `select vs.code as status, v.transcribe_error, v.audio_key from visits v
+             join visit_statuses vs on vs.id = v.status where v.id = $1`,
           [visitId],
         );
         const v = q.rows[0];
@@ -566,21 +571,21 @@ async function run() {
   console.log("\n== LIVE QUEUE (doctor: Arrived → Call in → Complete) ==");
   {
     // Reception checks the patient in; the doctor's queue should offer "Call in".
-    await pool.query("update appointments set status='arrived', arrived_at=now() where id=$1", [ids.queueAppt]);
+    await pool.query("update appointments set status=3 /* arrived */, arrived_at=now() where id=$1", [ids.queueAppt]);
     {
       const r = await req("/clinic/scribe", { cookie: S.docA });
       const ok = r.status === 200 && r.text.includes("Bilal NoPhone") && r.text.includes("Call in") && r.text.includes("Arrived");
       record("doctor queue: Arrived patient shows a 'Call in' control", ok, ok ? "" : `status=${r.status} ${snip(r.text)}`);
     }
     // Call in → in the room. "Call in" gives way to "Complete"; now-serving shows the token.
-    await pool.query("update appointments set status='in_progress' where id=$1", [ids.queueAppt]);
+    await pool.query("update appointments set status=4 /* in_progress */ where id=$1", [ids.queueAppt]);
     {
       const r = await req("/clinic/scribe", { cookie: S.docA });
       const ok = r.status === 200 && r.text.includes("In progress") && !r.text.includes("Call in");
       record("doctor queue: In progress patient — 'Call in' gone (now 'Complete')", ok, ok ? "" : `status=${r.status}`);
     }
     // Complete → done. No advance control remains for that patient.
-    await pool.query("update appointments set status='completed' where id=$1", [ids.queueAppt]);
+    await pool.query("update appointments set status=5 /* completed */ where id=$1", [ids.queueAppt]);
     {
       const r = await req("/clinic/scribe", { cookie: S.docA });
       const ok = r.status === 200 && r.text.includes("Completed") && !r.text.includes("Call in") && !r.text.includes("In progress");
@@ -643,6 +648,47 @@ async function run() {
       // The dead panels' nav is gone (D-04); nothing should link into them.
       record("nav: no links into the removed /doctor or /reception panels", !a.text.includes('href="/reception') && !a.text.includes('href="/doctor'));
     }
+    // ── DAY BOOK: the dashboard entry point + the page it lands on ──
+    // The dashboard button is gated on the SALES feature + billing:view (the day
+    // book's own guard), not on `finance` — gating it on finance would show a button
+    // that lands on notFound() for a sales-but-not-finance clinic.
+    {
+      const a = await req("/clinic", { cookie: S.adminA });
+      const b = await req("/clinic", { cookie: S.adminB });
+      record(
+        "dashboard: Day book button links to the day book",
+        a.text.includes('href="/clinic/reports/daybook"') && a.text.includes("Day book"),
+      );
+      record(
+        "dashboard: it no longer points at the Overview as 'Day report'",
+        !a.text.includes("Day report"),
+      );
+      record(
+        "dashboard: hidden for a clinic without the sales feature",
+        !b.text.includes('href="/clinic/reports/daybook"'),
+      );
+
+      const d = await req("/clinic/reports/daybook", { cookie: S.adminA });
+      record("day book page → 200", d.status === 200, d.status === 200 ? "" : `status=${d.status}`);
+      record("day book offers Download PDF", d.text.includes("Download PDF"));
+      record("day book still offers Export CSV", d.text.includes("Export CSV"));
+      // The payouts column is the third cash source; without it the report understates
+      // what left the drawer.
+      record("day book shows the Doctor payouts column", d.text.includes("Doctor payouts"));
+      // A printed sheet with no clinic name or date is not a record.
+      record("day book prints a clinic + date header", d.text.includes("print:block"));
+      // Clinic B has no sales feature, so the page itself must refuse it too — the
+      // button being hidden is not the same as the route being closed.
+      // Assert on CONTENT, not status: a notFound() inside a panel returns 200 because
+      // the layout has already begun streaming when it throws (ADR-026). Checking for
+      // 404 here fails against correct code.
+      const nb = await req("/clinic/reports/daybook", { cookie: S.adminB });
+      record(
+        "day book renders nothing for a clinic without the feature",
+        !nb.text.includes("Download PDF") && !nb.text.includes("Doctor payouts"),
+      );
+    }
+
     {
       const r = await req("/api/finance/export?type=sales&period=year", { cookie: S.adminA });
       record("sales CSV (streamed) → text/csv + footer + header", okCsv(r, "Date,Patient,Phone,Doctor,Gross"), okCsv(r, "Date,Patient,Phone,Doctor,Gross") ? "" : `status=${r.status} ct=${r.ct}`);

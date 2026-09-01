@@ -12,13 +12,11 @@ import {
   filterLabelCls,
 } from "@/core/ui/report-filters";
 import { SearchableSelect } from "@/core/ui/searchable-select";
+import { PAYMENT_METHOD_OPTIONS } from "@/core/finance/payment-methods";
 
 const METHOD_OPTIONS = [
   { value: "", label: "Any method" },
-  { value: "cash", label: "Cash" },
-  { value: "bank", label: "Bank transfer" },
-  { value: "cheque", label: "Cheque" },
-  { value: "other", label: "Other" },
+  ...PAYMENT_METHOD_OPTIONS,
 ];
 const METHOD_LABELS = Object.fromEntries(METHOD_OPTIONS.map((o) => [o.value, o.label]));
 

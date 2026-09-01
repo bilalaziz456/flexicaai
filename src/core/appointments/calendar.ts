@@ -18,6 +18,7 @@ import {
   buildAppointmentConds,
   type AppointmentFilterInput,
 } from "./list-query";
+import { appointmentStatusId } from "@/core/db/vocabulary-seed";
 
 /** A doctor visiting on a given day. */
 export type DutyDoctor = {
@@ -112,7 +113,7 @@ export async function getCalendarDays(
         both: sql<number>`count(*) filter (where ${hasProc} and ${appointments.chargeConsultation} = true)::int`,
         // A patient self-booking staff haven't acted on: setAppointmentStatus
         // sends the confirmation exactly when such a row moves to 'confirmed'.
-        pending: sql<number>`count(*) filter (where ${appointments.source} = 'whatsapp' and ${appointments.status} = 'scheduled')::int`,
+        pending: sql<number>`count(*) filter (where ${appointments.source} = 'whatsapp' and ${appointments.status} = ${appointmentStatusId("scheduled")})::int`,
       })
       .from(appointments)
       .innerJoin(patients, sql`${appointments.patientId} = ${patients.id}`)

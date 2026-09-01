@@ -12,6 +12,7 @@ import {
 import { displayStaffName } from "@/core/types/auth";
 import { logActivity } from "@/core/audit/log";
 import { revalidateFinance } from "@/app/clinic/finance-revalidate";
+import { PAYMENT_METHODS } from "@/core/finance/payment-methods";
 
 export type PayoutActionState = { error?: string; saved?: boolean };
 
@@ -21,7 +22,7 @@ const recordSchema = z.object({
     .number({ message: "Enter an amount." })
     .int("Whole rupees only.")
     .positive("Enter an amount greater than zero."),
-  method: z.string().trim().max(40).optional(),
+  method: z.enum(PAYMENT_METHODS).optional(),
   reference: z.string().trim().max(120).optional(),
   note: z.string().trim().max(500).optional(),
 });

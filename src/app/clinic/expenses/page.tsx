@@ -24,6 +24,7 @@ import { parsePage, parsePageSize, pageOffset } from "@/core/lib/pagination";
 import { ExpenseFilters } from "./expenses-filters";
 import { AddExpenseForm, CategoryManager } from "./expense-ui";
 import { ExpensesTable } from "./expenses-table";
+import { asPaymentMethodCode } from "@/core/db/vocabulary-seed";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -72,7 +73,7 @@ export default async function ExpensesPage({
       from: range.start,
       toExclusive: range.end,
       categoryId: sp.categoryId?.trim() || undefined,
-      method: sp.method?.trim() || undefined,
+      method: asPaymentMethodCode(sp.method),
       q: sp.q?.trim() || undefined,
       deleted,
       limit: pageSize,

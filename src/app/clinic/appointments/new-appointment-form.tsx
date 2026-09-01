@@ -98,6 +98,7 @@ export function NewAppointmentForm({
     discountSplitType?: string;
     discountSplitValue?: number;
     chargeConsultation?: boolean;
+    customTime?: boolean;
     procedures?: {
       procedureId: string;
       quantity: number;
@@ -147,6 +148,7 @@ export function NewAppointmentForm({
   const [chargeConsultation, setChargeConsultation] = useState(
     initial?.chargeConsultation ?? true,
   );
+  const [customTime, setCustomTime] = useState(initial?.customTime ?? false);
   // Selected procedures → { quantity (≥1) }. There is NO per-procedure discount —
   // the only discount is the appointment-level one below. Missing key = unselected.
   type ProcState = { quantity: number };
@@ -249,7 +251,10 @@ export function NewAppointmentForm({
     discountType,
     discountNumber,
   );
-  const freeTime = !doctorId || Boolean(selectedDoctor?.flexibleHours);
+  // A custom time frees the picker exactly as a flexible doctor does — the server
+  // applies the same relaxation (checkDoctorSlot's `customTime`), so the form can
+  // never offer a time the action would then refuse.
+  const freeTime = !doctorId || Boolean(selectedDoctor?.flexibleHours) || customTime;
   const onLeaveBlock = Boolean(doctorId) && Boolean(date) && Boolean(slots?.onLeave);
 
   // Whether this visit carries procedures decides which windows the SERVER will
@@ -258,6 +263,23 @@ export function NewAppointmentForm({
   // not the consultation-fee checkbox: a visit can skip the fee and still be a
   // plain consultation, which a procedure window would refuse.
   const hasProcedures = procSel.size > 0;
+
+  // With the override ON, is the chosen time inside the doctor's hours ANYWAY? The
+  // server asks exactly this (checkDoctorSlot's `withinHours`) and drops the flag when
+  // it is true, so without saying so here the form silently disagrees with what gets
+  // saved: staff tick "Custom time", pick a time that turns out to be in hours, and
+  // then wonder why the visit appears on the normal queue card instead of its own.
+  const customTimeUnnecessary =
+    customTime &&
+    Boolean(doctorId) &&
+    !selectedDoctor?.flexibleHours &&
+    Boolean(time) &&
+    slots !== null &&
+    !slots.onLeave &&
+    slots.available &&
+    slots.windows
+      .filter((w) => hasProcedures || w.kind !== "procedure")
+      .some((w) => timeToMin(time) >= timeToMin(w.start) && timeToMin(time) < timeToMin(w.end));
 
   const constrained =
     !freeTime &&
@@ -299,6 +321,7 @@ export function NewAppointmentForm({
         value={isEdit ? (fixedPatient?.id ?? "") : (patient?.id ?? "")}
       />
       <input type="hidden" name="scheduledAt" value={scheduledAt} />
+      <input type="hidden" name="customTime" value={customTime ? "1" : "0"} />
 
       <div className="space-y-2">
         <Label>Patient</Label>
@@ -402,17 +425,41 @@ export function NewAppointmentForm({
         </div>
 
         <div className="space-y-2">
-          <Label>{freeTime ? "Time" : "Available times"}</Label>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Label>{freeTime ? "Time" : "Available times"}</Label>
+            {/* Only offered when hours actually constrain the choice: a flexible
+                doctor (or "Any doctor") is already free, so the toggle would claim
+                to do something it isn't doing. */}
+            {doctorId && !selectedDoctor?.flexibleHours ? (
+              <label className="flex min-h-6 cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="size-3.5 accent-[var(--primary)]"
+                  checked={customTime}
+                  onChange={(e) => setCustomTime(e.target.checked)}
+                />
+                Custom time (outside visiting hours)
+              </label>
+            ) : null}
+          </div>
           {onLeaveBlock ? (
             <p className="text-sm text-destructive">
               Doctor is on leave that day. Pick another date.
             </p>
           ) : freeTime ? (
-            <TimeSelect
-              ariaLabel="Appointment time"
-              value={effectiveTime || "09:00"}
-              onChange={setTime}
-            />
+            <>
+              <TimeSelect
+                ariaLabel="Appointment time"
+                value={effectiveTime || "09:00"}
+                onChange={setTime}
+              />
+              {customTimeUnnecessary ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  This time is within the doctor&apos;s visiting hours, so no exception
+                  is needed — it will be saved as a normal appointment.
+                </p>
+              ) : null}
+            </>
           ) : !date ? (
             <p className="text-sm text-muted-foreground">
               Pick a date to see the doctor&apos;s available times.
@@ -421,7 +468,8 @@ export function NewAppointmentForm({
             <p className="text-sm text-muted-foreground">Loading times…</p>
           ) : !slots.available ? (
             <p className="text-sm text-destructive">
-              Doctor doesn&apos;t work that day. Pick another date.
+              Doctor doesn&apos;t work that day. Pick another date, or tick{" "}
+              <strong>Custom time</strong> above to book anyway.
             </p>
           ) : windows.length === 0 ? (
             // Distinguish "doesn't work" from "works, but only on procedures" —
@@ -429,7 +477,9 @@ export function NewAppointmentForm({
             <p className="text-sm text-destructive">
               {slots.windows.length > 0
                 ? "That day is procedure-only. Add a procedure below, or pick another date."
-                : "No available times that day."}
+                : "No available times that day."}{" "}
+              You can also tick <strong>Custom time</strong> above to book outside the
+              doctor&apos;s hours.
             </p>
           ) : (
             // Specific-hours doctor → pick one of the visiting-hours window(s).
@@ -842,6 +892,7 @@ export function NewAppointmentForm({
             : slots.windows.length
               ? `Working hours ${slots.windows.map((w) => `${w.start}–${w.end}${w.kind === "procedure" ? " (procedures)" : ""}`).join(", ")}.`
               : ""}
+          {customTime ? " Custom time on — this visit is booked outside them." : ""}
           {slots.remaining !== null
             ? ` ${slots.remaining} of ${slots.limit} appointment${slots.remaining === 1 ? "" : "s"} left that day.`
             : ""}

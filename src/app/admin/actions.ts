@@ -37,6 +37,7 @@ import { backfillClinicSales } from "@/core/sales/ledger";
 import { logActivity } from "@/core/audit/log";
 import { sanitizeLogAccess } from "@/core/audit/access";
 import { USERNAME_REGEX } from "@/core/types/auth";
+import { PAYMENT_METHODS } from "@/core/finance/payment-methods";
 
 export type AdminActionState = { error?: string; saved?: boolean; needsTotp?: boolean };
 
@@ -645,7 +646,7 @@ export async function setClinicPrice(
 const clinicPaymentSchema = z.object({
   amount: z.coerce.number().int("Whole PKR only.").positive("Amount must be positive."),
   kind: z.enum(["payment", "refund", "credit"]).optional(),
-  method: z.enum(["bank", "cash", "cheque", "other"]).optional(),
+  method: z.enum(PAYMENT_METHODS).optional(),
   reference: z.string().trim().max(120).optional(),
   note: z.string().trim().max(500).optional(),
   occurredAt: z.string().trim().optional(),

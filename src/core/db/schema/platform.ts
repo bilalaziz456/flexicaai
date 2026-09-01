@@ -12,11 +12,20 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-
 import { clinics, patients, users } from "@/core/db/schema/identity";
-
-import { softDeleteColumns } from "@/core/db/schema/_shared";
 import { visits } from "@/core/db/schema/clinical";
+import {
+  CLINIC_PAYMENT_KIND_ROWS,
+  PAYMENT_METHOD_ROWS,
+  type ClinicPaymentKindCode,
+  type PaymentMethodCode,
+} from "@/core/db/vocabulary-seed";
+import {
+  clinicPaymentKinds,
+  paymentMethods,
+  vocabularyRef,
+} from "@/core/db/schema/vocabulary";
+import { softDeleteColumns } from "@/core/db/schema/_shared";
 
 /**
  * Platform and company tables — the audit trail, data imports, announcements,
@@ -93,7 +102,9 @@ export const importedTransactions = pgTable(
     // Descriptive, all as given.
     description: text("description"), // line summary / category / memo
     reference: text("reference"), // their old invoice / receipt / voucher no.
-    method: text("method"), // cash | bank | cheque | card | other (payments)
+    // Deliberately NOT bound to core/finance/payment-methods.ts: this archives
+    // whatever the clinic’s previous system wrote, verbatim (e.g. 'card', 'JazzCash').
+    method: text("method"),
     // The ENTIRE original row, verbatim — so nothing is lost and a future specialised
     // report is recoverable without a re-import.
     raw: jsonb("raw").$type<Record<string, string>>(),
@@ -139,8 +150,13 @@ export const clinicPayments = pgTable(
     // 'payment' = money IN from the clinic (+balance, +cash revenue); 'refund' =
     // money OUT to the clinic (−balance, −cash revenue); 'credit' = non-cash account
     // credit / goodwill (+balance, NOT cash revenue). See core/admin/billing.ts.
-    kind: text("kind").notNull().default("payment"),
-    method: text("method"), // bank | cash | cheque | other
+    kind: vocabularyRef<ClinicPaymentKindCode>(CLINIC_PAYMENT_KIND_ROWS, "kind_id")
+      .notNull()
+      .default("payment")
+      .references(() => clinicPaymentKinds.id),
+    method: vocabularyRef<PaymentMethodCode>(PAYMENT_METHOD_ROWS, "method_id").references(
+      () => paymentMethods.id,
+    ),
     reference: text("reference"),
     monthsCovered: integer("months_covered").notNull().default(1), // pushes paid_through
     note: text("note"),
@@ -152,6 +168,9 @@ export const clinicPayments = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    // Drives the sign in computeClinicBalance and whether the amount counts as cash
+    // collected in the company P&L. An unrecognised kind is added as a plain payment,
+    // overstating what we actually banked.
     index("clinic_payments_clinic_occurred_idx").on(t.clinicId, t.occurredAt),
     index("clinic_payments_deleted_idx")
       .on(t.deletedAt)
@@ -265,7 +284,9 @@ export const companyExpenses = pgTable(
     amount: integer("amount").notNull().default(0), // PKR
     incurredOn: date("incurred_on").notNull(),
     vendor: text("vendor"),
-    method: text("method"), // cash | bank | cheque | other
+    method: vocabularyRef<PaymentMethodCode>(PAYMENT_METHOD_ROWS, "method_id").references(
+      () => paymentMethods.id,
+    ),
     reference: text("reference"),
     note: text("note"),
     recurring: boolean("recurring").notNull().default(false),

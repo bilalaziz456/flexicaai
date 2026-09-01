@@ -6,6 +6,8 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, clinics, patientPayments, patients, users } from "@/core/db/schema";
 import { displayStaffName } from "@/core/types/auth";
 import { formatReceiptNo } from "@/core/billing/invoice";
+import { paymentKindId } from "@/core/db/vocabulary-seed";
+import { asPaymentKindCode, asPaymentMethodCode } from "@/core/db/vocabulary-seed";
 
 /** Clinic prefixes needed to reconstruct the searchable RCP receipt # + MRN #. */
 type SearchPrefixes = { receiptPrefix: string; mrnPrefix: string };
@@ -67,8 +69,12 @@ function conds(clinicId: string, f: PaymentLedgerFilters, px: SearchPrefixes, ex
   const parts = [notDeleted(patientPayments.deletedAt)];
   if (f.from) parts.push(gte(patientPayments.occurredAt, f.from));
   if (f.toExclusive) parts.push(lt(patientPayments.occurredAt, f.toExclusive));
-  if (f.method) parts.push(eq(patientPayments.method, f.method));
-  if (f.kind) parts.push(eq(patientPayments.kind, f.kind));
+  // Narrowed, not cast: a filter for a value that does not exist should drop the
+  // condition rather than be sent to the database.
+  const method = asPaymentMethodCode(f.method);
+  if (method) parts.push(eq(patientPayments.method, method));
+  const kind = asPaymentKindCode(f.kind);
+  if (kind) parts.push(eq(patientPayments.kind, kind));
   if (f.doctorId) parts.push(eq(appointments.doctorId, f.doctorId));
   if (f.q) {
     const like = `%${f.q}%`;
@@ -135,8 +141,8 @@ export async function getPaymentsLedger(
     // Money in = payment + advance + advance_applied; out = refund. Net = in − out.
     db
       .select({
-        moneyIn: sql<number>`coalesce(sum(case when ${patientPayments.kind} = 'refund' then 0 else ${patientPayments.amount} end), 0)::int`,
-        moneyOut: sql<number>`coalesce(sum(case when ${patientPayments.kind} = 'refund' then ${patientPayments.amount} else 0 end), 0)::int`,
+        moneyIn: sql<number>`coalesce(sum(case when ${patientPayments.kind} = ${paymentKindId("refund")} then 0 else ${patientPayments.amount} end), 0)::int`,
+        moneyOut: sql<number>`coalesce(sum(case when ${patientPayments.kind} = ${paymentKindId("refund")} then ${patientPayments.amount} else 0 end), 0)::int`,
       })
       .from(patientPayments)
       .innerJoin(patients, eq(patients.id, patientPayments.patientId))

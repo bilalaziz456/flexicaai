@@ -181,12 +181,15 @@ export default async function ClinicDashboard() {
             Your clinic at a glance.
           </p>
         </div>
-        {financeKpiOn ? (
+        {/* Gated on billingKpiOn, NOT financeKpiOn: the day book needs the sales
+            feature + billing:view, so gating on finance would show the button to a
+            clinic that lands on a notFound(). Same predicate the page itself uses. */}
+        {billingKpiOn ? (
           <Link
-            href="/clinic/reports/overview"
+            href="/clinic/reports/daybook"
             className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent"
           >
-            Day report →
+            Day book →
           </Link>
         ) : null}
       </div>

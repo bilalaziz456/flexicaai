@@ -360,6 +360,7 @@ export async function AppointmentDetail({
                 discountSplitType: appt.discountSplitType,
                 discountSplitValue: appt.discountSplitValue,
                 chargeConsultation: appt.chargeConsultation,
+                customTime: appt.customTime,
                 procedures: initialProcedures,
               }}
             />

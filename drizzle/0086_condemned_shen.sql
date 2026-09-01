@@ -1,0 +1,1 @@
+ALTER TABLE "appointments" ADD COLUMN "custom_time" boolean DEFAULT false NOT NULL;

@@ -14,6 +14,7 @@
  * Run: `tsx --env-file=.env.local --tsconfig scripts/_seed/tsconfig.json scripts/test-webhook-idempotency.ts`
  */
 import { Pool } from "pg";
+import { whatsappDirectionId, whatsappStatusId } from "@/core/db/vocabulary-seed";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -34,8 +35,8 @@ function check(name: string, got: unknown, want: unknown) {
 // app/api/whatsapp/{cloud,webhook}/route.ts.
 const INSERT_INBOUND = `
   insert into whatsapp_messages (clinic_id, patient_id, direction, phone, status, body, external_id)
-  values (null, null, 'inbound', $1, 'received', $2, $3)
-  on conflict (external_id) where external_id is not null and direction = 'inbound'
+  values (null, null, ${whatsappDirectionId("inbound")}, $1, ${whatsappStatusId("received")}, $2, $3)
+  on conflict (external_id) where external_id is not null and direction = ${whatsappDirectionId("inbound")}
   do nothing
   returning id`;
 
@@ -51,7 +52,9 @@ async function main() {
     check("exists (migration 0079 applied)", idx.rowCount, 1);
     check(
       "is scoped to inbound only",
-      /direction = 'inbound'/.test(idx.rows[0]?.indexdef ?? ""),
+      // The predicate names the ID since migration 0090 — `direction = 1`, not the
+      // enum literal. Built from the constant so it follows a renumber.
+      new RegExp(`direction = ${whatsappDirectionId("inbound")}`).test(idx.rows[0]?.indexdef ?? ""),
       true,
     );
   }
@@ -67,7 +70,7 @@ async function main() {
     check("the retry inserts NOTHING (side effects skipped)", replay.rowCount, 0);
 
     const total = await pool.query<{ c: number }>(
-      `select count(*)::int c from whatsapp_messages where external_id = $1 and direction = 'inbound'`,
+      `select count(*)::int c from whatsapp_messages where external_id = $1 and direction = ${whatsappDirectionId("inbound")}`,
       [WAMID],
     );
     check("exactly one inbound row survives", total.rows[0].c, 1);
@@ -80,7 +83,7 @@ async function main() {
     // repeated value would start rejecting real sends at log time.
     const outbound = await pool.query(
       `insert into whatsapp_messages (clinic_id, direction, phone, status, external_id)
-       values (null, 'outbound', $1, 'sent', $2) returning id`,
+       values (null, ${whatsappDirectionId("outbound")}, $1, ${whatsappStatusId("sent")}, $2) returning id`,
       [PHONE, WAMID],
     );
     check("an outbound row may reuse the same id", outbound.rowCount, 1);

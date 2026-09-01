@@ -8,6 +8,7 @@ import { appointments, clinicPayments, clinics, patients, users } from "@/core/d
 import { computeServingCost } from "@/core/admin/cost";
 import { DEFAULT_ANOMALY, type AnomalyThresholds } from "@/core/admin/company-settings";
 import type { ResolvedRange } from "@/core/sales/report";
+import { clinicPaymentKindId } from "@/core/db/vocabulary-seed";
 
 /**
  * Clinic health / engagement (Owner Overview) — the operational counterpart to the
@@ -72,7 +73,7 @@ export type ClinicHealth = {
   inactiveDays: number;
 };
 
-const cashSum = sql<number>`coalesce(sum(case when ${clinicPayments.kind} = 'refund' then -${clinicPayments.amount} when ${clinicPayments.kind} = 'credit' then 0 else ${clinicPayments.amount} end),0)`;
+const cashSum = sql<number>`coalesce(sum(case when ${clinicPayments.kind} = ${clinicPaymentKindId("refund")} then -${clinicPayments.amount} when ${clinicPayments.kind} = ${clinicPaymentKindId("credit")} then 0 else ${clinicPayments.amount} end),0)`;
 
 export async function getClinicHealth(
   range: ResolvedRange,
