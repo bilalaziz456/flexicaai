@@ -25,6 +25,13 @@ import { join } from "node:path";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { unscoped } from "@/core/db/tenant-guard";
+import { moduleVocabularies } from "@/config/modules";
+import {
+  loadVocabularies,
+  registerModuleVocabularies,
+  vocabularyLabel,
+  vocabularyOptions,
+} from "@/core/db/vocabulary-cache";
 import { appointments } from "@/core/db/schema";
 import { ALL_VOCABULARY_SEED, VOCABULARY_SEED, idOf, PAYMENT_KIND_ROWS } from "@/core/db/vocabulary-seed";
 
@@ -230,6 +237,32 @@ async function main() {
       threw = true;
     }
     ok("an unseeded code throws when mapped, rather than storing something else", threw);
+
+    // ── The module seam (ADR-028) ─────────────────────────────────────────
+    // A specialty can contribute vocabularies without core knowing specialties exist.
+    // The two halves are asserted separately, because it is the SEPARATION that is the
+    // design: core alone must not see them, and the registry must be able to inject.
+    const beforeRegister = vocabularyOptions("dental_lab_statuses").length;
+    registerModuleVocabularies(moduleVocabularies());
+    await loadVocabularies();
+    const afterRegister = vocabularyOptions("dental_lab_statuses");
+    ok("core alone does not see a module's vocabulary", beforeRegister === 0, `${beforeRegister} options`);
+    ok("…and the registry can inject it", afterRegister.length === 5, `${afterRegister.length} options`);
+    ok("…with the database's labels", afterRegister[1]?.label === "In lab", afterRegister[1]?.label);
+    ok("core's own vocabularies still resolve", vocabularyLabel("payment_methods", "bank") === "Bank transfer");
+
+    // The FKs the module owns.
+    const moduleFks = declared.filter((d) => d.tbl === "lab_cases");
+    ok("lab_cases carries both module FKs",
+      moduleFks.some((d) => d.ref === "dental_lab_statuses") && moduleFks.some((d) => d.ref === "dental_lab_items"),
+      JSON.stringify(moduleFks));
+
+    // Registering the same set twice must NOT invalidate the cache — the root layout
+    // does it on every render, and a reload per request would throw the TTL away.
+    const stamp = Date.now();
+    registerModuleVocabularies(moduleVocabularies());
+    await loadVocabularies();
+    ok("re-registering the same set is idempotent", Date.now() - stamp < 250, "took too long — it reloaded");
 
     let blocked = false;
     try {

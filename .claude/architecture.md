@@ -126,10 +126,16 @@ don't special-case the module.**
 A specialty is a `ModuleDefinition` (`core/types/module.ts`) registered in
 `config/modules.ts`. It contributes: a scribe prompt, drug formulary, recall rules,
 procedure and treatment templates, an optional structured clinical record (chart UI +
-`saveRecord` + trash provider), and nav items.
+`saveRecord` + trash provider), **its own closed vocabularies** (ADR-028), and nav items.
 
 Core reads `clinic.modules_enabled` and asks the registry. **Core never asks "is this
 dental?"** — that check appearing anywhere in `src/core` is a defect.
+
+**Two contributions are INJECTED rather than read**, because core cannot reach for them
+without knowing a specialty exists: the Trash provider (`config/module-trash.ts`) and
+the vocabularies (`config/modules.ts#moduleVocabularies` → `registerModuleVocabularies`,
+ADR-028). Anything a module contributes that core must ACT on, rather than merely
+render, takes that shape — the registry aggregates and the app hands it down.
 
 ---
 
@@ -766,6 +772,53 @@ and `.method` (it archives whatever a clinic's previous system wrote), and
 `ai_usage.model`. Vocabularies whose worst case is a wrong badge colour were left as
 plain columns; the test to apply is ADR-021's — **does a bad value produce a wrong
 FIGURE, silently?**
+
+
+**ADR-028 — A specialty contributes vocabularies by INJECTION, never by core reaching
+for them** · *2026-09-02* · `Accepted`
+`ModuleDefinition` gains `vocabularies`. A module declares its own lookup tables and
+their seed rows (`modules/dental/vocabulary.ts`, tables in the module's own schema);
+`config/modules.ts#moduleVocabularies()` aggregates every registered module's; and the
+app injects the result into `core/db/vocabulary-cache.ts#registerModuleVocabularies`
+at start-up. **Core walks only what it is handed.**
+
+**Why the direction is inverted, and it is not a style choice.** Core pulling instead —
+`vocabulary-cache` importing `config/modules` — breaks two things at once: a core module
+would know a specialty exists (ADR-001), and `config/modules → modules → core →
+config/modules` is a cycle. There was already a seam for exactly this shape:
+`config/module-trash.ts` hands core a module's Trash provider as DATA because core
+cannot query a dental table. This is the same move for a different contribution.
+
+**Where each rule still applies.** Ids are written out and never renumbered; the
+database owns the LABEL and the code owns what a value MEANS; `lab_cases.status` and
+`.item` are integer FKs presented as codes by the same `vocabularyRef` custom type core
+uses. What differs is only who declares them.
+
+**Two details that decide whether it works:**
+- **`moduleVocabularies()` returns EVERY registered module's, not a clinic's enabled
+  ones.** The cache is process-wide while `modules_enabled` is per clinic, and a lookup
+  row has to resolve for whoever reads it — including a super admin looking across
+  clinics with different modules.
+- **Registration is idempotent.** The root layout registers on every render, because
+  that is the only path guaranteed to run (`instrumentation` does not execute in every
+  context). Marking the cache stale unconditionally would reload it per request and
+  throw away the TTL, so only a genuinely different SET of tables invalidates.
+
+**The module narrows at its own boundary.** Core's `ModuleLab` contract types `status`
+and `item` as `string` — it must, since core cannot know a dental code exists — so
+`modules/dental/db/lab.ts` narrows with `asCode` and refuses an unrecognised value
+rather than storing it. Any future module-owned vocabulary crossing a core contract
+does the same.
+
+**What this does NOT solve.** A vocabulary living in **jsonb** still cannot have a
+foreign key — the dental tooth chart is the case, and it stays a compile-time
+exhaustiveness check against the `ToothStatus` union instead.
+
+**Two pre-existing violations of the rule this ADR restates**, found while checking the
+direction and NOT introduced here: `core/ai/scribe-job.ts` imports `@/config/modules`,
+and `core/ui/account-forms.tsx` imports `@/app/account/actions`. Both are §3 breaches
+and both predate this work; the new seam deliberately avoids the pattern rather than
+following it.
 
 ---
 

@@ -8,6 +8,7 @@ import type {
   TreatmentTemplate,
 } from "@/core/types/module";
 import { dentalModule } from "@/modules/dental/config";
+import type { VocabularyRow } from "@/core/db/vocabulary-seed";
 
 /**
  * THE MODULE REGISTRY (CLAUDE.md §4). The single source of truth for which
@@ -174,4 +175,24 @@ export function moduleTrashProviders(): ModuleTrash[] {
   return Object.values(MODULES)
     .map((m) => m.clinicalRecord?.trash)
     .filter((t): t is ModuleTrash => Boolean(t));
+}
+
+/**
+ * Every registered module's vocabularies, merged.
+ *
+ * The registry is the ONLY layer allowed to name a specialty, so aggregating here is
+ * what lets core stay ignorant of them: `core/db/vocabulary-cache.ts` walks what it is
+ * GIVEN, and `src/instrumentation.ts` hands it this at start-up. Core importing the
+ * registry instead would both breach ADR-001 and close the loop
+ * `config/modules → modules → core → config/modules`.
+ *
+ * Deliberately EVERY registered module, not just a clinic's enabled ones: the cache is
+ * process-wide while `modules_enabled` is per clinic, and a lookup table has to resolve
+ * for whoever reads a row — including the super admin looking across clinics.
+ */
+export function moduleVocabularies(): Record<string, readonly VocabularyRow[]> {
+  return Object.values(MODULES).reduce<Record<string, readonly VocabularyRow[]>>(
+    (all, m) => ({ ...all, ...(m.vocabularies ?? {}) }),
+    {},
+  );
 }

@@ -11,9 +11,16 @@
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
-  const { loadVocabularies } = await import("@/core/db/vocabulary-cache");
+  const { loadVocabularies, registerModuleVocabularies } = await import(
+    "@/core/db/vocabulary-cache"
+  );
+  const { moduleVocabularies } = await import("@/config/modules");
   const { report } = await import("@/core/observability");
   try {
+    // The app is the only layer that may touch BOTH: core must not know a specialty
+    // exists (ADR-001), and the registry sits above it. So the registry aggregates and
+    // this injects, before the first load.
+    registerModuleVocabularies(moduleVocabularies());
     await loadVocabularies();
   } catch (e) {
     // Never block boot on this. The cache falls back to the compiled seed, which the

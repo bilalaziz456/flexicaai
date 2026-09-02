@@ -4,7 +4,12 @@ import { BRAND_WEBSITE } from "@/core/lib/brand";
 import { THEME_SCRIPT } from "@/core/theme/theme-script";
 import { Toaster } from "@/core/ui/toast";
 import "./globals.css";
-import { loadVocabularies, vocabularySnapshot } from "@/core/db/vocabulary-cache";
+import {
+  loadVocabularies,
+  registerModuleVocabularies,
+  vocabularySnapshot,
+} from "@/core/db/vocabulary-cache";
+import { moduleVocabularies } from "@/config/modules";
 import { VocabularyProvider } from "@/core/ui/vocabulary-provider";
 
 // App font. Exposed as the CSS var globals.css maps `--font-sans` to.
@@ -45,6 +50,9 @@ export default async function RootLayout({
   // through the sixteen that need them. `loadVocabularies` is a no-op once warm —
   // `src/instrumentation.ts` normally does it at start-up — so this only pays on a
   // genuinely cold process.
+  // Registered here as well as in `instrumentation`: this is the path that always
+  // runs. Idempotent, so it does not disturb the cache's TTL.
+  registerModuleVocabularies(moduleVocabularies());
   await loadVocabularies();
   const vocabulary = vocabularySnapshot();
 

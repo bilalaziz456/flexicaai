@@ -63,6 +63,37 @@ let loadedAt = 0;
  */
 const MAX_AGE_MS = 60_000;
 
+/**
+ * Vocabularies contributed by the ENABLED specialty modules, injected at start-up.
+ *
+ * Core cannot go and fetch these. Reading `config/modules` from here would mean a core
+ * module knowing a specialty exists (ADR-001) and would close the loop
+ * `config/modules → modules → core → config/modules`. So the direction is inverted:
+ * the registry aggregates, the app injects, and this module walks only what it is
+ * given — the same seam `config/module-trash.ts` uses to hand core a module's Trash
+ * provider.
+ *
+ * Registering after the cache is warm marks it stale, so the next load picks the new
+ * tables up rather than silently ignoring them.
+ */
+let moduleSeed: Record<string, readonly VocabularyRow[]> = {};
+
+export function registerModuleVocabularies(seed: Record<string, readonly VocabularyRow[]>): void {
+  // Idempotent BY DESIGN: the root layout registers on every render (it is the only
+  // guaranteed path — `instrumentation` does not run in every context), so marking the
+  // cache stale unconditionally would reload it on every request and throw the TTL
+  // away. Only a genuinely different set of tables invalidates.
+  const before = Object.keys(moduleSeed).sort().join(",");
+  const after = Object.keys(seed).sort().join(",");
+  moduleSeed = seed;
+  if (before !== after) loadedAt = 0;
+}
+
+/** Core's vocabularies plus whatever the modules registered. */
+function allSeed(): Record<string, readonly VocabularyRow[]> {
+  return { ...ALL_VOCABULARY_SEED, ...moduleSeed };
+}
+
 /** Rows for one vocabulary, in the database's own sort order. */
 export function vocabularyRows(table: string): VocabularyEntry[] {
   const rows = cache.get(table);
@@ -70,7 +101,7 @@ export function vocabularyRows(table: string): VocabularyEntry[] {
   // Cold — fall back to the seed. Safe precisely BECAUSE `loadVocabularies` fails the
   // start-up check when the two disagree, so this can never return a different answer
   // than the database would; it only removes a boot-ordering hazard from the hot path.
-  return (ALL_VOCABULARY_SEED[table] ?? []).map((r: VocabularyRow) => ({
+  return (allSeed()[table] ?? []).map((r: VocabularyRow) => ({
     id: r.id,
     code: r.code,
     label: r.label,
@@ -113,7 +144,7 @@ export async function loadVocabularies(): Promise<void> {
   loading = (async () => {
     const problems: string[] = [];
     await unscoped("vocabulary tables are company-global reference data", async () => {
-      for (const [table, seed] of Object.entries(ALL_VOCABULARY_SEED)) {
+      for (const [table, seed] of Object.entries(allSeed())) {
         const rows = (
           await db.execute(
             sql.raw(`select id, code, label, sort_order, is_active,
@@ -195,7 +226,7 @@ export function vocabularyCacheLoaded(): boolean {
  */
 export function vocabularySnapshot(): Record<string, VocabularyEntry[]> {
   const out: Record<string, VocabularyEntry[]> = {};
-  for (const table of Object.keys(ALL_VOCABULARY_SEED)) out[table] = vocabularyRows(table);
+  for (const table of Object.keys(allSeed())) out[table] = vocabularyRows(table);
   return out;
 }
 

@@ -9,6 +9,13 @@ import { labCases } from "@/modules/dental/db/schema";
 import type { LabCaseData, ModuleLab } from "@/core/types/module";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
+import {
+  LAB_ITEM_ROWS,
+  LAB_STATUS_ROWS,
+  type LabItemCode,
+  type LabStatusCode,
+} from "@/modules/dental/vocabulary";
+import { asCode } from "@/core/db/vocabulary-seed";
 
 /**
  * Dental lab cases — MODULE data layer (server-only). A crown/denture goes to a lab;
@@ -16,8 +23,8 @@ import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
  * (back from the lab), the patient gets a "your crown is ready" WhatsApp. Clinic-scoped.
  */
 
-const STATUSES = ["sent", "in_lab", "received", "fitted", "remake"];
-const ITEM_TYPES = ["crown", "bridge", "denture", "veneer", "inlay/onlay", "implant crown", "retainer", "other"];
+const STATUSES = LAB_STATUS_ROWS.map((r) => r.code);
+const ITEM_TYPES = LAB_ITEM_ROWS.map((r) => r.code);
 
 function toData(row: typeof labCases.$inferSelect): LabCaseData {
   return {
@@ -50,11 +57,16 @@ async function saveLabCase(
   patientId: string,
   input: { labName?: string | null; item: string; tooth?: string | null; shade?: string | null; dueAt?: string | null; cost?: number | null; note?: string | null },
 ): Promise<void> {
+  // Narrowed at the module's own boundary: the core `ModuleLab` contract types this
+  // as `string` (core cannot know a dental code exists), so an unrecognised value is
+  // refused here rather than stored.
+  const itemCode = asCode<LabItemCode>(LAB_ITEM_ROWS, input.item);
+  if (!itemCode) return;
   await db.insert(labCases).values({
     clinicId,
     patientId,
     labName: input.labName?.slice(0, 120) || null,
-    item: input.item.slice(0, 60) || "crown",
+    item: itemCode,
     tooth: input.tooth?.slice(0, 4) || null,
     shade: input.shade?.slice(0, 20) || null,
     status: "sent",
@@ -89,11 +101,12 @@ async function notifyReady(clinicId: string, patientId: string, item: string): P
 }
 
 async function updateLabStatus(clinicId: string, caseId: string, status: string): Promise<void> {
-  if (!STATUSES.includes(status)) return;
+  const code = asCode<LabStatusCode>(LAB_STATUS_ROWS, status);
+  if (!code) return;
   const [row] = await db
     .update(labCases)
     .set({
-      status,
+      status: code,
       receivedAt: status === "received" ? new Date() : undefined,
       updatedAt: new Date(),
     })

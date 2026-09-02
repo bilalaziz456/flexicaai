@@ -870,6 +870,17 @@ these for churn-risk + usage/cost anomaly flags.
   Both `recurrence` columns and `ai_usage.provider` keep their nullability.
   **Sixteen columns are now covered by `scripts/test-vocabulary-tables.ts` — thirty-six
   in total across `0087`/`0090`/`0092`**, each asserted to carry its FK in `pg_constraint`.
+- Migration **`0094`** adds the dental MODULE's own vocabularies — `dental_lab_statuses`
+  and `dental_lab_items` — and turns `lab_cases.status` and `.item` into integer foreign
+  keys. The tables live in `src/modules/dental/db/schema.ts` and their seed rows in
+  `src/modules/dental/vocabulary.ts`; **core never imports either** (ADR-028). The
+  module declares them on its `ModuleDefinition`, `config/modules.ts` aggregates, and
+  the app injects at start-up — so core keeps walking only what it is handed. Same rules
+  as core's vocabularies: ids written out and never renumbered, the database owns the
+  label, the code owns what a value means. **NOT converted: the tooth chart.** Its
+  vocabulary lives in jsonb, which cannot carry a foreign key, so `tooth-status.ts`
+  stays the source and a compile-time exhaustiveness check keeps it in step with the
+  `ToothStatus` union.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

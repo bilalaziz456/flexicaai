@@ -9,6 +9,7 @@ import type { z } from "zod";
  */
 
 import type { ComponentType } from "react";
+import type { VocabularyRow } from "@/core/db/vocabulary-seed";
 
 /** A module/specialty id, e.g. "dental". Kept as a plain string so core stays agnostic. */
 export type ModuleId = string;
@@ -334,6 +335,21 @@ export interface ModuleDefinition {
    * module with no specialty chart — core falls back to the generic NoteEditor.
    */
   clinicalRecord?: ModuleClinicalRecord;
+
+  /**
+   * Closed vocabularies this specialty's own tables use — the same shape as core's
+   * (`core/db/vocabulary-seed.ts`), keyed by lookup-table name.
+   *
+   * Core cannot read this. `core/db/vocabulary-cache.ts` walks only what it is GIVEN,
+   * because a core module that imported the registry would have to know a specialty
+   * exists (ADR-001), and `config/modules → modules → core` would become a cycle. So
+   * the registry aggregates these and the app injects them at start-up, exactly as
+   * `config/module-trash.ts` bridges a module's Trash provider.
+   *
+   * The same rules apply as to core's: ids are WRITTEN OUT and never renumbered, and
+   * the database owns the label while the code owns what the value MEANS.
+   */
+  vocabularies?: Record<string, readonly VocabularyRow[]>;
 }
 
 /** Whether a specialty is usable now or only planned. */

@@ -25,6 +25,13 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { clinics, patients, softDeleteColumns, treatmentPlanItems, visits } from "@/core/db/schema";
+import { vocabularyRef } from "@/core/db/schema/vocabulary";
+import {
+  LAB_ITEM_ROWS,
+  LAB_STATUS_ROWS,
+  type LabItemCode,
+  type LabStatusCode,
+} from "@/modules/dental/vocabulary";
 
 // ─── jsonb payload types (co-located with the tables) ───────────────────────
 
@@ -244,10 +251,15 @@ export const labCases = pgTable(
     visitId: uuid("visit_id").references(() => visits.id, { onDelete: "set null" }),
     planItemId: uuid("plan_item_id").references(() => treatmentPlanItems.id, { onDelete: "set null" }),
     labName: text("lab_name"),
-    item: text("item").notNull(), // crown | bridge | denture | veneer | …
+    item: vocabularyRef<LabItemCode>(LAB_ITEM_ROWS, "item")
+      .notNull()
+      .references(() => dentalLabItems.id),
     tooth: text("tooth"), // FDI, nullable
     shade: text("shade"),
-    status: text("status").notNull().default("sent"), // sent|in_lab|received|fitted|remake
+    status: vocabularyRef<LabStatusCode>(LAB_STATUS_ROWS, "status")
+      .notNull()
+      .default("sent")
+      .references(() => dentalLabStatuses.id),
     sentAt: timestamp("sent_at", { withTimezone: true }),
     dueAt: timestamp("due_at", { withTimezone: true }),
     receivedAt: timestamp("received_at", { withTimezone: true }),
@@ -270,3 +282,30 @@ export type DentalRecord = typeof dentalRecords.$inferSelect;
 export type DentalChart = typeof dentalCharts.$inferSelect;
 export type PerioExam = typeof perioExams.$inferSelect;
 export type LabCase = typeof labCases.$inferSelect;
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The module's own vocabulary tables (migration `0094`).
+ *
+ * Module-OWNED, in the module's schema — core must never see a dental table. They use
+ * the same shape and the same custom column type as core's, so the application still
+ * reads and writes CODES while the column is an integer foreign key. The seed rows and
+ * ids live in `modules/dental/vocabulary.ts`.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** `lab_cases.status`. */
+export const dentalLabStatuses = pgTable("dental_lab_statuses", {
+  id: integer("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+});
+
+/** `lab_cases.item`. */
+export const dentalLabItems = pgTable("dental_lab_items", {
+  id: integer("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+});

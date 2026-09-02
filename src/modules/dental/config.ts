@@ -22,6 +22,7 @@ import {
 } from "@/modules/dental/db/records";
 import { dentalPerio } from "@/modules/dental/db/perio";
 import { dentalLab } from "@/modules/dental/db/lab";
+import { DENTAL_VOCABULARIES } from "@/modules/dental/vocabulary";
 
 /**
  * The Dental module — the first (and, for now, only) built specialty.
@@ -44,6 +45,10 @@ export const dentalModule: ModuleDefinition = {
   drugFormulary: dentalDrugFormulary,
   procedureTemplates: dentalProcedureTemplates,
   treatmentTemplates: dentalTreatmentTemplates,
+  // The module's own closed vocabularies. Core never imports these — the registry
+  // aggregates them and the app injects them (ADR-001).
+  vocabularies: DENTAL_VOCABULARIES,
+
   // The structured clinical record: the FDI odontogram. Core renders these by the
   // contract (never knowing it's a tooth chart) — the deferred `components` slot.
   clinicalRecord: {
