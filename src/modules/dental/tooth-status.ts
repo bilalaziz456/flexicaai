@@ -49,13 +49,7 @@ export const SURFACES = ["M", "D", "O", "B", "L"] as const;
  * The tooth-status vocabulary. `tone` is a neutral colour token the odontogram maps
  * to fill/text; `abbr` is the short mark drawn on the tooth. Order = the picker order.
  */
-export const TOOTH_STATUSES: {
-  value: ToothStatus;
-  label: string;
-  /** Semantic tone → the chart maps this to a colour (works in light + dark). */
-  tone: "neutral" | "danger" | "info" | "success" | "warning" | "muted";
-  abbr: string;
-}[] = [
+export const TOOTH_STATUSES = [
   { value: "sound", label: "Sound", tone: "neutral", abbr: "" },
   { value: "caries", label: "Caries", tone: "danger", abbr: "C" },
   { value: "filled", label: "Filled", tone: "info", abbr: "F" },
@@ -76,7 +70,30 @@ export const TOOTH_STATUSES: {
   { value: "exfoliated", label: "Exfoliated (shed)", tone: "muted", abbr: "Ex" },
   { value: "unerupted", label: "Unerupted", tone: "muted", abbr: "U" },
   { value: "watch", label: "Watch", tone: "warning", abbr: "!" },
-];
+] as const satisfies readonly {
+  value: ToothStatus;
+  label: string;
+  /** Semantic tone -> the chart maps this to a colour (works in light + dark). */
+  tone: "neutral" | "danger" | "info" | "success" | "warning" | "muted";
+  abbr: string;
+}[];
+
+/**
+ * Every `ToothStatus` must appear in TOOTH_STATUSES above -- a COMPILE error if not.
+ *
+ * The vocabulary is declared twice by necessity: the union in `db/schema.ts` is the
+ * jsonb column's type, while this array carries the label, tone and abbreviation the
+ * chart draws. Collapsing them would make the two modules import each other, so they
+ * are made provably in step instead. Without this, adding a status to the union and
+ * forgetting the array COMPILED -- `STATUS_BY_VALUE` is built with an `as` cast, which
+ * hides the gap -- and the tooth then rendered with no colour and its raw code as the
+ * label. Silent, and visible only on a chart someone happened to open.
+ */
+type MissingToothStatus = Exclude<ToothStatus, (typeof TOOTH_STATUSES)[number]["value"]>;
+const _everyToothStatusHasAnEntry = true as MissingToothStatus extends never
+  ? true
+  : MissingToothStatus;
+void _everyToothStatusHasAnEntry;
 
 export const STATUS_BY_VALUE: Record<ToothStatus, (typeof TOOTH_STATUSES)[number]> =
   Object.fromEntries(TOOTH_STATUSES.map((s) => [s.value, s])) as Record<
