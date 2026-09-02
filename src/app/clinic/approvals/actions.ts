@@ -17,12 +17,13 @@ import { recordSaleForAppointment } from "@/core/sales/ledger";
 import { revalidateFinance } from "@/app/clinic/finance-revalidate";
 import { displayStaffName } from "@/core/types/auth";
 import { logActivity } from "@/core/audit/log";
+import { APPROVAL_DECISION_CODES } from "@/core/db/vocabulary-seed";
 
 export type ApprovalActionState = { error?: string; saved?: boolean };
 
 const decideSchema = z.object({
   rowId: z.string().uuid(),
-  decision: z.enum(["approved", "rejected"]),
+  decision: z.enum(APPROVAL_DECISION_CODES),
   note: z.string().trim().max(500).optional(),
 });
 

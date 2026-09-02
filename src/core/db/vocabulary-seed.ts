@@ -58,8 +58,8 @@ export const PAYMENT_METHOD_ROWS = [
 /** `doctor_settlement_actions.kind`. `reversal` is designed for, not yet written. */
 export const SETTLEMENT_KIND_ROWS = [
   { id: 1, code: "doctor_waive", label: "Doctor waived own share", sortOrder: 1 },
-  { id: 2, code: "clinic_waive", label: "Clinic waived deficit", sortOrder: 2 },
-  { id: 3, code: "repayment", label: "Repayment", sortOrder: 3 },
+  { id: 2, code: "clinic_waive", label: "Clinic waived (forgave debt)", sortOrder: 2 },
+  { id: 3, code: "repayment", label: "Doctor repayment", sortOrder: 3 },
   { id: 4, code: "write_off", label: "Debt written off", sortOrder: 4 },
   { id: 5, code: "reversal", label: "Reversal", sortOrder: 5 },
 ] as const satisfies readonly VocabularyRow[];
@@ -428,7 +428,7 @@ export const ATTACHMENT_KIND_ROWS = [
   { id: 1, code: "xray", label: "X-ray", sortOrder: 1 },
   { id: 2, code: "photo", label: "Photo", sortOrder: 2 },
   { id: 3, code: "document", label: "Document", sortOrder: 3 },
-  { id: 4, code: "consent", label: "Consent", sortOrder: 4 },
+  { id: 4, code: "consent", label: "Consent form", sortOrder: 4 },
 ] as const satisfies readonly VocabularyRow[];
 
 /** `import_batches.status`. */
@@ -541,3 +541,27 @@ export const DISCOUNT_BEARER_CODES = codesOf(DISCOUNT_BEARER_ROWS);
 export const BILLING_CYCLE_CODES = codesOf(BILLING_CYCLE_ROWS);
 export const CLINIC_STATUS_CODES = codesOf(CLINIC_STATUS_ROWS);
 export const INVOICE_PAPER_CODES = codesOf(INVOICE_PAPER_ROWS);
+
+export const ANNOUNCEMENT_LEVEL_CODES = codesOf(ANNOUNCEMENT_LEVEL_ROWS);
+export const TAX_MODE_CODES = codesOf(TAX_MODE_ROWS);
+export const RECURRENCE_CODES = codesOf(RECURRENCE_ROWS);
+export const APPROVAL_STATUS_CODES = codesOf(APPROVAL_STATUS_ROWS);
+export const ATTACHMENT_KIND_CODES = codesOf(ATTACHMENT_KIND_ROWS);
+
+/**
+ * Legitimate SUBSETS of a vocabulary — derived by EXCLUSION so they cannot drift.
+ *
+ * A hardcoded subset looks harmless but silently stops covering its parent the moment
+ * the parent gains a value. Excluding the one code that does not belong keeps the two
+ * in step and states WHY it is excluded.
+ */
+
+/** What an approver may CHOOSE — `pending` is the starting state, not a decision. */
+export const APPROVAL_DECISION_CODES = APPROVAL_STATUS_ROWS.filter(
+  (r) => r.code !== "pending",
+).map((r) => r.code) as unknown as ["approved", "rejected"];
+
+/** What a user may RECORD — `reversal` is written by the void path, never chosen. */
+export const SETTLEMENT_ACTION_CODES = SETTLEMENT_KIND_ROWS.filter(
+  (r) => r.code !== "reversal",
+).map((r) => r.code) as unknown as ["doctor_waive", "clinic_waive", "repayment", "write_off"];

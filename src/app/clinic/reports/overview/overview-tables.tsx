@@ -7,7 +7,6 @@ import { labelFrom, useVocabulary } from "@/core/ui/vocabulary-provider";
 
 const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
 const dayFmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-const BORNE: Record<string, string> = { clinic: "Clinic", doctor: "Doctor", split: "Split" };
 
 type DoctorRow = { doctorId: string | null; name: string; count: number; grossEarned: number; borne: number; net: number };
 
@@ -46,6 +45,7 @@ type DiscountRow = { appointmentId: string; scheduledAt: Date; patientName: stri
 
 /** Overview "discounts & waivers" (client) — sortable + mobile cards. */
 export function OverviewDiscountsTable({ rows }: { rows: DiscountRow[] }) {
+  const bearers = useVocabulary("discount_bearers");
   const columns: Column<DiscountRow>[] = [
     {
       id: "date",
@@ -65,7 +65,7 @@ export function OverviewDiscountsTable({ rows }: { rows: DiscountRow[] }) {
       sortValue: (r) => r.borneBy,
       cell: (r) => (
         <span>
-          {BORNE[r.borneBy] ?? "Clinic"}
+          {labelFrom(bearers, r.borneBy)}
           {r.status === "pending" ? <Badge variant="secondary" className="ml-1.5">Pending</Badge> : null}
         </span>
       ),

@@ -13,6 +13,7 @@ import { displayStaffName } from "@/core/types/auth";
 import { logActivity } from "@/core/audit/log";
 import { revalidateFinance } from "@/app/clinic/finance-revalidate";
 import { PAYMENT_METHODS } from "@/core/finance/payment-methods";
+import { SETTLEMENT_ACTION_CODES } from "@/core/db/vocabulary-seed";
 
 export type PayoutActionState = { error?: string; saved?: boolean };
 
@@ -74,7 +75,7 @@ export async function recordDoctorPayout(
 
 const settlementSchema = z.object({
   doctorId: z.string().uuid("Choose a doctor."),
-  kind: z.enum(["doctor_waive", "clinic_waive", "repayment", "write_off"]),
+  kind: z.enum(SETTLEMENT_ACTION_CODES),
   amount: z.coerce.number({ message: "Enter an amount." }).int("Whole rupees only.").positive("Enter an amount greater than zero."),
   note: z.string().trim().max(500).optional(),
 });

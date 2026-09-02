@@ -7,6 +7,7 @@ import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { listPendingApprovalsForUser } from "@/core/appointments/approvals";
 import { normalizeDiscountType } from "@/core/appointments/fee";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 import {
   Card,
   CardContent,
@@ -19,12 +20,6 @@ import {
   ClinicDiscountPolicy,
   type QueueItem,
 } from "./approvals-ui";
-
-const BORNE_LABEL: Record<string, string> = {
-  clinic: "Clinic",
-  doctor: "Doctor",
-  split: "Split",
-};
 
 /**
  * Discount approvals — the queue of discounts awaiting sign-off, plus (for a clinic
@@ -79,7 +74,7 @@ export default async function ApprovalsPage({
         hour: "2-digit",
         minute: "2-digit",
       }),
-      discountLabel: `${amount} discount · borne by ${BORNE_LABEL[r.borneBy] ?? "Clinic"}`,
+      discountLabel: `${amount} discount · borne by ${vocabularyLabel("discount_bearers", r.borneBy) ?? "Clinic"}`,
       mine: r.approverKind === "doctor" && r.approverDoctorId === user.id,
     };
   });

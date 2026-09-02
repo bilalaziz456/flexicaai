@@ -7,12 +7,6 @@ import { labelFrom, useVocabulary } from "@/core/ui/vocabulary-provider";
 
 const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
 const dayFmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-const KIND_LABEL: Record<string, string> = {
-  payment: "Payment",
-  advance: "Advance",
-  advance_applied: "Advance applied",
-  refund: "Refund",
-};
 // Mirrors payments-ledger.ts#isMoneyOut (that module is server-only — can't import here).
 const isMoneyOut = (kind: string) => kind === "refund";
 
@@ -32,6 +26,9 @@ type Row = {
 
 /** Payments ledger table (client) — sortable columns + a mobile card view via DataTable. */
 export function PaymentsTable({ rows, empty }: { rows: Row[]; empty: string }) {
+  // Labels come from the database (ADR-027); read once, since a hook cannot run
+  // inside a cell or map callback.
+  const kindLabels = useVocabulary("payment_kinds");
   // Labels come from the database (ADR-027). Read once here: a hook cannot run
   // inside a cell callback, so the rows are captured and `labelFrom` used below.
   const methods = useVocabulary("payment_methods");
@@ -49,7 +46,7 @@ export function PaymentsTable({ rows, empty }: { rows: Row[]; empty: string }) {
       ),
     },
     { id: "doctor", header: "Doctor", sortValue: (r) => r.doctorName ?? "", cell: (r) => r.doctorName ?? "—" },
-    { id: "type", header: "Type", sortValue: (r) => r.kind, cell: (r) => KIND_LABEL[r.kind] ?? r.kind },
+    { id: "type", header: "Type", sortValue: (r) => r.kind, cell: (r) => labelFrom(kindLabels, r.kind) },
     { id: "method", header: "Method", sortValue: (r) => r.method ?? "", cell: (r) => labelFrom(methods, r.method) },
     { id: "by", header: "By", cell: (r) => <span className="text-muted-foreground">{r.createdByName ?? "—"}</span> },
     {

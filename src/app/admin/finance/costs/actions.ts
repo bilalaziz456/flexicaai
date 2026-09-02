@@ -7,6 +7,7 @@ import { requireAdminCapability } from "@/core/auth/user";
 import { setCostRates } from "@/core/admin/cost";
 import { effectiveTaxPct } from "@/core/admin/cost-tax";
 import { logActivity } from "@/core/audit/log";
+import { TAX_MODE_CODES } from "@/core/db/vocabulary-seed";
 
 export type CostRatesActionState = { error?: string; saved?: boolean; savedAt?: number };
 
@@ -20,7 +21,7 @@ const schema = z.object({
   claudeOutputCost: z.coerce.number().min(0, "Must be ≥ 0.").max(100000),
   usdToPkr: z.coerce.number().min(0, "Must be ≥ 0.").max(100000),
   // International-transaction bank tax/charges — itemised or a single total.
-  taxMode: z.enum(["itemized", "total"]).default("itemized"),
+  taxMode: z.enum(TAX_MODE_CODES).default("itemized"),
   foreignTxnFeePct: pct.default(0),
   fedPct: pct.default(0),
   advanceTaxPct: pct.default(0),

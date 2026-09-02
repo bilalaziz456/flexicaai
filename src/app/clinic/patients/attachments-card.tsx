@@ -8,6 +8,7 @@ import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Badge } from "@/core/ui/badge";
 import { Toast } from "@/core/ui/toast";
+import { labelFrom, useVocabulary } from "@/core/ui/vocabulary-provider";
 import {
   deleteAttachmentAction,
   setPhotoConsentAction,
@@ -24,12 +25,6 @@ export type AttachmentRow = {
   createdAt: string; // preformatted
 };
 
-const KIND_LABEL: Record<string, string> = {
-  xray: "X-ray",
-  photo: "Photo",
-  document: "Document",
-  consent: "Consent form",
-};
 
 /** Clinical imaging & documents — gallery + upload + photo-consent, per patient. */
 export function AttachmentsCard({
@@ -45,6 +40,9 @@ export function AttachmentsCard({
   canUpload: boolean;
   canDelete: boolean;
 }) {
+  // Labels come from the database (ADR-027); read once, since a hook cannot run
+  // inside a map callback below.
+  const kindLabels = useVocabulary("attachment_kinds");
   const formRef = useRef<HTMLFormElement>(null);
   const [kind, setKind] = useState("xray");
   const [pending, start] = useTransition();
@@ -126,7 +124,7 @@ export function AttachmentsCard({
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={`/api/clinical/attachment/${a.id}?thumb=1`}
-                      alt={a.caption ?? KIND_LABEL[a.kind] ?? a.kind}
+                      alt={a.caption ?? labelFrom(kindLabels, a.kind)}
                       loading="lazy"
                       decoding="async"
                       className="aspect-square w-full object-cover"
@@ -134,13 +132,13 @@ export function AttachmentsCard({
                   ) : (
                     <div className="flex aspect-square w-full flex-col items-center justify-center gap-1 bg-muted text-muted-foreground">
                       <FileText className="size-8" aria-hidden="true" />
-                      <span className="text-xs">{KIND_LABEL[a.kind] ?? a.kind}</span>
+                      <span className="text-xs">{labelFrom(kindLabels, a.kind)}</span>
                     </div>
                   )}
                 </a>
                 <div className="space-y-0.5 p-1.5">
                   <div className="flex items-center justify-between gap-1">
-                    <Badge variant="secondary" className="text-[10px]">{KIND_LABEL[a.kind] ?? a.kind}</Badge>
+                    <Badge variant="secondary" className="text-[10px]">{labelFrom(kindLabels, a.kind)}</Badge>
                     {canDelete ? (
                       <button type="button" onClick={() => del(a.id)} disabled={pending} aria-label="Remove" className="text-muted-foreground hover:text-destructive">
                         <Trash2 className="size-3.5" />

@@ -10,12 +10,13 @@ import {
   setAnnouncementActive,
 } from "@/core/admin/announcements";
 import { logActivity } from "@/core/audit/log";
+import { ANNOUNCEMENT_LEVEL_CODES } from "@/core/db/vocabulary-seed";
 
 export type AnnouncementActionState = { error?: string; saved?: boolean };
 
 const schema = z.object({
   clinicId: z.string().trim().optional(), // "" = all clinics
-  level: z.enum(["info", "warning"]),
+  level: z.enum(ANNOUNCEMENT_LEVEL_CODES),
   title: z.string().trim().min(2, "Title is required.").max(160),
   body: z.string().trim().min(2, "Message is required.").max(2000),
   endsAt: z.string().trim().optional(),

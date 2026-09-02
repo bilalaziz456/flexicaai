@@ -8,7 +8,6 @@ import { listDoctorEarnings, listDoctorSettlements } from "@/core/sales/share-re
 import { listSettlementActions } from "@/core/sales/settlement-actions";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
 import { PrintButton } from "@/core/ui/print-button";
-import { SETTLEMENT_LABEL } from "../settlement-ui";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 const money = new Intl.NumberFormat("en-PK", {
@@ -189,7 +188,7 @@ export default async function ShareStatementPage({
                 {actions.map((a) => (
                   <tr key={a.id} className="border-b last:border-0">
                     <td className="py-1.5">{fmtDate(a.createdAt)}</td>
-                    <td className="py-1.5">{SETTLEMENT_LABEL[a.kind] ?? a.kind}</td>
+                    <td className="py-1.5">{vocabularyLabel("settlement_kinds", a.kind)}</td>
                     <td className="py-1.5">{a.note ?? "—"}</td>
                     <td className="py-1.5 text-right tabular-nums">
                       {a.kind === "doctor_waive" ? "−" : "+"}

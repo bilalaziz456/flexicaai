@@ -15,6 +15,7 @@ import {
 } from "@/core/admin/company-expenses";
 import { logActivity } from "@/core/audit/log";
 import { PAYMENT_METHODS } from "@/core/finance/payment-methods";
+import { RECURRENCE_CODES } from "@/core/db/vocabulary-seed";
 
 export type ExpenseActionState = { error?: string; saved?: boolean };
 
@@ -27,7 +28,7 @@ const schema = z.object({
   reference: z.string().trim().max(120).optional(),
   note: z.string().trim().max(500).optional(),
   recurring: z.boolean().optional(),
-  recurrence: z.enum(["monthly", "weekly"]).optional(),
+  recurrence: z.enum(RECURRENCE_CODES).optional(),
 });
 
 /** Create (id null) or edit a company expense. expenses:create / expenses:edit. */

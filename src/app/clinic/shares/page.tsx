@@ -18,8 +18,9 @@ import { MultiBarChart } from "@/core/ui/multi-bar-chart";
 import { LineChart } from "@/app/clinic/sales/line-chart";
 import { SalesFilters } from "@/core/ui/report-filters";
 import { RecordPayoutForm } from "./payout-ui";
-import { SettlementForm, VoidSettlementButton, SETTLEMENT_LABEL } from "./settlement-ui";
+import { SettlementForm, VoidSettlementButton } from "./settlement-ui";
 import { BalancesTable, PayoutsTable } from "./shares-tables";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -187,7 +188,7 @@ export default async function ClinicSharesPage({
                   <li key={a.id} className="flex items-center justify-between gap-3 px-3 py-2">
                     <div className="min-w-0">
                       <span className="font-medium">
-                        {SETTLEMENT_LABEL[a.kind] ?? a.kind} · {money.format(a.amount)}
+                        {vocabularyLabel("settlement_kinds", a.kind)} · {money.format(a.amount)}
                       </span>
                       <span className="block text-xs text-muted-foreground">
                         {a.createdAt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}

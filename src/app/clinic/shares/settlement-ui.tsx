@@ -10,12 +10,6 @@ const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR
 const inputCls =
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
-export const SETTLEMENT_LABEL: Record<string, string> = {
-  doctor_waive: "Doctor waived own share",
-  clinic_waive: "Clinic waived (forgave debt)",
-  write_off: "Debt written off",
-  repayment: "Doctor repayment",
-};
 
 /**
  * Record a settlement action on a doctor's balance. The available kinds depend on

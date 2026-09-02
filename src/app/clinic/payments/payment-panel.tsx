@@ -17,6 +17,7 @@ import { Toast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import { MessageCircle } from "lucide-react";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
+import { labelFrom, useVocabulary } from "@/core/ui/vocabulary-provider";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -37,12 +38,6 @@ export type LedgerRow = {
   occurredAt: string; // preformatted
 };
 
-const KIND_LABEL: Record<string, string> = {
-  payment: "Payment",
-  advance: "Advance",
-  advance_applied: "Advance applied",
-  refund: "Refund",
-};
 
 /**
  * Payment section on the appointment detail — the visible face of the billing
@@ -89,6 +84,9 @@ export function PaymentPanel({
   /** Printable payment receipt link (shown once money has been collected). */
   receiptHref?: string;
 }) {
+  // Labels come from the database (ADR-027); read once, since a hook cannot run
+  // inside a cell or map callback.
+  const kindLabels = useVocabulary("payment_kinds");
   // Methods come from the database (ADR-027): active only, in its own order.
   const methodOptions = useTenderOptions();
   const [state, formAction, pending] = useActionState<BillingActionState, FormData>(
@@ -353,7 +351,7 @@ export function PaymentPanel({
             <li key={e.id} className="flex items-center justify-between gap-3 px-3 py-2">
               <div className="min-w-0">
                 <span className="font-medium">
-                  {KIND_LABEL[e.kind] ?? e.kind}
+                  {labelFrom(kindLabels, e.kind)}
                   {e.kind === "refund" ? " −" : ""} {money.format(e.amount)}
                 </span>
                 <span className="block text-xs text-muted-foreground">

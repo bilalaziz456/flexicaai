@@ -197,13 +197,27 @@ async function main() {
       const text = stripComments(readFileSync(file, "utf8"));
       const flat = text.replace(/\s+/g, "");
       for (const [table, rows] of Object.entries(ALL_VOCABULARY_SEED)) {
-        if (rows.length < 3) continue; // two-value sets collide with unrelated pairs
+        // A LITERAL ARRAY of the codes. Two-value vocabularies are skipped here only:
+        // ["info","warning"] collides with unrelated pairs, and the label-map check
+        // below covers them instead.
+        if (rows.length >= 3) {
         const codes = rows.map((r) => r.code);
         // Substring match on a whitespace-stripped copy, deliberately not a regex: the
         // first attempt built one inside a template literal, where `\[` and `\s` lose
         // their backslashes and become a character class that matches nearly every file.
-        if (flat.includes(codes.map((c) => `"${c}"`).join(","))) {
-          duplicates.push(`${file} restates ${table}`);
+          if (flat.includes(codes.map((c) => `"${c}"`).join(","))) {
+            duplicates.push(`${file} restates ${table}'s codes`);
+          }
+        }
+
+        // A LABEL MAP — `{ info: "Info", warning: "Warning" }`. This is the shape the
+        // first version of the guard missed entirely: it looked for arrays, and eight
+        // components were duplicating the labels as objects. Two of those had already
+        // DRIFTED from the database and two were missing a code outright, so an
+        // opening-balance payment rendered its raw code.
+        const mapLiteral = rows.map((r) => `${r.code}:"${r.label}"`).join(",");
+        if (flat.includes(mapLiteral)) {
+          duplicates.push(`${file} restates ${table}'s labels`);
         }
       }
     }

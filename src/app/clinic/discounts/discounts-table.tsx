@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { DataTable, type Column } from "@/core/ui/data-table";
 import { Badge } from "@/core/ui/badge";
+import { labelFrom, useVocabulary } from "@/core/ui/vocabulary-provider";
 
 const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
 const dayFmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-const BORNE: Record<string, string> = { clinic: "Clinic", doctor: "Doctor", split: "Split" };
 const STATUS: Record<string, { label: string; variant: "outline" | "secondary" | "destructive" }> = {
   none: { label: "Applied", variant: "outline" },
   approved: { label: "Approved", variant: "outline" },
@@ -34,6 +34,7 @@ const discLabel = (r: Row) =>
 
 /** Discounts report table (client) — sortable columns + a mobile card view via DataTable. */
 export function DiscountsTable({ rows }: { rows: Row[] }) {
+  const bearers = useVocabulary("discount_bearers");
   const columns: Column<Row>[] = [
     {
       id: "date",
@@ -53,7 +54,7 @@ export function DiscountsTable({ rows }: { rows: Row[] }) {
       sortValue: (r) => r.borneBy,
       cell: (r) => (
         <span>
-          {BORNE[r.borneBy] ?? "Clinic"}
+          {labelFrom(bearers, r.borneBy)}
           {r.borneBy !== "clinic" ? (
             <span className="block text-xs text-muted-foreground">
               Clinic {money.format(r.clinicBears)} · Dr {money.format(r.doctorBears)}
