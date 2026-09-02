@@ -8,6 +8,7 @@ import { resolveSalesRange, type ResolvedRange } from "@/core/sales/report";
 import { getProfitAndLoss } from "@/core/finance/pl";
 import { getDoctorBalances } from "@/core/sales/payouts";
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
+import { procedureTotals } from "@/core/appointments/procedures";
 
 /**
  * Owner finance KPIs for the dashboard — collected + net profit over the last 30
@@ -59,7 +60,15 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
 
   // Outstanding receivable = Σ(bill − collected) over completed visits. Shared bill
   // expression with the Receivables report, so the two always reconcile.
-  const netSql = appointmentNetSql();
+  //
+  // JOINED, not correlated. All three queries below run the bill across every
+  // completed visit the clinic has ever had — the balance one is deliberately
+  // unbounded, because a balance is — so the correlated form read
+  // `appointment_procedures` three times per row, per query. Pre-aggregating once and
+  // joining makes each of the formula's three references to the subtotal a column
+  // read. Same formula either way (see `bill-sql.ts`); only the inputs differ.
+  const pt = procedureTotals(clinicId);
+  const netSql = appointmentNetSql(pt);
 
   const [pl, plPrev, [rec], balances, outByDay, [opening]] = await Promise.all([
     getProfitAndLoss(clinicId, range30),
@@ -70,6 +79,7 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
       })
       .from(appointments)
       .leftJoin(users, eq(users.id, appointments.doctorId))
+      .leftJoin(pt, eq(pt.appointmentId, appointments.id))
       .where(
         byClinic(
           appointments.clinicId,
@@ -87,6 +97,7 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
       })
       .from(appointments)
       .leftJoin(users, eq(users.id, appointments.doctorId))
+      .leftJoin(pt, eq(pt.appointmentId, appointments.id))
       .where(
         byClinic(
           appointments.clinicId,
@@ -107,6 +118,7 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
       })
       .from(appointments)
       .leftJoin(users, eq(users.id, appointments.doctorId))
+      .leftJoin(pt, eq(pt.appointmentId, appointments.id))
       .where(
         byClinic(
           appointments.clinicId,

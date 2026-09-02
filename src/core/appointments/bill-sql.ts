@@ -2,7 +2,10 @@ import "server-only";
 
 import { sql, type SQL } from "drizzle-orm";
 import { appointments, users } from "@/core/db/schema";
-import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
+import {
+  appointmentProceduresNetSql,
+  type ProcedureTotals,
+} from "@/core/appointments/procedures";
 import { discountStatusId, discountTypeId } from "@/core/db/vocabulary-seed";
 
 /**
@@ -44,6 +47,23 @@ import { discountStatusId, discountTypeId } from "@/core/db/vocabulary-seed";
  */
 
 /**
+ * Where the two INPUTS to the formula come from. `undefined` = the correlated
+ * subquery (a single appointment, or one page); a joined `procedureTotals` alias =
+ * one pre-aggregated read for the whole set (any query that aggregates or filters
+ * across many appointments — see `procedures.ts#procedureTotals` for the numbers).
+ *
+ * This is deliberately a PARAMETER and not a second copy of the formula. The bill
+ * names its subtotal three times, so which way the subtotal is obtained decides
+ * whether that costs three subquery executions per row or three column reads — but it
+ * must not decide what the bill IS. Everything below is written once, against this.
+ */
+function proceduresNetSql(totals?: ProcedureTotals): SQL<number> {
+  return totals
+    ? sql<number>`coalesce(${totals.net}, 0)`
+    : appointmentProceduresNetSql();
+}
+
+/**
  * The discount that ACTUALLY applies, given its approval state. Mirrors
  * `fee.ts#effectiveDiscountValue`: a 'pending' or 'rejected' discount counts as 0
  * until approved, so the bill behaves as if there were none.
@@ -58,8 +78,8 @@ function consultationSql(): SQL {
 }
 
 /** Step 2: consultation + Σ line nets — what the appointment discount applies to. */
-export function appointmentSubtotalSql(): SQL<number> {
-  return sql<number>`(${consultationSql()} + ${appointmentProceduresNetSql()})`;
+export function appointmentSubtotalSql(totals?: ProcedureTotals): SQL<number> {
+  return sql<number>`(${consultationSql()} + ${proceduresNetSql(totals)})`;
 }
 
 /**
@@ -76,15 +96,18 @@ export function appointmentSubtotalSql(): SQL<number> {
  * and totals them separately), while the bill needs the gated one. Both come from
  * this single expression rather than a second copy of the clamp — ADR-015.
  */
-export function appointmentDiscountSql(opts?: { raw?: boolean }): SQL<number> {
-  const subtotal = appointmentSubtotalSql();
+export function appointmentDiscountSql(opts?: {
+  raw?: boolean;
+  totals?: ProcedureTotals;
+}): SQL<number> {
+  const subtotal = appointmentSubtotalSql(opts?.totals);
   const v = opts?.raw ? sql`${appointments.discountValue}` : effectiveDiscountSql();
   // NUMERIC before the percent multiply — see the note on `appointmentNetSql`.
   return sql<number>`(least(greatest(round(case when ${appointments.discountType} = ${discountTypeId("percent")} then ${subtotal}::numeric * ${v} / 100.0 else ${v}::numeric end), 0), ${subtotal}))::int`;
 }
 
-export function appointmentNetSql(): SQL<number> {
-  const subtotal = appointmentSubtotalSql();
+export function appointmentNetSql(totals?: ProcedureTotals): SQL<number> {
+  const subtotal = appointmentSubtotalSql(totals);
   const eff = effectiveDiscountSql();
   // NUMERIC, not int4, for the percent multiply. `discount_value` has no upper bound
   // in the schema or in validation, so a percent discount of e.g. 99999 is storable —

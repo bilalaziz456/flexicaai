@@ -6,6 +6,7 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { unscoped } from "@/core/db/tenant-guard";
 import { appointments, clinics, sales, users } from "@/core/db/schema";
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
+import { procedureTotals, type ProcedureTotals } from "@/core/appointments/procedures";
 import { recordSaleForAppointment, voidSaleForAppointment } from "@/core/sales/ledger";
 import { report, reportEvent } from "@/core/observability";
 
@@ -28,9 +29,16 @@ import { report, reportEvent } from "@/core/observability";
  * (`appointmentNetSql`), so this can't develop its own opinion of what a visit costs.
  */
 
-/** Realised revenue for a completed visit = what was collected, capped at the bill. */
-function expectedNetSql() {
-  return sql<number>`least(${appointments.amountCollected}, ${appointmentNetSql()})`;
+/**
+ * Realised revenue for a completed visit = what was collected, capped at the bill.
+ *
+ * Takes the pre-aggregated procedure totals because this sweep scans every completed
+ * appointment in a clinic, for every clinic, nightly — and it names the expression
+ * twice in the WHERE below, which with the correlated form meant six reads of
+ * `appointment_procedures` per appointment examined.
+ */
+function expectedNetSql(totals: ProcedureTotals) {
+  return sql<number>`least(${appointments.amountCollected}, ${appointmentNetSql(totals)})`;
 }
 
 export type ReconcileResult = {
@@ -50,6 +58,7 @@ export type ReconcileResult = {
  */
 export async function reconcileClinicSales(clinicId: string): Promise<ReconcileResult> {
   const out: ReconcileResult = { repaired: 0, voided: 0, failed: 0 };
+  const pt = procedureTotals(clinicId);
 
   // ── Drifted or missing: a completed visit whose expected realised revenue doesn't
   // match the stored sale (or has none at all while money has been collected).
@@ -58,6 +67,7 @@ export async function reconcileClinicSales(clinicId: string): Promise<ReconcileR
     .from(appointments)
     .leftJoin(users, eq(users.id, appointments.doctorId))
     .leftJoin(sales, eq(sales.appointmentId, appointments.id))
+    .leftJoin(pt, eq(pt.appointmentId, appointments.id))
     .where(
       byClinic(
         appointments.clinicId,
@@ -66,8 +76,8 @@ export async function reconcileClinicSales(clinicId: string): Promise<ReconcileR
         and(
           eq(appointments.status, "completed"),
           or(
-            and(isNull(sales.id), sql`${expectedNetSql()} > 0`),
-            and(isNotNull(sales.id), ne(sales.netAmount, expectedNetSql())),
+            and(isNull(sales.id), sql`${expectedNetSql(pt)} > 0`),
+            and(isNotNull(sales.id), ne(sales.netAmount, expectedNetSql(pt))),
           ),
         ),
       ),

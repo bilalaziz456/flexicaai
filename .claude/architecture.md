@@ -313,6 +313,9 @@ ONE formula, expressed twice because it must be:
 - **`scripts/test-bill-parity.ts` is the contract** between them: randomised
   appointments, asserted equal to the rupee.
 
+**How the SQL obtains its two inputs became a parameter on 2026-09-03 — ADR-030.**
+Still one formula; the correlated subquery was costing three executions per row.
+
 **Why:** six implementations answered "what does this visit cost?", kept in step by
 comments — including two byte-identical SQL copies each documented as "the single
 source". `computeAppointmentTotal` took ONE pre-summed procedures figure and every
@@ -874,6 +877,66 @@ action layer, and `core/auth/actions.ts` has called it since ADR-019.
   problems, which reads exactly like passing. Both patterns were proved by deliberate
   violations — a `@/config/modules` and an `@/app/account/actions` import in a core file,
   and an `@/app/admin/nav` import in `app/clinic` — before the rule was believed.
+
+
+**ADR-030 — One bill formula, two ways of feeding it: correlated for a row,
+pre-aggregated for a set** · *2026-09-03* · `Accepted` *(refines ADR-015)*
+`bill-sql.ts`'s expressions take an optional `procedureTotals` alias
+(`procedures.ts`). Without it they read the procedure lines through the correlated
+subquery, as before; with it they read a joined, pre-aggregated column. **The formula
+itself is written once and is identical either way** — only where its two inputs come
+from changes.
+
+**The problem, which was invisible because no clinic is old enough to show it.** The
+bill names its subtotal THREE times (subtotal, the percent branch, the clamp), and
+Postgres does not do common-subexpression elimination on scalar subqueries: it plans
+three separate SubPlans and runs each once per row. `EXPLAIN ANALYZE` on the
+dashboard's receivable query gave 279 subplan executions over 134 rows and 745 shared
+buffers **to return one integer**. Grouped by patient, the receivables report reached
+NINE correlated sub-SELECTs per row — and one sits in the `WHERE`
+(`net > amount_collected`), which is not sargable, so it had to be evaluated for every
+completed visit in the clinic's history before a single row could be filtered out.
+
+**Measured on 20,000 appointments / 51,000 lines**, through the real functions:
+
+| | before | after |
+|---|---|---|
+| `getReceivablesReport` | 1224 ms | **202 ms** |
+| `getFinanceKpis` (dashboard) | 493 ms | **70 ms** |
+| `getOutstandingTotal` | 283 ms | **62 ms** |
+| the receivable KPI query alone | 268 ms | **52 ms** |
+
+**Why a parameter and not a second expression.** ADR-015 exists because six copies of
+this arithmetic had drifted. A second SQL expression would be the same mistake wearing
+a performance justification, so the choice of input strategy is a parameter to the one
+formula. Drift is impossible in the arithmetic by construction; what a test still has
+to prove is that the two ways of obtaining the INPUTS agree — in particular that a
+LEFT JOIN with no matching row yields 0 exactly where `coalesce(subquery, 0)` did.
+`scripts/test-bill-parity.ts` asserts that across its 60 randomised cases and checks
+the run actually contained appointments with no procedure lines. **That assertion was
+verified to fire** by making the joined path return 1 instead of 0 for a missing row.
+
+**Two things that decide whether this works:**
+- **`procedureTotals` is scoped to a clinic, and that is not optional.** Postgres
+  cannot push the outer clinic filter into a grouped subquery, so an unscoped version
+  would aggregate every clinic's lines on every query — slower than the problem it
+  replaces, and the tenant guard would rightly flag it.
+- **Plain `LATERAL` does not work.** The planner flattens `cross join lateral (select
+  … )` and re-inlines the expression, so it measured identical to the correlated form.
+  `offset 0` blocks the flattening and gets roughly half the win; only pre-aggregating
+  and joining reads the child table once.
+
+**Where each form belongs.** Joined: anything aggregating or filtering across many
+appointments — `finance/kpis.ts`, `finance/receivables.ts`, `billing/invoice.ts`'s
+register, `sales/discounts-report.ts`, `sales/reconcile.ts`. Correlated: a single
+appointment or one page of twenty, where it costs nothing and reads more simply.
+
+**Still correlated, deliberately: `list-query.ts`.** Its SELECT is bounded by the
+page, so the subqueries run for twenty rows. Its optional `payment` filter does put
+the bill in a WHERE across the whole set — a real but much smaller instance of the
+same problem, left alone because `buildAppointmentConds` has four callers and would
+need `clinicId` threaded through app files to build the alias. Convert it if that
+filter ever shows up slow; the alias is already there to use.
 
 ---
 

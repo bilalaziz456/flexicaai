@@ -297,7 +297,19 @@ many callers a single fast aggregate (not N queries), the same formula is expres
 SQL by `procedures.ts#procedureRowNetSql` (per line) and
 `bill-sql.ts#appointmentNetSql` (per appointment) — bound to the TS by
 `scripts/test-bill-parity.ts`, which asserts they agree to the rupee, so the two can
-no longer drift. Correlated `appointmentProceduresNetSql` / `appointmentProceduresGrossSql` helpers
+no longer drift.
+
+**How those inputs are OBTAINED is a parameter (ADR-030).** `appointmentProceduresNetSql`
+/ `appointmentProceduresGrossSql` are correlated — right for one appointment or one page
+— while **`procedureTotals(clinicId)` pre-aggregates the lines for a whole clinic in a
+single pass** and is LEFT JOINed instead by anything aggregating or filtering across
+many appointments (dashboard KPIs, receivables, the invoice register, the discounts
+report, the nightly reconcile). The bill names its subtotal three times and Postgres
+re-executes a scalar subquery for each mention, so the correlated form cost 279 subplan
+executions over 134 rows on the dashboard, and nine sub-SELECTs per row in the
+receivables report — one of them in a non-sargable WHERE. Same formula either way; the
+parity test asserts the two agree, including on appointments with no lines at all. The
+correlated `appointmentProceduresNetSql` / `appointmentProceduresGrossSql` helpers
 used by both appointment lists, the WhatsApp confirmation + reschedule quote, the
 sales ledger, and the report's per-procedure breakdown. Saved on create/edit via
 `saveAppointmentProcedures` (replace-all, `{procedureId, quantity, discountType,

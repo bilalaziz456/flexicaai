@@ -6,6 +6,7 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointmentDiscountApprovals, appointments, patients, users } from "@/core/db/schema";
 import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
 import { appointmentDiscountSql } from "@/core/appointments/bill-sql";
+import { procedureTotals } from "@/core/appointments/procedures";
 import { computeFee, normalizeDiscountType } from "@/core/appointments/fee";
 import { discountBorneSplit } from "@/core/appointments/discount-bearing";
 import type { BearBorneBy } from "@/core/appointments/discount-bearing";
@@ -167,7 +168,8 @@ export async function getDiscountsReport(
   // shows a pending discount at what it WOULD take off. So the SQL total and the
   // per-row `computeFee` figure are two renderings of one formula, not two formulas —
   // `scripts/test-bill-parity.ts` is what keeps them honest.
-  const amountSql = appointmentDiscountSql({ raw: true });
+  const pt = procedureTotals(clinicId);
+  const amountSql = appointmentDiscountSql({ raw: true, totals: pt });
   const [totals] = await db
     .select({
       count: sql<number>`count(*)::int`,
@@ -176,6 +178,7 @@ export async function getDiscountsReport(
     })
     .from(appointments)
     .leftJoin(users, eq(users.id, appointments.doctorId))
+    .leftJoin(pt, eq(pt.appointmentId, appointments.id))
     .where(byClinic(appointments.clinicId, clinicId, notDeleted(appointments.deletedAt), and(...conds)));
 
   return {

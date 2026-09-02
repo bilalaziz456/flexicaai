@@ -4,6 +4,7 @@ import { and, desc, eq, gte, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
+import { procedureTotals } from "@/core/appointments/procedures";
 import { appointments, patientPayments, patients, users } from "@/core/db/schema";
 import { displayStaffName } from "@/core/types/auth";
 
@@ -37,11 +38,15 @@ async function openingOwed(clinicId: string): Promise<number> {
 
 /** Total outstanding receivable across all completed visits (matches the dashboard). */
 export async function getOutstandingTotal(clinicId: string): Promise<number> {
-  const net = appointmentNetSql();
+  // Joined, not correlated: this is a balance, so it has no date bound and runs the
+  // bill over the clinic's entire completed history. See `procedures.ts#procedureTotals`.
+  const pt = procedureTotals(clinicId);
+  const net = appointmentNetSql(pt);
   const [row] = await db
     .select({ v: sql<number>`coalesce(sum(greatest(${net} - ${appointments.amountCollected}, 0)), 0)::int` })
     .from(appointments)
     .leftJoin(users, eq(users.id, appointments.doctorId))
+    .leftJoin(pt, eq(pt.appointmentId, appointments.id))
     .where(byClinic(appointments.clinicId, clinicId, notDeleted(appointments.deletedAt), eq(appointments.status, "completed")));
   return Number(row?.v ?? 0) + (await openingOwed(clinicId));
 }
@@ -84,7 +89,14 @@ export async function getReceivablesReport(
   /** `patients` is this page; `total` and `patientCount` always describe the whole set. */
   paging: { offset: number; limit: number } = { offset: 0, limit: 500 },
 ): Promise<ReceivablesReport> {
-  const net = appointmentNetSql();
+  // ONE pre-aggregated read of the procedure lines, joined into every query below.
+  // This report was the worst instance of the correlated form in the codebase: the
+  // grouped query alone carried NINE sub-SELECTs on `appointment_procedures` per row,
+  // and one of them is in the WHERE (`net > amount_collected`), which is not sargable —
+  // so it had to be computed for every completed visit in the clinic's history before
+  // a single row could be filtered out.
+  const pt = procedureTotals(clinicId);
+  const net = appointmentNetSql(pt);
   const conds = [eq(appointments.status, "completed"), sql`${net} > ${appointments.amountCollected}`];
   if (filters.doctorId) conds.push(eq(appointments.doctorId, filters.doctorId));
   if (filters.q) conds.push(or(ilike(patients.fullName, `%${filters.q}%`), ilike(patients.phone, `%${filters.q}%`))!);
@@ -113,6 +125,7 @@ export async function getReceivablesReport(
     .from(appointments)
     .innerJoin(patients, eq(patients.id, appointments.patientId))
     .leftJoin(users, eq(users.id, appointments.doctorId))
+    .leftJoin(pt, eq(pt.appointmentId, appointments.id))
     .where(byClinic(appointments.clinicId, clinicId, notDeleted(appointments.deletedAt), and(...conds)))
     .groupBy(patients.id, patients.fullName, patients.phone);
 
@@ -182,6 +195,7 @@ export async function getReceivablesReport(
       })
       .from(appointments)
       .leftJoin(users, eq(users.id, appointments.doctorId))
+      .leftJoin(pt, eq(pt.appointmentId, appointments.id))
       .where(
         byClinic(
           appointments.clinicId,

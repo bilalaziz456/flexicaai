@@ -5,6 +5,7 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, clinics, invoices, patients, users } from "@/core/db/schema";
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
+import { procedureTotals } from "@/core/appointments/procedures";
 
 /**
  * Invoices — CORE (Finance). One live invoice per appointment. The number is a
@@ -129,6 +130,7 @@ export async function getInvoicesList(
     );
   }
 
+  const pt = procedureTotals(clinicId);
   const rows = await db
     .select({
       id: invoices.id,
@@ -140,12 +142,15 @@ export async function getInvoicesList(
       patientName: patients.fullName,
       patientPhone: patients.phone,
       appointmentId: appointments.id,
-      amount: appointmentNetSql(),
+      // Joined, not correlated: this list is not paginated, so the bill runs over
+      // every invoice the clinic has ever issued.
+      amount: appointmentNetSql(pt),
     })
     .from(invoices)
     .innerJoin(appointments, eq(appointments.id, invoices.appointmentId))
     .innerJoin(patients, eq(patients.id, invoices.patientId))
     .leftJoin(users, eq(users.id, appointments.doctorId))
+    .leftJoin(pt, eq(pt.appointmentId, appointments.id))
     .where(byClinic(invoices.clinicId, clinicId, and(...conds)))
     .orderBy(desc(invoices.invoiceNo));
 

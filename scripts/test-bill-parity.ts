@@ -35,7 +35,11 @@ import {
   type ProcedureLineInput,
 } from "@/core/appointments/fee";
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
-import { appointmentProceduresGrossSql, appointmentProceduresNetSql } from "@/core/appointments/procedures";
+import {
+  appointmentProceduresGrossSql,
+  appointmentProceduresNetSql,
+  procedureTotals,
+} from "@/core/appointments/procedures";
 import type { DiscountStatusCode } from "@/core/db/vocabulary-seed";
 
 let failures = 0;
@@ -189,6 +193,35 @@ async function sqlBill(appointmentId: string) {
 }
 
 /**
+ * The same bill, read through the JOINED pre-aggregate instead of the correlated
+ * subqueries — the P0 shape (`procedures.ts#procedureTotals`).
+ *
+ * This is the whole reason it is safe to have two ways of feeding the formula. They
+ * share one expression in `bill-sql.ts`, so they cannot drift in the ARITHMETIC; what
+ * a test still has to prove is that the two ways of obtaining the INPUTS agree — in
+ * particular that a LEFT JOIN with no matching row yields 0 exactly where the
+ * correlated `coalesce(..., 0)` did, which is every appointment with no procedures.
+ */
+async function joinedSqlBill(appointmentId: string) {
+  const pt = procedureTotals(clinicId);
+  const [row] = await db
+    .select({
+      net: appointmentNetSql(pt),
+      pGross: sql<number>`coalesce(${pt.gross}, 0)`,
+      pNet: sql<number>`coalesce(${pt.net}, 0)`,
+    })
+    .from(appointments)
+    .leftJoin(users, eq(users.id, appointments.doctorId))
+    .leftJoin(pt, eq(pt.appointmentId, appointments.id))
+    .where(sql`${appointments.clinicId} = ${clinicId} and ${appointments.id} = ${appointmentId}`);
+  return {
+    net: Number(row.net),
+    proceduresGross: Number(row.pGross),
+    proceduresNet: Number(row.pNet),
+  };
+}
+
+/**
  * A discount value appropriate to its TYPE. A percentage is capped at 100 by a DB
  * CHECK (D-17), so generating 5000% here would test nothing but the constraint — it
  * would just fail the insert. A flat AMOUNT is deliberately allowed to exceed the
@@ -228,17 +261,33 @@ async function main() {
   console.log("Randomised parity — TS computeBill vs the SQL expression:");
   const CASES = 60;
   let mismatches = 0;
+  let joinedMismatches = 0;
   let withLineDiscounts = 0;
   let clamped = 0;
+  let noLines = 0;
 
   for (let i = 0; i < CASES; i++) {
     const c = randomCase();
     const id = await materialise(c);
     const ts = tsBill(c);
     const pg = await sqlBill(id);
+    // The joined pre-aggregate must return the SAME numbers as the correlated form
+    // for every case, including the ones with no procedure lines at all — that is
+    // where a LEFT JOIN and a `coalesce(subquery, 0)` could differ.
+    const jn = await joinedSqlBill(id);
 
     if (ts.proceduresDiscount > 0) withLineDiscounts++;
     if (ts.appointmentDiscount > 0 && ts.net === 0) clamped++;
+    if (c.lines.length === 0) noLines++;
+
+    if (jn.net !== pg.net || jn.proceduresNet !== pg.proceduresNet || jn.proceduresGross !== pg.proceduresGross) {
+      joinedMismatches++;
+      if (joinedMismatches <= 3) {
+        console.log(
+          `  ✗ case ${i} — joined ≠ correlated\n      correlated net=${pg.net} pGross=${pg.proceduresGross} pNet=${pg.proceduresNet}\n      joined     net=${jn.net} pGross=${jn.proceduresGross} pNet=${jn.proceduresNet}`,
+        );
+      }
+    }
 
     if (ts.net !== pg.net || ts.proceduresNet !== pg.proceduresNet || ts.proceduresGross !== pg.proceduresGross) {
       mismatches++;
@@ -250,6 +299,8 @@ async function main() {
     }
   }
   check(`${CASES} randomised bills agree to the rupee`, mismatches, 0);
+  check(`…and the JOINED pre-aggregate agrees with the correlated form`, joinedMismatches, 0);
+  check("…on cases with no procedure lines too (LEFT JOIN vs coalesce)", noLines > 0, true);
   // Guard the generator itself: a run that never exercises the interesting paths
   // would pass while proving nothing.
   check("…and the run actually exercised per-line discounts", withLineDiscounts > 0, true);

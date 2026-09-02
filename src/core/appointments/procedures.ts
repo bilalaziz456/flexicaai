@@ -112,6 +112,52 @@ export function appointmentHasProceduresSql(): SQL<boolean> {
 }
 
 /**
+ * Per-appointment procedure totals for ONE clinic, pre-aggregated in a single pass.
+ *
+ * WHY THIS EXISTS — it is the whole of the P0 fix. The correlated helpers above are
+ * right for a single appointment or one page of twenty, but the bill formula names
+ * its subtotal THREE times (`bill-sql.ts`), and Postgres does not do common-
+ * subexpression elimination on scalar subqueries: it plans three separate SubPlans and
+ * executes each once per row. `EXPLAIN ANALYZE` on the dashboard's receivable query
+ * showed 279 executions over 134 rows to return a single integer. Grouped by patient,
+ * the receivables report reaches NINE correlated sub-SELECTs per row — and one of them
+ * sits in the WHERE, so it is computed for every completed visit in the clinic's
+ * history before anything can be filtered out.
+ *
+ * Joined once instead, the child table is read ONE time and each reference is a plain
+ * column. Measured on 20,000 appointments / 51,000 lines:
+ *
+ *     correlated, inlined 3x   1000 ms   273,597 buffers
+ *     pre-aggregated join        65 ms     1,172 buffers
+ *
+ * USE IT for anything that aggregates or filters across many appointments — KPIs,
+ * receivables, the invoice list, the nightly reconcile. For a single row or one page
+ * the correlated form is simpler and costs nothing; both feed the SAME formula in
+ * `bill-sql.ts`, so they cannot drift, and `scripts/test-bill-parity.ts` asserts the
+ * two agree with each other and with the TypeScript bill.
+ *
+ * SCOPED BY CLINIC ON PURPOSE, and it is not optional. Postgres cannot push the outer
+ * clinic filter into a grouped subquery, so an unscoped version would aggregate every
+ * clinic's procedure lines on every query — slower than the problem it replaces, and
+ * the tenant guard would rightly flag it.
+ */
+export function procedureTotals(clinicId: string) {
+  return db
+    .select({
+      appointmentId: appointmentProcedures.appointmentId,
+      gross: sql<number>`coalesce(sum(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity}), 0)::int`.as("proc_gross"),
+      net: sql<number>`coalesce(sum(${procedureRowNetSql()}), 0)::int`.as("proc_net"),
+    })
+    .from(appointmentProcedures)
+    .where(byClinic(appointmentProcedures.clinicId, clinicId))
+    .groupBy(appointmentProcedures.appointmentId)
+    .as("proc_totals");
+}
+
+/** The joined pre-aggregate, as the bill expressions take it. */
+export type ProcedureTotals = ReturnType<typeof procedureTotals>;
+
+/**
  * A clinic's ACTIVE procedures for the booking picker — but only when the
  * clinic has the `sales` feature on (otherwise appointments stay fee-only and
  * the picker is hidden). Ordered by name.
