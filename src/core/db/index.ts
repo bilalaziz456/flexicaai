@@ -47,12 +47,41 @@ const globalForDb = globalThis as unknown as {
   __klenicPool?: Pool;
 };
 
+/**
+ * Pool sizing. This was `max: 10` with a note saying "tune when we move to a real
+ * deployment" — that move happened (ADR-009) and the note was never actioned.
+ *
+ * BE CLEAR ABOUT WHAT THIS DOES AND DOES NOT BUY. Raising the ceiling was measured
+ * against the old value on a local Postgres and made **no** difference to throughput:
+ * /clinic held ~41 req/s at 40 concurrent either way. The limit was never the pool.
+ * The ceiling is CPU in this one Node process — the same load test gives 471 req/s for
+ * a route that renders nothing and 68 req/s for a page with six queries, so React
+ * rendering is the fixed cost and query VOLUME is what separates a light page from the
+ * dashboard. If throughput is the problem, cut queries per request; don't touch this.
+ *
+ * What it is for: headroom, and it costs nothing to have. A render fans out
+ * `Promise.all` batches of six or seven queries, so ~two concurrent renders could hold
+ * all ten connections; queuing there didn't dominate, but there is no reason to sit at
+ * the edge. 25 stays well under Postgres's default `max_connections = 100`, which also
+ * has to cover the eight cron jobs, `drizzle-kit`, and whoever is at a psql prompt.
+ *
+ * Single node by decision (ADR-009/ADR-011), so this is the whole app's connection
+ * budget — a second instance would need this number divided, not repeated.
+ */
+const POOL_MAX = 25;
+
 const pool =
   globalForDb.__klenicPool ??
   new Pool({
     connectionString: serverEnv.DATABASE_URL,
-    // Keep the local pool modest; tune when we move to a real deployment.
-    max: 10,
+    max: POOL_MAX,
+    // Don't hold 25 idle connections open after a spike; Postgres pays for an idle
+    // backend too.
+    idleTimeoutMillis: 30_000,
+    // The one change here with a behavioural point: fail a request that cannot get a
+    // connection instead of letting it hang until nginx's 60s read timeout kills it
+    // with nothing to show for the wait.
+    connectionTimeoutMillis: 10_000,
   });
 
 if (serverEnv.NODE_ENV !== "production") {

@@ -143,27 +143,54 @@ export async function loadVocabularies(): Promise<void> {
   const isRefresh = loaded;
   loading = (async () => {
     const problems: string[] = [];
+    const seedEntries = Object.entries(allSeed());
     await unscoped("vocabulary tables are company-global reference data", async () => {
-      for (const [table, seed] of Object.entries(allSeed())) {
-        const rows = (
-          await db.execute(
-            sql.raw(`select id, code, label, sort_order, is_active,
-                    (to_jsonb(t) ? 'is_tender') as has_tender,
-                    (case when to_jsonb(t) ? 'is_tender' then (to_jsonb(t)->>'is_tender')::boolean else null end) as is_tender
-             from "${table}" t`),
-          )
-        ).rows as {
-          id: number;
-          code: string;
-          label: string;
-          sort_order: number;
-          is_active: boolean;
-          is_tender: boolean | null;
-        }[];
+      // ONE query, not one per table. There are 30 vocabulary tables holding ~115 rows
+      // between them, and this used to issue 30 SEQUENTIAL round trips — on a cold
+      // process that is 30 serialised latencies the first page render waits for, and
+      // once warm it repeats every time the TTL expires, forever. A UNION ALL fetches
+      // the lot in a single round trip; the volume was never the cost, the round trips
+      // were.
+      //
+      // `sql.raw` is required because a table NAME cannot be a bind parameter. The
+      // names come from the compiled seed (and from a module's own declaration), never
+      // from a request — but they are validated below anyway, because a raw identifier
+      // built from a variable is exactly the shape that stops being safe the day
+      // someone makes the seed dynamic.
+      const parts = seedEntries.map(([table]) => {
+        if (!/^[a-z][a-z0-9_]*$/.test(table)) {
+          throw new Error(`vocabulary: refusing unsafe table name ${JSON.stringify(table)}`);
+        }
+        // `to_jsonb(t) ? 'is_tender'` keeps this one expression valid for every table
+        // whether or not it has that column — only `payment_methods` does.
+        return `select '${table}' as vocab_table, id, code, label, sort_order, is_active,
+                  (case when to_jsonb(t) ? 'is_tender'
+                        then (to_jsonb(t)->>'is_tender')::boolean else null end) as is_tender
+           from "${table}" t`;
+      });
 
+      const rows = (await db.execute(sql.raw(parts.join("\nunion all\n")))).rows as {
+        vocab_table: string;
+        id: number;
+        code: string;
+        label: string;
+        sort_order: number;
+        is_active: boolean;
+        is_tender: boolean | null;
+      }[];
+
+      const byTable = new Map<string, typeof rows>();
+      for (const r of rows) {
+        const list = byTable.get(r.vocab_table);
+        if (list) list.push(r);
+        else byTable.set(r.vocab_table, [r]);
+      }
+
+      for (const [table, seed] of seedEntries) {
+        const tableRows = byTable.get(table) ?? [];
         cache.set(
           table,
-          rows.map((r) => ({
+          tableRows.map((r) => ({
             id: r.id,
             code: r.code,
             label: r.label,
@@ -176,7 +203,7 @@ export async function loadVocabularies(): Promise<void> {
         // An id that resolves to a DIFFERENT code than the code expects is the one
         // failure that silently reclassifies data — a refund read back as a payment.
         for (const s of seed) {
-          const live = rows.find((r) => r.id === s.id);
+          const live = tableRows.find((r) => r.id === s.id);
           if (!live) problems.push(`${table}: id ${s.id} ('${s.code}') is missing`);
           else if (live.code !== s.code) {
             problems.push(`${table}: id ${s.id} is '${live.code}', the code expects '${s.code}'`);

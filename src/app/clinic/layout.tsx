@@ -25,9 +25,19 @@ export default async function ClinicLayout({
   children: ReactNode;
 }) {
   const user = await requireWorkspace();
-  const clinic = await getClinic(user.clinicId);
-  const theme = await getThemeCookie();
-  const unread = await getUnreadCount(user.clinicId, user.id);
+  // ONE wave, not four. These are independent of each other and every one of them runs
+  // on EVERY page in the workspace, so awaiting them in sequence spent four round trips
+  // of latency before the page even started. getClinic is request-cached, so the page
+  // below reuses this read rather than issuing its own.
+  //
+  // The announcements read is fetched here but RENDERED further down, where the notice
+  // order is decided: the impersonation banner has to come first.
+  const [clinic, theme, unread, announcements] = await Promise.all([
+    getClinic(user.clinicId),
+    getThemeCookie(),
+    getUnreadCount(user.clinicId, user.id),
+    listActiveForClinic(user.clinicId),
+  ]);
   // A clinic admin only sees the activity log if the super admin granted it; the
   // log nav is otherwise gated by the per-user `logs`… (kept as log_access).
   const logsEnabled =
@@ -88,8 +98,9 @@ export default async function ClinicLayout({
     }
   }
 
-  // Super-admin announcements (Feature 10): global + clinic-targeted, active + in window.
-  const announcements = await listActiveForClinic(user.clinicId);
+  // Super-admin announcements (Feature 10): global + clinic-targeted, active + in
+  // window. Fetched in the wave above; rendered here so it follows the impersonation
+  // banner.
   for (const a of announcements) {
     const warn = a.level === "warning";
     notices.push(

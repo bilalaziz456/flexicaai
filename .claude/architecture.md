@@ -948,6 +948,25 @@ and ADR-011. Do not add a second app instance casually; two things break *silent
 | Job runtimes overlap their schedule | Overlapping cron runs | BullMQ + Redis (`CLAUDE.md` §2) |
 | A second region (GCC) | Availability + "tomorrow" reminders read server-local time | Per-clinic IANA timezone (D-14) |
 
+**What the ceiling actually is, measured (2026-09-03).** Load-tested on the production
+build against a local Postgres, so treat these as shape rather than absolute numbers:
+
+| Route | Per request | Throughput @ 40 concurrent |
+|---|---|---|
+| `/api/ping` | renders nothing, no DB | **471 req/s** |
+| `/clinic/staff` | render + ~6 queries | 68 req/s |
+| `/clinic` | render + ~36 queries | 41 req/s |
+
+Two costs, and they are separable: **React server rendering is a fixed ~13 ms of CPU
+per page** — the drop from 471 to 68 — and **query volume is what separates a light
+page from the dashboard**. Both land on the one Node process.
+
+**The pool was NOT the constraint**, and this was worth measuring rather than assuming:
+raising `max` from 10 to 25 changed throughput by nothing at all (~41 req/s either
+way). If a page is slow, cut the queries it makes or the work each one does; reaching
+for the pool, or for Redis, is aiming at the wrong thing. The trigger for a second
+instance is CPU saturation on renders, and it still costs the S3 and Redis swaps above.
+
 **Operational duties this deployment gives us** (`CLAUDE.md` §2a): install the
 crontab; raise nginx `proxy_read_timeout` for `/api/ai/scribe`; back up `STORAGE_DIR`
 *with* Postgres; monitor disk; set the server timezone; keep the process manager in
