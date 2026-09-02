@@ -5,7 +5,6 @@ import {
   date,
   index,
   integer,
-  pgEnum,
   pgTable,
   text,
   timestamp,
@@ -13,29 +12,38 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { clinics, patients, users } from "@/core/db/schema/identity";
-
-import { softDeleteColumns } from "@/core/db/schema/_shared";
 import { visits } from "@/core/db/schema/clinical";
+import {
+  DISCOUNT_BEARER_ROWS,
+  DISCOUNT_STATUS_ROWS,
+  DISCOUNT_TYPE_ROWS,
+  discountTypeId,
+  type DiscountBearerCode,
+  type DiscountStatusCode,
+  type DiscountTypeCode,
+  APPOINTMENT_STATUS_ROWS,
+  RECALL_STATUS_ROWS,
+  type AppointmentStatusCode,
+  type RecallStatusCode,
+  APPOINTMENT_SOURCE_ROWS,
+  type AppointmentSourceCode,
+} from "@/core/db/vocabulary-seed";
+import {
+  discountBearers,
+  discountStatuses,
+  discountTypes,
+  vocabularyRef,
+  appointmentStatuses,
+  recallStatuses,
+  appointmentSources,
+} from "@/core/db/schema/vocabulary";
+import { softDeleteColumns } from "@/core/db/schema/_shared";
 
 /**
  * Appointments, doctor leave, and recalls — when people are seen.
  *
  * Part of the schema split (delta D-09) — see `./index.ts`.
  */
-
-/** Appointment lifecycle. */
-export const appointmentStatus = pgEnum("appointment_status", [
-  "scheduled",
-  "confirmed",
-  // Live-queue states between confirmed and completed: `arrived` = checked in and
-  // waiting in the room; `in_progress` = called in / with the doctor now (the real
-  // "now serving"). See core/appointments/status.ts.
-  "arrived",
-  "in_progress",
-  "completed",
-  "cancelled",
-  "no_show",
-]);
 
 /**
  * Appointments — shared. `module` tags which specialty the appointment is for
@@ -58,10 +66,23 @@ export const appointments = pgTable(
     module: text("module"),
     scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
     durationMinutes: integer("duration_minutes").notNull().default(30),
-    status: appointmentStatus("status").notNull().default("scheduled"),
+    status: vocabularyRef<AppointmentStatusCode>(APPOINTMENT_STATUS_ROWS, "status")
+      .notNull()
+      .default("scheduled")
+      .references(() => appointmentStatuses.id),
     // When the patient checked in (status → 'arrived'). Drives the "waiting N min"
     // read-out in the live queue; cleared if the visit reverts to scheduled/confirmed.
     arrivedAt: timestamp("arrived_at", { withTimezone: true }),
+    // Staff booked this visit at a time OUTSIDE the doctor's configured windows — a
+    // procedure arranged for 6pm when the doctor consults 1–3pm, say. Persisted
+    // rather than derived, because the schedule can change afterwards: without it a
+    // later edit would re-validate against TODAY's hours and refuse to save a visit
+    // that was deliberately booked outside them.
+    //
+    // It relaxes the WORKING-HOURS check only. Leave and the daily cap still apply —
+    // a custom time says when the doctor agreed to come in, not that they are on call
+    // during their holiday or past their own cap.
+    customTime: boolean("custom_time").notNull().default(false),
     reason: text("reason"),
     // Optional discount off the doctor's consultation fee for this appointment.
     // `discountType` is 'amount' (flat PKR, the default) or 'percent' (of the
@@ -69,12 +90,18 @@ export const appointments = pgTable(
     // fee is derived live from the doctor's current fee — see
     // core/appointments/fee.ts#computeFee — never stored, so a fee change flows
     // through. Kept as free-text/int (not an enum) to stay additive.
-    discountType: text("discount_type").notNull().default("amount"),
+    discountType: vocabularyRef<DiscountTypeCode>(DISCOUNT_TYPE_ROWS, "discount_type_id")
+      .notNull()
+      .default("amount")
+      .references(() => discountTypes.id),
     discountValue: integer("discount_value").notNull().default(0),
     // Who absorbs the discount in the doctor/clinic revenue split: 'clinic'
     // (default), 'doctor', or 'split'. Drives core/appointments/shares.ts and the
     // approval workflow. Free-text (not an enum) to stay additive.
-    discountBorneBy: text("discount_borne_by").notNull().default("clinic"),
+    discountBorneBy: vocabularyRef<DiscountBearerCode>(DISCOUNT_BEARER_ROWS, "discount_borne_by_id")
+      .notNull()
+      .default("clinic")
+      .references(() => discountBearers.id),
     // Approval state of THIS appointment's discount (free-text, not an enum):
     //   'none'     — no discount, or none of the reduced parties require approval
     //                → the discount applies (this is the default, so behaviour is
@@ -86,13 +113,19 @@ export const appointments = pgTable(
     //                re-submit by editing, which recomputes fresh pending rows).
     // Rows live in `appointment_discount_approvals`. See
     // core/appointments/approvals.ts and docs/doctor-shares-plan.md §6.
-    discountStatus: text("discount_status").notNull().default("none"),
+    discountStatus: vocabularyRef<DiscountStatusCode>(DISCOUNT_STATUS_ROWS, "discount_status_id")
+      .notNull()
+      .default("none")
+      .references(() => discountStatuses.id),
     // For a borne='split' discount, how much of it the DOCTOR side bears: 'percent'
     // = a % of the discount, 'amount' = a fixed PKR figure (shown as its equivalent
     // %). A fixed amount does NOT scale — `discount_split_stale` is set when the
     // discount later changes so staff re-enter it. Only meaningful when
     // discount_borne_by = 'split'. See docs/discount-bearing-plan.md.
-    discountSplitType: text("discount_split_type").notNull().default("percent"),
+    discountSplitType: vocabularyRef<DiscountTypeCode>(DISCOUNT_TYPE_ROWS, "discount_split_type_id")
+      .notNull()
+      .default("percent")
+      .references(() => discountTypes.id),
     discountSplitValue: integer("discount_split_value").notNull().default(0),
     discountSplitStale: boolean("discount_split_stale").notNull().default(false),
     // Whether the doctor's consultation fee is charged for this visit. A patient
@@ -108,7 +141,10 @@ export const appointments = pgTable(
     // How the appointment was created — free-text tag, default 'staff'. Patient
     // WhatsApp self-bookings are 'whatsapp': those stay a request until staff
     // confirm, and the patient's confirmation message fires on that confirm.
-    source: text("source").notNull().default("staff"),
+    source: vocabularyRef<AppointmentSourceCode>(APPOINTMENT_SOURCE_ROWS, "source")
+      .notNull()
+      .default("staff")
+      .references(() => appointmentSources.id),
     // Set when the day-before WhatsApp reminder has been sent, so the reminder
     // cron never messages the same appointment twice. Null = not yet reminded.
     reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
@@ -134,6 +170,9 @@ export const appointments = pgTable(
       .defaultNow(),
   },
   (t) => [
+    // The vocabulary behind the money columns. Each of these is a branch the bill,
+    // the share split or the approval flow takes, and each falls back to a default
+    // rather than raising — so a bad value produces a wrong figure, not an error.
     // A PERCENT discount above 100 isn't a bigger discount, it's a typo — and this
     // exact field, unbounded, overflowed int4 in the SQL bill and made Postgres throw
     // where TS clamped (ADR-021, D-17). The app validates and clamps on every write
@@ -141,11 +180,11 @@ export const appointments = pgTable(
     // AMOUNT stays unbounded: the bill clamps it, and a large write-off is valid.
     check(
       "appointments_percent_discount_max",
-      sql`${t.discountType} <> 'percent' or ${t.discountValue} between 0 and 100`,
+      sql`${t.discountType} <> ${sql.raw(String(discountTypeId("percent")))} or ${t.discountValue} between 0 and 100`,
     ),
     check(
       "appointments_percent_split_max",
-      sql`${t.discountSplitType} <> 'percent' or ${t.discountSplitValue} between 0 and 100`,
+      sql`${t.discountSplitType} <> ${sql.raw(String(discountTypeId("percent")))} or ${t.discountSplitValue} between 0 and 100`,
     ),
     index("appointments_clinic_id_idx").on(t.clinicId),
     // Receipt numbers are unique per clinic per year (they reset each year).
@@ -173,16 +212,6 @@ export const appointments = pgTable(
   ],
 );
 
-/** Recall lifecycle — the recall engine reads and advances these. */
-export const recallStatus = pgEnum("recall_status", [
-  "pending",
-  "scheduled",
-  "sent",
-  "booked",
-  "completed",
-  "cancelled",
-]);
-
 /**
  * Recalls — shared. The recall engine (core) reads these, applies each module's
  * rules, and sends reminders. `module` tags specialty; `reason` is human text
@@ -204,7 +233,10 @@ export const recalls = pgTable(
     module: text("module"),
     reason: text("reason"),
     dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
-    status: recallStatus("status").notNull().default("pending"),
+    status: vocabularyRef<RecallStatusCode>(RECALL_STATUS_ROWS, "status")
+      .notNull()
+      .default("pending")
+      .references(() => recallStatuses.id),
     sentAt: timestamp("sent_at", { withTimezone: true }),
     ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })

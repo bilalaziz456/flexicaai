@@ -11,8 +11,8 @@ import {
 import { parseListFilters } from "@/core/appointments/list-filters";
 import { buildAppointmentConds } from "@/core/appointments/list-query";
 import { appointmentDoctorScope } from "@/core/appointments/scope";
-import { statusLabel } from "@/core/appointments/status";
 import { displayStaffName } from "@/core/types/auth";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 /**
  * GET /api/appointments/export?from=&to=&q=&status=&type=&payment=&session= — the
@@ -77,7 +77,7 @@ export async function GET(req: Request) {
           r.patientName,
           r.patientPhone ?? "",
           doctor,
-          statusLabel(r.status),
+          vocabularyLabel("appointment_statuses", r.status),
           typeLabel(r.chargeConsultation, Boolean(r.hasProcedures)),
           r.reason ?? "",
           net,

@@ -11,6 +11,7 @@ import {
 } from "@/core/appointments/procedures";
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
 import type { StatusFilter, VisitTypeFilter } from "./list-filters";
+import { appointmentStatusId } from "@/core/db/vocabulary-seed";
 
 /**
  * The appointment list's filter SQL, in ONE place — the list page, the CSV
@@ -78,11 +79,11 @@ export function buildAppointmentConds(f: AppointmentFilterInput): SQL[] {
   if (f.payment) {
     const net = appointmentNetSql();
     if (f.payment === "paid") {
-      conds.push(sql`${appointments.status} = 'completed' and (${net} <= 0 or ${appointments.amountCollected} >= ${net})`);
+      conds.push(sql`${appointments.status} = ${appointmentStatusId("completed")} and (${net} <= 0 or ${appointments.amountCollected} >= ${net})`);
     } else if (f.payment === "partial") {
-      conds.push(sql`${appointments.status} = 'completed' and ${net} > 0 and ${appointments.amountCollected} > 0 and ${appointments.amountCollected} < ${net}`);
+      conds.push(sql`${appointments.status} = ${appointmentStatusId("completed")} and ${net} > 0 and ${appointments.amountCollected} > 0 and ${appointments.amountCollected} < ${net}`);
     } else if (f.payment === "unpaid") {
-      conds.push(sql`${appointments.status} = 'completed' and ${net} > 0 and ${appointments.amountCollected} = 0`);
+      conds.push(sql`${appointments.status} = ${appointmentStatusId("completed")} and ${net} > 0 and ${appointments.amountCollected} = 0`);
     }
   }
 
@@ -113,6 +114,7 @@ export async function getAppointmentDetail(clinicId: string, appointmentId: stri
       discountSplitValue: appointments.discountSplitValue,
       discountStatus: appointments.discountStatus,
       chargeConsultation: appointments.chargeConsultation,
+      customTime: appointments.customTime,
       patientId: patients.id,
       patientName: patients.fullName,
     })

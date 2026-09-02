@@ -4,11 +4,12 @@ import { revalidatePath } from "next/cache";
 import { setInvoicePaper } from "@/core/clinics/settings";
 import { requireWorkspace } from "@/core/auth/user";
 import { logActivity } from "@/core/audit/log";
+import { asCode, INVOICE_PAPER_ROWS, type InvoicePaperCode } from "@/core/db/vocabulary-seed";
 
 export type SettingsActionState = { error?: string; saved?: boolean };
 
 /** Valid document paper sizes — must match the print frame's FORMATS. */
-const PAPERS = ["thermal", "a5", "a4"];
+
 
 /**
  * Set the clinic's DEFAULT print paper size (`clinics.invoice_paper`) — the size the
@@ -24,9 +25,10 @@ export async function setClinicPrintPaper(
     return { error: "Only the clinic admin can change the printing settings." };
   }
   const paper = String(formData.get("paper") ?? "");
-  if (!PAPERS.includes(paper)) return { error: "Choose a valid paper size." };
+  const code = asCode<InvoicePaperCode>(INVOICE_PAPER_ROWS, paper);
+  if (!code) return { error: "Choose a valid paper size." };
 
-  await setInvoicePaper(user.clinicId, paper);
+  await setInvoicePaper(user.clinicId, code);
 
   await logActivity({
     action: "update",

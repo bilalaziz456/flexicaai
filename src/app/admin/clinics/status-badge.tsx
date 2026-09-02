@@ -1,9 +1,11 @@
+"use client";
+
 import { Badge } from "@/core/ui/badge";
-import { CLINIC_STATUS_LABEL, isClinicStatus } from "@/core/clinics/status";
+import { useVocabularyLabel } from "@/core/ui/vocabulary-provider";
 
 /** Clinic lifecycle status badge — shared by the clinics list + detail. */
 export function ClinicStatusBadge({ status }: { status: string }) {
-  const label = isClinicStatus(status) ? CLINIC_STATUS_LABEL[status] : status;
+  const label = useVocabularyLabel("clinic_statuses", status);
   const variant =
     status === "active"
       ? "success"

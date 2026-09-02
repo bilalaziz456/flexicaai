@@ -28,6 +28,7 @@
  * Run: `tsx --env-file=.env.local --tsconfig scripts/_seed/tsconfig.json scripts/test-orphaned-drafts.ts`
  */
 import { Pool } from "pg";
+import { userRoleId, visitStatusId, type UserRoleCode } from "@/core/db/vocabulary-seed";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -47,13 +48,13 @@ function check(name: string, got: unknown, want: unknown) {
 const COUNT_OPEN_DRAFTS = `
   select count(*)::int as n from visits
    where clinic_id = $1 and deleted_at is null
-     and doctor_id = $2 and status = 'draft'`;
+     and doctor_id = $2 and status = ${visitStatusId("draft")}`;
 
 /** The scribe's own draft list / loadDraft — author-scoped. */
 const AUTHORS_DRAFTS = `
   select id from visits
    where clinic_id = $1 and deleted_at is null
-     and status = 'draft' and doctor_id = $2`;
+     and status = ${visitStatusId("draft")} and doctor_id = $2`;
 
 /**
  * `core/clinical/drafts.ts#authorIsStranded()` — the author can no longer log in.
@@ -75,17 +76,17 @@ const STRANDED = `(
 const ACCESS_WITHOUT_HANDOVER = `
   select id from visits
    where clinic_id = $1 and deleted_at is null and id = $2
-     and status = 'draft' and doctor_id = $3`;
+     and status = ${visitStatusId("draft")} and doctor_id = $3`;
 
 const ACCESS_WITH_HANDOVER = `
   select id from visits
    where clinic_id = $1 and deleted_at is null and id = $2
-     and status = 'draft' and (doctor_id = $3 or ${STRANDED})`;
+     and status = ${visitStatusId("draft")} and (doctor_id = $3 or ${STRANDED})`;
 
 /** `listStrandedDrafts` — what a `handover:view` holder is shown. */
 const STRANDED_LIST = `
   select v.id from visits v
-   where v.clinic_id = $1 and v.deleted_at is null and v.status = 'draft'
+   where v.clinic_id = $1 and v.deleted_at is null and v.status = ${visitStatusId("draft")}
      and (
        v.doctor_id is null
        or exists (select 1 from users u where u.id = v.doctor_id
@@ -96,7 +97,7 @@ const STRANDED_LIST = `
 const PATIENT_TIMELINE = `
   select id from visits
    where clinic_id = $1 and deleted_at is null and patient_id = $2
-     and (status = 'approved' or doctor_id = $3)`;
+     and (status = ${visitStatusId("approved")} or doctor_id = $3)`;
 
 /** `core/trash` — only rows actually soft-deleted, non-cascade. */
 const TRASH = `
@@ -119,12 +120,12 @@ async function seed() {
     )
   ).rows[0].id;
 
-  const mkUser = async (n: string, role: string) =>
+  const mkUser = async (n: string, role: UserRoleCode) =>
     (
       await pool.query(
         `insert into users (clinic_id, username, password_hash, role, full_name)
          values ($1, $2, 'x', $3, $4) returning id`,
-        [clinicId, `d18_${n}_${uniq}`, role, `User ${n}`],
+        [clinicId, `d18_${n}_${uniq}`, userRoleId(role), `User ${n}`],
       )
     ).rows[0].id;
   author = await mkUser("author", "doctor");
@@ -141,7 +142,7 @@ async function seed() {
   draftId = (
     await pool.query(
       `insert into visits (clinic_id, patient_id, doctor_id, module, status, note, transcript)
-       values ($1, $2, $3, 'dental', 'draft', '{}'::jsonb, 'dictated words') returning id`,
+       values ($1, $2, $3, 'dental', ${visitStatusId("draft")}, '{}'::jsonb, 'dictated words') returning id`,
       [clinicId, patientId, author],
     )
   ).rows[0].id;
@@ -177,7 +178,8 @@ async function main() {
     );
 
     const live = await pool.query(
-      `select deleted_at is null as live, status from visits where id = $1`,
+      `select v.deleted_at is null as live, vs.code as status from visits v
+         join visit_statuses vs on vs.id = v.status where v.id = $1`,
       [draftId],
     );
     check("the visit row itself is untouched — live, still a draft", live.rows[0], {
@@ -222,7 +224,7 @@ async function main() {
     const liveDraft = (
       await pool.query(
         `insert into visits (clinic_id, patient_id, doctor_id, module, status, note)
-         values ($1, $2, $3, 'dental', 'draft', '{}'::jsonb) returning id`,
+         values ($1, $2, $3, 'dental', ${visitStatusId("draft")}, '{}'::jsonb) returning id`,
         [clinicId, patientId, otherDoctor],
       )
     ).rows[0].id;
@@ -240,7 +242,7 @@ async function main() {
   console.log("\nApproving an adopted draft records BOTH people:");
   {
     await pool.query(
-      `update visits set status = 'approved', approved_at = now(), approved_by = $2
+      `update visits set status = ${visitStatusId("approved")}, approved_at = now(), approved_by = $2
         where id = $1`,
       [draftId, admin],
     );
@@ -254,7 +256,7 @@ async function main() {
 
     // Put it back so the checks below still describe a draft.
     await pool.query(
-      `update visits set status = 'draft', approved_at = null, approved_by = null
+      `update visits set status = ${visitStatusId("draft")}, approved_at = null, approved_by = null
         where id = $1`,
       [draftId],
     );

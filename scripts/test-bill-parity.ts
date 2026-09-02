@@ -36,6 +36,7 @@ import {
 } from "@/core/appointments/fee";
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
 import { appointmentProceduresGrossSql, appointmentProceduresNetSql } from "@/core/appointments/procedures";
+import type { DiscountStatusCode } from "@/core/db/vocabulary-seed";
 
 let failures = 0;
 function check(name: string, got: unknown, want: unknown) {
@@ -76,7 +77,7 @@ type Case = {
   chargeConsultation: boolean;
   discountType: DiscountType;
   discountValue: number;
-  discountStatus: string;
+  discountStatus: DiscountStatusCode;
   lines: { procIdx: number; quantity: number; discountType: DiscountType; discountValue: number }[];
 };
 

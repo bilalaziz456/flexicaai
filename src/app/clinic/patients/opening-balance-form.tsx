@@ -4,8 +4,7 @@ import { useActionState } from "react";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { recordOpeningPayment } from "@/app/clinic/payments/payment-actions";
-
-const METHODS = ["cash", "bank", "cheque", "other"];
+import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
 /**
  * Record a payment against a patient's imported OPENING balance. `owed` caps the
@@ -13,6 +12,8 @@ const METHODS = ["cash", "bank", "cheque", "other"];
  * clear. Gated upstream by billing:create.
  */
 export function OpeningBalanceForm({ patientId, owed }: { patientId: string; owed: number }) {
+  // Methods come from the database (ADR-027): active only, in its own order.
+  const methodOptions = useTenderOptions();
   const [state, action, pending] = useActionState(recordOpeningPayment.bind(null, patientId), {} as { error?: string; saved?: boolean });
 
   return (
@@ -25,10 +26,10 @@ export function OpeningBalanceForm({ patientId, owed }: { patientId: string; owe
         <span className="mb-1 block text-xs text-muted-foreground">Method</span>
         <select
           name="method"
-          className="h-9 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm capitalize outline-none focus-visible:border-ring select-chevron"
+          className="h-9 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring select-chevron"
         >
-          {METHODS.map((m) => (
-            <option key={m} value={m}>{m}</option>
+          {methodOptions.map((m) => (
+            <option key={m.value} value={m.value}>{m.label}</option>
           ))}
         </select>
       </label>

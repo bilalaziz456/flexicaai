@@ -42,15 +42,20 @@ import { ORGANIZATION, ORIGIN } from "./structured-data";
 
 /**
  * Title and description carry the search terms; the page's own copy stays in brand
- * voice. "Practice management software" and "medical scribe" are what people type,
- * and neither appeared anywhere on the page before.
+ * voice — "AI-powered health management system", matching the logo, the root layout
+ * and the site footer.
+ *
+ * "Medical scribe" is kept because it is what people type. "Practice management
+ * software" was dropped from both when the brand line changed: it survives only in
+ * the structured data's `applicationSubCategory`, where it is a category term rather
+ * than copy. That is a deliberate trade of one search phrase for brand consistency.
  *
  * Length matters here: a description over ~155 characters gets truncated in results,
- * so the sentence has to land the point before it is cut. This one is 152.
+ * so the sentence has to land the point before it is cut. This one is 154.
  */
-const TITLE = "FlexicaAI: AI practice management software for health teams";
+const TITLE = "FlexicaAI: AI-powered health management system for clinics";
 const DESCRIPTION =
-  "Practice management software with an AI medical scribe. Turn a spoken consultation into an approved note, automate WhatsApp reminders, and track the money.";
+  "AI-powered health management system with a medical scribe. Turn a spoken consultation into an approved note, automate WhatsApp reminders, track the money.";
 
 /**
  * Structured data. Three things a search engine cannot infer from prose: that
@@ -83,6 +88,11 @@ const STRUCTURED_DATA = {
       "@id": `${ORIGIN}/#software`,
       name: "FlexicaAI",
       applicationCategory: "HealthApplication",
+      // Left as the schema.org vocabulary term even though the page copy now says
+      // "health management system". This field is a machine-readable CATEGORY, not
+      // brand voice: "Practice management software" is the phrase search engines
+      // recognise for this class of product, and inventing a category name here
+      // classifies the product as nothing at all.
       applicationSubCategory: "Practice management software",
       operatingSystem: "Web browser",
       url: ORIGIN,
@@ -181,7 +191,7 @@ function Hero() {
                 block-level box it gets its own height and `mb` is the only gap. */}
             <span className="mb-5 flex w-fit items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs leading-none font-medium tracking-normal text-brand-navy ring-1 ring-primary/25 dark:text-brand-teal">
               <Sparkles className="size-3.5" aria-hidden="true" />
-              AI practice management software
+              AI-powered health management system
             </span>
 
             <span className="block">

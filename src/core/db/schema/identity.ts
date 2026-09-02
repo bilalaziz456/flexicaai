@@ -6,7 +6,6 @@ import {
   index,
   integer,
   jsonb,
-  pgEnum,
   pgTable,
   text,
   timestamp,
@@ -14,8 +13,27 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { DayAvailability } from "@/core/lib/availability";
-
 import { softDeleteColumns } from "@/core/db/schema/_shared";
+import {
+  USER_ROLE_ROWS,
+  THEME_PREFERENCE_ROWS,
+  type UserRoleCode,
+  type ThemePreferenceCode,
+  CLINIC_STATUS_ROWS,
+  BILLING_CYCLE_ROWS,
+  INVOICE_PAPER_ROWS,
+  type ClinicStatusCode,
+  type BillingCycleCode,
+  type InvoicePaperCode,
+} from "@/core/db/vocabulary-seed";
+import {
+  userRoles,
+  themePreferences,
+  vocabularyRef,
+  clinicStatuses,
+  billingCycles,
+  invoicePapers,
+} from "@/core/db/schema/vocabulary";
 
 /**
  * Tenants and people — clinics, staff, sessions, patients.
@@ -26,22 +44,6 @@ import { softDeleteColumns } from "@/core/db/schema/_shared";
  *
  * Part of the schema split (delta D-09) — see `./index.ts`.
  */
-
-/** Platform roles. Independent of which modules a clinic enables. */
-export const userRole = pgEnum("user_role", [
-  "super_admin",
-  "clinic_admin",
-  "manager",
-  "doctor",
-  "receptionist",
-]);
-
-/** Per-user theme preference. "system" follows the OS. */
-export const themePreference = pgEnum("theme_preference", [
-  "system",
-  "light",
-  "dark",
-]);
 
 /**
  * Tenants. `modulesEnabled` is the array the specialty checkboxes read/write —
@@ -79,7 +81,10 @@ export const clinics = pgTable(
     // (a4|a5|thermal); `invoicePrefix` prefixes the human invoice label (e.g.
     // "INV-"); `nextInvoiceNo` is the per-clinic counter atomically bumped when an
     // invoice is issued (so concurrent receptionists never collide). See core/billing.
-    invoicePaper: text("invoice_paper").notNull().default("a4"),
+    invoicePaper: vocabularyRef<InvoicePaperCode>(INVOICE_PAPER_ROWS, "invoice_paper")
+      .notNull()
+      .default("a4")
+      .references(() => invoicePapers.id),
     invoicePrefix: text("invoice_prefix").notNull().default("INV-"),
     nextInvoiceNo: integer("next_invoice_no").notNull().default(1),
     // The calendar year `next_invoice_no` currently belongs to. Invoice numbers RESET
@@ -121,7 +126,10 @@ export const clinics = pgTable(
     // Lifecycle status. `active` = usable; a non-usable status blocks all the clinic's
     // staff from logging in (enforced server-side). Default `active` so existing clinics
     // stay usable; NEW clinics may be created as `trial`.
-    status: text("status").notNull().default("active"), // trial|active|suspended|past_due|cancelled
+    status: vocabularyRef<ClinicStatusCode>(CLINIC_STATUS_ROWS, "status")
+      .notNull()
+      .default("active")
+      .references(() => clinicStatuses.id),
     // When the clinic's trial began (set when it first enters `trial`; open-ended until
     // `trial_ends_at`). NULL = never trialled. Distinct from `created_at`.
     trialStartAt: timestamp("trial_start_at", { withTimezone: true }),
@@ -144,7 +152,10 @@ export const clinics = pgTable(
     // owed/credit is derived (see core/admin/billing.ts). `capabilities` = the allowed
     // `resource:action` slugs for the whole clinic (NULL = all) — granular super-admin control.
     monthlyPrice: integer("monthly_price").notNull().default(0), // PKR
-    billingCycle: text("billing_cycle").notNull().default("monthly"), // monthly|2m|quarter|half|annual
+    billingCycle: vocabularyRef<BillingCycleCode>(BILLING_CYCLE_ROWS, "billing_cycle")
+      .notNull()
+      .default("monthly")
+      .references(() => billingCycles.id),
     graceDays: integer("grace_days").notNull().default(7),
     // How many days BEFORE the paid-through date to surface a "payment coming up"
     // reminder on the admin clinics + overview pages (a soft, pre-due heads-up; distinct
@@ -215,7 +226,9 @@ export const users = pgTable(
     // Optional contact email (for future notifications / password reset).
     email: text("email"),
     passwordHash: text("password_hash").notNull(),
-    role: userRole("role").notNull(),
+    role: vocabularyRef<UserRoleCode>(USER_ROLE_ROWS, "role")
+      .notNull()
+      .references(() => userRoles.id),
     // Optional name prefix/title (e.g. Dr, Mr, Miss) — shown as "Dr. Bilal Aziz"
     // in the UI and patient messages. Free text from a fixed dropdown.
     prefix: text("prefix"),
@@ -238,7 +251,10 @@ export const users = pgTable(
     // so the catalog can grow without a schema change.
     permissions: text("permissions").array(),
     // UI theme preference; "system" follows the OS.
-    theme: themePreference("theme").notNull().default("system"),
+    theme: vocabularyRef<ThemePreferenceCode>(THEME_PREFERENCE_ROWS, "theme")
+      .notNull()
+      .default("system")
+      .references(() => themePreferences.id),
     // Doctor scheduling (specialty-agnostic, core/lib/availability.ts). Empty for
     // non-doctors and for doctors with no restriction. `availability` is the
     // per-weekday working windows; `dailyAppointmentLimit` caps bookings per day

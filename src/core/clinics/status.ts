@@ -1,4 +1,5 @@
 import type { Clinic } from "@/core/db/schema";
+import { CLINIC_STATUS_ROWS, type ClinicStatusCode } from "@/core/db/vocabulary-seed";
 
 /**
  * Clinic lifecycle status — CORE, specialty-agnostic (super-admin control plane).
@@ -8,40 +9,22 @@ import type { Clinic } from "@/core/db/schema";
  * Feature 2. super_admin has no clinic and is never subject to this.
  */
 
-export const CLINIC_STATUSES = [
-  "trial",
-  "active",
-  "suspended",
-  "past_due",
-  "cancelled",
-] as const;
-export type ClinicStatus = (typeof CLINIC_STATUSES)[number];
+/**
+ * The codes, derived from the clinic_status vocabulary rather than restated.
+ *
+ * The list lives in ONE place — `core/db/vocabulary-seed.ts`, which is also the
+ * migration seed and what the start-up check compares the database against. Writing
+ * it out a second time here is exactly the drift this whole change removed.
+ * `vocabulary-seed` is client-safe (no `server-only`), so this module stays usable
+ * from a client component.
+ */
+export const CLINIC_STATUSES: readonly ClinicStatusCode[] = CLINIC_STATUS_ROWS.map((r) => r.code);
+
+export type ClinicStatus = ClinicStatusCode;
 
 export function isClinicStatus(v: string): v is ClinicStatus {
   return (CLINIC_STATUSES as readonly string[]).includes(v);
 }
-
-/** Billing-cycle (subscription package) values + human labels. Mirrors the
- *  `billingCycle` enum on `clinics` (monthly|2m|quarter|half|annual). */
-export const BILLING_CYCLE_LABEL: Record<string, string> = {
-  monthly: "Monthly",
-  "2m": "2-monthly",
-  quarter: "Quarterly",
-  half: "Half-yearly",
-  annual: "Annual",
-};
-export function billingCycleLabel(cycle: string | null | undefined): string {
-  return (cycle && BILLING_CYCLE_LABEL[cycle]) || cycle || "—";
-}
-
-/** Human label for a status badge. */
-export const CLINIC_STATUS_LABEL: Record<ClinicStatus, string> = {
-  trial: "Trial",
-  active: "Active",
-  suspended: "Suspended",
-  past_due: "Past due",
-  cancelled: "Cancelled",
-};
 
 /**
  * True when the clinic may be used. `active` always; `trial` until it expires
@@ -80,3 +63,8 @@ export function unusableReason(
       return "Access to your workspace is currently paused.";
   }
 }
+
+
+// Labels for these live in the `clinic_statuses` and `billing_cycles` tables and reach
+// the UI through core/db/vocabulary-cache.ts (server) or core/ui/vocabulary-provider.tsx
+// (client) — ADR-027. The CODES stay here: `can()` and the billing maths branch on them.

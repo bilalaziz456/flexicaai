@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { CompanyMetrics } from "@/core/admin/metrics";
-import { CLINIC_STATUSES, CLINIC_STATUS_LABEL } from "@/core/clinics/status";
+import { CLINIC_STATUSES } from "@/core/clinics/status";
 import { cn } from "@/core/lib/utils";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 
@@ -85,7 +86,7 @@ export function CompanyMetricsPanel({
           <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
             {CLINIC_STATUSES.map((s) => (
               <div key={s} className="flex items-center gap-1.5">
-                <span className="text-muted-foreground">{CLINIC_STATUS_LABEL[s]}</span>
+                <span className="text-muted-foreground">{vocabularyLabel("clinic_statuses", s)}</span>
                 <span className="font-semibold tabular-nums">{m.clinicsByStatus[s] ?? 0}</span>
               </div>
             ))}

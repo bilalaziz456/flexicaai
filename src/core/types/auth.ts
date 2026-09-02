@@ -7,15 +7,20 @@
  * into a role.
  */
 
-export const USER_ROLES = [
-  "super_admin", // FlexicaAI company staff — manages clinics & modules
-  "clinic_admin", // Clinic owner — manages their staff & settings
-  "manager", // Clinic operations manager — runs the front desk + oversight
-  "doctor", // Clinical user — voice scribe, records, prescriptions
-  "receptionist", // Front desk — appointments, WhatsApp, payments
-] as const;
+import { USER_ROLE_ROWS, type UserRoleCode } from "@/core/db/vocabulary-seed";
 
-export type UserRole = (typeof USER_ROLES)[number];
+/**
+ * The codes, derived from the user_role vocabulary rather than restated.
+ *
+ * The list lives in ONE place — `core/db/vocabulary-seed.ts`, which is also the
+ * migration seed and what the start-up check compares the database against. Writing
+ * it out a second time here is exactly the drift this whole change removed.
+ * `vocabulary-seed` is client-safe (no `server-only`), so this module stays usable
+ * from a client component.
+ */
+export const USER_ROLES: readonly UserRoleCode[] = USER_ROLE_ROWS.map((r) => r.code);
+
+export type UserRole = UserRoleCode;
 
 /**
  * Roles a clinic admin creates and manages within their clinic — everyone but
@@ -40,24 +45,6 @@ export const CLINIC_STAFF_ROLES = [
   "doctor",
   "receptionist",
 ] as const;
-
-/** Human display names for each role — the single source for UI role labels. */
-export const ROLE_LABELS: Record<UserRole, string> = {
-  super_admin: "Super admin",
-  clinic_admin: "Clinic admin",
-  manager: "Manager",
-  doctor: "Doctor",
-  receptionist: "Receptionist",
-};
-
-/**
- * Plural, comma-joined labels for the clinic-staff roles — e.g. "Managers,
- * doctors, receptionists". Derived from CLINIC_STAFF_ROLES so a role added/removed
- * updates the staff count AND its label together (no hardcoded prose to drift).
- */
-export const CLINIC_STAFF_SUMMARY = CLINIC_STAFF_ROLES.map((r, i) =>
-  i === 0 ? `${ROLE_LABELS[r]}s` : `${ROLE_LABELS[r].toLowerCase()}s`,
-).join(", ");
 
 export function isUserRole(value: unknown): value is UserRole {
   return typeof value === "string" && USER_ROLES.includes(value as UserRole);

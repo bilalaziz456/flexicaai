@@ -6,6 +6,7 @@ import { clinics, users } from "@/core/db/schema";
 import type { UserRole } from "@/core/types/auth";
 import { notDeleted } from "@/core/db/tenant";
 import { unscoped } from "@/core/db/tenant-guard";
+import type { ClinicStatusCode } from "@/core/db/vocabulary-seed";
 
 /**
  * Every live clinic as `{ id, name }` — the option list behind the super admin's
@@ -124,7 +125,7 @@ export async function listClinicsPage(
 export type ClinicListFilters = {
   /** Name search. */
   q?: string;
-  status?: string;
+  status?: ClinicStatusCode;
   /**
    * Restricts to one account manager. `null` means UNASSIGNED specifically — distinct
    * from `undefined`, which means "don't filter by manager at all".

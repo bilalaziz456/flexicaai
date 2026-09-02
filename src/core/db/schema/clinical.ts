@@ -4,7 +4,6 @@ import {
   index,
   integer,
   jsonb,
-  pgEnum,
   pgTable,
   text,
   timestamp,
@@ -16,6 +15,23 @@ import { appointments } from "@/core/db/schema/scheduling";
 import { clinics, patients, users } from "@/core/db/schema/identity";
 import { procedures } from "@/core/db/schema/billing";
 import { softDeleteColumns } from "@/core/db/schema/_shared";
+import {
+  VISIT_STATUS_ROWS,
+  type VisitStatusCode,
+  TREATMENT_PLAN_STATUS_ROWS,
+  TREATMENT_ITEM_STATUS_ROWS,
+  ATTACHMENT_KIND_ROWS,
+  type TreatmentPlanStatusCode,
+  type TreatmentItemStatusCode,
+  type AttachmentKindCode,
+} from "@/core/db/vocabulary-seed";
+import {
+  visitStatuses,
+  vocabularyRef,
+  treatmentPlanStatuses,
+  treatmentItemStatuses,
+  attachmentKinds,
+} from "@/core/db/schema/vocabulary";
 
 /**
  * The clinical record — visits (the AI note), medical history, attachments
@@ -24,24 +40,6 @@ import { softDeleteColumns } from "@/core/db/schema/_shared";
  *
  * Part of the schema split (delta D-09) — see `./index.ts`.
  */
-
-/** AI notes are DRAFT until a doctor approves them (CLAUDE.md §8). */
-/**
- * `transcribing` and `failed` are the two states a scribe run passes through before it
- * becomes a draft (delta D-08 / ADR-020). They are STATUSES rather than a separate
- * table because a scribe run IS a visit from the moment the audio is stored — it has
- * the patient, the doctor and the recording; only the note is missing.
- *
- * Every existing read filters `= 'draft'` or `= 'approved'`, so both new states are
- * excluded from clinical surfaces by construction — an in-flight or failed run can
- * never be mistaken for a record. The scribe workspace opts INTO them explicitly.
- */
-export const visitStatus = pgEnum("visit_status", [
-  "transcribing",
-  "draft",
-  "approved",
-  "failed",
-]);
 
 /**
  * Visits — shared; stores the generated note. `module` tags specialty. The
@@ -66,7 +64,10 @@ export const visits = pgTable(
       onDelete: "set null",
     }),
     module: text("module"),
-    status: visitStatus("status").notNull().default("draft"),
+    status: vocabularyRef<VisitStatusCode>(VISIT_STATUS_ROWS, "status")
+      .notNull()
+      .default("draft")
+      .references(() => visitStatuses.id),
     // Raw Whisper transcript kept for the accuracy flywheel (CLAUDE.md §8).
     transcript: text("transcript"),
     // Module-shaped structured note (the doctor's approved/edited version).
@@ -166,7 +167,9 @@ export const clinicalAttachments = pgTable(
       .notNull()
       .references(() => patients.id, { onDelete: "cascade" }),
     visitId: uuid("visit_id").references(() => visits.id, { onDelete: "set null" }),
-    kind: text("kind").notNull(), // xray | photo | document | consent
+    kind: vocabularyRef<AttachmentKindCode>(ATTACHMENT_KIND_ROWS, "kind")
+      .notNull()
+      .references(() => attachmentKinds.id),
     storageKey: text("storage_key").notNull(),
     /**
      * A small JPEG copy for the gallery grid. NULL is normal and permanent for
@@ -214,7 +217,10 @@ export const treatmentPlans = pgTable(
       .references(() => patients.id, { onDelete: "cascade" }),
     module: text("module").notNull().default(""),
     title: text("title").notNull(),
-    status: text("status").notNull().default("proposed"), // proposed|active|completed|cancelled
+    status: vocabularyRef<TreatmentPlanStatusCode>(TREATMENT_PLAN_STATUS_ROWS, "status")
+      .notNull()
+      .default("proposed")
+      .references(() => treatmentPlanStatuses.id),
     note: text("note"),
     createdBy: uuid("created_by"),
     createdByName: text("created_by_name"),
@@ -252,7 +258,10 @@ export const treatmentPlanItems = pgTable(
     unitPrice: integer("unit_price").notNull().default(0), // snapshot, PKR
     tooth: text("tooth"), // FDI, nullable
     quantity: integer("quantity").notNull().default(1),
-    status: text("status").notNull().default("planned"), // planned|in_progress|done|cancelled
+    status: vocabularyRef<TreatmentItemStatusCode>(TREATMENT_ITEM_STATUS_ROWS, "status")
+      .notNull()
+      .default("planned")
+      .references(() => treatmentItemStatuses.id),
     appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: "set null" }),
     sort: integer("sort").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -49,9 +49,10 @@ export default function PrivacyPage() {
         intro={
           <>
             <p>
-              FlexicaAI provides practice management software to health practices. This
-              policy explains what we do with information, and it separates two very
-              different situations, because they carry different obligations.
+              FlexicaAI provides an AI-powered health management system to health
+              practices. This policy explains what we do with information, and it
+              separates two very different situations, because they carry different
+              obligations.
             </p>
             <p>
               If you are simply reading this website, almost none of it applies to you.

@@ -35,6 +35,9 @@
  * see its tables and will stop guarding them.
  */
 
+// First in the DAG: the money-path vocabulary tables are referenced BY the domain
+// files below and depend on nothing themselves.
+export * from "@/core/db/schema/vocabulary";
 export * from "@/core/db/schema/_shared";
 export * from "@/core/db/schema/identity";
 export * from "@/core/db/schema/scheduling";

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { HandCoins, Printer } from "lucide-react";
 import { DataTable, type Column } from "@/core/ui/data-table";
+import { labelFrom, useVocabulary } from "@/core/ui/vocabulary-provider";
 
 const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
 const dayFmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -31,6 +32,9 @@ type Row = {
 
 /** Payments ledger table (client) — sortable columns + a mobile card view via DataTable. */
 export function PaymentsTable({ rows, empty }: { rows: Row[]; empty: string }) {
+  // Labels come from the database (ADR-027). Read once here: a hook cannot run
+  // inside a cell callback, so the rows are captured and `labelFrom` used below.
+  const methods = useVocabulary("payment_methods");
   const columns: Column<Row>[] = [
     { id: "receipt", header: "Payment #", sortValue: (r) => r.receiptLabel ?? "", cell: (r) => <span className="font-medium tabular-nums">{r.receiptLabel ?? "—"}</span> },
     { id: "date", header: "Date", cardTitle: true, sortValue: (r) => r.occurredAt.getTime(), cell: (r) => <span className="whitespace-nowrap">{dayFmt(r.occurredAt)}</span> },
@@ -46,7 +50,7 @@ export function PaymentsTable({ rows, empty }: { rows: Row[]; empty: string }) {
     },
     { id: "doctor", header: "Doctor", sortValue: (r) => r.doctorName ?? "", cell: (r) => r.doctorName ?? "—" },
     { id: "type", header: "Type", sortValue: (r) => r.kind, cell: (r) => KIND_LABEL[r.kind] ?? r.kind },
-    { id: "method", header: "Method", sortValue: (r) => r.method ?? "", cell: (r) => r.method ?? "—" },
+    { id: "method", header: "Method", sortValue: (r) => r.method ?? "", cell: (r) => labelFrom(methods, r.method) },
     { id: "by", header: "By", cell: (r) => <span className="text-muted-foreground">{r.createdByName ?? "—"}</span> },
     {
       id: "amount",

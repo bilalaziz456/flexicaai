@@ -7,6 +7,7 @@ import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import { clinicalAttachments, patients, type ClinicalAttachment } from "@/core/db/schema";
 import { saveClinicFile } from "@/core/integrations/storage";
 import { report } from "@/core/observability";
+import { ATTACHMENT_KIND_ROWS } from "@/core/db/vocabulary-seed";
 
 /**
  * Clinical attachments — CORE data layer (server-only). Metadata rows point at
@@ -16,7 +17,7 @@ import { report } from "@/core/observability";
 
 /** X-ray/photo/document/consent kinds. `photo` is the only consent-gated one. */
 export type AttachmentKind = "xray" | "photo" | "document" | "consent";
-const KINDS: AttachmentKind[] = ["xray", "photo", "document", "consent"];
+const KINDS: readonly AttachmentKind[] = ATTACHMENT_KIND_ROWS.map((r) => r.code);
 
 /** A patient's live attachments, newest first (optionally one visit's). */
 export async function listAttachments(

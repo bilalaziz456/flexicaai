@@ -10,6 +10,7 @@ import { handleRescheduleReply } from "@/core/appointments/reschedule";
 import { handleBookingReply } from "@/core/appointments/booking";
 import { notifyInboundWhatsApp } from "@/core/notifications/triggers";
 import { enrichContext } from "@/core/observability";
+import { whatsappDirectionId } from "@/core/db/vocabulary-seed";
 
 /**
  * Inbound WhatsApp — CORE. Everything that happens to a message ONCE we know who
@@ -174,7 +175,7 @@ export async function recordInboundMessage(msg: {
         // predicate so Postgres can infer which index this targets.
         .onConflictDoNothing({
           target: whatsappMessages.externalId,
-          where: sql`${whatsappMessages.externalId} is not null and ${whatsappMessages.direction} = 'inbound'`,
+          where: sql`${whatsappMessages.externalId} is not null and ${whatsappMessages.direction} = ${whatsappDirectionId("inbound")}`,
         })
         .returning({ id: whatsappMessages.id })
     : await db.insert(whatsappMessages).values(values).returning({ id: whatsappMessages.id });

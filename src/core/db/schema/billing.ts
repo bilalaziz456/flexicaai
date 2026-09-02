@@ -13,6 +13,34 @@ import {
 } from "drizzle-orm/pg-core";
 import { appointments } from "@/core/db/schema/scheduling";
 import { clinics, patients, users } from "@/core/db/schema/identity";
+import {
+  PAYMENT_KIND_ROWS,
+  PAYMENT_METHOD_ROWS,
+  SETTLEMENT_KIND_ROWS,
+  SETTLEMENT_PARTY_ROWS,
+  APPROVAL_STATUS_ROWS,
+  DISCOUNT_TYPE_ROWS,
+  discountTypeId,
+  settlementKindId,
+  type PaymentKindCode,
+  type PaymentMethodCode,
+  type SettlementKindCode,
+  type SettlementPartyCode,
+  type ApprovalStatusCode,
+  type DiscountTypeCode,
+  RECURRENCE_ROWS,
+  type RecurrenceCode,
+} from "@/core/db/vocabulary-seed";
+import {
+  approvalStatuses,
+  discountTypes,
+  paymentKinds,
+  paymentMethods,
+  settlementKinds,
+  settlementParties,
+  vocabularyRef,
+  recurrences,
+} from "@/core/db/schema/vocabulary";
 import { softDeleteColumns } from "@/core/db/schema/_shared";
 
 /**
@@ -118,11 +146,16 @@ export const appointmentDiscountApprovals = pgTable(
     appointmentId: uuid("appointment_id")
       .notNull()
       .references(() => appointments.id, { onDelete: "cascade" }),
-    approverKind: text("approver_kind").notNull(), // 'clinic' | 'doctor'
+    approverKind: vocabularyRef<SettlementPartyCode>(SETTLEMENT_PARTY_ROWS, "approver_kind_id")
+      .notNull()
+      .references(() => settlementParties.id),
     approverDoctorId: uuid("approver_doctor_id").references(() => users.id, {
       onDelete: "cascade",
     }),
-    status: text("status").notNull().default("pending"), // pending|approved|rejected
+    status: vocabularyRef<ApprovalStatusCode>(APPROVAL_STATUS_ROWS, "status_id")
+      .notNull()
+      .default("pending")
+      .references(() => approvalStatuses.id),
     // Who decided + a name snapshot (no FK on the id: users are soft-deleted).
     decidedBy: uuid("decided_by"),
     decidedByName: text("decided_by_name"),
@@ -136,6 +169,10 @@ export const appointmentDiscountApprovals = pgTable(
       .defaultNow(),
   },
   (t) => [
+    // A discount only applies once every required party has approved, and the
+    // approver's side is read as 'clinic' vs 'doctor' when deriving
+    // appointments.discount_status. An unrecognised value is never "approved", so a
+    // typo here silently withholds a discount the clinic granted.
     index("appt_discount_approvals_appt_idx").on(t.appointmentId),
     // The clinic-approver queue scans "this clinic's pending clinic-borne rows".
     index("appt_discount_approvals_clinic_status_idx").on(t.clinicId, t.status),
@@ -219,7 +256,9 @@ export const doctorPayouts = pgTable(
     }),
     doctorName: text("doctor_name"), // snapshot
     amount: integer("amount").notNull().default(0),
-    method: text("method"), // e.g. 'cash' | 'bank' | 'other' (free-text)
+    method: vocabularyRef<PaymentMethodCode>(PAYMENT_METHOD_ROWS, "method_id").references(
+      () => paymentMethods.id,
+    ),
     reference: text("reference"), // cheque/transaction no. etc.
     periodStart: date("period_start"), // optional; a period the payment covers
     periodEnd: date("period_end"),
@@ -231,6 +270,9 @@ export const doctorPayouts = pgTable(
       .defaultNow(),
   },
   (t) => [
+    // Payment methods are declared once in core/finance/payment-methods.ts; this
+    // keeps the column honest whatever writes it (a script, a backfill, psql).
+    // Nullable, and a CHECK passes on null, so "unspecified" stays legal.
     index("doctor_payouts_clinic_doctor_idx").on(t.clinicId, t.doctorId),
     index("doctor_payouts_clinic_created_idx").on(t.clinicId, t.createdAt),
   ],
@@ -286,7 +328,9 @@ export const discountSettlements = pgTable(
     appointmentId: uuid("appointment_id")
       .notNull()
       .references(() => appointments.id, { onDelete: "cascade" }),
-    party: text("party").notNull(), // 'clinic' | 'doctor'
+    party: vocabularyRef<SettlementPartyCode>(SETTLEMENT_PARTY_ROWS, "party_id")
+      .notNull()
+      .references(() => settlementParties.id),
     doctorId: uuid("doctor_id").references(() => users.id, {
       onDelete: "set null",
     }), // NULL for the clinic row
@@ -299,6 +343,9 @@ export const discountSettlements = pgTable(
       .defaultNow(),
   },
   (t) => [
+    // The zero-sum transfer has exactly two sides. A third value would be summed
+    // into neither balance, so the settlement would stop netting to zero without
+    // anything reporting an error.
     index("discount_settlements_appointment_idx").on(t.appointmentId),
     index("discount_settlements_clinic_occurred_idx").on(t.clinicId, t.occurredAt),
     index("discount_settlements_clinic_doctor_idx").on(t.clinicId, t.doctorId),
@@ -332,7 +379,9 @@ export const doctorSettlementActions = pgTable(
       onDelete: "set null",
     }),
     lineRef: text("line_ref"), // procedure id | 'consultation' | NULL (whole visit)
-    kind: text("kind").notNull(), // doctor_waive | clinic_waive | repayment | write_off | reversal
+    kind: vocabularyRef<SettlementKindCode>(SETTLEMENT_KIND_ROWS, "kind_id")
+      .notNull()
+      .references(() => settlementKinds.id),
     amount: integer("amount").notNull().default(0), // positive PKR; meaning by kind
     reversesId: uuid("reverses_id"), // self-ref (no FK); the row a reversal undoes
     note: text("note"),
@@ -346,6 +395,12 @@ export const doctorSettlementActions = pgTable(
       .defaultNow(),
   },
   (t) => [
+    // The kind IS the sign of the money move: core/finance/pl.ts#plActionEffect and
+    // core/sales/payouts.ts both switch on it and fall through to 0 for anything
+    // unrecognised — so a bad value doesn't raise, it quietly drops the amount out of
+    // the P&L and the doctor's balance. ('reversal' is designed for but not yet
+    // written — voids currently delete the row; the constraint permits it so the
+    // feature isn't blocked at the DB.)
     index("doctor_settlement_actions_clinic_doctor_idx").on(t.clinicId, t.doctorId),
     index("doctor_settlement_actions_clinic_occurred_idx").on(t.clinicId, t.occurredAt),
     index("doctor_settlement_actions_appointment_idx").on(t.appointmentId),
@@ -354,7 +409,9 @@ export const doctorSettlementActions = pgTable(
     // (line_ref set) are constrained; amount-based waives (line_ref NULL) are not.
     uniqueIndex("doctor_settlement_actions_line_waive_uniq")
       .on(t.appointmentId, t.lineRef)
-      .where(sql`${t.kind} = 'doctor_waive' and ${t.lineRef} is not null and ${t.appointmentId} is not null`),
+      .where(
+        sql`${t.kind} = ${sql.raw(String(settlementKindId("doctor_waive")))} and ${t.lineRef} is not null and ${t.appointmentId} is not null`,
+      ),
   ],
 );
 
@@ -381,9 +438,13 @@ export const patientPayments = pgTable(
     appointmentId: uuid("appointment_id").references(() => appointments.id, {
       onDelete: "set null",
     }),
-    kind: text("kind").notNull(), // payment | advance | advance_applied | refund
+    kind: vocabularyRef<PaymentKindCode>(PAYMENT_KIND_ROWS, "kind_id")
+      .notNull()
+      .references(() => paymentKinds.id),
     amount: integer("amount").notNull().default(0),
-    method: text("method"), // cash | bank | cheque | other
+    method: vocabularyRef<PaymentMethodCode>(PAYMENT_METHOD_ROWS, "method_id").references(
+      () => paymentMethods.id,
+    ),
     reference: text("reference"),
     note: text("note"),
     // The entry a refund/void reverses (traceability); no FK (self-ref, soft-del).
@@ -402,6 +463,14 @@ export const patientPayments = pgTable(
       .defaultNow(),
   },
   (t) => [
+    // The kind decides whether a row is collected, credit, money out, or an imported
+    // opening-balance settlement. Every consumer switches on it and ignores what it
+    // doesn't recognise, so an unknown kind is money that silently reports nowhere.
+    // NOTE: 'opening' is a real fifth kind (settleOpeningBalance) that the original
+    // column comment omitted — it must stay in this list.
+    // Tenders PLUS the system marker 'advance', which `applyAdvance` writes for a bill
+    // settled from stored credit — no tender changed hands, so it is never offered in a
+    // form, but the column legitimately holds it. See STORED_PAYMENT_METHODS.
     index("patient_payments_clinic_patient_idx").on(t.clinicId, t.patientId),
     index("patient_payments_appointment_idx").on(t.appointmentId),
     index("patient_payments_clinic_occurred_idx").on(t.clinicId, t.occurredAt),
@@ -492,14 +561,18 @@ export const expenses = pgTable(
     amount: integer("amount").notNull().default(0),
     incurredOn: date("incurred_on").notNull(),
     vendor: text("vendor"),
-    method: text("method"), // cash | bank | cheque | other
+    method: vocabularyRef<PaymentMethodCode>(PAYMENT_METHOD_ROWS, "method_id").references(
+      () => paymentMethods.id,
+    ),
     reference: text("reference"),
     note: text("note"),
     recurring: boolean("recurring").notNull().default(false),
     // When `recurring`, the repeat interval ('monthly' | 'weekly') and the next date
     // the cron should materialise a fresh (non-recurring) copy of this expense.
     // NULL on a one-off expense and on a generated copy. See core/expenses/recurring.ts.
-    recurrence: text("recurrence"),
+    recurrence: vocabularyRef<RecurrenceCode>(RECURRENCE_ROWS, "recurrence").references(
+      () => recurrences.id,
+    ),
     nextRunOn: date("next_run_on"),
     createdBy: uuid("created_by"),
     createdByName: text("created_by_name"),
@@ -550,13 +623,19 @@ export const appointmentProcedures = pgTable(
     // Optional per-line discount, applied to THIS line's gross (unit_price×qty)
     // BEFORE the appointment-level discount. 'amount' = flat PKR, 'percent' = %
     // of the line. Free-text/int (not enums) to stay additive.
-    discountType: text("discount_type").notNull().default("amount"),
+    discountType: vocabularyRef<DiscountTypeCode>(DISCOUNT_TYPE_ROWS, "discount_type_id")
+      .notNull()
+      .default("amount")
+      .references(() => discountTypes.id),
     discountValue: integer("discount_value").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (t) => [
+    // 'percent' is the branch the bill maths takes; anything else is treated as a
+    // flat amount, so a typo turns "20%" into "Rs 20 off". Complements the
+    // percent-range check below, which only bites once the type is 'percent'.
     index("appt_procedures_appointment_idx").on(t.appointmentId),
     index("appt_procedures_clinic_idx").on(t.clinicId),
     index("appt_procedures_procedure_idx").on(t.procedureId),
@@ -567,7 +646,7 @@ export const appointmentProcedures = pgTable(
     // AMOUNT stays unbounded: the bill clamps it, and a large write-off is valid.
     check(
       "appt_procedures_percent_discount_max",
-      sql`${t.discountType} <> 'percent' or ${t.discountValue} between 0 and 100`,
+      sql`${t.discountType} <> ${sql.raw(String(discountTypeId("percent")))} or ${t.discountValue} between 0 and 100`,
     ),
   ],
 );

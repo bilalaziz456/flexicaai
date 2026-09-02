@@ -21,6 +21,7 @@ import { issueInvoice } from "@/core/billing/invoice";
 import { sendInvoiceWhatsApp } from "@/core/notifications/billing";
 import { revalidateFinance } from "@/app/clinic/finance-revalidate";
 import { logActivity } from "@/core/audit/log";
+import { PAYMENT_METHODS } from "@/core/finance/payment-methods";
 
 export type BillingActionState = { error?: string; saved?: boolean };
 
@@ -60,7 +61,7 @@ function revalidateAppt(appointmentId: string, patientId: string | null) {
 }
 
 const amountSchema = z.coerce.number().int().positive("Enter an amount greater than zero.");
-const methodSchema = z.string().trim().max(40).optional();
+const methodSchema = z.enum(PAYMENT_METHODS).optional();
 const refSchema = z.string().trim().max(120).optional();
 const noteSchema = z.string().trim().max(500).optional();
 

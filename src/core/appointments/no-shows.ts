@@ -5,6 +5,7 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, users } from "@/core/db/schema";
 import type { ResolvedRange } from "@/core/sales/report";
+import { appointmentStatusId } from "@/core/db/vocabulary-seed";
 
 /**
  * No-show reporting — CORE, specialty-agnostic. A "no-show" is an appointment the
@@ -47,9 +48,9 @@ export async function getNoShowStats(
       doctorName: users.fullName,
       doctorUsername: users.username,
       doctorPrefix: users.prefix,
-      noShow: sql<number>`sum(case when ${appointments.status} = 'no_show' then 1 else 0 end)::int`,
-      completed: sql<number>`sum(case when ${appointments.status} = 'completed' then 1 else 0 end)::int`,
-      cancelled: sql<number>`sum(case when ${appointments.status} = 'cancelled' then 1 else 0 end)::int`,
+      noShow: sql<number>`sum(case when ${appointments.status} = ${appointmentStatusId("no_show")} then 1 else 0 end)::int`,
+      completed: sql<number>`sum(case when ${appointments.status} = ${appointmentStatusId("completed")} then 1 else 0 end)::int`,
+      cancelled: sql<number>`sum(case when ${appointments.status} = ${appointmentStatusId("cancelled")} then 1 else 0 end)::int`,
     })
     .from(appointments)
     .leftJoin(users, eq(users.id, appointments.doctorId))

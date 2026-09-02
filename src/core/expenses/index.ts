@@ -6,6 +6,7 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, restoreValues, softDeleteValues } from "@/core/db/soft-delete";
 import { expenseCategories, expenses } from "@/core/db/schema";
 import { nextRunFrom, normalizeRecurrence } from "@/core/expenses/recurring";
+import type { PaymentMethodCode, RecurrenceCode } from "@/core/db/vocabulary-seed";
 
 /**
  * Expenses (Finance) — CORE data layer. Categories are per-clinic config (deactivate,
@@ -62,7 +63,7 @@ export type ExpenseRow = {
   amount: number;
   incurredOn: string;
   vendor: string | null;
-  method: string | null;
+  method: PaymentMethodCode | null;
   reference: string | null;
   note: string | null;
   recurring: boolean;
@@ -74,7 +75,7 @@ export type ExpenseFilters = {
   from?: Date;
   toExclusive?: Date;
   categoryId?: string;
-  method?: string;
+  method?: PaymentMethodCode;
   q?: string;
   deleted?: boolean; // show the Trash view
   limit?: number;
@@ -157,11 +158,11 @@ export type ExpenseInput = {
   amount: number;
   incurredOn: string; // YYYY-MM-DD
   vendor: string | null;
-  method: string | null;
+  method: PaymentMethodCode | null;
   reference: string | null;
   note: string | null;
   recurring: boolean;
-  recurrence?: string | null; // 'monthly' | 'weekly' — only meaningful when recurring
+  recurrence?: RecurrenceCode | null; // 'monthly' | 'weekly' — only meaningful when recurring
 };
 
 /**
@@ -169,7 +170,7 @@ export type ExpenseInput = {
  * one-off. The next run is one interval after the incurred date, so the original row
  * IS the first occurrence and the cron generates only subsequent ones.
  */
-function recurrenceFields(input: ExpenseInput): { recurrence: string | null; nextRunOn: string | null } {
+function recurrenceFields(input: ExpenseInput): { recurrence: RecurrenceCode | null; nextRunOn: string | null } {
   if (!input.recurring) return { recurrence: null, nextRunOn: null };
   const recurrence = normalizeRecurrence(input.recurrence);
   return { recurrence, nextRunOn: nextRunFrom(input.incurredOn, recurrence) };
@@ -189,7 +190,7 @@ export async function createExpense(
       amount: Math.max(0, Math.round(input.amount)),
       incurredOn: input.incurredOn,
       vendor: input.vendor?.slice(0, 120) || null,
-      method: input.method?.slice(0, 40) || null,
+      method: input.method ?? null,
       reference: input.reference?.slice(0, 120) || null,
       note: input.note?.slice(0, 500) || null,
       recurring: input.recurring,
@@ -215,7 +216,7 @@ export async function updateExpense(
       amount: Math.max(0, Math.round(input.amount)),
       incurredOn: input.incurredOn,
       vendor: input.vendor?.slice(0, 120) || null,
-      method: input.method?.slice(0, 40) || null,
+      method: input.method ?? null,
       reference: input.reference?.slice(0, 120) || null,
       note: input.note?.slice(0, 500) || null,
       recurring: input.recurring,

@@ -1,12 +1,16 @@
 import { Badge } from "@/core/ui/badge";
 import type { QueueSession } from "@/core/appointments/queue";
-import { statusLabel, statusVariant } from "@/core/appointments/status";
+import { statusVariant } from "@/core/appointments/status";
 import { QueueAdvanceButton } from "@/app/clinic/scribe/queue-advance-button";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
+
+const timeFmt = (d: Date) =>
+  d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 
 /**
  * The doctor's actionable queue for today — one card per visiting window, each
- * listing its patients (token, name, live status) with a Call in / Complete button
- * on the in-room states. "In the room" is the token actually in_progress, so late
+ * listing its patients (token, slot time, name, live status) with a Call in /
+ * Complete button on the in-room states. "In the room" is the token actually in_progress, so late
  * patients who were skipped never show as being served.
  */
 export function DoctorQueue({ sessions }: { sessions: QueueSession[] }) {
@@ -48,6 +52,14 @@ export function DoctorQueue({ sessions }: { sessions: QueueSession[] }) {
                     <span className="w-8 shrink-0 tabular-nums text-muted-foreground">
                       #{it.number}
                     </span>
+                    {/* The slot time, next to the token. The queue runs first-come,
+                        so the order is by token — but a visit can be booked at a
+                        CUSTOM time outside the doctor's usual hours, and without the
+                        time on the row there is nothing to show that the 6pm
+                        procedure is not simply next. */}
+                    <span className="w-12 shrink-0 tabular-nums text-xs text-muted-foreground">
+                      {timeFmt(it.scheduledAt)}
+                    </span>
                     <span
                       className={
                         "min-w-0 flex-1 truncate text-sm " +
@@ -61,7 +73,7 @@ export function DoctorQueue({ sessions }: { sessions: QueueSession[] }) {
                       {it.patientName}
                     </span>
                     <Badge variant={statusVariant(it.status)}>
-                      {statusLabel(it.status)}
+                      {vocabularyLabel("appointment_statuses", it.status)}
                     </Badge>
                     <QueueAdvanceButton appointmentId={it.appointmentId} status={it.status} />
                   </li>

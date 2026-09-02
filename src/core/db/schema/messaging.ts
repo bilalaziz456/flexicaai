@@ -2,37 +2,31 @@ import { sql } from "drizzle-orm";
 import {
   index,
   jsonb,
-  pgEnum,
   pgTable,
   text,
   timestamp,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-
 import { clinics, patients, users } from "@/core/db/schema/identity";
+import {
+  WHATSAPP_DIRECTION_ROWS,
+  whatsappDirectionId,
+  WHATSAPP_STATUS_ROWS,
+  type WhatsappDirectionCode,
+  type WhatsappStatusCode,
+} from "@/core/db/vocabulary-seed";
+import {
+  whatsappDirections,
+  whatsappStatuses,
+  vocabularyRef,
+} from "@/core/db/schema/vocabulary";
 
 /**
  * Outbound and inbound messaging — the WhatsApp log and in-app notifications.
  *
  * Part of the schema split (delta D-09) — see `./index.ts`.
  */
-
-/** Direction of a WhatsApp message relative to the clinic. */
-export const whatsappDirection = pgEnum("whatsapp_direction", [
-  "inbound",
-  "outbound",
-]);
-
-/** Delivery lifecycle for a WhatsApp message (mirrors provider statuses). */
-export const whatsappStatus = pgEnum("whatsapp_status", [
-  "queued",
-  "sent",
-  "delivered",
-  "read",
-  "failed",
-  "received",
-]);
 
 /**
  * WhatsApp message log — shared/core. Every send is recorded (so nothing is lost
@@ -51,10 +45,15 @@ export const whatsappMessages = pgTable(
     patientId: uuid("patient_id").references(() => patients.id, {
       onDelete: "set null",
     }),
-    direction: whatsappDirection("direction").notNull(),
+    direction: vocabularyRef<WhatsappDirectionCode>(WHATSAPP_DIRECTION_ROWS, "direction")
+      .notNull()
+      .references(() => whatsappDirections.id),
     // E.164-ish destination/sender (digits, country code included).
     phone: text("phone").notNull(),
-    status: whatsappStatus("status").notNull().default("queued"),
+    status: vocabularyRef<WhatsappStatusCode>(WHATSAPP_STATUS_ROWS, "status")
+      .notNull()
+      .default("queued")
+      .references(() => whatsappStatuses.id),
     // AiSensy campaign / template used (outbound), if any.
     templateName: text("template_name"),
     // Human-readable body / preview text.
@@ -95,7 +94,9 @@ export const whatsappMessages = pgTable(
     // none of that risk.
     uniqueIndex("wa_messages_inbound_external_id_unique")
       .on(t.externalId)
-      .where(sql`${t.externalId} is not null and ${t.direction} = 'inbound'`),
+      .where(
+        sql`${t.externalId} is not null and ${t.direction} = ${sql.raw(String(whatsappDirectionId("inbound")))}`,
+      ),
   ],
 );
 

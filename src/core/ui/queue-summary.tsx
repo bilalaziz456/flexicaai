@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { QueueSession } from "@/core/appointments/queue";
-import { statusLabel } from "@/core/appointments/status";
 import { cn } from "@/core/lib/utils";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 /**
  * Live patient-queue summary (server component) for a day — one card per doctor
@@ -79,7 +79,7 @@ export function QueueSummary({
                   return (
                     <li
                       key={it.appointmentId}
-                      title={`${it.patientName} · ${statusLabel(it.status)}`}
+                      title={`#${it.number} · ${it.scheduledAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} · ${it.patientName} · ${vocabularyLabel("appointment_statuses", it.status)}`}
                       className={cn(
                         "inline-flex min-w-6 items-center justify-center rounded-md border px-1.5 py-0.5 text-xs",
                         inRoom && "border-primary bg-primary font-semibold text-primary-foreground",

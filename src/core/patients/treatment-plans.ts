@@ -13,6 +13,7 @@ import {
   type TreatmentPlanItem,
 } from "@/core/db/schema";
 import type { TreatmentTemplate } from "@/core/types/module";
+import type { TreatmentItemStatusCode, TreatmentPlanStatusCode } from "@/core/db/vocabulary-seed";
 
 /**
  * Treatment plans — CORE data layer (server-only). A plan is a multi-visit course;
@@ -137,7 +138,7 @@ export async function addPlanItem(
 export async function updatePlanItem(
   clinicId: string,
   itemId: string,
-  patch: { status?: string; tooth?: string | null; quantity?: number },
+  patch: { status?: TreatmentItemStatusCode; tooth?: string | null; quantity?: number },
 ): Promise<boolean> {
   const set: Record<string, unknown> = { updatedAt: new Date() };
   if (patch.status) set.status = patch.status;
@@ -159,7 +160,7 @@ export async function deletePlanItem(clinicId: string, itemId: string): Promise<
   return res.length > 0;
 }
 
-export async function setPlanStatus(clinicId: string, planId: string, status: string): Promise<boolean> {
+export async function setPlanStatus(clinicId: string, planId: string, status: TreatmentPlanStatusCode): Promise<boolean> {
   const res = await db
     .update(treatmentPlans)
     .set({ status, updatedAt: new Date() })

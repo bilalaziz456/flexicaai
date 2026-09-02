@@ -13,7 +13,7 @@ import {
   appointmentProceduresNetSql,
 } from "@/core/appointments/procedures";
 import { checkDoctorSlot } from "@/core/appointments/availability";
-import { queueSessionKey, withQueueNumber } from "@/core/appointments/queue";
+import { queueSessionKey, sameDoctorDay, withQueueNumber } from "@/core/appointments/queue";
 import { parseWhen } from "@/core/appointments/parse-when";
 import type { DayAvailability } from "@/core/lib/availability";
 import { report } from "@/core/observability";
@@ -209,6 +209,11 @@ export async function handleRescheduleReply(args: {
       const newSession = queueSessionKey(appt.doctorId, when, availability, flexible);
       if (newSession === appt.queueSession) {
         await db.update(appointments).set(baseSet).where(where);
+      } else if (sameDoctorDay(newSession, appt.queueSession)) {
+        // Same doctor, same day, different window → move the card, KEEP the token.
+        // The patient was already told this number, and the reply below quotes it
+        // back; re-issuing here would tell them a different one for the same visit.
+        await db.update(appointments).set({ ...baseSet, queueSession: newSession }).where(where);
       } else {
         await withQueueNumber(
           { clinicId, doctorId: appt.doctorId, when, availability, flexible },

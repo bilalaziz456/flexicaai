@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
+import { and, asc, eq, gte, like, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, patients, users } from "@/core/db/schema";
@@ -57,13 +57,51 @@ export function queueSessionKey(
   return `${doctorId}:${date}:${idx >= 0 ? `w${idx}` : "day"}`;
 }
 
-/** Next FCFS number in a session = max existing + 1 (stable across cancels). */
+/**
+ * Do two session keys belong to the same doctor on the same day?
+ *
+ * The unit that matters when deciding whether a MOVE needs a new token. Numbers are
+ * unique per doctor-day, so shifting between windows within one day keeps the token:
+ * it is already unique there, and the patient has been told it. Re-issuing on any
+ * session change also made the row count ITSELF in the day's max, so moving an
+ * appointment from morning to afternoon bumped its own number.
+ *
+ * A key is `${doctorId}:${date}:${window}`, so the doctor-day is its first two
+ * segments. Exported because both the staff edit action and the WhatsApp reschedule
+ * decide this, and two copies of the rule would drift.
+ */
+export function sameDoctorDay(a: string | null, b: string | null): boolean {
+  if (!a || !b) return false;
+  const day = (k: string) => k.split(":").slice(0, 2).join(":");
+  return day(a) === day(b);
+}
+
+/**
+ * Next FCFS number = max existing + 1 across the doctor's WHOLE DAY (stable across
+ * cancels).
+ *
+ * Deliberately per doctor-day, not per session. A session is a display grouping —
+ * one card per visiting window — but the TOKEN is what a patient is told and quotes
+ * at the desk, so two people seeing the same doctor on the same day must never hold
+ * the same number. Numbering per session gave a doctor with a morning and an evening
+ * clinic two "#1"s, and a custom-time visit (which falls outside every window, into
+ * the `:day` bucket) a third.
+ *
+ * The session key is `${doctorId}:${date}:${window}`, so the doctor-day is its first
+ * two segments and a LIKE prefix matches every session within it. Day-unique numbers
+ * are automatically session-unique, so the existing
+ * (clinic_id, queue_session, queue_number) index still holds.
+ */
 async function nextQueueNumber(clinicId: string, session: string): Promise<number> {
+  const doctorDay = session.split(":").slice(0, 2).join(":");
   const [row] = await db
     .select({ max: sql<number>`coalesce(max(${appointments.queueNumber}), 0)` })
     .from(appointments)
     .where(
-      and(eq(appointments.clinicId, clinicId), eq(appointments.queueSession, session)),
+      and(
+        eq(appointments.clinicId, clinicId),
+        like(appointments.queueSession, `${doctorDay}:%`),
+      ),
     );
   return Number(row?.max ?? 0) + 1;
 }
@@ -142,18 +180,27 @@ function label12(hhmm: string): string {
   return `${h12}:${pad(m)} ${mer}`;
 }
 
-/** Window "w{idx}" label from a doctor's availability for a date, else "Any time". */
+/**
+ * Card heading for a session: the window's hours, or a description of why it has none.
+ *
+ * The `:day` bucket means two different things and they must not read alike. For a
+ * doctor with no windows that day it genuinely is "Any time" — they are flexible or
+ * unscheduled. For a doctor who DOES have windows it is the overflow bucket a
+ * CUSTOM-TIME visit lands in, and calling that "Any time" is false: the visit has a
+ * definite time, it is simply outside the hours. It says so instead.
+ */
 function windowLabelFor(
   sessionKey: string,
   availability: DayAvailability[],
   when: Date,
 ): { label: string; start: string | null } {
   const suffix = sessionKey.split(":").pop() ?? "day";
-  const m = /^w(\d+)$/.exec(suffix);
-  if (!m) return { label: "Any time", start: null };
   const windows = windowsForWeekday(availability, when.getDay());
+  const noWindow = windows.length > 0 ? "Outside visiting hours" : "Any time";
+  const m = /^w(\d+)$/.exec(suffix);
+  if (!m) return { label: noWindow, start: null };
   const w = windows[Number(m[1])];
-  if (!w) return { label: "Any time", start: null };
+  if (!w) return { label: noWindow, start: null };
   return { label: `${label12(w.start)} – ${label12(w.end)}`, start: w.start };
 }
 

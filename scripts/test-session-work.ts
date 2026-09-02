@@ -9,7 +9,6 @@ import { formatMrn, mrnDigits } from "../src/core/patients/mrn";
 import {
   APPOINTMENT_STATUSES,
   nextQueueAction,
-  statusLabel,
   statusVariant,
 } from "../src/core/appointments/status";
 import { csvLine, toCsv } from "../src/core/lib/csv";
@@ -53,9 +52,10 @@ console.log("Live-queue status flow:");
   check("completed → no action", nextQueueAction("completed"), null);
   check("cancelled → no action", nextQueueAction("cancelled"), null);
   check("no_show → no action", nextQueueAction("no_show"), null);
-  check("label: in_progress", statusLabel("in_progress"), "In progress");
-  check("label: no_show", statusLabel("no_show"), "No-show");
-  check("label: unknown falls back", statusLabel("weird_x"), "weird x");
+  // Labels are no longer this module's concern — they live in the `appointment_statuses`
+  // table (ADR-027) and `scripts/test-vocabulary-tables.ts` asserts the database matches
+  // the seed. What stays here is what the CODE still owns: the queue flow above and the
+  // badge variant below, which is a design-system mapping rather than vocabulary data.
   check("variant: in_progress = default", statusVariant("in_progress"), "default");
   check("variant: arrived = outline", statusVariant("arrived"), "outline");
   check("variant: unknown = secondary", statusVariant("zzz"), "secondary");

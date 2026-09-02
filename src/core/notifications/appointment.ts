@@ -7,6 +7,7 @@ import { appointments, clinics, patients, users } from "@/core/db/schema";
 import { displayStaffName } from "@/core/types/auth";
 import { billFromTotals, effectiveDiscountValue } from "@/core/appointments/fee";
 import {
+  appointmentProcedureNamesSql,
   appointmentProceduresGrossSql,
   appointmentProceduresNetSql,
 } from "@/core/appointments/procedures";
@@ -131,6 +132,7 @@ export async function notifyAppointmentBooked(
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
         discountStatus: appointments.discountStatus,
+        procedureNames: appointmentProcedureNamesSql(),
         proceduresGross: appointmentProceduresGrossSql(),
         proceduresTotal: appointmentProceduresNetSql(),
         queueNumber: appointments.queueNumber,
@@ -170,10 +172,16 @@ export async function notifyAppointmentBooked(
     // carry one).
     const token = doctor && r.queueNumber != null ? `#${r.queueNumber}` : null;
     const tokenStr = token ? ` Your token number is ${token}.` : "";
+    // What the visit is FOR. A patient booked for a root canal at 6pm should not get
+    // a message reading only "Appointment confirmed" — the more so now that a visit can
+    // be scheduled outside the doctor's usual hours, where the time by itself is the
+    // thing most likely to look like a mistake.
+    const procedures = r.procedureNames ?? null;
+    const forStr = procedures ? ` for ${procedures}` : "";
     // Only the appointment's own day/date/time — never the doctor's weekly hours.
     const body = doctor
-      ? `Appointment confirmed with ${doctor} on ${when}. Fee: ${fee}.${tokenStr}\n${r.clinicName}`
-      : `Appointment confirmed on ${when}.\n${r.clinicName}`;
+      ? `Appointment confirmed${forStr} with ${doctor} on ${when}. Fee: ${fee}.${tokenStr}\n${r.clinicName}`
+      : `Appointment confirmed${forStr} on ${when}.\n${r.clinicName}`;
 
     await sendWhatsAppToPatient({
       clinicId,
@@ -188,6 +196,9 @@ export async function notifyAppointmentBooked(
         fee,
         r.clinicName,
         token ?? "",
+        // APPENDED, never inserted: the provider maps params by POSITION, so adding
+        // one in the middle silently shifts every later placeholder.
+        procedures ?? "",
       ],
       body,
     });
@@ -225,6 +236,7 @@ export async function sendDueAppointmentReminders(
       doctorName: users.fullName,
       doctorUsername: users.username,
       doctorPrefix: users.prefix,
+      procedureNames: appointmentProcedureNamesSql(),
       clinicName: clinics.name,
     })
     .from(appointments)
@@ -255,14 +267,19 @@ export async function sendDueAppointmentReminders(
       r.doctorUsername ?? "your doctor",
     );
     const when = formatWhen(r.scheduledAt);
+    // Same reasoning as the confirmation: name the procedure. The day-out reminder
+    // is also the last chance to catch a patient who misremembered what they booked.
+    const procedures = r.procedureNames ?? null;
+    const forStr = procedures ? ` for ${procedures}` : "";
     const result = await sendWhatsAppToPatient({
       clinicId: r.clinicId,
       patientId: r.patientId,
       phone: r.patientPhone,
       campaignName: serverEnv.AISENSY_REMINDER_CAMPAIGN,
       userName: r.patientName,
-      templateParams: [r.patientName, doctor, when, r.clinicName],
-      body: `Reminder: your appointment with ${doctor} is on ${when}.\n${r.clinicName}`,
+      // Appended, not inserted — provider templates map params by POSITION.
+      templateParams: [r.patientName, doctor, when, r.clinicName, procedures ?? ""],
+      body: `Reminder: your appointment${forStr} with ${doctor} is on ${when}.\n${r.clinicName}`,
     });
 
     if (result.ok) {

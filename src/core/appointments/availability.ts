@@ -94,6 +94,14 @@ export type SlotCheck =
       // session without re-querying (see core/appointments/queue.ts).
       availability: DayAvailability[];
       flexible: boolean;
+      /**
+       * Was this time inside the doctor's allowed windows ANYWAY — i.e. would it have
+       * passed without `customTime`? Computed regardless of the override, so a caller
+       * can tell whether the override was actually needed and avoid storing
+       * `custom_time` on a visit that sits in normal hours (which would be a stored
+       * lie, and would put it on the wrong queue card).
+       */
+      withinHours: boolean;
     }
   | { ok: false; reason: string };
 
@@ -110,7 +118,7 @@ export async function checkDoctorSlot(
   clinicId: string,
   doctorId: string,
   when: Date,
-  opts?: { excludeAppointmentId?: string; hasProcedures?: boolean },
+  opts?: { excludeAppointmentId?: string; hasProcedures?: boolean; customTime?: boolean },
 ): Promise<SlotCheck> {
   const [doc] = await db
     .select({
@@ -143,18 +151,31 @@ export async function checkDoctorSlot(
 
   // Working hours are enforced only for non-flexible doctors. A flexible doctor
   // can be booked at any time (leave + daily cap below still apply).
-  if (!doc.flexibleHours) {
+  //
+  // `customTime` is the same escape hatch per APPOINTMENT rather than per doctor:
+  // staff arranging a procedure for 6pm when the doctor consults 1–3pm. It relaxes
+  // the time-of-day rule ONLY — the leave check above and the daily cap below still
+  // run, because agreeing to come in at 6pm is not the same as being available during
+  // your holiday or beyond your own cap.
+  // A visit with procedures may use either kind of window — the patient is in the
+  // chair once, and a procedure may run inside consulting hours or in a slot of its
+  // own. A pure consultation is held to consultation windows.
+  const kinds = allowedKindsFor(Boolean(opts?.hasProcedures));
+  // Evaluated whether or not the override was asked for, so the caller can tell an
+  // override that was NEEDED from one that was ticked and turned out to be
+  // unnecessary. A flexible doctor is never constrained, so nothing is ever outside.
+  const withinHours =
+    doc.flexibleHours ||
+    (availability.length > 0 && isDoctorAvailableAt(availability, when, kinds));
+
+  if (!doc.flexibleHours && !opts?.customTime) {
     if (availability.length === 0) {
       return {
         ok: false,
         reason: `${name} has no visiting hours set. Please contact the clinic.`,
       };
     }
-    // A visit with procedures may use either kind of window — the patient is in
-    // the chair once, and a procedure may run inside consulting hours or in a
-    // slot of its own. A pure consultation is held to consultation windows.
-    const kinds = allowedKindsFor(Boolean(opts?.hasProcedures));
-    if (!isDoctorAvailableAt(availability, when, kinds)) {
+    if (!withinHours) {
       const windows = windowsOfKind(availability, when.getDay(), kinds);
       const label = opts?.hasProcedures ? "" : "for consultations ";
       return {
@@ -187,6 +208,7 @@ export async function checkDoctorSlot(
     fee: doc.fee,
     availability,
     flexible: doc.flexibleHours,
+    withinHours,
   };
 }
 

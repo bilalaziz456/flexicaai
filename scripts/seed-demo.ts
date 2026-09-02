@@ -37,7 +37,9 @@ import type { DayAvailability } from "@/core/lib/availability";
 // ─── deterministic PRNG so re-runs produce the same world ───────────────────
 let _s = 20260719;
 const rnd = () => ((_s = (_s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
-const pick = <T>(a: T[]): T => a[Math.floor(rnd() * a.length)];
+// `readonly` so an `as const` fixture array can be picked from without widening its
+// element type back to string — the vocabulary columns now demand the literal union.
+const pick = <T>(a: readonly T[]): T => a[Math.floor(rnd() * a.length)];
 const int = (lo: number, hi: number) => lo + Math.floor(rnd() * (hi - lo + 1));
 const chance = (p: number) => rnd() < p;
 
@@ -225,7 +227,7 @@ async function main() {
   console.log(`${patientIds.length} patients`);
 
   const actor = { id: null as string | null, name: "Demo Admin" };
-  const methods = ["cash", "bank", "cheque", "other"];
+  const methods = ["cash", "bank", "cheque", "other"] as const;
 
   // ── appointments across the timeline ────────────────────────────────────────
   // Past: 6 months → yesterday (mostly completed). Today: a live queue.
@@ -240,9 +242,9 @@ async function main() {
     const chargeConsult = chance(0.85);
     // discount on ~15% of visits; borne by clinic/doctor/split
     const hasDiscount = chance(0.15);
-    const discountType = hasDiscount ? pick(["amount", "percent"]) : "amount";
+    const discountType = hasDiscount ? pick(["amount", "percent"] as const) : "amount";
     const discountValue = hasDiscount ? (discountType === "percent" ? int(5, 20) : int(200, 1000)) : 0;
-    const borneBy = hasDiscount ? pick(["clinic", "doctor", "split"]) : "clinic";
+    const borneBy = hasDiscount ? pick(["clinic", "doctor", "split"] as const) : "clinic";
 
     const [row] = await db
       .insert(appointments)
@@ -311,7 +313,7 @@ async function main() {
           clinicId,
           patientId: patient.id,
           appointmentId: apptId,
-          kind: "payment",
+          kind: "payment" as const,
           amount: first,
           method: pick(methods),
           occurredAt: scheduledAt,
@@ -323,7 +325,7 @@ async function main() {
             clinicId,
             patientId: patient.id,
             appointmentId: apptId,
-            kind: "payment",
+            kind: "payment" as const,
             amount: collected - first,
             method: pick(methods),
             occurredAt: addDays(scheduledAt, int(1, 20)),

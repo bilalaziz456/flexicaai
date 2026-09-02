@@ -17,6 +17,7 @@ import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { Toast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
+import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
 const selectClass = cn(
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none",
@@ -99,6 +100,8 @@ export function ClinicBilling({
   /** May flip the notice + reminder — owner/super-admin or the account manager. */
   canToggleNotice?: boolean;
 }) {
+  // Methods come from the database (ADR-027): active only, in its own order.
+  const methodOptions = useTenderOptions();
   const [priceState, priceAction, savingPrice] = useActionState<AdminActionState, FormData>(
     setClinicPrice.bind(null, clinicId),
     {},
@@ -349,10 +352,9 @@ export function ClinicBilling({
           <div className="space-y-2">
             <Label htmlFor="method">Method</Label>
             <select id="method" name="method" defaultValue="bank" className={selectClass}>
-              <option value="bank">Bank</option>
-              <option value="cash">Cash</option>
-              <option value="cheque">Cheque</option>
-              <option value="other">Other</option>
+              {methodOptions.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
             </select>
           </div>
           <div className="space-y-2">

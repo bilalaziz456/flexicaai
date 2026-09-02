@@ -4,6 +4,8 @@ import { BRAND_WEBSITE } from "@/core/lib/brand";
 import { THEME_SCRIPT } from "@/core/theme/theme-script";
 import { Toaster } from "@/core/ui/toast";
 import "./globals.css";
+import { loadVocabularies, vocabularySnapshot } from "@/core/db/vocabulary-cache";
+import { VocabularyProvider } from "@/core/ui/vocabulary-provider";
 
 // App font. Exposed as the CSS var globals.css maps `--font-sans` to.
 const fontSans = Plus_Jakarta_Sans({
@@ -33,11 +35,19 @@ export const metadata: Metadata = {
  * React never re-renders on the client — a <script> rendered in a segment layout is
  * inert on client navigation and React warns about it.
  */
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Vocabulary labels and ordering come from the DATABASE (ADR-027). Read once here
+  // and handed to client components through a context, rather than threaded as props
+  // through the sixteen that need them. `loadVocabularies` is a no-op once warm —
+  // `src/instrumentation.ts` normally does it at start-up — so this only pays on a
+  // genuinely cold process.
+  await loadVocabularies();
+  const vocabulary = vocabularySnapshot();
+
   return (
     <html lang="en" className={`${fontSans.variable} h-full antialiased`} suppressHydrationWarning>
       {/* suppressHydrationWarning: the theme script sets the `dark` class on <html>
@@ -45,7 +55,7 @@ export default function RootLayout({
           this silences the resulting mismatch. */}
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
-        {children}
+        <VocabularyProvider value={vocabulary}>{children}</VocabularyProvider>
         {/* Single global toast host — stacks + dismisses notifications app-wide. */}
         <Toaster />
       </body>

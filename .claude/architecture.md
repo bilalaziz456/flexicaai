@@ -324,6 +324,8 @@ Postgres **throws**, while TS clamps — so one side returned a number and the o
 KPIs) for that clinic until the row was edited. Found by the parity test.
 **Consequence:** the clamp makes the result always `0 ≤ net ≤ subtotal`, so the final
 `::int` can never overflow.
+**Still in force, now expressed on the id column** — ADR-027 turned `discount_type`
+into an FK, so the three CHECKs read `discount_type_id <> 2`. 
 **The input is now bounded too (D-17, closed 2026-08-21)** — in four places, because
 this is the field that caused it: the form clamps as you type (a `max` attribute only
 constrains the spinner, not typing), a zod `superRefine` rejects it at the action (the
@@ -607,6 +609,163 @@ unmatched case consistent rather than exceptional.
   works-in-dev-breaks-in-prod gap to fall into.
 - To reach one strict policy everywhere, prerendering has to go — that is the trigger,
   and it is a `CLAUDE.md` §7 decision, not a CSP one.
+
+**ADR-027 — Money-path vocabularies are reference tables with integer foreign keys,
+and the application still sees the code** · *2026-09-02* · `Accepted`
+The nine closed vocabularies the money path branches on — payment kind, clinic payment
+kind, payment method, settlement kind, settlement party, approval status, discount
+status, discount type, discount bearer — are TABLES, and the 16 columns carrying them
+are `integer` with an FK. Supersedes the CHECK constraints of ADR-021's follow-on
+migrations (`0084`/`0085`), which the FK subsumes.
+
+**Why, and who decided.** This is the owner's call, made after the alternative was put
+twice: that a value the code BRANCHES on is a code-owned vocabulary rather than data,
+and that a surrogate key buys referential integrity at the cost of readable SQL. Both
+costs are real and are recorded below rather than argued again. What the decision buys
+is genuine: the database now refuses a value no vocabulary row has, and a lookup row
+in use cannot be deleted.
+
+**The constraint that makes a surrogate key safe: ids are WRITTEN OUT, never assigned
+by a sequence.** A `serial` assigns by insertion order, so a re-seed in a different
+order silently reclassifies money already recorded — a refund read back as a payment
+moves a P&L and raises nothing. Every id is a literal in the migration and in
+`src/core/db/vocabulary-seed.ts`, and `scripts/test-vocabulary-tables.ts` asserts the
+two agree row for row. **Never renumber, never reuse a retired id** — set
+`is_active = false` so historical rows still resolve.
+
+**The load-bearing implementation decision is that the ~120 read sites did NOT change.**
+`core/db/schema/vocabulary.ts#vocabularyRef` is a Drizzle `customType` storing the
+integer and presenting the code, so `eq(patientPayments.kind, "refund")` still compiles
+and emits `kind_id = 4`. Stripping the text columns from the schema showed what the
+alternative was: 515 type errors, every one in money arithmetic or a money report,
+where a mistake produces a WRONG FIGURE rather than a failure. Converting them by hand
+was the largest risk in the change and was not worth taking to gain a property — the
+id being visible in TypeScript — that nothing needs. The column types are literal
+unions now, so a mistyped code fails to compile.
+
+**Consequences, including what was lost:**
+- `where kind = 'refund'` at a psql prompt is now `kind_id = 4`; join the lookup to
+  read it. Raw SQL in the app compares against `paymentKindId("refund")`.
+- **An FK enforces "exists in the table", not "is in a SUBSET of it."** `payment_methods`
+  holds the four tenders plus the system marker `advance` (written only by
+  `applyAdvance`). `0084`/`0085` kept `advance` out of the four non-patient method
+  columns; the FK cannot, so that restriction now rests on zod alone.
+- Untrusted values — a method filter from a URL — are NARROWED at the boundary
+  (`asPaymentMethodCode`), never cast: an unknown value drops its condition rather
+  than silently matching nothing.
+- **drizzle-kit cannot generate this migration unaided**, and both failures are silent
+  if unnoticed. It emits `ADD COLUMN … NOT NULL` with no default, which fails on any
+  table with rows — the sequence must be add-nullable → backfill → `SET NOT NULL`, and
+  a row whose value is not in the lookup must be left NULL so the `SET NOT NULL` FAILS
+  rather than being mapped to something plausible. And it renders `.default("pending")`
+  literally onto an `integer` column, because it does not run a custom type's
+  `toDriver` when generating DDL.
+- **ADR-021's percent bounds now name an ID.** The three CHECKs read
+  `discount_type_id <> 2 OR discount_value between 0 and 100`, where 2 is `percent`.
+  They are generated from `discountTypeId("percent")` in the schema (via `sql.raw`,
+  because a constraint needs a literal, not a bind parameter) — but once written they
+  are a number in the catalogue. Renumbering a vocabulary would leave them guarding the
+  wrong type in silence, which is a second reason ids are never renumbered.
+- The expand → migrate → contract staging is what made it reversible: `0087` added the
+  ids beside the text, `0089` dropped the text only once every read went through them.
+  Repeat that shape for any further vocabulary.
+
+**Extended 2026-09-02 to the seven ENUM-backed vocabularies, and the values now come
+from the DATABASE** (migration `0090`). `appointment_status`, `visit_status`,
+`recall_status`, `user_role`, `theme_preference`, `whatsapp_direction` and
+`whatsapp_status` are tables; their columns are integer FKs.
+
+**The reason differs from the money-path set, and that matters.** Postgres already
+refused a value outside an enum, so the FK adds NO integrity here. What it adds is a
+ROW per value — and `core/db/vocabulary-cache.ts` reads the label, sort order and
+active flag from those rows at start-up (`src/instrumentation.ts`). Renaming a status,
+reordering a dropdown or retiring a value is now a row update, not a deploy.
+
+**The division of ownership is the decision, and it is not negotiable by adding rows:**
+the DATABASE owns how a value is PRESENTED; the CODE owns what it MEANS. `nextQueueAction`
+switches on an appointment status, `plActionEffect` on a settlement kind, `can()` on a
+role. A row inserted into the database alone is stored and then never acted on, so a
+NEW value remains a code change. The compiled constants therefore stay — not as a
+second source of truth, but as the migration seed and the list `loadVocabularies()`
+CHECKS the database against, reporting any drift. They are also the cold-cache
+fallback, which is safe only because that check exists: Drizzle's `customType` mappers
+are SYNCHRONOUS and cannot query, so the id↔code map has to be resolvable in memory.
+
+**Two hazards worth carrying forward:**
+- An enum column cannot be cast to integer implicitly, and the `USING` transform may
+  not contain a SUBQUERY ("cannot use subquery in transform expression") — it must be
+  a literal `CASE`, which is consistent with ids being written down anyway. A value the
+  CASE misses yields NULL and the NOT NULL then fails the migration, rather than
+  quietly blanking a status.
+- A PARTIAL INDEX whose predicate names the enum blocks the conversion outright
+  (`operator does not exist: integer = whatsapp_direction`). Drop it before, recreate
+  it against the id after.
+
+**`activity_logs.actor_role` is deliberately NOT converted.** It is a text SNAPSHOT, in
+the same family as `sales.doctor_name`: it must survive the role vocabulary changing.
+Converting it would tie an audit row to a mutable table and defeat the point of a
+snapshot (ADR-006's reasoning, applied to a vocabulary).
+
+**Completed 2026-09-02 — the compiled LABEL MAPS are gone.** `APPOINTMENT_STATUS_LABEL`,
+`ROLE_LABELS`, `PAYMENT_METHOD_LABEL`, `PAYMENT_METHOD_OPTIONS` and the `statusLabel` /
+`paymentMethodLabel` helpers are deleted. Every label, the order values appear in, and
+whether a value is still offered now comes from the database.
+
+**Server components** read `core/db/vocabulary-cache.ts` directly. **Client components**
+cannot — it is `server-only` — so the root layout takes one `vocabularySnapshot()` and
+provides it through `core/ui/vocabulary-provider.tsx`; `useVocabularyLabel` and
+`useVocabularyOptions` serve the sixteen that need it. A provider rather than props
+deliberately: threading labels through sixteen components is the churn this design
+exists to avoid.
+
+**The cache re-reads on a 60-second TTL, and that is not a detail.** Loaded once at
+start-up and never again, "renaming a label is a row update" would quietly have meant
+"a row update AND a restart" — most of the benefit gone. A stale refresh does not
+block the render: the current values are correct enough for one more request, and a
+failed refresh leaves them in place rather than taking a page down. Verified by
+renaming a method in the database and watching it change in the UI.
+
+**Two things stayed in code, for different reasons.**
+`APPOINTMENT_STATUS_VARIANT` maps a code to a shadcn Badge variant — a design-system
+decision, not a property of the vocabulary; a database row could name a variant the UI
+does not have. And `APPOINTMENT_STATUSES` remains, because the CODES are what the
+application branches on (`nextQueueAction`) and what gives the union its literal type.
+The database owns presentation; the code owns meaning, and this is where the line falls.
+
+**A consequence to remember when writing tests:** the whole snapshot is serialised into
+every page payload, so a bare text search over the HTML now finds every vocabulary label
+as DATA whether or not anything rendered it. An e2e assertion that a control is absent
+must look for the control, not for a status word (one such assertion broke exactly this
+way and was narrowed to the button's own text).
+
+**Finished 2026-09-02 (migration `0092`) — no closed vocabulary is loose text any more.**
+Twenty-eight tables covering thirty-six columns. The last twelve were the free-text
+ones: clinic status and billing cycle, invoice paper, the two treatment-plan statuses,
+attachment kind, import-batch status, announcement level, AI provider, tax mode,
+recurrence, and appointment source.
+
+**The FK earns the most here and mattered least.** These had NO guard — no enum, no
+CHECK, nothing — so unlike the enum set this is genuine new integrity; and unlike the
+money-path set a bad value's worst case was a wrong badge or paper size rather than a
+wrong figure, which is why they were done last. That ordering — worst consequence
+first — is the rule to reuse.
+
+**A trap that cost a build, worth carrying forward: "has no `use client` directive" is
+NOT the same as "is a server component."** `status-badge.tsx` had no directive, so it
+looked like a server component and was given the server-only cache — but two of its
+three consumers are client components, which put it in a client tree and dragged the
+pg pool toward the browser bundle. The build caught it; nothing else would have. When
+deciding server-cache vs client-hook, look at who IMPORTS the file, not at its first
+line. A component rendered from both trees must be a client component and use the hook,
+which works in both.
+
+**What this does NOT extend to.** Open vocabularies stay open: `module` above all — a
+table of specialties would put a specialty name in core and break ADR-001 — plus
+`activity_logs.action`/`entity`, `notifications.type`, `imported_transactions.type`
+and `.method` (it archives whatever a clinic's previous system wrote), and
+`ai_usage.model`. Vocabularies whose worst case is a wrong badge colour were left as
+plain columns; the test to apply is ADR-021's — **does a bad value produce a wrong
+FIGURE, silently?**
 
 ---
 

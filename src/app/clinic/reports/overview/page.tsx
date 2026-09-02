@@ -17,7 +17,7 @@ import {
 import { HBarChart } from "@/core/ui/h-bar-chart";
 import { WaterfallChart } from "@/app/clinic/sales/waterfall-chart";
 import { SalesFilters } from "@/core/ui/report-filters";
-import { PrintButton } from "@/app/clinic/shares/payout-ui";
+import { PrintButton } from "@/core/ui/print-button";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
 import { OverviewByDoctorTable, OverviewCashTable, OverviewDiscountsTable } from "./overview-tables";
 

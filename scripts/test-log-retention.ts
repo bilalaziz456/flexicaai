@@ -22,6 +22,7 @@
  * Run: `tsx --env-file=.env.local --tsconfig scripts/_seed/tsconfig.json scripts/test-log-retention.ts`
  */
 import { Pool } from "pg";
+import { userRoleId } from "@/core/db/vocabulary-seed";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -76,7 +77,7 @@ async function seed() {
   actorId = (
     await pool.query(
       `insert into users (clinic_id, username, password_hash, role, full_name)
-       values ($1, $2, 'x', 'doctor', 'D11 Tester') returning id`,
+       values ($1, $2, 'x', ${userRoleId("doctor")}, 'D11 Tester') returning id`,
       [clinicId, `d11_${uniq}`],
     )
   ).rows[0].id;

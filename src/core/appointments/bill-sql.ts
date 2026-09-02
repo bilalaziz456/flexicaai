@@ -3,6 +3,7 @@ import "server-only";
 import { sql, type SQL } from "drizzle-orm";
 import { appointments, users } from "@/core/db/schema";
 import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
+import { discountStatusId, discountTypeId } from "@/core/db/vocabulary-seed";
 
 /**
  * THE appointment bill, in SQL — CORE. The single canonical expression, and the
@@ -48,7 +49,7 @@ import { appointmentProceduresNetSql } from "@/core/appointments/procedures";
  * until approved, so the bill behaves as if there were none.
  */
 function effectiveDiscountSql(): SQL {
-  return sql`(case when ${appointments.discountStatus} in ('pending','rejected') then 0 else ${appointments.discountValue} end)`;
+  return sql`(case when ${appointments.discountStatus} in (${discountStatusId("pending")}, ${discountStatusId("rejected")}) then 0 else ${appointments.discountValue} end)`;
 }
 
 /** Consultation fee when charged, else 0 (a procedure-only visit). */
@@ -79,7 +80,7 @@ export function appointmentDiscountSql(opts?: { raw?: boolean }): SQL<number> {
   const subtotal = appointmentSubtotalSql();
   const v = opts?.raw ? sql`${appointments.discountValue}` : effectiveDiscountSql();
   // NUMERIC before the percent multiply — see the note on `appointmentNetSql`.
-  return sql<number>`(least(greatest(round(case when ${appointments.discountType} = 'percent' then ${subtotal}::numeric * ${v} / 100.0 else ${v}::numeric end), 0), ${subtotal}))::int`;
+  return sql<number>`(least(greatest(round(case when ${appointments.discountType} = ${discountTypeId("percent")} then ${subtotal}::numeric * ${v} / 100.0 else ${v}::numeric end), 0), ${subtotal}))::int`;
 }
 
 export function appointmentNetSql(): SQL<number> {
@@ -93,5 +94,5 @@ export function appointmentNetSql(): SQL<number> {
   // for that clinic until the row is edited. Promoting to numeric makes the SQL clamp
   // exactly like `computeFee` does. The result is 0 ≤ net ≤ subtotal, so the final
   // ::int can never overflow. Found by scripts/test-bill-parity.ts.
-  return sql<number>`(${subtotal} - least(greatest(round(case when ${appointments.discountType} = 'percent' then ${subtotal}::numeric * ${eff} / 100.0 else ${eff}::numeric end), 0), ${subtotal}))::int`;
+  return sql<number>`(${subtotal} - least(greatest(round(case when ${appointments.discountType} = ${discountTypeId("percent")} then ${subtotal}::numeric * ${eff} / 100.0 else ${eff}::numeric end), 0), ${subtotal}))::int`;
 }

@@ -21,7 +21,7 @@ import { OnboardingChecklist } from "@/core/ui/onboarding-checklist";
 import { DeltaBadge } from "@/core/ui/delta-badge";
 import { AvgVisitValueForm } from "./avg-visit-value-form";
 import { DoctorLeaves } from "@/app/clinic/doctors/doctor-leaves";
-import { CLINIC_STAFF_SUMMARY } from "@/core/types/auth";
+import { clinicStaffSummary } from "@/core/db/vocabulary-cache";
 
 /**
  * Owner dashboard (CLAUDE.md §11 Step 12). The hero metric is "Revenue
@@ -169,7 +169,7 @@ export default async function ClinicDashboard() {
         ]
       : []),
     { title: "Patients", value: counts.patients, note: "Registered", href: "/clinic/patients" },
-    { title: "Staff", value: counts.staff, note: CLINIC_STAFF_SUMMARY, href: "/clinic/staff" },
+    { title: "Staff", value: counts.staff, note: clinicStaffSummary(), href: "/clinic/staff" },
   ];
 
   return (
@@ -181,12 +181,15 @@ export default async function ClinicDashboard() {
             Your clinic at a glance.
           </p>
         </div>
-        {financeKpiOn ? (
+        {/* Gated on billingKpiOn, NOT financeKpiOn: the day book needs the sales
+            feature + billing:view, so gating on finance would show the button to a
+            clinic that lands on a notFound(). Same predicate the page itself uses. */}
+        {billingKpiOn ? (
           <Link
-            href="/clinic/reports/overview"
+            href="/clinic/reports/daybook"
             className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent"
           >
-            Day report →
+            Day book →
           </Link>
         ) : null}
       </div>

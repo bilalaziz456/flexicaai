@@ -7,6 +7,8 @@ import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import { appointments, clinics, patientPayments, patients } from "@/core/db/schema";
 import { getAppointmentBill } from "@/core/billing/bill";
 import { recordSaleForAppointment } from "@/core/sales/ledger";
+import { paymentKindId } from "@/core/db/vocabulary-seed";
+import type { PaymentMethodCode } from "@/core/db/vocabulary-seed";
 
 /**
  * Patient payments — CORE (Finance). An amount-based subledger on the patient's
@@ -61,7 +63,7 @@ async function recomputeCollected(
 ): Promise<void> {
   const [row] = await tx
     .select({
-      c: sql<number>`coalesce(sum(case when ${patientPayments.kind} = 'refund' then -${patientPayments.amount} else ${patientPayments.amount} end), 0)::int`,
+      c: sql<number>`coalesce(sum(case when ${patientPayments.kind} = ${paymentKindId("refund")} then -${patientPayments.amount} else ${patientPayments.amount} end), 0)::int`,
     })
     .from(patientPayments)
     .where(
@@ -92,9 +94,9 @@ export async function getPatientCredit(
   const [row] = await db
     .select({
       credit: sql<number>`coalesce(sum(case
-        when ${patientPayments.kind} = 'advance' then ${patientPayments.amount}
-        when ${patientPayments.kind} = 'advance_applied' then -${patientPayments.amount}
-        when ${patientPayments.kind} = 'refund' and ${patientPayments.appointmentId} is null then -${patientPayments.amount}
+        when ${patientPayments.kind} = ${paymentKindId("advance")} then ${patientPayments.amount}
+        when ${patientPayments.kind} = ${paymentKindId("advance_applied")} then -${patientPayments.amount}
+        when ${patientPayments.kind} = ${paymentKindId("refund")} and ${patientPayments.appointmentId} is null then -${patientPayments.amount}
         else 0 end), 0)::int`,
     })
     .from(patientPayments)
@@ -138,7 +140,7 @@ export async function getOpeningBalanceOwed(clinicId: string, patientId: string)
  */
 export async function settleOpeningBalance(
   clinicId: string,
-  input: { patientId: string; amount: number; method: string | null; reference: string | null; note: string | null; actor: Actor },
+  input: { patientId: string; amount: number; method: PaymentMethodCode | null; reference: string | null; note: string | null; actor: Actor },
 ): Promise<PayResult> {
   const amount = Math.round(input.amount);
   if (!Number.isFinite(amount) || amount <= 0) return { error: "Enter an amount greater than zero." };
@@ -153,7 +155,7 @@ export async function settleOpeningBalance(
     appointmentId: null,
     kind: "opening",
     amount,
-    method: input.method?.slice(0, 40) || null,
+    method: input.method ?? null,
     reference: input.reference?.slice(0, 120) || null,
     note: input.note?.slice(0, 500) ?? null,
     createdBy: input.actor.id,
@@ -166,7 +168,7 @@ export type LedgerEntry = {
   id: string;
   kind: string;
   amount: number;
-  method: string | null;
+  method: PaymentMethodCode | null;
   reference: string | null;
   note: string | null;
   createdByName: string | null;
@@ -221,7 +223,7 @@ export async function recordPayment(
     patientId: string;
     appointmentId?: string | null;
     amount: number;
-    method: string | null;
+    method: PaymentMethodCode | null;
     reference: string | null;
     note: string | null;
     actor: Actor;
@@ -234,7 +236,7 @@ export async function recordPayment(
   const base = {
     clinicId,
     patientId: input.patientId,
-    method: input.method?.slice(0, 40) || null,
+    method: input.method ?? null,
     reference: input.reference?.slice(0, 120) || null,
     note: input.note?.slice(0, 500) ?? null,
     createdBy: input.actor.id,
@@ -310,7 +312,7 @@ export async function refund(
     patientId: string;
     appointmentId?: string | null;
     amount: number;
-    method: string | null;
+    method: PaymentMethodCode | null;
     reference: string | null;
     note: string | null;
     actor: Actor;
@@ -336,7 +338,7 @@ export async function refund(
       appointmentId: input.appointmentId ?? null,
       kind: "refund",
       amount,
-      method: input.method?.slice(0, 40) || null,
+      method: input.method ?? null,
       reference: input.reference?.slice(0, 120) || null,
       note: input.note?.slice(0, 500) ?? null,
       createdBy: input.actor.id,

@@ -6,6 +6,8 @@ import { notDeleted } from "@/core/db/tenant";
 import { unscoped } from "@/core/db/tenant-guard";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import { clinics, clinicPayments, users } from "@/core/db/schema";
+import { clinicPaymentKindId } from "@/core/db/vocabulary-seed";
+import type { PaymentMethodCode } from "@/core/db/vocabulary-seed";
 
 /**
  * Manual clinic→FlexicaAI billing — CORE, super-admin control plane (Feature 6).
@@ -120,7 +122,7 @@ export type ClinicPaymentRow = {
   id: string;
   amount: number;
   kind: string;
-  method: string | null;
+  method: PaymentMethodCode | null;
   reference: string | null;
   monthsCovered: number;
   note: string | null;
@@ -188,7 +190,7 @@ export async function getClinicBalanceSummary(
     .select({
       months: sql<number>`coalesce(sum(${clinicPayments.monthsCovered}),0)`,
       // Sign-aware: a refund subtracts from the paid balance.
-      amount: sql<number>`coalesce(sum(case when ${clinicPayments.kind} = 'refund' then -${clinicPayments.amount} else ${clinicPayments.amount} end),0)`,
+      amount: sql<number>`coalesce(sum(case when ${clinicPayments.kind} = ${clinicPaymentKindId("refund")} then -${clinicPayments.amount} else ${clinicPayments.amount} end),0)`,
     })
     .from(clinicPayments)
     .where(and(eq(clinicPayments.clinicId, clinic.id), notDeleted(clinicPayments.deletedAt)));
@@ -230,7 +232,7 @@ export async function recordClinicPayment(input: {
   /** 'payment' (default) | 'refund' (money out) | 'credit' (non-cash goodwill). */
   kind?: "payment" | "refund" | "credit";
   monthsCovered?: number;
-  method?: string | null;
+  method?: PaymentMethodCode | null;
   reference?: string | null;
   note?: string | null;
   occurredAt?: Date;
@@ -474,7 +476,12 @@ export async function getFirstPaymentDates(clinicIds: string[]): Promise<Map<str
     const rows = await db
       .select({
         clinicId: clinicPayments.clinicId,
-        firstAt: sql<Date>`min(${clinicPayments.occurredAt})`,
+        // See core/audit/retention.ts: `sql<Date>` only ASSERTS the type. Without
+        // `.mapWith` a bare aggregate returns the raw timestamptz string, which is why
+        // the loop below had to re-wrap it in `new Date`.
+        firstAt: sql<Date>`min(${clinicPayments.occurredAt})`.mapWith(
+          clinicPayments.occurredAt,
+        ),
       })
       .from(clinicPayments)
       .where(
@@ -485,7 +492,7 @@ export async function getFirstPaymentDates(clinicIds: string[]): Promise<Map<str
         ),
       )
       .groupBy(clinicPayments.clinicId);
-    for (const r of rows) if (r.firstAt) out.set(r.clinicId, new Date(r.firstAt));
+    for (const r of rows) if (r.firstAt) out.set(r.clinicId, r.firstAt);
     return out;
   });
 }

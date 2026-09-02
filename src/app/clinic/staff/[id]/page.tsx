@@ -10,7 +10,7 @@ import { DoctorLeaves } from "@/app/clinic/doctors/doctor-leaves";
 import { getBookingProcedures } from "@/core/appointments/procedures";
 import { countOpenDrafts } from "@/core/clinical/drafts";
 import { getDoctorProcedureOverrides } from "@/core/appointments/share-config";
-import { CLINIC_STAFF_ROLES, ROLE_LABELS } from "@/core/types/auth";
+import { CLINIC_STAFF_ROLES } from "@/core/types/auth";
 import {
   defaultPermissionsForRole,
   resourcesForClinic,
@@ -26,6 +26,7 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { ViewLogger } from "@/core/ui/view-logger";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 import {
   DeleteStaffButton,
   DoctorSharesForm,
@@ -114,7 +115,7 @@ export default async function StaffDetailPage({
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="text-xl font-semibold">{label}</h1>
-          <Badge variant="secondary">{ROLE_LABELS[member.role]}</Badge>
+          <Badge variant="secondary">{vocabularyLabel("user_roles", member.role)}</Badge>
           {member.isActive ? (
             <Badge variant="outline">Active</Badge>
           ) : (
@@ -139,7 +140,7 @@ export default async function StaffDetailPage({
               </div>
               <div>
                 <dt className="text-muted-foreground">Role</dt>
-                <dd>{ROLE_LABELS[member.role]}</dd>
+                <dd>{vocabularyLabel("user_roles", member.role)}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Status</dt>
@@ -247,9 +248,9 @@ export default async function StaffDetailPage({
                 adjacent JSX text drops the space between them — the original
                 `{member.role} can do` rendered as "clinic_admincan do", and moving
                 the interpolation just moved the join to "can do.Tick". One string
-                has no boundary to lose. ROLE_LABELS also keeps the enum slug off
+                has no boundary to lose. the database's label also keeps the enum slug off
                 the screen. */}
-            {`What this ${ROLE_LABELS[member.role].toLowerCase()} can do. Tick View / Create / Edit / Delete per module. View is required for the others. Starts from the role's defaults until you change it.`}
+            {`What this ${vocabularyLabel("user_roles", member.role).toLowerCase()} can do. Tick View / Create / Edit / Delete per module. View is required for the others. Starts from the role's defaults until you change it.`}
           </CardDescription>
         </CardHeader>
         <CardContent>

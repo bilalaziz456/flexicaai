@@ -4,6 +4,8 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import { notify } from "@/core/notifications/in-app";
+import { settlementKindId } from "@/core/db/vocabulary-seed";
+import type { PaymentMethodCode } from "@/core/db/vocabulary-seed";
 import {
   discountSettlements,
   doctorPayouts,
@@ -38,7 +40,7 @@ export type DoctorBalance = {
  *  lowers what he's owed; a clinic waive / doctor repayment / write-off relieves his
  *  debt (raises the balance toward zero). */
 function settlementAdjustmentSql() {
-  return sql<number>`coalesce(sum(case ${doctorSettlementActions.kind} when 'doctor_waive' then -${doctorSettlementActions.amount} else ${doctorSettlementActions.amount} end), 0)::int`;
+  return sql<number>`coalesce(sum(case when ${doctorSettlementActions.kind} = ${settlementKindId("doctor_waive")} then -${doctorSettlementActions.amount} else ${doctorSettlementActions.amount} end), 0)::int`;
 }
 
 export type PayoutRow = {
@@ -46,7 +48,7 @@ export type PayoutRow = {
   doctorId: string | null;
   doctorName: string | null;
   amount: number;
-  method: string | null;
+  method: PaymentMethodCode | null;
   reference: string | null;
   periodStart: string | null;
   periodEnd: string | null;
@@ -182,7 +184,7 @@ export async function recordPayout(
   input: {
     doctorId: string;
     amount: number;
-    method: string | null;
+    method: PaymentMethodCode | null;
     reference: string | null;
     from?: string | null; // optional covered period (YYYY-MM-DD)
     to?: string | null;
@@ -215,7 +217,7 @@ export async function recordPayout(
     doctorId: input.doctorId,
     doctorName: doctor.fullName ?? doctor.username,
     amount,
-    method: input.method?.slice(0, 40) || null,
+    method: input.method ?? null,
     reference: input.reference?.slice(0, 120) || null,
     periodStart: input.from ?? null,
     periodEnd: input.to ?? null,

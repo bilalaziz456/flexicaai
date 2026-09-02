@@ -32,6 +32,8 @@ import {
 import { Badge } from "@/core/ui/badge";
 import { ExpensesFilters } from "./expenses-filters";
 import { AddCompanyExpenseForm, CompanyCategoryManager, CompanyExpenseRowActions, RecurringExpensesManager } from "./expense-ui";
+import { asPaymentMethodCode } from "@/core/db/vocabulary-seed";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 
@@ -74,7 +76,7 @@ export default async function CompanyExpensesPage({
       from: range.start,
       toExclusive: range.end,
       categoryId: sp.categoryId || undefined,
-      method: sp.method || undefined,
+      method: asPaymentMethodCode(sp.method),
       q: sp.q?.trim() || undefined,
       deleted,
       limit: pageSize,
@@ -203,7 +205,7 @@ export default async function CompanyExpensesPage({
                       {r.vendor ?? ""}
                       {r.note ? <span className="text-muted-foreground">{r.vendor ? " · " : ""}{r.note}</span> : ""}
                     </TableCell>
-                    <TableCell className="capitalize">{r.method ?? "—"}</TableCell>
+                    <TableCell>{vocabularyLabel("payment_methods", r.method)}</TableCell>
                     <TableCell className="text-right tabular-nums">{rs(r.amount)}</TableCell>
                     {canEdit ? (
                       <TableCell className="text-right">

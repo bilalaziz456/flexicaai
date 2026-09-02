@@ -12,11 +12,35 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-
 import { clinics, patients, users } from "@/core/db/schema/identity";
-
-import { softDeleteColumns } from "@/core/db/schema/_shared";
 import { visits } from "@/core/db/schema/clinical";
+import {
+  CLINIC_PAYMENT_KIND_ROWS,
+  PAYMENT_METHOD_ROWS,
+  type ClinicPaymentKindCode,
+  type PaymentMethodCode,
+  IMPORT_BATCH_STATUS_ROWS,
+  ANNOUNCEMENT_LEVEL_ROWS,
+  AI_PROVIDER_ROWS,
+  TAX_MODE_ROWS,
+  RECURRENCE_ROWS,
+  type ImportBatchStatusCode,
+  type AnnouncementLevelCode,
+  type AiProviderCode,
+  type TaxModeCode,
+  type RecurrenceCode,
+} from "@/core/db/vocabulary-seed";
+import {
+  clinicPaymentKinds,
+  paymentMethods,
+  vocabularyRef,
+  importBatchStatuses,
+  announcementLevels,
+  aiProviders,
+  taxModes,
+  recurrences,
+} from "@/core/db/schema/vocabulary";
+import { softDeleteColumns } from "@/core/db/schema/_shared";
 
 /**
  * Platform and company tables — the audit trail, data imports, announcements,
@@ -42,7 +66,10 @@ export const importBatches = pgTable(
     filename: text("filename"),
     // {imported, skipped, warnings, ...} snapshot for the summary.
     counts: jsonb("counts").$type<Record<string, number>>().notNull().default({}),
-    status: text("status").notNull().default("active"), // active | undone
+    status: vocabularyRef<ImportBatchStatusCode>(IMPORT_BATCH_STATUS_ROWS, "status")
+      .notNull()
+      .default("active")
+      .references(() => importBatchStatuses.id),
     createdBy: uuid("created_by"),
     createdByName: text("created_by_name"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -93,7 +120,9 @@ export const importedTransactions = pgTable(
     // Descriptive, all as given.
     description: text("description"), // line summary / category / memo
     reference: text("reference"), // their old invoice / receipt / voucher no.
-    method: text("method"), // cash | bank | cheque | card | other (payments)
+    // Deliberately NOT bound to core/finance/payment-methods.ts: this archives
+    // whatever the clinic’s previous system wrote, verbatim (e.g. 'card', 'JazzCash').
+    method: text("method"),
     // The ENTIRE original row, verbatim — so nothing is lost and a future specialised
     // report is recoverable without a re-import.
     raw: jsonb("raw").$type<Record<string, string>>(),
@@ -139,8 +168,13 @@ export const clinicPayments = pgTable(
     // 'payment' = money IN from the clinic (+balance, +cash revenue); 'refund' =
     // money OUT to the clinic (−balance, −cash revenue); 'credit' = non-cash account
     // credit / goodwill (+balance, NOT cash revenue). See core/admin/billing.ts.
-    kind: text("kind").notNull().default("payment"),
-    method: text("method"), // bank | cash | cheque | other
+    kind: vocabularyRef<ClinicPaymentKindCode>(CLINIC_PAYMENT_KIND_ROWS, "kind_id")
+      .notNull()
+      .default("payment")
+      .references(() => clinicPaymentKinds.id),
+    method: vocabularyRef<PaymentMethodCode>(PAYMENT_METHOD_ROWS, "method_id").references(
+      () => paymentMethods.id,
+    ),
     reference: text("reference"),
     monthsCovered: integer("months_covered").notNull().default(1), // pushes paid_through
     note: text("note"),
@@ -152,6 +186,9 @@ export const clinicPayments = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    // Drives the sign in computeClinicBalance and whether the amount counts as cash
+    // collected in the company P&L. An unrecognised kind is added as a plain payment,
+    // overstating what we actually banked.
     index("clinic_payments_clinic_occurred_idx").on(t.clinicId, t.occurredAt),
     index("clinic_payments_deleted_idx")
       .on(t.deletedAt)
@@ -189,7 +226,10 @@ export const platformCostRates = pgTable(
     // extra). Applied as a % MARKUP on the PKR serving cost at report time (ai_usage
     // stays the raw provider cost). Two modes so the owner can either itemise or enter a
     // single figure; all default 0 → no markup until configured. See core/admin/cost.ts.
-    taxMode: text("tax_mode").notNull().default("itemized"), // 'itemized' | 'total'
+    taxMode: vocabularyRef<TaxModeCode>(TAX_MODE_ROWS, "tax_mode")
+      .notNull()
+      .default("itemized")
+      .references(() => taxModes.id),
     foreignTxnFeePct: numeric("foreign_txn_fee_pct", { precision: 12, scale: 4 }).notNull().default("0"),
     fedPct: numeric("fed_pct", { precision: 12, scale: 4 }).notNull().default("0"),
     advanceTaxPct: numeric("advance_tax_pct", { precision: 12, scale: 4 }).notNull().default("0"),
@@ -219,7 +259,9 @@ export const aiUsage = pgTable(
       .notNull()
       .references(() => clinics.id, { onDelete: "cascade" }),
     visitId: uuid("visit_id").references(() => visits.id, { onDelete: "set null" }),
-    provider: text("provider").notNull(), // 'whisper' | 'claude'
+    provider: vocabularyRef<AiProviderCode>(AI_PROVIDER_ROWS, "provider")
+      .notNull()
+      .references(() => aiProviders.id),
     model: text("model"),
     audioSeconds: integer("audio_seconds").notNull().default(0),
     inputTokens: integer("input_tokens").notNull().default(0),
@@ -265,11 +307,15 @@ export const companyExpenses = pgTable(
     amount: integer("amount").notNull().default(0), // PKR
     incurredOn: date("incurred_on").notNull(),
     vendor: text("vendor"),
-    method: text("method"), // cash | bank | cheque | other
+    method: vocabularyRef<PaymentMethodCode>(PAYMENT_METHOD_ROWS, "method_id").references(
+      () => paymentMethods.id,
+    ),
     reference: text("reference"),
     note: text("note"),
     recurring: boolean("recurring").notNull().default(false),
-    recurrence: text("recurrence"), // 'monthly' | 'weekly' when recurring
+    recurrence: vocabularyRef<RecurrenceCode>(RECURRENCE_ROWS, "recurrence").references(
+      () => recurrences.id,
+    ),
     nextRunOn: date("next_run_on"),
     createdBy: uuid("created_by"),
     createdByName: text("created_by_name"),
@@ -417,7 +463,10 @@ export const announcements = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     clinicId: uuid("clinic_id").references(() => clinics.id, { onDelete: "cascade" }), // NULL = all
-    level: text("level").notNull().default("info"), // info | warning
+    level: vocabularyRef<AnnouncementLevelCode>(ANNOUNCEMENT_LEVEL_ROWS, "level")
+      .notNull()
+      .default("info")
+      .references(() => announcementLevels.id),
     title: text("title").notNull(),
     body: text("body").notNull(),
     active: boolean("active").notNull().default(true),

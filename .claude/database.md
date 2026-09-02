@@ -57,17 +57,74 @@
 
 ---
 
-## 2. Enums
+## 2. Vocabularies
 
-| Enum | Values |
-|---|---|
-| `user_role` | super_admin, clinic_admin, manager, doctor, receptionist |
-| `theme_preference` | system, light, dark |
-| `appointment_status` | scheduled, confirmed, completed, cancelled, no_show |
-| `visit_status` | transcribing, draft, approved, failed |
-| `recall_status` | pending, scheduled, sent, booked, completed, cancelled |
-| `whatsapp_direction` | inbound, outbound |
-| `whatsapp_status` | queued, sent, delivered, read, failed, received |
+**There are no Postgres enums.** Every closed vocabulary is a REFERENCE TABLE and the
+column carrying it is an `integer` foreign key (ADR-027, migrations `0087`–`0092`).
+Twenty-eight tables covering thirty-six columns, all `(id, code, label, sort_order,
+is_active)`, company-global — no
+`clinic_id`, so the tenant guard ignores them and a clinic cannot invent its own.
+
+| Table | Codes | Column(s) it backs |
+|---|---|---|
+| `appointment_statuses` | scheduled, confirmed, arrived, in_progress, completed, cancelled, no_show | `appointments.status` |
+| `visit_statuses` | transcribing, draft, approved, failed | `visits.status` |
+| `recall_statuses` | pending, scheduled, sent, booked, completed, cancelled | `recalls.status` |
+| `user_roles` | super_admin, clinic_admin, manager, doctor, receptionist | `users.role` |
+| `theme_preferences` | system, light, dark | `users.theme` |
+| `whatsapp_directions` | inbound, outbound | `whatsapp_messages.direction` |
+| `whatsapp_statuses` | queued, sent, delivered, read, failed, received | `whatsapp_messages.status` |
+| `payment_kinds` | payment, advance, advance_applied, refund, opening | `patient_payments.kind` |
+| `clinic_payment_kinds` | payment, refund, credit | `clinic_payments.kind` |
+| `payment_methods` | cash, bank, cheque, other, **advance** (`is_tender = false`) | the five `method` columns |
+| `settlement_kinds` | doctor_waive, clinic_waive, repayment, write_off, reversal | `doctor_settlement_actions.kind` |
+| `settlement_parties` | clinic, doctor | `discount_settlements.party`, `appointment_discount_approvals.approver_kind` |
+| `approval_statuses` | pending, approved, rejected | `appointment_discount_approvals.status` |
+| `discount_statuses` | none, pending, approved, rejected | `appointments.discount_status` |
+| `discount_types` | amount, percent | the three `discount_type` / `discount_split_type` columns |
+| `discount_bearers` | clinic, doctor, split | `appointments.discount_borne_by` |
+| `clinic_statuses` | trial, active, suspended, past_due, cancelled | `clinics.status` |
+| `billing_cycles` | monthly, 2m, quarter, half, annual | `clinics.billing_cycle` |
+| `invoice_papers` | thermal, a5, a4 | `clinics.invoice_paper` |
+| `treatment_plan_statuses` | proposed, active, completed, cancelled | `treatment_plans.status` |
+| `treatment_item_statuses` | planned, in_progress, done, cancelled | `treatment_plan_items.status` |
+| `attachment_kinds` | xray, photo, document, consent | `clinical_attachments.kind` |
+| `import_batch_statuses` | active, undone | `import_batches.status` |
+| `announcement_levels` | info, warning | `announcements.level` |
+| `ai_providers` | whisper, claude | `ai_usage.provider` (NOT `.model`) |
+| `tax_modes` | itemized, total | `platform_cost_rates.tax_mode` |
+| `recurrences` | monthly, weekly | `expenses.recurrence`, `company_expenses.recurrence` |
+| `appointment_sources` | staff, whatsapp | `appointments.source` |
+
+**Three things to know before touching these.**
+
+**The application still reads and writes CODES.** `core/db/schema/vocabulary.ts#vocabularyRef`
+is a Drizzle `customType` storing the integer and presenting the code, so
+`eq(appointments.status, "completed")` compiles and emits `status = 5`. Raw SQL is the
+exception: it compares against `appointmentStatusId("completed")`, and a `pool.query`
+in a test gets the integer back — join the lookup to read a code.
+
+**Ids are written out, never assigned by a sequence** (`src/core/db/vocabulary-seed.ts`).
+A `serial` assigns by insertion order, so a re-seed in a different order would silently
+reclassify data already recorded. Never renumber; never reuse a retired id — set
+`is_active = false` so historical rows still resolve.
+`scripts/test-vocabulary-tables.ts` asserts the database matches the constants row for row.
+
+**The database owns PRESENTATION; the code owns MEANING.** `core/db/vocabulary-cache.ts`
+loads the label, sort order and active flag from the database and re-reads them on a
+60-second TTL, so renaming a status or reordering a dropdown really is just a row
+update — no deploy and no restart. Server components read that cache; client components
+get it through `core/ui/vocabulary-provider.tsx`, which the root layout supplies. There
+are no compiled label maps left. But `nextQueueAction` switches on a status and
+`can()` on a role — a row inserted into the database alone is stored and never acted on,
+so a NEW value is still a code change.
+
+**Open vocabularies stay open** and must not be given a table: `module` above all (a
+table of specialties would put a specialty name in core and break ADR-001), plus
+`activity_logs.action`/`entity`, `notifications.type`, `imported_transactions.type` and
+`.method`, and `ai_usage.model`. `activity_logs.actor_role` stays TEXT for a different
+reason — it is a snapshot, like `sales.doctor_name`, and must survive the role
+vocabulary changing.
 
 ---
 
@@ -92,10 +149,10 @@ Indexes: GIN pg_trgm on `name` (fast ILIKE search); partial unique on
 ### `users` — staff accounts
 `id`, `clinic_id` → clinics (**nullable**; NULL for super_admin; `on delete set
 null`), `username` (**unique**, lowercased), `email` (**unique when present**),
-`password_hash` (bcrypt), `role` (enum), `prefix` (name title — Dr/Mr/Miss…, shown
+`password_hash` (bcrypt), `role` (→ `user_roles`), `prefix` (name title — Dr/Mr/Miss…, shown
 as "Dr. Bilal Aziz"), `full_name`, `avatar_key` (profile-picture storage key, served
 self-only via `GET /api/me/avatar`), `is_active` (default true),
-`must_change_password` (default false), `theme` (enum). **Doctor-only fields:**
+`must_change_password` (default false), `theme` (→ `theme_preferences`). **Doctor-only fields:**
 `availability` jsonb `DayAvailability[]` (per-weekday working windows — a weekday
 may appear multiple times for split shifts, e.g. Mon 09:00–12:00 AND 16:00–19:00), 
 `flexible_hours` bool (default false; true = bookable any time, hours not enforced —
@@ -124,7 +181,7 @@ on `full_name` and `phone`.
 ### `appointments` — shared
 `id`, `clinic_id` → clinics (`cascade`), `patient_id` → patients (`cascade`),
 `doctor_id` → users (`set null`), `module` (free-text tag), `scheduled_at`,
-`duration_minutes` (default 30), `status` (enum, default scheduled), `reason`,
+`duration_minutes` (default 30), `status` (→ `appointment_statuses`, default scheduled), `reason`,
 `discount_type` (free-text, default 'amount'; 'amount' = flat PKR, 'percent' = % of
 the doctor's fee), `discount_value` int (default 0; the raw figure — e.g. 500, or 20
 for 20%; **CHECK: a 'percent' value must be 0–100** — unbounded, it overflowed int4
@@ -152,7 +209,7 @@ Indexes: `clinic_id`; `patient_id`; (`clinic_id`,`scheduled_at`); `doctor_id`;
 
 ### `visits` — shared; stores the AI note
 `id`, `clinic_id` (`cascade`), `patient_id` (`cascade`), `appointment_id` → appts
-(`set null`), `doctor_id` → users (`set null`), `module`, `status` (enum, default
+(`set null`), `doctor_id` → users (`set null`), `module`, `status` (→ `visit_statuses`, default
 draft — **AI notes are draft until a doctor approves**), `transcript` (raw Whisper),
 `note` jsonb (module-shaped, doctor's approved version), `ai_draft` jsonb (frozen
 original for the accuracy flywheel), `audio_key` (storage key), `visit_date`,
@@ -162,13 +219,13 @@ Indexes: `clinic_id`; `patient_id`; (`clinic_id`,`visit_date`); `appointment_id`
 ### `recalls` — recall engine reads/advances these
 `id`, `clinic_id` (`cascade`), `patient_id` (`cascade`), `source_visit_id` → visits
 (`set null`), `module`, `reason` (e.g. "6-month cleaning"), `due_at`, `status`
-(enum, default pending), `sent_at`, timestamps.
+(→ `recall_statuses`, default pending), `sent_at`, timestamps.
 Indexes: `clinic_id`; `patient_id`; (`clinic_id`,`due_at`); `status`.
 
 ### `whatsapp_messages` — inbound + outbound log
 `id`, `clinic_id` → clinics (`cascade`, **nullable**), `patient_id` → patients (`set
 null`, **nullable** — an unknown inbound number may be unattributed), `direction`
-(enum), `phone`, `status` (enum, default queued), `template_name` (AiSensy
+(→ `whatsapp_directions`), `phone`, `status` (→ `whatsapp_statuses`, default queued), `template_name` (AiSensy
 campaign), `body` (preview text), `media_url`, `external_id` (provider id for
 receipts), `error`, `payload` jsonb (raw), timestamps. Every send is recorded first
 so nothing is lost when the provider is unconfigured; also the source for the
@@ -336,7 +393,12 @@ double-waive race can't create duplicates (migration `0042`).
 `id`, `clinic_id` → clinics (`cascade`), `patient_id` → patients (`cascade`),
 `appointment_id` → appointments (`set null`; NULL = an unallocated **advance**),
 `kind` (`payment` | `advance` | `advance_applied` | `refund`), `amount` int (PKR,
-positive; sign from `kind`), `method` (cash/bank/cheque/other), `reference`, `note`,
+positive; sign from `kind`), `method` (cash/bank/cheque/other — the vocabulary is
+declared ONCE in `core/finance/payment-methods.ts` and shared by every form, filter,
+zod schema and the day-book grouping; the five `method` columns
+[`patient_payments`, `expenses`, `doctor_payouts`, `clinic_payments`,
+`company_expenses`] all use it. `imported_transactions.method` deliberately does NOT —
+it archives whatever the clinic’s previous system wrote), `reference`, `note`,
 `reverses_id` (nullable, self-ref for a void/refund), `occurred_at`, `created_by(+name)`
 snapshot, soft-delete, timestamps. Collected on a visit = Σ(payment +
 advance_applied) for that appointment; patient **credit** = Σadvance −
@@ -655,6 +717,159 @@ these for churn-risk + usage/cost anomaly flags.
   busier. **Do not rewrite the null-`entity_id` branch as `IS NOT DISTINCT FROM`:** it
   is not btree-indexable and silently drops the plan from an Index Only Scan to a
   bitmap scan plus filter (verified on 60k rows).
+- Migration **`0084`** adds **vocabulary CHECK constraints to the 16 money-path
+  columns** — `patient_payments.kind`/`.method`, `clinic_payments.kind`/`.method`,
+  `doctor_payouts.method`, `expenses.method`, `company_expenses.method`,
+  `doctor_settlement_actions.kind`, `discount_settlements.party`,
+  `appointment_discount_approvals.approver_kind`/`.status`,
+  `appointment_procedures.discount_type`, and `appointments.discount_type` /
+  `discount_split_type` / `discount_borne_by` / `discount_status`. **The selection rule
+  is the point:** each is a branch money arithmetic takes, and every consumer falls back
+  to a default rather than raising — `plActionEffect` (`core/finance/pl.ts`) returns 0
+  for an unrecognised settlement kind, `aggregateCash` ignores a payment kind it does
+  not know, the bill treats any non-`'percent'` discount type as a flat amount. So a bad
+  value produces a WRONG FIGURE, silently, not an error. Columns whose worst case is a
+  wrong badge colour or paper size (`announcements.level`, `ai_usage.provider`,
+  `clinics.invoice_paper`, `clinical_attachments.kind`, the treatment-plan statuses,
+  `import_batches.status`, `recurrence`) are deliberately left unconstrained, and the
+  open vocabularies (`module`, `activity_logs.action`/`entity`, `notifications.type`,
+  `imported_transactions.type`/`.method`, `ai_usage.model`) must stay that way.
+  **Two vocabularies were WIDER than their column comments claimed**, found by auditing
+  the writes rather than trusting the comments: `patient_payments.kind` has a fifth
+  value `'opening'` (`settleOpeningBalance`, read in five places), and
+  `doctor_settlement_actions.kind` permits `'reversal'`, designed for but not yet
+  written. Constraining to the documented set would have rejected live rows.
+  **Unlike `0080`, this migration rewrites NOTHING**: there is no safe automatic mapping
+  for an unknown vocabulary value, since silently reclassifying a money row would change
+  ledger and P&L figures unasked. It opens with a `DO` block that fails loudly instead,
+  naming the table, column, row count and offending values. Note a CHECK is satisfied
+  when its expression is true **or NULL**, which is what keeps the nullable `method`
+  columns writable when unset — never "tighten" one with `and … is not null`.
+  `scripts/test-vocabulary-bounds.ts` proves all 16 fire (32 checks; tables that are
+  empty on a fresh install are exercised with rolled-back probe INSERTs rather than
+  skipped, since an unproven constraint reported as passing is how a decorative one
+  survives).
+- Migration **`0085`** widens `patient_payments_method_valid` to include **`'advance'`**.
+  `0084` constrained the column to the four TENDERS a receptionist can pick, but
+  `applyAdvance` (`core/billing/payments.ts`) settles a bill from stored credit and
+  records `method = 'advance'` — a **system marker**, not a tender: no money changes
+  hands, so it is deliberately absent from every dropdown. `0084` therefore rejected a
+  legitimate write path. `core/finance/payment-methods.ts` now distinguishes the two:
+  `PAYMENT_METHODS` (offered in forms, validated by zod) vs `SYSTEM_PAYMENT_METHODS`,
+  with `STORED_PAYMENT_METHODS` — what the column may hold — mirroring the constraint.
+  The other four `method` columns stay tender-only; nothing writes a marker to them.
+  **Why the `0084` audit missed it, worth remembering before adding the next
+  constraint:** the pre-flight ran `SELECT DISTINCT` over existing DATA and found
+  nothing out of set — but no advance had ever been applied on that database, so the
+  value was not there to find. Auditing rows proves what HAS been written; it says
+  nothing about what the CODE can write. Grep the write paths too.
+- Migration **`0086`** adds `appointments.custom_time` (bool, default false) — staff
+  booked this visit at a time OUTSIDE the doctor's configured windows (a procedure at
+  6pm for a doctor who consults 1–3pm). Passed to
+  `checkDoctorSlot(..., { customTime })`, which then skips the **working-hours** check
+  and **only** that one: leave and the daily cap still apply, because agreeing to come
+  in at 6pm is not the same as being available during your holiday or past your own
+  cap. **Stored rather than derived** — the schedule can change afterwards, and without
+  the flag a later edit would re-validate against TODAY's hours and refuse to save a
+  visit that was deliberately booked outside them. Distinct from `users.flexible_hours`
+  (per DOCTOR, always free) and from a `kind: "procedure"` availability window (per
+  DOCTOR, recurring weekly): this is the per-APPOINTMENT exception. The booking form
+  frees its time picker on the same condition, so it can never offer a time the action
+  would refuse. Default false leaves every existing appointment unchanged.
+  `scripts/test-custom-time.ts`.
+- Migrations **`0087`–`0088`** turn the money-path vocabularies into **reference tables
+  with integer foreign keys** (owner's direction, 2026-09-02), replacing the CHECK
+  constraints of `0084` with referential integrity. Nine tables — `payment_kinds`,
+  `clinic_payment_kinds`, `payment_methods`, `settlement_kinds`, `settlement_parties`,
+  `approval_statuses`, `discount_statuses`, `discount_types`, `discount_bearers` — each
+  `(id, code, label, sort_order, is_active)`, company-global (no `clinic_id`, so the
+  tenant guard ignores them). The 16 columns gained a `*_id` FK; the 11 whose text
+  source is NOT NULL are NOT NULL too, and the 7 with a text default carry the matching
+  id default (`0088`), so inserts that never mention a discount keep working.
+  **Ids are written out, never assigned by a sequence.** A surrogate key only means
+  anything if the same number means the same thing in every environment; a `serial`
+  assigns by insertion order, so a re-seed in a different order would silently
+  reclassify money already recorded. The literals live in `src/core/db/vocabulary-seed.ts`
+  and `scripts/test-vocabulary-tables.ts` asserts the DB matches it row for row.
+  **The text columns are deliberately KEPT for now** — dropped only once every read uses
+  the id, so the step is reversible and the two can be proven to agree first. Writes go
+  through paired helpers (`paymentKindFields("refund")` sets `kind` AND `kindId`), so
+  the two cannot drift while both exist. **What an FK cannot do:** it enforces "exists
+  in the table", not "is in a SUBSET of it". `payment_methods` holds the four tenders
+  plus the system marker `advance` (written only by `applyAdvance`); `0084`/`0085` kept
+  `advance` out of the four non-patient method columns and an FK cannot, so that
+  restriction now lives in zod alone.
+- Migrations **`0088`–`0089`** finish the conversion: `0088` mirrors each text column's
+  DEFAULT onto its id column, and `0089` **drops the 16 text columns** together with the
+  CHECK constraints of `0084`/`0085`, which the foreign key subsumes. The columns in the
+  database are now `kind_id`, `method_id`, `party_id`, `approver_kind_id`, `status_id`,
+  `discount_type_id`, `discount_split_type_id`, `discount_borne_by_id`,
+  `discount_status_id` — all `integer NOT NULL` (except the five nullable `method_id`),
+  all with an FK.
+  **The application still reads and writes CODES.** `core/db/schema/vocabulary.ts#vocabularyRef`
+  is a Drizzle `customType` storing the integer and presenting the code, so
+  `eq(patientPayments.kind, "refund")` still compiles and emits `kind_id = 4`. That is
+  what let ~120 read sites — every one of them money arithmetic or a money report —
+  stay untouched; rewriting them by hand was the largest risk in the change. The
+  property types are now literal unions, so a mistyped code fails to COMPILE.
+  **What is genuinely lost:** `select … where kind = 'refund'` at a psql prompt is now
+  `kind_id = 4`; join the lookup table to read it. Raw SQL in the app compares against
+  `paymentKindId("refund")` rather than a string.
+  **Two drizzle-kit outputs had to be hand-corrected**, both silent if missed: `ADD
+  COLUMN … NOT NULL` with no default (fails on a table with rows — rewritten as
+  add-nullable → backfill → SET NOT NULL), and `SET DEFAULT 'pending'` on an integer
+  column, because drizzle-kit does not run a custom type's `toDriver` when generating
+  DDL. `scripts/test-vocabulary-tables.ts` replaces `test-vocabulary-bounds.ts`.
+- Migration **`0090`** converts the **seven ENUM-backed vocabularies** to reference
+  tables with integer foreign keys: `appointment_statuses`, `visit_statuses`,
+  `recall_statuses`, `user_roles`, `theme_preferences`, `whatsapp_directions`,
+  `whatsapp_statuses`. `appointments.status`, `visits.status`, `recalls.status`,
+  `users.role`, `users.theme`, `whatsapp_messages.direction`/`.status` are all
+  `integer` now. **The FK adds no integrity here** — Postgres already refused a value
+  outside an enum. What it adds is a ROW per value, which is what lets a label be
+  renamed, a dropdown reordered, or a value retired without a deploy; the old enum
+  TYPES are left in place, unreferenced, so the migration stays reversible.
+  **Three drizzle-kit outputs had to be corrected, each silently wrong:**
+  `SET DATA TYPE integer` with no `USING` (Postgres will not cast an enum to an integer
+  — and the USING must be a literal `CASE`, since a SUBQUERY is rejected outright with
+  "cannot use subquery in transform expression"); the existing DEFAULT must be DROPPED
+  before the type change; and `SET DEFAULT 'scheduled'` on an integer column.
+  **A partial index blocked the conversion:** `wa_messages_inbound_external_id_unique`
+  (migration `0079`) has the predicate `direction = 'inbound'::whatsapp_direction`, so
+  the ALTER failed with "operator does not exist: integer = whatsapp_direction". It is
+  dropped before the type change and recreated against the id.
+  **`activity_logs.actor_role` is deliberately NOT converted** — it is a text SNAPSHOT
+  that must survive the role vocabulary changing, like `sales.doctor_name`.
+- **`src/core/db/vocabulary-cache.ts`** makes the DATABASE the source of the label,
+  sort order and active flag for every vocabulary, loaded once at start-up from
+  `src/instrumentation.ts` (guarded on `NEXT_RUNTIME === "nodejs"`; the Edge runtime
+  has no pool). `vocabularyOptions()` / `vocabularyLabel()` read it, so renaming
+  "In progress" to "With the doctor" is a row update — verified end to end.
+  **Why the compiled constants remain:** Drizzle's `customType` mappers are
+  SYNCHRONOUS and cannot query, so the id↔code map must be resolvable in memory; the
+  cache falls back to the seed when cold, which is safe precisely because
+  `loadVocabularies` reports any disagreement between the two at start-up. **The code
+  still owns what a value MEANS** — `nextQueueAction` switches on a status, `can()` on
+  a role — so a row inserted into the database alone would be stored and never acted
+  on. Adding a NEW value is still a code change; the database owns presentation.
+- Migration **`0091`** drops the seven enum TYPES themselves, now that `0090` has moved
+  every column off them; `pg_attribute` was checked first and showed zero columns using
+  each. The `pgEnum` declarations are gone from the schema files with them. **This is
+  the point of no easy return for `0090`** — recreating a type is trivial, but the data
+  would have to be mapped back from ids, which is why `0090` deliberately left them
+  standing until the conversion had been exercised.
+- Migration **`0092`** converts the last twelve free-text vocabularies — `clinic_statuses`,
+  `billing_cycles`, `invoice_papers`, `treatment_plan_statuses`, `treatment_item_statuses`,
+  `attachment_kinds`, `import_batch_statuses`, `announcement_levels`, `ai_providers`,
+  `tax_modes`, `recurrences`, `appointment_sources` — covering thirteen columns
+  (`recurrences` backs both `expenses.recurrence` and `company_expenses.recurrence`).
+  **Here the FK is genuine NEW integrity:** these had no enum, no CHECK, nothing. They
+  came last because a bad value's worst case was a wrong badge or paper size rather
+  than a wrong money figure. `appointments.source` is included because it drives
+  behaviour — `whatsapp` marks a self-booking that stays a request until staff confirm.
+  Both `recurrence` columns and `ai_usage.provider` keep their nullability.
+  **Sixteen columns are now covered by `scripts/test-vocabulary-tables.ts` — thirty-six
+  in total across `0087`/`0090`/`0092`**, each asserted to carry its FK in `pg_constraint`.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

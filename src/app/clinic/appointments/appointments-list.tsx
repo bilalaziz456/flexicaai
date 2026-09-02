@@ -36,7 +36,8 @@ import {
   TableRow,
 } from "@/core/ui/table";
 import { AppointmentActions } from "@/app/clinic/appointments/appointment-actions";
-import { APPOINTMENT_STATUS_VARIANT, statusLabel as statusText } from "@/core/appointments/status";
+import { APPOINTMENT_STATUS_VARIANT } from "@/core/appointments/status";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 export type AppointmentsListSearchParams = {
   created?: string;
@@ -430,7 +431,7 @@ export async function AppointmentsList({
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Badge variant={APPOINTMENT_STATUS_VARIANT[a.status] ?? "secondary"}>
-                          {statusText(a.status)}
+                          {vocabularyLabel("appointment_statuses", a.status)}
                         </Badge>
                         {(() => {
                           const p = payLabel(a);
@@ -475,7 +476,7 @@ export async function AppointmentsList({
                   </span>
                   <div className="flex flex-wrap items-center justify-end gap-1.5">
                     <Badge variant={APPOINTMENT_STATUS_VARIANT[a.status] ?? "secondary"}>
-                      {statusText(a.status)}
+                      {vocabularyLabel("appointment_statuses", a.status)}
                     </Badge>
                     {(() => {
                       const p = payLabel(a);

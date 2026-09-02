@@ -1,8 +1,8 @@
 /**
- * Appointment statuses — CORE, specialty-agnostic. The single source of truth for
- * the status list, their display labels, badge styling, and the live-queue flow.
- * Client-safe (no server-only imports) so both the DB/server layer and the reception
- * UI import the same definitions.
+ * Appointment statuses — CORE, specialty-agnostic. What the application does with a
+ * status: the live-queue flow and the badge styling. The list of codes is DERIVED from
+ * the vocabulary (below) and the LABELS come from the database, so neither is written
+ * out here. Client-safe (no server-only imports).
  *
  * The live-queue lifecycle a patient moves through on the day:
  *   scheduled/confirmed → arrived (checked in, in the waiting room)
@@ -10,27 +10,29 @@
  *   → completed. `no_show` marks a patient who didn't turn up; `cancelled` a
  *   cancelled visit.
  */
-export const APPOINTMENT_STATUSES = [
-  "scheduled",
-  "confirmed",
-  "arrived",
-  "in_progress",
-  "completed",
-  "cancelled",
-  "no_show",
-] as const;
 
-export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
+import { APPOINTMENT_STATUS_ROWS, type AppointmentStatusCode } from "@/core/db/vocabulary-seed";
 
-export const APPOINTMENT_STATUS_LABEL: Record<AppointmentStatus, string> = {
-  scheduled: "Scheduled",
-  confirmed: "Confirmed",
-  arrived: "Arrived",
-  in_progress: "In progress",
-  completed: "Completed",
-  cancelled: "Cancelled",
-  no_show: "No-show",
-};
+/**
+ * The codes, derived from the appointment_status vocabulary rather than restated.
+ *
+ * The list lives in ONE place — `core/db/vocabulary-seed.ts`, which is also the
+ * migration seed and what the start-up check compares the database against. Writing
+ * it out a second time here is exactly the drift this whole change removed.
+ * `vocabulary-seed` is client-safe (no `server-only`), so this module stays usable
+ * from a client component.
+ */
+export const APPOINTMENT_STATUSES: readonly AppointmentStatusCode[] = APPOINTMENT_STATUS_ROWS.map((r) => r.code);
+
+export type AppointmentStatus = AppointmentStatusCode;
+
+// Labels are NOT here any more. They live in the `appointment_statuses` table and
+// reach the UI through core/db/vocabulary-cache.ts (server) or
+// core/ui/vocabulary-provider.tsx (client) — see ADR-027. Renaming a status is a row
+// update, not a deploy.
+//
+// The list below stays: the CODES are what the application branches on
+// (`nextQueueAction`), and they give the `AppointmentStatus` union its literal type.
 
 /** Badge look per status (shadcn Badge variants). */
 export const APPOINTMENT_STATUS_VARIANT: Record<
@@ -45,12 +47,6 @@ export const APPOINTMENT_STATUS_VARIANT: Record<
   cancelled: "destructive",
   no_show: "destructive",
 };
-
-export function statusLabel(status: string): string {
-  return (
-    APPOINTMENT_STATUS_LABEL[status as AppointmentStatus] ?? status.replace("_", " ")
-  );
-}
 
 /** Badge variant for a status string (safe for untyped/DB string values). */
 export function statusVariant(
