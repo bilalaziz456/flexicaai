@@ -70,9 +70,12 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
   const pt = procedureTotals(clinicId);
   const netSql = appointmentNetSql(pt);
 
-  const [pl, plPrev, [rec], balances, outByDay, [opening]] = await Promise.all([
-    getProfitAndLoss(clinicId, range30),
-    getProfitAndLoss(clinicId, priorRange),
+  const [pl, [rec], balances, outByDay, [opening]] = await Promise.all([
+    // ONE P&L pass covering both windows. This used to be two full calls — the second
+    // purely to obtain four scalars for the "vs previous" deltas — which meant a
+    // second complete set of aggregations, eighteen queries between them, to produce
+    // eight numbers.
+    getProfitAndLoss(clinicId, range30, { comparedTo: priorRange }),
     db
       .select({
         v: sql<number>`coalesce(sum(greatest(${netSql} - ${appointments.amountCollected}, 0)), 0)::int`,
@@ -129,6 +132,11 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
       ),
   ]);
 
+  // The prior window, totalled in the same pass. The fallback is never hit while
+  // `comparedTo` is passed above; it keeps a missing baseline reading as zero deltas
+  // rather than throwing.
+  const prev = pl.comparison ?? { revenue: 0, doctorShares: 0, expenses: 0, netProfit: 0 };
+
   // Payable = Σ of each doctor's POSITIVE balance (owed to us doctors); a doctor who
   // owes the clinic (negative, from discount-bearing) doesn't reduce what we owe others.
   const payableToDoctors = balances.reduce((s, b) => s + Math.max(0, b.outstanding), 0);
@@ -146,10 +154,10 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
   return {
     collected30d: pl.revenue,
     netProfit30d: pl.netProfit,
-    collectedPrev30d: plPrev.revenue,
-    netProfitPrev30d: plPrev.netProfit,
-    doctorSharesPrev30d: plPrev.doctorShares,
-    expensesPrev30d: plPrev.expenses,
+    collectedPrev30d: prev.revenue,
+    netProfitPrev30d: prev.netProfit,
+    doctorSharesPrev30d: prev.doctorShares,
+    expensesPrev30d: prev.expenses,
     doctorShares30d: pl.doctorShares,
     expenses30d: pl.expenses,
     outstandingReceivable: Number(rec?.v ?? 0),

@@ -938,6 +938,49 @@ same problem, left alone because `buildAppointmentConds` has four callers and wo
 need `clinicId` threaded through app files to build the alias. Convert it if that
 filter ever shows up slow; the alias is already there to use.
 
+
+**ADR-031 — A report that also needs a comparison window totals both in ONE pass** ·
+*2026-09-03* · `Accepted` *(refines ADR-025)*
+`getProfitAndLoss` takes an optional `comparedTo` range. It widens its scan to span
+both windows and gives each grouped row a `cur` and a `prev` column, so the dashboard's
+"vs previous 30 days" deltas come out of the same aggregation as the current figures
+instead of a second complete run. `getFinanceKpis` went from **43 queries to 25**.
+
+**Why it was two calls.** The dashboard needed four scalars for the prior window —
+revenue, doctor shares, expenses, net profit — and the only thing that could produce
+them was the full report, so it ran the whole thing again: buckets, per-category and
+per-doctor breakdowns included, all discarded. Eighteen queries between the two calls
+to show eight numbers.
+
+**`filter (where …)`, not a window tag — and the first attempt taught why.** Tagging
+each row with a window number and grouping by that too is rejected by Postgres: the tag
+carries BIND PARAMETERS, and the copy in `SELECT` gets different placeholder numbers
+from the copy in `GROUP BY`, so they are not the same expression to the planner
+(`column "sales.occurred_at" must appear in the GROUP BY clause`). A filtered aggregate
+keeps the grouping at `by day` and decides membership per row. It also does not depend
+on window boundaries being midnight-aligned — `resolveSalesRange` gives us that today,
+but a custom range need not.
+
+**The failure this had to be designed against is bucket leakage.** The chart buckets
+only hold `range`, so an out-of-window row usually misses the index and is dropped
+silently. But at a granularity coarser than a day — a year's P&L bucketed by month — a
+prior-window day and a current-window day genuinely share a bucket, and the prior
+window's revenue would be added to the current month's bar. Every bucket loop therefore
+reads the `cur` column explicitly. `scripts/test-pl-windows.ts` tests exactly that case
+at month granularity, and **the assertion was verified to fire** by making the bucket
+read `cur + prev`: only the month-granularity check went red, which is the point of
+having written it.
+
+**A redundant query went with it.** `expensesTotal(clinicId, start, end)` is
+`sum(amount)` over the same predicate as the daily expense rows the function had
+already read — a second round trip for a number in hand. It is summed from the rows
+now, and the test asserts the two agree.
+
+**Consequence.** The comparison returns the four scalars only, deliberately: a delta
+needs nothing else, and widening the breakdowns would have brought back most of the
+cost this removes. `getFinanceKpis` falls back to zeroes if `comparison` is absent, so
+dropping the option degrades to "no baseline" rather than throwing.
+
 ---
 
 ## 6. Deltas — where the code is not yet the architecture
