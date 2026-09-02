@@ -5,6 +5,7 @@ import { getClinic } from "@/core/clinics/get-clinic";
 import { createScribeRun, patientBelongsToClinic } from "@/core/clinical/scribe";
 import { saveClinicFile } from "@/core/integrations/storage";
 import { runScribeJob } from "@/core/ai/scribe-job";
+import { scribeModuleConfig } from "@/config/module-scribe";
 import { report } from "@/core/observability";
 import { aiScribeByUser, throttle, tooManyRequests } from "@/core/security/rate-limit";
 
@@ -122,7 +123,7 @@ export async function POST(request: Request) {
     // `after` runs the callback once the response is flushed (Next 16, sanctioned for
     // Route Handlers). The job never throws and writes every outcome to the visit, so
     // there is nothing here to catch — see `core/ai/scribe-job.ts`.
-    after(() => runScribeJob(visitId));
+    after(() => runScribeJob(visitId, scribeModuleConfig));
 
     // 202: accepted, not done. The client polls `getScribeRunStatus` until it leaves
     // `transcribing`.

@@ -105,14 +105,19 @@ app/**  →  core/**
 core/<domain>  →  core/infra
 ```
 
-Forbidden, without exception:
+Forbidden, without exception — and **enforced by lint, not by convention** (ADR-029):
 
 - `core/**` → `modules/**` *(the whole point of the split)*
+- `core/**` → `config/**` *(the registry names specialties; same leak)*
 - `core/**` → `app/**`
 - `app/<group>` → `app/<other-group>` *(route groups are routing boundaries, not
-  libraries — anything two panels share belongs in `core/ui`)*
+  libraries — anything two panels share belongs in `core/ui`, and a Server Action two
+  panels share belongs in `core/<domain>`)*
 - `core/ui` → application route maps, feature flags, or capability slugs *(pass them
   in as data)*
+
+Type-only imports are exempt: they are erased at compile time, so they carry no
+dependency into the bundle.
 
 Module-owned tables live in `modules/<specialty>/db/schema.ts`, never in the core
 schema. Adding a specialty must touch only `/modules` and the registry. **If adding a
@@ -814,11 +819,61 @@ does the same.
 foreign key — the dental tooth chart is the case, and it stays a compile-time
 exhaustiveness check against the `ToothStatus` union instead.
 
-**Two pre-existing violations of the rule this ADR restates**, found while checking the
-direction and NOT introduced here: `core/ai/scribe-job.ts` imports `@/config/modules`,
-and `core/ui/account-forms.tsx` imports `@/app/account/actions`. Both are §3 breaches
-and both predate this work; the new seam deliberately avoids the pattern rather than
-following it.
+**Two violations of the rule this ADR restates were found while checking the
+direction**, both pre-dating this work: `core/ai/scribe-job.ts` imported
+`@/config/modules`, and `core/ui/account-forms.tsx` imported `@/app/account/actions`.
+Both are fixed and the rule is lint-enforced now — see ADR-029.
+
+
+**ADR-029 — The dependency direction is enforced by lint, and a Server Action several
+panels share lives in core** · *2026-09-02* · `Accepted`
+The four forbidden edges of §3 are now an ESLint `no-restricted-imports` rule rather
+than a convention: `core/**` may not import `@/app/*`, `@/config/*` or `@/modules/*`,
+and each route group under `src/app` may not import any other. Type-only imports stay
+legal, for the same reason ADR-014 allows them — they are erased, so they carry no
+dependency into the bundle.
+
+**Why now.** ADR-028 closed by naming two breaches found by hand while checking
+something else: `core/ai/scribe-job.ts` imported the registry to resolve a scribe
+prompt, and `core/ui/account-forms.tsx` imported its Server Actions from
+`@/app/account/actions`. Neither was new; both had simply never been looked for. A rule
+nothing checks is a rule that decays, and ADR-014 already proved the answer at a much
+larger scale — the machine holds the count at zero and a violation fails the build.
+Both are fixed here, each in the shape its layer allows.
+
+**The scribe took the injection seam** (ADR-028's shape, third use after Trash and
+vocabularies): `ScribeConfigResolver` in `core/types/module.ts`, `scribeModuleConfig` in
+`config/module-scribe.ts`, and `runScribeJob(visitId, resolveModule)`. It is a
+FUNCTION, not a resolved value, because the job CLAIMS its visit row before doing
+anything else (ADR-020) — which module a run belongs to is not known until after the
+caller has handed control over.
+
+**The account actions moved to `core/account/actions.ts`, and the first attempt was
+wrong in an instructive way.** Passing them into the shared form as props looks like
+the ADR-019 move — the nav map is data, so why not the actions? — and it does remove
+the `core → app` edge. But `/admin/account` and `/clinic/settings` then had to import
+them from `@/app/account/actions` themselves, which converts one violation into two of
+a different kind: a route group used as a library, the thing ADR-019 holds at zero. The
+count caught it immediately, which is the argument for the rule in miniature.
+
+A Server Action several panels share belongs in core, and there was already a precedent
+recorded in ADR-019: `endImpersonation` moved to `core/auth/actions.ts` because the
+CLINIC shell renders its Exit button. **`revalidatePath` in a core file is not a
+violation** — conventions §5 puts that restriction on core DOMAIN modules, not on the
+action layer, and `core/auth/actions.ts` has called it since ADR-019.
+
+**Consequences.**
+- `src/app/account` is now pages only. The three panels each render the shared forms and
+  nothing imports across a group boundary.
+- The per-group lint blocks REPLACE the `src/app/**` block for files inside a group, so
+  each one restates the ADR-014 database ban. Deleting it from a group block silently
+  reopens that group to `@/core/db` — the group blocks are the only rule those files see.
+- **`api` is in the route-group list.** It is not a panel, but it is a directory under
+  `src/app` and a Route Handler reaching into a panel's actions is the same coupling.
+- The trap from ADR-014 applies unchanged: a config that fails to PARSE reports zero
+  problems, which reads exactly like passing. Both patterns were proved by deliberate
+  violations — a `@/config/modules` and an `@/app/account/actions` import in a core file,
+  and an `@/app/admin/nav` import in `app/clinic` — before the rule was believed.
 
 ---
 

@@ -1,5 +1,25 @@
 "use server";
 
+/**
+ * Self-service account mutations — a user's own profile, picture, password and
+ * discount-approval switch.
+ *
+ * WHY THIS IS IN CORE AND NOT IN A ROUTE GROUP. These are rendered by three panels
+ * through the shared `core/ui/account-forms.tsx`. While they lived in
+ * `app/account/actions.ts` there was no placement that satisfied the dependency
+ * rules: the shared component importing them was a `core → app` edge (§3), and having
+ * each page pass them in as props instead only converted that into `/admin` and
+ * `/clinic` importing from `/account` — a route group used as a library, which
+ * ADR-019 forbids and holds at zero.
+ *
+ * A Server Action shared by several panels belongs in core. `core/auth/actions.ts`
+ * already is one, for the same reason: ADR-019 records `endImpersonation` moving
+ * there because the CLINIC shell renders its Exit button. Actions may call
+ * `revalidatePath` — that restriction is on core DOMAIN modules, not on the action
+ * layer itself (conventions §5).
+ */
+
+
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { zodErrorMessage } from "@/core/lib/zod-error";

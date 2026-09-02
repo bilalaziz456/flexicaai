@@ -38,6 +38,9 @@ import {
   retryScribeRun,
   runScribeJob,
 } from "../src/core/ai/scribe-job";
+// The module contribution is INJECTED (architecture §3): core cannot resolve a
+// specialty prompt itself, so the caller passes the registry-layer resolver.
+import { scribeModuleConfig } from "../src/config/module-scribe";
 import { unscoped } from "../src/core/db/tenant-guard";
 
 let failures = 0;
@@ -143,7 +146,7 @@ async function main() {
     // No API keys in this project yet, so the AI raises MissingApiKeyError — which is
     // a real failure path and the one this asserts. It must land as `failed`, not
     // escape: `after()` has nobody to catch it.
-    await runScribeJob(id);
+    await runScribeJob(id, scribeModuleConfig);
     const s = await statusOf(id);
     check("the run is marked failed, not left hanging", s?.s, "failed");
     check("with a reason the doctor can read", Boolean(s?.e), true);
@@ -153,13 +156,13 @@ async function main() {
   console.log("\nThe claim is idempotent — the PAID work cannot run twice:");
   {
     const id = await newRun();
-    await Promise.all([runScribeJob(id), runScribeJob(id)]);
+    await Promise.all([runScribeJob(id, scribeModuleConfig), runScribeJob(id, scribeModuleConfig)]);
     const s = await statusOf(id);
     check("two concurrent invocations leave one settled run", s?.s, "failed");
 
     // A third pass after it settled must do nothing at all.
     const before = (await statusOf(id))?.e;
-    await runScribeJob(id);
+    await runScribeJob(id, scribeModuleConfig);
     check("re-invoking a settled run changes nothing", (await statusOf(id))?.e, before);
   }
 
@@ -190,7 +193,7 @@ async function main() {
   console.log("\nRetry reuses the stored audio, and only from `failed`:");
   {
     const id = await newRun();
-    await runScribeJob(id); // → failed
+    await runScribeJob(id, scribeModuleConfig); // → failed
     check("precondition: failed", (await statusOf(id))?.s, "failed");
 
     const r = await retryScribeRun(clinicId, doctorId, id);

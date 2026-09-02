@@ -13,6 +13,7 @@ import {
   searchScribePatients,
 } from "@/core/clinical/scribe";
 import { getScribeRunStatus, retryScribeRun, runScribeJob } from "@/core/ai/scribe-job";
+import { scribeModuleConfig } from "@/config/module-scribe";
 import { after } from "next/server";
 import { applyAppointmentStatus } from "@/core/appointments/set-status";
 import type { AppointmentStatus } from "@/core/appointments/status";
@@ -348,7 +349,7 @@ export async function retryScribe(
   const r = await retryScribeRun(user.clinicId, user.id, visitId);
   if ("error" in r) return r;
   // Kick it off now; the recovery sweep is the backstop if this process dies.
-  after(() => runScribeJob(visitId));
+  after(() => runScribeJob(visitId, scribeModuleConfig));
   revalidatePath("/clinic/scribe");
   return { ok: true };
 }

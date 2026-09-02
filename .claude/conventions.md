@@ -80,7 +80,17 @@ note above it; obvious logic gets none.
   and greppable, never silent.
 - **A route group is not a library** (ADR-019). If two groups need the same file, it
   belongs in `core/ui` (presentation) or `core/<domain>` (logic) — never imported
-  across `src/app/<group>` boundaries. That count is currently zero; keep it there.
+  across `src/app/<group>` boundaries. **A Server Action several panels share counts:**
+  it goes in `core/<domain>/actions.ts`, like `core/auth/actions.ts` and
+  `core/account/actions.ts`. Calling `revalidatePath` there is fine — the "core never
+  revalidates" rule below is about DOMAIN modules, not the action layer.
+- **Core may not import `app/`, `config/` or `modules/`** (architecture §3). Core
+  cannot know a specialty exists, so a module's contribution is INJECTED: the registry
+  aggregates it and the app hands it down (`config/module-scribe.ts`,
+  `config/module-trash.ts`, `moduleVocabularies()`).
+- **Both of the above are lint-enforced** (ADR-029), with type-only imports exempt.
+  The counts are zero; a violation fails the build rather than waiting to be noticed —
+  which is how the two that ADR-029 fixed survived as long as they did.
 - **A shared component must not know your routes.** Nav lives in each panel's
   `nav.ts` and is passed to `PanelShell` as data, with gating declared on the item
   (`resource` / `cap` / `feature` / `gate`). Adding a page never edits `core/ui`.

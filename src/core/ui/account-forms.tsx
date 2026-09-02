@@ -1,5 +1,19 @@
 "use client";
 
+/**
+ * The self-service account forms — avatar, profile, discount-approval switch and
+ * password. Shared by three route groups (`/account`, `/admin/account`,
+ * `/clinic/settings`), which is why they live in `core/ui` rather than in any one
+ * panel (ADR-019).
+ *
+ * The actions they call live in `core/account/actions.ts`, NOT in `app/account`.
+ * That move is what makes this component legal: while they sat in a route group,
+ * importing them here was a `core → app` edge (architecture §3), and pushing them in
+ * as props instead only moved the problem — `/admin` and `/clinic` then imported from
+ * `/account`, i.e. a route group used as a library, which ADR-019 holds at zero. A
+ * Server Action several panels share belongs in core, the same way `endImpersonation`
+ * does.
+ */
 import {
   useActionState,
   useEffect,
@@ -15,7 +29,7 @@ import {
   removeMyAvatar,
   updateMyDiscountApproval,
   type AccountActionState,
-} from "@/app/account/actions";
+} from "@/core/account/actions";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";

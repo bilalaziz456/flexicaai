@@ -5,7 +5,6 @@ import { db } from "@/core/db";
 import { patients, visits } from "@/core/db/schema";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { unscoped } from "@/core/db/tenant-guard";
-import { clinicalSchemasFor, getClinicWorkspace } from "@/config/modules";
 import { parseClinicalNote } from "@/core/clinical/note-schema";
 import { readFileByKey } from "@/core/integrations/storage";
 import { runScribe, AiTimeoutError } from "@/core/ai/scribe-engine";
@@ -13,6 +12,7 @@ import { recordScribeUsage } from "@/core/ai/usage";
 import { MissingApiKeyError, AiParseError } from "@/core/ai/prompt-runner";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { report, reportEvent } from "@/core/observability";
+import type { ScribeConfigResolver } from "@/core/types/module";
 
 /**
  * The scribe run, as a JOB rather than a request (delta D-08 / ADR-020).
@@ -48,7 +48,10 @@ export const SCRIBE_STALL_MINUTES = 15;
  * the paid work once. Claiming BEFORE the provider call is deliberate — the failure we
  * are protecting against is paying twice, not writing twice.
  */
-export async function runScribeJob(visitId: string): Promise<void> {
+export async function runScribeJob(
+  visitId: string,
+  resolveModule: ScribeConfigResolver,
+): Promise<void> {
   const claimed = await unscoped("scribe job runs outside a request", async () => {
     const [row] = await db
       .update(visits)
@@ -73,7 +76,7 @@ export async function runScribeJob(visitId: string): Promise<void> {
 
   if (!claimed) return; // already claimed, already finished, or gone
 
-  await finishScribeRun(claimed);
+  await finishScribeRun(claimed, resolveModule);
 }
 
 type ClaimedRun = {
@@ -84,16 +87,19 @@ type ClaimedRun = {
   module: string | null;
 };
 
-async function finishScribeRun(run: ClaimedRun): Promise<void> {
+async function finishScribeRun(
+  run: ClaimedRun,
+  resolveModule: ScribeConfigResolver,
+): Promise<void> {
   const startedAt = Date.now();
   try {
     if (!run.audioKey) throw new Error("The recording is missing.");
 
     const clinic = await getClinic(run.clinicId);
-    const modulesEnabled = clinic?.modulesEnabled ?? [];
-    const workspace = getClinicWorkspace(modulesEnabled);
-    const scribePrompt = run.module ? workspace.scribePrompts[run.module] : undefined;
-    if (!scribePrompt) throw new Error("This clinic has no module with a scribe configured.");
+    // The prompt and the note's shape are the module's, and core may not ask the
+    // registry for them (ADR-001) — the caller hands down a resolver instead.
+    const moduleConfig = resolveModule(clinic?.modulesEnabled ?? [], run.module);
+    if (!moduleConfig) throw new Error("This clinic has no module with a scribe configured.");
 
     const audio = await readFileByKey(run.audioKey);
     const ext = run.audioKey.split(".").pop()?.toLowerCase() || "webm";
@@ -101,12 +107,12 @@ async function finishScribeRun(run: ClaimedRun): Promise<void> {
     const { transcript, note, usage } = await runScribe({
       audio: Buffer.from(audio),
       filename: `recording.${ext}`,
-      scribePrompt,
+      scribePrompt: moduleConfig.scribePrompt,
     });
 
     // The model is an untrusted producer: it returns free-form JSON the prompt only
     // ASKED to be shaped a certain way. Validate before it becomes a draft (ADR-007).
-    const parsed = parseClinicalNote(note, clinicalSchemasFor(modulesEnabled).noteSchema);
+    const parsed = parseClinicalNote(note, moduleConfig.noteSchema);
     if (!parsed.ok) throw new Error(`The AI returned a note we can't store: ${parsed.error}`);
 
     await unscoped("scribe job writes its result", () =>

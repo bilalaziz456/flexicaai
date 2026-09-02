@@ -366,3 +366,31 @@ export interface SpecialtyCatalogEntry {
   description: string;
   status: SpecialtyStatus;
 }
+
+/**
+ * What a specialty contributes to one scribe run: the prompt that shapes the note,
+ * and the schema the resulting note is validated against.
+ *
+ * Core resolves neither. `core/ai/scribe-job.ts` runs Whisper and Claude, writes the
+ * draft and handles every failure — all specialty-agnostic — but the prompt is by
+ * definition a module's, and asking the registry for it would mean a core module
+ * importing `@/config/modules` (ADR-001, architecture §3). It takes a resolver
+ * instead, and the app hands one down; `config/module-scribe.ts` is the only place
+ * that knows how to answer. Same seam as the Trash provider and the vocabularies,
+ * for the same reason.
+ */
+export interface ScribeModuleConfig {
+  scribePrompt: string;
+  noteSchema?: ModuleDefinition["noteSchema"];
+}
+
+/**
+ * Resolves the scribe contribution for a clinic's enabled modules and the module a
+ * visit was recorded under. Returns null when nothing answers — a clinic with no
+ * module that ships a scribe prompt, which the job reports to the doctor rather than
+ * crashing on.
+ */
+export type ScribeConfigResolver = (
+  modulesEnabled: readonly ModuleId[],
+  moduleId: string | null,
+) => ScribeModuleConfig | null;
