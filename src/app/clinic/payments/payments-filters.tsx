@@ -40,6 +40,9 @@ export function PaymentsFilters({
   q: string;
   doctors: { id: string; name: string }[];
 }) {
+  // Every method, tenders included — a payment settled from credit carries
+  // method 'advance', and filtering for those is legitimate. Forms use
+  // useTenderOptions() instead, which excludes it.
   const methodOptions = useVocabularyOptions("payment_methods");
   // Methods come from the database (ADR-027), with the blank "any" entry prepended.
   const METHOD_OPTIONS = [{ value: "", label: "Any method" }, ...methodOptions];

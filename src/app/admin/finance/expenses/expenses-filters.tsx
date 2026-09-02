@@ -11,7 +11,7 @@ import {
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 import { Label } from "@/core/ui/label";
 import { Input } from "@/core/ui/input";
-import { useVocabularyOptions } from "@/core/ui/vocabulary-provider";
+import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
 
 /** Filter bar for the company expenses ledger — period, category, method, search
@@ -35,7 +35,7 @@ export function ExpensesFilters({
   deleted: boolean;
   categories: { id: string; name: string }[];
 }) {
-  const methodOptions = useVocabularyOptions("payment_methods");
+  const methodOptions = useTenderOptions();
   // Methods come from the database (ADR-027), with the blank "any" entry prepended.
   const METHOD_OPTIONS = [{ value: "", label: "All methods" }, ...methodOptions];
   const METHOD_LABELS = Object.fromEntries(METHOD_OPTIONS.map((o) => [o.value, o.label]));

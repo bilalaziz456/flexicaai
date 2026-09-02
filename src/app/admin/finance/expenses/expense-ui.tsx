@@ -17,7 +17,7 @@ import { Label } from "@/core/ui/label";
 import { DatePicker } from "@/core/ui/date-picker";
 import { Toast } from "@/core/ui/toast";
 import { SearchableSelect } from "@/core/ui/searchable-select";
-import { useVocabularyOptions } from "@/core/ui/vocabulary-provider";
+import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
 const inputCls =
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -58,7 +58,7 @@ export function CompanyExpenseForm({
   onDone?: () => void;
 }) {
   // Methods come from the database (ADR-027): active only, in its own order.
-  const methodOptions = useVocabularyOptions("payment_methods");
+  const methodOptions = useTenderOptions();
   const isEdit = !!expense;
   const [state, formAction, pending] = useActionState<ExpenseActionState, FormData>(
     saveCompanyExpense.bind(null, expense?.id ?? null),

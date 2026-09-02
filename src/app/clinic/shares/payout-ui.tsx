@@ -9,7 +9,7 @@ import {
 } from "./actions";
 import { Button } from "@/core/ui/button";
 import { Toast } from "@/core/ui/toast";
-import { useVocabularyOptions } from "@/core/ui/vocabulary-provider";
+import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -33,7 +33,7 @@ export function RecordPayoutForm({
   outstanding: number;
 }) {
   // Methods come from the database (ADR-027): active only, in its own order.
-  const methodOptions = useVocabularyOptions("payment_methods");
+  const methodOptions = useTenderOptions();
   const [state, formAction, pending] = useActionState<PayoutActionState, FormData>(
     recordDoctorPayout,
     {},

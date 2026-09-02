@@ -17,7 +17,7 @@ import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { Toast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
-import { useVocabularyOptions } from "@/core/ui/vocabulary-provider";
+import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
 const selectClass = cn(
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none",
@@ -101,7 +101,7 @@ export function ClinicBilling({
   canToggleNotice?: boolean;
 }) {
   // Methods come from the database (ADR-027): active only, in its own order.
-  const methodOptions = useVocabularyOptions("payment_methods");
+  const methodOptions = useTenderOptions();
   const [priceState, priceAction, savingPrice] = useActionState<AdminActionState, FormData>(
     setClinicPrice.bind(null, clinicId),
     {},

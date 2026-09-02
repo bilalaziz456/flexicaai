@@ -38,6 +38,13 @@ export type VocabularyEntry = {
   label: string;
   sortOrder: number;
   isActive: boolean;
+  /**
+   * `payment_methods` only: false marks a SYSTEM marker rather than a real means of
+   * payment. `advance` is written by `applyAdvance` when a bill is settled from stored
+   * credit — no money changes hands — so it must never appear in a payment form, but it
+   * IS a value the column holds. Carried through to the client for exactly that filter.
+   */
+  isTender?: boolean;
 };
 
 const cache = new Map<string, VocabularyEntry[]>();
@@ -69,6 +76,7 @@ export function vocabularyRows(table: string): VocabularyEntry[] {
     label: r.label,
     sortOrder: r.sortOrder,
     isActive: r.isActive ?? true,
+    ...(r.isTender === undefined ? {} : { isTender: r.isTender }),
   }));
 }
 
@@ -108,7 +116,10 @@ export async function loadVocabularies(): Promise<void> {
       for (const [table, seed] of Object.entries(ALL_VOCABULARY_SEED)) {
         const rows = (
           await db.execute(
-            sql.raw(`select id, code, label, sort_order, is_active from "${table}"`),
+            sql.raw(`select id, code, label, sort_order, is_active,
+                    (to_jsonb(t) ? 'is_tender') as has_tender,
+                    (case when to_jsonb(t) ? 'is_tender' then (to_jsonb(t)->>'is_tender')::boolean else null end) as is_tender
+             from "${table}" t`),
           )
         ).rows as {
           id: number;
@@ -116,6 +127,7 @@ export async function loadVocabularies(): Promise<void> {
           label: string;
           sort_order: number;
           is_active: boolean;
+          is_tender: boolean | null;
         }[];
 
         cache.set(
@@ -126,6 +138,7 @@ export async function loadVocabularies(): Promise<void> {
             label: r.label,
             sortOrder: r.sort_order,
             isActive: r.is_active,
+            ...(r.is_tender === null ? {} : { isTender: r.is_tender }),
           })),
         );
 

@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { recordOpeningPayment } from "@/app/clinic/payments/payment-actions";
-import { useVocabularyOptions } from "@/core/ui/vocabulary-provider";
+import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
 /**
  * Record a payment against a patient's imported OPENING balance. `owed` caps the
@@ -13,7 +13,7 @@ import { useVocabularyOptions } from "@/core/ui/vocabulary-provider";
  */
 export function OpeningBalanceForm({ patientId, owed }: { patientId: string; owed: number }) {
   // Methods come from the database (ADR-027): active only, in its own order.
-  const methodOptions = useVocabularyOptions("payment_methods");
+  const methodOptions = useTenderOptions();
   const [state, action, pending] = useActionState(recordOpeningPayment.bind(null, patientId), {} as { error?: string; saved?: boolean });
 
   return (

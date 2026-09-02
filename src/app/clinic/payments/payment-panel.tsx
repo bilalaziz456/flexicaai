@@ -16,7 +16,7 @@ import { Button, buttonVariants } from "@/core/ui/button";
 import { Toast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import { MessageCircle } from "lucide-react";
-import { useVocabularyOptions } from "@/core/ui/vocabulary-provider";
+import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -90,7 +90,7 @@ export function PaymentPanel({
   receiptHref?: string;
 }) {
   // Methods come from the database (ADR-027): active only, in its own order.
-  const methodOptions = useVocabularyOptions("payment_methods");
+  const methodOptions = useTenderOptions();
   const [state, formAction, pending] = useActionState<BillingActionState, FormData>(
     collectPayment.bind(null, appointmentId),
     {},

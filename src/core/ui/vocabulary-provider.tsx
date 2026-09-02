@@ -23,6 +23,8 @@ export type VocabularyEntry = {
   label: string;
   sortOrder: number;
   isActive: boolean;
+  /** `payment_methods` only — see `useTenderOptions` below. */
+  isTender?: boolean;
 };
 
 export type VocabularySnapshot = Record<string, VocabularyEntry[]>;
@@ -74,4 +76,21 @@ export function useVocabularyOptions(table: string): { value: string; label: str
 export function labelFrom(rows: VocabularyEntry[], code: string | null | undefined): string {
   if (!code) return "—";
   return rows.find((r) => r.code === code)?.label ?? code;
+}
+
+/**
+ * Payment methods a form may OFFER — the active TENDERS only.
+ *
+ * `payment_methods` also holds `advance`, the marker `applyAdvance` writes when a bill
+ * is settled from stored credit. No money changes hands there, so offering it as a
+ * tender would record a payment without the credit arithmetic that makes it correct.
+ * `is_tender` is the column that separates the two, and this is the hook every payment,
+ * expense and payout form must use — `useVocabularyOptions("payment_methods")` would
+ * include it.
+ */
+export function useTenderOptions(): { value: string; label: string }[] {
+  const rows = useVocabulary("payment_methods");
+  return rows
+    .filter((r) => r.isActive && r.isTender !== false)
+    .map((r) => ({ value: r.code, label: r.label }));
 }
