@@ -284,7 +284,7 @@ blockers-vs-should-haves is docs/launch-checklist.md** — this is the tracked l
 ---
 
 
-### WhatsApp intent understanding (AI) — PLANNED, not started
+### WhatsApp intent understanding (AI) — Phases 0 & 2 DONE, the rest planned
 
 `docs/whatsapp-ai-plan.md` (written 2026-09-04). An LLM **fallback** for inbound
 messages the deterministic parser misses — Roman Urdu, free-form phrasing — plus price
@@ -299,7 +299,7 @@ human — never answered — with the classification stored so there is eventual
 whether triage is worth building. If it ever is, ADR-007 already decides its shape:
 drafted by the model, approved by a clinician before it sends.
 
-**Phases 0 and 2 carry no AI risk and are worth doing regardless** — Phase 0 fixes a
+**Phases 0 and 2 are done (2026-09-04)** — they carried no AI risk and stood on their own — Phase 0 fixes a
 pre-existing §10 gap (patient self-service currently writes NO audit row, because
 `logActivity` no-ops without a signed-in user), and Phase 2 adds the
 `parseWhen`/`formatWhen` round-trip invariant.

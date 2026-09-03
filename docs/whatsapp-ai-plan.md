@@ -1,9 +1,9 @@
 # Build plan — WhatsApp intent understanding (`core/ai/chat-engine`)
 
-> Status: **planned, not started.** Written 2026-09-04. Nothing here is built; the
-> `src/core/ai/chat-engine/` folder has held only a `.gitkeep` since project setup
-> (5 July 2026). Phases 0 and 2 carry no AI risk and are worth shipping regardless of
-> what is decided about the rest.
+> Status: **Phases 0 and 2 done (2026-09-04); the rest planned, not started.** The
+> `src/core/ai/chat-engine/` folder still holds only a `.gitkeep`. Phases 0 and 2 were
+> shipped first because they carry no AI risk and stand on their own — Phase 0 closed a
+> live §10 gap, and Phase 2 is the invariant everything else rests on.
 
 ## Goal
 
@@ -199,13 +199,22 @@ cancellation cannot inflate a clinic's no-show rate. Verified, not assumed.
 
 ## Phases
 
-### Phase 0 — Audit patient-initiated actions *(standalone, ~30 lines)*
-- `core/audit/log.ts` — `logPatientAction()` over `logActivityAs`; actor is the patient
-  (`actorUserId: null`, `actorName: "Patient (WhatsApp)"`, `actorRole: null`).
+### Phase 0 — Audit patient-initiated actions ✅ **done 2026-09-04**
+- `core/audit/log.ts` — `logPatientAction()` over `logActivityAs`; `actor_user_id` NULL
+  (there is no user), `actor_role` `'patient'`, and the patient id in `metadata` rather
+  than a name in `actor_name` (§10: ids, not names).
 - Called from `handleBookingReply` and `handleRescheduleReply`.
-- `scripts/test-selfservice-audit.ts`.
-
-Ships and is verifiable before any AI exists.
+- **Writing the row was only half of it.** `listClinicActivityLogs` filters
+  `actor_role IN (CLINIC_LOG_ROLES)`, so an unlisted role is written and then hidden
+  from the one page the clinic can see — a gap that LOOKS closed.
+- **A pre-existing bug fell out of checking that filter: `manager` was never in the
+  list.** Added as a role in migration 0026 and never listed, so every action a manager
+  took was logged and then filtered out of their own clinic's log.
+- The list had to SPLIT: `CLINIC_LOG_STAFF_ROLES` (real `users.role` values) populates
+  the employee PICKER, which lists people; `CLINIC_LOG_ROLES` (staff + `patient`)
+  filters ROWS. tsc caught the merge attempt.
+- `scripts/test-selfservice-audit.ts` — 21 checks, asserting visibility through the
+  REAL query. Both halves proved to fire.
 
 ### Phase 1 — The engine, wired to nothing
 | File | Purpose |
@@ -217,9 +226,26 @@ Ships and is verifiable before any AI exists.
 
 Tested against fixtures with a mocked runner. No behaviour change.
 
-### Phase 2 — The canonical format *(no AI risk)*
-- `core/appointments/parse-when.ts` — add `formatWhen(date, time)`.
-- `scripts/test-parse-when-roundtrip.ts` — the `parseWhen(formatWhen(x)) === x` invariant.
+### Phase 2 — The canonical format ✅ **done 2026-09-04**
+- `core/appointments/parse-when.ts` — `formatWhen(when, now)`.
+- `scripts/test-parse-when-roundtrip.ts` — 3,600 generated combinations (400 days x 9
+  times) plus the boundaries by name, all pure, no database.
+
+**It cost a parser change, which the plan did not anticipate.** `formatWhen` omits the
+year when it is the current one — "5 Sep 4:00pm" is what a person writes — but a
+December booking for January MUST carry it, or the message comes back eleven months
+early with `explicitYear` false, so nothing corrects it. `parseWhen`'s month-name
+branches ignored a trailing year, so they were widened to accept one.
+
+**The year group is bounded to `20\d{2}`, deliberately.** An unbounded `\d{4}` reads
+"12 jul 1500" — someone writing 24-hour time without a colon — as the year 1500, AND
+sets `explicitYear`, which suppresses the next-year correction that normally rescues
+such a message. Both cases are asserted.
+
+The generated sweep is the point: midnight and noon (where `h % 12` bites), a year
+rollover, and single-digit everything are covered by construction rather than by
+whoever wrote the fixtures remembering them. Verified to fire by dropping the year from
+`formatWhen` (the 1 Jan cases go red) and by emitting 24-hour time (all 3,600 do).
 
 ### Phase 3 — Wire the fallback, feature-gated
 - `core/lib/features.ts` — `whatsapp_ai`.

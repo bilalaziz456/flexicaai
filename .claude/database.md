@@ -251,9 +251,16 @@ actions), `actor_user_id` → users (`set null`, **nullable**), `actor_name`
 (snapshot), `action` (free-text: create/update/delete/login/view/status),
 `entity` (patient/appointment/staff/clinic/settings/session/leave), `entity_id`
 (uuid, nullable), `summary` (human line), `metadata` jsonb, `created_at`. Records
-**all clinic-staff actions + logins + record views**. Access is PERMISSION-based
+**all clinic-staff actions + logins + record views**, plus **patient WhatsApp
+self-service** (`core/audit/log.ts#logPatientAction`) — a booking, reschedule or
+cancellation the patient made themselves. Those rows carry `actor_user_id` NULL and
+`actor_role = 'patient'`, which is legitimate precisely because that column is a text
+SNAPSHOT rather than an FK into `user_roles`; the patient is identified by id in
+`metadata`, never by name in `actor_name` (§10). Access is PERMISSION-based
 (not time-based): the super admin grants each clinic a set of visible ACTION
-categories via `clinics.log_access` (see `core/audit/access.ts`); the clinic admin
+categories via `clinics.log_access` (see `core/audit/access.ts`, which holds TWO
+role lists on purpose: `CLINIC_LOG_STAFF_ROLES` populates the employee picker, which
+lists people, while `CLINIC_LOG_ROLES` adds `patient` and filters rows); the clinic admin
 (`/clinic/logs`) sees only those categories for their own clinic, and no log page
 at all when `log_access` is empty. The super admin (`/admin/logs`) always sees
 everything across clinics. Both pages default to TODAY with date-range + employee
