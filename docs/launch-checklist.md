@@ -1,6 +1,7 @@
 # v1 launch checklist
 
-> Written 2026-07-21; **facts re-verified against the code 2026-08-22** (migration count,
+> Written 2026-07-21; **facts re-verified against the code 2026-09-03** (the migration
+> range and the template count were both stale; earlier pass 2026-08-22 covered
 > env vars, `allowedOrigins`, CSP, backups, timezone). **Verdict: no more feature-building is needed for v1.** The clinic
 > app is functionally complete (MVP + post-MVP + security/perf hardening; unit + e2e
 > green). What's left is a **deploy / go-live checklist** — ops + external accounts, not
@@ -25,12 +26,12 @@ launch. (On serverless/multi-instance, both become launch blockers — see scale
 
 - [ ] **Host + HTTPS + domain.** A TLS cert (secure cookies + HSTS require HTTPS) on a real
       domain. (Single Linux/Windows VM is fine for v1.)
-- [ ] **Production Postgres** provisioned; run migrations `0000–0082` (`npm run db:migrate`);
+- [ ] **Production Postgres** provisioned; run migrations `0000–0094` (`npm run db:migrate`);
       confirm `pgcrypto`/`pg_trgm` extensions exist.
 - [ ] **Secrets set in prod** (`.env`): `DATABASE_URL`, `APP_URL` (the public URL),
       `STORAGE_DIR` (an ABSOLUTE path), `CRON_SECRET`, `LINK_SIGNING_SECRET` (public
       prescription links), `WHATSAPP_WEBHOOK_TOKEN`, `SEED_ADMIN_*`.
-      `.env.example` now documents all 33 (fixed 2026-08-22 — nine were missing), and
+      `.env.example` documents every one of them, and
       `npm run verify` fails if the two ever drift apart again. `env.ts` stays the
       authoritative list.
       ⚠️ **Two of those fail SILENTLY rather than loudly**, which is the dangerous kind:
@@ -59,8 +60,11 @@ launch. (On serverless/multi-instance, both become launch blockers — see scale
 - [ ] **AI keys** — `ANTHROPIC_API_KEY` + `OPENAI_API_KEY`, then a live record→transcribe→
       note test. *Without them the app runs but the flagship voice scribe is off.*
 - [ ] **WhatsApp go-live** — **the longest-lead item; start FIRST.** Either AiSensy
-      (account + approved templates) or Meta Cloud (WABA + system-user token + the 7
-      Utility templates approved — see docs/whatsapp-cloud-plan.md). Recalls / reminders /
+      (account + approved templates) or Meta Cloud (WABA + system-user token + Utility
+      templates approved — see docs/whatsapp-cloud-plan.md). **NINE templates either
+      way**, one per `AISENSY_*_CAMPAIGN` in `.env.example`: prescription, recall
+      reminder, appointment booked / cancelled / reminder, reschedule reply, booking
+      reply, invoice, lab ready. Recalls / reminders /
       booking confirmations / prescription delivery all depend on it. Template approval
       takes days.
 - [ ] **nginx** — `client_max_body_size 25m` on `/api/ai/scribe`, or a normal dictation is
