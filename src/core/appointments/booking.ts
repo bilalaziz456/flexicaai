@@ -10,6 +10,7 @@ import { checkDoctorSlot } from "@/core/appointments/availability";
 import { withQueueNumber } from "@/core/appointments/queue";
 import { parseWhen } from "@/core/appointments/parse-when";
 import { report } from "@/core/observability";
+import { logPatientAction } from "@/core/audit/log";
 import {
   describeAvailability,
   type DayAvailability,
@@ -254,6 +255,16 @@ export async function handleBookingReply(args: {
       phone,
       `Thanks! Your booking request for ${doctor.name} on ${fmtWhen(when)} has been received.${tokenStr} The clinic will confirm it shortly and you'll get a confirmation message.`,
     );
+    // Audited as a "create": the patient made a real appointment row, pending the
+    // clinic's confirmation. §10 — best-effort, and after the reply.
+    await logPatientAction({
+      clinicId,
+      patientId,
+      action: "create",
+      entity: "appointment",
+      entityId: created?.id ?? null,
+      summary: `Patient requested an appointment with ${doctor.name} on ${fmtWhen(when)} over WhatsApp`,
+    });
     return { handled: true, booked: true, appointmentId: created?.id ?? null };
   } catch (e) {
     // An inbound webhook must never fail on a booking attempt — but to the patient

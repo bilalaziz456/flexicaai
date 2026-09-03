@@ -148,3 +148,52 @@ export async function logActivityAs(
     });
   }
 }
+
+/**
+ * Records an action a PATIENT took on their own record — a WhatsApp self-service
+ * booking, reschedule or cancellation.
+ *
+ * WHY THIS EXISTS SEPARATELY. `logActivity` reads the signed-in user and opens with
+ * `if (!user) return`. A patient is not a `users` row and an inbound webhook has no
+ * session, so every self-service action was writing NOTHING to the audit trail —
+ * while CLAUDE.md §10 requires one over patient data. The gap was invisible because
+ * the call simply no-opped; nothing errored and nothing was reported.
+ *
+ * `actor_user_id` is NULL because there is genuinely no user to point at, and
+ * `actor_role` is `'patient'` — legitimate because that column is free TEXT by
+ * design (a snapshot, ADR-027), not a foreign key into `user_roles`. It has to be
+ * listed in `CLINIC_LOG_ROLES` or the row is written and then filtered out of the
+ * one page the clinic can see.
+ *
+ * NO PATIENT NAME goes in `actor_name`. The row identifies the patient by id in
+ * `metadata`, which is enough to trace and consistent with §10's "ids, not names".
+ *
+ * Best-effort, like every other logger here: an audit failure must never break the
+ * patient's booking. But it IS reported, because a dropped row is a compliance gap.
+ */
+export async function logPatientAction(args: {
+  clinicId: string;
+  patientId: string;
+  /** Use an existing category — `clinics.log_access` gates on these. */
+  action: "create" | "update" | "status" | "delete";
+  entity: string;
+  entityId: string | null;
+  summary: string;
+  metadata?: Record<string, unknown> | null;
+}): Promise<void> {
+  await logActivityAs(
+    {
+      clinicId: args.clinicId,
+      userId: null,
+      name: "Patient (WhatsApp)",
+      role: "patient",
+    },
+    {
+      action: args.action,
+      entity: args.entity,
+      entityId: args.entityId,
+      summary: args.summary,
+      metadata: { ...(args.metadata ?? {}), patientId: args.patientId, via: "whatsapp" },
+    },
+  );
+}

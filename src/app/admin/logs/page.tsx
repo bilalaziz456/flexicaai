@@ -4,7 +4,7 @@ import { LogFilters } from "@/core/ui/log-filters";
 import { Pagination } from "@/core/ui/pagination";
 import { parseLogFilters } from "@/core/audit/log-filters";
 import {
-  CLINIC_LOG_ROLES,
+  CLINIC_LOG_STAFF_ROLES,
   LOG_ACTIONS,
   LOG_ACTION_IDS,
 } from "@/core/audit/access";
@@ -51,7 +51,7 @@ export default async function AdminLogsPage({
     listClinicOptions({ includeDeleted: true }),
     // Employee options exist ONLY once a clinic is picked — that clinic's staff
     // (from the users table, so everyone appears even without logs yet).
-    clinic ? listClinicActorOptions(clinic, { roles: CLINIC_LOG_ROLES }) : Promise.resolve([]),
+    clinic ? listClinicActorOptions(clinic, { roles: CLINIC_LOG_STAFF_ROLES }) : Promise.resolve([]),
   ]);
   // Retention state, shown with the table's real size so the window is chosen
   // against what is actually stored rather than guessed (D-11).

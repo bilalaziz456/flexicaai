@@ -6,7 +6,7 @@ import { ActivityLogList } from "@/core/ui/activity-log";
 import { LogFilters } from "@/core/ui/log-filters";
 import { Pagination } from "@/core/ui/pagination";
 import { parseLogFilters } from "@/core/audit/log-filters";
-import { CLINIC_LOG_ROLES, logActionLabel } from "@/core/audit/access";
+import { CLINIC_LOG_STAFF_ROLES, logActionLabel } from "@/core/audit/access";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 
 /**
@@ -65,7 +65,7 @@ export default async function ClinicLogsPage({
     ),
     // Employee options = the clinic's OWN staff (from the users table), so the
     // dropdown lists everyone even before they have generated any logs.
-    listClinicActorOptions(clinicId, { roles: CLINIC_LOG_ROLES }),
+    listClinicActorOptions(clinicId, { roles: CLINIC_LOG_STAFF_ROLES }),
   ]);
 
   return (

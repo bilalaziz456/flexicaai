@@ -17,6 +17,7 @@ import { queueSessionKey, sameDoctorDay, withQueueNumber } from "@/core/appointm
 import { parseWhen } from "@/core/appointments/parse-when";
 import type { DayAvailability } from "@/core/lib/availability";
 import { report } from "@/core/observability";
+import { logPatientAction } from "@/core/audit/log";
 
 /** "Mon 13 Jul, 15:00" for the reschedule confirmation. */
 function fmtWhen(d: Date): string {
@@ -249,6 +250,17 @@ export async function handleRescheduleReply(args: {
       phone,
       `Your appointment has been rescheduled to ${fmtWhen(when)} with ${doctorName}.${feeStr}${tokenStr}`,
     );
+    // The patient changed their own record, so it belongs in the audit trail
+    // (§10). Best-effort and AFTER the reply: a logging failure must not cost the
+    // patient their confirmation message.
+    await logPatientAction({
+      clinicId,
+      patientId,
+      action: "update",
+      entity: "appointment",
+      entityId: appt.id,
+      summary: `Patient rescheduled their appointment to ${fmtWhen(when)} over WhatsApp`,
+    });
     return { handled: true, rescheduled: true, appointmentId: appt.id };
   } catch (e) {
     // Best-effort: an inbound webhook must never fail on a reschedule attempt.
