@@ -283,6 +283,27 @@ blockers-vs-should-haves is docs/launch-checklist.md** — this is the tracked l
 
 ---
 
+
+### WhatsApp intent understanding (AI) — PLANNED, not started
+
+`docs/whatsapp-ai-plan.md` (written 2026-09-04). An LLM **fallback** for inbound
+messages the deterministic parser misses — Roman Urdu, free-form phrasing — plus price
+quoting from the clinic's own catalogue and patient self-cancellation. Three per-clinic
+switches: `whatsapp_ai` (billable — the first feature with a real per-message cost),
+`whatsapp_cancel` and `whatsapp_prices` (both policy, free, default off).
+
+The design rule: **the model chooses which lookup to run; deterministic code composes
+the answer and performs every write.** A correctly-formatted message never reaches the
+LLM at all. Clinical questions are recognised as a first-class outcome and routed to a
+human — never answered — with the classification stored so there is eventually DATA on
+whether triage is worth building. If it ever is, ADR-007 already decides its shape:
+drafted by the model, approved by a clinician before it sends.
+
+**Phases 0 and 2 carry no AI risk and are worth doing regardless** — Phase 0 fixes a
+pre-existing §10 gap (patient self-service currently writes NO audit row, because
+`logActivity` no-ops without a signed-in user), and Phase 2 adds the
+`parseWhen`/`formatWhen` round-trip invariant.
+
 ## Suggested priority order (toward "sellable")
 1. ~~**Dental clinical model** — tooth chart + `dental_records` + treatment plans.~~ ✅ shipped.
 2. ~~**Clinic-operations v1** — prescription history, no-show rate, expenses-Trash.~~ ✅ shipped.
