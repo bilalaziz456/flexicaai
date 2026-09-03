@@ -16,6 +16,18 @@ import { serverEnv } from "@/core/lib/env";
 const SCRIBE_MODEL = "claude-sonnet-4-6";
 
 /**
+ * The cheap model, for CLASSIFICATION only — working out what an inbound WhatsApp
+ * message is asking for (`core/ai/chat-engine`). CLAUDE.md §8: a cheaper model for
+ * simple WhatsApp handling, explicitly NOT for clinical text.
+ *
+ * It is safe to use a small model here precisely because of what the caller does with
+ * the answer: the classification only ever selects a lookup or produces a suggestion
+ * the patient must confirm. It never writes, never composes a figure, and never
+ * answers a clinical question. See docs/whatsapp-ai-plan.md.
+ */
+export const CHAT_MODEL = "claude-haiku-4-5-20251001";
+
+/**
  * Hard ceiling on one Claude call. The SDK's default is 10 MINUTES with 2 automatic
  * retries — i.e. a hung provider could hold a request open for half an hour. That is
  * far longer than any hosting platform will keep the function alive, so the caller
@@ -97,11 +109,13 @@ export async function runJsonPrompt<T = Record<string, unknown>>(args: {
   system: string;
   user: string;
   maxTokens?: number;
+  /** Defaults to the scribe model. `CHAT_MODEL` for classification (CLAUDE.md §8). */
+  model?: string;
 }): Promise<{ data: T; raw: string; usage: ClaudeUsage }> {
   let message: Anthropic.Message;
   try {
     message = await getClient().messages.create({
-      model: SCRIBE_MODEL,
+      model: args.model ?? SCRIBE_MODEL,
       max_tokens: args.maxTokens ?? 4096,
       system: args.system,
       messages: [{ role: "user", content: args.user }],
