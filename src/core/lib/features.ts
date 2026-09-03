@@ -36,6 +36,24 @@ export const CLINIC_FEATURES = [
     description:
       "Clinic expenses, the Profit & Loss report, and the unified finance reports/dashboard KPIs. Owner-level, and needs the sales feature for full revenue figures.",
   },
+  {
+    id: "whatsapp_ai",
+    name: "WhatsApp AI assistant",
+    description:
+      "Understand free-form and Roman Urdu patient messages that the plain-text parser misses, and reply with the request written out for the patient to confirm. BILLABLE: unlike every other feature here, this costs money per message read.",
+  },
+  {
+    id: "whatsapp_prices",
+    name: "WhatsApp price replies",
+    description:
+      "Answer “how much is X?” from this clinic's own price list. Needs the sales feature (that is where priced procedures live). Quotes the procedure line only — never a total, since the consultation fee is per doctor.",
+  },
+  {
+    id: "whatsapp_cancel",
+    name: "WhatsApp patient cancellation",
+    description:
+      "Let a patient cancel their own upcoming appointment by message, no later than the clinic's cancellation cutoff. Works without the AI assistant.",
+  },
 ] as const satisfies readonly ClinicFeature[];
 
 export type ClinicFeatureId = (typeof CLINIC_FEATURES)[number]["id"];

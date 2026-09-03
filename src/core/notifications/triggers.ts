@@ -23,7 +23,7 @@ export async function notifyInboundWhatsApp(args: {
   patientId: string | null;
   phone: string;
   text: string | null;
-  outcome: "booked" | "rescheduled" | "message";
+  outcome: "booked" | "rescheduled" | "cancelled" | "clinical" | "message";
   /** The affected appointment's id (booking/reschedule) — deep-links the notification. */
   appointmentId?: string | null;
 }): Promise<void> {
@@ -62,6 +62,27 @@ export async function notifyInboundWhatsApp(args: {
       entity: "appointment",
       entityId: appointmentId ?? null,
       link: apptLink,
+    });
+  } else if (outcome === "cancelled") {
+    await notifyUsersWithPermission(clinicId, "appointments", "edit", {
+      type: "appointment.cancelled",
+      title: "Appointment cancelled",
+      body: `${who} cancelled via WhatsApp.`,
+      entity: "appointment",
+      entityId: appointmentId ?? null,
+      link: apptLink,
+    });
+  } else if (outcome === "clinical") {
+    // Flagged, not buried. The assistant recognises a clinical question and never
+    // answers it — the point of naming it here is that the desk sees a patient
+    // asking about symptoms as something different from a booking request.
+    await notifyUsersWithPermission(clinicId, "whatsapp", "view", {
+      type: "whatsapp.clinical",
+      title: "Patient asked a clinical question",
+      body: preview ? `${who}: ${preview}` : `${who} sent a message.`,
+      entity: "whatsapp",
+      entityId: null,
+      link: "/clinic/whatsapp",
     });
   } else {
     await notifyUsersWithPermission(clinicId, "whatsapp", "view", {

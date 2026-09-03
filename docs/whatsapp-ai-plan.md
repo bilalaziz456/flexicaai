@@ -1,9 +1,8 @@
 # Build plan — WhatsApp intent understanding (`core/ai/chat-engine`)
 
-> Status: **Phases 0 and 2 done (2026-09-04); the rest planned, not started.** The
-> `src/core/ai/chat-engine/` folder still holds only a `.gitkeep`. Phases 0 and 2 were
-> shipped first because they carry no AI risk and stand on their own — Phase 0 closed a
-> live §10 gap, and Phase 2 is the invariant everything else rests on.
+> Status: **ALL PHASES BUILT (2026-09-04).** Live against a real model for the prompt
+> smoke test; not yet exercised by a real patient. The three switches are OFF by
+> default, so nothing changes for any clinic until a super admin turns them on.
 
 ## Goal
 
@@ -216,7 +215,7 @@ cancellation cannot inflate a clinic's no-show rate. Verified, not assumed.
 - `scripts/test-selfservice-audit.ts` — 21 checks, asserting visibility through the
   REAL query. Both halves proved to fire.
 
-### Phase 1 — The engine, wired to nothing
+### Phase 1 — The engine, wired to nothing ✅ **done 2026-09-04**
 | File | Purpose |
 |---|---|
 | `core/ai/chat-engine/schema.ts` | zod for the model output — the narrowing boundary |
@@ -247,7 +246,7 @@ rollover, and single-digit everything are covered by construction rather than by
 whoever wrote the fixtures remembering them. Verified to fire by dropping the year from
 `formatWhen` (the 1 Jan cases go red) and by emitting 24-hour time (all 3,600 do).
 
-### Phase 3 — Wire the fallback, feature-gated
+### Phase 3 — Wire the fallback, feature-gated ✅ **done 2026-09-04**
 - `core/lib/features.ts` — `whatsapp_ai`.
 - `core/integrations/whatsapp/inbound.ts` — after BOTH existing handlers decline:
   gate → cheap pre-filter (length, plausibly appointment-related) → limiter →
@@ -257,7 +256,7 @@ whoever wrote the fixtures remembering them. Verified to fire by dropping the ye
   dimensions.
 - `core/ai/usage.ts` — meter it, so the spend is visible per clinic rather than silent.
 
-### Phase 4 — Price quoting
+### Phase 4 — Price quoting ✅ **done 2026-09-04**
 - `core/lib/features.ts` — `whatsapp_prices` (requires `sales`; default off).
 - `core/procedures/quotable.ts` — `listQuotableProcedures(clinicId)`, active rows only.
 - Reply composed from the row, ending with the canonical booking line, so a price
@@ -275,7 +274,7 @@ Proposed wording: *"Root canal treatment: from Rs 15,000 — indicative, and exc
 consultation and anything else needed on the day. Final amount is confirmed at your
 visit."*
 
-### Phase 5 — Cancellation
+### Phase 5 — Cancellation ✅ **done 2026-09-04**
 - `core/lib/features.ts` — `whatsapp_cancel`.
 - Migration: `clinics.cancel_cutoff_hours` int, default **4**. A column, not a constant,
   because clinics will disagree and it gets negotiated during a sale.
@@ -287,13 +286,42 @@ visit."*
 - Canonical echo applies here **most of all** — cancel is the one irreversible intent.
 - Inside the cutoff → decline politely, route to staff.
 
-### Phase 6 — Observability for the future decision
+### Phase 6 — Observability for the future decision ✅ **done 2026-09-04**
 - `whatsapp_messages.intent`, a reference table per ADR-027 (closed vocabulary, code
   owns the meaning).
 - This is what tells you in three months how many inbound messages are clinical
   questions — the number that decides whether judgement is worth building.
 
 ---
+
+---
+
+## What was actually built, and where it differed from the plan
+
+**The plan held.** The ordering, the canonical echo, the closed procedure set and the
+three switches are all as designed. Five things the plan did not anticipate:
+
+1. **`formatWhen` needed a parser change** (Phase 2) — see that phase.
+2. **The classifier's date/time format check moved out of zod into the narrowing
+   step.** Rejecting the whole classification over a malformed date string would send
+   a perfectly good booking request to the front desk; the intent is an enum picked
+   from a closed list and a formatting slip says nothing about it.
+3. **`CHAT_INTENTS` initially restated the vocabulary's codes**, and
+   `scripts/test-vocabulary-tables.ts` failed the build for it — the anti-duplication
+   guard from ADR-027 doing exactly its job on code written months later. It derives
+   from `CHAT_INTENT_CODES` now.
+4. **A second rate limit was needed.** Per-phone does nothing against many phones, so
+   `chatIntentByClinic` bounds the worst case on the monthly bill. That ceiling is the
+   number to raise deliberately rather than by feel.
+5. **`notifyInboundWhatsApp` grew two outcomes** — `cancelled` and `clinical`. The
+   second is the visible half of naming clinical questions: the desk sees "Patient
+   asked a clinical question" rather than another "New WhatsApp message".
+
+**What is NOT proven.** No real patient has used any of this. The prompt smoke test
+passes 8/8 against live Haiku (`--live`), including Roman Urdu, the
+symptom-vs-named-procedure line and a prompt-injection attempt — but a smoke test is
+not a rollout. Turn `whatsapp_ai` on for ONE clinic first and read the WhatsApp queue
+for a week before offering it more widely.
 
 ## Safety properties, and what enforces each
 

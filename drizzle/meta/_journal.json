@@ -666,6 +666,20 @@
       "when": 1788310059905,
       "tag": "0094_graceful_skin",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1788477892441,
+      "tag": "0095_far_cargill",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1788477994279,
+      "tag": "0096_cool_nightshade",
+      "breakpoints": true
     }
   ]
 }

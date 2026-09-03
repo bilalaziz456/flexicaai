@@ -77,6 +77,16 @@ export const clinics = pgTable(
     // out of the clinic-level view (still in the DB — only the super admin sees it
     // past this window). Super-admin-set; default 30. Never auto-purged.
     trashRetentionDays: integer("trash_retention_days").notNull().default(30),
+    /**
+     * How many hours before an appointment a PATIENT may still cancel it themselves
+     * over WhatsApp (`whatsapp_cancel` feature). Later than this and the request goes
+     * to the front desk instead — cancelling twenty minutes beforehand is a no-show
+     * wearing a polite hat, and whether to accept one is a conversation, not a rule.
+     *
+     * A column and not a constant because clinics disagree about this and it gets
+     * negotiated during a sale. 0 disables the cutoff (any time is acceptable).
+     */
+    cancelCutoffHours: integer("cancel_cutoff_hours").notNull().default(4),
     // Billing/invoice settings (Finance). `invoicePaper` is the default print size
     // (a4|a5|thermal); `invoicePrefix` prefixes the human invoice label (e.g.
     // "INV-"); `nextInvoiceNo` is the per-clinic counter atomically bumped when an

@@ -104,6 +104,25 @@ export const resetByIp = new Limiter(20, 15 * MIN);
 export const aiScribeByUser = new Limiter(20, 10 * MIN);
 
 /**
+ * WhatsApp classification, per patient phone — bounds PAID spend on the one AI path
+ * anybody can trigger.
+ *
+ * The scribe limiter above throttles an authenticated user. This one throttles an
+ * UNAUTHENTICATED stranger: anyone who knows a clinic's WhatsApp number can send it
+ * messages, and each unparsed one would otherwise be a paid model call. Generous
+ * enough that a patient going back and forth about a slot is never cut off, tight
+ * enough that a loop or a bored teenager costs pennies.
+ */
+export const chatIntentByPhone = new Limiter(10, 60 * MIN);
+
+/**
+ * The same spend, bounded per CLINIC as well — because per-phone caps do nothing
+ * against many phones. This is the ceiling that decides the worst case on the
+ * monthly bill, so it is the one to raise deliberately rather than by feel.
+ */
+export const chatIntentByClinic = new Limiter(300, 24 * 60 * MIN);
+
+/**
  * Peek-then-hit: allow up to the limit, then report how long until the window rolls.
  * Use at the top of a Route Handler:
  *   const g = throttle(aiScribeByUser, `scribe:${user.id}`);

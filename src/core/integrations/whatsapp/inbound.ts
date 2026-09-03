@@ -8,8 +8,11 @@ import { patients, whatsappMessages } from "@/core/db/schema";
 import { normalisePhone } from "@/core/integrations/whatsapp";
 import { handleRescheduleReply } from "@/core/appointments/reschedule";
 import { handleBookingReply } from "@/core/appointments/booking";
+import { handleCancelReply } from "@/core/appointments/cancel";
+import { runAssistant } from "@/core/integrations/whatsapp/assistant";
+import type { ChatIntent } from "@/core/ai/chat-engine";
 import { notifyInboundWhatsApp } from "@/core/notifications/triggers";
-import { enrichContext } from "@/core/observability";
+import { enrichContext, report } from "@/core/observability";
 import { whatsappDirectionId } from "@/core/db/vocabulary-seed";
 
 /**
@@ -132,7 +135,13 @@ export async function applyDeliveryReceipt(
 
 export type InboundOutcome =
   | { kind: "duplicate" }
-  | { kind: "handled"; booked: boolean; rescheduled: boolean; appointmentId: string | null };
+  | {
+      kind: "handled";
+      booked: boolean;
+      rescheduled: boolean;
+      cancelled: boolean;
+      appointmentId: string | null;
+    };
 
 /**
  * Logs an inbound message and runs whatever it asks for. The single pipeline both
@@ -184,29 +193,73 @@ export async function recordInboundMessage(msg: {
 
   // Self-service, for an attributed patient only. Reschedule is checked first;
   // booking runs only if the message wasn't a reschedule request.
+  //
+  // THE ORDER IS THE SAFETY PROPERTY. The deterministic handlers run FIRST and are
+  // untouched, so a correctly-formatted message ("reschedule 12 Jul 3pm") books the
+  // way it always has — free, instant, and with no model involved. The assistant is
+  // reached only when they both decline, i.e. when today's code would give up and the
+  // patient would get no reply at all.
   let rescheduled = false;
   let booked = false;
+  let cancelled = false;
   let appointmentId: string | null = null;
+  let assistantIntent: ChatIntent | null = null;
   if (clinicId && patientId && text) {
     const resched = await handleRescheduleReply({ clinicId, patientId, phone, text });
     rescheduled = resched.rescheduled;
     if (resched.rescheduled) appointmentId = resched.appointmentId ?? null;
-    if (!resched.handled) {
+    let handled = resched.handled;
+    if (!handled) {
+      const cancel = await handleCancelReply({ clinicId, patientId, phone, text });
+      cancelled = cancel.cancelled;
+      handled = cancel.handled;
+      if (cancel.cancelled) appointmentId = cancel.appointmentId ?? null;
+    }
+    if (!handled) {
       const booking = await handleBookingReply({ clinicId, patientId, phone, text });
       booked = booking.booked;
+      handled = booking.handled;
       if (booking.booked) appointmentId = booking.appointmentId ?? null;
+    }
+    if (!handled) {
+      const assisted = await runAssistant({ clinicId, patientId, phone, text });
+      assistantIntent = assisted.intent;
     }
   }
 
-  // In-app bell: the front desk for a booking/reschedule, `whatsapp:view` otherwise.
+  // Record what the assistant made of it, so `clinical` is COUNTABLE rather than
+  // merged into `other` — the number that decides whether triage is ever worth
+  // building. Best-effort: analytics must never cost a patient their reply.
+  if (assistantIntent) {
+    try {
+      await db
+        .update(whatsappMessages)
+        .set({ intent: assistantIntent })
+        .where(eq(whatsappMessages.id, inserted[0].id));
+    } catch (e) {
+      report(e, { op: "whatsapp.recordIntent", clinicId });
+    }
+  }
+
+  // In-app bell: the front desk for a booking/reschedule/cancellation, `whatsapp:view`
+  // otherwise. A clinical question is flagged so it is not buried among booking
+  // requests — the assistant never answers one, but it does know one when it sees it.
   await notifyInboundWhatsApp({
     clinicId,
     patientId,
     phone,
     text,
-    outcome: booked ? "booked" : rescheduled ? "rescheduled" : "message",
+    outcome: booked
+      ? "booked"
+      : rescheduled
+        ? "rescheduled"
+        : cancelled
+          ? "cancelled"
+          : assistantIntent === "clinical"
+            ? "clinical"
+            : "message",
     appointmentId,
   });
 
-  return { kind: "handled", booked, rescheduled, appointmentId };
+  return { kind: "handled", booked, rescheduled, cancelled, appointmentId };
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "clinics" ADD COLUMN "cancel_cutoff_hours" integer DEFAULT 4 NOT NULL;

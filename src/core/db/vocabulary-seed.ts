@@ -336,6 +336,25 @@ export const WHATSAPP_STATUS_ROWS = [
   { id: 6, code: "received", label: "Received", sortOrder: 6 },
 ] as const satisfies readonly VocabularyRow[];
 
+/**
+ * `whatsapp_messages.intent` — what the assistant decided an INBOUND message was
+ * asking for (`core/ai/chat-engine`). NULL on outbound, and on inbound the assistant
+ * never classified (feature off, rate limited, or the deterministic handler took it).
+ *
+ * Stored for one reason: `clinical` is recorded rather than merged into `other`, so
+ * there is eventually a real number for how often patients ask clinical questions.
+ * That number is what decides whether triage is ever worth building — see
+ * docs/whatsapp-ai-plan.md. Without it the question is unanswerable.
+ */
+export const CHAT_INTENT_ROWS = [
+  { id: 1, code: "book", label: "Booking", sortOrder: 1 },
+  { id: 2, code: "reschedule", label: "Reschedule", sortOrder: 2 },
+  { id: 3, code: "cancel", label: "Cancellation", sortOrder: 3 },
+  { id: 4, code: "price", label: "Price question", sortOrder: 4 },
+  { id: 5, code: "clinical", label: "Clinical question", sortOrder: 5 },
+  { id: 6, code: "other", label: "Other", sortOrder: 6 },
+] as const satisfies readonly VocabularyRow[];
+
 export type AppointmentStatusCode = (typeof APPOINTMENT_STATUS_ROWS)[number]["code"];
 export type VisitStatusCode = (typeof VISIT_STATUS_ROWS)[number]["code"];
 export type RecallStatusCode = (typeof RECALL_STATUS_ROWS)[number]["code"];
@@ -343,6 +362,7 @@ export type UserRoleCode = (typeof USER_ROLE_ROWS)[number]["code"];
 export type ThemePreferenceCode = (typeof THEME_PREFERENCE_ROWS)[number]["code"];
 export type WhatsappDirectionCode = (typeof WHATSAPP_DIRECTION_ROWS)[number]["code"];
 export type WhatsappStatusCode = (typeof WHATSAPP_STATUS_ROWS)[number]["code"];
+export type ChatIntentCode = (typeof CHAT_INTENT_ROWS)[number]["code"];
 
 /** Added to `VOCABULARY_SEED` below so the seed, the cache and the test walk one list. */
 const ENUM_VOCABULARY_SEED: Record<string, readonly VocabularyRow[]> = {
@@ -353,6 +373,7 @@ const ENUM_VOCABULARY_SEED: Record<string, readonly VocabularyRow[]> = {
   theme_preferences: THEME_PREFERENCE_ROWS,
   whatsapp_directions: WHATSAPP_DIRECTION_ROWS,
   whatsapp_statuses: WHATSAPP_STATUS_ROWS,
+  chat_intents: CHAT_INTENT_ROWS,
 };
 
 /**
@@ -370,6 +391,7 @@ export const userRoleId = (c: UserRoleCode) => idOf(USER_ROLE_ROWS, c);
 export const themePreferenceId = (c: ThemePreferenceCode) => idOf(THEME_PREFERENCE_ROWS, c);
 export const whatsappDirectionId = (c: WhatsappDirectionCode) => idOf(WHATSAPP_DIRECTION_ROWS, c);
 export const whatsappStatusId = (c: WhatsappStatusCode) => idOf(WHATSAPP_STATUS_ROWS, c);
+export const chatIntentId = (c: ChatIntentCode) => idOf(CHAT_INTENT_ROWS, c);
 
 /* ────────────────────────────────────────────────────────────────────────────
  * The remaining free-text vocabularies (migration `0092`).
@@ -532,6 +554,7 @@ const codesOf = <T extends readonly VocabularyRow[]>(rows: T) =>
     [K in keyof T]: T[K] extends { code: infer C } ? C : never;
   };
 
+export const CHAT_INTENT_CODES = codesOf(CHAT_INTENT_ROWS);
 export const PAYMENT_METHOD_CODES = codesOf(PAYMENT_METHOD_ROWS);
 export const PAYMENT_KIND_CODES = codesOf(PAYMENT_KIND_ROWS);
 export const CLINIC_PAYMENT_KIND_CODES = codesOf(CLINIC_PAYMENT_KIND_ROWS);

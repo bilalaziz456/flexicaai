@@ -183,6 +183,9 @@ export const whatsappDirections = pgTable("whatsapp_directions", { ...vocabulary
 /** `whatsapp_messages.status` — the provider's delivery receipt states. */
 export const whatsappStatuses = pgTable("whatsapp_statuses", { ...vocabularyColumns() });
 
+/** `whatsapp_messages.intent` — what the assistant read an inbound message as. */
+export const chatIntents = pgTable("chat_intents", { ...vocabularyColumns() });
+
 /* ────────────────────────────────────────────────────────────────────────────
  * The remaining free-text vocabularies (migration `0092`). These had NO guard at
  * all — no enum, no CHECK — so here the FK is genuine new integrity.

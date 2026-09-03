@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CHAT_INTENT_CODES, type ChatIntentCode } from "@/core/db/vocabulary-seed";
 
 /**
  * What the model is allowed to say — CORE, specialty-agnostic.
@@ -22,16 +23,9 @@ import { z } from "zod";
  * eventually DATA on how often patients ask clinical questions. That number is what
  * decides whether triage is ever worth building. Merged, it is unknowable.
  */
-export const CHAT_INTENTS = [
-  "book",
-  "reschedule",
-  "cancel",
-  "price",
-  "clinical",
-  "other",
-] as const;
+export const CHAT_INTENTS = CHAT_INTENT_CODES;
 
-export type ChatIntent = (typeof CHAT_INTENTS)[number];
+export type ChatIntent = ChatIntentCode;
 
 /**
  * The RAW model output. Dates and times arrive as plain strings and their FORMAT is

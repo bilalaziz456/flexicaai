@@ -113,5 +113,6 @@ async function handleAisensyWebhook(request: Request) {
     kind: "inbound",
     rescheduled: result.rescheduled,
     booked: result.booked,
+    cancelled: result.cancelled,
   });
 }

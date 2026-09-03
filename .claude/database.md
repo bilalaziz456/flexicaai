@@ -74,6 +74,7 @@ is_active)`, company-global — no
 | `theme_preferences` | system, light, dark | `users.theme` |
 | `whatsapp_directions` | inbound, outbound | `whatsapp_messages.direction` |
 | `whatsapp_statuses` | queued, sent, delivered, read, failed, received | `whatsapp_messages.status` |
+| `chat_intents` | book, reschedule, cancel, price, clinical, other | `whatsapp_messages.intent` |
 | `payment_kinds` | payment, advance, advance_applied, refund, opening | `patient_payments.kind` |
 | `clinic_payment_kinds` | payment, refund, credit | `clinic_payments.kind` |
 | `payment_methods` | cash, bank, cheque, other, **advance** (`is_tender = false`) | the five `method` columns |
@@ -900,6 +901,20 @@ these for churn-risk + usage/cost anomaly flags.
   vocabulary lives in jsonb, which cannot carry a foreign key, so `tooth-status.ts`
   stays the source and a compile-time exhaustiveness check keeps it in step with the
   `ToothStatus` union.
+- Migration **`0095`** adds `clinics.cancel_cutoff_hours` (int, default 4) — how many
+  hours before an appointment a PATIENT may still cancel it themselves over WhatsApp
+  (`whatsapp_cancel` feature). Later than that the request goes to the front desk:
+  cancelling twenty minutes beforehand is a no-show wearing a polite hat, and whether
+  to accept one is a conversation rather than a rule. A column and not a constant
+  because clinics disagree and it gets negotiated during a sale; 0 disables it.
+- Migration **`0096`** adds the `chat_intents` vocabulary and
+  `whatsapp_messages.intent` (nullable integer FK) — what the AI assistant read an
+  INBOUND message as. NULL on outbound and whenever the assistant never ran (feature
+  off, rate limited, or the deterministic handler took it, which is the common case).
+  Recorded for ONE reason: `clinical` is countable rather than merged into `other`,
+  and how often patients ask clinical questions is the number that decides whether
+  triage is ever worth building (docs/whatsapp-ai-plan.md). Without it the question is
+  unanswerable.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

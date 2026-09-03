@@ -13,12 +13,15 @@ import {
   WHATSAPP_DIRECTION_ROWS,
   whatsappDirectionId,
   WHATSAPP_STATUS_ROWS,
+  CHAT_INTENT_ROWS,
   type WhatsappDirectionCode,
   type WhatsappStatusCode,
+  type ChatIntentCode,
 } from "@/core/db/vocabulary-seed";
 import {
   whatsappDirections,
   whatsappStatuses,
+  chatIntents,
   vocabularyRef,
 } from "@/core/db/schema/vocabulary";
 
@@ -62,6 +65,18 @@ export const whatsappMessages = pgTable(
     // Provider message id, for status correlation.
     externalId: text("external_id"),
     error: text("error"),
+    /**
+     * What the AI assistant read this INBOUND message as. NULL on outbound, and on
+     * inbound whenever the assistant never ran — feature off, rate limited, or the
+     * deterministic handler took it first, which is the common case.
+     *
+     * Recorded so `clinical` is countable rather than merged into `other`: how often
+     * patients ask clinical questions is the number that decides whether triage is
+     * ever worth building (docs/whatsapp-ai-plan.md).
+     */
+    intent: vocabularyRef<ChatIntentCode>(CHAT_INTENT_ROWS, "intent_id").references(
+      () => chatIntents.id,
+    ),
     // Raw provider payload, for debugging / audit.
     payload: jsonb("payload").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at", { withTimezone: true })
