@@ -5,6 +5,7 @@ import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicHasFeature } from "@/core/lib/features";
 import { classifyMessage, worthClassifying, type ChatIntent } from "@/core/ai/chat-engine";
 import { formatWhen } from "@/core/appointments/parse-when";
+import { getNextUpcomingAppointment } from "@/core/appointments/upcoming";
 import { listQuotableProcedures } from "@/core/procedures/quotable";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import { chatIntentByClinic, chatIntentByPhone } from "@/core/security/rate-limit";
@@ -33,6 +34,12 @@ export type AssistantOutcome = {
 
 const NOTHING: AssistantOutcome = { replied: false, intent: null };
 
+/** "YYYY-MM-DD HH:MM" in the server's timezone, for the prompt's appointment context. */
+function isoMinute(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 /** Today in the SERVER's timezone — the same clock availability and reminders read (D-14). */
 function todayIso(now: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
@@ -46,6 +53,46 @@ function todayIso(now: Date): string {
  */
 function echoLine(verb: "book" | "reschedule", when: Date, now: Date): string {
   return `${verb} ${formatWhen(when, now)}`;
+}
+
+/**
+ * The Urdu half of the instruction. Kept beside the English so the two cannot drift,
+ * and deliberately short — the line that matters is the ASCII command underneath.
+ */
+function urduLead(verb: "book" | "reschedule", needsWhen: boolean): string {
+  const what = verb === "book" ? "اپائنٹمنٹ بک کرنے" : "اپائنٹمنٹ تبدیل کرنے";
+  return needsWhen
+    ? `${what} کے لیے تاریخ اور وقت اس طرح بھیجیں:`
+    : `${what} کے لیے یہ پیغام بھیجیں:`;
+}
+
+/**
+ * True when the message is written in a non-Latin script (Urdu, Arabic, …).
+ *
+ * Used ONLY to decide whether to add an Urdu line to our reply. It is a heuristic on
+ * presentation, never on meaning — the classification is the model's job and does not
+ * care what script the patient used.
+ */
+function isNonLatinScript(text: string): boolean {
+  const letters = text.match(/\p{L}/gu) ?? [];
+  if (letters.length === 0) return false;
+  const latin = letters.filter((c) => /[A-Za-z]/.test(c)).length;
+  return latin / letters.length < 0.5;
+}
+
+/**
+ * An instruction plus the canonical command, bilingual when the patient wrote in
+ * Urdu script.
+ *
+ * THE COMMAND LINE IS NEVER TRANSLATED. `parseWhen` reads ASCII — "book 5 Sep 4:00pm"
+ * — and it is the patient sending that exact string back that performs the booking.
+ * Translating it would produce a message our own parser rejects, which is the loop
+ * `scripts/test-parse-when-roundtrip.ts` exists to prevent. So only the sentence
+ * AROUND it adapts; the line they copy stays fixed.
+ */
+function instruct(english: string, urdu: string, command: string, nonLatin: boolean): string {
+  const lead = nonLatin ? `${english}\n${urdu}` : english;
+  return `${lead}\n\n${command}`;
 }
 
 async function reply(
@@ -93,13 +140,21 @@ export async function runAssistant(args: {
       ? await listQuotableProcedures(args.clinicId)
       : [];
 
+    // Whether the patient already has an appointment decides whether "make the
+    // appointment for Monday" means book or move. That is a FACT from the database,
+    // so the model is told it rather than left to guess — the same principle as the
+    // closed procedure list.
+    const upcoming = await getNextUpcomingAppointment(args.clinicId, args.patientId, now);
+
     const c = await classifyMessage({
       text: args.text,
       today: todayIso(now),
       procedures,
+      upcoming: upcoming ? isoMinute(upcoming.scheduledAt) : null,
       clinicId: args.clinicId,
     });
     if (!c) return NOTHING;
+    const urdu = isNonLatinScript(args.text);
 
     // A clinical question is recognised, never answered. It reaches a human exactly
     // as `other` does — the value of naming it is that the queue can flag it, and
@@ -130,7 +185,12 @@ export async function runAssistant(args: {
       const replied = await reply(
         args,
         serverEnv.AISENSY_RESCHEDULE_CAMPAIGN,
-        `To cancel your appointment, reply with this message:\n\ncancel appointment`,
+        instruct(
+          "To cancel your appointment, reply with this message:",
+          "اپائنٹمنٹ منسوخ کرنے کے لیے یہ پیغام بھیجیں:",
+          "cancel appointment",
+          urdu,
+        ),
       );
       return { replied, intent: "cancel" };
     }
@@ -148,7 +208,12 @@ export async function runAssistant(args: {
       const replied = await reply(
         args,
         campaign,
-        `To ${what}, reply with this message:\n\n${echoLine(verb, when, now)}`,
+        instruct(
+          `To ${what}, reply with this message:`,
+          urduLead(verb, false),
+          echoLine(verb, when, now),
+          urdu,
+        ),
       );
       return { replied, intent: c.intent };
     }
@@ -162,7 +227,12 @@ export async function runAssistant(args: {
     const replied = await reply(
       args,
       campaign,
-      `To ${what}, reply with the date and time, like this:\n\n${echoLine(verb, example, now)}`,
+      instruct(
+        `To ${what}, reply with the date and time, like this:`,
+        urduLead(verb, true),
+        echoLine(verb, example, now),
+        urdu,
+      ),
     );
     return { replied, intent: c.intent };
   } catch (e) {

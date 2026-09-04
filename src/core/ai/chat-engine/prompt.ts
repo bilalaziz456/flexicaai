@@ -15,7 +15,12 @@ export type PromptProcedure = { id: string; name: string };
 export function buildClassifierPrompt(args: {
   today: string; // YYYY-MM-DD, the clinic's today
   procedures: readonly PromptProcedure[];
+  /** The patient's next appointment as "YYYY-MM-DD HH:MM", or null if they have none. */
+  upcoming?: string | null;
 }): string {
+  const upcoming = args.upcoming
+    ? `This patient already has an appointment on ${args.upcoming}.`
+    : "This patient has NO upcoming appointment.";
   const catalogue = args.procedures.length
     ? args.procedures.map((p) => `  ${p.id}  ${p.name}`).join("\n")
     : "  (this clinic has no price list — never use the price intent)";
@@ -58,11 +63,22 @@ DATES AND TIMES
 - If they gave a day but no time, set "time" to null. Do not invent one.
 - Times without am/pm: assume clinic hours, so "4" or "4 baje" is 16:00, not 04:00.
 
+EXISTING APPOINTMENT
+${upcoming}
+Use this to tell "book" from "reschedule" when the patient does not say which.
+"Make the appointment for Monday" means RESCHEDULE if they already have one, and
+BOOK if they do not.
+
 LANGUAGE
-Patients write English, Roman Urdu, or a mix. Treat them the same.
-  "kal 4 baje aa sakta hun"     -> book, tomorrow, 16:00
-  "appointment agay karwana hai" -> reschedule, no date
-  "mera appointment cancel kar dein" -> cancel
+Patients write English, Roman Urdu, Urdu script (اردو), or a mix of them in one
+message. Treat them all the same — classify the MEANING, never the script.
+  "kal 4 baje aa sakta hun"           -> book, tomorrow, 16:00
+  "کل 4 بجے آ سکتا ہوں؟"                -> book, tomorrow, 16:00
+  "appointment agay karwana hai"      -> reschedule, no date
+  "میں اپنی اپائنٹمنٹ کینسل کرنا چاہتا ہوں" -> cancel
+  "روٹ کینال کا کتنا خرچہ ہے؟"            -> price (root canal, if it is on the list)
+Urdu-Indic digits (۰۱۲۳۴۵۶۷۸۹) mean the same as 0123456789. Output dates and times
+in the ASCII format above regardless of what the patient wrote.
 
 PRICE LIST (the only procedures that exist — use these ids exactly)
 ${catalogue}

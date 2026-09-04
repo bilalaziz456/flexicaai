@@ -317,6 +317,35 @@ three switches are all as designed. Five things the plan did not anticipate:
    second is the visible half of naming clinical questions: the desk sees "Patient
    asked a clinical question" rather than another "New WhatsApp message".
 
+### Urdu script — a bug the plan created and the owner found
+
+The plan said "Roman Urdu" throughout and the first build took that literally:
+`worthClassifying` tested `/[a-z]/i`, so **every message written in Urdu script was
+blocked before the model ever saw it.** Nothing broke — those messages went to the
+front desk exactly as they do today — but the feature quietly did not apply to a
+large share of this market's patients, which is most of the reason it exists.
+
+A Latin-only check in a product for Pakistan and the GCC is a bug that tests written
+in English will never catch. Fixed by testing `\p{L}` (any Unicode letter) instead,
+pinned by fixtures in Urdu and Arabic script.
+
+Two things followed from it:
+
+- **The prompt names Urdu script explicitly**, with worked examples and a note that
+  Urdu-Indic digits (۰۱۲۳۴۵۶۷۸۹) mean the same as ASCII ones. Live: 12/12, including
+  four Urdu cases.
+- **The reply is bilingual when the patient wrote in a non-Latin script** — but only
+  the instruction. **The command line is never translated**: `parseWhen` reads ASCII,
+  and it is the patient sending that exact string back that performs the booking.
+  Translating it would produce a message our own parser rejects.
+
+**It also exposed a genuine ambiguity, which is now resolved with DATA rather than a
+better prompt.** "Make the appointment for Monday" — اپائنٹمنٹ اگلے پیر کو کر دیں — is
+book or reschedule depending entirely on whether the patient already has one, and the
+model had no way to know. `getNextUpcomingAppointment` is now passed into the prompt,
+and the same sentence classifies correctly both ways. Same principle as the closed
+procedure list: the model chooses between options the database defines.
+
 **What is NOT proven.** No real patient has used any of this. The prompt smoke test
 passes 8/8 against live Haiku (`--live`), including Roman Urdu, the
 symptom-vs-named-procedure line and a prompt-injection attempt — but a smoke test is
