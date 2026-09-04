@@ -1,12 +1,16 @@
 import "server-only";
 
 import { CHAT_MODEL, runJsonPrompt } from "@/core/ai/prompt-runner";
-import { buildClassifierPrompt, type PromptProcedure } from "@/core/ai/chat-engine/prompt";
+import {
+  buildClassifierPrompt,
+  type PromptDoctor,
+  type PromptProcedure,
+} from "@/core/ai/chat-engine/prompt";
 import { parseClassification, type ChatClassification } from "@/core/ai/chat-engine/schema";
 import { report } from "@/core/observability";
 
 export type { ChatClassification, ChatIntent } from "@/core/ai/chat-engine/schema";
-export type { PromptProcedure } from "@/core/ai/chat-engine/prompt";
+export type { PromptProcedure, PromptDoctor } from "@/core/ai/chat-engine/prompt";
 
 /**
  * The generic WhatsApp classifier — CORE (the `chat-engine` slot CLAUDE.md §3 has
@@ -64,6 +68,8 @@ export async function classifyMessage(
     today: string;
     /** The clinic's ACTIVE priced procedures, or [] when it has no price list. */
     procedures: readonly PromptProcedure[];
+    /** The clinic's active doctors, so a consultation-fee question can name one. */
+    doctors: readonly PromptDoctor[];
     /** The patient's next appointment as "YYYY-MM-DD HH:MM", or null — disambiguates book vs reschedule. */
     upcoming?: string | null;
     clinicId: string;
@@ -78,6 +84,7 @@ export async function classifyMessage(
       system: buildClassifierPrompt({
         today: args.today,
         procedures: args.procedures,
+        doctors: args.doctors,
         upcoming: args.upcoming ?? null,
       }),
       user: args.text,
@@ -86,7 +93,11 @@ export async function classifyMessage(
       maxTokens: 200,
       model: CHAT_MODEL,
     });
-    return parseClassification(data, args.procedures.map((p) => p.id));
+    return parseClassification(
+      data,
+      args.procedures.map((p) => p.id),
+      args.doctors.map((d) => d.id),
+    );
   } catch (e) {
     // Reported, not swallowed silently — but never rethrown. The patient's message
     // still reaches the front desk, which is what would have happened anyway.

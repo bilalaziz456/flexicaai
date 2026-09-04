@@ -74,7 +74,7 @@ is_active)`, company-global — no
 | `theme_preferences` | system, light, dark | `users.theme` |
 | `whatsapp_directions` | inbound, outbound | `whatsapp_messages.direction` |
 | `whatsapp_statuses` | queued, sent, delivered, read, failed, received | `whatsapp_messages.status` |
-| `chat_intents` | book, reschedule, cancel, price, clinical, other | `whatsapp_messages.intent` |
+| `chat_intents` | book, reschedule, cancel, price, clinical, other, **fee** | `whatsapp_messages.intent` |
 | `payment_kinds` | payment, advance, advance_applied, refund, opening | `patient_payments.kind` |
 | `clinic_payment_kinds` | payment, refund, credit | `clinic_payments.kind` |
 | `payment_methods` | cash, bank, cheque, other, **advance** (`is_tender = false`) | the five `method` columns |
@@ -915,6 +915,12 @@ these for churn-risk + usage/cost anomaly flags.
   and how often patients ask clinical questions is the number that decides whether
   triage is ever worth building (docs/whatsapp-ai-plan.md). Without it the question is
   unanswerable.
+- Migration **`0097`** adds the `fee` chat intent (id 7) — a patient asking what a
+  NAMED DOCTOR charges for a consultation, answered from `users.consultation_fee`.
+  **Data-only**, so drizzle-kit generates nothing: the journal entry and snapshot are
+  hand-written. Id **7**, not slotted in beside `price` where it belongs by meaning,
+  because ids are never renumbered (ADR-027) — reordering would silently reclassify
+  rows already recorded.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

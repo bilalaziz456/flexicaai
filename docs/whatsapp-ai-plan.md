@@ -346,6 +346,42 @@ model had no way to know. `getNextUpcomingAppointment` is now passed into the pr
 and the same sentence classifies correctly both ways. Same principle as the closed
 procedure list: the model chooses between options the database defines.
 
+### Consultation fees — a gap the price reply created
+
+The owner asked what happens when a patient asks *"what are the consultation fees of
+Dr Bilal and Dr Umer?"*. Tested: nothing. It classified as `other` and went to the
+front desk, because `price` was defined as a NAMED TREATMENT FROM THE LIST and a
+consultation fee is not in `procedures` at all — it is `users.consultation_fee`, per
+DOCTOR.
+
+**The price reply had created that gap itself.** It says *"excludes consultation and
+anything else needed on the day"*, which invites exactly this follow-up and could not
+then answer it. It is also among the most common questions a clinic gets.
+
+Added as a seventh intent, `fee`, using the same closed-set machinery pointed at
+doctors instead of procedures (`core/users/quotable-doctors.ts`, migration `0097`).
+
+**Four things it had to get right:**
+
+- **`doctorIds` is a LIST.** "What do Dr Bilal and Dr Umer charge?" is ONE question
+  about TWO people; answering half of it reads as though only half was heard.
+- **`consultation_fee` defaults to 0, which means NOT SET — never free.** Quoting
+  "Rs 0" would be actively wrong. Doctors without a fee are still offered to the model
+  (dropping them would make them unmatchable, so the patient's second doctor would
+  vanish silently) and the reply names them: *"For Dr Umer Khan, please ask the
+  clinic."* If NO named doctor has a fee, there is no reply at all.
+- **The model never sees a fee.** It picks who was named; the figure is read from the
+  row, exactly as with procedure prices.
+- **A fee is not a price.** `charge_consultation` is per appointment, so a
+  procedure-only visit is not billed it — hence "consultation fee", never "what you
+  will pay". "How much do you charge?" naming nobody stays `other`.
+
+Behind `whatsapp_prices` rather than a fourth switch: *do we publish our prices over
+WhatsApp* is one decision, and a treatment price and a consultation fee are two halves
+of the same answer.
+
+Live: the exact question returns both doctors, in English, Roman Urdu and Urdu script.
+
 **What is NOT proven.** No real patient has used any of this. The prompt smoke test
 passes 8/8 against live Haiku (`--live`), including Roman Urdu, the
 symptom-vs-named-procedure line and a prompt-injection attempt — but a smoke test is

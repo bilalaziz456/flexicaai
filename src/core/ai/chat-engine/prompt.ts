@@ -3,6 +3,10 @@ import { CHAT_INTENTS } from "@/core/ai/chat-engine/schema";
 /** One of the clinic's own procedures, offered to the model as a closed set. */
 export type PromptProcedure = { id: string; name: string };
 
+/** One of the clinic's own doctors, likewise. The FEE is deliberately not shown to
+ *  the model — it only picks who was named; the figure is read from the row. */
+export type PromptDoctor = { id: string; name: string };
+
 /**
  * The classification prompt — CORE, and deliberately specialty-agnostic. It names no
  * dental concept; the only clinical vocabulary it ever sees is the clinic's own
@@ -12,15 +16,23 @@ export type PromptProcedure = { id: string; name: string };
  * It is not asked to answer anything, and it is given no way to. See
  * docs/whatsapp-ai-plan.md.
  */
+/** A literal newline. Spelled out because escaping one through a template literal
+ *  inside a code generator is how the join above got mangled twice. */
+const NL = String.fromCharCode(10);
+
 export function buildClassifierPrompt(args: {
   today: string; // YYYY-MM-DD, the clinic's today
   procedures: readonly PromptProcedure[];
+  doctors: readonly PromptDoctor[];
   /** The patient's next appointment as "YYYY-MM-DD HH:MM", or null if they have none. */
   upcoming?: string | null;
 }): string {
   const upcoming = args.upcoming
     ? `This patient already has an appointment on ${args.upcoming}.`
     : "This patient has NO upcoming appointment.";
+  const doctorList = args.doctors.length
+    ? args.doctors.map((d) => `  ${d.id}  ${d.name}`).join(NL)
+    : "  (no doctors listed — never use the fee intent)";
   const catalogue = args.procedures.length
     ? args.procedures.map((p) => `  ${p.id}  ${p.name}`).join("\n")
     : "  (this clinic has no price list — never use the price intent)";
@@ -35,7 +47,8 @@ Output exactly this JSON and nothing else:
   "intent": ${CHAT_INTENTS.map((i) => `"${i}"`).join(" | ")},
   "date": "YYYY-MM-DD" or null,
   "time": "HH:MM" (24-hour) or null,
-  "procedureId": one id from the list below, or null
+  "procedureId": one id from the PRICE LIST below, or null,
+  "doctorIds": ids from the DOCTORS list below, or []
 }
 
 INTENTS
@@ -43,6 +56,7 @@ INTENTS
 - "reschedule" the patient wants to MOVE an existing appointment
 - "cancel"     the patient wants to CANCEL an appointment
 - "price"      the patient asked what a NAMED treatment from the list costs
+- "fee"        the patient asked what a NAMED DOCTOR charges for a consultation
 - "clinical"   anything about symptoms, diagnosis, treatment, medication, healing,
                pain, whether something is normal, or whether they need a procedure
 - "other"      anything else at all
@@ -79,6 +93,15 @@ message. Treat them all the same — classify the MEANING, never the script.
   "روٹ کینال کا کتنا خرچہ ہے؟"            -> price (root canal, if it is on the list)
 Urdu-Indic digits (۰۱۲۳۴۵۶۷۸۹) mean the same as 0123456789. Output dates and times
 in the ASCII format above regardless of what the patient wrote.
+
+DOCTORS (the only doctors that exist — use these ids exactly)
+${doctorList}
+Use "fee" ONLY when the message names one of these. List EVERY doctor they asked
+about: "what do Dr Bilal and Dr Umer charge" is ONE question about TWO doctors, so
+"doctorIds" has both. If they ask about fees without naming anyone, use "other".
+
+A consultation fee and a treatment price are different things. "How much do you
+charge" with no treatment and no doctor named is "other", not a guess at either.
 
 PRICE LIST (the only procedures that exist — use these ids exactly)
 ${catalogue}

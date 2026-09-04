@@ -7,6 +7,7 @@ import { classifyMessage, worthClassifying, type ChatIntent } from "@/core/ai/ch
 import { formatWhen } from "@/core/appointments/parse-when";
 import { getNextUpcomingAppointment } from "@/core/appointments/upcoming";
 import { listQuotableProcedures } from "@/core/procedures/quotable";
+import { listQuotableDoctors, type QuotableDoctor } from "@/core/users/quotable-doctors";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import { chatIntentByClinic, chatIntentByPhone } from "@/core/security/rate-limit";
 import { report } from "@/core/observability";
@@ -136,9 +137,13 @@ export async function runAssistant(args: {
     // The price list is only offered to the model when the clinic has opted into
     // price replies. With no list, the prompt is told the price intent is unavailable,
     // so a price question becomes `other` and reaches a person.
-    const procedures = clinicHasFeature(clinic?.featuresEnabled, "whatsapp_prices")
-      ? await listQuotableProcedures(args.clinicId)
-      : [];
+    // Both closed sets sit behind the same switch: "do we publish our prices over
+    // WhatsApp?" is one decision, and a treatment price and a consultation fee are
+    // two halves of the same answer.
+    const quoting = clinicHasFeature(clinic?.featuresEnabled, "whatsapp_prices");
+    const [procedures, doctors] = quoting
+      ? await Promise.all([listQuotableProcedures(args.clinicId), listQuotableDoctors(args.clinicId)])
+      : [[], []];
 
     // Whether the patient already has an appointment decides whether "make the
     // appointment for Monday" means book or move. That is a FACT from the database,
@@ -150,6 +155,7 @@ export async function runAssistant(args: {
       text: args.text,
       today: todayIso(now),
       procedures,
+      doctors,
       upcoming: upcoming ? isoMinute(upcoming.scheduledAt) : null,
       clinicId: args.clinicId,
     });
@@ -174,6 +180,17 @@ export async function runAssistant(args: {
         priceMessage(proc.name, proc.price),
       );
       return { replied, intent: "price" };
+    }
+
+    if (c.intent === "fee" && c.doctorIds.length > 0) {
+      const named = c.doctorIds
+        .map((id) => doctors.find((d) => d.id === id))
+        .filter((d): d is QuotableDoctor => Boolean(d));
+      const message = feeMessage(named);
+      // No fee set for anyone they named — a person answers rather than a guess.
+      if (!message) return { replied: false, intent: "other" };
+      const replied = await reply(args, serverEnv.AISENSY_BOOKING_REPLY_CAMPAIGN, message);
+      return { replied, intent: "fee" };
     }
 
     if (c.intent === "cancel") {
@@ -240,6 +257,36 @@ export async function runAssistant(args: {
     report(e, { op: "whatsapp.assistant", clinicId: args.clinicId });
     return NOTHING;
   }
+}
+
+/**
+ * The consultation-fee sentence, for one or more doctors the patient named.
+ *
+ * A FEE IS NOT A PRICE, and the wording keeps them apart. `charge_consultation` is
+ * per appointment, so a procedure-only visit is not billed this at all — hence
+ * "consultation fee", never "what you will pay".
+ *
+ * `consultation_fee` defaults to 0, which means NOT SET, never free. Quoting "Rs 0"
+ * would be actively wrong, so those doctors are named and handed to the clinic rather
+ * than dropped: a patient who asked about two doctors and got one answered would
+ * reasonably think the other had been missed.
+ */
+function feeMessage(named: readonly QuotableDoctor[]): string | null {
+  const priced = named.filter((d) => d.fee > 0);
+  const unpriced = named.filter((d) => d.fee <= 0);
+  // Nothing quotable at all — say nothing and let a person answer.
+  if (priced.length === 0) return null;
+
+  const rs = (n: number) => new Intl.NumberFormat("en-PK").format(n);
+  const lines = priced.map((d) => `${d.name}: Rs ${rs(d.fee)}`).join("\n");
+  const missing = unpriced.length
+    ? `\n\nFor ${unpriced.map((d) => d.name).join(" and ")}, please ask the clinic.`
+    : "";
+  return (
+    `Consultation fee${priced.length > 1 ? "s" : ""}:\n${lines}${missing}\n\n` +
+    `This is the consultation only — any treatment on the day is charged separately.\n\n` +
+    `To book, reply with the date and time, like this:\n\nbook 12 Jul 4:00pm`
+  );
 }
 
 /**

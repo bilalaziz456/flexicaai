@@ -40,6 +40,7 @@ const rawSchema = z.object({
   date: z.string().nullish(),
   time: z.string().nullish(),
   procedureId: z.string().nullish(),
+  doctorIds: z.array(z.string()).nullish(),
 });
 
 export type ChatClassification = {
@@ -48,6 +49,12 @@ export type ChatClassification = {
   time: { h: number; min: number } | null;
   /** Always one of the ids given to the prompt, or null. Never a name, never a price. */
   procedureId: string | null;
+  /**
+   * Doctors the patient named, for a consultation-fee question. A LIST, not one id:
+   * "what do Dr Bilal and Dr Umer charge?" is one question about two people, and
+   * answering half of it reads as though only half was heard.
+   */
+  doctorIds: string[];
 };
 
 /**
@@ -62,6 +69,7 @@ export type ChatClassification = {
 export function parseClassification(
   value: unknown,
   allowedProcedureIds: readonly string[],
+  allowedDoctorIds: readonly string[] = [],
 ): ChatClassification | null {
   const parsed = rawSchema.safeParse(value);
   if (!parsed.success) return null;
@@ -86,9 +94,17 @@ export function parseClassification(
   const procedureId =
     r.procedureId && allowedProcedureIds.includes(r.procedureId) ? r.procedureId : null;
 
-  // A price question we cannot tie to a real procedure is not a price question we can
-  // answer. It becomes `other` — a human reads it — never a guess at what they meant.
-  const intent: ChatIntent = r.intent === "price" && !procedureId ? "other" : r.intent;
+  // Same closed-set rule as procedures, and for the same reason: a fee quoted against
+  // a doctor we did not offer is a figure from nowhere. Unknown ids are dropped, and
+  // duplicates collapsed so "Dr Bilal and Dr Bilal" is answered once.
+  const doctorIds = [...new Set((r.doctorIds ?? []).filter((id) => allowedDoctorIds.includes(id)))];
 
-  return { intent, date, time, procedureId };
+  // A price or fee question we cannot tie to a real row is not one we can answer. It
+  // becomes `other` — a human reads it — never a guess at what they meant.
+  const intent: ChatIntent =
+    (r.intent === "price" && !procedureId) || (r.intent === "fee" && doctorIds.length === 0)
+      ? "other"
+      : r.intent;
+
+  return { intent, date, time, procedureId, doctorIds };
 }
