@@ -437,6 +437,43 @@ alone: an address reply that is blank for every clinic is worse than no reply.
 Live 17/17. "What time do you close?" moved from `other` to `hours` — a test
 expectation that went stale when the feature grew, not a model error.
 
+### Address and clinic opening hours — the owner's call, built so it cannot lie
+
+I argued against a clinic-level opening-hours field, on the grounds that it could say
+"Sun 10–2" while no doctor works Sunday. The owner asked for it twice, so it is built —
+**but built so that contradiction is impossible.**
+
+**The timings reply states TWO different true things, in this order:** when the clinic
+is OPEN (what the clinic admin typed) and when DOCTORS SEE PATIENTS (their working
+hours). Printing both is exactly what makes a free-text opening-hours field safe: it
+can never mislead about bookability, because the thing that governs bookability is
+printed directly underneath it. `opening_hours` drives nothing — `checkDoctorSlot` is
+untouched, and the field cannot make a slot bookable or refuse one. The settings form
+says so in as many words, because a clinic admin who believes otherwise will eventually
+wonder why setting "open Sunday" changed nothing.
+
+**`public_address` is a NEW column, deliberately not the existing `address`.** That one
+is a super-admin CRM field used as the bill-to line on FlexicaAI's subscription
+invoices. They are often the same place — but not always, since a group's billing may
+go to a head office while the patient needs the branch, and one field would force
+whoever edits it to silently pick which meaning wins. **There is no fallback from one
+to the other:** sending a patient to a billing address because it was the only one we
+had is a worse failure than saying nothing.
+
+**Both are editable by the CLINIC ADMIN** on `/clinic/settings`, beside the printing
+default — clinic-wide statements about the clinic, so the same authority. Free text
+both, because both are display-only; a structured weekday grid would imply the hours
+drive something.
+
+**Blank is meaningful.** Empty stores as NULL, and the reply omits that line rather
+than printing a heading with nothing under it. A location question at a clinic that has
+set no address gets no reply at all and reaches a person — which is the same rule as
+everywhere else here.
+
+`location` is its own intent (id 9, migration `0100`), not folded into `hours`: WHEN and
+WHERE are different questions with different answers, and one of them can be missing
+while the other is not. Live 18/18.
+
 **What is NOT proven.** No real patient has used any of this. The prompt smoke test
 passes 8/8 against live Haiku (`--live`), including Roman Urdu, the
 symptom-vs-named-procedure line and a prompt-injection attempt — but a smoke test is

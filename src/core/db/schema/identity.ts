@@ -87,6 +87,30 @@ export const clinics = pgTable(
      * negotiated during a sale. 0 disables the cutoff (any time is acceptable).
      */
     cancelCutoffHours: integer("cancel_cutoff_hours").notNull().default(4),
+    /**
+     * The clinic's PUBLIC contact details — what a patient is told over WhatsApp,
+     * edited by the clinic admin on their own settings page.
+     *
+     * Kept apart from `address` above, which is a super-admin CRM field used as the
+     * bill-to line on FlexicaAI's subscription invoices. They are often the same
+     * place, but not always — a group's billing may go to a head office while the
+     * patient needs the branch — and one field would force whoever edits it to
+     * silently pick which meaning wins.
+     */
+    publicAddress: text("public_address"),
+    /**
+     * When the clinic is OPEN, as free text ("Mon–Sat 9:00 AM – 9:00 PM, closed
+     * Sunday"). Free text because it is DISPLAY-ONLY and clinic-authored; a
+     * structured schedule would imply it drives something.
+     *
+     * IT DOES NOT AFFECT BOOKING, and that separation is the whole reason it is safe
+     * to have. Bookability is decided by each doctor's `availability` via
+     * `checkDoctorSlot`, so this cannot make a slot bookable or refuse one. The
+     * WhatsApp reply states both — when the clinic is open, and when doctors see
+     * patients — because they are two different true things, and a patient who is
+     * told only the first will turn up when nobody can see them.
+     */
+    openingHours: text("opening_hours"),
     // Billing/invoice settings (Finance). `invoicePaper` is the default print size
     // (a4|a5|thermal); `invoicePrefix` prefixes the human invoice label (e.g.
     // "INV-"); `nextInvoiceNo` is the per-clinic counter atomically bumped when an

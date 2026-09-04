@@ -50,3 +50,25 @@ export async function setDiscountNeedsApproval(
     .set({ discountNeedsApproval: requireApproval, updatedAt: new Date() })
     .where(eq(clinics.id, clinicId));
 }
+
+/**
+ * The clinic's PUBLIC contact details — the address and opening hours a patient is
+ * told over WhatsApp. Edited by the clinic admin, about their own clinic.
+ *
+ * Blank means "we have not said", and the WhatsApp reply omits it rather than
+ * printing an empty line: a patient told nothing is better served by reaching a
+ * person than by an answer with a hole in it.
+ */
+export async function setPublicContact(
+  clinicId: string,
+  values: { publicAddress: string | null; openingHours: string | null },
+): Promise<void> {
+  await db
+    .update(clinics)
+    .set({
+      publicAddress: values.publicAddress,
+      openingHours: values.openingHours,
+      updatedAt: new Date(),
+    })
+    .where(eq(clinics.id, clinicId));
+}

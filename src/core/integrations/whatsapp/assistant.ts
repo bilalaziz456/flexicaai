@@ -185,8 +185,16 @@ export async function runAssistant(args: {
       return { replied, intent: "price" };
     }
 
+    if (c.intent === "location") {
+      const message = locationMessage(clinic?.publicAddress ?? null, clinic?.openingHours ?? null);
+      // Nothing set: the clinic has not told us where it is, so a person answers.
+      if (!message) return { replied: false, intent: "location" };
+      const replied = await reply(args, serverEnv.AISENSY_BOOKING_REPLY_CAMPAIGN, message);
+      return { replied, intent: "location" };
+    }
+
     if (c.intent === "hours") {
-      const message = hoursMessage(doctors);
+      const message = hoursMessage(doctors, clinic?.openingHours ?? null);
       if (!message) return { replied: false, intent: "other" };
       const replied = await reply(args, serverEnv.AISENSY_BOOKING_REPLY_CAMPAIGN, message);
       return { replied, intent: "hours" };
@@ -282,30 +290,58 @@ export async function runAssistant(args: {
 }
 
 /**
- * "What are your timings?" — answered from the DOCTORS' consultation windows, and
- * worded as such.
+ * "What are your timings?" — and this is the message the whole opening-hours design
+ * rests on.
  *
- * THERE IS NO CLINIC-LEVEL OPENING-HOURS FIELD, deliberately. Doctor availability is
- * what actually governs bookability, so a separate clinic field could say "Sun 10–2"
- * while no doctor works Sunday — the patient reads it, tries to book, and is refused.
- * Two sources of truth, one of which lies. This says what we actually know: when
- * doctors see patients.
+ * It states TWO different true things, in this order: when the clinic is OPEN (what
+ * the clinic admin typed) and when DOCTORS SEE PATIENTS (their working hours). They
+ * are not the same, and a patient told only the first will turn up when nobody can
+ * see them. Printing both is what makes a free-text opening-hours field safe to have:
+ * it can never contradict bookability, because the thing that governs bookability is
+ * printed right underneath it.
  *
- * No fee appears here even when the clinic publishes them. The patient asked when,
- * not how much, and answering the question they did not ask reads as a sales pitch.
+ * Either half may be missing. A clinic that has typed nothing still gets a useful
+ * answer from its doctors; a clinic whose doctors have no hours set still gets to say
+ * when it is open. Only when BOTH are empty is there no reply.
  */
-function hoursMessage(doctors: readonly QuotableDoctor[]): string | null {
+function hoursMessage(
+  doctors: readonly QuotableDoctor[],
+  openingHours: string | null,
+): string | null {
   // A doctor with neither set hours nor flexible hours tells the patient nothing, so
   // they are left out rather than listed under a heading that promises times.
   const withHours = doctors.filter((d) => d.hours || d.flexible);
-  if (withHours.length === 0) return null;
+  const open = openingHours?.trim();
+  if (!open && withHours.length === 0) return null;
 
-  const lines = withHours
-    .map((d) => `${d.name}\n  ${d.hours || "By appointment"}`)
-    .join("\n\n");
+  const parts: string[] = [];
+  if (open) parts.push(`We're open:\n${open}`);
+  if (withHours.length > 0) {
+    const perDoctor = withHours
+      .map((d) => `${d.name}\n  ${d.hours || "By appointment"}`)
+      .join("\n\n");
+    parts.push(`When our doctors see patients:\n\n${perDoctor}`);
+  }
+  return `${parts.join("\n\n")}\n\nTo book, reply with the date and time, like this:\n\nbook 12 Jul 4:00pm`;
+}
+
+/**
+ * "Where are you?" — the clinic's own words, or nothing.
+ *
+ * There is no fallback to `clinics.address`: that is the super-admin CRM field used as
+ * the bill-to line on FlexicaAI's subscription invoices, and a group's billing may go
+ * to a head office while the patient needs the branch. Sending a patient to a billing
+ * address because it was the only one we had is a worse failure than saying nothing
+ * and letting the front desk answer.
+ */
+function locationMessage(publicAddress: string | null, openingHours: string | null): string | null {
+  const address = publicAddress?.trim();
+  if (!address) return null;
+  const open = openingHours?.trim();
   return (
-    `When our doctors see patients:\n\n${lines}\n\n` +
-    `To book, reply with the date and time, like this:\n\nbook 12 Jul 4:00pm`
+    `We're at:\n${address}` +
+    (open ? `\n\nOpen: ${open}` : "") +
+    `\n\nTo book, reply with the date and time, like this:\n\nbook 12 Jul 4:00pm`
   );
 }
 

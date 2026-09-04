@@ -694,6 +694,20 @@
       "when": 1788559381407,
       "tag": "0098_hours_intent",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1788560379486,
+      "tag": "0099_red_mad_thinker",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1788560482599,
+      "tag": "0100_location_intent",
+      "breakpoints": true
     }
   ]
 }

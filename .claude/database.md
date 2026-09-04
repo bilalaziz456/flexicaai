@@ -74,7 +74,7 @@ is_active)`, company-global — no
 | `theme_preferences` | system, light, dark | `users.theme` |
 | `whatsapp_directions` | inbound, outbound | `whatsapp_messages.direction` |
 | `whatsapp_statuses` | queued, sent, delivered, read, failed, received | `whatsapp_messages.status` |
-| `chat_intents` | book, reschedule, cancel, price, clinical, other, fee, **hours** | `whatsapp_messages.intent` |
+| `chat_intents` | book, reschedule, cancel, price, clinical, other, fee, hours, **location** | `whatsapp_messages.intent` |
 | `payment_kinds` | payment, advance, advance_applied, refund, opening | `patient_payments.kind` |
 | `clinic_payment_kinds` | payment, refund, credit | `clinic_payments.kind` |
 | `payment_methods` | cash, bank, cheque, other, **advance** (`is_tender = false`) | the five `method` columns |
@@ -929,6 +929,17 @@ these for churn-risk + usage/cost anomaly flags.
   read it, try to book and be refused — two sources of truth, one of which lies.
   `clinics.address` is unrelated and NOT patient-facing: it is a super-admin CRM field
   used as the bill-to line on FlexicaAI's own subscription invoices.
+- Migrations **`0099`–`0100`** add the clinic's PUBLIC contact details —
+  `clinics.public_address` and `clinics.opening_hours` (both text, nullable), plus the
+  `location` chat intent (id 9). Edited by the CLINIC ADMIN on `/clinic/settings`.
+  **`public_address` is deliberately NOT the existing `address`**, which is a
+  super-admin CRM field used as the bill-to line on FlexicaAI's subscription invoices;
+  a group's billing may go to a head office while the patient needs the branch, and
+  there is no fallback between them. **`opening_hours` is free text and DISPLAY-ONLY**
+  — it drives nothing, and `checkDoctorSlot` is untouched. Bookability comes from each
+  doctor's `availability`, and the WhatsApp timings reply prints BOTH ("we're open" and
+  "when our doctors see patients") so the clinic's own words can never mislead about
+  when a patient can actually be seen.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

@@ -203,10 +203,18 @@ async function main() {
       parseClassification({ intent: "hours", doctorIds: [] }, IDS, [])?.intent, "hours");
     const p2 = buildClassifierPrompt({ today: TODAY, procedures: PROCS, doctors: DOCS, upcoming: null });
     const flat2 = p2.replace(/\s+/g, " ");
-    check("the prompt separates when from what", flat2.includes('"hours" is when, not what'), true);
-    // Location is a different question with a different (missing) answer — clinics
-    // store an address only as a super-admin CRM field, and every one is empty.
-    check("…and says an address question is NOT hours", flat2.includes("address or location question is NOT"), true);
+    check("the prompt separates WHEN from WHAT", flat2.includes("TIMINGS AND LOCATION"), true);
+  }
+
+  console.log("\nLocation is its own intent, and it has no fallback:");
+  {
+    const D = DOCS.map((d) => d.id);
+    check("a location intent needs nothing else",
+      parseClassification({ intent: "location" }, IDS, D)?.intent, "location");
+    const p3 = buildClassifierPrompt({ today: TODAY, procedures: PROCS, doctors: DOCS, upcoming: null });
+    const flat3 = p3.replace(/\s+/g, " ");
+    check("the prompt separates WHEN from WHERE", flat3.includes('"hours" is WHEN, "location" is WHERE'), true);
+    check("…and says neither is 'other'", flat3.includes("Neither is \"other\""), true);
   }
 
   console.log("\nThe prompt keeps fees and prices apart:");
@@ -259,7 +267,8 @@ async function live() {
     ["what does dr nobody charge?", "other"],
     ["what are your timings?", "hours"],
     ["kitne baje khulte ho?", "hours"],
-    ["what is your address?", "other"],
+    ["what is your address?", "location"],
+    ["clinic kahan hai?", "location"],
   ];
   for (const [text, expected] of cases) {
     const r = await classifyMessage({ text, today: TODAY, procedures: PROCS, doctors: DOCS, clinicId: "live" });

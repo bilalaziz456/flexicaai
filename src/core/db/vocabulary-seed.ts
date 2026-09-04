@@ -355,6 +355,7 @@ export const CHAT_INTENT_ROWS = [
   { id: 6, code: "other", label: "Other", sortOrder: 6 },
   { id: 7, code: "fee", label: "Consultation fee question", sortOrder: 7 },
   { id: 8, code: "hours", label: "Timings question", sortOrder: 8 },
+  { id: 9, code: "location", label: "Location question", sortOrder: 9 },
 ] as const satisfies readonly VocabularyRow[];
 
 export type AppointmentStatusCode = (typeof APPOINTMENT_STATUS_ROWS)[number]["code"];

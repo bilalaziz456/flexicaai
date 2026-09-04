@@ -14,6 +14,7 @@ import {
   PasswordForm,
 } from "@/core/ui/account-forms";
 import { PrintingForm } from "./printing-form";
+import { PublicContactForm } from "./public-contact-form";
 
 function initialsOf(name: string): string {
   return name
@@ -85,6 +86,23 @@ export default async function ClinicSettingsPage() {
           <PasswordForm />
         </CardContent>
       </Card>
+
+      {clinic ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Clinic details</CardTitle>
+            <CardDescription>
+              The address and opening hours patients are told when they ask on WhatsApp.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PublicContactForm
+              address={clinic.publicAddress}
+              hours={clinic.openingHours}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {clinic ? (
         <Card>
