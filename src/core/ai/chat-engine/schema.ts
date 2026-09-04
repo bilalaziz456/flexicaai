@@ -97,14 +97,21 @@ export function parseClassification(
   // Same closed-set rule as procedures, and for the same reason: a fee quoted against
   // a doctor we did not offer is a figure from nowhere. Unknown ids are dropped, and
   // duplicates collapsed so "Dr Bilal and Dr Bilal" is answered once.
+  const namedAnyone = (r.doctorIds ?? []).length > 0;
   const doctorIds = [...new Set((r.doctorIds ?? []).filter((id) => allowedDoctorIds.includes(id)))];
 
-  // A price or fee question we cannot tie to a real row is not one we can answer. It
-  // becomes `other` — a human reads it — never a guess at what they meant.
+  // TWO DIFFERENT EMPTY CASES, and collapsing them would be wrong in opposite
+  // directions:
+  //   • named NOBODY ("how much do you charge?") — a general question, answerable by
+  //     listing the clinic's doctors. Stays `fee`.
+  //   • named someone we do NOT have ("what does Dr Smith charge?") — replying with a
+  //     list of other doctors does not answer that, and pretending it does is worse
+  //     than silence. Becomes `other`, and a person handles it.
+  const feeUnanswerable = r.intent === "fee" && namedAnyone && doctorIds.length === 0;
+
+  // A price question we cannot tie to a real procedure is not one we can answer.
   const intent: ChatIntent =
-    (r.intent === "price" && !procedureId) || (r.intent === "fee" && doctorIds.length === 0)
-      ? "other"
-      : r.intent;
+    (r.intent === "price" && !procedureId) || feeUnanswerable ? "other" : r.intent;
 
   return { intent, date, time, procedureId, doctorIds };
 }

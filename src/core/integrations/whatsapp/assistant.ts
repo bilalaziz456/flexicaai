@@ -182,6 +182,16 @@ export async function runAssistant(args: {
       return { replied, intent: "price" };
     }
 
+    // "How much do you charge?" — nobody named. The classifier keeps this as `fee`
+    // with an empty list (a doctor we do NOT have becomes `other` instead), so this
+    // is a general question we can answer in full rather than decline.
+    if (c.intent === "fee" && c.doctorIds.length === 0) {
+      const message = allFeesMessage(doctors);
+      if (!message) return { replied: false, intent: "other" };
+      const replied = await reply(args, serverEnv.AISENSY_BOOKING_REPLY_CAMPAIGN, message);
+      return { replied, intent: "fee" };
+    }
+
     if (c.intent === "fee" && c.doctorIds.length > 0) {
       const named = c.doctorIds
         .map((id) => doctors.find((d) => d.id === id))
@@ -257,6 +267,40 @@ export async function runAssistant(args: {
     report(e, { op: "whatsapp.assistant", clinicId: args.clinicId });
     return NOTHING;
   }
+}
+
+/**
+ * The answer to "how much do you charge?" — a question that names nobody.
+ *
+ * Declining this was the wrong call. The patient asked something perfectly reasonable,
+ * we know the answer for every doctor, and the reason we could not reply was an
+ * implementation detail (no id to key on). Listing the clinic's doctors with their
+ * fee AND their consultation hours answers the question and gives them what they need
+ * next, which is when they can actually be seen.
+ *
+ * Doctors with no fee set are omitted here rather than named. That differs from
+ * `feeMessage` on purpose: there the patient asked about a SPECIFIC doctor and
+ * silence about them would look like the question was half heard, whereas here nobody
+ * was named, so an unpriced doctor is simply not part of the answer. If none are
+ * priced there is no reply at all.
+ */
+function allFeesMessage(doctors: readonly QuotableDoctor[]): string | null {
+  const priced = doctors.filter((d) => d.fee > 0);
+  if (priced.length === 0) return null;
+
+  const rs = (n: number) => new Intl.NumberFormat("en-PK").format(n);
+  const lines = priced
+    .map((d) => `${d.name} — Rs ${rs(d.fee)}${d.hours ? `\n  ${d.hours}` : ""}`)
+    .join("\n\n");
+  const which =
+    priced.length > 1
+      ? "\n\nReply with the doctor you'd like to see, or the date and time, like this:"
+      : "\n\nTo book, reply with the date and time, like this:";
+  return (
+    `Our consultation fees:\n\n${lines}\n\n` +
+    `This is the consultation only — any treatment on the day is charged separately.` +
+    `${which}\n\nbook 12 Jul 4:00pm`
+  );
 }
 
 /**

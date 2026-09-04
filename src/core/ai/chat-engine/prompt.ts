@@ -96,12 +96,16 @@ in the ASCII format above regardless of what the patient wrote.
 
 DOCTORS (the only doctors that exist — use these ids exactly)
 ${doctorList}
-Use "fee" ONLY when the message names one of these. List EVERY doctor they asked
-about: "what do Dr Bilal and Dr Umer charge" is ONE question about TWO doctors, so
-"doctorIds" has both. If they ask about fees without naming anyone, use "other".
+Use "fee" for any question about what a CONSULTATION costs. Put in "doctorIds" every
+doctor they named: "what do Dr Bilal and Dr Umer charge" is ONE question about TWO
+doctors, so both go in. If they ask about fees WITHOUT naming anyone — "how much do
+you charge?" — still use "fee" with "doctorIds": [], because we answer that by listing
+every doctor. Only use "other" if they named a doctor who is NOT on this list.
 
-A consultation fee and a treatment price are different things. "How much do you
-charge" with no treatment and no doctor named is "other", not a guess at either.
+A consultation fee and a treatment price are different things:
+  "how much do you charge?"      -> fee   (no treatment named)
+  "what is dr bilal's fee?"      -> fee   (that doctor's id)
+  "how much is a filling?"       -> price (a treatment from the price list)
 
 PRICE LIST (the only procedures that exist — use these ids exactly)
 ${catalogue}

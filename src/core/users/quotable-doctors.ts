@@ -5,12 +5,15 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { users } from "@/core/db/schema";
 import { displayStaffName } from "@/core/types/auth";
+import { describeConsultationHours, type DayAvailability } from "@/core/lib/availability";
 
 export type QuotableDoctor = {
   id: string;
   name: string;
   /** PKR. 0 means NOT SET — never "free". See the note below. */
   fee: number;
+  /** Consultation hours a patient can read, or "" when none are set. */
+  hours: string;
 };
 
 /**
@@ -35,6 +38,8 @@ export async function listQuotableDoctors(clinicId: string): Promise<QuotableDoc
       fullName: users.fullName,
       username: users.username,
       fee: users.consultationFee,
+      availability: users.availability,
+      flexibleHours: users.flexibleHours,
     })
     .from(users)
     .where(
@@ -51,5 +56,11 @@ export async function listQuotableDoctors(clinicId: string): Promise<QuotableDoc
     id: r.id,
     name: displayStaffName(r.prefix, r.fullName, r.username),
     fee: r.fee,
+    // A flexible-hours doctor is bookable any time by design, so listing windows for
+    // them would be wrong even if some exist. Everyone else gets their CONSULTATION
+    // windows only — a procedure window is not when you get seen for a consultation.
+    hours: r.flexibleHours
+      ? ""
+      : describeConsultationHours((r.availability ?? []) as DayAvailability[]),
   }));
 }

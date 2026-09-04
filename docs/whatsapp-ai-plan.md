@@ -376,6 +376,26 @@ doctors instead of procedures (`core/users/quotable-doctors.ts`, migration `0097
   procedure-only visit is not billed it — hence "consultation fee", never "what you
   will pay". "How much do you charge?" naming nobody stays `other`.
 
+**"How much do you charge?" — the general case.** Declining that was the wrong call:
+the patient asked something reasonable, we know the answer for every doctor, and the
+only reason we could not reply was an implementation detail (no id to key on). It now
+lists every doctor with their fee AND their consultation hours, which answers the
+question and gives them what they need next.
+
+**The two empty results are NOT the same, and collapsing them would be wrong in
+opposite directions:**
+
+- **Named nobody** → stays `fee` with an empty list → answer in full.
+- **Named a doctor this clinic does not have** ("what does Dr Smith charge?") → `other`
+  → a person handles it. Replying with a list of OTHER doctors does not answer that
+  question, and pretending it does is worse than silence.
+
+Hours use a new `describeConsultationHours`, not the existing `describeAvailability`:
+that one is for STAFF and marks procedure windows "(proc)", which is internal
+vocabulary a patient would not understand and — worse — would read as bookable time
+for a consultation. Procedure windows are excluded, and a `flexible_hours` doctor
+shows none at all, because they are bookable any time by design.
+
 Behind `whatsapp_prices` rather than a fourth switch: *do we publish our prices over
 WhatsApp* is one decision, and a treatment price and a consultation fee are two halves
 of the same answer.

@@ -158,6 +158,31 @@ export function describeAvailability(availability: DayAvailability[]): string {
     .join("; ");
 }
 
+/**
+ * CONSULTATION hours, in a form a patient can read — "Mon 9:00 AM–1:00 PM; Wed 4:00
+ * PM–8:00 PM". Empty string when the doctor has none set.
+ *
+ * Distinct from `describeAvailability`, which is for STAFF: that one lists every
+ * window and marks procedure ones "(proc)", which is internal vocabulary a patient
+ * would not understand and, worse, would read as bookable time for a consultation.
+ * Procedure windows are excluded here for that reason, not merely for tidiness — a
+ * patient told "Mon 4–8pm" who turns up for a consultation in a procedure window has
+ * been misinformed by us.
+ *
+ * 12-hour times, because that is how appointments are spoken about in this market.
+ */
+export function describeConsultationHours(availability: DayAvailability[]): string {
+  if (!availability || availability.length === 0) return "";
+  return WEEKDAYS.filter((d) => windowsOfKind(availability, d.value, ["consultation"]).length > 0)
+    .map((d) => {
+      const windows = windowsOfKind(availability, d.value, ["consultation"])
+        .map((w) => `${formatTime12(w.start)}–${formatTime12(w.end)}`)
+        .join(", ");
+      return `${d.short} ${windows}`;
+    })
+    .join("; ");
+}
+
 /** Appointment statuses that consume a slot toward the daily limit. */
 export const ACTIVE_APPT_STATUSES = [
   "scheduled",

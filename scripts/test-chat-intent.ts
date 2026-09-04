@@ -173,13 +173,21 @@ async function main() {
       ["d-bilal", "d-umer"]);
     check("an invented doctor id is dropped",
       parseClassification({ intent: "fee", doctorIds: ["d-bilal", "d-nobody"] }, IDS, D)?.doctorIds, ["d-bilal"]);
-    check("…and if NONE survive the intent drops to 'other'",
+    // TWO different empty results, and collapsing them would be wrong in opposite
+    // directions. Naming a doctor we do not have is unanswerable — replying with a
+    // list of OTHER doctors does not answer it. Naming nobody is a general question
+    // we answer in full.
+    check("a doctor we do NOT have → 'other', a person handles it",
       parseClassification({ intent: "fee", doctorIds: ["d-nobody"] }, IDS, D)?.intent, "other");
-    check("a fee intent naming nobody drops too",
-      parseClassification({ intent: "fee", doctorIds: [] }, IDS, D)?.intent, "other");
+    check("naming NOBODY stays 'fee' — the general question",
+      parseClassification({ intent: "fee", doctorIds: [] }, IDS, D)?.intent, "fee");
+    check("…with an empty list, meaning 'list them all'",
+      parseClassification({ intent: "fee", doctorIds: [] }, IDS, D)?.doctorIds, []);
+    check("…and omitting the field entirely means the same",
+      parseClassification({ intent: "fee" }, IDS, D)?.intent, "fee");
     check("duplicates collapse, so one doctor is answered once",
       parseClassification({ intent: "fee", doctorIds: ["d-bilal", "d-bilal"] }, IDS, D)?.doctorIds, ["d-bilal"]);
-    check("a clinic with no doctors listed can never produce a fee",
+    check("a clinic with no doctors listed can never quote a named one",
       parseClassification({ intent: "fee", doctorIds: ["d-bilal"] }, IDS, [])?.intent, "other");
     check("a price answer carries no doctors",
       parseClassification({ intent: "price", procedureId: "p-rct" }, IDS, D)?.doctorIds, []);
@@ -188,10 +196,16 @@ async function main() {
   console.log("\nThe prompt keeps fees and prices apart:");
   {
     const p = buildClassifierPrompt({ today: TODAY, procedures: PROCS, doctors: DOCS, upcoming: null });
+    // Whitespace-normalised: the prompt is hard-wrapped, so a phrase that reads as
+    // one line in the source can be split by a newline. Asserting on the raw string
+    // makes the test fail when the prompt is merely re-wrapped — which is a test
+    // that cries wolf, and those get deleted rather than fixed.
+    const flat = p.replace(/\s+/g, " ");
     check("offers the clinic's doctors by id", p.includes("d-bilal") && p.includes("Dr. Bilal Aziz"), true);
     check("…but never their FEE — the figure comes from the row", p.includes("2000"), false);
-    check("says a fee and a price are different things", p.includes("A consultation fee and a treatment price are different"), true);
-    check("tells it to list EVERY doctor asked about", p.includes("ONE question about TWO doctors"), true);
+    check("says a fee and a price are different things", flat.includes("A consultation fee and a treatment price are different"), true);
+    check("tells it to list EVERY doctor asked about", flat.includes("ONE question about TWO doctors"), true);
+    check("…and that naming nobody is still a fee question", flat.includes('"doctorIds": [], because we answer'), true);
     const none = buildClassifierPrompt({ today: TODAY, procedures: PROCS, doctors: [], upcoming: null });
     check("a clinic with no doctors is told so", none.includes("never use the fee intent"), true);
   }
@@ -225,6 +239,8 @@ async function live() {
     ["میں اپنی اپائنٹمنٹ کینسل کرنا چاہتا ہوں", "cancel"],
     ["کیا نکالنے کے بعد درد ہونا نارمل ہے؟", "clinical"],
     ["روٹ کینال کا کتنا خرچہ ہے؟", "price"],
+    ["how much do you charge?", "fee"],
+    ["what does dr nobody charge?", "other"],
   ];
   for (const [text, expected] of cases) {
     const r = await classifyMessage({ text, today: TODAY, procedures: PROCS, doctors: DOCS, clinicId: "live" });
