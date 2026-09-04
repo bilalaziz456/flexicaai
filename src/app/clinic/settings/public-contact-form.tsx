@@ -65,9 +65,9 @@ export function PublicContactForm({
         />
         <p className="text-xs text-muted-foreground">
           When the clinic is open. This is shown to patients only — it does{" "}
-          <span className="font-medium">not</span> decide when appointments can be
-          booked. That comes from each doctor&apos;s own working hours, and a patient
-          asking about timings is told both.
+          <span className="font-medium">not</span>{" "}
+          decide when appointments can be booked. That comes from each doctor&apos;s
+          own working hours, and a patient asking about timings is told both.
         </p>
       </div>
 
