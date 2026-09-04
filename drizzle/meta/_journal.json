@@ -687,6 +687,13 @@
       "when": 1788550472850,
       "tag": "0097_fee_intent",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1788559381407,
+      "tag": "0098_hours_intent",
+      "breakpoints": true
     }
   ]
 }

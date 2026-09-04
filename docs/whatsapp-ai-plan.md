@@ -402,6 +402,41 @@ of the same answer.
 
 Live: the exact question returns both doctors, in English, Roman Urdu and Urdu script.
 
+### Timings — answered from the doctors, because that is what we actually know
+
+The owner asked what happens when a patient asks the clinic's timings or address.
+Both went to the front desk. They have very different answers:
+
+**Timings: there is NO clinic-level opening-hours field, and one was deliberately not
+added.** The only hours in the system are per doctor (`users.availability`), and those
+are what actually govern bookability. A separate `clinics.opening_hours` could say
+"Sun 10–2" while no doctor works Sunday — the patient reads it, tries to book, and is
+refused. Two sources of truth, one of which lies. The `hours` intent (id 8, migration
+`0098`) replies with what we do know, worded as such: *"When our doctors see
+patients"*.
+
+**Address: `clinics.address` exists but is not the answer.** It is a super-admin CRM
+field, set on the clinic-detail contact form and used only as the bill-to line on
+FlexicaAI's own subscription invoices — and **every clinic has it empty**. A
+patient-facing address would need its own column (a billing address is often not the
+public one), a field in the admin form, and someone to fill it in per clinic. Left
+alone: an address reply that is blank for every clinic is worse than no reply.
+
+**Two things this changed beyond adding an intent:**
+
+- **The doctor list is now loaded unconditionally.** `whatsapp_prices` gates what we
+  may SAY about money, not what we load — timings are not price disclosure, and the
+  list is also what lets the model recognise a doctor by name at all. The price and
+  fee REPLIES are gated individually instead.
+- **Hours show CONSULTATION windows only.** A patient told "Mon 4–8pm" who arrives for
+  a consultation during a procedure window has been misinformed by us, so those are
+  excluded rather than merely unlabelled. A `flexible_hours` doctor reads "By
+  appointment"; a doctor with neither is omitted, because listing a name under a
+  heading that promises times and then giving none is worse than leaving them out.
+
+Live 17/17. "What time do you close?" moved from `other` to `hours` — a test
+expectation that went stale when the feature grew, not a model error.
+
 **What is NOT proven.** No real patient has used any of this. The prompt smoke test
 passes 8/8 against live Haiku (`--live`), including Roman Urdu, the
 symptom-vs-named-procedure line and a prompt-injection attempt — but a smoke test is

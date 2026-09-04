@@ -14,6 +14,12 @@ export type QuotableDoctor = {
   fee: number;
   /** Consultation hours a patient can read, or "" when none are set. */
   hours: string;
+  /**
+   * Bookable at any time (`users.flexible_hours`). Distinct from having no hours
+   * SET: one means "any time suits", the other means we do not know. A timings reply
+   * must not silently turn the second into the first.
+   */
+  flexible: boolean;
 };
 
 /**
@@ -62,5 +68,6 @@ export async function listQuotableDoctors(clinicId: string): Promise<QuotableDoc
     hours: r.flexibleHours
       ? ""
       : describeConsultationHours((r.availability ?? []) as DayAvailability[]),
+    flexible: r.flexibleHours,
   }));
 }

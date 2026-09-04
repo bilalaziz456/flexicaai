@@ -57,6 +57,7 @@ INTENTS
 - "cancel"     the patient wants to CANCEL an appointment
 - "price"      the patient asked what a NAMED treatment from the list costs
 - "fee"        the patient asked what a NAMED DOCTOR charges for a consultation
+- "hours"      the patient asked WHEN the clinic or a doctor is available
 - "clinical"   anything about symptoms, diagnosis, treatment, medication, healing,
                pain, whether something is normal, or whether they need a procedure
 - "other"      anything else at all
@@ -82,6 +83,14 @@ ${upcoming}
 Use this to tell "book" from "reschedule" when the patient does not say which.
 "Make the appointment for Monday" means RESCHEDULE if they already have one, and
 BOOK if they do not.
+
+TIMINGS
+"hours" is when, not what. It covers "what are your timings?", "kitne baje khulte
+ho?", "are you open on Sunday?", "when is Dr Bilal available?".
+  "what are your timings?"   -> hours
+  "kab tak khule ho?"        -> hours
+  "آپ کے اوقات کیا ہیں؟"        -> hours
+An address or location question is NOT "hours" — use "other" for those.
 
 LANGUAGE
 Patients write English, Roman Urdu, Urdu script (اردو), or a mix of them in one

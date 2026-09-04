@@ -137,13 +137,15 @@ export async function runAssistant(args: {
     // The price list is only offered to the model when the clinic has opted into
     // price replies. With no list, the prompt is told the price intent is unavailable,
     // so a price question becomes `other` and reaches a person.
-    // Both closed sets sit behind the same switch: "do we publish our prices over
-    // WhatsApp?" is one decision, and a treatment price and a consultation fee are
-    // two halves of the same answer.
+    // `whatsapp_prices` gates what we may SAY about money, not what we load. The
+    // doctor list is also what answers a timings question — which is not price
+    // disclosure — and it is what lets the model recognise a doctor by name at all,
+    // so it is always fetched. Only the price and fee REPLIES are gated below.
     const quoting = clinicHasFeature(clinic?.featuresEnabled, "whatsapp_prices");
-    const [procedures, doctors] = quoting
-      ? await Promise.all([listQuotableProcedures(args.clinicId), listQuotableDoctors(args.clinicId)])
-      : [[], []];
+    const [procedures, doctors] = await Promise.all([
+      quoting ? listQuotableProcedures(args.clinicId) : Promise.resolve([]),
+      listQuotableDoctors(args.clinicId),
+    ]);
 
     // Whether the patient already has an appointment decides whether "make the
     // appointment for Monday" means book or move. That is a FACT from the database,
@@ -170,6 +172,7 @@ export async function runAssistant(args: {
     }
 
     if (c.intent === "price" && c.procedureId) {
+      if (!quoting) return { replied: false, intent: "price" };
       const proc = procedures.find((p) => p.id === c.procedureId);
       // `parseClassification` already rejected an id we did not offer, so this can
       // only be null if the list changed underneath us. Say nothing rather than guess.
@@ -182,10 +185,18 @@ export async function runAssistant(args: {
       return { replied, intent: "price" };
     }
 
+    if (c.intent === "hours") {
+      const message = hoursMessage(doctors);
+      if (!message) return { replied: false, intent: "other" };
+      const replied = await reply(args, serverEnv.AISENSY_BOOKING_REPLY_CAMPAIGN, message);
+      return { replied, intent: "hours" };
+    }
+
     // "How much do you charge?" — nobody named. The classifier keeps this as `fee`
     // with an empty list (a doctor we do NOT have becomes `other` instead), so this
     // is a general question we can answer in full rather than decline.
     if (c.intent === "fee" && c.doctorIds.length === 0) {
+      if (!quoting) return { replied: false, intent: "fee" };
       const message = allFeesMessage(doctors);
       if (!message) return { replied: false, intent: "other" };
       const replied = await reply(args, serverEnv.AISENSY_BOOKING_REPLY_CAMPAIGN, message);
@@ -193,6 +204,7 @@ export async function runAssistant(args: {
     }
 
     if (c.intent === "fee" && c.doctorIds.length > 0) {
+      if (!quoting) return { replied: false, intent: "fee" };
       const named = c.doctorIds
         .map((id) => doctors.find((d) => d.id === id))
         .filter((d): d is QuotableDoctor => Boolean(d));
@@ -267,6 +279,34 @@ export async function runAssistant(args: {
     report(e, { op: "whatsapp.assistant", clinicId: args.clinicId });
     return NOTHING;
   }
+}
+
+/**
+ * "What are your timings?" — answered from the DOCTORS' consultation windows, and
+ * worded as such.
+ *
+ * THERE IS NO CLINIC-LEVEL OPENING-HOURS FIELD, deliberately. Doctor availability is
+ * what actually governs bookability, so a separate clinic field could say "Sun 10–2"
+ * while no doctor works Sunday — the patient reads it, tries to book, and is refused.
+ * Two sources of truth, one of which lies. This says what we actually know: when
+ * doctors see patients.
+ *
+ * No fee appears here even when the clinic publishes them. The patient asked when,
+ * not how much, and answering the question they did not ask reads as a sales pitch.
+ */
+function hoursMessage(doctors: readonly QuotableDoctor[]): string | null {
+  // A doctor with neither set hours nor flexible hours tells the patient nothing, so
+  // they are left out rather than listed under a heading that promises times.
+  const withHours = doctors.filter((d) => d.hours || d.flexible);
+  if (withHours.length === 0) return null;
+
+  const lines = withHours
+    .map((d) => `${d.name}\n  ${d.hours || "By appointment"}`)
+    .join("\n\n");
+  return (
+    `When our doctors see patients:\n\n${lines}\n\n` +
+    `To book, reply with the date and time, like this:\n\nbook 12 Jul 4:00pm`
+  );
 }
 
 /**

@@ -17,6 +17,7 @@ import { unscoped } from "@/core/db/tenant-guard";
 import { handleCancelReply, isCancelIntent } from "@/core/appointments/cancel";
 import { handleBookingReply } from "@/core/appointments/booking";
 import { listQuotableProcedures } from "@/core/procedures/quotable";
+import { listQuotableDoctors } from "@/core/users/quotable-doctors";
 import { formatWhen } from "@/core/appointments/parse-when";
 
 let failures = 0;
@@ -158,6 +159,37 @@ async function main() {
     check("with `sales`, active procedures are quotable", list.map((p) => p.name), ["Root canal treatment"]);
     check("…and the price comes from the ROW, not the model", list[0]?.price, 15000);
     check("…an inactive one is never quoted", list.some((p) => p.name === "Retired procedure"), false);
+  }
+
+  console.log("\nTimings work WITHOUT the price flag — hours are not price disclosure:");
+  {
+    await setFeatures(["whatsapp_ai"]);       // no whatsapp_prices
+    const list = await listQuotableDoctors(clinicId);
+    check("doctors are still loaded", list.length > 0, true);
+    check("…with their consultation hours", list.some((d) => d.hours.length > 0 || d.flexible), true);
+    check("…while the price list stays empty", (await listQuotableProcedures(clinicId)).length, 0);
+  }
+
+  console.log("\nA doctor's hours are CONSULTATION windows only:");
+  {
+    const { users: u } = await import("@/core/db/schema");
+    await db.update(u).set({
+      flexibleHours: false,
+      availability: [
+        { weekday: 1, start: "09:00", end: "13:00", kind: "consultation" },
+        { weekday: 1, start: "16:00", end: "19:00", kind: "procedure" },
+      ],
+    }).where(eq(u.id, doctorId));
+    const [doc] = await listQuotableDoctors(clinicId);
+    check("the consultation window is shown", doc.hours.includes("9:00 AM–1:00 PM"), true);
+    // A patient told "Mon 4–8pm" who arrives for a consultation in a PROCEDURE window
+    // has been misinformed by us — so those windows are excluded, not merely unlabelled.
+    check("…and the procedure window is NOT", doc.hours.includes("4:00 PM"), false);
+    check("…and no internal '(proc)' marker leaks to a patient", doc.hours.includes("proc"), false);
+    // Put the doctor back: the booking check below needs any slot to validate, and a
+    // test that leaves shared state changed makes the NEXT one fail for a reason that
+    // has nothing to do with it.
+    await db.update(u).set({ flexibleHours: true, availability: [] }).where(eq(u.id, doctorId));
   }
 
   console.log("\nThe deterministic path still wins — the assistant never sees these:");

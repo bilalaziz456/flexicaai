@@ -74,7 +74,7 @@ is_active)`, company-global — no
 | `theme_preferences` | system, light, dark | `users.theme` |
 | `whatsapp_directions` | inbound, outbound | `whatsapp_messages.direction` |
 | `whatsapp_statuses` | queued, sent, delivered, read, failed, received | `whatsapp_messages.status` |
-| `chat_intents` | book, reschedule, cancel, price, clinical, other, **fee** | `whatsapp_messages.intent` |
+| `chat_intents` | book, reschedule, cancel, price, clinical, other, fee, **hours** | `whatsapp_messages.intent` |
 | `payment_kinds` | payment, advance, advance_applied, refund, opening | `patient_payments.kind` |
 | `clinic_payment_kinds` | payment, refund, credit | `clinic_payments.kind` |
 | `payment_methods` | cash, bank, cheque, other, **advance** (`is_tender = false`) | the five `method` columns |
@@ -921,6 +921,14 @@ these for churn-risk + usage/cost anomaly flags.
   hand-written. Id **7**, not slotted in beside `price` where it belongs by meaning,
   because ids are never renumbered (ADR-027) — reordering would silently reclassify
   rows already recorded.
+- Migration **`0098`** adds the `hours` chat intent (id 8) — a patient asking when
+  the clinic or a doctor is available. Data-only, like `0097`. **There is deliberately
+  NO clinic-level opening-hours column behind it:** the only hours in the system are
+  per doctor (`users.availability`), and those are what govern bookability. A separate
+  clinic field could say "Sun 10–2" while no doctor works Sunday, so a patient would
+  read it, try to book and be refused — two sources of truth, one of which lies.
+  `clinics.address` is unrelated and NOT patient-facing: it is a super-admin CRM field
+  used as the bill-to line on FlexicaAI's own subscription invoices.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).
