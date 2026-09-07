@@ -15,7 +15,7 @@ import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { DataTable, type Column } from "@/core/ui/data-table";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
-import { Toast, SavedToast } from "@/core/ui/toast";
+import { SavedToast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 

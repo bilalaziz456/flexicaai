@@ -39,6 +39,8 @@ import { sanitizeLogAccess } from "@/core/audit/access";
 import { USERNAME_REGEX } from "@/core/types/auth";
 import { PAYMENT_METHODS } from "@/core/finance/payment-methods";
 import { BILLING_CYCLE_CODES, CLINIC_PAYMENT_KIND_CODES } from "@/core/db/vocabulary-seed";
+import { parsePublicContact } from "@/core/clinics/public-contact";
+import { setPublicContact } from "@/core/clinics/settings";
 
 export type AdminActionState = { error?: string; saved?: boolean; needsTotp?: boolean };
 
@@ -116,6 +118,11 @@ export async function createClinicWithAdmin(
     assignedTo = found;
   }
 
+  // Public address + opening hours, optional at creation. Same parser the clinic's
+  // own settings page uses, so the two forms cannot disagree about what a valid week is.
+  const contact = parsePublicContact(formData);
+  if (!contact.ok) return { error: contact.error };
+
   const passwordHash = await hashPassword(parsed.data.adminPassword);
 
   let newClinicId: string;
@@ -127,6 +134,8 @@ export async function createClinicWithAdmin(
       adminUsername: parsed.data.adminUsername,
       adminPasswordHash: passwordHash,
       adminFullName: parsed.data.adminFullName,
+      publicAddress: contact.values.publicAddress,
+      openingHours: contact.values.openingHours,
     });
   } catch (err) {
     if (isUniqueViolation(err)) {
@@ -504,6 +513,49 @@ const contactSchema = z.object({
  * timezone is used for availability + reminder day-bounds (see the deploy caveat
  * in .claude/database.md). super-admin only; audited.
  */
+/**
+ * The clinic's PATIENT-FACING address and opening hours.
+ *
+ * Kept apart from `updateClinicContact` above, which owns the CRM/bill-to address that
+ * prints on our own subscription invoices. A group's billing may go to a head office
+ * while patients need the branch, so one field could not serve both and there is no
+ * fallback between them: sending a patient to a billing address because it was the only
+ * one we had is a worse failure than saying nothing.
+ *
+ * The clinic admin edits the same two columns on /clinic/settings. Two authorised
+ * editors, last write wins — and the clinic's own words should generally win, which is
+ * why this exists to PREFILL at onboarding rather than to own the field.
+ */
+export async function updateClinicPublicContact(
+  clinicId: string,
+  _prevState: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  await requireAdminCapability("clinics:edit");
+
+  const parsed = parsePublicContact(formData);
+  if (!parsed.ok) return { error: parsed.error };
+
+  const before = await getLiveClinic(clinicId);
+  if (!before) return { error: "Clinic not found." };
+
+  await setPublicContact(clinicId, parsed.values);
+
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    // No values in the summary: the address is the clinic's, and there is no reason to
+    // copy it into a second place that is read by other people.
+    summary: `Updated public address and opening hours for clinic “${before.name}”`,
+  });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  // The clinic's own settings page renders the same two columns.
+  revalidatePath("/clinic/settings");
+  return { saved: true };
+}
+
 export async function updateClinicContact(
   clinicId: string,
   _prevState: AdminActionState,

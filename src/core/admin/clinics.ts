@@ -19,6 +19,7 @@ import {
 import { notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import { unscoped } from "@/core/db/tenant-guard";
+import type { ClinicHour } from "@/core/lib/clinic-hours";
 
 /**
  * The COMPANY writing to a clinic's record — CORE per ADR-014.
@@ -82,6 +83,11 @@ export async function createClinicWithAdmin(input: {
   adminUsername: string;
   adminPasswordHash: string;
   adminFullName: string;
+  // Set at onboarding when the sales call already produced them, so the WhatsApp
+  // assistant can answer "where are you?" and "what are your timings?" from day one
+  // instead of sending every such message to a person until the clinic logs in.
+  publicAddress?: string | null;
+  openingHours?: ClinicHour[] | null;
 }): Promise<string> {
   return unscoped("super admin creates a clinic", async () =>
     db.transaction(async (tx) => {
@@ -91,6 +97,8 @@ export async function createClinicWithAdmin(input: {
           name: input.clinicName,
           modulesEnabled: input.modulesEnabled,
           assignedTo: input.assignedTo,
+          publicAddress: input.publicAddress ?? null,
+          openingHours: input.openingHours ?? null,
         })
         .returning({ id: clinics.id });
 

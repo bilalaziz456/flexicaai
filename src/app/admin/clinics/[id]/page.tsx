@@ -36,6 +36,7 @@ import { ClinicBilling } from "./clinic-billing";
 import { ClinicCapabilities } from "./clinic-capabilities";
 import { ClinicLogAccess } from "./clinic-log-access";
 import { FlashToast } from "@/core/ui/toast";
+import { ClinicPublicContact } from "./clinic-public-contact";
 import { StaffActions } from "./staff-actions";
 import { DeleteClinic } from "./delete-clinic";
 
@@ -247,6 +248,26 @@ export default async function ClinicDetailPage({
               timezone: clinic.timezone,
               notes: clinic.notes,
             }}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Patient-facing details</CardTitle>
+          <CardDescription>
+            What a patient is told over WhatsApp when they ask where the clinic is or
+            when it opens. Distinct from the billing address above, which prints on our
+            invoices to them. The clinic can change these itself; set them here so the
+            answers work from their first day.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ClinicPublicContact
+            clinicId={clinic.id}
+            address={clinic.publicAddress}
+            hours={clinic.openingHours}
+            readOnly={!canAdmin(admin, "clinics:edit")}
           />
         </CardContent>
       </Card>

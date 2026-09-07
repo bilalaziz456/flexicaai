@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useCallback, useState } from "react";
 import type { SpecialtyCatalogEntry } from "@/core/types/module";
 import type { TeamMemberOption } from "@/core/admin/assignment";
 import {
@@ -23,6 +23,7 @@ import { Label } from "@/core/ui/label";
 import { PasswordInput } from "@/core/ui/password-input";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 import { MAX_LOGO_BYTES } from "@/core/clinics/logo-limits";
+import { PublicContactFields } from "@/core/ui/public-contact-fields";
 
 export function CreateClinicForm({
   catalog,
@@ -37,8 +38,11 @@ export function CreateClinicForm({
   >(createClinicWithAdmin, {});
   const [assignee, setAssignee] = useState("");
   const [logoError, setLogoError] = useState<string | null>(null);
-  // Success redirects to the clinics list (flash toast); a failed create pops an
-  // error toast here, re-triggered per attempt.
+  // Success redirects to the new clinic's own page (flash toast there); a failed
+  // create pops an error toast here, re-triggered per attempt.
+  const [hoursInvalid, setHoursInvalid] = useState(false);
+  // Stable identity: the child reports validity from an effect.
+  const onInvalidChange = useCallback((v: boolean) => setHoursInvalid(v), []);
   const [errorNonce, setErrorNonce] = useState(0);
   useEffect(() => {
     if (state.error) setErrorNonce((n) => n + 1);
@@ -112,6 +116,24 @@ export function CreateClinicForm({
 
       <Card>
         <CardHeader>
+          <CardTitle>Patient-facing details (optional)</CardTitle>
+          <CardDescription>
+            What a patient is told when they ask over WhatsApp. Fill these in now if you
+            have them &mdash; the clinic can change them later.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <PublicContactFields
+            address={null}
+            hours={null}
+            onInvalidChange={onInvalidChange}
+            addressHint="Sent to a patient who asks where the clinic is. Not the billing address — this is the one patients are given."
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Clinic Admin</CardTitle>
           <CardDescription>
             The clinic owner&apos;s login. They add their own staff later.
@@ -147,7 +169,7 @@ export function CreateClinicForm({
       </Card>
 
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || hoursInvalid}>
           {pending ? "Creating…" : "Create clinic"}
         </Button>
         <Link

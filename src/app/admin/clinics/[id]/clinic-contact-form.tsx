@@ -5,7 +5,7 @@ import { updateClinicContact, type AdminActionState } from "@/app/admin/actions"
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
-import { Toast, SavedToast } from "@/core/ui/toast";
+import { SavedToast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 
 /** Curated timezones for the Pakistan + GCC rollout (see the deploy caveat). */

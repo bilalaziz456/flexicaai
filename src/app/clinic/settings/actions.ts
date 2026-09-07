@@ -2,19 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { setInvoicePapers, setPublicContact } from "@/core/clinics/settings";
-import { z } from "zod";
-import { zodErrorMessage } from "@/core/lib/zod-error";
-import { clinicHoursSchema } from "@/core/lib/clinic-hours";
+import { parsePublicContact } from "@/core/clinics/public-contact";
 import { requireWorkspace } from "@/core/auth/user";
 import { logActivity } from "@/core/audit/log";
 import { asCode, INVOICE_PAPER_ROWS, type InvoicePaperCode } from "@/core/db/vocabulary-seed";
 
 export type SettingsActionState = { error?: string; saved?: boolean };
-
-/** The address is free text; the hours arrive as JSON from the day editor. */
-const publicContactSchema = z.object({
-  publicAddress: z.string().max(400, "Address is too long (400 characters max)."),
-});
 
 /** Valid document paper sizes — must match the print frame's FORMATS. */
 
@@ -80,27 +73,9 @@ export async function setClinicPublicContact(
     return { error: "Only the clinic admin can change the clinic's public details." };
   }
 
-  const parsed = publicContactSchema.safeParse({
-    publicAddress: formData.get("publicAddress") ?? "",
-  });
-  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
-
-  // The hours are jsonb written from a browser, so they are validated, not trusted
-  // (conventions §4). Invalid JSON is a client bug, not something to store.
-  let rawHours: unknown = [];
-  try {
-    rawHours = JSON.parse(String(formData.get("openingHours") ?? "[]"));
-  } catch {
-    return { error: "Could not read the opening hours. Please try again." };
-  }
-  const hours = clinicHoursSchema.safeParse(rawHours);
-  if (!hours.success) return { error: zodErrorMessage(hours.error) };
-
-  const publicAddress = parsed.data.publicAddress.trim() || null;
-  // No windows at all means "not stated", which the reply omits — distinct from a
-  // clinic that IS open some days and closed others.
-  const openingHours = hours.data.length > 0 ? hours.data : null;
-  await setPublicContact(user.clinicId, { publicAddress, openingHours });
+  const parsed = parsePublicContact(formData);
+  if (!parsed.ok) return { error: parsed.error };
+  await setPublicContact(user.clinicId, parsed.values);
 
   await logActivity({
     action: "update",

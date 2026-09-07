@@ -5,7 +5,7 @@ import { uploadClinicLogo, removeClinicLogo, type AdminActionState } from "@/app
 import { LOGO_MAX_PX, MAX_LOGO_BYTES } from "@/core/clinics/logo-limits";
 import { downscaleImage } from "@/core/lib/image-resize";
 import { Button } from "@/core/ui/button";
-import { Toast, SavedToast } from "@/core/ui/toast";
+import { SavedToast } from "@/core/ui/toast";
 
 /**
  * Clinic logo upload (owner/super-admin/account-manager). Shows the current logo (via a
