@@ -29,7 +29,6 @@ export default async function AdminHome({
     status?: string;
     page?: string;
     size?: string;
-    updated?: string;
     deleted?: string;
     assigned?: string;
     billing?: string;
@@ -61,11 +60,7 @@ export default async function AdminHome({
   const billingFilter = sp.billing === "due" || sp.billing === "overdue" ? sp.billing : undefined;
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
-  const toastMessage = sp.updated
-    ? "Clinic updated."
-    : sp.deleted
-      ? "Clinic deleted."
-      : null;
+  const toastMessage = sp.deleted ? "Clinic deleted." : null;
 
   // The full financial panel is `metrics:view`; the due/overdue list is billing
   // VISIBILITY (owner + sales + billing + support see it). Feature 9.

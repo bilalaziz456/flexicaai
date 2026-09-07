@@ -107,6 +107,30 @@ export function Toast({
 }
 
 /**
+ * Success toast for a Server Action form.
+ *
+ * WHY THIS EXISTS: `useActionState` returns a NEW state object per submission but the
+ * SAME message text, and `Toast` pushes at most once per (variant, token, message).
+ * So the obvious `{state.saved ? <Toast message="Saved." /> : null}` fires on the first
+ * save and is SILENT on every save after it — the user presses the button, nothing
+ * happens, and they cannot tell whether it worked. Keying the token on the state
+ * object's identity re-fires it each time, which is what the caller meant.
+ */
+export function SavedToast({
+  state,
+  message,
+}: {
+  state: { saved?: boolean };
+  message: string;
+}) {
+  const [nonce, setNonce] = useState(0);
+  useEffect(() => {
+    if (state.saved) setNonce((n) => n + 1);
+  }, [state]);
+  return <Toast message={state.saved ? message : null} token={nonce} />;
+}
+
+/**
  * Compat flash — captures a server-passed success message (from a `?created=1` style
  * redirect), strips the query param via the History API (NOT `router.replace`, which
  * would remount and cut the toast short), and enqueues it once.

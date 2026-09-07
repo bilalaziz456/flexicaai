@@ -15,7 +15,7 @@ import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { DataTable, type Column } from "@/core/ui/data-table";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
-import { Toast } from "@/core/ui/toast";
+import { Toast, SavedToast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
@@ -164,8 +164,8 @@ export function ClinicBilling({
 
   return (
     <div className="space-y-6">
-      {priceState.saved ? <Toast message="Billing settings saved." /> : null}
-      {payState.saved ? <Toast message="Recorded." /> : null}
+      <SavedToast state={priceState} message="Billing settings saved." />
+      <SavedToast state={payState} message="Recorded." />
 
       {/* ---- Balance summary ---- */}
       <div className="grid gap-3 rounded-md border p-4 sm:grid-cols-4">

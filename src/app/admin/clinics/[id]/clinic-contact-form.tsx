@@ -5,7 +5,7 @@ import { updateClinicContact, type AdminActionState } from "@/app/admin/actions"
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
-import { Toast } from "@/core/ui/toast";
+import { Toast, SavedToast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 
 /** Curated timezones for the Pakistan + GCC rollout (see the deploy caveat). */
@@ -69,7 +69,7 @@ export function ClinicContactForm({
 
   return (
     <form action={formAction} className="space-y-4">
-      {state.saved ? <Toast message="Owner & contact saved." /> : null}
+      <SavedToast state={state} message="Owner & contact saved." />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">

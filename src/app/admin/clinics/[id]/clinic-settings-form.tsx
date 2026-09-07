@@ -9,7 +9,7 @@ import { Button } from "@/core/ui/button";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
-import { Toast } from "@/core/ui/toast";
+import { Toast, SavedToast } from "@/core/ui/toast";
 
 /**
  * A clinic's core super-admin settings in ONE save — name, specialties, optional
@@ -211,6 +211,7 @@ export function ClinicSettingsForm({
           {pending ? "Saving…" : "Save changes"}
         </Button>
       </div>
+      <SavedToast state={state} message="Clinic settings saved." />
       <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );

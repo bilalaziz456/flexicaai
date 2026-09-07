@@ -278,7 +278,12 @@ export async function updateClinic(
   revalidatePath("/admin");
   // Features + log access change what the clinic admin's own panel/nav shows.
   revalidatePath("/clinic", "layout");
-  redirect("/admin?updated=1");
+  // Save IN PLACE. This card sits on a long detail page beside a dozen others —
+  // billing, capabilities, contact, logo — every one of which returns { saved } and
+  // shows its own toast. Redirecting to the clinics list made this the only control
+  // that threw you off the page you were working on, and off the very clinic you were
+  // editing. The revalidate calls above already refresh what changed.
+  return { saved: true };
 }
 
 /**
