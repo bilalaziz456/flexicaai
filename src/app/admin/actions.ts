@@ -118,7 +118,7 @@ export async function createClinicWithAdmin(
 
   const passwordHash = await hashPassword(parsed.data.adminPassword);
 
-  let newClinicId: string | undefined;
+  let newClinicId: string;
   try {
     newClinicId = await createClinicWithAdminRecord({
       clinicName: parsed.data.clinicName,
@@ -139,7 +139,7 @@ export async function createClinicWithAdmin(
   // files are skipped silently (the clinic is already created; it can be fixed on
   // the clinic's Logo card).
   const logoFile = formData.get("logo");
-  if (newClinicId && logoFile instanceof File && logoFile.size > 0) {
+  if (logoFile instanceof File && logoFile.size > 0) {
     const ext = LOGO_EXT[logoFile.type];
     if (ext && logoFile.size <= MAX_LOGO_BYTES) {
       const key = await saveClinicFile(newClinicId, "logo", Buffer.from(await logoFile.arrayBuffer()), ext);
@@ -151,13 +151,17 @@ export async function createClinicWithAdmin(
     action: "create",
     entity: "clinic",
     entityId: newClinicId,
-    clinicId: newClinicId ?? null,
+    clinicId: newClinicId,
     summary: `Created clinic “${parsed.data.clinicName}” with admin @${parsed.data.adminUsername}`,
   });
-  // Back to the clinics list (refreshed so the new clinic appears immediately)
-  // with a flash flag so it can show a success toast.
+  // Land on the clinic itself, not the list. The form captures only a name, its
+  // modules and an admin login; the subscription, plan, billing, capabilities and
+  // contact details all live on the detail page, so creating one is never the end of
+  // the job — sending the user back to the list just makes them hunt for the row they
+  // have this second created. The list is still revalidated so it is fresh whenever
+  // they do return to it.
   revalidatePath("/admin");
-  redirect("/admin?created=1");
+  redirect(`/admin/clinics/${newClinicId}?created=1`);
 }
 
 const clinicSettingsSchema = z.object({

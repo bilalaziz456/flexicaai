@@ -35,16 +35,21 @@ import { ClinicContactForm } from "./clinic-contact-form";
 import { ClinicBilling } from "./clinic-billing";
 import { ClinicCapabilities } from "./clinic-capabilities";
 import { ClinicLogAccess } from "./clinic-log-access";
+import { FlashToast } from "@/core/ui/toast";
 import { StaffActions } from "./staff-actions";
 import { DeleteClinic } from "./delete-clinic";
 
 /** Super Admin: manage one clinic — toggle specialties, view its staff. */
 export default async function ClinicDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ created?: string }>;
 }) {
   const { id } = await params;
+  // Set by createClinicWithAdmin, which now lands here rather than on the list.
+  const { created } = await searchParams;
 
   const clinic = await getClinic(id);
 
@@ -72,6 +77,7 @@ export default async function ClinicDetailPage({
 
   return (
     <div className="space-y-6">
+      <FlashToast message={created ? "Clinic created." : null} />
       <div>
         <Breadcrumbs items={[{ label: "Clinics", href: "/admin" }, { label: clinic.name }]} />
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
