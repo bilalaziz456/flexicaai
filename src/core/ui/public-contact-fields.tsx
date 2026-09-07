@@ -202,9 +202,9 @@ export function PublicContactFields({
             <>
               Shown to patients who ask about timings. Add a second time for a day that
               closes in between &mdash; a Friday Jummah break, for example. This does{" "}
-              <span className="font-medium">not</span> decide when appointments can be
-              booked; that comes from each doctor&apos;s own working hours, and a patient
-              asking about timings is told both.
+              <span className="font-medium">not</span>{" "}
+              decide when appointments can be booked; that comes from each doctor&apos;s
+              own working hours, and a patient asking about timings is told both.
             </>
           )}
         </p>
