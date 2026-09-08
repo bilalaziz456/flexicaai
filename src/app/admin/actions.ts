@@ -41,6 +41,8 @@ import { PAYMENT_METHODS } from "@/core/finance/payment-methods";
 import { BILLING_CYCLE_CODES, CLINIC_PAYMENT_KIND_CODES } from "@/core/db/vocabulary-seed";
 import { parsePublicContact } from "@/core/clinics/public-contact";
 import { setPublicContact } from "@/core/clinics/settings";
+import { findOrCreateCity } from "@/core/clinics/cities";
+import { asProvinceCode } from "@/core/clinics/provinces";
 
 export type AdminActionState = { error?: string; saved?: boolean; needsTotp?: boolean };
 
@@ -500,6 +502,7 @@ const contactSchema = z.object({
     }),
   ownerPhone: z.string().trim().max(40).optional(),
   country: z.string().trim().max(80).optional(),
+  province: z.string().trim().max(40).optional(),
   city: z.string().trim().max(80).optional(),
   address: z.string().trim().max(400).optional(),
   region: z.string().trim().max(40).optional(),
@@ -568,6 +571,7 @@ export async function updateClinicContact(
     ownerEmail: formData.get("ownerEmail") ?? undefined,
     ownerPhone: formData.get("ownerPhone") ?? undefined,
     country: formData.get("country") ?? undefined,
+    province: formData.get("province") ?? undefined,
     city: formData.get("city") ?? undefined,
     address: formData.get("address") ?? undefined,
     region: formData.get("region") ?? undefined,
@@ -583,12 +587,20 @@ export async function updateClinicContact(
   const before = await getLiveClinic(clinicId);
   if (!before) return { error: "Clinic not found." };
 
+  // The city is TYPED, so it is resolved to a row here — found or created. A city
+  // without a province cannot be filed (two Mirpurs), so it is dropped rather than
+  // guessed at; the form asks for the province first for that reason.
+  const province = asProvinceCode(d.province);
+  const cityId =
+    province && d.city ? await findOrCreateCity(d.city, province) : null;
+
   await updateClinicFields(clinicId, {
       ownerName: orNull(d.ownerName),
       ownerEmail: orNull(d.ownerEmail),
       ownerPhone: orNull(d.ownerPhone),
       country: orNull(d.country),
-      city: orNull(d.city),
+      province,
+      cityId,
       address: orNull(d.address),
       region: orNull(d.region),
       timezone: d.timezone,

@@ -1,0 +1,202 @@
+import type { ProvinceCode } from "@/core/clinics/provinces";
+
+/**
+ * The cities a clinic is likely to be in — the seed for the `cities` table.
+ *
+ * WHY A SEED AND NOT AN API: this list answers "how many clinics do we have in Lahore",
+ * so it has to be stable and offline. A live geocoding lookup would make a company
+ * report depend on someone else's uptime, rate limit and licence terms, for data that
+ * changes on the timescale of a census.
+ *
+ * CURATED, NOT SCRAPED, and that is a deliberate trade. GeoNames' Pakistan dump has
+ * ~50k populated places, almost all of them villages no clinic will ever be in; the
+ * useful subset is the couple of hundred towns above roughly 50k people, which is what
+ * this is. It is not exhaustive and does not need to be — the city field FINDS OR
+ * CREATES, so a clinic in a town missing from here is one keystroke, not a blocked
+ * onboarding. What the seed buys is that everyone typing "Lahore" lands on the SAME
+ * row, which is the whole point of structuring the field.
+ *
+ * Ids are assigned by the database, unlike the vocabulary tables (ADR-027). Nothing
+ * branches on a city id — no code says `if (cityId === 3)` — so a re-seed in a
+ * different order cannot reclassify anything. The name + province pair is the identity
+ * that matters, and the migration makes it unique.
+ */
+export type CitySeed = { name: string; province: ProvinceCode };
+
+export const CITY_SEED: readonly CitySeed[] = [
+  // ── Islamabad Capital Territory ───────────────────────────────────────────
+  { name: "Islamabad", province: "ict" },
+
+  // ── Punjab ────────────────────────────────────────────────────────────────
+  { name: "Lahore", province: "punjab" },
+  { name: "Faisalabad", province: "punjab" },
+  { name: "Rawalpindi", province: "punjab" },
+  { name: "Multan", province: "punjab" },
+  { name: "Gujranwala", province: "punjab" },
+  { name: "Sargodha", province: "punjab" },
+  { name: "Sialkot", province: "punjab" },
+  { name: "Bahawalpur", province: "punjab" },
+  { name: "Sheikhupura", province: "punjab" },
+  { name: "Jhang", province: "punjab" },
+  { name: "Rahim Yar Khan", province: "punjab" },
+  { name: "Gujrat", province: "punjab" },
+  { name: "Kasur", province: "punjab" },
+  { name: "Sahiwal", province: "punjab" },
+  { name: "Okara", province: "punjab" },
+  { name: "Wah Cantonment", province: "punjab" },
+  { name: "Dera Ghazi Khan", province: "punjab" },
+  { name: "Chiniot", province: "punjab" },
+  { name: "Kamoke", province: "punjab" },
+  { name: "Hafizabad", province: "punjab" },
+  { name: "Muzaffargarh", province: "punjab" },
+  { name: "Khanewal", province: "punjab" },
+  { name: "Mandi Bahauddin", province: "punjab" },
+  { name: "Jhelum", province: "punjab" },
+  { name: "Attock", province: "punjab" },
+  { name: "Vehari", province: "punjab" },
+  { name: "Burewala", province: "punjab" },
+  { name: "Kot Addu", province: "punjab" },
+  { name: "Daska", province: "punjab" },
+  { name: "Gojra", province: "punjab" },
+  { name: "Mianwali", province: "punjab" },
+  { name: "Bhalwal", province: "punjab" },
+  { name: "Toba Tek Singh", province: "punjab" },
+  { name: "Chishtian", province: "punjab" },
+  { name: "Pakpattan", province: "punjab" },
+  { name: "Narowal", province: "punjab" },
+  { name: "Layyah", province: "punjab" },
+  { name: "Bahawalnagar", province: "punjab" },
+  { name: "Lodhran", province: "punjab" },
+  { name: "Rajanpur", province: "punjab" },
+  { name: "Chakwal", province: "punjab" },
+  { name: "Jaranwala", province: "punjab" },
+  { name: "Kharian", province: "punjab" },
+  { name: "Nankana Sahib", province: "punjab" },
+  { name: "Ahmadpur East", province: "punjab" },
+  { name: "Khushab", province: "punjab" },
+  { name: "Wazirabad", province: "punjab" },
+  { name: "Arifwala", province: "punjab" },
+  { name: "Haroonabad", province: "punjab" },
+  { name: "Shakargarh", province: "punjab" },
+  { name: "Murree", province: "punjab" },
+  { name: "Bhakkar", province: "punjab" },
+  { name: "Sadiqabad", province: "punjab" },
+  { name: "Kabirwala", province: "punjab" },
+  { name: "Mian Channu", province: "punjab" },
+  { name: "Talagang", province: "punjab" },
+  { name: "Pattoki", province: "punjab" },
+  { name: "Hasilpur", province: "punjab" },
+  { name: "Kamalia", province: "punjab" },
+  { name: "Muridke", province: "punjab" },
+  { name: "Sambrial", province: "punjab" },
+  { name: "Taxila", province: "punjab" },
+  { name: "Jalalpur Jattan", province: "punjab" },
+  { name: "Depalpur", province: "punjab" },
+  { name: "Fort Abbas", province: "punjab" },
+  { name: "Pindi Bhattian", province: "punjab" },
+  { name: "Shorkot", province: "punjab" },
+  { name: "Chunian", province: "punjab" },
+  { name: "Sarai Alamgir", province: "punjab" },
+
+  // ── Sindh ─────────────────────────────────────────────────────────────────
+  { name: "Karachi", province: "sindh" },
+  { name: "Hyderabad", province: "sindh" },
+  { name: "Sukkur", province: "sindh" },
+  { name: "Larkana", province: "sindh" },
+  { name: "Shaheed Benazirabad", province: "sindh" },
+  { name: "Mirpur Khas", province: "sindh" },
+  { name: "Jacobabad", province: "sindh" },
+  { name: "Shikarpur", province: "sindh" },
+  { name: "Khairpur", province: "sindh" },
+  { name: "Dadu", province: "sindh" },
+  { name: "Tando Allahyar", province: "sindh" },
+  { name: "Tando Adam", province: "sindh" },
+  { name: "Badin", province: "sindh" },
+  { name: "Thatta", province: "sindh" },
+  { name: "Ghotki", province: "sindh" },
+  { name: "Kandhkot", province: "sindh" },
+  { name: "Kashmore", province: "sindh" },
+  { name: "Umerkot", province: "sindh" },
+  { name: "Sanghar", province: "sindh" },
+  { name: "Matiari", province: "sindh" },
+  { name: "Naushahro Feroze", province: "sindh" },
+  { name: "Jamshoro", province: "sindh" },
+  { name: "Moro", province: "sindh" },
+  { name: "Rohri", province: "sindh" },
+  { name: "Shahdadkot", province: "sindh" },
+  { name: "Kotri", province: "sindh" },
+  { name: "Tando Muhammad Khan", province: "sindh" },
+  { name: "Sehwan", province: "sindh" },
+  { name: "Mehar", province: "sindh" },
+  { name: "Nagarparkar", province: "sindh" },
+  { name: "Mithi", province: "sindh" },
+
+  // ── Khyber Pakhtunkhwa ────────────────────────────────────────────────────
+  { name: "Peshawar", province: "kpk" },
+  { name: "Mardan", province: "kpk" },
+  { name: "Mingora", province: "kpk" },
+  { name: "Kohat", province: "kpk" },
+  { name: "Abbottabad", province: "kpk" },
+  { name: "Dera Ismail Khan", province: "kpk" },
+  { name: "Nowshera", province: "kpk" },
+  { name: "Charsadda", province: "kpk" },
+  { name: "Swabi", province: "kpk" },
+  { name: "Mansehra", province: "kpk" },
+  { name: "Bannu", province: "kpk" },
+  { name: "Haripur", province: "kpk" },
+  { name: "Timergara", province: "kpk" },
+  { name: "Batkhela", province: "kpk" },
+  { name: "Hangu", province: "kpk" },
+  { name: "Karak", province: "kpk" },
+  { name: "Chitral", province: "kpk" },
+  { name: "Tank", province: "kpk" },
+  { name: "Lakki Marwat", province: "kpk" },
+  { name: "Daggar", province: "kpk" },
+  { name: "Takht Bhai", province: "kpk" },
+  { name: "Topi", province: "kpk" },
+  { name: "Havelian", province: "kpk" },
+  { name: "Dir", province: "kpk" },
+  { name: "Parachinar", province: "kpk" },
+  { name: "Battagram", province: "kpk" },
+  { name: "Alpuri", province: "kpk" },
+
+  // ── Balochistan ───────────────────────────────────────────────────────────
+  { name: "Quetta", province: "balochistan" },
+  { name: "Turbat", province: "balochistan" },
+  { name: "Khuzdar", province: "balochistan" },
+  { name: "Chaman", province: "balochistan" },
+  { name: "Hub", province: "balochistan" },
+  { name: "Sibi", province: "balochistan" },
+  { name: "Zhob", province: "balochistan" },
+  { name: "Gwadar", province: "balochistan" },
+  { name: "Dera Murad Jamali", province: "balochistan" },
+  { name: "Dera Allah Yar", province: "balochistan" },
+  { name: "Loralai", province: "balochistan" },
+  { name: "Mastung", province: "balochistan" },
+  { name: "Kharan", province: "balochistan" },
+  { name: "Pasni", province: "balochistan" },
+  { name: "Nushki", province: "balochistan" },
+  { name: "Kalat", province: "balochistan" },
+  { name: "Usta Muhammad", province: "balochistan" },
+  { name: "Bela", province: "balochistan" },
+  { name: "Jiwani", province: "balochistan" },
+
+  // ── Azad Jammu & Kashmir ──────────────────────────────────────────────────
+  { name: "Muzaffarabad", province: "ajk" },
+  { name: "Mirpur", province: "ajk" },
+  { name: "Kotli", province: "ajk" },
+  { name: "Rawalakot", province: "ajk" },
+  { name: "Bhimber", province: "ajk" },
+  { name: "Bagh", province: "ajk" },
+  { name: "Pallandri", province: "ajk" },
+  { name: "Hattian Bala", province: "ajk" },
+
+  // ── Gilgit-Baltistan ──────────────────────────────────────────────────────
+  { name: "Gilgit", province: "gb" },
+  { name: "Skardu", province: "gb" },
+  { name: "Chilas", province: "gb" },
+  { name: "Gahkuch", province: "gb" },
+  { name: "Khaplu", province: "gb" },
+  { name: "Astore", province: "gb" },
+  { name: "Karimabad", province: "gb" },
+];

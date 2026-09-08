@@ -951,6 +951,27 @@ these for churn-risk + usage/cost anomaly flags.
   Validated on the way in by `core/lib/clinic-hours.ts` (jsonb is not an exemption,
   conventions §4), capped at 21 windows. Still display-only; `checkDoctorSlot` is
   untouched.
+- Migrations **`0103`–`0104`** add the `cities` table and replace the free-text
+  `clinics.city` with `clinics.province` (a `ProvinceCode`) + `clinics.city_id` (FK,
+  `set null`). `cities` is company-global — `(id, name, province, is_active)`, no
+  `clinic_id`, so the tenant guard ignores it — with **UNIQUE (name, province)**, which
+  is the real identity: two Mirpurs in different provinces are two places, and two rows
+  for ONE place would split its clinic count in half and both halves would look
+  plausible. `0103` seeds 162 towns from `core/db/city-seed.ts`.
+  **Why the column had to go:** "how many clinics are in Lahore" cannot be answered over
+  free text, where "Lahore", "lahore" and "LHR" are three different answers.
+  **Province is a CONSTANT, not a lookup table** (`core/clinics/provinces.ts`) — ADR-027's
+  test is whether a bad value produces a wrong FIGURE silently, and a bad province
+  produces a wrong COUNT, which is visible; the list also changes about once a decade.
+  **The write path FINDS OR CREATES** (`core/clinics/cities.ts`), matching
+  case-insensitively so "lahore" reuses the seeded row. The seed covers towns above
+  roughly 50k people and Pakistan has many clinics below that line; a dropdown that
+  could not express those would push whoever is onboarding into picking the nearest big
+  city, which is worse than free text because it produces a confident wrong number
+  instead of an obviously missing one.
+  **`0104` back-fills before it drops**, then RAISES if any `city` value has no matching
+  row rather than discarding it — the column was NULL everywhere here, but a migration
+  must not assume that of every environment. `scripts/test-clinic-geo.ts`.
 - Migration **`0102`** adds `clinics.invoice_papers_enabled` text[] (default all three)
   — which paper sizes a clinic's print screens OFFER, distinct from `invoice_paper`,
   which is the one they OPEN at. A clinic with no A5 printer had no way to stop being

@@ -17,6 +17,12 @@ import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { Pagination } from "@/core/ui/pagination";
 import { FlashToast } from "@/core/ui/toast";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
+import {
+  countClinicsWithoutCity,
+  getClinicCountsByCity,
+  getClinicCountsByProvince,
+} from "@/core/clinics/cities";
+import { asProvinceCode, PROVINCES, provinceLabel } from "@/core/clinics/provinces";
 
 const SPECIALTY_NAME = new Map(SPECIALTY_CATALOG.map((s) => [s.id, s.name]));
 
@@ -32,12 +38,18 @@ export default async function AdminHome({
     deleted?: string;
     assigned?: string;
     billing?: string;
+    province?: string;
+    city?: string;
   }>;
 }) {
   const user = await requireRole("super_admin");
   const sp = await searchParams;
   const query = sp.q?.trim();
   const statusFilter = sp.status && isClinicStatus(sp.status) ? sp.status : undefined;
+  // Narrowed, never cast: an unrecognised province drops its condition rather than
+  // matching nothing and reading as "no clinics there".
+  const provinceFilter = asProvinceCode(sp.province) ?? undefined;
+  const cityFilter = Number.isInteger(Number(sp.city)) && Number(sp.city) > 0 ? Number(sp.city) : undefined;
 
   // VISIBILITY SCOPE: owner + super_admin see every clinic; other team members
   // (sales / support / billing) see ONLY clinics assigned to them.
@@ -86,6 +98,8 @@ export default async function AdminHome({
     status: statusFilter,
     assignedTo,
     billingIds,
+    province: provinceFilter,
+    cityId: cityFilter,
   });
   const [{ rows: clinicRows, total }, metrics, team] = await Promise.all([
     listClinicsPage(where, { offset: pageOffset(page, pageSize), limit: pageSize }),
@@ -96,6 +110,14 @@ export default async function AdminHome({
       ? getCompanyMetrics(seesAll ? { withCost: showRevenue } : { assignedTo: user.id, withCost: showRevenue })
       : Promise.resolve(null),
     seesAll ? listAssignableTeam() : Promise.resolve([]),
+  ]);
+  // WHERE the clinics are. Reported next to the list rather than on the Overview: this
+  // is the page you are already on when you ask "how many do we have in Lahore", and
+  // each row links straight to that filtered list.
+  const [cityCounts, provinceCounts, noCity] = await Promise.all([
+    getClinicCountsByCity(500),
+    getClinicCountsByProvince(),
+    countClinicsWithoutCity(),
   ]);
   const allClinics = clinicRows.map((r) => ({
     ...r.clinic,
@@ -199,11 +221,73 @@ export default async function AdminHome({
         </div>
       ) : null}
 
+      {/* WHERE the clinics are. Every row is a link into the filtered list, so the
+          count and the clinics behind it can never disagree — they are one query with
+          one predicate. */}
+      {cityCounts.length > 0 ? (
+        <div className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2">
+          <div>
+            <div className="mb-2 text-sm font-medium">Clinics by city</div>
+            <ul className="space-y-1 text-sm">
+              {cityCounts.slice(0, 8).map((c) => (
+                <li key={c.cityId} className="flex items-center justify-between gap-3">
+                  <Link
+                    href={`/admin?city=${c.cityId}`}
+                    className="truncate text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                  >
+                    {c.city}
+                    <span className="ml-1 text-xs">· {provinceLabel(c.province)}</span>
+                  </Link>
+                  <span className="tabular-nums">{c.clinics}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <div className="mb-2 text-sm font-medium">Clinics by province</div>
+            <ul className="space-y-1 text-sm">
+              {provinceCounts.map((p) => (
+                <li key={p.province} className="flex items-center justify-between gap-3">
+                  <Link
+                    href={`/admin?province=${p.province}`}
+                    className="truncate text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                  >
+                    {provinceLabel(p.province)}
+                  </Link>
+                  <span className="tabular-nums">{p.clinics}</span>
+                </li>
+              ))}
+            </ul>
+            {/* Stated rather than hidden: without it every figure above reads as the
+                whole picture when it is only the part we have recorded. */}
+            {noCity > 0 ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {noCity} clinic{noCity === 1 ? "" : "s"} with no city recorded — not counted above.
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : noCity > 0 ? (
+        <p className="rounded-lg border p-3 text-sm text-muted-foreground">
+          No clinic has a city recorded yet. Set one on a clinic&apos;s Owner &amp; contact
+          card and the city and province breakdowns appear here.
+        </p>
+      ) : null}
+
       <ClinicsFilters
         q={query ?? ""}
         status={statusFilter ?? ""}
         billing={billingFilter ?? ""}
         assigned={assignedFilter ?? ""}
+        province={provinceFilter ?? ""}
+        city={cityFilter ? String(cityFilter) : ""}
+        provinceOptions={[
+          { value: "", label: "All provinces" },
+          ...PROVINCES.map((p) => ({ value: p.code, label: p.label })),
+        ]}
+        // Only cities that actually hold a clinic — the seed is 162 long and a filter
+        // that can only ever return zero is noise.
+        cityOptions={cityCounts.map((c) => ({ id: c.cityId, name: c.city, province: c.province }))}
         statusOptions={[
           { value: "", label: "All statuses" },
           ...CLINIC_STATUSES.map((s) => ({ value: s, label: vocabularyLabel("clinic_statuses", s) })),

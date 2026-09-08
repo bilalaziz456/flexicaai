@@ -8,6 +8,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  serial,
   text,
   timestamp,
   uniqueIndex,
@@ -50,6 +51,40 @@ import {
  * Tenants. `modulesEnabled` is the array the specialty checkboxes read/write —
  * e.g. ['dental']. Core code checks this list but never hardcodes a specialty.
  */
+/**
+ * Cities a clinic can be in — COMPANY-GLOBAL reference data, so no `clinic_id` and the
+ * tenant guard ignores it.
+ *
+ * Exists so "how many clinics do we have in Lahore" is a GROUP BY rather than a guess
+ * over free text, where "Lahore", "lahore" and "LHR" are three different answers. The
+ * seed (`core/db/city-seed.ts`) covers the towns a clinic is plausibly in; the write
+ * path FINDS OR CREATES, so a clinic somewhere smaller is never blocked from onboarding
+ * — it just adds a row that everyone after them reuses.
+ *
+ * UNIQUE on (name, province), which is the real identity: two Mirpurs in different
+ * provinces are two cities, and two rows for one place would split its count in half —
+ * exactly the failure this table exists to prevent.
+ */
+export const cities = pgTable(
+  "cities",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    // A `ProvinceCode` from core/clinics/provinces.ts. Plain text, not a lookup: the
+    // list changes once a decade and a wrong value costs a wrong count, not a wrong
+    // figure (ADR-027's own test for what earns a reference table).
+    province: text("province").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("cities_name_province_unique").on(t.name, t.province),
+    index("cities_province_idx").on(t.province),
+  ],
+);
+
+export type City = typeof cities.$inferSelect;
+
 export const clinics = pgTable(
   "clinics",
   {
@@ -205,7 +240,11 @@ export const clinics = pgTable(
     ownerEmail: text("owner_email"),
     ownerPhone: text("owner_phone"),
     country: text("country"),
-    city: text("city"),
+    // WHERE the clinic is, structured so it can be counted and filtered. `province` is
+    // a ProvinceCode; `city_id` points at the shared list. Replaces a free-text `city`
+    // that was never populated and could not be grouped.
+    province: text("province"),
+    cityId: integer("city_id").references(() => cities.id, { onDelete: "set null" }),
     address: text("address"),
     timezone: text("timezone").notNull().default("Asia/Karachi"),
     region: text("region"), // intended data region (compliance)

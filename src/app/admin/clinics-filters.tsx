@@ -24,6 +24,10 @@ export function ClinicsFilters({
   status,
   billing,
   assigned,
+  province,
+  city,
+  provinceOptions,
+  cityOptions,
   statusOptions,
   showBilling,
   showManager,
@@ -33,6 +37,10 @@ export function ClinicsFilters({
   status: string;
   billing: string;
   assigned: string;
+  province: string;
+  city: string;
+  provinceOptions: Opt[];
+  cityOptions: { id: number; name: string; province: string }[];
   statusOptions: Opt[];
   showBilling: boolean;
   showManager: boolean;
@@ -44,17 +52,25 @@ export function ClinicsFilters({
   const [statusV, setStatusV] = useState(status);
   const [billingV, setBillingV] = useState(billing);
   const [assignedV, setAssignedV] = useState(assigned);
+  const [provinceV, setProvinceV] = useState(province);
+  const [cityV, setCityV] = useState(city);
 
-  function push(next: Partial<{ q: string; status: string; billing: string; assigned: string }>) {
+  function push(
+    next: Partial<{ q: string; status: string; billing: string; assigned: string; province: string; city: string }>,
+  ) {
     const qq = next.q ?? query;
     const s = next.status ?? statusV;
     const b = next.billing ?? billingV;
     const a = next.assigned ?? assignedV;
+    const pr = next.province ?? provinceV;
+    const ci = next.city ?? cityV;
     const params = new URLSearchParams();
     if (qq.trim()) params.set("q", qq.trim());
     if (s) params.set("status", s);
     if (b) params.set("billing", b);
     if (a) params.set("assigned", a);
+    if (pr) params.set("province", pr);
+    if (ci) params.set("city", ci);
     router.replace(params.toString() ? `${pathname}?${params.toString()}` : pathname, { scroll: false });
   }
 
@@ -81,10 +97,43 @@ export function ClinicsFilters({
     { value: "unassigned", label: "Unassigned" },
     ...team.map((m) => ({ value: m.id, label: m.name })),
   ];
+  // Only cities that HAVE clinics are offered — a filter that can only return zero is
+  // noise, and the seeded list is 162 entries long.
+  const cityChoices: Opt[] = [
+    { value: "", label: "All cities" },
+    ...cityOptions
+      .filter((c) => !provinceV || c.province === provinceV)
+      .map((c) => ({ value: String(c.id), label: c.name })),
+  ];
   const asItems = (o: Opt[]) => Object.fromEntries(o.map((x) => [x.value, x.label]));
 
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
+      <FilterSelect
+        label="Province"
+        ariaLabel="Filter by province"
+        value={provinceV}
+        items={asItems(provinceOptions)}
+        options={provinceOptions}
+        onChange={(v) => {
+          setProvinceV(v);
+          // Changing province clears the city: a city filter from another province
+          // would return nothing and read as "no clinics there".
+          setCityV("");
+          push({ province: v, city: "" });
+        }}
+      />
+      <FilterSelect
+        label="City"
+        ariaLabel="Filter by city"
+        value={cityV}
+        items={asItems(cityChoices)}
+        options={cityChoices}
+        onChange={(v) => {
+          setCityV(v);
+          push({ city: v });
+        }}
+      />
       <FilterSelect
         label="Status"
         ariaLabel="Filter by status"

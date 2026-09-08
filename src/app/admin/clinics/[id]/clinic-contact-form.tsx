@@ -7,6 +7,8 @@ import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { SavedToast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
+import { PROVINCES } from "@/core/clinics/provinces";
+import type { CityOption } from "@/core/clinics/cities";
 
 /** Curated timezones for the Pakistan + GCC rollout (see the deploy caveat). */
 const TIMEZONES = [
@@ -32,6 +34,7 @@ export type ClinicContact = {
   ownerEmail: string | null;
   ownerPhone: string | null;
   country: string | null;
+  province: string | null;
   city: string | null;
   address: string | null;
   region: string | null;
@@ -46,9 +49,11 @@ export type ClinicContact = {
 export function ClinicContactForm({
   clinicId,
   contact,
+  cityOptions,
 }: {
   clinicId: string;
   contact: ClinicContact;
+  cityOptions: CityOption[];
 }) {
   const action = updateClinicContact.bind(null, clinicId);
   const [state, formAction, pending] = useActionState<AdminActionState, FormData>(
@@ -64,6 +69,12 @@ export function ClinicContactForm({
     city: contact.city ?? "",
     country: contact.country ?? "",
   });
+  const [province, setProvince] = useState(contact.province ?? "");
+  // Suggest only the chosen province's cities: "Mirpur" exists in both AJK and Sindh,
+  // and an unfiltered list would let someone pick the wrong one without noticing.
+  const suggestions = province
+    ? cityOptions.filter((c) => c.province === province)
+    : cityOptions;
   const on = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setF((s) => ({ ...s, [k]: e.target.value }));
 
@@ -85,8 +96,39 @@ export function ClinicContactForm({
           <Input id="ownerEmail" name="ownerEmail" type="email" value={f.ownerEmail} onChange={on("ownerEmail")} />
         </div>
         <div className="space-y-2">
+          <Label htmlFor="province">Province</Label>
+          <select
+            id="province"
+            name="province"
+            value={province}
+            onChange={(e) => setProvince(e.target.value)}
+            className={selectClass}
+          >
+            <option value="">—</option>
+            {PROVINCES.map((p) => (
+              <option key={p.code} value={p.code}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-2">
           <Label htmlFor="city">City</Label>
-          <Input id="city" name="city" value={f.city} onChange={on("city")} />
+          {/* A combobox, not a plain select: the seeded list covers towns above roughly
+              50k people, and plenty of clinics are in smaller ones. Typing a new name
+              creates the city; the suggestions make sure everyone in Lahore picks the
+              same row rather than inventing a second spelling. */}
+          <Input id="city" name="city" list="city-options" value={f.city} onChange={on("city")} autoComplete="off" />
+          <datalist id="city-options">
+            {suggestions.map((c) => (
+              <option key={c.id} value={c.name} />
+            ))}
+          </datalist>
+          <p className="text-xs text-muted-foreground">
+            {province
+              ? "Pick from the list, or type a town that isn't there yet."
+              : "Choose a province first to see its cities."}
+          </p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="country">Country</Label>

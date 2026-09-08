@@ -39,6 +39,7 @@ import { FlashToast } from "@/core/ui/toast";
 import { ClinicPublicContact } from "./clinic-public-contact";
 import { StaffActions } from "./staff-actions";
 import { DeleteClinic } from "./delete-clinic";
+import { getCityName, listCities } from "@/core/clinics/cities";
 
 /** Super Admin: manage one clinic — toggle specialties, view its staff. */
 export default async function ClinicDetailPage({
@@ -72,6 +73,8 @@ export default async function ClinicDetailPage({
     ? `/api/admin/clinics/${clinic.id}/logo?v=${clinic.updatedAt.getTime()}`
     : null;
   const team = await listAssignableTeam();
+  // The city list feeds the combobox; the name renders whatever this clinic already has.
+  const [cityOptions, cityName] = await Promise.all([listCities(), getCityName(clinic.cityId)]);
 
   // Tenant-scoped: this clinic's staff only (byClinic = the isolation boundary).
   const staff = await listAllClinicUsers(id);
@@ -236,13 +239,15 @@ export default async function ClinicDetailPage({
         </CardHeader>
         <CardContent>
           <ClinicContactForm
+            cityOptions={cityOptions}
             clinicId={clinic.id}
             contact={{
               ownerName: clinic.ownerName,
               ownerEmail: clinic.ownerEmail,
               ownerPhone: clinic.ownerPhone,
               country: clinic.country,
-              city: clinic.city,
+              province: clinic.province,
+              city: cityName,
               address: clinic.address,
               region: clinic.region,
               timezone: clinic.timezone,

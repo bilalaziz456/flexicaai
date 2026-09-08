@@ -126,6 +126,9 @@ export type ClinicListFilters = {
   /** Name search. */
   q?: string;
   status?: ClinicStatusCode;
+  /** Narrows the list to one province or one city — how "how many are in Lahore" is answered. */
+  province?: string;
+  cityId?: number;
   /**
    * Restricts to one account manager. `null` means UNASSIGNED specifically — distinct
    * from `undefined`, which means "don't filter by manager at all".
@@ -147,6 +150,8 @@ export function clinicListWhere(filters: ClinicListFilters): SQL | undefined {
     notDeleted(clinics.deletedAt),
     filters.q ? ilike(clinics.name, `%${filters.q}%`) : undefined,
     filters.status ? eq(clinics.status, filters.status) : undefined,
+    filters.province ? eq(clinics.province, filters.province) : undefined,
+    filters.cityId ? eq(clinics.cityId, filters.cityId) : undefined,
     filters.assignedTo === null
       ? isNull(clinics.assignedTo)
       : filters.assignedTo

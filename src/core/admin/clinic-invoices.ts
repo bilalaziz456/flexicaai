@@ -5,7 +5,8 @@ import { db } from "@/core/db";
 import { unscoped } from "@/core/db/tenant-guard";
 import { notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, restoreValues, softDeleteValues } from "@/core/db/soft-delete";
-import { clinicInvoices, clinics, companySettings } from "@/core/db/schema";
+import { clinicInvoices, cities,
+  clinics, companySettings } from "@/core/db/schema";
 import {
   bucketLabel,
   nextBucket,
@@ -221,12 +222,15 @@ export async function getClinicInvoiceForPrint(id: string): Promise<ClinicInvoic
         ownerName: clinics.ownerName,
         ownerEmail: clinics.ownerEmail,
         ownerPhone: clinics.ownerPhone,
-        city: clinics.city,
+        city: cities.name,
         country: clinics.country,
         address: clinics.address,
       })
       .from(clinicInvoices)
       .innerJoin(clinics, eq(clinics.id, clinicInvoices.clinicId))
+      // LEFT: a clinic with no city recorded still gets an invoice; the bill-to line
+      // simply omits the city, as it did when the column was free text and empty.
+      .leftJoin(cities, eq(cities.id, clinics.cityId))
       .where(and(notDeleted(clinicInvoices.deletedAt), eq(clinicInvoices.id, id)))
       .limit(1);
     if (!row) return null;
