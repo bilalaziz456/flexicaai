@@ -19,6 +19,7 @@ import { FlashToast } from "@/core/ui/toast";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 import {
   countClinicsWithoutCity,
+  getCityName,
   getClinicCountsByCity,
   getClinicCountsByProvince,
 } from "@/core/clinics/cities";
@@ -114,11 +115,32 @@ export default async function AdminHome({
   // WHERE the clinics are. Reported next to the list rather than on the Overview: this
   // is the page you are already on when you ask "how many do we have in Lahore", and
   // each row links straight to that filtered list.
-  const [cityCounts, provinceCounts, noCity] = await Promise.all([
+  const [cityCounts, provinceCounts, noCity, filteredCityName] = await Promise.all([
     getClinicCountsByCity(500),
     getClinicCountsByProvince(),
     countClinicsWithoutCity(),
+    // Not read from cityCounts: a filter that matches nothing means the city is not in
+    // that list at all, which is exactly when the message is needed.
+    cityFilter ? getCityName(cityFilter) : Promise.resolve(null),
   ]);
+
+  // An empty list after a LOCATION filter is ambiguous in a way the others are not:
+  // "no clinic is in Sindh" and "no clinic has a province recorded" look identical, and
+  // the second is the true one until someone fills the field in. Say which.
+  const place = filteredCityName ?? (provinceFilter ? provinceLabel(provinceFilter) : null);
+  const otherFilters = Boolean(query || statusFilter || assignedFilter || billingFilter);
+  const unrecorded =
+    noCity > 0
+      ? ` ${noCity} clinic${noCity === 1 ? " has" : "s have"} no location recorded yet.`
+      : "";
+  const emptyMessage = place
+    ? otherFilters
+      // Other filters are also on, so the location may not be why it is empty.
+      ? "No clinics match the current filters."
+      : `No clinic is recorded in ${place}.${unrecorded}`
+    : otherFilters
+      ? "No clinics match the current filters."
+      : "No clinics yet. Create the first one to enable its specialties and add its admin.";
   const allClinics = clinicRows.map((r) => ({
     ...r.clinic,
     assigneeName: r.assigneeName ?? r.assigneeUsername,
@@ -269,8 +291,9 @@ export default async function AdminHome({
         </div>
       ) : noCity > 0 ? (
         <p className="rounded-lg border p-3 text-sm text-muted-foreground">
-          No clinic has a city recorded yet. Set one on a clinic&apos;s Owner &amp; contact
-          card and the city and province breakdowns appear here.
+          None of the {noCity} clinics has a city recorded yet. Set one on a
+          clinic&apos;s Owner &amp; contact card and the breakdowns by city and province
+          appear here.
         </p>
       ) : null}
 
@@ -311,11 +334,7 @@ export default async function AdminHome({
 
       <ClinicsTable
         showBilling={showBilling}
-        empty={
-          query || statusFilter || assignedFilter
-            ? "No clinics match the current filters."
-            : "No clinics yet. Create the first one to enable its specialties and add its admin."
-        }
+        empty={emptyMessage}
         rows={allClinics.map((c) => ({
           id: c.id,
           name: c.name,
