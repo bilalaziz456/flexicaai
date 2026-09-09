@@ -29,8 +29,11 @@ import {
   whatsappMessages,
   invoices,
   doctorPayouts,
+  clinicPayments,
+  visits,
 } from "@/core/db/schema";
 import { backfillClinicSales } from "@/core/sales/ledger";
+import { paymentKindId } from "@/core/db/vocabulary-seed";
 import { queueSessionKey } from "@/core/appointments/queue";
 import type { DayAvailability } from "@/core/lib/availability";
 
@@ -44,6 +47,18 @@ const int = (lo: number, hi: number) => lo + Math.floor(rnd() * (hi - lo + 1));
 const chance = (p: number) => rnd() < p;
 
 const NOW = new Date(); // app "today" — everything is relative to this
+// Subscription history the admin scorecard reads. 14 months so every rating window
+// up to 12 has real data behind it — a shorter run leaves the wider bars blank,
+// which is correct but shows nothing.
+const SUBSCRIPTION_MONTHS = 14;
+const SUBSCRIPTION_PRICE = 15000; // PKR / month
+const SUBSCRIPTION_START = (() => {
+  const d = new Date(NOW);
+  d.setMonth(d.getMonth() - (SUBSCRIPTION_MONTHS - 1));
+  d.setDate(1);
+  d.setHours(9, 0, 0, 0);
+  return d;
+})();
 const dayMs = 86400000;
 const addDays = (d: Date, n: number) => new Date(d.getTime() + n * dayMs);
 const at = (d: Date, h: number, m: number) => {
@@ -68,6 +83,9 @@ async function wipePrior() {
     // users don't cascade from clinic (set null) — delete their sessions + rows first.
     await db.execute(sql`delete from sessions where user_id in (select id from users where clinic_id = ${r.id})`);
     await db.execute(sql`delete from users where clinic_id = ${r.id}`);
+    // clinic_payments cascade from clinics, but say so explicitly: they are the
+    // admin-side ledger and a stale row would distort the next run's scorecard.
+    await db.execute(sql`delete from clinic_payments where clinic_id = ${r.id}`);
     // everything else cascades from clinics on delete; expense_categories too.
     await db.execute(sql`delete from clinics where id = ${r.id}`);
   }
@@ -124,6 +142,14 @@ async function main() {
       avgVisitValue: 3000,
       invoicePrefix: "INV-",
       nextInvoiceNo: 1,
+      // A paying subscriber since 14 months ago. Both are required for the admin
+      // "Clinic analytics" scorecard: with no price a clinic is never billed, and
+      // billing runs from `activated_at`, so without it there are no months to rate.
+      monthlyPrice: SUBSCRIPTION_PRICE,
+      activatedAt: SUBSCRIPTION_START,
+      status: "active",
+      billingCycle: "monthly",
+      graceDays: 7,
     })
     .returning({ id: clinics.id });
   const clinicId = clinic.id;
@@ -220,6 +246,7 @@ async function main() {
         gender: pick(["male", "female"]),
         reference: chance(0.5) ? pick(["Walk-in", "Referral: Dr. Adeel", "Facebook ad", "Google", "Existing patient"]) : null,
         dataConsent: chance(0.7),
+        createdAt: addDays(NOW, -int(0, 400)),
       })
       .returning({ id: patients.id });
     patientIds.push({ id: row.id, name, phone: ph });
@@ -338,8 +365,10 @@ async function main() {
     return apptId;
   }
 
-  // Past (last 180 days): ~1-2 per day on average.
-  for (let d = 180; d >= 1; d--) {
+  // Past (a full year plus): ~1-2 per day on average. Long enough that the admin
+  // scorecard's 12-month windows and the clinic's own year-on-year reports both have
+  // data, rather than trailing off half way.
+  for (let d = 400; d >= 1; d--) {
     const day = addDays(NOW, -d);
     const wd = day.getDay();
     if (wd === 0) continue; // clinic closed Sunday
@@ -374,8 +403,8 @@ async function main() {
   // ── recompute amount_collected cache from the ledger (payment − refund) ──────
   await db.execute(sql`
     update appointments a set amount_collected = coalesce((
-      select sum(case when pp.kind = 'refund' then -pp.amount
-                      when pp.kind in ('payment','advance_applied') then pp.amount else 0 end)
+      select sum(case when pp.kind_id = ${paymentKindId("refund")} then -pp.amount
+                      when pp.kind_id in (${paymentKindId("payment")}, ${paymentKindId("advance_applied")}) then pp.amount else 0 end)
       from patient_payments pp
       where pp.appointment_id = a.id and pp.deleted_at is null
     ), 0)
@@ -388,6 +417,44 @@ async function main() {
   await assignQueueTokens(clinicId);
 
   // ── rebuild the derived revenue ledgers via the app's own logic ─────────────
+  // ── clinical visits ───────────────────────────────────────────────────────
+  // A completed appointment usually leaves a note behind, and most of those were
+  // dictated. Without these the analytics card reads "0 visits, 0 used the scribe"
+  // for a clinic with hundreds of completed appointments, which is the one number on
+  // the card that would be obviously wrong.
+  const completedAppts = made.filter((a) => a.status === "completed");
+  let visitCount = 0;
+  let scribeCount = 0;
+  for (const a of completedAppts) {
+    if (!chance(0.8)) continue; // not every visit gets written up
+    const dictated = chance(0.65);
+    await db.insert(visits).values({
+      clinicId,
+      patientId: a.patientId,
+      appointmentId: a.id,
+      doctorId: a.doctorId,
+      module: "dental",
+      // Approved, because these are historical records a clinician has signed off.
+      // A draft would sit in someone's queue for ever (ADR-007).
+      status: "approved",
+      note: {
+        complaint: pick(["Toothache", "Routine check-up", "Sensitivity", "Bleeding gums", "Broken filling"]),
+        findings: pick(["Caries on lower right molar", "Mild gingivitis", "Nil significant", "Worn enamel"]),
+        treatment: pick(["Composite filling", "Scaling", "Extraction", "Advice and review"]),
+      },
+      visitDate: a.scheduledAt,
+      approvedAt: addDays(a.scheduledAt, 0),
+      approvedBy: a.doctorId,
+      // The scribe keeps its recording for the accuracy flywheel, so a dictated visit
+      // has an audio key. The file itself is not seeded — nothing reads it here.
+      audioKey: dictated ? `${clinicId}/audio/seed-${a.id}.webm` : null,
+      createdAt: a.scheduledAt,
+    });
+    visitCount++;
+    if (dictated) scribeCount++;
+  }
+  console.log(`${visitCount} visits (${scribeCount} dictated via the scribe)`);
+
   console.log("Backfilling sales / shares / settlements…");
   await backfillClinicSales(clinicId);
 
@@ -491,6 +558,44 @@ async function main() {
       createdByName: "Demo Admin",
     });
   }
+
+  // ── subscription payments (clinic → FlexicaAI) ───────────────────────────
+  // What the admin "Clinic analytics" scorecard grades. Shaped as a story rather than
+  // noise: a clinic that paid promptly for its first year and has been slipping since.
+  // That is the case the card exists to surface — a flat "always late" or "always on
+  // time" clinic would exercise the arithmetic but show nothing worth acting on.
+  const lateByMonth = (i: number): number | null => {
+    const fromEnd = SUBSCRIPTION_MONTHS - 1 - i;
+    if (fromEnd === 0) return null; // this month: not billed as late yet
+    if (fromEnd === 1) return null; // last month: unpaid — the alarm
+    if (fromEnd === 2) return 22; // defaulter
+    if (fromEnd === 3) return 8; // overdue
+    if (fromEnd === 4) return 3; // delayed
+    if (fromEnd === 9) return 6; // one older wobble, so the decline is a real change
+    return i % 4 === 0 ? -2 : 0; // the good year: early, or on the day
+  };
+
+  let subsPaid = 0;
+  for (let i = 0; i < SUBSCRIPTION_MONTHS; i++) {
+    const late = lateByMonth(i);
+    if (late === null) continue;
+    const due = new Date(SUBSCRIPTION_START);
+    due.setMonth(due.getMonth() + i);
+    const paidAt = addDays(due, late);
+    if (paidAt.getTime() > NOW.getTime()) continue;
+    await db.insert(clinicPayments).values({
+      clinicId,
+      amount: SUBSCRIPTION_PRICE,
+      kind: "payment",
+      method: pick(["bank", "cash"] as const),
+      reference: `TXN-${100000 + i}`,
+      monthsCovered: 1,
+      occurredAt: paidAt,
+      recordedByName: "Super Admin",
+    });
+    subsPaid++;
+  }
+  console.log(`${subsPaid} subscription payments over ${SUBSCRIPTION_MONTHS} billed months`);
 
   console.log("\n✅ Demo clinic seeded.");
   console.log("   Login:  clinic002 / clinic002");
