@@ -32,7 +32,9 @@ function check(name: string, got: unknown, want: unknown) {
 
 const d = (s: string) => new Date(`${s}T10:00:00`);
 /** Billing starts 1 Jan; each month is due on the 1st. */
-const CLINIC = { monthlyPrice: 5000, activatedAt: d("2026-01-01"), createdAt: d("2025-12-01") };
+// graceDays 0 keeps most of these cases about LATENESS rather than about grace; the
+// pending behaviour has its own block at the end.
+const CLINIC = { monthlyPrice: 5000, activatedAt: d("2026-01-01"), createdAt: d("2025-12-01"), graceDays: 0 };
 const pay = (on: string, amount = 5000, kind = "payment") => ({
   amount,
   kind,
@@ -77,7 +79,7 @@ console.log("\nA clinic that always pays on the day:");
   check("all on time", b.counts.on_time, 3);
   check("rating is 4/5", b.rating, 4);
   check("on-time rate 100%", b.onTimeRate, 1);
-  check("nothing unpaid", [b.unpaidMonths, b.unpaidAmount], [0, 0]);
+  check("nothing unpaid", b.unpaidMonths, 0);
   check("grade is good", gradeFor(b.rating), "good");
   check("no risk", riskFor(b.current, b.unpaidMonths).label, "No risk");
 }
@@ -104,7 +106,8 @@ console.log("\nA clinic that has stopped paying:");
   check("five months billed", b.months.length, 5);
   check("two settled, three not", b.months.filter((m) => m.settledAt !== null).length, 2);
   check("unpaid months counted", b.unpaidMonths, 3);
-  check("unpaid amount is 3 × price", b.unpaidAmount, 15000);
+  // The money outstanding is `balance.owed`, not count × price — the latter
+  // overstated a partly-paid month, so it no longer exists here.
   // March and April are gone; May is still inside its month.
   check("March is outstanding", b.months[2].category, "outstanding");
   check("May is not yet outstanding", b.months[4].category, "defaulter");
@@ -236,6 +239,39 @@ console.log("\nWindows adapt to the length of the relationship:");
   check("a window equal to the history is dropped", labels(12).includes("12 Months"), false);
   check("All Time leads, so the line reads past → present", labels(20)[0], "All Time");
   check("no history → no series", ratingWindows([]).length, 0);
+}
+
+console.log("\nA month inside its grace period is NOT graded:");
+{
+  const graced = { ...CLINIC, graceDays: 7 };
+  const twelve = Array.from({ length: 12 }, (_, i) =>
+    pay(`2026-${String(i + 1).padStart(2, "0")}-01`),
+  );
+
+  // 31 Dec: twelve months billed, twelve paid on the day.
+  const before = computePaymentBehaviour(graced, twelve, d("2026-12-31"));
+  check("before the new month: 12 graded, rating 4", [before.months.length, before.pending, before.rating], [12, 0, 4]);
+
+  // 1 Jan, 00:01: month 13 has fallen due and is unpaid. THIS is the case that used
+  // to drop a perfect payer from 4.00/100% to 3.77/92% and label the month
+  // "Defaulter" — a band whose own definition says "Paid after 10 days".
+  const after = computePaymentBehaviour(graced, twelve, d("2027-01-01"));
+  check("the new month is billed", after.months.length, 13);
+  check("…and is pending, not defaulter", after.months[12].category, "pending");
+  check("…so the rating is untouched", after.rating, 4);
+  check("…and the on-time rate is untouched", after.onTimeRate, 1);
+  check("…and it is reported as pending", after.pending, 1);
+  check("…and is NOT counted as unpaid", after.unpaidMonths, 0);
+  check("…and no band claims it", Object.values(after.counts).reduce((a, b) => a + b, 0), 12);
+
+  // Grace expires: on day 8 it becomes a real judgement.
+  const lapsed = computePaymentBehaviour(graced, twelve, d("2027-01-09"));
+  check("past grace it is graded", lapsed.months[12].category, "defaulter");
+  check("…and now counts as unpaid", lapsed.unpaidMonths, 1);
+  check("…and the rating finally moves", lapsed.rating !== 4, true);
+
+  // The trend must not be dragged down by an ungraded month either.
+  check("the trend ignores pending too", computeTrend(after.months).direction, "stable");
 }
 
 console.log(failures === 0 ? "\nALL PASSED" : `\n${failures} FAILED`);

@@ -45,8 +45,50 @@ export function payerLabel(code: string): string {
  * invoice fell due. So an unpaid month only becomes `outstanding` once its own month
  * has passed — which is exactly what the label says.
  */
-export function categoryFor(daysLate: number | null, dueAt: Date, now: Date): PayerCategory {
+/**
+ * A month that is unpaid and NOT YET LATE — inside the clinic's grace period.
+ *
+ * Not one of the six bands, and deliberately so: every band above describes WHEN a
+ * month was paid, and this month has not been paid at all. It is excluded from the
+ * rating, the on-time rate and the category share, because grading it would mean
+ * grading a clinic on an invoice it has not had time to settle.
+ *
+ * Without this, a clinic with twelve perfect months fell from 4.00/100% to 3.77/92%
+ * at one minute past midnight on the 1st — and the month was labelled "Defaulter",
+ * whose own definition reads "Paid after 10 days". It was not paid at all.
+ */
+export const PENDING = "pending" as const;
+export type MonthStatus = PayerCategory | typeof PENDING;
+
+export const PENDING_META = {
+  label: "Not yet due",
+  colour: "#94a3b8",
+  hint: "Unpaid, still within the grace period — not graded",
+} as const;
+
+export function statusLabel(code: MonthStatus): string {
+  return code === PENDING ? PENDING_META.label : payerLabel(code);
+}
+
+export function statusColour(code: MonthStatus): string {
+  return code === PENDING ? PENDING_META.colour : (META.get(code)?.colour ?? "#94a3b8");
+}
+
+/**
+ * @param graceDays  How long after the due date a clinic has before being counted late
+ *                   (`clinics.grace_days`) — the same figure the billing status uses,
+ *                   so "due" on the dues dashboard and "not yet late" here agree.
+ */
+export function categoryFor(
+  daysLate: number | null,
+  dueAt: Date,
+  now: Date,
+  graceDays = 0,
+): MonthStatus {
   if (daysLate === null) {
+    const graceEnds = new Date(dueAt);
+    graceEnds.setDate(graceEnds.getDate() + graceDays);
+    if (now.getTime() <= graceEnds.getTime()) return PENDING;
     const monthEnd = new Date(dueAt.getFullYear(), dueAt.getMonth() + 1, 1);
     return now.getTime() >= monthEnd.getTime() ? "outstanding" : "defaulter";
   }
@@ -86,7 +128,7 @@ export const GRADE_META: Record<Grade, { label: string; tone: "good" | "warn" | 
 
 /** Risk wording for the card, from the current band and how much is unpaid. */
 export function riskFor(
-  current: PayerCategory | null,
+  current: MonthStatus | null,
   unpaidMonths: number,
 ): { label: string; tone: "good" | "warn" | "bad" } {
   if (unpaidMonths >= 3 || current === "outstanding") return { label: "Critical risk", tone: "bad" };

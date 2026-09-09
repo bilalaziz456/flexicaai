@@ -6,11 +6,13 @@ import { summariseWindow, type RatingWindow } from "@/core/admin/payment-behavio
 import {
   GRADE_META,
   PAYER_CATEGORIES,
+  PENDING_META,
   type PayerCategory,
   gradeFor,
-  payerLabel,
   ratingColour,
   riskFor,
+  statusColour,
+  statusLabel,
 } from "@/core/admin/payer-categories";
 import { cn } from "@/core/lib/utils";
 
@@ -374,7 +376,7 @@ export function ClinicAnalyticsCard({
               </div>
             </div>
             <KpiCell label="Current status">
-              {behaviour.current ? payerLabel(behaviour.current) : "—"}
+              {behaviour.current ? statusLabel(behaviour.current) : "—"}
             </KpiCell>
             <KpiCell label="Risk level">
               <span className={TONE[risk.tone]}>{risk.label}</span>
@@ -448,7 +450,8 @@ export function ClinicAnalyticsCard({
                 Category share — {periodLabel}
               </span>
               <span className="text-xs text-muted-foreground">
-                {window.total} month{window.total === 1 ? "" : "s"}
+                {window.total} month{window.total === 1 ? "" : "s"} graded
+                {window.pending > 0 ? ` · ${window.pending} not yet due` : ""}
               </span>
             </div>
             <div className="mb-3 flex flex-wrap items-baseline gap-2">
@@ -502,7 +505,7 @@ export function ClinicAnalyticsCard({
               </ul>
             </div>
             <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-              {PAYER_CATEGORIES.map((c) => `${c.label} = ${c.hint}`).join(" · ")}
+              {[...PAYER_CATEGORIES.map((c) => `${c.label} = ${c.hint}`), `${PENDING_META.label} = ${PENDING_META.hint}`].join(" · ")}
             </p>
           </div>
 
@@ -555,13 +558,10 @@ export function ClinicAnalyticsCard({
                           <span className="inline-flex items-center gap-1.5">
                             <span
                               className="size-2 rounded-full"
-                              style={{
-                                backgroundColor:
-                                  PAYER_CATEGORIES.find((c) => c.code === m.category)?.colour,
-                              }}
+                              style={{ backgroundColor: statusColour(m.category) }}
                               aria-hidden
                             />
-                            {payerLabel(m.category)}
+                            {statusLabel(m.category)}
                           </span>
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{rs(m.amount)}</td>
@@ -590,7 +590,7 @@ export function ClinicAnalyticsCard({
           <Kpi
             label="Patients"
             value={business.patientsTotal.toLocaleString("en-PK")}
-            hint={`${business.patientsNew} new in period`}
+            hint={`all time · ${business.patientsNew} new in period`}
           />
           <Kpi
             label="Appointments"
@@ -612,12 +612,12 @@ export function ClinicAnalyticsCard({
           <Kpi
             label="Their receivable"
             value={rs(business.outstanding)}
-            hint="what patients still owe them"
+            hint="all time · what patients still owe them"
           />
           <Kpi
             label="Staff"
             value={business.staffActive.toLocaleString("en-PK")}
-            hint={`${business.doctors} doctor${business.doctors === 1 ? "" : "s"}`}
+            hint={`now · ${business.doctors} doctor${business.doctors === 1 ? "" : "s"}`}
           />
           <Kpi label="WhatsApp" value={`${business.whatsappOut} out`} hint={`${business.whatsappIn} in`} />
         </div>

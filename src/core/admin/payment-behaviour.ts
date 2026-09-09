@@ -1,4 +1,10 @@
-import { PAYER_CATEGORIES, type PayerCategory, categoryFor } from "@/core/admin/payer-categories";
+import {
+  PAYER_CATEGORIES,
+  PENDING,
+  type MonthStatus,
+  type PayerCategory,
+  categoryFor,
+} from "@/core/admin/payer-categories";
 
 /**
  * How reliably a clinic pays ITS SUBSCRIPTION — a behaviour history, not a balance.
@@ -21,6 +27,18 @@ import { PAYER_CATEGORIES, type PayerCategory, categoryFor } from "@/core/admin/
  * Deliberately NOT read from `clinic_invoices`: those are issued ad hoc for clinics
  * that ask for one, so most months have none, and a scorecard that silently skipped
  * un-invoiced months would rate a clinic on a fraction of its history.
+ *
+ * KNOWN LIMITATION — A PRICE CHANGE REWRITES HISTORY. `needed` is `(n + 1) × the
+ * CURRENT monthly price`, because the schema keeps no price history: nothing records
+ * what a clinic was charged in March. Raising a clinic from 5,000 to 8,000 therefore
+ * makes six months of perfect payment read as three unpaid months and a 0.67 rating.
+ *
+ * It is left this way on purpose. `computeClinicBalance` makes exactly the same
+ * assumption, so the scorecard and the dues dashboard agree about which months are
+ * paid — and the two of them disagreeing about that would be a worse bug than either
+ * being retrospectively wrong. `clinic_payments.months_covered` would fix it for
+ * payments that carry it, but using it here and not there is precisely the divergence
+ * to avoid. The fix, if it becomes worth it, is a price-history table feeding BOTH.
  */
 
 export type MonthOutcome = {
@@ -31,7 +49,8 @@ export type MonthOutcome = {
   settledAt: Date | null;
   /** Negative = paid early. Null when never settled. */
   daysLate: number | null;
-  category: PayerCategory;
+  /** One of the six graded bands, or `pending` — unpaid but not yet late. */
+  category: MonthStatus;
   amount: number;
 };
 
@@ -42,14 +61,18 @@ export type PaymentBehaviour = {
   /** Share of months settled on or before the due date. Null when no history. */
   onTimeRate: number | null;
   counts: Record<PayerCategory, number>;
-  /** Months still unpaid, and what they add up to. */
+  /** Months excluded from the rating because they are not yet late. */
+  pending: number;
+  /** Months genuinely late or unpaid past grace. Excludes `pending`. */
   unpaidMonths: number;
-  unpaidAmount: number;
-  current: PayerCategory | null;
+  current: MonthStatus | null;
 };
 
 export type WindowSummary = {
+  /** GRADED months in the window — the denominator for the rating. */
   total: number;
+  /** Months in the window that were skipped because they are not yet late. */
+  pending: number;
   rating: number | null;
   onTimeRate: number | null;
   counts: Record<PayerCategory, number>;
@@ -70,13 +93,18 @@ export function summariseWindow(months: MonthOutcome[]): WindowSummary {
     PayerCategory,
     number
   >;
-  for (const m of months) counts[m.category]++;
-  if (months.length === 0) return { total: 0, rating: null, onTimeRate: null, counts };
+  // A month still inside its grace period is not graded — see PENDING. Every figure
+  // below is over the GRADED months only, so an invoice that fell due this morning
+  // cannot move a rating built from a year of history.
+  const graded = months.filter((m) => m.category !== PENDING);
+  for (const m of graded) counts[m.category as PayerCategory]++;
+  const pending = months.length - graded.length;
+  if (graded.length === 0) return { total: 0, pending, rating: null, onTimeRate: null, counts };
 
   const scoreOf = new Map(PAYER_CATEGORIES.map((c) => [c.code, c.score]));
-  const rating = months.reduce((s, m) => s + (scoreOf.get(m.category) ?? 0), 0) / months.length;
-  const onTime = months.filter((m) => m.daysLate !== null && m.daysLate <= 0).length;
-  return { total: months.length, rating, onTimeRate: onTime / months.length, counts };
+  const rating = graded.reduce((s, m) => s + (scoreOf.get(m.category as PayerCategory) ?? 0), 0) / graded.length;
+  const onTime = graded.filter((m) => m.daysLate !== null && m.daysLate <= 0).length;
+  return { total: graded.length, pending, rating, onTimeRate: onTime / graded.length, counts };
 }
 
 export type BehaviourTrend = {
@@ -109,7 +137,7 @@ function dayDiff(a: Date, b: Date): number {
 }
 
 export function computePaymentBehaviour(
-  clinic: { monthlyPrice: number; activatedAt: Date | null; createdAt: Date },
+  clinic: { monthlyPrice: number; activatedAt: Date | null; createdAt: Date; graceDays?: number },
   payments: { amount: number; kind?: string; occurredAt: Date }[],
   now: Date = new Date(),
 ): PaymentBehaviour {
@@ -118,8 +146,8 @@ export function computePaymentBehaviour(
     rating: null,
     onTimeRate: null,
     counts: Object.fromEntries(PAYER_CATEGORIES.map((c) => [c.code, 0])) as Record<PayerCategory, number>,
+    pending: 0,
     unpaidMonths: 0,
-    unpaidAmount: 0,
     current: null,
   };
   const price = clinic.monthlyPrice;
@@ -173,23 +201,27 @@ export function computePaymentBehaviour(
       dueAt,
       settledAt,
       daysLate,
-      category: categoryFor(daysLate, dueAt, now),
+      category: categoryFor(daysLate, dueAt, now, clinic.graceDays ?? 0),
       amount: price,
     });
   }
 
   if (months.length === 0) return empty;
 
-  const { rating, onTimeRate, counts } = summariseWindow(months);
-  const unpaid = months.filter((m) => m.settledAt === null);
+  const { rating, onTimeRate, counts, pending } = summariseWindow(months);
+  // Genuinely unpaid, i.e. past grace. `unpaidAmount` used to sit here as
+  // count × price, which OVERSTATED a partly-paid month — 4,000 of 5,000 reported
+  // 5,000 outstanding. The real figure is `balance.owed`, which the card already
+  // shows, so the wrong one is gone rather than fixed in a second place.
+  const unpaid = months.filter((m) => m.settledAt === null && m.category !== PENDING);
 
   return {
     months,
     rating,
     onTimeRate,
     counts,
+    pending,
     unpaidMonths: unpaid.length,
-    unpaidAmount: unpaid.reduce((s, m) => s + m.amount, 0),
     current: months[months.length - 1]?.category ?? null,
   };
 }
@@ -210,8 +242,14 @@ export function computeTrend(
   { window = 3, minLifetime = 6 }: { window?: number; minLifetime?: number } = {},
 ): BehaviourTrend {
   const scoreOf = new Map(PAYER_CATEGORIES.map((c) => [c.code, c.score]));
-  const mean = (list: MonthOutcome[]) =>
-    list.length ? list.reduce((s, m) => s + (scoreOf.get(m.category) ?? 0), 0) / list.length : null;
+  // Pending months carry no score, so including them would drag every mean toward
+  // zero — the bug this whole change removes, reappearing in the trend.
+  const mean = (list: MonthOutcome[]) => {
+    const graded = list.filter((m) => m.category !== PENDING);
+    return graded.length
+      ? graded.reduce((s, m) => s + (scoreOf.get(m.category as PayerCategory) ?? 0), 0) / graded.length
+      : null;
+  };
 
   const lifetime = mean(months);
   if (months.length < Math.max(minLifetime, window + 1)) {
@@ -253,8 +291,12 @@ export type RatingWindow = {
 export function ratingWindows(months: MonthOutcome[]): RatingWindow[] {
   const total = months.length;
   const scoreOf = new Map(PAYER_CATEGORIES.map((c) => [c.code, c.score]));
-  const mean = (list: MonthOutcome[]) =>
-    list.length ? list.reduce((s, m) => s + (scoreOf.get(m.category) ?? 0), 0) / list.length : null;
+  const mean = (list: MonthOutcome[]) => {
+    const graded = list.filter((m) => m.category !== PENDING);
+    return graded.length
+      ? graded.reduce((s, m) => s + (scoreOf.get(m.category as PayerCategory) ?? 0), 0) / graded.length
+      : null;
+  };
 
   if (total === 0) return [];
 
