@@ -90,12 +90,15 @@ export type ClinicAnalytics = {
 
 const SETTLED = ["completed", "cancelled", "no_show"] as const;
 
+/**
+ * @param months  How far back the BUSINESS half looks. `null` is the clinic's whole
+ *                life. The payment half is always all-time — it is re-scoped in the
+ *                browser from months already on the client, so it needs no window here.
+ */
 export async function getClinicAnalytics(
   clinicId: string,
-  { days = 90, now = new Date() }: { days?: number; now?: Date } = {},
+  { months = 3, now = new Date() }: { months?: number | null; now?: Date } = {},
 ): Promise<ClinicAnalytics | null> {
-  const from = new Date(now.getTime() - days * 86_400_000);
-
   return unscoped("admin: analytics for one clinic", async () => {
     const [row] = await db
       .select({
@@ -118,6 +121,18 @@ export async function getClinicAnalytics(
       .where(and(eq(clinics.id, clinicId), notDeleted(clinics.deletedAt)))
       .limit(1);
     if (!row) return null;
+
+    // "All time" for the business half means since the clinic existed, not since some
+    // arbitrary cutoff — a clinic three years old should not have its first two years
+    // silently excluded from a window labelled "all time".
+    const from =
+      months === null
+        ? (row.activatedAt ?? row.createdAt)
+        : (() => {
+            const d = new Date(now);
+            d.setMonth(d.getMonth() - months);
+            return d;
+          })();
 
     // ── A: what they have paid us, oldest first ──────────────────────────────
     const ledger = await db
@@ -275,7 +290,11 @@ export async function getClinicAnalytics(
       trend,
       windows,
       business,
-      range: { from, to: now, label: `Last ${days} days` },
+      range: {
+        from,
+        to: now,
+        label: months === null ? "all time" : `last ${months} months`,
+      },
     };
   });
 }

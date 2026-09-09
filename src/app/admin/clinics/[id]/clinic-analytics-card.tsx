@@ -252,7 +252,16 @@ function Kpi({
   );
 }
 
-export function ClinicAnalyticsCard({ data }: { data: ClinicAnalytics }) {
+export function ClinicAnalyticsCard({
+  data,
+  onPeriodChange,
+  refreshing,
+}: {
+  data: ClinicAnalytics;
+  /** Asks the server for the business half over the newly selected window. */
+  onPeriodChange?: (months: number | null) => void;
+  refreshing?: boolean;
+}) {
   const { clinic, balance, behaviour, trend, windows, business, range } = data;
   const grade = gradeFor(behaviour.rating);
   const risk = riskFor(behaviour.current, behaviour.unpaidMonths);
@@ -396,7 +405,10 @@ export function ClinicAnalyticsCard({ data }: { data: ClinicAnalytics }) {
                     key={w.label}
                     type="button"
                     aria-pressed={selected === w.months}
-                    onClick={() => setSelected(w.months)}
+                    onClick={() => {
+                      setSelected(w.months);
+                      onPeriodChange?.(w.months);
+                    }}
                     className={cn(
                       "rounded-md border px-2 py-0.5 text-xs transition-colors",
                       selected === w.months
@@ -534,8 +546,14 @@ export function ClinicAnalyticsCard({ data }: { data: ClinicAnalytics }) {
       <section className="space-y-3">
         <h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           Clinic activity · {range.label}
+          {refreshing ? <span className="ml-2 normal-case tracking-normal">updating…</span> : null}
         </h3>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div
+          className={cn(
+            "grid gap-3 transition-opacity sm:grid-cols-2 lg:grid-cols-4",
+            refreshing && "opacity-50",
+          )}
+        >
           <Kpi
             label="Patients"
             value={business.patientsTotal.toLocaleString("en-PK")}

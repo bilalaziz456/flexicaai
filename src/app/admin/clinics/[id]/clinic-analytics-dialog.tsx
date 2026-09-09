@@ -29,13 +29,22 @@ export function ClinicAnalyticsDialog({ clinicId }: { clinicId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
-  function onOpenChange(next: boolean) {
-    if (!next || data || pending) return;
+  // The PAYER half re-scopes instantly inside the card — its months are already on the
+  // client. Only the BUSINESS half needs the server, since counting appointments over a
+  // new window is a query. The fetch therefore runs in the background and the card dims
+  // the old figures rather than blanking them: a number that vanishes on every click is
+  // harder to read than one that is briefly stale.
+  function load(months: number | null) {
     start(async () => {
-      const res = await loadClinicAnalytics(clinicId);
+      const res = await loadClinicAnalytics(clinicId, months);
       if ("error" in res) setError(res.error);
       else setData(res.data);
     });
+  }
+
+  function onOpenChange(next: boolean) {
+    if (!next || data || pending) return;
+    load(3);
   }
 
   // Print only the sheet. Without this the browser prints the whole admin page behind
@@ -86,7 +95,7 @@ export function ClinicAnalyticsDialog({ clinicId }: { clinicId: string }) {
             ) : error ? (
               <p className="py-10 text-center text-sm text-destructive">{error}</p>
             ) : data ? (
-              <ClinicAnalyticsCard data={data} />
+              <ClinicAnalyticsCard data={data} onPeriodChange={load} refreshing={pending} />
             ) : (
               <p className="py-10 text-center text-sm text-muted-foreground">No data.</p>
             )}

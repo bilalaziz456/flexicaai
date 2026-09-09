@@ -542,9 +542,10 @@ const contactSchema = z.object({
  */
 export async function loadClinicAnalytics(
   clinicId: string,
+  months: number | null = 3,
 ): Promise<{ data: ClinicAnalytics } | { error: string }> {
   await requireAdminCapability("clinics:view");
-  const data = await getClinicAnalytics(clinicId);
+  const data = await getClinicAnalytics(clinicId, { months });
   if (!data) return { error: "Clinic not found." };
   return { data };
 }
