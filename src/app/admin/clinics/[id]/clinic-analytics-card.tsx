@@ -528,7 +528,7 @@ export function ClinicAnalyticsCard({
                   {scoped.length} month{scoped.length === 1 ? "" : "s"}, newest first
                 </span>
               </div>
-              <div className="max-h-72 overflow-auto">
+              <div className="analytics-scroll max-h-72 overflow-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-muted/50">
                   <tr>
