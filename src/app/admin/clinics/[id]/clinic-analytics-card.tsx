@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import type { ClinicAnalytics } from "@/core/admin/clinic-analytics";
-import type { RatingWindow } from "@/core/admin/payment-behaviour";
+import { summariseWindow, type RatingWindow } from "@/core/admin/payment-behaviour";
 import {
   GRADE_META,
   PAYER_CATEGORIES,
@@ -272,6 +273,16 @@ export function ClinicAnalyticsCard({ data }: { data: ClinicAnalytics }) {
   // rather than print a confident number that would send someone to chase a clinic
   // over a single late payment.
   const thin = total > 0 && total < 3;
+
+  // The period buttons, narrowest first — "how far back am I looking" reads naturally
+  // upward. Same ladder the comparison chart uses, so the two cannot offer different
+  // periods; `null` is all time.
+  const periods = [...windows].reverse();
+  const [selected, setSelected] = useState<number | null>(() => periods[0]?.months ?? null);
+  const scoped = selected === null ? behaviour.months : behaviour.months.slice(-selected);
+  const window = summariseWindow(scoped);
+  const windowGrade = gradeFor(window.rating);
+  const periodLabel = selected === null ? "all time" : `last ${selected} months`;
   const first = behaviour.months[0]?.dueAt ?? null;
   const last = behaviour.months[total - 1]?.dueAt ?? null;
 
@@ -372,20 +383,58 @@ export function ClinicAnalyticsCard({ data }: { data: ClinicAnalytics }) {
 
           {/* ── Category share ────────────────────────────────────────────── */}
           <div className="rounded-lg border p-4">
-            <div className="mb-3 flex items-baseline justify-between gap-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                Category share — all time
+                Category share — {periodLabel}
               </span>
+              {/* Only periods the history can fill are offered — a "24 Months" button on
+                  a 14-month clinic would return the same rows as All Time and read as a
+                  broken filter. */}
+              <div className="no-print flex flex-wrap gap-1">
+                {periods.map((w) => (
+                  <button
+                    key={w.label}
+                    type="button"
+                    aria-pressed={selected === w.months}
+                    onClick={() => setSelected(w.months)}
+                    className={cn(
+                      "rounded-md border px-2 py-0.5 text-xs transition-colors",
+                      selected === w.months
+                        ? "border-primary bg-primary/10 font-medium"
+                        : "text-muted-foreground hover:bg-accent",
+                    )}
+                  >
+                    {w.months === null ? "All time" : `${w.months}m`}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mb-3 flex flex-wrap items-baseline gap-2">
+              <span className="text-2xl font-semibold">
+                {window.rating === null ? "—" : window.rating.toFixed(1)}
+              </span>
+              <span className="text-xs text-muted-foreground">/ 5</span>
+              {window.rating !== null ? <Stars rating={window.rating} /> : null}
+              {windowGrade ? (
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[11px] font-medium text-white",
+                    BAND_BG[GRADE_META[windowGrade].tone],
+                  )}
+                >
+                  {GRADE_META[windowGrade].label}
+                </span>
+              ) : null}
               <span className="text-xs text-muted-foreground">
-                {total} month{total === 1 ? "" : "s"}
+                · {window.total} month{window.total === 1 ? "" : "s"} · {pct(window.onTimeRate)} on time
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-5">
-              <ShareDonut counts={behaviour.counts} total={total} rating={behaviour.rating} />
+              <ShareDonut counts={window.counts} total={window.total} rating={window.rating} />
               <ul className="min-w-56 flex-1 space-y-1.5">
                 {PAYER_CATEGORIES.map((c) => {
-                  const n = behaviour.counts[c.code] ?? 0;
-                  const share = total ? n / total : 0;
+                  const n = window.counts[c.code] ?? 0;
+                  const share = window.total ? n / window.total : 0;
                   return (
                     <li key={c.code} className="flex items-center gap-3">
                       <span

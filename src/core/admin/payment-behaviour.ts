@@ -48,6 +48,37 @@ export type PaymentBehaviour = {
   current: PayerCategory | null;
 };
 
+export type WindowSummary = {
+  total: number;
+  rating: number | null;
+  onTimeRate: number | null;
+  counts: Record<PayerCategory, number>;
+};
+
+/**
+ * Rating, on-time rate and category share over ANY slice of months.
+ *
+ * Extracted so the card can re-scope to a selected window in the browser instead of
+ * asking the server again: the months are already on the client, and a round trip to
+ * re-count six of them would make the period buttons feel like navigation.
+ *
+ * Pure, and the same function the full-history summary uses — so "last 6 months" and
+ * "all time" cannot be computed two different ways.
+ */
+export function summariseWindow(months: MonthOutcome[]): WindowSummary {
+  const counts = Object.fromEntries(PAYER_CATEGORIES.map((c) => [c.code, 0])) as Record<
+    PayerCategory,
+    number
+  >;
+  for (const m of months) counts[m.category]++;
+  if (months.length === 0) return { total: 0, rating: null, onTimeRate: null, counts };
+
+  const scoreOf = new Map(PAYER_CATEGORIES.map((c) => [c.code, c.score]));
+  const rating = months.reduce((s, m) => s + (scoreOf.get(m.category) ?? 0), 0) / months.length;
+  const onTime = months.filter((m) => m.daysLate !== null && m.daysLate <= 0).length;
+  return { total: months.length, rating, onTimeRate: onTime / months.length, counts };
+}
+
 export type BehaviourTrend = {
   recent: number | null;
   lifetime: number | null;
@@ -149,21 +180,13 @@ export function computePaymentBehaviour(
 
   if (months.length === 0) return empty;
 
-  const counts = Object.fromEntries(PAYER_CATEGORIES.map((c) => [c.code, 0])) as Record<
-    PayerCategory,
-    number
-  >;
-  for (const m of months) counts[m.category]++;
-
-  const scoreOf = new Map(PAYER_CATEGORIES.map((c) => [c.code, c.score]));
-  const rating = months.reduce((s, m) => s + (scoreOf.get(m.category) ?? 0), 0) / months.length;
-  const onTime = months.filter((m) => m.daysLate !== null && m.daysLate <= 0).length;
+  const { rating, onTimeRate, counts } = summariseWindow(months);
   const unpaid = months.filter((m) => m.settledAt === null);
 
   return {
     months,
     rating,
-    onTimeRate: onTime / months.length,
+    onTimeRate,
     counts,
     unpaidMonths: unpaid.length,
     unpaidAmount: unpaid.reduce((s, m) => s + m.amount, 0),
