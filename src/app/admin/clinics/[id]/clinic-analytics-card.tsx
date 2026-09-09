@@ -600,7 +600,7 @@ export function ClinicAnalyticsCard({
           <Kpi
             label="No-show rate"
             value={pct(business.noShowRate)}
-            hint={`${business.noShows} of settled visits`}
+            hint={`${business.noShows} of ${business.completed + business.noShows} expected`}
             tone={business.noShowRate !== null && business.noShowRate > 0.2 ? "warn" : undefined}
           />
           <Kpi

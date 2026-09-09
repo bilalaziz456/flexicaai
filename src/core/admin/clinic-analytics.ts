@@ -49,7 +49,16 @@ export type BusinessSnapshot = {
   completed: number;
   cancelled: number;
   noShows: number;
-  /** Of appointments that have reached a settled outcome. Null when there are none. */
+  /**
+   * No-shows over appointments the patient was EXPECTED at — completed plus no-show.
+   *
+   * Cancellations are excluded on purpose: a cancellation is a patient who told the
+   * clinic, which is the opposite behaviour, and counting it in the denominator
+   * dilutes the very problem the figure exists to surface. On the demo clinic that is
+   * the difference between 13% and 16%.
+   *
+   * Null when nobody was expected in the window — distinct from a genuine 0%.
+   */
   noShowRate: number | null;
   visits: number;
   scribeRuns: number;
@@ -88,7 +97,8 @@ export type ClinicAnalytics = {
   range: { from: Date; to: Date; label: string };
 };
 
-const SETTLED = ["completed", "cancelled", "no_show"] as const;
+/** Appointments where the patient was expected to turn up — the no-show denominator. */
+const EXPECTED = ["completed", "no_show"] as const;
 
 /**
  * @param months  How far back the BUSINESS half looks. `null` is the clinic's whole
@@ -244,7 +254,7 @@ export async function getClinicAnalytics(
 
     const mix = new Map(apptMix.map((r) => [r.status as string, r.n]));
     const appointmentsTotal = apptMix.reduce((s, r) => s + r.n, 0);
-    const settled = SETTLED.reduce((s, k) => s + (mix.get(k) ?? 0), 0);
+    const expected = EXPECTED.reduce((s, k) => s + (mix.get(k) ?? 0), 0);
     const noShows = mix.get("no_show") ?? 0;
     const wa = new Map(waRows.map((r) => [r.direction as string, r.n]));
 
@@ -255,10 +265,11 @@ export async function getClinicAnalytics(
       completed: mix.get("completed") ?? 0,
       cancelled: mix.get("cancelled") ?? 0,
       noShows,
-      // Only over appointments that actually reached an outcome — counting future
-      // bookings in the denominator would make a busy clinic look reliable purely
-      // for having a full diary next month.
-      noShowRate: settled > 0 ? noShows / settled : null,
+      // Over appointments the patient was EXPECTED at. Two exclusions, each for its
+      // own reason: future bookings, because a full diary next month would otherwise
+      // make a clinic look reliable today; and cancellations, because a patient who
+      // rang ahead is the opposite of a no-show and counting them understates it.
+      noShowRate: expected > 0 ? noShows / expected : null,
       visits: visitRows[0]?.n ?? 0,
       scribeRuns: Number(visitRows[0]?.scribe ?? 0),
       whatsappOut: wa.get("outbound") ?? 0,
