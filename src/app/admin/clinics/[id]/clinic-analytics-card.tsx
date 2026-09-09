@@ -390,36 +390,47 @@ export function ClinicAnalyticsCard({
             </KpiCell>
           </div>
 
+          {/* ── Period selector ───────────────────────────────────────────── */}
+          {/* Only periods the history can fill are offered — a "24m" button on a
+              14-month clinic would return the same rows as All time and read as a
+              broken filter. */}
+          <div className="no-print flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Period
+            </span>
+            {periods.map((w) => (
+              <button
+                key={w.label}
+                type="button"
+                aria-pressed={selected === w.months}
+                onClick={() => {
+                  setSelected(w.months);
+                  onPeriodChange?.(w.months);
+                }}
+                className={cn(
+                  "rounded-md border px-3 py-1 text-xs transition-colors",
+                  selected === w.months
+                    ? "border-primary bg-primary/10 font-medium"
+                    : "text-muted-foreground hover:bg-accent",
+                )}
+              >
+                {w.months === null ? "All time" : `${w.months} months`}
+              </button>
+            ))}
+            <span className="ml-auto text-[11px] text-muted-foreground">
+              Applies to the category share and the clinic activity below.
+            </span>
+          </div>
+
           {/* ── Category share ────────────────────────────────────────────── */}
           <div className="rounded-lg border p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 Category share — {periodLabel}
               </span>
-              {/* Only periods the history can fill are offered — a "24 Months" button on
-                  a 14-month clinic would return the same rows as All Time and read as a
-                  broken filter. */}
-              <div className="no-print flex flex-wrap gap-1">
-                {periods.map((w) => (
-                  <button
-                    key={w.label}
-                    type="button"
-                    aria-pressed={selected === w.months}
-                    onClick={() => {
-                      setSelected(w.months);
-                      onPeriodChange?.(w.months);
-                    }}
-                    className={cn(
-                      "rounded-md border px-2 py-0.5 text-xs transition-colors",
-                      selected === w.months
-                        ? "border-primary bg-primary/10 font-medium"
-                        : "text-muted-foreground hover:bg-accent",
-                    )}
-                  >
-                    {w.months === null ? "All time" : `${w.months}m`}
-                  </button>
-                ))}
-              </div>
+              <span className="text-xs text-muted-foreground">
+                {window.total} month{window.total === 1 ? "" : "s"}
+              </span>
             </div>
             <div className="mb-3 flex flex-wrap items-baseline gap-2">
               <span className="text-2xl font-semibold">
