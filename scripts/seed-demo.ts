@@ -80,9 +80,20 @@ const LAST = ["Khan", "Ahmed", "Malik", "Tariq", "Ali", "Sheikh", "Butt", "Qures
 const fullName = () => `${pick(FIRST)} ${pick(LAST)}`;
 const phone = () => `+92300${int(1000000, 9999999)}`;
 
-async function wipePrior() {
+/**
+ * Remove the previous demo clinic and RETURN its id so the rebuild can reuse it.
+ *
+ * Reusing the id is the point. A fresh uuid on every run invalidates every open tab,
+ * bookmark and pasted link to the demo clinic — including the admin page someone is
+ * mid-edit on, whose next save fails with "Clinic not found" and no hint as to why.
+ * Deleting and re-inserting under the SAME id keeps the cascade doing the cleanup
+ * while the address stays stable.
+ */
+async function wipePrior(): Promise<string | null> {
   const rows = await db.execute<{ id: string }>(sql`select id from clinics where name = ${CLINIC_NAME}`);
+  let previousId: string | null = null;
   for (const r of rows.rows as { id: string }[]) {
+    previousId = r.id;
     // users don't cascade from clinic (set null) — delete their sessions + rows first.
     await db.execute(sql`delete from sessions where user_id in (select id from users where clinic_id = ${r.id})`);
     await db.execute(sql`delete from users where clinic_id = ${r.id}`);
@@ -92,6 +103,7 @@ async function wipePrior() {
     // everything else cascades from clinics on delete; expense_categories too.
     await db.execute(sql`delete from clinics where id = ${r.id}`);
   }
+  return previousId;
 }
 
 /** Assign appointment # (queue token) to every doctor appointment, mirroring the
@@ -125,7 +137,10 @@ async function assignQueueTokens(clinicId: string) {
     items.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime() || a.id.localeCompare(b.id));
     let n = 1;
     for (const it of items) {
-      await db.update(appointments).set({ queueSession: session, queueNumber: n }).where(eq(appointments.id, it.id));
+      await db
+        .update(appointments)
+        .set({ queueSession: session, queueNumber: n })
+        .where(and(eq(appointments.clinicId, clinicId), eq(appointments.id, it.id)));
       n++;
     }
   }
@@ -133,7 +148,7 @@ async function assignQueueTokens(clinicId: string) {
 
 async function main() {
   console.log("Wiping any prior demo clinic…");
-  await wipePrior();
+  const previousId = await wipePrior();
 
   // ── location ──────────────────────────────────────────────────────────────
   // Find-or-create, exactly as the admin form does, so re-seeding reuses the seeded
@@ -144,6 +159,8 @@ async function main() {
   const [clinic] = await db
     .insert(clinics)
     .values({
+      // Keep the previous id so links to the demo clinic survive a re-seed.
+      ...(previousId ? { id: previousId } : {}),
       name: CLINIC_NAME,
       modulesEnabled: ["dental"],
       featuresEnabled: ["sales", "finance"],
