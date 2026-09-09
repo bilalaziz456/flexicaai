@@ -20,12 +20,12 @@
  * two flavours of on-time.
  */
 export const PAYER_CATEGORIES = [
-  { code: "early", label: "Early Payer", score: 5, hint: "Paid before the due date" },
-  { code: "on_time", label: "On-Time Payer", score: 4, hint: "Paid on the due date" },
-  { code: "delayed", label: "Delayed Payer", score: 3, hint: "Paid 1–5 days after the due date" },
-  { code: "overdue", label: "Overdue Payer", score: 2, hint: "Paid 6–10 days after the due date" },
-  { code: "defaulter", label: "Defaulter", score: 1, hint: "Paid after 10 days, within the due month" },
-  { code: "outstanding", label: "Outstanding Payer", score: 0, hint: "Unpaid beyond the due month" },
+  { code: "early", label: "Early Payer", score: 5, colour: "#15803d", hint: "Paid before the due date" },
+  { code: "on_time", label: "On-Time Payer", score: 4, colour: "#4ade80", hint: "Paid on the due date" },
+  { code: "delayed", label: "Delayed Payer", score: 3, colour: "#eab308", hint: "Paid 1–5 days after the due date" },
+  { code: "overdue", label: "Overdue Payer", score: 2, colour: "#f97316", hint: "Paid 6–10 days after the due date" },
+  { code: "defaulter", label: "Defaulter", score: 1, colour: "#ef4444", hint: "Paid after 10 days, within the due month" },
+  { code: "outstanding", label: "Outstanding Payer", score: 0, colour: "#991b1b", hint: "Unpaid beyond the due month" },
 ] as const;
 
 export type PayerCategory = (typeof PAYER_CATEGORIES)[number]["code"];
@@ -66,6 +66,15 @@ export function gradeFor(rating: number | null): Grade | null {
   if (rating >= 2.5) return "average";
   if (rating >= 1.5) return "poor";
   return "critical";
+}
+
+/** Point colour for a rating, matching `gradeFor`'s bands exactly. */
+export function ratingColour(rating: number | null): string {
+  if (rating === null) return "#94a3b8";
+  if (rating >= 3.5) return "#15803d";
+  if (rating >= 2.5) return "#eab308";
+  if (rating >= 1.5) return "#f97316";
+  return "#ef4444";
 }
 
 export const GRADE_META: Record<Grade, { label: string; tone: "good" | "warn" | "bad" }> = {

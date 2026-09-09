@@ -204,22 +204,50 @@ export function computeTrend(
   return { recent, lifetime, direction };
 }
 
-export type RatingWindow = { months: number; rating: number | null };
+export type RatingWindow = {
+  /** Months in the window; null is the whole history. */
+  months: number | null;
+  label: string;
+  rating: number | null;
+};
 
-/** The rating over widening windows — the chart's series. */
-export function ratingWindows(
-  months: MonthOutcome[],
-  windows: number[] = [36, 30, 24, 18, 12, 6, 3],
-): RatingWindow[] {
+/**
+ * The rating over widening windows — the comparison chart's series.
+ *
+ * THE STEP CHANGES WITH THE LENGTH OF THE RELATIONSHIP, because a fixed ladder is
+ * wrong at both ends. Within the first year, quarters: at eight months of history a
+ * 3/6/9/12 ladder has three real points, where a 6/12/18/24 one has one. Past a year,
+ * half-years: a clinic three years in does not need eleven near-identical points, and
+ * the eye cannot read them anyway.
+ *
+ * Only windows the history can actually fill are generated, so no point on the chart
+ * is ever drawn from fewer months than its label claims — the "36 Months" tick on a
+ * 14-month clinic is not a low bar, it is absent.
+ *
+ * Ordered widest-first (All Time on the left, 3 Months on the right) so the line reads
+ * past → present and a decline slopes downward, the way the eye expects.
+ */
+export function ratingWindows(months: MonthOutcome[]): RatingWindow[] {
+  const total = months.length;
   const scoreOf = new Map(PAYER_CATEGORIES.map((c) => [c.code, c.score]));
-  return windows.map((w) => {
-    const slice = months.slice(-w);
-    // Report null rather than a rating computed from fewer months than the window
-    // claims — a "24 month" bar drawn from 4 months of history is a lie with a label.
-    const rating =
-      slice.length >= w
-        ? slice.reduce((s, m) => s + (scoreOf.get(m.category) ?? 0), 0) / slice.length
-        : null;
-    return { months: w, rating };
-  });
+  const mean = (list: MonthOutcome[]) =>
+    list.length ? list.reduce((s, m) => s + (scoreOf.get(m.category) ?? 0), 0) / list.length : null;
+
+  if (total === 0) return [];
+
+  const steps: number[] = [];
+  for (let w = 3; w <= 12; w += 3) if (w <= total) steps.push(w); // quarters, year one
+  for (let w = 18; w <= total; w += 6) steps.push(w); // half-years thereafter
+
+  const out: RatingWindow[] = [];
+  // All Time is its own point and is always shown: it is the baseline every other
+  // point is being compared against.
+  out.push({ months: null, label: "All Time", rating: mean(months) });
+  for (const w of [...steps].reverse()) {
+    // Skip a window that is simply the whole history under another name — two points
+    // with the same value and different labels invite a comparison that is not there.
+    if (w === total) continue;
+    out.push({ months: w, label: `${w} Months`, rating: mean(months.slice(-w)) });
+  }
+  return out;
 }

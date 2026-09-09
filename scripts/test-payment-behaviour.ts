@@ -195,19 +195,47 @@ console.log("\nTrend — the number the dues list cannot show:");
   check("a clinic that has started slipping reads declining", computeTrend(long.months).direction, "declining");
 }
 
-console.log("\nWindows never claim more history than they have:");
+console.log("\nWindows adapt to the length of the relationship:");
 {
-  const b = computePaymentBehaviour(
-    CLINIC,
-    [pay("2026-01-01"), pay("2026-02-01"), pay("2026-03-01"), pay("2026-04-01")],
-    d("2026-04-15"),
-  );
-  const w = ratingWindows(b.months);
-  const wide = w.find((x) => x.months === 36)!;
-  const narrow = w.find((x) => x.months === 3)!;
-  // A "36 month" bar drawn from 4 months of data is a lie with a label on it.
-  check("a 36-month window with 4 months of data is null", wide.rating, null);
-  check("the 3-month window is real", narrow.rating, 4);
+  const history = (n: number) =>
+    computePaymentBehaviour(
+      { monthlyPrice: 5000, activatedAt: new Date(2020, 0, 1, 10), createdAt: new Date(2020, 0, 1, 10) },
+      Array.from({ length: n }, (_, i) => ({
+        amount: 5000,
+        kind: "payment",
+        occurredAt: new Date(2020, i, 1, 10),
+      })),
+      new Date(2020, n - 1, 15, 10),
+    ).months;
+
+  const labels = (n: number) => ratingWindows(history(n)).map((w) => w.label);
+
+  // Under a year the step is a QUARTER: a 6/12/18 ladder would give an eight-month
+  // clinic a single point to look at.
+  check("8 months → quarters only", labels(8), ["All Time", "6 Months", "3 Months"]);
+  check("12 months → the full first-year ladder", labels(12), [
+    "All Time", "9 Months", "6 Months", "3 Months",
+  ]);
+
+  // Past a year the step becomes a HALF-YEAR — a clinic three years in does not need
+  // eleven near-identical points, and the eye cannot read them anyway.
+  check("20 months → half-years appear", labels(20), [
+    "All Time", "18 Months", "12 Months", "9 Months", "6 Months", "3 Months",
+  ]);
+  check("36 months → sixes, never 15/21/27", labels(36), [
+    "All Time", "30 Months", "24 Months", "18 Months", "12 Months", "9 Months", "6 Months", "3 Months",
+  ]);
+
+  const w20 = ratingWindows(history(20));
+  // Every point on the chart must be real. A window longer than the history is
+  // ABSENT, not drawn low — that was the old bug wearing a new label.
+  check("no window exceeds the history", w20.every((w) => w.months === null || w.months <= 20), true);
+  check("every point has a rating", w20.every((w) => w.rating !== null), true);
+  // At exactly 12 months, "12 Months" and "All Time" are one number under two labels,
+  // which invites a comparison that does not exist.
+  check("a window equal to the history is dropped", labels(12).includes("12 Months"), false);
+  check("All Time leads, so the line reads past → present", labels(20)[0], "All Time");
+  check("no history → no series", ratingWindows([]).length, 0);
 }
 
 console.log(failures === 0 ? "\nALL PASSED" : `\n${failures} FAILED`);
