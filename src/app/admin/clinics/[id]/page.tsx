@@ -88,6 +88,7 @@ export default async function ClinicDetailPage({
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-xl font-semibold">{clinic.name}</h1>
           <div className="flex items-center gap-4">
+            <ClinicAnalyticsDialog clinicId={clinic.id} />
             {canAdmin(admin, "import:create") ? (
               <Link
                 href={`/admin/clinics/${clinic.id}/import`}
@@ -96,7 +97,6 @@ export default async function ClinicDetailPage({
                 Import data
               </Link>
             ) : null}
-            <ClinicAnalyticsDialog clinicId={clinic.id} />
             <a
               href={`/api/admin/clinics/${clinic.id}/export`}
               className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
