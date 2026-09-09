@@ -437,7 +437,7 @@ export function ClinicAnalyticsCard({
               </button>
             ))}
             <span className="ml-auto text-[11px] text-muted-foreground">
-              Applies to the category share and the clinic activity below.
+              Applies to everything below.
             </span>
           </div>
 
@@ -517,9 +517,18 @@ export function ClinicAnalyticsCard({
             <RatingLine windows={windows} />
           </div>
 
-          {/* ── Late & unpaid months ──────────────────────────────────────── */}
-          {behaviour.months.some((m) => m.category !== "early" && m.category !== "on_time") ? (
-            <div className="overflow-x-auto rounded-lg border">
+          {/* ── Every billed month ───────────────────────────────────────── */}
+          {scoped.length > 0 ? (
+            <div className="overflow-hidden rounded-lg border">
+              <div className="flex items-center justify-between gap-3 border-b bg-muted/30 px-3 py-2">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Payment history — {periodLabel}
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  {scoped.length} month{scoped.length === 1 ? "" : "s"}, newest first
+                </span>
+              </div>
+              <div className="max-h-72 overflow-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-muted/50">
                   <tr>
@@ -532,10 +541,7 @@ export function ClinicAnalyticsCard({
                   </tr>
                 </thead>
                 <tbody>
-                  {behaviour.months
-                    .filter((m) => m.category !== "early" && m.category !== "on_time")
-                    .reverse()
-                    .map((m) => (
+                  {[...scoped].reverse().map((m) => (
                       <tr key={m.dueAt.toISOString()} className="border-t">
                         <td className="px-3 py-2">{monthLabel(m.period)}</td>
                         <td className="px-3 py-2 text-muted-foreground">{day(m.dueAt)}</td>
@@ -563,12 +569,9 @@ export function ClinicAnalyticsCard({
                     ))}
                 </tbody>
               </table>
+              </div>
             </div>
-          ) : (
-            <p className="rounded-lg border p-3 text-xs text-muted-foreground">
-              Every billed month was settled on or before its due date.
-            </p>
-          )}
+          ) : null}
         </>
       )}
 
