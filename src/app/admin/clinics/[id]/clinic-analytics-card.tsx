@@ -33,6 +33,9 @@ const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 const pct = (n: number | null) => (n === null ? "—" : `${Math.round(n * 100)}%`);
 const day = (d: Date | null) =>
   d ? new Date(d).toLocaleDateString("en-PK", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+/** "Aug 2025" — the billing month, without the day that is always the 1st. */
+const shortMonth = (d: Date | null) =>
+  d ? new Date(d).toLocaleDateString("en-PK", { month: "short", year: "numeric" }) : "—";
 const monthLabel = (d: Date) =>
   new Date(d).toLocaleDateString("en-PK", { month: "long", year: "numeric" });
 
@@ -159,8 +162,11 @@ function RatingLine({ windows }: { windows: RatingWindow[] }) {
   const padB = 30;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
+  const inset = 46;
   const x = (i: number) =>
-    padL + (windows.length === 1 ? plotW / 2 : (i / (windows.length - 1)) * plotW);
+    windows.length === 1
+      ? padL + plotW / 2
+      : padL + inset + (i / (windows.length - 1)) * (plotW - inset * 2);
   const y = (v: number) => padT + plotH - (v / 5) * plotH;
 
   const pts = windows.map((w, i) => ({ ...w, cx: x(i), cy: y(w.rating ?? 0) }));
@@ -181,9 +187,9 @@ function RatingLine({ windows }: { windows: RatingWindow[] }) {
           <rect x={padL} y={y(b.to)} width={plotW} height={y(b.from) - y(b.to)} fill={b.fill} opacity="0.07" />
           <text
             x={padL + 6}
-            y={y(b.from) - 5}
+            y={(y(b.from) + y(b.to)) / 2 + 3}
             className="fill-muted-foreground text-[8px] tracking-wider"
-            opacity="0.7"
+            opacity="0.65"
           >
             {b.label}
           </text>
@@ -216,18 +222,19 @@ function RatingLine({ windows }: { windows: RatingWindow[] }) {
 function KpiCell({
   label,
   children,
+  hint,
 }: {
   label: string;
   children: React.ReactNode;
+  hint?: React.ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
-      <div className="min-w-0">
-        <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-          {label}
-        </div>
-        <div className="mt-0.5 truncate text-sm font-semibold">{children}</div>
+    <div className="flex min-w-0 flex-1 flex-col justify-center px-4 py-3">
+      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        {label}
       </div>
+      <div className="mt-0.5 text-sm font-semibold">{children}</div>
+      {hint ? <div className="text-[11px] text-muted-foreground">{hint}</div> : null}
     </div>
   );
 }
@@ -372,20 +379,32 @@ export function ClinicAnalyticsCard({
             <KpiCell label="Risk level">
               <span className={TONE[risk.tone]}>{risk.label}</span>
             </KpiCell>
-            <KpiCell label="Owed to us">
+            <KpiCell
+              label="Owed to us"
+              hint={
+                balance.owed > 0
+                  ? `${balance.daysOverdue} day${balance.daysOverdue === 1 ? "" : "s"} overdue`
+                  : balance.credit > 0
+                    ? "paid ahead"
+                    : `paid through ${day(balance.paidThrough)}`
+              }
+            >
               {balance.owed > 0 ? (
                 <span className={balance.billingStatus === "overdue" ? TONE.bad : TONE.warn}>
-                  {rs(balance.owed)} · {balance.daysOverdue}d overdue
+                  {rs(balance.owed)}
                 </span>
               ) : (
                 <span className={TONE.good}>
-                  {balance.credit > 0 ? `${rs(balance.credit)} in credit` : "Nothing owed"}
+                  {balance.credit > 0 ? rs(balance.credit) : "Nothing owed"}
                 </span>
               )}
             </KpiCell>
-            <KpiCell label="History">
-              <span className="text-xs font-normal text-muted-foreground">
-                {day(first)} → {day(last)}
+            <KpiCell
+              label="History"
+              hint={`${total} month${total === 1 ? "" : "s"}`}
+            >
+              <span className="text-xs font-normal">
+                {shortMonth(first)} → {shortMonth(last)}
               </span>
             </KpiCell>
           </div>
