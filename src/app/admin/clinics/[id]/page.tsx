@@ -36,6 +36,7 @@ import { ClinicBilling } from "./clinic-billing";
 import { ClinicCapabilities } from "./clinic-capabilities";
 import { ClinicLogAccess } from "./clinic-log-access";
 import { FlashToast } from "@/core/ui/toast";
+import { ClinicAnalyticsDialog } from "./clinic-analytics-dialog";
 import { ClinicPublicContact } from "./clinic-public-contact";
 import { StaffActions } from "./staff-actions";
 import { DeleteClinic } from "./delete-clinic";
@@ -95,6 +96,7 @@ export default async function ClinicDetailPage({
                 Import data
               </Link>
             ) : null}
+            <ClinicAnalyticsDialog clinicId={clinic.id} />
             <a
               href={`/api/admin/clinics/${clinic.id}/export`}
               className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"

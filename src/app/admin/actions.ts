@@ -43,6 +43,7 @@ import { parsePublicContact } from "@/core/clinics/public-contact";
 import { setPublicContact } from "@/core/clinics/settings";
 import { findOrCreateCity } from "@/core/clinics/cities";
 import { asProvinceCode } from "@/core/clinics/provinces";
+import { getClinicAnalytics, type ClinicAnalytics } from "@/core/admin/clinic-analytics";
 
 export type AdminActionState = { error?: string; saved?: boolean; needsTotp?: boolean };
 
@@ -529,6 +530,25 @@ const contactSchema = z.object({
  * editors, last write wins — and the clinic's own words should generally win, which is
  * why this exists to PREFILL at onboarding rather than to own the field.
  */
+/**
+ * The clinic scorecard, loaded when the analytics dialog opens.
+ *
+ * An ACTION rather than page data: the card runs about a dozen aggregates over the
+ * clinic's whole history, and most visits to a clinic page are to change a setting,
+ * not to read this. Paying for it on every load would slow the page for everyone.
+ *
+ * Gated on `clinics:view` — the same capability that lets someone open the clinic at
+ * all. It exposes no more than the page already does, just aggregated.
+ */
+export async function loadClinicAnalytics(
+  clinicId: string,
+): Promise<{ data: ClinicAnalytics } | { error: string }> {
+  await requireAdminCapability("clinics:view");
+  const data = await getClinicAnalytics(clinicId);
+  if (!data) return { error: "Clinic not found." };
+  return { data };
+}
+
 export async function updateClinicPublicContact(
   clinicId: string,
   _prevState: AdminActionState,
