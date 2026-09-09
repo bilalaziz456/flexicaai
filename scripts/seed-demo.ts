@@ -34,6 +34,7 @@ import {
 } from "@/core/db/schema";
 import { backfillClinicSales } from "@/core/sales/ledger";
 import { paymentKindId } from "@/core/db/vocabulary-seed";
+import { findOrCreateCity } from "@/core/clinics/cities";
 import { queueSessionKey } from "@/core/appointments/queue";
 import type { DayAvailability } from "@/core/lib/availability";
 
@@ -50,6 +51,8 @@ const NOW = new Date(); // app "today" — everything is relative to this
 // Subscription history the admin scorecard reads. 14 months so every rating window
 // up to 12 has real data behind it — a shorter run leaves the wider bars blank,
 // which is correct but shows nothing.
+const DEMO_CITY = "Karachi";
+const DEMO_PROVINCE = "sindh" as const;
 const SUBSCRIPTION_MONTHS = 14;
 const SUBSCRIPTION_PRICE = 15000; // PKR / month
 const SUBSCRIPTION_START = (() => {
@@ -132,6 +135,11 @@ async function main() {
   console.log("Wiping any prior demo clinic…");
   await wipePrior();
 
+  // ── location ──────────────────────────────────────────────────────────────
+  // Find-or-create, exactly as the admin form does, so re-seeding reuses the seeded
+  // row instead of creating a second "Karachi" and halving the city's clinic count.
+  const demoCityId = await findOrCreateCity(DEMO_CITY, DEMO_PROVINCE);
+
   // ── clinic ────────────────────────────────────────────────────────────────
   const [clinic] = await db
     .insert(clinics)
@@ -145,6 +153,8 @@ async function main() {
       // A paying subscriber since 14 months ago. Both are required for the admin
       // "Clinic analytics" scorecard: with no price a clinic is never billed, and
       // billing runs from `activated_at`, so without it there are no months to rate.
+      province: DEMO_PROVINCE,
+      cityId: demoCityId,
       monthlyPrice: SUBSCRIPTION_PRICE,
       activatedAt: SUBSCRIPTION_START,
       status: "active",
