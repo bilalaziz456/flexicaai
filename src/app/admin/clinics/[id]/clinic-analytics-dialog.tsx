@@ -67,6 +67,10 @@ export function ClinicAnalyticsDialog({ clinicId }: { clinicId: string }) {
   [data-analytics-popup] {
     position: static !important;
     transform: none !important;
+    translate: none !important;
+    rotate: none !important;
+    scale: none !important;
+    inset: auto !important;
     max-height: none !important;
     width: auto !important;
     box-shadow: none !important;
