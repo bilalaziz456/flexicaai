@@ -275,7 +275,7 @@ export async function AppointmentsList({
   return (
     <div className="space-y-6">
       <FlashToast message={toastMessage} />
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="relative flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Appointments</h1>
           <p className="text-sm text-muted-foreground">
@@ -297,11 +297,18 @@ export async function AppointmentsList({
             </Link>
           ) : null}
         </div>
+        {/* Marker the floating button watches: once THIS leaves the viewport the header
+            button is gone, so the floating one takes over. A zero-height element rather
+            than observing the button itself, which does not exist below `sm`.
+            ABSOLUTE, pinned to the header's bottom edge: as a normal sibling it took a
+            `space-y-6` slot of its own, so the heading sat two gaps away from the
+            filters instead of the one every other page has. */}
+        <div
+          id={HEADER_SENTINEL_ID}
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-0 h-px"
+        />
       </div>
-      {/* Marker the floating button watches: once THIS leaves the viewport the header
-          button is gone, so the floating one takes over. A zero-height element rather
-          than observing the button itself, which does not exist below `sm`. */}
-      <div id={HEADER_SENTINEL_ID} aria-hidden="true" className="h-px" />
 
       <QueueSummary sessions={queue} pathname={listPath} activeSession={session} />
 
