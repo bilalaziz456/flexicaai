@@ -29,17 +29,19 @@ import { priceOn, type PricePoint } from "@/core/admin/price-schedule";
  * that ask for one, so most months have none, and a scorecard that silently skipped
  * un-invoiced months would rate a clinic on a fraction of its history.
  *
- * KNOWN LIMITATION — A PRICE CHANGE REWRITES HISTORY. `needed` is `(n + 1) × the
- * CURRENT monthly price`, because the schema keeps no price history: nothing records
- * what a clinic was charged in March. Raising a clinic from 5,000 to 8,000 therefore
- * makes six months of perfect payment read as three unpaid months and a 0.67 rating.
+ * A MONTH IS PRICED AT WHAT IT COST THEN, not at what the clinic pays today. `needed`
+ * accumulates the price in force on each month's DUE DATE, read from the clinic's
+ * `priceSchedule` (`price-schedule.ts`). Before that existed this was `(n + 1) × the
+ * current monthly price`, so raising a clinic from 5,000 to 8,000 made six months of
+ * perfect payment read as three unpaid months and a 0.67 rating (ADR-032).
  *
- * It is left this way on purpose. `computeClinicBalance` makes exactly the same
- * assumption, so the scorecard and the dues dashboard agree about which months are
- * paid — and the two of them disagreeing about that would be a worse bug than either
- * being retrospectively wrong. `clinic_payments.months_covered` would fix it for
- * payments that carry it, but using it here and not there is precisely the divergence
- * to avoid. The fix, if it becomes worth it, is a price-history table feeding BOTH.
+ * `computeClinicBalance` reads the SAME schedule, and that is the point of putting it
+ * in its own module: the scorecard and the dues dashboard disagreeing about which
+ * months are paid would be a worse bug than either being retrospectively wrong.
+ *
+ * A clinic with no recorded history falls back to a single point at its current price,
+ * which is exactly the old behaviour — so nothing changes for a clinic that has never
+ * been re-priced.
  */
 
 export type MonthOutcome = {

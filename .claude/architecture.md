@@ -981,6 +981,56 @@ needs nothing else, and widening the breakdowns would have brought back most of 
 cost this removes. `getFinanceKpis` falls back to zeroes if `comparison` is absent, so
 dropping the option degrades to "no baseline" rather than throwing.
 
+
+**ADR-032 — A subscription price is a SCHEDULE, not a scalar, and one schedule feeds
+every calculator that walks a clinic's history** · *2026-09-10* · `Accepted`
+`clinic_price_changes` records what a clinic was charged and from when (migration
+`0105`). `core/admin/price-schedule.ts` turns those rows into a schedule;
+`computeClinicBalance` and `computePaymentBehaviour` both read it. A month is charged
+at the price in force **on its due date**, so a rise applies from the next month that
+falls due after it and never re-invoices a month already billed.
+
+**The bug, and why it was invisible.** `clinics.monthly_price` is one number, so every
+calculation that walked a clinic's history charged all of it at TODAY's price. Raising a
+clinic from 5,000 to 8,000 turned six months of perfect payment into three unpaid months
+and a **0.67 rating** — a price rise reading as a payment collapse, in the very figure
+the company uses to decide who to chase. Nothing failed and nothing was logged; the
+numbers simply changed under a clinic that had done nothing wrong. It surfaced only
+because the payment scorecard put the rating on screen beside the months it was derived
+from.
+
+**Why a separate module rather than the logic living in either caller.** The dues
+dashboard and the scorecard disagreeing about whether March was paid would be a worse
+failure than either being retrospectively wrong — one of them would then be used to
+contradict the other in front of a clinic. Same reasoning as ADR-015: the fix for two
+copies of a money rule is one copy, not two copies kept in step by comment.
+
+**Two implementation details carry the design:**
+- **`monthsCoveredBy` walks the months** instead of `paid / price`, which is only
+  correct while the price never moves. Walking also keeps a partial payment behaving
+  exactly as it did — the month it fails to complete is simply not counted.
+- **`buildPriceSchedule` takes a FALLBACK** covering the gap before the earliest
+  recorded row, for a clinic priced before the table existed. Without it those months
+  would have no price at all and would silently read as **free** — the same class of
+  bug in the opposite direction.
+
+**The property the test asserts first is INERTNESS.** A clinic whose price has never
+moved must behave exactly as before, *field for field* (`scripts/test-price-schedule.ts`,
+30 checks). This is money — the same balance drives the dues dashboard, the overdue
+sweep and the `past_due` status lock — so a change here had to be provably a no-op for
+every clinic it does not concern before it could be trusted on the few it does.
+Existing clinics were backfilled with one row at their current price, effective from
+`activated_at ?? created_at`, so nothing is retrospectively re-priced.
+
+**Consequence:** any future figure derived from a clinic's billing history reads the
+schedule, never `clinics.monthly_price`. That column is now only "what the NEXT month
+will cost" — `updateClinic` writes the column and records the row together, and is the
+only writer. It records **only when the figure actually moved**, so saving the grace days
+alone does not create a price event; a history full of rows that changed nothing is a
+history nobody reads. A clinic is created with no price, so the first one set is itself
+recorded — and even if a row were ever missed, the fallback prices those months at the
+current figure rather than at nothing.
+
 ---
 
 ## 6. Deltas — where the code is not yet the architecture

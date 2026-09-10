@@ -424,6 +424,21 @@ are in `.env.example`.
   `company_settings`), per-clinic **activity/usage/margin**, and **usage/cost anomaly
   flags** (loss / high-cost / spike, tunable thresholds). `core/admin/health.ts`,
   `core/admin/company-settings.ts`.
+- **Clinic analytics** (`/admin/clinics/[id]`, a printable modal) — the per-clinic
+  scorecard, in two halves the owner asked for together: (A) **how the clinic pays US** —
+  a 0–5 rating derived from how late each month settled, category bands (Early / On-Time /
+  Delayed / Overdue / Defaulter / Outstanding, plus **Not yet due** for a month still
+  inside `grace_days`, which is excluded from every figure), an adaptive period ladder,
+  and the month-by-month history; and (B) **how the clinic's own business is doing** —
+  patients, appointments, no-show rate (over EXPECTED visits, i.e. completed + no-show),
+  visits and scribe runs, WhatsApp traffic, collected and outstanding. The period buttons
+  drive both halves. `core/admin/clinic-analytics.ts`, `payment-behaviour.ts`,
+  `payer-categories.ts`.
+- **Clinic price history** (`clinic_price_changes`, ADR-032) — what a clinic was charged,
+  month by month. `clinics.monthly_price` is only "what the NEXT month costs"; anything
+  walking a clinic's billing history reads `core/admin/price-schedule.ts` instead, so a
+  price rise can never re-price months already paid. Both the dues balance and the
+  payment rating read the one schedule.
 
 Still NOT to build without instruction (§11/§12 unchanged): derma, hair, mobile apps,
 advanced analytics.

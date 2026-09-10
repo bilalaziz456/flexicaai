@@ -199,7 +199,9 @@ subscription's valid-until) that each payment PUSHES forward.
   - Recording a payment **extends `paid_through`** by the months it covers (pay for a year →
     +12 months; pay 2 months → +2). Paying ahead just pushes the date further out.
 - **Carry-forward = the running balance** (identical to patient outstanding/credit):
-  - **Owed = (months elapsed to today × `monthly_price`) − Σ payments.**
+  - **Owed = (what accrued month by month, each at the price in force then) − Σ payments.**
+    *(Was "months elapsed × `monthly_price`" — that re-priced history and is the bug ADR-032
+    fixed. `core/admin/price-schedule.ts` is the live rule; this plan is point-in-time.)*
   - `paid_through ≥ today` → **paid ahead** (active; show days/months remaining).
   - `paid_through < today` → **overdue**; the gap **accrues/carries forward** automatically
     (owed grows each month it stays unpaid — no data to "re-bill", it's derived).
@@ -457,7 +459,9 @@ softDelete + timestamps`. Index (`clinic_id`,`occurred_at`).
 ## Feature 6 — Manual billing ledger  (model: paid-through + carry-forward, §5.1)   ✅ SHIPPED (2026-07-22)
 - **Core:** `core/admin/billing.ts` — `computeClinicBalance(clinic, payments)` (PURE; date-driven:
   `paidThrough = (activatedAt ?? createdAt) + Σ months_covered`; `billingStatus` free/active/due(grace)/
-  overdue; carried-forward `owed = monthsOverdue × price`) · `getClinicBilling(clinicId)` ·
+  overdue; carried-forward `owed = accrued − paid`, where accrued walks each month at the
+  price in force on its due date via `core/admin/price-schedule.ts` — ADR-032) ·
+  `getClinicBilling(clinicId)` ·
   `recordClinicPayment` (extends paid-through, then syncs status) · `voidClinicPayment` (soft-delete +
   sync) · `listDueClinics()` (cross-tenant, `unscoped`) · `sweepClinicBillingStatus()` (the daily
   time-based downgrade). Mirrors `core/billing/*`. ✅

@@ -971,7 +971,10 @@ these for churn-risk + usage/cost anomaly flags.
   instead of an obviously missing one.
   **`0104` back-fills before it drops**, then RAISES if any `city` value has no matching
   row rather than discarding it — the column was NULL everywhere here, but a migration
-  must not assume that of every environment. `scripts/test-clinic-geo.ts`.
+  must not assume that of every environment. **Deliberately NOT merged with
+  `clinics.public_address`** (migration `0099`): the address is the patient-facing line
+  a clinic writes in its own words, the city is the dimension the company counts by.
+  `scripts/test-clinic-geo.ts`.
 - Migration **`0102`** adds `clinics.invoice_papers_enabled` text[] (default all three)
   — which paper sizes a clinic's print screens OFFER, distinct from `invoice_paper`,
   which is the one they OPEN at. A clinic with no A5 printer had no way to stop being
@@ -988,23 +991,6 @@ these for churn-risk + usage/cost anomaly flags.
   absent or unrecognised, so the admin-side subscription-invoice print (a COMPANY
   document, not a clinic one) is deliberately left unchanged.
   `scripts/test-print-papers.ts`.
-- Migrations **`0103`–`0104`** give a clinic a STRUCTURED location: a `cities` table
-  (`id`, `name`, `province`, `is_active`, unique on lower(name)+province, seeded with 162
-  Pakistani cities from `src/core/db/city-seed.ts`) plus `clinics.province` and
-  `clinics.city_id` → cities. `0104` backfills from the old free-text `clinics.city`
-  and then DROPS that column. **The backfill `RAISE EXCEPTION`s on a value it cannot
-  match** rather than nulling it: silently losing where a clinic is would be discovered
-  months later by a report that quietly under-counts a region. **Why structure it at all**
-  — the owner's question was "how many clinics do we have in that area?", and free text
-  cannot answer it: "Karachi", "karachi" and "Karāchi" are three regions. `province` is a
-  CODE-owned closed vocabulary (`core/clinics/provinces.ts`, seven entries, narrowed by
-  `asProvinceCode` and never cast) rather than a reference table, because it is a fixed
-  political fact rather than something a clinic may extend; a CITY is open, so
-  `findOrCreateCity` adds one on demand (case-insensitive, `onConflictDoNothing` plus a
-  re-read, so two admins typing the same new city race safely).
-  **Deliberately NOT merged with `clinics.public_address`** (migration `0099`): the
-  address is the patient-facing line a clinic writes in its own words, the city is the
-  dimension the company counts by. `scripts/test-clinic-geo.ts`.
 - Migration **`0105`** adds `clinic_price_changes` (`id`, `clinic_id` → clinics
   (`cascade`), `price` int, `effective_from` timestamptz, `created_by` + `created_by_name`
   snapshot, `created_at`) — **what a clinic was charged, month by month**.
