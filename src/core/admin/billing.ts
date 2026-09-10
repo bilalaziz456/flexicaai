@@ -5,9 +5,16 @@ import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { unscoped } from "@/core/db/tenant-guard";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
-import { clinics, clinicPayments, users } from "@/core/db/schema";
+import { clinics, clinicPayments,
+  clinicPriceChanges, users } from "@/core/db/schema";
 import { clinicPaymentKindId } from "@/core/db/vocabulary-seed";
 import type { PaymentMethodCode } from "@/core/db/vocabulary-seed";
+import {
+  accruedFor,
+  buildPriceSchedule,
+  monthsCoveredBy,
+  type PricePoint,
+} from "@/core/admin/price-schedule";
 
 /**
  * Manual clinic→FlexicaAI billing — CORE, super-admin control plane (Feature 6).
@@ -59,6 +66,13 @@ export type ClinicBalance = {
 
 type BalanceClinic = {
   monthlyPrice: number;
+  /**
+   * The clinic's PRICE HISTORY, if known. Absent means "it has always been
+   * `monthlyPrice`", which is what every caller meant before this existed and what
+   * every clinic that has never been re-priced still means — so behaviour is unchanged
+   * for them, byte for byte.
+   */
+  priceSchedule?: PricePoint[];
   graceDays: number;
   activatedAt: Date | null;
   createdAt: Date;
@@ -85,6 +99,13 @@ export function computeClinicBalance(
   const billingStart = clinic.activatedAt ?? clinic.createdAt;
   const price = clinic.monthlyPrice;
   const paid = payments.reduce((s, p) => s + signedBalanceAmount(p.kind, p.amount), 0);
+  // A month is charged at the price in force ON ITS DUE DATE, so a rise applies from
+  // the next month that falls due and never re-invoices one already billed. With no
+  // recorded history this is a single point and every figure below is what it was.
+  const schedule = clinic.priceSchedule?.length
+    ? clinic.priceSchedule
+    : [{ from: billingStart, price }];
+  const monthAt = (n: number) => addMonths(billingStart, n);
 
   // A free clinic (no price) is never billed.
   if (price <= 0) {
@@ -97,12 +118,13 @@ export function computeClinicBalance(
   // Advance billing: at billingStart month 1 is already due, so accrued counts the
   // current (started) month too.
   const monthsBilled = wholeMonthsBetween(billingStart, now) + 1;
-  const accrued = monthsBilled * price;
+  const accrued = accruedFor(schedule, monthsBilled, monthAt);
   const owed = Math.max(0, accrued - paid);
   const credit = Math.max(0, paid - accrued);
 
   // Whole months the money fully covers → the paid-through date + the overdue anchor.
-  const monthsPaid = Math.floor(paid / price);
+  // Walked, not divided: `paid / price` is only right while the price never moves.
+  const monthsPaid = monthsCoveredBy(schedule, paid, monthAt);
   const paidThrough = addMonths(billingStart, monthsPaid);
   const anchorMs = paidThrough.getTime();
 
@@ -289,6 +311,59 @@ export async function recordClinicPayment(input: {
  * health-alert follow-up this does NOT hide the clinic from the dues list (unpaid is
  * unpaid) — it's shown alongside. Updates a clinic by id, so no tenant scope needed.
  */
+/**
+ * Record what a clinic is charged from now on.
+ *
+ * Append-only: a price event is a fact about a date, so it is never edited or removed.
+ * `effective_from` is NOW, which means the change applies to months falling due AFTER
+ * it — a month already billed keeps the price it was billed at, which is the entire
+ * reason this table exists.
+ *
+ * Called only when the figure actually moved. Saving the grace days alone must not
+ * write one, or the history fills with events that changed nothing and the schedule
+ * becomes noise to read.
+ */
+export async function recordPriceChange(
+  clinicId: string,
+  price: number,
+  actorId: string | null,
+  actorName: string | null,
+): Promise<void> {
+  await unscoped("admin: record a clinic price change", async () => {
+    await db.insert(clinicPriceChanges).values({
+      clinicId,
+      price,
+      effectiveFrom: new Date(),
+      createdBy: actorId,
+      createdByName: actorName,
+    });
+  });
+}
+
+/**
+ * A clinic's price history as a schedule, ready for `computeClinicBalance` and
+ * `computePaymentBehaviour`. Falls back to the current price from billing start, so a
+ * clinic with no recorded changes behaves exactly as it did before the table existed.
+ */
+export async function getPriceSchedule(clinic: {
+  id: string;
+  monthlyPrice: number;
+  activatedAt: Date | null;
+  createdAt: Date;
+}): Promise<PricePoint[]> {
+  const rows = await unscoped("admin: clinic price history", async () =>
+    db
+      .select({ price: clinicPriceChanges.price, effectiveFrom: clinicPriceChanges.effectiveFrom })
+      .from(clinicPriceChanges)
+      .where(eq(clinicPriceChanges.clinicId, clinic.id))
+      .orderBy(clinicPriceChanges.effectiveFrom),
+  );
+  return buildPriceSchedule(rows, {
+    from: clinic.activatedAt ?? clinic.createdAt,
+    price: clinic.monthlyPrice,
+  });
+}
+
 export async function setPaymentCommitment(
   clinicId: string,
   at: Date | null,

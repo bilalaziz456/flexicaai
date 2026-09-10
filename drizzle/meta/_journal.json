@@ -736,6 +736,13 @@
       "when": 1788899745080,
       "tag": "0104_smiling_tony_stark",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1788999439576,
+      "tag": "0105_huge_earthquake",
+      "breakpoints": true
     }
   ]
 }

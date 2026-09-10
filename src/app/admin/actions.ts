@@ -44,6 +44,7 @@ import { setPublicContact } from "@/core/clinics/settings";
 import { findOrCreateCity } from "@/core/clinics/cities";
 import { asProvinceCode } from "@/core/clinics/provinces";
 import { getClinicAnalytics, type ClinicAnalytics } from "@/core/admin/clinic-analytics";
+import { recordPriceChange } from "@/core/admin/billing";
 
 export type AdminActionState = { error?: string; saved?: boolean; needsTotp?: boolean };
 
@@ -707,7 +708,7 @@ export async function setClinicPrice(
   _prev: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  await requireAdminCapability("billing:edit");
+  const admin = await requireAdminCapability("billing:edit");
   const parsed = priceSchema.safeParse({
     monthlyPrice: formData.get("monthlyPrice") ?? 0,
     billingCycle: formData.get("billingCycle") ?? "monthly",
@@ -724,6 +725,12 @@ export async function setClinicPrice(
       graceDays: parsed.data.graceDays,
       updatedAt: new Date(),
     });
+  // Record the change so past months keep the price they were billed at. Only when the
+  // figure actually moved — saving the grace days alone must not create a price event,
+  // or the history fills with rows that changed nothing.
+  if (parsed.data.monthlyPrice !== before.monthlyPrice) {
+    await recordPriceChange(clinicId, parsed.data.monthlyPrice, admin.id, admin.fullName);
+  }
   await syncClinicBillingStatus(clinicId);
 
   await logActivity({

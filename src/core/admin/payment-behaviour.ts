@@ -5,6 +5,7 @@ import {
   type PayerCategory,
   categoryFor,
 } from "@/core/admin/payer-categories";
+import { priceOn, type PricePoint } from "@/core/admin/price-schedule";
 
 /**
  * How reliably a clinic pays ITS SUBSCRIPTION — a behaviour history, not a balance.
@@ -137,7 +138,14 @@ function dayDiff(a: Date, b: Date): number {
 }
 
 export function computePaymentBehaviour(
-  clinic: { monthlyPrice: number; activatedAt: Date | null; createdAt: Date; graceDays?: number },
+  clinic: {
+    monthlyPrice: number;
+    activatedAt: Date | null;
+    createdAt: Date;
+    graceDays?: number;
+    /** Price history. Absent means the price has never moved — see price-schedule.ts. */
+    priceSchedule?: PricePoint[];
+  },
   payments: { amount: number; kind?: string; occurredAt: Date }[],
   now: Date = new Date(),
 ): PaymentBehaviour {
@@ -151,12 +159,20 @@ export function computePaymentBehaviour(
     current: null,
   };
   const price = clinic.monthlyPrice;
-  // A clinic on no price is never billed, so it has no payment behaviour to grade —
-  // distinct from one that has been billed and paid nothing.
-  if (price <= 0) return empty;
+  // Never billed at all — today's price is zero AND it has never been anything else.
+  // A clinic moved to free keeps the history it earned while it was paying.
+  const everPriced = price > 0 || (clinic.priceSchedule ?? []).some((pt) => pt.price > 0);
+  if (!everPriced) return empty;
 
   const billingStart = clinic.activatedAt ?? clinic.createdAt;
   if (billingStart.getTime() > now.getTime()) return empty;
+
+  // Each month is charged at the price in force on ITS due date, so a later rise
+  // cannot turn a month the clinic paid in full into an unpaid one. The same schedule
+  // feeds `computeClinicBalance`, so the two cannot disagree about what was owed.
+  const schedule = clinic.priceSchedule?.length
+    ? clinic.priceSchedule
+    : [{ from: billingStart, price }];
 
   // Money in, oldest first. A refund takes money back out, so it must reduce the
   // running total in the order it happened — otherwise a refunded month reads as paid.
@@ -181,13 +197,17 @@ export function computePaymentBehaviour(
   const finalTotal = acc;
 
   const months: MonthOutcome[] = [];
+  let needed = 0;
+  let monthPrice = price;
 
   // Every month from billing start through the current one is billed (advance).
   for (let n = 0; ; n++) {
     const dueAt = addMonths(billingStart, n);
     if (dueAt.getTime() > now.getTime()) break;
 
-    const needed = (n + 1) * price;
+    // Cumulative across months at THEIR OWN prices, not (n + 1) × today's.
+    monthPrice = priceOn(schedule, dueAt);
+    needed += monthPrice;
     // Still covered after everything that has happened, refunds included.
     const covered = finalTotal >= needed;
     // When it FIRST became covered — which is what lateness is measured from, and can
@@ -202,7 +222,7 @@ export function computePaymentBehaviour(
       settledAt,
       daysLate,
       category: categoryFor(daysLate, dueAt, now, clinic.graceDays ?? 0),
-      amount: price,
+      amount: monthPrice,
     });
   }
 

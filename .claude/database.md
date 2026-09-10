@@ -988,6 +988,49 @@ these for churn-risk + usage/cost anomaly flags.
   absent or unrecognised, so the admin-side subscription-invoice print (a COMPANY
   document, not a clinic one) is deliberately left unchanged.
   `scripts/test-print-papers.ts`.
+- Migrations **`0103`–`0104`** give a clinic a STRUCTURED location: a `cities` table
+  (`id`, `name`, `province`, `is_active`, unique on lower(name)+province, seeded with 162
+  Pakistani cities from `src/core/db/city-seed.ts`) plus `clinics.province` and
+  `clinics.city_id` → cities. `0104` backfills from the old free-text `clinics.city`
+  and then DROPS that column. **The backfill `RAISE EXCEPTION`s on a value it cannot
+  match** rather than nulling it: silently losing where a clinic is would be discovered
+  months later by a report that quietly under-counts a region. **Why structure it at all**
+  — the owner's question was "how many clinics do we have in that area?", and free text
+  cannot answer it: "Karachi", "karachi" and "Karāchi" are three regions. `province` is a
+  CODE-owned closed vocabulary (`core/clinics/provinces.ts`, seven entries, narrowed by
+  `asProvinceCode` and never cast) rather than a reference table, because it is a fixed
+  political fact rather than something a clinic may extend; a CITY is open, so
+  `findOrCreateCity` adds one on demand (case-insensitive, `onConflictDoNothing` plus a
+  re-read, so two admins typing the same new city race safely).
+  **Deliberately NOT merged with `clinics.public_address`** (migration `0099`): the
+  address is the patient-facing line a clinic writes in its own words, the city is the
+  dimension the company counts by. `scripts/test-clinic-geo.ts`.
+- Migration **`0105`** adds `clinic_price_changes` (`id`, `clinic_id` → clinics
+  (`cascade`), `price` int, `effective_from` timestamptz, `created_by` + `created_by_name`
+  snapshot, `created_at`) — **what a clinic was charged, month by month**.
+  **The bug it fixes:** `clinics.monthly_price` is ONE number, so every calculation that
+  walked a clinic's history charged all of it at TODAY's price. Raising a clinic from
+  5,000 to 8,000 turned six months of perfect payment into three unpaid months and a
+  0.67 rating — a price rise reading as a payment collapse, in the figure the company
+  uses to decide who to chase. A month is charged at the price in force **on its due
+  date**, so a rise applies from the next month that falls due after it and never
+  re-invoices a month already billed.
+  **ONE schedule feeds BOTH calculators** (`core/admin/price-schedule.ts` →
+  `computeClinicBalance` and `computePaymentBehaviour`). That is the point of a separate
+  module rather than the logic living in either: the dues dashboard and the scorecard
+  disagreeing about whether March was paid would be worse than either being
+  retrospectively wrong. `monthsCoveredBy` walks the months instead of `paid / price`,
+  which is only correct while the price never moves.
+  **`buildPriceSchedule` takes a fallback** covering the gap before the earliest recorded
+  row — a clinic priced before this table existed. Without it those months would have no
+  price at all and would silently read as free.
+  **The safety property is inertness**, and it is what the test asserts first: a clinic
+  whose price has never moved must behave exactly as before, *field for field*
+  (`scripts/test-price-schedule.ts`, 30 checks). This is money — the same balance drives
+  the dues dashboard, the overdue sweep and the `past_due` lock — so the change had to be
+  provably a no-op for every clinic it does not concern.
+  Existing clinics were backfilled with one row at their current price, effective from
+  `activated_at ?? created_at`, so nothing is retrospectively re-priced.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

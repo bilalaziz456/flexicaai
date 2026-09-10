@@ -7,6 +7,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  serial,
   text,
   timestamp,
   uniqueIndex,
@@ -157,6 +158,41 @@ export const importedTransactions = pgTable(
  * (unpaid time carries forward as a running balance). Super-admin only. Soft-deletable
  * (a void). See core/admin/billing.ts + docs/super-admin-plan.md §5.1/§11 Feature 6.
  */
+/**
+ * What a clinic was charged, and from when — the subscription's PRICE HISTORY.
+ *
+ * WHY IT EXISTS: without it, `clinics.monthly_price` is the only price there is, so
+ * every past month is re-evaluated at TODAY's figure. Raising a clinic from 5,000 to
+ * 8,000 turned six months of perfect payment into three unpaid months and a 0.67
+ * rating on the analytics scorecard — a price rise reading as a payment collapse.
+ *
+ * One row per change, never edited. `effective_from` is when the new price starts
+ * applying, and a month is charged at the price in force ON ITS DUE DATE — so raising
+ * the price today does not retroactively re-invoice a month already billed at the old
+ * one. That is the whole point.
+ *
+ * `clinics.monthly_price` remains the CURRENT price and the single value the UI edits;
+ * this table is the record of how it got there. The two cannot drift because
+ * `setClinicPrice` writes both in the same action.
+ */
+export const clinicPriceChanges = pgTable(
+  "clinic_price_changes",
+  {
+    id: serial("id").primaryKey(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    price: integer("price").notNull(), // PKR / month
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+    createdBy: uuid("created_by"),
+    createdByName: text("created_by_name"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("clinic_price_changes_clinic_from_idx").on(t.clinicId, t.effectiveFrom)],
+);
+
+export type ClinicPriceChange = typeof clinicPriceChanges.$inferSelect;
+
 export const clinicPayments = pgTable(
   "clinic_payments",
   {

@@ -6,6 +6,7 @@ import {
   appointments,
   cities,
   clinicPayments,
+  clinicPriceChanges,
   clinics,
   patientPayments,
   patients,
@@ -17,6 +18,7 @@ import { notDeleted } from "@/core/db/tenant";
 import { getOutstandingTotal } from "@/core/finance/receivables";
 import { paymentKindId, userRoleId } from "@/core/db/vocabulary-seed";
 import { computeClinicBalance, type ClinicBalance } from "@/core/admin/billing";
+import { buildPriceSchedule } from "@/core/admin/price-schedule";
 import {
   computePaymentBehaviour,
   computeTrend,
@@ -144,6 +146,18 @@ export async function getClinicAnalytics(
             return d;
           })();
 
+    // The clinic's price history, so a rise cannot rewrite months already billed at
+    // the old figure. One schedule feeds BOTH calculators below.
+    const priceRows = await db
+      .select({ price: clinicPriceChanges.price, effectiveFrom: clinicPriceChanges.effectiveFrom })
+      .from(clinicPriceChanges)
+      .where(eq(clinicPriceChanges.clinicId, clinicId))
+      .orderBy(clinicPriceChanges.effectiveFrom);
+    const priceSchedule = buildPriceSchedule(priceRows, {
+      from: row.activatedAt ?? row.createdAt,
+      price: row.monthlyPrice,
+    });
+
     // ── A: what they have paid us, oldest first ──────────────────────────────
     const ledger = await db
       .select({
@@ -161,11 +175,12 @@ export async function getClinicAnalytics(
         graceDays: row.graceDays,
         activatedAt: row.activatedAt,
         createdAt: row.createdAt,
+        priceSchedule,
       },
       ledger,
       now,
     );
-    const behaviour = computePaymentBehaviour(row, ledger, now);
+    const behaviour = computePaymentBehaviour({ ...row, priceSchedule }, ledger, now);
     const trend = computeTrend(behaviour.months);
     const windows = ratingWindows(behaviour.months);
 
