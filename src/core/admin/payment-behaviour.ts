@@ -281,9 +281,12 @@ export type RatingWindow = {
  * half-years: a clinic three years in does not need eleven near-identical points, and
  * the eye cannot read them anyway.
  *
- * Only windows the history can actually fill are generated, so no point on the chart
- * is ever drawn from fewer months than its label claims — the "36 Months" tick on a
- * 14-month clinic is not a low bar, it is absent.
+ * Only windows the HISTORY can fill are generated: the "36 Months" tick on a 14-month
+ * clinic is not a low bar, it is absent. Within a window that does exist, the mean is
+ * over its GRADEABLE months, so a "12 Months" point on a clinic whose newest invoice is
+ * still inside its grace period is the mean of eleven — the label names the span, not
+ * the sample size. A window with nothing gradeable at all rates `null` and the chart
+ * draws no marker for it, rather than placing one at zero.
  *
  * Ordered widest-first (All Time on the left, 3 Months on the right) so the line reads
  * past → present and a decline slopes downward, the way the eye expects.

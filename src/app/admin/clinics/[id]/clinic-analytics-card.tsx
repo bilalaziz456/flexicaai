@@ -171,8 +171,19 @@ function RatingLine({ windows }: { windows: RatingWindow[] }) {
       : padL + inset + (i / (windows.length - 1)) * (plotW - inset * 2);
   const y = (v: number) => padT + plotH - (v / 5) * plotH;
 
-  const pts = windows.map((w, i) => ({ ...w, cx: x(i), cy: y(w.rating ?? 0) }));
-  const line = pts.map((p) => `${p.cx},${p.cy}`).join(" ");
+  const pts = windows.map((w, i) => ({
+    ...w,
+    cx: x(i),
+    cy: w.rating === null ? null : y(w.rating),
+  }));
+  // One polyline per unbroken run of rated points, so a gap is a gap rather than a
+  // straight line implying values that were never measured.
+  const runs = pts.reduce<{ cx: number; cy: number }[][]>((acc, p) => {
+    if (p.cy === null) return [...acc, []];
+    const head = acc.slice(0, -1);
+    const tail = acc[acc.length - 1] ?? [];
+    return [...head, [...tail, { cx: p.cx, cy: p.cy }]];
+  }, [[]]).filter((run) => run.length > 1);
 
   // The three judgement bands behind the line, so a point's height means something
   // without reading the axis.
@@ -205,13 +216,38 @@ function RatingLine({ windows }: { windows: RatingWindow[] }) {
           </text>
         </g>
       ))}
-      <polyline points={line} fill="none" stroke="#15803d" strokeWidth="2" strokeLinejoin="round" opacity="0.7" />
+      {runs.map((run, i) => (
+        <polyline
+          key={i}
+          points={run.map((p) => `${p.cx},${p.cy}`).join(" ")}
+          fill="none"
+          stroke="#15803d"
+          strokeWidth="2"
+          strokeLinejoin="round"
+          opacity="0.7"
+        />
+      ))}
       {pts.map((p) => (
         <g key={p.label}>
-          <circle cx={p.cx} cy={p.cy} r="6" fill={ratingColour(p.rating)} stroke="#fff" strokeWidth="2" />
-          <text x={p.cx} y={p.cy - 12} textAnchor="middle" className="fill-foreground text-[11px] font-semibold">
-            {p.rating === null ? "—" : p.rating.toFixed(1)}
-          </text>
+          {p.cy === null ? (
+            // No marker and no height: an ungraded window has no position on a 0–5
+            // axis, and putting one anywhere would be inventing a reading.
+            <text
+              x={p.cx}
+              y={padT + plotH / 2}
+              textAnchor="middle"
+              className="fill-muted-foreground text-[11px]"
+            >
+              —
+            </text>
+          ) : (
+            <>
+              <circle cx={p.cx} cy={p.cy} r="6" fill={ratingColour(p.rating)} stroke="#fff" strokeWidth="2" />
+              <text x={p.cx} y={p.cy - 12} textAnchor="middle" className="fill-foreground text-[11px] font-semibold">
+                {p.rating?.toFixed(1)}
+              </text>
+            </>
+          )}
           <text x={p.cx} y={H - 10} textAnchor="middle" className="fill-muted-foreground text-[9px]">
             {p.label}
           </text>
