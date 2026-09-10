@@ -146,8 +146,8 @@ export function LogFilters({
     router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
   }
 
-  // One consistent field wrapper (label above control) so every filter — and the
-  // Today button — has the exact same height and bottom-aligns cleanly.
+  // One consistent field wrapper (label above control) so every filter has the
+  // exact same height and bottom-aligns cleanly.
   const fieldCls = "flex flex-col gap-1.5";
   const labelCls = "text-xs font-normal text-muted-foreground";
 
@@ -222,24 +222,21 @@ export function LogFilters({
         />
       </div>
 
-      <div className={fieldCls}>
-        {/* Invisible label (real Label element) keeps this column the same height
-            as the others, so the button aligns with the inputs. */}
-        <Label className={`${labelCls} invisible`} aria-hidden="true">
-          Today
-        </Label>
-        <button
-          type="button"
-          onClick={() => {
-            setFromD(today);
-            setToD(today);
-            push({ from: today, to: today });
-          }}
-          className="h-8 rounded-lg border border-input bg-[var(--input-bg)] px-4 text-sm font-medium outline-none transition-colors hover:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          Today
-        </button>
-      </div>
+      {/* WHY no invisible label spacer here: `items-end` bottom-aligns within each
+          FLEX LINE, so the button lines up with the fields on its own. A spacer
+          would only matter if it shared their line — and when the bar wraps and it
+          does not, that spacer becomes a stray gap above a button standing alone. */}
+      <button
+        type="button"
+        onClick={() => {
+          setFromD(today);
+          setToD(today);
+          push({ from: today, to: today });
+        }}
+        className="h-8 rounded-lg border border-input bg-[var(--input-bg)] px-4 text-sm font-medium outline-none transition-colors hover:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        Today
+      </button>
     </div>
   );
 }

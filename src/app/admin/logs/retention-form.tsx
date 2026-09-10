@@ -63,11 +63,14 @@ export function RetentionForm({
         </select>
       </div>
 
-      <Button type="button" variant="outline" size="sm" onClick={save} disabled={pending || days === retentionDays}>
+      {/* WHY: the button and the note both carry h-8, matching the select. `items-end`
+          aligns BOXES, not text — a shorter control (size="sm" is h-7) or a bare <p>
+          bottom-aligns and its text then rides above the select's. */}
+      <Button type="button" variant="outline" onClick={save} disabled={pending || days === retentionDays}>
         {pending ? "Saving…" : "Save"}
       </Button>
 
-      <p className="text-xs text-muted-foreground">
+      <p className="flex h-8 items-center text-xs text-muted-foreground">
         {rows.toLocaleString()} rows · {sizePretty}
         {oldest ? ` · oldest ${oldest.toLocaleDateString()}` : ""}
         {days === 0
