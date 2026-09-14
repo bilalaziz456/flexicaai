@@ -508,6 +508,29 @@ export const announcements = pgTable(
     active: boolean("active").notNull().default(true),
     startsAt: timestamp("starts_at", { withTimezone: true }),
     endsAt: timestamp("ends_at", { withTimezone: true }),
+    /**
+     * Which clinic ROLES see this notice. NULL = everyone, and that is the default
+     * that keeps every notice posted before this column behaving exactly as it did.
+     *
+     * Text codes rather than FKs into `user_roles`, following `clinics.log_access` and
+     * `users.permissions`: an array cannot carry a per-element foreign key anyway, and
+     * ADR-027's test does not apply — a bad code here produces no FIGURE at all, just
+     * an audience that does not match. It is validated against USER_ROLES at the action.
+     *
+     * "Everyone" is stored as NULL even when the author ticks every box, so a role added
+     * to the product later inherits the broadcast rather than being silently excluded
+     * from notices that meant "all staff".
+     */
+    audience: text("audience").array(),
+    /**
+     * Groups the rows written by ONE post to several clinics.
+     *
+     * Targeting stays one row per clinic — `clinic_id` keeps its foreign key, and the
+     * clinic-side read needs no change. This column exists purely so the admin screen
+     * can show that post as the single thing it was, and so deactivating it is one
+     * click rather than one per clinic. NULL for a single-clinic or broadcast post.
+     */
+    batchId: uuid("batch_id"),
     createdBy: uuid("created_by"),
     createdByName: text("created_by_name"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -516,6 +539,7 @@ export const announcements = pgTable(
   (t) => [
     index("announcements_clinic_idx").on(t.clinicId),
     index("announcements_active_idx").on(t.active),
+    index("announcements_batch_idx").on(t.batchId),
   ],
 );
 

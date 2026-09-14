@@ -743,6 +743,13 @@
       "when": 1788999439576,
       "tag": "0105_huge_earthquake",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1789415046919,
+      "tag": "0106_tiny_ricochet",
+      "breakpoints": true
     }
   ]
 }

@@ -525,8 +525,22 @@ Indexes: (`clinic_id`,`occurred_at`); partial trash index.
 ### `announcements` — super-admin → clinic notices
 `id`, `clinic_id` → clinics (`cascade`, **nullable** — NULL = broadcast to ALL
 clinics, else targeted), `level` (info|warning), `title`, `body`, `active` bool,
-`starts_at`/`ends_at` (optional window), `created_by(+name)`, timestamps. Shown in the
-clinic notice bar. `core/admin/announcements.ts` (cross-clinic reads `unscoped`).
+`starts_at`/`ends_at` (optional window), `created_by(+name)`, timestamps, plus **`audience`** text[] (clinic role codes that
+see it; **NULL = every staff member**, which is what every notice predating the column
+carries) and **`batch_id`** uuid (groups the rows one post to SEVERAL clinics writes).
+Shown in the clinic notice bar, filtered by the viewer's role in SQL.
+The super-admin list pages over POSTS, not rows (`group by coalesce(batch_id, id)`),
+and filters on state / level / clinic / audience / a date range that matches on WINDOW
+OVERLAP — all pushed into SQL (ADR-024).
+**Targeting stays one row per clinic** — `clinic_id` keeps its FK and the clinic-side
+read is unchanged; `batch_id` exists so the admin screen shows that post as the single
+thing it was, and so deactivating it is one click rather than one per clinic (which is
+also why `countActiveAnnouncements` counts `distinct coalesce(batch_id, id)`).
+`audience` is text rather than an FK into `user_roles`, like `clinics.log_access`: an
+array cannot carry a per-element FK, and ADR-027's test does not apply — a bad code
+produces no FIGURE, only an audience that matches nobody. Validated against
+`CLINIC_STAFF_ROLES` at the action. (Migration `0106`.)
+`core/admin/announcements.ts` (cross-clinic reads `unscoped`).
 
 ### `platform_cost_rates` — company serving-cost config (Owner Finance) · NO clinic_id
 `id`, ESTIMATE rates `scribe_call_cost` (fallback) + `whatsapp_msg_cost`, METERED rates

@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { CalendarClock } from "lucide-react";
 import { Button } from "@/core/ui/button";
+import { DatePicker } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
 
 /** A follow-up server action: set (with a date) or clear (at = null) a clinic's
@@ -106,7 +107,7 @@ export function FollowupModal({
                 <div className="mt-4 space-y-3">
                   <label className="block text-sm">
                     <span className="mb-1 block text-xs text-muted-foreground">Follow-up date</span>
-                    <Input type="date" value={date} min={inDays(0)} onChange={(e) => setDate(e.target.value)} />
+                    <DatePicker ariaLabel="Follow-up date" value={date} min={inDays(0)} onChange={setDate} />
                   </label>
                   <label className="block text-sm">
                     <span className="mb-1 block text-xs text-muted-foreground">Note (optional)</span>

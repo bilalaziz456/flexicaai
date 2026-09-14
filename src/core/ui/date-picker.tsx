@@ -44,12 +44,25 @@ export function DatePicker({
   id,
   disabled,
   ariaLabel = "Date",
+  min,
+  max,
 }: {
   value: string;
   onChange: (next: string) => void;
   id?: string;
   disabled?: boolean;
   ariaLabel?: string;
+  /**
+   * Inclusive bounds as "YYYY-MM-DD". Out-of-range days render struck through and
+   * refuse the click, and "Today" is hidden when today itself is out of range.
+   *
+   * Both optional, so every existing call is unaffected. They exist because a native
+   * `<input type="date">` has `min`/`max` and this component replaced it — a screen
+   * converted to the themed picker would otherwise silently lose its bound, which for
+   * a follow-up date means a past date that is accepted and then never acts.
+   */
+  min?: string;
+  max?: string;
 }) {
   const [open, setOpen] = useState(false);
   const base = parseYMD(value) ?? todayParts();
@@ -64,6 +77,12 @@ export function DatePicker({
 
   const selected = parseYMD(value);
   const today = todayParts();
+  // "YYYY-MM-DD" compares correctly as a string — zero-padded, most significant first —
+  // so the bounds need no Date objects and no timezone to go wrong in.
+  const outOfRange = (c: { y: number; m0: number; d: number }) => {
+    const ymd = fmtYMD(c.y, c.m0, c.d);
+    return Boolean((min && ymd < min) || (max && ymd > max));
+  };
 
   // 6 weeks of cells starting on the Sunday on/before the 1st of the view month.
   const startWeekday = new Date(view.y, view.m0, 1).getDay();
@@ -179,18 +198,21 @@ export function DatePicker({
                 const isSelected =
                   selected && c.y === selected.y && c.m0 === selected.m0 && c.d === selected.d;
                 const isToday = c.y === today.y && c.m0 === today.m0 && c.d === today.d;
+                const blocked = outOfRange(c);
                 return (
                   <button
                     key={i}
                     type="button"
+                    disabled={blocked}
                     aria-pressed={Boolean(isSelected)}
                     onClick={() => pick(c)}
                     className={cn(
                       "flex h-8 items-center justify-center rounded-md text-sm outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
                       !inMonth && "text-muted-foreground/50",
-                      inMonth && !isSelected && "hover:bg-accent hover:text-accent-foreground",
+                      inMonth && !isSelected && !blocked && "hover:bg-accent hover:text-accent-foreground",
                       isSelected && "bg-primary font-medium text-primary-foreground",
                       isToday && !isSelected && "ring-1 ring-primary/40",
+                      blocked && "cursor-not-allowed text-muted-foreground/40 line-through",
                     )}
                   >
                     {c.d}
@@ -207,8 +229,11 @@ export function DatePicker({
               >
                 Clear
               </button>
+              {/* Withheld when today is itself out of range — a shortcut that sets a
+                  value the grid refuses is worse than no shortcut. */}
               <button
                 type="button"
+                hidden={outOfRange(today)}
                 onClick={() => {
                   const t = todayParts();
                   pick(t);

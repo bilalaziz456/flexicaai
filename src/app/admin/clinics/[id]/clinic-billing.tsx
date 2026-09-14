@@ -13,6 +13,7 @@ import { Badge } from "@/core/ui/badge";
 import { Button } from "@/core/ui/button";
 import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { DataTable, type Column } from "@/core/ui/data-table";
+import { DatePicker } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { SavedToast } from "@/core/ui/toast";
@@ -110,6 +111,25 @@ export function ClinicBilling({
     recordClinicPaymentAction.bind(null, clinicId),
     {},
   );
+  // The two date pickers are controlled, so they must be cleared alongside the native
+  // fields React resets after a successful submit — otherwise the form half-clears and
+  // the next payment silently inherits this one's date. Adjusted during render (React's
+  // "adjust state when a prop changes") rather than in an effect, and keyed on the state
+  // OBJECT: `saved` goes true → true, so two payments in a row would look like no change
+  // and the second would keep the first's date.
+  const [occurredAt, setOccurredAt] = useState("");
+  // NOT named `commitmentAt`: that is already a PROP — the clinic's CURRENT follow-up
+  // date. This is the one being entered now, and shadowing the prop hid it.
+  const [newCommitmentAt, setNewCommitmentAt] = useState("");
+  const [lastPayState, setLastPayState] = useState(payState);
+  if (payState !== lastPayState) {
+    setLastPayState(payState);
+    if (payState.saved) {
+      setOccurredAt("");
+      setNewCommitmentAt("");
+    }
+  }
+
   // Clinic-facing payment-due notice toggle (optimistic; reverts on error).
   const [noticeOn, setNoticeOn] = useState(paymentNoticeEnabled);
   const [togglingNotice, startNotice] = useTransition();
@@ -359,7 +379,12 @@ export function ClinicBilling({
           </div>
           <div className="space-y-2">
             <Label htmlFor="occurredAt">Date</Label>
-            <Input id="occurredAt" name="occurredAt" type="date" />
+            {/* Themed picker, not `<input type="date">`, whose popup cannot be styled.
+                It is controlled, so the value reaches the action through a hidden input
+                — which needs no `syncChecked` care, since React keeps a hidden field's
+                defaultValue in step across the post-action reset (conventions §5). */}
+            <input type="hidden" name="occurredAt" value={occurredAt} />
+            <DatePicker id="occurredAt" ariaLabel="Payment date" value={occurredAt} onChange={setOccurredAt} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="reference">Reference</Label>
@@ -376,7 +401,13 @@ export function ClinicBilling({
           <div className="grid gap-3 rounded-md border border-dashed p-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="commitmentAt">Follow-up date (if balance remains)</Label>
-              <Input id="commitmentAt" name="commitmentAt" type="date" />
+              <input type="hidden" name="commitmentAt" value={newCommitmentAt} />
+              <DatePicker
+                id="commitmentAt"
+                ariaLabel="Follow-up date"
+                value={newCommitmentAt}
+                onChange={setNewCommitmentAt}
+              />
               <p className="text-[11px] text-muted-foreground">
                 When they promised to pay the rest. Cleared once settled.
               </p>

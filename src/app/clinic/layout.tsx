@@ -36,7 +36,7 @@ export default async function ClinicLayout({
     getClinic(user.clinicId),
     getThemeCookie(),
     getUnreadCount(user.clinicId, user.id),
-    listActiveForClinic(user.clinicId),
+    listActiveForClinic(user.clinicId, user.role),
   ]);
   // A clinic admin only sees the activity log if the super admin granted it; the
   // log nav is otherwise gated by the per-user `logs`… (kept as log_access).

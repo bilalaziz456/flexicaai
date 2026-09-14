@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/core/ui/button";
+import { DatePicker } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
 import { Badge } from "@/core/ui/badge";
 import { Toast } from "@/core/ui/toast";
@@ -116,7 +117,7 @@ export function LabTrackerCard({
           <Field label="Lab"><Input value={labName} onChange={(e) => setLabName(e.target.value)} className="h-8 w-32" placeholder="Lab name" /></Field>
           <Field label="Tooth"><Input value={tooth} onChange={(e) => setTooth(e.target.value)} className="h-8 w-16" /></Field>
           <Field label="Shade"><Input value={shade} onChange={(e) => setShade(e.target.value)} className="h-8 w-16" placeholder="A2" /></Field>
-          <Field label="Due"><Input type="date" value={due} onChange={(e) => setDue(e.target.value)} className="h-8 w-36" /></Field>
+          <Field label="Due"><div className="w-40"><DatePicker ariaLabel="Due date" value={due} onChange={setDue} /></div></Field>
           <Field label="Cost (Rs)"><Input value={cost} onChange={(e) => setCost(e.target.value.replace(/[^\d]/g, ""))} className="h-8 w-24" /></Field>
           <Button size="sm" disabled={pending} onClick={add}><Plus className="size-4" /> Send to lab</Button>
         </div>

@@ -304,8 +304,20 @@ export function PanelShell({
         </div>
       </aside>
 
-      {/* ---- Desktop top bar (clinic name left; theme + profile top-right) ---- */}
-      <header className="sticky top-0 z-20 hidden items-center justify-between gap-3 border-b bg-card px-6 py-2 md:flex">
+      {/* ONE sticky stack, not three competing ones. The banner and the top bar were
+          both `sticky top-0`, so they pinned to the SAME spot and the banner (higher z)
+          painted straight over the clinic name and the search box the moment the page
+          scrolled. Stacked inside a single sticky wrapper they sit one under the other
+          and stay put together — and the mobile search bar no longer needs a hand-tuned
+          `top-[3.75rem]` offset that any change in header height would falsify. */}
+      {/* `bg-card` is load-bearing, not decoration: the notice bars tint with /15
+          alphas (`bg-amber-500/15`), which is 85% transparent. Unpinned that never
+          showed, but a STICKY translucent bar lets the page scroll visibly through it.
+          The opaque base restores the tint's intended look over card colour. */}
+      <div className="sticky top-0 z-40 bg-card">
+        {banner}
+        {/* ---- Desktop top bar (clinic name left; theme + profile top-right) ---- */}
+        <header className="hidden items-center justify-between gap-3 border-b bg-card px-6 py-2 md:flex">
         <span className="max-w-xs shrink-0 truncate text-sm font-medium text-muted-foreground">
           {identityLabel}
         </span>
@@ -327,7 +339,7 @@ export function PanelShell({
       </header>
 
       {/* ---- Mobile top bar ---- */}
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-card px-4 py-3 md:hidden">
+      <header className="flex items-center justify-between border-b bg-card px-4 py-3 md:hidden">
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -360,10 +372,11 @@ export function PanelShell({
       {/* Mobile search sits on its OWN row: that bar already carries five
           controls, so an inline field would crush the logo. */}
       {searchBox ? (
-        <div className="sticky top-[3.75rem] z-30 border-b bg-card px-4 py-2 md:hidden">
+        <div className="border-b bg-card px-4 py-2 md:hidden">
           {searchBox}
         </div>
       ) : null}
+      </div>
 
       {/* ---- Mobile drawer (slides in/out; backdrop fades) ---- */}
       <div
@@ -414,7 +427,6 @@ export function PanelShell({
         </div>
       </div>
 
-      {banner ? <div className="sticky top-0 z-40">{banner}</div> : null}
       {/* Bottom padding grows with the pill stack (measured below) so the last content
           never hides under the floating pills, no matter how many are showing. */}
       <main
