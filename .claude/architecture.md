@@ -1031,6 +1031,31 @@ history nobody reads. A clinic is created with no price, so the first one set is
 recorded — and even if a row were ever missed, the fallback prices those months at the
 current figure rather than at nothing.
 
+**Completed 2026-09-13 — the DUES side was only half-wired, and the half that was
+missing is the half the company acts on.** This ADR said both calculators read the one
+schedule. `computePaymentBehaviour` did. `computeClinicBalance` *could* — it has taken
+an optional `priceSchedule` since day one — but **three of its four callers never passed
+one**: `listDueClinics` (the dues dashboard AND the overdue sweep), `getClinicBilling`
+(the clinic's billing card) and `getClinicBalanceSummary` (the payment pill in the
+clinic's own workspace). Only `getClinicAnalytics` did. So a re-priced clinic that had
+paid every invoice appeared to owe the difference across its entire history, was
+listed as overdue, and was told so by a pill in its own workspace — while the scorecard
+one click away called it a perfect payer. All four now read it
+(`getPriceSchedules` batches the set for the dashboard; the summary accepts a
+caller-supplied one to stay cheap on a hot path).
+
+**The lesson generalises past this bug: an OPTIONAL parameter carrying a correctness
+property is a default that will be taken.** The arithmetic was right and tested the
+whole time; what was wrong was what three call sites fed it, and nothing failed, logged
+or looked odd. `scripts/test-dues-schedule.ts` therefore exercises the READERS rather
+than the formula, and does it by seeding a re-priced clinic beside an otherwise
+identical one whose price never moved and asserting their balances are equal field for
+field — a control that needs no month count predicted and no anniversary dodged. Each
+of the three call sites was reverted in turn to confirm the test goes red for each; one
+assertion passed while broken because the test handed the summary an already-enriched
+clinic instead of the bare row the layout passes, which is its own reminder that a test
+must feed a function what its real caller feeds it.
+
 ---
 
 ## 6. Deltas — where the code is not yet the architecture

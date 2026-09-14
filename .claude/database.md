@@ -1007,6 +1007,12 @@ these for churn-risk + usage/cost anomaly flags.
   disagreeing about whether March was paid would be worse than either being
   retrospectively wrong. `monthsCoveredBy` walks the months instead of `paid / price`,
   which is only correct while the price never moves.
+  **Every READER must actually pass it, and for a while three did not** (fixed
+  2026-09-13): `priceSchedule` is optional on `computeClinicBalance`, so `listDueClinics`,
+  `getClinicBilling` and `getClinicBalanceSummary` silently priced whole histories at
+  today's figure and put a clinic that had paid everything on the dues dashboard. Load it
+  with `getPriceSchedule` / `getPriceSchedules` (batched) — never read `monthly_price`
+  straight into a balance. `scripts/test-dues-schedule.ts` guards the readers.
   **`buildPriceSchedule` takes a fallback** covering the gap before the earliest recorded
   row — a clinic priced before this table existed. Without it those months would have no
   price at all and would silently read as free.

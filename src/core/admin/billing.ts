@@ -197,7 +197,15 @@ export async function getClinicBilling(clinicId: string): Promise<{
     .where(and(eq(clinicPayments.clinicId, clinicId), notDeleted(clinicPayments.deletedAt)))
     .orderBy(desc(clinicPayments.occurredAt));
 
-  return { clinic, payments, balance: computeClinicBalance(clinic, payments) };
+  // Each month is charged at the price in force on ITS due date (ADR-032). Without
+  // this the card re-prices a clinic's whole history at today's figure, so a rise turns
+  // months it has already paid into months it suddenly owes for.
+  const priceSchedule = await getPriceSchedule(clinic);
+  return {
+    clinic: { ...clinic, priceSchedule },
+    payments,
+    balance: computeClinicBalance({ ...clinic, priceSchedule }, payments),
+  };
 }
 
 /**
@@ -216,8 +224,13 @@ export async function getClinicBalanceSummary(
     })
     .from(clinicPayments)
     .where(and(eq(clinicPayments.clinicId, clinic.id), notDeleted(clinicPayments.deletedAt)));
+  // The schedule is what the months are priced at (ADR-032). Taken from the caller when
+  // it already has one, so a page holding the clinic's terms does not pay for a second
+  // read; loaded here otherwise, because the alternative — defaulting to today's price —
+  // is the very bug this reads for, and it fails silently.
+  const priceSchedule = clinic.priceSchedule ?? (await getPriceSchedule(clinic));
   // The signed sum is already the net paid; pass it as a single 'payment' entry.
-  return computeClinicBalance(clinic, [
+  return computeClinicBalance({ ...clinic, priceSchedule }, [
     { amount: Number(agg?.amount ?? 0), monthsCovered: Number(agg?.months ?? 0), kind: "payment" },
   ]);
 }
@@ -345,23 +358,61 @@ export async function recordPriceChange(
  * `computePaymentBehaviour`. Falls back to the current price from billing start, so a
  * clinic with no recorded changes behaves exactly as it did before the table existed.
  */
-export async function getPriceSchedule(clinic: {
+export async function getPriceSchedule(clinic: PricedClinic): Promise<PricePoint[]> {
+  const schedules = await getPriceSchedules([clinic]);
+  return schedules.get(clinic.id) ?? [];
+}
+
+/** The billing terms a schedule is built from — what every balance caller already holds. */
+export type PricedClinic = {
   id: string;
   monthlyPrice: number;
   activatedAt: Date | null;
   createdAt: Date;
-}): Promise<PricePoint[]> {
+};
+
+/**
+ * Price schedules for a SET of clinics — one query for the whole set.
+ *
+ * Exists because the dues dashboard rates every priced clinic on the platform in one
+ * pass, and a schedule read per clinic would make the page cost more with every clinic
+ * signed. The single-clinic version delegates here so there is one query shape and one
+ * fallback rule, not two that drift.
+ */
+export async function getPriceSchedules(list: PricedClinic[]): Promise<Map<string, PricePoint[]>> {
+  const out = new Map<string, PricePoint[]>();
+  if (list.length === 0) return out;
   const rows = await unscoped("admin: clinic price history", async () =>
     db
-      .select({ price: clinicPriceChanges.price, effectiveFrom: clinicPriceChanges.effectiveFrom })
+      .select({
+        clinicId: clinicPriceChanges.clinicId,
+        price: clinicPriceChanges.price,
+        effectiveFrom: clinicPriceChanges.effectiveFrom,
+      })
       .from(clinicPriceChanges)
-      .where(eq(clinicPriceChanges.clinicId, clinic.id))
+      .where(inArray(clinicPriceChanges.clinicId, list.map((c) => c.id)))
       .orderBy(clinicPriceChanges.effectiveFrom),
   );
-  return buildPriceSchedule(rows, {
-    from: clinic.activatedAt ?? clinic.createdAt,
-    price: clinic.monthlyPrice,
-  });
+  const byClinic = new Map<string, { price: number; effectiveFrom: Date }[]>();
+  for (const r of rows) {
+    const l = byClinic.get(r.clinicId) ?? [];
+    l.push({ price: r.price, effectiveFrom: r.effectiveFrom });
+    byClinic.set(r.clinicId, l);
+  }
+  // Every clinic gets an entry, INCLUDING one with no recorded change: `buildPriceSchedule`
+  // then returns the single fallback point, which is exactly the old flat behaviour. A
+  // missing entry would instead leave the caller passing `undefined` and silently taking
+  // a different code path for the commonest clinic there is.
+  for (const c of list) {
+    out.set(
+      c.id,
+      buildPriceSchedule(byClinic.get(c.id) ?? [], {
+        from: c.activatedAt ?? c.createdAt,
+        price: c.monthlyPrice,
+      }),
+    );
+  }
+  return out;
 }
 
 export async function setPaymentCommitment(
@@ -485,9 +536,18 @@ export async function listDueClinics(opts: { includeUpcoming?: boolean } = {}): 
       byClinicId.set(p.clinicId, list);
     }
 
+    // One query for every clinic's price history, not one per clinic — this loop runs
+    // over every priced clinic on the platform. Without it each month is charged at
+    // today's figure, so a clinic that has paid every invoice at the old price appears
+    // on the dues dashboard owing the difference for its entire history (ADR-032).
+    const schedules = await getPriceSchedules(cs);
+
     const out: OverdueClinic[] = [];
     for (const c of cs) {
-      const balance = computeClinicBalance(c, byClinicId.get(c.id) ?? []);
+      const balance = computeClinicBalance(
+        { ...c, priceSchedule: schedules.get(c.id) },
+        byClinicId.get(c.id) ?? [],
+      );
       const st = balance.billingStatus;
       // A paid clinic whose subscription runs out within its reminder window.
       const upcoming =
