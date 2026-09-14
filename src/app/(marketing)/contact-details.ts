@@ -37,7 +37,8 @@ export const SALES_EMAIL_URL = `mailto:${SALES_EMAIL}?subject=${encodeURICompone
 )}`;
 
 /**
- * Social profiles, confirmed by the owner 2026-08-05.
+ * Social profiles, confirmed by the owner 2026-08-05; Facebook and Instagram moved to
+ * the `…Official` handles 2026-09-15.
  *
  * Each link still renders only when its URL is non-empty, so clearing one here (or
  * setting its env var to a blank string) removes just that icon rather than leaving
@@ -48,12 +49,12 @@ export const SOCIAL_LINKS = [
   {
     id: "facebook",
     label: "Facebook",
-    url: process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK?.trim() || "https://www.facebook.com/flexicaai",
+    url: process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK?.trim() || "https://www.facebook.com/FlexicaAIOfficial",
   },
   {
     id: "instagram",
     label: "Instagram",
-    url: process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM?.trim() || "https://www.instagram.com/flexicaai",
+    url: process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM?.trim() || "https://www.instagram.com/flexicaaiofficial",
   },
   {
     id: "linkedin",
