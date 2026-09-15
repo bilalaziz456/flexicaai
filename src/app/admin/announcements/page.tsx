@@ -21,7 +21,7 @@ const STATES = ["showing", "scheduled", "ended", "inactive"] as const;
 type State = (typeof STATES)[number];
 const isState = (v: string | undefined): v is State => STATES.includes(v as State);
 
-const DAY_RE = /^d{4}-d{2}-d{2}$/;
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const asDay = (v: string | undefined) => (v && DAY_RE.test(v.trim()) ? v.trim() : undefined);
 
 const fmt = (d: Date) =>
@@ -56,6 +56,12 @@ export default async function AnnouncementsPage({
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
   const now = new Date();
+  // Resolved ONCE and used for both the query and the "matching the filters" line.
+  // They had been validated in one place and reported from another, so a value the
+  // filter rejected still claimed to be filtering — which is exactly how a broken
+  // date regex hid for a while: the header said filtered, the query was unfiltered.
+  const from = asDay(sp.from);
+  const to = asDay(sp.to);
 
   const [{ rows, total }, clinicList] = await Promise.all([
     listAnnouncementsPage(
@@ -69,8 +75,8 @@ export default async function AnnouncementsPage({
         audience: CLINIC_STAFF_ROLES.includes(sp.audience as (typeof CLINIC_STAFF_ROLES)[number])
           ? sp.audience
           : undefined,
-        from: asDay(sp.from),
-        to: asDay(sp.to),
+        from,
+        to,
       },
       { offset: pageOffset(page, pageSize), limit: pageSize },
       now,
@@ -78,7 +84,7 @@ export default async function AnnouncementsPage({
     listClinicOptions(),
   ]);
 
-  const filtered = Boolean(sp.q || sp.state || sp.level || sp.clinic || sp.audience || sp.from || sp.to);
+  const filtered = Boolean(sp.q || sp.state || sp.level || sp.clinic || sp.audience || from || to);
   const canCreate = canAdmin(admin, "announcements:create");
   const canEdit = canAdmin(admin, "announcements:edit");
 
@@ -107,8 +113,8 @@ export default async function AnnouncementsPage({
         level={sp.level ?? ""}
         clinic={sp.clinic ?? ""}
         audience={sp.audience ?? ""}
-        from={asDay(sp.from) ?? ""}
-        to={asDay(sp.to) ?? ""}
+        from={from ?? ""}
+        to={to ?? ""}
         clinics={clinicList}
         levelOptions={[
           { value: "", label: "Any level" },
