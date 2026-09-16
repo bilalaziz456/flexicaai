@@ -22,9 +22,9 @@ import { BRAND_PHONE, BRAND_WEBSITE } from "@/core/lib/brand";
 export const SALES_WHATSAPP_NUMBER =
   process.env.NEXT_PUBLIC_SALES_WHATSAPP?.trim() || "923010186111";
 
-/** Confirmed by the owner, 2026-08-05. */
+/** Confirmed by the owner, 2026-08-05; changed to the Gmail address 2026-09-17. */
 export const SALES_EMAIL =
-  process.env.NEXT_PUBLIC_SALES_EMAIL?.trim() || "hello@flexicaai.com";
+  process.env.NEXT_PUBLIC_SALES_EMAIL?.trim() || "flexicaai@gmail.com";
 
 const WHATSAPP_GREETING = "Hi FlexicaAI, I would like to see a demo.";
 

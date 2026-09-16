@@ -104,7 +104,7 @@ const serverSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
-  // The From header, e.g. "FlexicaAI <no-reply@flexicaai.com>". Falls back to SMTP_USER.
+  // The From header, e.g. "FlexicaAI <flexicaai@gmail.com>". Falls back to SMTP_USER.
   EMAIL_FROM: z.string().optional(),
 
   // ---- Observability (core/observability) ----
