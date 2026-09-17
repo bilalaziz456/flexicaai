@@ -188,7 +188,16 @@ export function DoctorScheduleFields({
                             </div>
                             {/* What this window is for. Consultation is the
                                 default; a procedure window lets longer work be
-                                booked outside consulting hours. */}
+                                booked outside consulting hours.
+
+                                Wears `select-chevron-sm` rather than the app's
+                                standard `select-chevron`, because it sits in a
+                                row with the six time selects: the standard
+                                chevron is half again as large and reserves
+                                twice the padding, which made this read as a
+                                different kind of control beside them. It is
+                                still an ordinary select everywhere it counts —
+                                same height, border, radius and focus ring. */}
                             <select
                               aria-label={`${d.label} type ${i + 1}`}
                               value={r.kind}
@@ -197,7 +206,7 @@ export function DoctorScheduleFields({
                                   kind: e.target.value as WindowKind,
                                 })
                               }
-                              className="h-8 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron"
+                              className="select-chevron-sm h-8 rounded-lg border border-input bg-[var(--input-bg)] pl-2 pr-5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                             >
                               {WINDOW_KINDS.map((k) => (
                                 <option key={k.value} value={k.value}>
