@@ -27,6 +27,25 @@ export type TrendPoint = {
   value: number;
   /** Same bucket in the comparison window, when the caller has one. */
   previous?: number;
+  /** A SECOND measure in the same units — see `overlay`. */
+  second?: number;
+};
+
+/**
+ * A second series of the same kind, drawn over the first: earned vs paid, billed vs
+ * collected. Distinct from `previous`, which is the SAME measure in an earlier
+ * window and is drawn faintly; this one is a different measure and is a full citizen.
+ */
+export type TrendOverlay = {
+  label: string;
+  color?: string;
+  /**
+   * Tint the region between the two lines. Use it when the GAP is itself the thing
+   * being shown — cumulative earned against cumulative paid, where the space between
+   * them is what the clinic still owes.
+   */
+  fillGap?: boolean;
+  gapLabel?: string;
 };
 
 /**
@@ -45,6 +64,7 @@ export type TrendPoint = {
  */
 export function TrendChart({
   points,
+  overlay,
   color = "var(--color-chart-1)",
   height = 240,
   mode = "area",
@@ -55,6 +75,7 @@ export function TrendChart({
   ariaLabel,
 }: {
   points: TrendPoint[];
+  overlay?: TrendOverlay;
   color?: string;
   height?: number;
   mode?: "area" | "line";
@@ -80,9 +101,14 @@ export function TrendChart({
   let max = 0;
   let min = 0;
   for (const p of points) {
-    max = Math.max(max, p.value, p.previous ?? 0);
-    min = Math.min(min, p.value, p.previous ?? 0);
+    max = Math.max(max, p.value, p.previous ?? 0, p.second ?? 0);
+    min = Math.min(min, p.value, p.previous ?? 0, p.second ?? 0);
   }
+  // Amber, not chart-2. The default pairing was teal against brand blue — adjacent
+  // hues that read as one colour in a legend of two small dots, which is the whole
+  // job a legend has. This separates in both themes and for the common colour-vision
+  // deficiencies, where teal-vs-blue does not.
+  const overlayColor = overlay?.color ?? "var(--color-chart-4)";
   const scale = niceScale(min, max);
 
   const xFor = useCallback(
@@ -103,6 +129,21 @@ export function TrendChart({
     ? smoothPath(points.map((p, i) => ({ x: xFor(i), y: yFor(p.previous ?? 0) })))
     : "";
 
+  // The overlay, and the band between the two series. The band is built by running
+  // the first curve forward and the second BACK along the same xs, so the two edges
+  // are the identical curves — the gap can never be drawn wider or narrower than the
+  // numbers it stands for.
+  const secondPts: Pt[] = overlay
+    ? points.map((p, i) => ({ x: xFor(i), y: yFor(p.second ?? 0) }))
+    : [];
+  const secondLine = overlay ? smoothPath(secondPts) : "";
+  const gapPath =
+    overlay?.fillGap && secondPts.length > 1
+      ? `${line} L${secondPts[secondPts.length - 1].x},${secondPts[secondPts.length - 1].y} ${smoothPath(
+          [...secondPts].reverse(),
+        ).replace(/^M[^ ]+ /, "")} Z`
+      : "";
+
   const stride = labelStride(n, plotW);
   const activePoint = active != null ? points[active] : null;
   const delta =
@@ -112,6 +153,23 @@ export function TrendChart({
 
   return (
     <div ref={ref} className="relative w-full">
+      {overlay ? (
+        <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          {[
+            { label: valueLabel, c: color },
+            { label: overlay.label, c: overlayColor },
+          ].map((it) => (
+            <li key={it.label} className="flex items-center gap-1.5">
+              <span
+                className="inline-block size-2 rounded-full"
+                style={{ background: it.c }}
+                aria-hidden="true"
+              />
+              {it.label}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {width > 0 && (
         <svg
           width={width}
@@ -140,6 +198,9 @@ export function TrendChart({
           ) : null}
 
           {area ? <path d={area} fill={`url(#${gradId})`} className="chart-fade-in" /> : null}
+          {gapPath ? (
+            <path d={gapPath} fill={color} fillOpacity={0.14} className="chart-fade-in" />
+          ) : null}
           {/* `pathLength={1}` normalises the dash used by `.chart-draw`, so a
               90-day curve and a 6-point one take the same time to draw. */}
           <path
@@ -152,6 +213,19 @@ export function TrendChart({
             strokeLinecap="round"
             className="chart-draw"
           />
+
+          {secondLine ? (
+            <path
+              d={secondLine}
+              pathLength={1}
+              fill="none"
+              stroke={overlayColor}
+              strokeWidth={2}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              className="chart-draw"
+            />
+          ) : null}
 
           {/* Crosshair + the point under the pointer. No dot on every bucket: ninety
               dots is a dotted line, and the one that matters is the one you are on. */}
@@ -180,6 +254,16 @@ export function TrendChart({
                 className="stroke-card"
                 strokeWidth={1.5}
               />
+              {overlay ? (
+                <circle
+                  cx={xFor(active)}
+                  cy={yFor(points[active].second ?? 0)}
+                  r={3}
+                  fill={overlayColor}
+                  className="stroke-card"
+                  strokeWidth={1.5}
+                />
+              ) : null}
             </g>
           ) : null}
 
@@ -204,6 +288,20 @@ export function TrendChart({
       {activePoint ? (
         <ChartTooltip x={xFor(active!)} width={width} title={activePoint.label}>
           <TooltipRow label={valueLabel} value={formatValue(activePoint.value)} color={color} />
+          {overlay ? (
+            <TooltipRow
+              label={overlay.label}
+              value={formatValue(activePoint.second ?? 0)}
+              color={overlayColor}
+            />
+          ) : null}
+          {overlay?.fillGap ? (
+            <TooltipRow
+              label={overlay.gapLabel ?? "Difference"}
+              value={formatValue(activePoint.value - (activePoint.second ?? 0))}
+              muted
+            />
+          ) : null}
           {typeof activePoint.previous === "number" ? (
             <TooltipRow
               label={comparisonLabel}

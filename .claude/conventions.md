@@ -99,6 +99,27 @@ note above it; obvious logic gets none.
 - **Both of the above are lint-enforced** (ADR-029), with type-only imports exempt.
   The counts are zero; a violation fails the build rather than waiting to be noticed —
   which is how the two that ADR-029 fixed survived as long as they did.
+- **Charts come from `core/ui/charts`, and the TYPE is chosen by what the data
+  says**, not by what the last chart on the page used:
+  `TrendChart` for a flow over time (revenue, expenses, usage) · `ProfitLossChart`
+  where the series crosses zero and the crossing is the point · `DonutChart` for
+  parts of ONE whole, few enough to tell apart · `HBarChart` for a ranking across
+  named things · `WaterfallChart` for how one total became another · `Sparkline`
+  inside a `StatCard`. Three rules hold the set together:
+  1. **A card shows a shape only when a shape exists.** No series, no sparkline; no
+     baseline, no delta. Most figures here have no history (a day book is one day, a
+     receivable is a balance) and a flat line drawn to tidy a grid is a lie. Where a
+     series DOES exist it is nearly always already on the page — check the report's
+     buckets before adding a query.
+  2. **Everything on a card agrees with everything else on it.** The sparkline takes
+     the delta's good/bad judgement, not its own direction: colouring by direction
+     put a red trace under a green profit figure and a green one under rising
+     expenses.
+  3. **An insight must be legible in the chart it sits under** (`insights.ts`). Each
+     detector returns null unless the data supports the sentence, including a
+     materiality floor — a −126 rupee month on a 40,000 axis is a true loss and an
+     invisible one, and a line that appears to contradict its own chart costs more
+     trust than it adds. They are computed, so they are never labelled AI.
 - **A shared component must not know your routes.** Nav lives in each panel's
   `nav.ts` and is passed to `PanelShell` as data, with gating declared on the item
   (`resource` / `cap` / `feature` / `gate`). Adding a page never edits `core/ui`.

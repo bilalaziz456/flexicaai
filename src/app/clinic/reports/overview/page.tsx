@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { HBarChart } from "@/core/ui/h-bar-chart";
+import { StatCard } from "@/core/ui/charts/stat-card";
 import { WaterfallChart } from "@/core/ui/charts/waterfall-chart";
 import { SalesFilters } from "@/core/ui/report-filters";
 import { PrintButton } from "@/core/ui/print-button";
@@ -93,13 +94,13 @@ export default async function OverviewPage({
       {/* Summary (performance) */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {summary.map((s) => (
-          <Card key={s.title}>
-            <CardHeader>
-              <CardDescription>{s.title}</CardDescription>
-              <CardTitle className={`text-3xl ${s.tone}`}>{s.value}</CardTitle>
-              <CardDescription>{s.note}</CardDescription>
-            </CardHeader>
-          </Card>
+          <StatCard
+            key={s.title}
+            label={s.title}
+            value={s.value}
+            hint={s.note}
+            tone={s.tone.includes("destructive") ? "bad" : s.tone ? "good" : "default"}
+          />
         ))}
       </div>
 
@@ -197,7 +198,7 @@ export default async function OverviewPage({
               {ov.salesByDoctor.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No sales yet.</p>
               ) : (
-                <HBarChart ariaLabel="Collected by doctor" rows={ov.salesByDoctor.map((d) => ({ label: d.name, value: d.net, sublabel: `${d.count} visit${d.count === 1 ? "" : "s"}` }))} />
+                <HBarChart showShare ariaLabel="Collected by doctor" rows={ov.salesByDoctor.map((d) => ({ label: d.name, value: d.net, sublabel: `${d.count} visit${d.count === 1 ? "" : "s"}` }))} />
               )}
             </CardContent>
           </Card>
@@ -210,7 +211,7 @@ export default async function OverviewPage({
             {ov.salesByProcedure.length === 0 ? (
               <p className="text-sm text-muted-foreground">No procedures yet.</p>
             ) : (
-              <HBarChart ariaLabel="Billed by procedure" rows={ov.salesByProcedure.map((p) => ({ label: p.name, value: p.gross, sublabel: `×${p.qty}` }))} />
+              <HBarChart showShare ariaLabel="Billed by procedure" rows={ov.salesByProcedure.map((p) => ({ label: p.name, value: p.gross, sublabel: `×${p.qty}` }))} />
             )}
           </CardContent>
         </Card>
@@ -222,7 +223,7 @@ export default async function OverviewPage({
             <CardTitle className="text-base">Expenses by category</CardTitle>
           </CardHeader>
           <CardContent>
-            <HBarChart ariaLabel="Expenses by category" rows={ov.expenseByCategory.map((c) => ({ label: c.name, value: c.amount }))} />
+            <HBarChart showShare ariaLabel="Expenses by category" rows={ov.expenseByCategory.map((c) => ({ label: c.name, value: c.amount }))} />
           </CardContent>
         </Card>
       ) : null}

@@ -14,8 +14,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { MultiBarChart } from "@/core/ui/multi-bar-chart";
-import { LineChart } from "@/app/clinic/sales/line-chart";
+import { TrendChart } from "@/core/ui/charts/trend-chart";
+import { StatCard } from "@/core/ui/charts/stat-card";
 import { SalesFilters } from "@/core/ui/report-filters";
 import { RecordPayoutForm } from "./payout-ui";
 import { SettlementForm, VoidSettlementButton } from "./settlement-ui";
@@ -130,13 +130,13 @@ export default async function ClinicSharesPage({
       {/* Balance (lifetime) */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {summary.map((s) => (
-          <Card key={s.title}>
-            <CardHeader>
-              <CardDescription>{s.title}</CardDescription>
-              <CardTitle className={`text-3xl ${s.tone}`}>{s.value}</CardTitle>
-              <CardDescription>{s.note}</CardDescription>
-            </CardHeader>
-          </Card>
+          <StatCard
+            key={s.title}
+            label={s.title}
+            value={s.value}
+            hint={s.note}
+            tone={s.tone.includes("destructive") ? "bad" : s.tone ? "good" : "default"}
+          />
         ))}
       </div>
 
@@ -254,32 +254,37 @@ export default async function ClinicSharesPage({
             </p>
           ) : (
             <div className="space-y-8">
-              <MultiBarChart
+              <TrendChart
                 ariaLabel={selfOnly ? "Your earned vs paid per period" : "Doctor shares earned vs paid per period"}
                 points={report.activityBuckets.map((b) => ({
                   label: b.label,
-                  values: { earned: b.earned, paid: b.paid },
+                  value: b.earned,
+                  second: b.paid,
                 }))}
-                series={[
-                  { key: "earned", label: "Earned", color: "var(--color-chart-1)" },
-                  { key: "paid", label: "Paid", color: "var(--color-chart-2)" },
-                ]}
+                valueLabel="Earned"
+                overlay={{ label: "Paid" }}
               />
               <div>
                 <div className="text-sm font-medium">Cumulative earned vs paid</div>
                 <p className="mb-3 text-xs text-muted-foreground">
                   The gap between the lines is the outstanding balance over time.
                 </p>
-                <LineChart
+                {/* The GAP is the point of this chart — what the clinic still owes
+                    — so it is tinted rather than left for the eye to measure. */}
+                <TrendChart
                   ariaLabel="Cumulative earned versus paid"
                   points={report.cumulativeBuckets.map((b) => ({
                     label: b.label,
-                    values: { earned: b.earned, paid: b.paid },
+                    value: b.earned,
+                    second: b.paid,
                   }))}
-                  series={[
-                    { key: "earned", label: "Cumulative earned", color: "var(--color-chart-1)" },
-                    { key: "paid", label: "Cumulative paid", color: "var(--color-chart-2)", dashed: true },
-                  ]}
+                  valueLabel="Cumulative earned"
+                  mode="line"
+                  overlay={{
+                    label: "Cumulative paid",
+                    fillGap: true,
+                    gapLabel: "Outstanding",
+                  }}
                 />
               </div>
             </div>
