@@ -115,7 +115,13 @@ note above it; obvious logic gets none.
      the delta's good/bad judgement, not its own direction: colouring by direction
      put a red trace under a green profit figure and a green one under rising
      expenses.
-  3. **An insight must be legible in the chart it sits under** (`insights.ts`). Each
+  3. **Composition is drawn FLAT.** `DonutChart` is the default and `Donut3D` exists
+     only for side-by-side comparison on /clinic/shares. A tilt squashes the back of
+     the ring while the extruded wall is visible only at the front, and both errors
+     run the same way — so a front slice is doubly overstated and equal shares stop
+     looking equal. Depth is fine; perspective is not. Reach for the shadow, the
+     hover lift and the glow, which change no geometry.
+  4. **An insight must be legible in the chart it sits under** (`insights.ts`). Each
      detector returns null unless the data supports the sentence, including a
      materiality floor — a −126 rupee month on a 40,000 axis is a true loss and an
      invisible one, and a line that appears to contradict its own chart costs more

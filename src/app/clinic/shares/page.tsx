@@ -16,6 +16,8 @@ import {
 } from "@/core/ui/card";
 import { TrendChart } from "@/core/ui/charts/trend-chart";
 import { StatCard } from "@/core/ui/charts/stat-card";
+import { DonutChart } from "@/core/ui/charts/donut-chart";
+import { Donut3D } from "@/core/ui/charts/donut-3d";
 import { SalesFilters } from "@/core/ui/report-filters";
 import { RecordPayoutForm } from "./payout-ui";
 import { SettlementForm, VoidSettlementButton } from "./settlement-ui";
@@ -95,6 +97,13 @@ export default async function ClinicSharesPage({
       tone: owes ? "text-destructive" : "",
     },
   ];
+
+  // Composition of lifetime earnings. Only positive earners: a doctor who net-bore
+  // a discount has a NEGATIVE balance, and a negative slice of a ring is not a
+  // thing — it would have to be drawn as an absence, which no reader would decode.
+  const shareSlices = balances
+    .filter((b) => b.earned > 0)
+    .map((b) => ({ label: b.name, value: b.earned }));
 
   return (
     <div className="space-y-6">
@@ -201,6 +210,53 @@ export default async function ClinicSharesPage({
                 ))}
               </ul>
             ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Share of earnings — the composition, shown BOTH ways for comparison.
+
+          The flat ring is the one to keep: a slice covers the fraction of the arc
+          its value earned, wherever it sits. The tilted one is here so the two can
+          be judged side by side — see `donut-3d.tsx` for exactly what the tilt
+          costs. Delete whichever loses. */}
+      {!singleDoctor && shareSlices.length > 1 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Share of earnings</CardTitle>
+            <CardDescription>
+              Each doctor&apos;s share of lifetime earnings. The same data drawn flat and
+              tilted — compare how easy it is to rank the slices by eye in each.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-8 lg:grid-cols-2">
+              <div>
+                <div className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Flat — proportion is true
+                </div>
+                <DonutChart
+                  ariaLabel="Share of earnings by doctor"
+                  centerLabel="Earned"
+                  slices={shareSlices}
+                />
+              </div>
+              <div>
+                <div className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  3D — tilted and extruded
+                </div>
+                <Donut3D
+                  ariaLabel="Share of earnings by doctor, three-dimensional"
+                  centerLabel="Earned"
+                  slices={shareSlices}
+                />
+                <p className="mt-3 text-xs text-muted-foreground">
+                  The front slices carry the side wall and the back ones are squashed by
+                  the tilt, so equal shares do not look equal. The percentages beside
+                  each name are the reliable reading.
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       ) : null}
