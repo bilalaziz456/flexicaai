@@ -1,4 +1,5 @@
 import {
+  CalendarRange,
   Archive,
   BadgeCheck,
   BellRing,
@@ -19,7 +20,6 @@ import {
   TicketPercent,
   Trash2,
   TrendingUp,
-  UserCog,
   Users,
   Wallet,
 } from "lucide-react";
@@ -73,7 +73,7 @@ export const CLINIC_NAV: PanelNav = {
       Icon: ClipboardList,
       items: [
         { href: "/clinic/procedures", label: "Procedures", Icon: ClipboardList, resource: "procedures", feature: "sales" },
-        { href: "/clinic/doctors", label: "Doctors", Icon: UserCog, resource: "leave" },
+        { href: "/clinic/schedule", label: "Doctor schedule", Icon: CalendarRange, resource: "leave" },
         { href: "/clinic/no-shows", label: "No-shows", Icon: CalendarX2, resource: "appointments" },
         { href: "/clinic/whatsapp", label: "WhatsApp", Icon: MessageCircle, resource: "whatsapp" },
         { href: "/clinic/recalls", label: "Recalls", Icon: BellRing, resource: "recalls" },

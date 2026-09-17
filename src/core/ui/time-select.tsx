@@ -20,8 +20,15 @@ function to24(hour12: number, minute: string, mer: "AM" | "PM"): string {
   return `${String(h).padStart(2, "0")}:${minute}`;
 }
 
+// Each select takes its INTRINSIC width (widest option + our padding) rather than
+// `flex-1 min-w-0`. Shared out by flex, the minute box came to 49px — 19px of content
+// for a "00" that measures 20.5px in Plus Jakarta Sans, so the second digit was shaved
+// and read as "0C". A flexed width has no floor, so any narrower row clips again;
+// letting the content size the box means it cannot. `pr-5` + `select-chevron-sm`
+// reserve exactly the room our own chevron needs (appearance:none removes the native
+// arrow, which is drawn INSIDE the box and would overlap the value).
 const cls =
-  "h-8 min-w-0 flex-1 rounded-lg border border-input bg-[var(--input-bg)] px-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50";
+  "select-chevron-sm h-8 w-auto shrink-0 rounded-lg border border-input bg-[var(--input-bg)] py-0 pl-2 pr-5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50";
 
 /**
  * A time picker built from native <select>s (hour / minute / AM-PM) — no clock
@@ -44,7 +51,7 @@ export function TimeSelect({
   const minuteOptions = MINUTES.includes(minute) ? MINUTES : [...MINUTES, minute].sort();
 
   return (
-    <div className="flex flex-1 items-center gap-1">
+    <div className="flex items-center gap-1">
       <select
         aria-label={`${ariaLabel} hour`}
         disabled={disabled}
@@ -77,7 +84,7 @@ export function TimeSelect({
         disabled={disabled}
         value={mer}
         onChange={(e) => onChange(to24(hour12, minute, e.target.value as "AM" | "PM"))}
-        className={`${cls} w-16 flex-none`}
+        className={cls}
       >
         <option value="AM">AM</option>
         <option value="PM">PM</option>

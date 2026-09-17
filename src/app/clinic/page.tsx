@@ -20,7 +20,7 @@ import { Sparkline } from "@/core/ui/sparkline";
 import { OnboardingChecklist } from "@/core/ui/onboarding-checklist";
 import { DeltaBadge } from "@/core/ui/delta-badge";
 import { AvgVisitValueForm } from "./avg-visit-value-form";
-import { DoctorLeaves } from "@/app/clinic/doctors/doctor-leaves";
+import { DoctorLeaves } from "@/app/clinic/schedule/doctor-leaves";
 import { clinicStaffSummary } from "@/core/db/vocabulary-cache";
 
 /**

@@ -662,6 +662,7 @@ export async function setDoctorDailyLimit(
   });
   revalidatePath(home);
   revalidatePath("/reception/doctors");
+  revalidatePath("/clinic/schedule");
   revalidatePath("/clinic/staff");
   return { saved: true };
 }
@@ -734,6 +735,7 @@ export async function addDoctorLeave(
   });
   revalidatePath(home);
   revalidatePath("/reception/doctors");
+  revalidatePath("/clinic/schedule");
   revalidatePath("/clinic/staff", "layout");
   revalidatePath("/clinic"); // doctor manages own leave from the dashboard
   return { saved: true, cancelled: cancelledIds.length };
@@ -791,6 +793,7 @@ export async function updateDoctorLeave(
   });
   revalidatePath("/clinic/appointments");
   revalidatePath("/reception/doctors");
+  revalidatePath("/clinic/schedule");
   revalidatePath("/clinic/staff", "layout");
   revalidatePath("/clinic"); // doctor manages own leave from the dashboard
   return { saved: true, cancelled: cancelledIds.length };
@@ -827,6 +830,7 @@ export async function removeDoctorLeave(
   });
   revalidatePath(home);
   revalidatePath("/reception/doctors");
+  revalidatePath("/clinic/schedule");
   revalidatePath("/clinic/staff", "layout");
   revalidatePath("/clinic"); // doctor manages own leave from the dashboard
 }

@@ -131,7 +131,18 @@ export function DatePicker({
         </span>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Positioner side="bottom" align="start" sideOffset={6} className="z-50">
+        {/* z-[110]: above a modal dialog (z-[100]), because a date field inside one is
+            a normal case — at z-50 the calendar opened UNDERNEATH the dialog.
+            `fallbackAxisSide: "none"` keeps it on the vertical axis: without it, a
+            calendar that does not fit below flips to the RIGHT of the field and lands
+            outside the dialog, detached from the input it belongs to. */}
+        <Popover.Positioner
+          side="bottom"
+          align="start"
+          sideOffset={6}
+          className="z-[110]"
+          collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "none" }}
+        >
           <Popover.Popup className="w-[17rem] rounded-xl border border-border bg-popover p-3 text-popover-foreground shadow-lg outline-none">
             <div className="mb-2 flex items-center justify-between gap-1">
               <div className="flex items-center gap-1">

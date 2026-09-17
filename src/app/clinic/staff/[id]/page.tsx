@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import { Ban, CalendarClock, CalendarOff, Percent, RotateCcw, ShieldCheck } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { setStaffActive } from "@/app/clinic/actions";
-import { DoctorLeaves } from "@/app/clinic/doctors/doctor-leaves";
+import { DoctorLeaves } from "@/app/clinic/schedule/doctor-leaves";
 import { getBookingProcedures } from "@/core/appointments/procedures";
 import { countOpenDrafts } from "@/core/clinical/drafts";
 import { getDoctorProcedureOverrides } from "@/core/appointments/share-config";
