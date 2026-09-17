@@ -14,6 +14,7 @@ import { Button } from "@/core/ui/button";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
+import { SelectField } from "@/core/ui/select-field";
 import { TimeSelect } from "@/core/ui/time-select";
 
 type Range = { start: string; end: string; kind: WindowKind };
@@ -190,30 +191,20 @@ export function DoctorScheduleFields({
                                 default; a procedure window lets longer work be
                                 booked outside consulting hours.
 
-                                Wears `select-chevron-sm` rather than the app's
-                                standard `select-chevron`, because it sits in a
-                                row with the six time selects: the standard
-                                chevron is half again as large and reserves
-                                twice the padding, which made this read as a
-                                different kind of control beside them. It is
-                                still an ordinary select everywhere it counts —
-                                same height, border, radius and focus ring. */}
-                            <select
-                              aria-label={`${d.label} type ${i + 1}`}
+                                A themed `SelectField`, not a native <select>,
+                                because this is a two-item choice that carries
+                                meaning: the OS list it used to open was
+                                system-blue and looked nothing like the rest of
+                                the app. The hour/minute/AM-PM pickers beside it
+                                stay native on purpose — a 12-item list of
+                                numbers is better served by the OS control. */}
+                            <SelectField
+                              ariaLabel={`${d.label} type ${i + 1}`}
                               value={r.kind}
-                              onChange={(e) =>
-                                setRange(d.value, i, {
-                                  kind: e.target.value as WindowKind,
-                                })
-                              }
-                              className="select-chevron-sm h-8 rounded-lg border border-input bg-[var(--input-bg)] pl-2 pr-5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                            >
-                              {WINDOW_KINDS.map((k) => (
-                                <option key={k.value} value={k.value}>
-                                  {k.label}
-                                </option>
-                              ))}
-                            </select>
+                              onValueChange={(kind) => setRange(d.value, i, { kind })}
+                              options={WINDOW_KINDS}
+                              className="w-36 sm:w-[8.5rem]"
+                            />
                             {day.ranges.length > 1 ? (
                               <button
                                 type="button"
