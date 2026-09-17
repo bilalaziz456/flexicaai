@@ -7,7 +7,6 @@ import {
   GRADE_META,
   PAYER_CATEGORIES,
   PENDING_META,
-  type PayerCategory,
   gradeFor,
   ratingColour,
   riskFor,
@@ -15,6 +14,11 @@ import {
   statusLabel,
 } from "@/core/admin/payer-categories";
 import { cn } from "@/core/lib/utils";
+import { DonutChart } from "@/core/ui/charts/donut-chart";
+import { RadialGauge } from "@/core/ui/charts/radial-gauge";
+import { StatCard } from "@/core/ui/charts/stat-card";
+import { TrendChart } from "@/core/ui/charts/trend-chart";
+import { ChartTooltip, PAD, TooltipRow, useChartWidth, usePointerIndex } from "@/core/ui/charts/chart-kit";
 
 /**
  * The clinic scorecard — presentation only, so the dialog owns loading and this owns
@@ -26,9 +30,16 @@ import { cn } from "@/core/lib/utils";
  * billing conversation, and one paying late while its diary empties is a churn
  * conversation. Split across two screens, nobody holds both numbers at once.
  *
- * Every chart is hand-drawn SVG. A charting library would be a major dependency
- * (CLAUDE.md §2) for two shapes — a donut and a polyline — that are a few lines of
- * trigonometry each, and it would fight the print stylesheet.
+ * The charts come from `core/ui/charts` — still hand-drawn SVG, since a charting
+ * library would be a major dependency (CLAUDE.md §2) for shapes that are a few lines
+ * of trigonometry each, and it would fight the print stylesheet. What changed is that
+ * they are no longer drawn HERE: the ring, the gauge and the trend are the same
+ * components the rest of the app uses, so a hover and a colour mean the same thing on
+ * this card as on the P&L.
+ *
+ * ONE chart stays local — `RatingLine`. Its x axis is a set of windows of different
+ * lengths rather than time, and its judgement bands carry meaning no generic chart
+ * has, so it is built ON the shared kit rather than replaced by something from it.
  */
 
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
@@ -72,80 +83,6 @@ function Stars({ rating }: { rating: number }) {
   );
 }
 
-/** A ring showing one percentage — the on-time rate. */
-function Donut({ value, colour, label }: { value: number; colour: string; label: string }) {
-  const r = 22;
-  const c = 2 * Math.PI * r;
-  return (
-    <svg viewBox="0 0 56 56" className="size-14 shrink-0" role="img" aria-label={label}>
-      <circle cx="28" cy="28" r={r} fill="none" stroke="currentColor" strokeWidth="7" className="text-muted" />
-      <circle
-        cx="28"
-        cy="28"
-        r={r}
-        fill="none"
-        stroke={colour}
-        strokeWidth="7"
-        strokeLinecap="round"
-        strokeDasharray={`${c * value} ${c}`}
-        transform="rotate(-90 28 28)"
-      />
-      <text x="28" y="32" textAnchor="middle" className="fill-foreground text-[13px] font-semibold">
-        {Math.round(value * 100)}%
-      </text>
-    </svg>
-  );
-}
-
-/** Category share as a ring, one arc per band, in severity order. */
-function ShareDonut({
-  counts,
-  total,
-  rating,
-}: {
-  counts: Record<PayerCategory, number>;
-  total: number;
-  rating: number | null;
-}) {
-  const r = 34;
-  const c = 2 * Math.PI * r;
-  const arcs = PAYER_CATEGORIES.reduce<{ code: string; colour: string; len: number; offset: number }[]>(
-    (acc, cat) => {
-      const n = counts[cat.code] ?? 0;
-      if (n === 0) return acc;
-      const prev = acc[acc.length - 1];
-      const offset = prev ? prev.offset + prev.len : 0;
-      acc.push({ code: cat.code, colour: cat.colour, len: (n / total) * c, offset });
-      return acc;
-    },
-    [],
-  );
-  return (
-    <svg viewBox="0 0 96 96" className="size-28 shrink-0" role="img" aria-label="Category share">
-      {arcs.map((a) => (
-        <circle
-          key={a.code}
-          cx="48"
-          cy="48"
-          r={r}
-          fill="none"
-          stroke={a.colour}
-          strokeWidth="14"
-          strokeDasharray={`${a.len} ${c - a.len}`}
-          strokeDashoffset={-a.offset}
-          transform="rotate(-90 48 48)"
-        />
-      ))}
-      <text x="48" y="46" textAnchor="middle" className="fill-foreground text-[15px] font-bold">
-        {rating === null ? "—" : rating.toFixed(1)}
-      </text>
-      <text x="48" y="58" textAnchor="middle" className="fill-muted-foreground text-[8px]">
-        {total} month{total === 1 ? "" : "s"}
-      </text>
-    </svg>
-  );
-}
-
 /**
  * Rating across widening windows, All Time on the left.
  *
@@ -153,107 +90,195 @@ function ShareDonut({
  * makes a slope visible at a glance where a bar chart makes you compare heights. Each
  * point is coloured by its own band, so a run that crosses from green into amber shows
  * the crossing rather than merely the shape.
+ *
+ * STRAIGHT segments, unlike every other chart in the app. The x axis here is not time
+ * — it is a set of windows of different LENGTHS — so there is no in-between for a
+ * curve to describe, and smoothing one in would draw ratings for periods nobody
+ * measured. Gaps stay gaps for the same reason: an unrated window gets a dash, not a
+ * line through it.
+ *
+ * Rebuilt on the chart kit (measured width, the shared tooltip, theme tokens). It was
+ * a fixed 720x190 viewBox stretched to the card, which distorted every dot into an
+ * ellipse and stroked the bands in hardcoded hex that ignored the dark theme.
  */
 function RatingLine({ windows }: { windows: RatingWindow[] }) {
-  if (windows.length === 0) return null;
-  const W = 720;
-  const H = 190;
-  const padL = 44;
-  const padR = 44;
-  const padT = 22;
-  const padB = 30;
-  const plotW = W - padL - padR;
-  const plotH = H - padT - padB;
-  const inset = 46;
+  const [ref, width] = useChartWidth<HTMLDivElement>();
+  const H = 200;
+  const plotW = Math.max(0, width - PAD.left - PAD.right);
+  const plotH = H - PAD.top - PAD.bottom;
+  // Inset the ends so the first and last dots — and their value labels — sit inside
+  // the plot rather than half over its edge.
+  const inset = Math.min(46, plotW / 4);
   const x = (i: number) =>
-    windows.length === 1
-      ? padL + plotW / 2
-      : padL + inset + (i / (windows.length - 1)) * (plotW - inset * 2);
-  const y = (v: number) => padT + plotH - (v / 5) * plotH;
+    windows.length <= 1
+      ? PAD.left + plotW / 2
+      : PAD.left + inset + (i / (windows.length - 1)) * (plotW - inset * 2);
+  const y = (v: number) => PAD.top + plotH - (v / 5) * plotH;
+
+  const { active, onMove, clear } = usePointerIndex(windows.length, x);
+
+  if (windows.length === 0) return null;
 
   const pts = windows.map((w, i) => ({
     ...w,
     cx: x(i),
     cy: w.rating === null ? null : y(w.rating),
   }));
+
   // One polyline per unbroken run of rated points, so a gap is a gap rather than a
   // straight line implying values that were never measured.
-  const runs = pts.reduce<{ cx: number; cy: number }[][]>((acc, p) => {
-    if (p.cy === null) return [...acc, []];
-    const head = acc.slice(0, -1);
-    const tail = acc[acc.length - 1] ?? [];
-    return [...head, [...tail, { cx: p.cx, cy: p.cy }]];
-  }, [[]]).filter((run) => run.length > 1);
+  const runs: { cx: number; cy: number }[][] = [];
+  let run: { cx: number; cy: number }[] = [];
+  for (const p of pts) {
+    if (p.cy === null) {
+      if (run.length > 1) runs.push(run);
+      run = [];
+    } else {
+      run.push({ cx: p.cx, cy: p.cy });
+    }
+  }
+  if (run.length > 1) runs.push(run);
 
   // The three judgement bands behind the line, so a point's height means something
-  // without reading the axis.
+  // without reading the axis. Tokens, not hex: these have to survive the dark theme.
   const bands = [
-    { from: 3.5, to: 5, fill: "#15803d", label: "GOOD" },
-    { from: 1.5, to: 3.5, fill: "#eab308", label: "POOR" },
-    { from: 0, to: 1.5, fill: "#ef4444", label: "CRITICAL" },
+    { from: 3.5, to: 5, fill: "var(--color-success)", label: "GOOD" },
+    { from: 1.5, to: 3.5, fill: "var(--color-warning)", label: "POOR" },
+    { from: 0, to: 1.5, fill: "var(--color-destructive)", label: "CRITICAL" },
   ];
 
+  const shown = active != null ? pts[active] : null;
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Rating comparison">
-      {bands.map((b) => (
-        <g key={b.label}>
-          <rect x={padL} y={y(b.to)} width={plotW} height={y(b.from) - y(b.to)} fill={b.fill} opacity="0.07" />
-          <text
-            x={padL + 6}
-            y={(y(b.from) + y(b.to)) / 2 + 3}
-            className="fill-muted-foreground text-[8px] tracking-wider"
-            opacity="0.65"
-          >
-            {b.label}
-          </text>
-        </g>
-      ))}
-      {[0, 1, 2, 3, 4, 5].map((v) => (
-        <g key={v}>
-          <line x1={padL} y1={y(v)} x2={W - padR} y2={y(v)} stroke="currentColor" strokeWidth="0.5" className="text-border" />
-          <text x={padL - 6} y={y(v) + 3} textAnchor="end" className="fill-muted-foreground text-[9px]">
-            {v}
-          </text>
-        </g>
-      ))}
-      {runs.map((run, i) => (
-        <polyline
-          key={i}
-          points={run.map((p) => `${p.cx},${p.cy}`).join(" ")}
-          fill="none"
-          stroke="#15803d"
-          strokeWidth="2"
-          strokeLinejoin="round"
-          opacity="0.7"
-        />
-      ))}
-      {pts.map((p) => (
-        <g key={p.label}>
-          {p.cy === null ? (
-            // No marker and no height: an ungraded window has no position on a 0–5
-            // axis, and putting one anywhere would be inventing a reading.
-            <text
-              x={p.cx}
-              y={padT + plotH / 2}
-              textAnchor="middle"
-              className="fill-muted-foreground text-[11px]"
-            >
-              —
-            </text>
-          ) : (
-            <>
-              <circle cx={p.cx} cy={p.cy} r="6" fill={ratingColour(p.rating)} stroke="#fff" strokeWidth="2" />
-              <text x={p.cx} y={p.cy - 12} textAnchor="middle" className="fill-foreground text-[11px] font-semibold">
-                {p.rating?.toFixed(1)}
+    <div ref={ref} className="relative w-full">
+      {width > 0 && (
+        <svg
+          width={width}
+          height={H}
+          role="img"
+          aria-label="Rating comparison"
+          onPointerMove={onMove}
+          onPointerLeave={clear}
+          className="select-none"
+        >
+          {bands.map((b) => (
+            <g key={b.label}>
+              <rect
+                x={PAD.left}
+                y={y(b.to)}
+                width={plotW}
+                height={y(b.from) - y(b.to)}
+                fill={b.fill}
+                opacity={0.08}
+              />
+              <text
+                x={PAD.left + 6}
+                y={(y(b.from) + y(b.to)) / 2 + 3}
+                className="fill-muted-foreground text-[8px] tracking-wider"
+                opacity={0.7}
+              >
+                {b.label}
               </text>
-            </>
-          )}
-          <text x={p.cx} y={H - 10} textAnchor="middle" className="fill-muted-foreground text-[9px]">
-            {p.label}
-          </text>
-        </g>
-      ))}
-    </svg>
+            </g>
+          ))}
+
+          {[0, 1, 2, 3, 4, 5].map((v) => (
+            <g key={v}>
+              <line
+                x1={PAD.left}
+                x2={width - PAD.right}
+                y1={y(v)}
+                y2={y(v)}
+                className="stroke-border/60"
+                strokeWidth={1}
+              />
+              <text
+                x={PAD.left - 8}
+                y={y(v) + 3}
+                textAnchor="end"
+                className="fill-muted-foreground text-[9px] tabular-nums"
+              >
+                {v}
+              </text>
+            </g>
+          ))}
+
+          {runs.map((r, i) => (
+            <polyline
+              key={i}
+              points={r.map((p) => `${p.cx},${p.cy}`).join(" ")}
+              fill="none"
+              stroke="var(--color-chart-1)"
+              strokeWidth={2}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              opacity={0.8}
+            />
+          ))}
+
+          {pts.map((p, i) => (
+            <g key={p.label} opacity={active == null || active === i ? 1 : 0.5}>
+              {p.cy === null ? (
+                // No marker and no height: an ungraded window has no position on a
+                // 0-5 axis, and putting one anywhere would be inventing a reading.
+                <text
+                  x={p.cx}
+                  y={PAD.top + plotH / 2}
+                  textAnchor="middle"
+                  className="fill-muted-foreground text-[11px]"
+                >
+                  —
+                </text>
+              ) : (
+                <>
+                  <circle
+                    cx={p.cx}
+                    cy={p.cy}
+                    r={active === i ? 7 : 5.5}
+                    fill={ratingColour(p.rating)}
+                    className="stroke-card transition-all"
+                    strokeWidth={2}
+                  />
+                  <text
+                    x={p.cx}
+                    y={p.cy - 13}
+                    textAnchor="middle"
+                    className="fill-foreground text-[11px] font-semibold tabular-nums"
+                  >
+                    {p.rating?.toFixed(1)}
+                  </text>
+                </>
+              )}
+              <text
+                x={p.cx}
+                y={H - 8}
+                textAnchor="middle"
+                className="fill-muted-foreground text-[9px]"
+              >
+                {p.label}
+              </text>
+            </g>
+          ))}
+        </svg>
+      )}
+
+      {shown ? (
+        <ChartTooltip x={shown.cx} width={width} title={shown.label}>
+          <TooltipRow
+            label="Rating"
+            value={shown.rating === null ? "Not rated" : `${shown.rating.toFixed(1)} / 5`}
+            color={shown.rating === null ? undefined : ratingColour(shown.rating)}
+          />
+          {/* A window is a LENGTH, not a date range — "last 6 months" — and the only
+              other fact carried per window is how many months it spans. */}
+          <TooltipRow
+            label="Window"
+            value={shown.months === null ? "All time" : `${shown.months} months`}
+            muted
+          />
+        </ChartTooltip>
+      ) : null}
+    </div>
   );
 }
 
@@ -277,25 +302,6 @@ function KpiCell({
   );
 }
 
-function Kpi({
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  label: string;
-  value: React.ReactNode;
-  hint?: React.ReactNode;
-  tone?: "good" | "warn" | "bad";
-}) {
-  return (
-    <div className="rounded-lg border p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={cn("mt-1 text-lg font-semibold", tone && TONE[tone])}>{value}</div>
-      {hint ? <div className="text-xs text-muted-foreground">{hint}</div> : null}
-    </div>
-  );
-}
 
 export function ClinicAnalyticsCard({
   data,
@@ -335,6 +341,21 @@ export function ClinicAnalyticsCard({
   const [selected, setSelected] = useState<number | null>(() => periods[0]?.months ?? null);
   const scoped = selected === null ? behaviour.months : behaviour.months.slice(-selected);
   const window = summariseWindow(scoped);
+
+  // `behaviour.months` is OLDEST first, which is already what a left-to-right trend
+  // wants — it is the TABLE below that reverses, to put the newest row on top. (This
+  // read the other way round at first and drew the year backwards, from July 2026 on
+  // the left to August 2025 on the right.)
+  //
+  // Only months that were actually SETTLED: an unpaid month has no days-late figure,
+  // and plotting it as zero would read as "paid on the due date" — the opposite of
+  // the truth. They are counted in the caption instead.
+  const settledMonths = scoped.filter((m) => m.daysLate !== null);
+  const unsettled = scoped.length - settledMonths.length;
+  const lateTrend = settledMonths.map((m) => ({
+    label: shortMonth(m.period),
+    value: m.daysLate as number,
+  }));
   const windowGrade = gradeFor(window.rating);
   const periodLabel = selected === null ? "all time" : `last ${selected} months`;
   const first = behaviour.months[0]?.dueAt ?? null;
@@ -400,10 +421,11 @@ export function ClinicAnalyticsCard({
           {/* ── KPI strip ─────────────────────────────────────────────────── */}
           <div className="flex flex-wrap items-stretch divide-x divide-border rounded-lg border">
             <div className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
-              <Donut
+              <RadialGauge
                 value={behaviour.onTimeRate ?? 0}
-                colour={ratingColour(behaviour.rating)}
+                color={ratingColour(behaviour.rating)}
                 label="On-time rate"
+                size={60}
               />
               <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 On-time
@@ -511,7 +533,22 @@ export function ClinicAnalyticsCard({
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-5">
-              <ShareDonut counts={window.counts} total={window.total} rating={window.rating} />
+              {/* The ring only. The list beside it names EVERY band, including the
+                  ones this clinic has no months in — that a clinic has zero
+                  Defaulter months is the reassuring half of the picture, and a
+                  legend built from the slices cannot say it. */}
+              <DonutChart
+                ariaLabel="Payment category share"
+                legend={false}
+                size={112}
+                centerLabel={window.total === 1 ? "month" : "months"}
+                formatValue={() => String(window.total)}
+                slices={PAYER_CATEGORIES.map((c) => ({
+                  label: c.label,
+                  value: window.counts[c.code] ?? 0,
+                  color: c.colour,
+                }))}
+              />
               <ul className="min-w-56 flex-1 space-y-1.5">
                 {PAYER_CATEGORIES.map((c) => {
                   const n = window.counts[c.code] ?? 0;
@@ -555,6 +592,36 @@ export function ClinicAnalyticsCard({
             </div>
             <RatingLine windows={windows} />
           </div>
+
+          {/* ── How late, month by month ──────────────────────────────────── */}
+          {lateTrend.length > 1 ? (
+            <div className="rounded-lg border p-4">
+              <div className="mb-1 text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
+                Days late — {periodLabel}
+              </div>
+              <p className="mb-3 text-[11px] text-muted-foreground">
+                How long after the due date each month was settled. Below the line is early.
+                {unsettled > 0
+                  ? ` ${unsettled} month${unsettled === 1 ? " is" : "s are"} still unpaid and cannot be plotted.`
+                  : ""}
+              </p>
+              <TrendChart
+                ariaLabel="Days late by month"
+                points={lateTrend}
+                valueLabel="Days late"
+                mode="line"
+                color="var(--color-chart-4)"
+                height={180}
+                formatValue={(v) =>
+                  v === 0
+                    ? "On the due date"
+                    : v > 0
+                      ? `${v} day${v === 1 ? "" : "s"} late`
+                      : `${Math.abs(v)} day${Math.abs(v) === 1 ? "" : "s"} early`
+                }
+              />
+            </div>
+          ) : null}
 
           {/* ── Every billed month ───────────────────────────────────────── */}
           {scoped.length > 0 ? (
@@ -623,39 +690,39 @@ export function ClinicAnalyticsCard({
             refreshing && "opacity-50",
           )}
         >
-          <Kpi
+          <StatCard
             label="Patients"
             value={business.patientsTotal.toLocaleString("en-PK")}
             hint={`all time · ${business.patientsNew} new in period`}
           />
-          <Kpi
+          <StatCard
             label="Appointments"
             value={business.appointments.toLocaleString("en-PK")}
             hint={`${business.completed} completed · ${business.cancelled} cancelled`}
           />
-          <Kpi
+          <StatCard
             label="No-show rate"
             value={pct(business.noShowRate)}
             hint={`${business.noShows} of ${business.completed + business.noShows} expected`}
-            tone={business.noShowRate !== null && business.noShowRate > 0.2 ? "warn" : undefined}
+            tone={business.noShowRate !== null && business.noShowRate > 0.2 ? "bad" : "default"}
           />
-          <Kpi
+          <StatCard
             label="Visits recorded"
             value={business.visits.toLocaleString("en-PK")}
             hint={`${business.scribeRuns} used the scribe`}
           />
-          <Kpi label="Collected" value={rs(business.collected)} hint="from their patients, this period" />
-          <Kpi
+          <StatCard label="Collected" value={rs(business.collected)} hint="from their patients, this period" />
+          <StatCard
             label="Their receivable"
             value={rs(business.outstanding)}
             hint="all time · what patients still owe them"
           />
-          <Kpi
+          <StatCard
             label="Staff"
             value={business.staffActive.toLocaleString("en-PK")}
             hint={`now · ${business.doctors} doctor${business.doctors === 1 ? "" : "s"}`}
           />
-          <Kpi label="WhatsApp" value={`${business.whatsappOut} out`} hint={`${business.whatsappIn} in`} />
+          <StatCard label="WhatsApp" value={`${business.whatsappOut} out`} hint={`${business.whatsappIn} in`} />
         </div>
         <p className="text-xs text-muted-foreground">
           Last appointment booked {business.lastActivityAt ? day(business.lastActivityAt) : "— never"}.

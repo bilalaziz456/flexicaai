@@ -38,6 +38,7 @@ export function DonutChart({
   centerLabel = "Total",
   formatValue = fmtMoney,
   size = 168,
+  legend = true,
   ariaLabel,
   className,
 }: {
@@ -47,6 +48,10 @@ export function DonutChart({
   centerLabel?: string;
   formatValue?: (v: number) => string;
   size?: number;
+  /** Off when the caller renders a richer legend of its own — the payer-band
+   *  scorecard lists every band including the ones with no months, which says
+   *  something a legend built from the slices cannot. */
+  legend?: boolean;
   ariaLabel: string;
   className?: string;
 }) {
@@ -146,6 +151,7 @@ export function DonutChart({
         </div>
       </div>
 
+      {legend ? (
       <ul className="min-w-0 flex-1 space-y-1.5 self-stretch">
         {arcs.map((a, i) => (
           <li
@@ -172,6 +178,7 @@ export function DonutChart({
           </li>
         ))}
       </ul>
+      ) : null}
     </div>
   );
 }
