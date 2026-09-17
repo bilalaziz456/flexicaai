@@ -12,7 +12,7 @@ import {
 import { resolveSalesRange } from "@/core/sales/report";
 import { TrendChart } from "@/core/ui/charts/trend-chart";
 import { StatCard } from "@/core/ui/charts/stat-card";
-import { HBarChart } from "@/core/ui/h-bar-chart";
+import { LollipopChart } from "@/core/ui/charts/lollipop-chart";
 import { parsePage, parsePageSize, pageOffset } from "@/core/lib/pagination";
 import { Pagination } from "@/core/ui/pagination";
 import {
@@ -148,7 +148,7 @@ export default async function CompanyExpensesPage({
           {byCategory.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">No expenses in this period yet.</p>
           ) : (
-            <HBarChart ariaLabel="Company expenses by category" rows={byCategory.map((c) => ({ label: c.category, value: c.total }))} />
+            <LollipopChart ariaLabel="Company expenses by category" rows={byCategory.map((c) => ({ label: c.category, value: c.total }))} />
           )}
         </CardContent>
       </Card>

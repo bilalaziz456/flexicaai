@@ -15,7 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { HBarChart } from "@/core/ui/h-bar-chart";
+import { LollipopChart } from "@/core/ui/charts/lollipop-chart";
 import { DonutChart } from "@/core/ui/charts/donut-chart";
 import { ProfitLossChart } from "@/core/ui/charts/profit-loss-chart";
 import { StatCard, InsightLine } from "@/core/ui/charts/stat-card";
@@ -73,6 +73,7 @@ export default async function ProfitLossPage({
   const shareTrend = pl.plBuckets.map((b) => b.share);
   const expenseTrend = pl.plBuckets.map((b) => b.expense);
   const profitTrend = pl.plBuckets.map((b) => b.profit);
+  const bucketLabels = pl.plBuckets.map((b) => b.label);
   const prev = pl.comparison;
   const unit =
     range.granularity === "month" ? "month" : range.granularity === "week" ? "week" : "day";
@@ -159,6 +160,7 @@ export default async function ProfitLossPage({
             value={c.value}
             hint={c.note}
             trend={c.trend}
+            trendLabels={bucketLabels}
             current={c.current}
             previous={c.previous}
             higherIsBetter={c.higherIsBetter}
@@ -251,7 +253,7 @@ export default async function ProfitLossPage({
             {pl.byDoctor.length === 0 ? (
               <p className="text-sm text-muted-foreground">No doctor shares in this period.</p>
             ) : (
-              <HBarChart
+              <LollipopChart
                 ariaLabel="Doctor shares"
                 showShare
                 rows={pl.byDoctor.map((d) => ({ label: d.name, value: d.amount }))}

@@ -14,7 +14,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { HBarChart } from "@/core/ui/h-bar-chart";
+import { LollipopChart } from "@/core/ui/charts/lollipop-chart";
+import { DonutChart } from "@/core/ui/charts/donut-chart";
 import { StatCard } from "@/core/ui/charts/stat-card";
 import { WaterfallChart } from "@/core/ui/charts/waterfall-chart";
 import { SalesFilters } from "@/core/ui/report-filters";
@@ -198,7 +199,7 @@ export default async function OverviewPage({
               {ov.salesByDoctor.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No sales yet.</p>
               ) : (
-                <HBarChart showShare ariaLabel="Collected by doctor" rows={ov.salesByDoctor.map((d) => ({ label: d.name, value: d.net, sublabel: `${d.count} visit${d.count === 1 ? "" : "s"}` }))} />
+                <LollipopChart showShare ariaLabel="Collected by doctor" rows={ov.salesByDoctor.map((d) => ({ label: d.name, value: d.net, sublabel: `${d.count} visit${d.count === 1 ? "" : "s"}` }))} />
               )}
             </CardContent>
           </Card>
@@ -211,7 +212,7 @@ export default async function OverviewPage({
             {ov.salesByProcedure.length === 0 ? (
               <p className="text-sm text-muted-foreground">No procedures yet.</p>
             ) : (
-              <HBarChart showShare ariaLabel="Billed by procedure" rows={ov.salesByProcedure.map((p) => ({ label: p.name, value: p.gross, sublabel: `×${p.qty}` }))} />
+              <LollipopChart showShare ariaLabel="Billed by procedure" rows={ov.salesByProcedure.map((p) => ({ label: p.name, value: p.gross, sublabel: `×${p.qty}` }))} />
             )}
           </CardContent>
         </Card>
@@ -223,7 +224,13 @@ export default async function OverviewPage({
             <CardTitle className="text-base">Expenses by category</CardTitle>
           </CardHeader>
           <CardContent>
-            <HBarChart showShare ariaLabel="Expenses by category" rows={ov.expenseByCategory.map((c) => ({ label: c.name, value: c.amount }))} />
+            /* Composition — these categories ARE the expense total. Same data, same
+               treatment as the P&L's version of this card. */
+            <DonutChart
+              ariaLabel="Expenses by category"
+              centerLabel="Expenses"
+              slices={ov.expenseByCategory.map((c) => ({ label: c.name, value: c.amount }))}
+            />
           </CardContent>
         </Card>
       ) : null}

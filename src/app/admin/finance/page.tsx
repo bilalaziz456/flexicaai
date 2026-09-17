@@ -5,6 +5,7 @@ import { canAdmin } from "@/core/auth/admin-permissions";
 import { getCompanyPnl } from "@/core/admin/pnl";
 import { resolveSalesRange } from "@/core/sales/report";
 import { ProfitLossChart } from "@/core/ui/charts/profit-loss-chart";
+import { LollipopChart } from "@/core/ui/charts/lollipop-chart";
 import { StatCard, InsightLine } from "@/core/ui/charts/stat-card";
 import { pickInsight, profitCrossingInsight, streakInsight } from "@/core/ui/charts/insights";
 import { buttonVariants } from "@/core/ui/button";
@@ -60,6 +61,7 @@ export default async function CompanyPnlPage({
   // Both series come from `pnl.trend`, which this page already fetches.
   const profitTrend = pnl.trend.map((b) => b.netProfit);
   const revenueTrend = pnl.trend.map((b) => b.revenue);
+  const bucketLabels = pnl.trend.map((b) => b.label);
   const profitInsight = pickInsight(
     profitCrossingInsight(profitTrend),
     streakInsight(profitTrend, { noun: "Net profit" }),
@@ -94,11 +96,13 @@ export default async function CompanyPnlPage({
             pnl.marginPct !== null ? `${pnl.marginPct}% margin · ${rangeLabel}` : rangeLabel
           }
           trend={profitTrend}
+          trendLabels={bucketLabels}
         />
         <StatCard
           label="Collected revenue"
           value={rs(pnl.revenue)}
           trend={revenueTrend}
+          trendLabels={bucketLabels}
         />
         {/* Serving cost and opex are not bucketed separately — `PnlBucket.cost`
             combines them — so neither card claims a shape it does not have. */}
@@ -161,6 +165,27 @@ export default async function CompanyPnlPage({
           {pnl.perClinic.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">No clinic revenue or cost in this period yet.</p>
           ) : (
+            <>
+            {/* Zero in the middle: "spot a clinic that costs more than it pays" is
+                a question about which side of nothing each clinic falls on, and the
+                table answered it by making you subtract twenty pairs of numbers.
+
+                This was a revenue-against-cost SCATTER first, which is the textbook
+                answer and was wrong here: serving cost runs three orders of
+                magnitude below revenue, so every dot lay flat on the axis and the
+                two clinics actually losing money were crushed into the origin — the
+                exact ones the chart existed to surface. The margin is the answer,
+                and it only needs one axis. The table stays for the figures. */}
+            <LollipopChart
+              diverging
+              ariaLabel="Margin by clinic"
+              rows={pnl.perClinic.map((c) => ({
+                label: c.name,
+                value: c.margin,
+                sublabel: `${rs(c.revenue)} in · ${rs(c.servingCost)} cost`,
+              }))}
+            />
+            <div className="mt-6" />
             <Table>
               <TableHeader>
                 <TableRow>
@@ -181,6 +206,7 @@ export default async function CompanyPnlPage({
                 ))}
               </TableBody>
             </Table>
+            </>
           )}
         </CardContent>
       </Card>

@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp, Sparkle } from "lucide-react";
 import type { ReactNode } from "react";
 import { Card } from "@/core/ui/card";
 import { Sparkline } from "@/core/ui/sparkline";
+import { InteractiveSparkline } from "@/core/ui/charts/sparkline-interactive";
 import { percentChange } from "@/core/ui/charts/geometry";
 import type { Insight } from "@/core/ui/charts/insights";
 import { cn } from "@/core/lib/utils";
@@ -25,6 +26,7 @@ export function StatCard({
   value,
   hint,
   trend,
+  trendLabels,
   current,
   previous,
   higherIsBetter = true,
@@ -40,6 +42,11 @@ export function StatCard({
   hint?: ReactNode;
   /** The series behind the figure. Omit when there is none. */
   trend?: number[];
+  /** One per trend point. Supplying them makes the sparkline INTERACTIVE — the
+   *  point under the pointer reads out above the trace. Without labels there is
+   *  nothing to say about the point you are on, so it stays static (and free of
+   *  client JavaScript). */
+  trendLabels?: string[];
   /** Pass both to get a delta. Omit `previous` (or pass 0) and none is shown. */
   current?: number;
   previous?: number;
@@ -55,6 +62,8 @@ export function StatCard({
   const up = pct != null && pct > 0;
   const good = pct != null && (pct === 0 ? true : up === higherIsBetter);
   const Arrow = up ? ArrowUp : ArrowDown;
+
+  const hasSignal = Boolean(trend && trend.length > 1 && trend.some((v) => v !== 0));
 
   const sparkColor =
     tone === "good"
@@ -116,19 +125,34 @@ export function StatCard({
         <p className="mt-0.5 text-2xs text-muted-foreground">{comparisonLabel}</p>
       ) : null}
 
-      {trend && trend.length > 1 ? (
+      {/* A series of nothing but zeroes gets NO sparkline. It passes every other
+          test — it is a real array, of real length, from a real query — and it draws
+          a confident flat line that says "measured, and steady" when the truth is
+          "nothing happened in this period". An all-zero period should look empty.
+          A flat NON-zero series is kept: that is a genuine finding. */}
+      {hasSignal ? (
         <div className="mt-3 -mb-1">
           {/* The trace takes the SAME judgement as the badge above it. Colouring it by
               the series' own direction — the tempting default — put a red sparkline
               under a green profit figure (the period ended lower than it started, but
               the business was still in profit), and a green one under RISING expenses,
               where up is the bad direction. A card must not argue with itself. */}
-          <Sparkline
-            values={trend}
-            height={28}
-            color={sparkColor}
-            ariaLabel={`${label} trend`}
-          />
+          {trendLabels && trendLabels.length === trend!.length ? (
+            <InteractiveSparkline
+              values={trend!}
+              labels={trendLabels}
+              height={28}
+              color={sparkColor}
+              ariaLabel={`${label} trend`}
+            />
+          ) : (
+            <Sparkline
+              values={trend!}
+              height={28}
+              color={sparkColor}
+              ariaLabel={`${label} trend`}
+            />
+          )}
         </div>
       ) : null}
 

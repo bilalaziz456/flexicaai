@@ -24,7 +24,7 @@ import {
   pickInsight,
   streakInsight,
 } from "@/core/ui/charts/insights";
-import { HBarChart } from "@/core/ui/h-bar-chart";
+import { LollipopChart } from "@/core/ui/charts/lollipop-chart";
 import { SalesFilters } from "@/core/ui/report-filters";
 
 const money = new Intl.NumberFormat("en-PK", {
@@ -187,7 +187,7 @@ export default async function ClinicSalesPage({
             {report.byDoctor.length === 0 ? (
               <p className="text-sm text-muted-foreground">No sales yet.</p>
             ) : (
-              <HBarChart
+              <LollipopChart
                 showShare
                 ariaLabel="Collected revenue by doctor"
                 rows={report.byDoctor.map((d) => ({
@@ -213,7 +213,7 @@ export default async function ClinicSalesPage({
                 No procedures on completed appointments yet.
               </p>
             ) : (
-              <HBarChart
+              <LollipopChart
                 showShare
                 ariaLabel="Billed value by procedure"
                 rows={report.byProcedure.map((p) => ({

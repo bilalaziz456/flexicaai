@@ -10,7 +10,7 @@ import {
   listClinicInvoices,
 } from "@/core/admin/clinic-invoices";
 import { resolveSalesRange } from "@/core/sales/report";
-import { TrendChart } from "@/core/ui/charts/trend-chart";
+import { LollipopChart } from "@/core/ui/charts/lollipop-chart";
 import { parsePage, parsePageSize, pageOffset } from "@/core/lib/pagination";
 import { Pagination } from "@/core/ui/pagination";
 import {
@@ -103,11 +103,15 @@ export default async function ClinicInvoicesPage({
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2"><CardTitle className="text-base">Invoiced over time</CardTitle></CardHeader>
           <CardContent>
+            {/* Stems, not an area. An invoice is ISSUED on a day — the total does not
+                flow from one month into the next, and an area drawn through these
+                points would describe a continuity that is not there. Same encoding as
+                the rankings, turned ninety degrees. */}
             {hasTrend ? (
-              <TrendChart
-                points={trend.map((b) => ({ label: b.label, value: b.total }))}
+              <LollipopChart
+                orientation="vertical"
+                rows={trend.map((b) => ({ label: b.label, value: b.total }))}
                 ariaLabel="Invoiced over time"
-                valueLabel="Invoiced"
               />
             ) : (
               <p className="py-6 text-center text-sm text-muted-foreground">No invoices in this period yet.</p>

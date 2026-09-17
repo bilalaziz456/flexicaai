@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { SalesFilters } from "@/core/ui/report-filters";
+import { ScatterPlot } from "@/core/ui/charts/scatter-plot";
 import { NoShowsTable } from "./no-shows-table";
 
 /**
@@ -61,10 +62,39 @@ export default async function NoShowsPage({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">By doctor</CardTitle>
-          <CardDescription>No-show rate per doctor (worst first).</CardDescription>
+          <CardDescription>
+            No-show rate against how many visits each doctor was booked for. Above the
+            line is worse than the clinic overall.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <NoShowsTable rows={stats.byDoctor} />
+          {/* A SCATTER, because the question here is a relationship: a 40% no-show
+              rate on five visits and the same rate on two hundred are different
+              problems, and a ranked list of rates puts them side by side as equals.
+              Volume runs across, rate runs up, and the clinic's own rate is the line
+              — so "who is worse than us as a whole" is a position, not a subtraction.
+              The table keeps the exact figures underneath. */}
+          {stats.byDoctor.length > 1 ? (
+            <ScatterPlot
+              ariaLabel="No-show rate against booked visits, by doctor"
+              xLabel="Visits booked"
+              yLabel="No-show rate"
+              height={240}
+              goodSide="below"
+              refLine={{ value: stats.rate * 100, label: "Clinic average" }}
+              xFormat="count"
+              yFormat="percent"
+              points={stats.byDoctor.map((d) => ({
+                label: d.name,
+                x: d.attended,
+                y: d.rate * 100,
+                weight: d.noShow,
+              }))}
+            />
+          ) : null}
+          <div className="mt-5">
+            <NoShowsTable rows={stats.byDoctor} />
+          </div>
         </CardContent>
       </Card>
     </div>

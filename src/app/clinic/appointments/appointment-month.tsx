@@ -3,6 +3,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, MessageCircle } from "lucide-re
 import type { CalendarDay } from "@/core/appointments/calendar";
 import { WEEKDAYS } from "@/core/lib/availability";
 import { cn } from "@/core/lib/utils";
+import { heatLevel } from "@/core/ui/charts/geometry";
 
 /** Leading blanks so the 1st lands under its weekday (the grid is Mon-first). */
 function leadingBlanks(firstDate: string): number {
@@ -33,6 +34,21 @@ const longDate = (date: string) =>
  * Pure CSS hover/focus, so this stays a server component: no client JS, no
  * hydration cost on a page that already ships a filter bar.
  */
+/**
+ * The five heat steps, as tints of the brand hue. Tailwind cannot build a class name
+ * at runtime, so they are written out rather than interpolated from the level.
+ *
+ * Level 0 is deliberately BLANK, not the faintest tint: an empty day and a quiet day
+ * are different facts, and the empty ones are the ones a clinic needs to see.
+ */
+const HEAT: Record<0 | 1 | 2 | 3 | 4, string> = {
+  0: "",
+  1: "bg-primary/[0.06]",
+  2: "bg-primary/[0.12]",
+  3: "bg-primary/20",
+  4: "bg-primary/30",
+};
+
 export function AppointmentMonth({
   days,
   today,
@@ -151,6 +167,10 @@ export function AppointmentMonth({
                 className={cn(
                   "flex min-h-14 flex-col gap-1 rounded-lg border p-1.5 outline-none transition-colors",
                   "hover:border-primary/60 focus-visible:ring-3 focus-visible:ring-ring/50",
+                  // The day's LOAD, as a tint on the cell itself — a calendar heatmap.
+                  // A selected day keeps its own accent: the selection is what you did,
+                  // and it has to win over what the data is.
+                  !selected && HEAT[heatLevel(d.total, busiest)],
                   isToday && "border-primary",
                   selected && "bg-accent ring-1 ring-primary/40",
                 )}
@@ -172,12 +192,6 @@ export function AppointmentMonth({
                   ) : null}
                 </div>
 
-                <div className="h-1 overflow-hidden rounded-full bg-accent">
-                  <div
-                    className="h-full rounded-full bg-primary"
-                    style={{ width: `${Math.round((d.total / busiest) * 100)}%` }}
-                  />
-                </div>
 
                 {/* Load and cover on ONE line. The doctor figure is a count, not
                     names: names live in the hover card, but a touch device gets no

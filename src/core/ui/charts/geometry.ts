@@ -182,3 +182,24 @@ export function labelStride(n: number, plotWidth: number, minPx = 56): number {
 function r(v: number): number {
   return Math.round(v * 100) / 100;
 }
+
+/**
+ * ACTIVITY LEVEL — a count's band on a 0–4 heat scale, for a calendar or a matrix
+ * where each cell is a day rather than a point on an axis.
+ *
+ * Banded, not continuous. A smooth ramp across 31 cells produces 31 shades nobody can
+ * tell apart or name, and the question a calendar answers is "which weeks were busy",
+ * not "was Tuesday 4% busier than Wednesday". Five steps are distinguishable at a
+ * glance and still leave the day's own NUMBER as the precise answer.
+ *
+ * Zero is its own level, never the lightest tint of "some": an empty day and a quiet
+ * day are different facts, and a clinic reads the empty ones as the problem.
+ */
+export function heatLevel(value: number, max: number): 0 | 1 | 2 | 3 | 4 {
+  if (value <= 0 || max <= 0) return 0;
+  const frac = value / max;
+  if (frac <= 0.25) return 1;
+  if (frac <= 0.5) return 2;
+  if (frac <= 0.75) return 3;
+  return 4;
+}
