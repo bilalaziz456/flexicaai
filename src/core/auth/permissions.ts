@@ -94,6 +94,20 @@ export const PERM_RESOURCES: PermResource[] = [
   // manager sees every doctor + the clinic's cut. Not feature-gated (shares can
   // accrue from consultation fees without the sales feature).
   { id: "shares", label: "Revenue shares", actions: ["view"] },
+  // WHO IS IN, and how much they can take on. Split from `leave` because they are
+  // different authorities: `leave` says a doctor is away on these dates (and
+  // cancels their appointments), `schedule` says when a doctor works and how many
+  // patients a day they will see. The front desk needs to SEE the week to book
+  // against it, which is not a reason to let it re-shape a doctor's capacity.
+  //
+  // Only view/edit: a schedule is not created or deleted, it is a property of the
+  // doctor that is always there and gets changed (the grid greys the other two).
+  //
+  // `edit` covers the daily appointment cap on the schedule screen. The full
+  // schedule editor (working hours, flexible hours, fee) lives on the STAFF record
+  // and stays clinic-admin-only — editing a colleague's employment record is a
+  // staff authority, and the ACL should not be the thing that quietly widens it.
+  { id: "schedule", label: "Doctor schedule", actions: ["view", "edit"] },
   { id: "leave", label: "Doctor leave", actions: ["view", "create", "edit", "delete"] },
   { id: "staff", label: "Staff", actions: ["view", "create", "edit", "delete"] },
   { id: "settings", label: "Settings", actions: ["view", "edit"] },
@@ -194,6 +208,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     billing: [V, C, E, D],
     // Manager can refund + reverse a refund (money oversight).
     refund: [V, C, D],
+    // Capacity is a manager function: they run the rota and the daily caps.
+    schedule: [V, E],
     leave: [V, C, E, D],
     clinical: [V],
     // Manager sees treatment plans (oversight + scheduling).
@@ -221,6 +237,9 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     recalls: [V],
     // A doctor sees their OWN revenue-share earnings (self-scoped in the page).
     shares: [V],
+    // A doctor SEES the rota (their own row on the schedule screen) but does not
+    // set their own capacity — that is the clinic's call, not the clinician's.
+    schedule: [V],
     // A doctor manages their OWN leave only (self-scoped in the page + actions).
     leave: [V, C, E, D],
     // Trash: view + restore on by default (C = "Restore"); purge stays super-admin.
@@ -239,6 +258,9 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     billing: [V, C, E],
     // Front desk chases balances → sees the receivables report.
     receivables: [V],
+    // Front desk READS the week to book against it. Setting a doctor's daily cap
+    // is not a booking decision, so no edit by default — grantable per user.
+    schedule: [V],
     leave: [V, C, E, D],
     // Front desk can view/print a prescription PDF (not author it).
     prescriptions: [V],

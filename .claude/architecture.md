@@ -1056,6 +1056,51 @@ assertion passed while broken because the test handed the summary an already-enr
 clinic instead of the bare row the layout passes, which is its own reminder that a test
 must feed a function what its real caller feeds it.
 
+**ADR-033 — Seeing a rota, changing capacity and granting leave are three different
+authorities, and a new ACL resource is a silent revocation unless it is backfilled** ·
+*2026-09-18* · `Accepted`
+`schedule` (view / edit) is its own clinic resource, split out of `leave`
+(view / create / edit / delete). Viewing the doctor schedule needs `schedule:view`;
+the daily appointment cap needs `schedule:edit`; leave is unchanged.
+
+**Why the split.** The nav item that is now the doctor schedule began as a leave
+screen, so both halves were gated on `leave`. That conflated two different questions:
+*is Dr Sana away on Thursday* (leave — it cancels her appointments and blocks bookings)
+and *when does she work and how many patients will she see* (capacity). The front desk
+must SEE the rota to book against it; that is not a reason to let it re-shape a
+doctor's working capacity. The tell was one field with two bars: the daily cap was
+editable on the schedule screen with `leave:edit` — which a RECEPTIONIST holds by
+default — while the same column on the staff record required `requireClinicAdmin()`.
+Whichever bar was right, they could not both be.
+
+**Defaults follow the question each role answers.** `schedule:view` for everyone in
+the clinic, including a doctor (who sees only their own row — the page scopes them, and
+the nav item is keyed on `schedule` now, so a clinician can finally reach their own
+rota). `schedule:edit` for clinic admin and manager only. The full schedule editor —
+working hours, flexible hours, consultation fee — stays on the staff record behind
+`requireClinicAdmin()`: editing a colleague's employment record is a staff authority,
+and an ACL split should not quietly widen it.
+
+**The half that is easy to miss, and it is not a detail: adding a resource REVOKES it
+from everyone who has a stored permission array.** `can()` is a set membership test,
+and a stored array cannot contain a slug that did not exist when it was written — so
+every user a clinic admin has ever customised, and every clinic the super admin has
+scoped with a capability whitelist, loses the new resource silently. Nothing errors;
+the screen is simply gone. Migration `0107` therefore backfills BOTH tiers by
+preserving what each already had (`leave:view → schedule:view`,
+`leave:edit → schedule:edit`) rather than by applying the new defaults — 5 users and 1
+clinic here. A user on the role defaults (`permissions IS NULL`) is deliberately left
+alone and picks the new answer up from code, which is where the front desk loses cap
+editing; a clinic that disagrees grants `schedule:edit` to that user, which is what an
+ACL is for.
+
+**Consequence:** any future `PERM_RESOURCES` entry ships with a backfill in the same
+commit, or it is a silent revocation for exactly the clinics that cared enough to
+configure their access. `scripts/test-schedule-acl.ts` pins the defaults and the
+independence of the two resources (verified to go red by handing the front desk
+capacity back), because the tempting future tidy-up is to fold `schedule` into `leave`
+again and nothing else would notice.
+
 ---
 
 ## 6. Deltas — where the code is not yet the architecture

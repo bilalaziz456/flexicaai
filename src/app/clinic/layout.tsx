@@ -43,13 +43,12 @@ export default async function ClinicLayout({
   const logsEnabled =
     user.role === "clinic_admin" && (clinic?.logAccess?.length ?? 0) > 0;
 
-  // A doctor manages only their OWN leave, and does so from the dashboard — so we
-  // hide the "Doctors" (leave) nav item for them. Admin / manager / reception
-  // still get the full Doctors page (all doctors' caps + leave) in the nav.
-  const navResources =
-    user.role === "doctor"
-      ? accessibleResourceIds(user).filter((r) => r !== "leave")
-      : accessibleResourceIds(user);
+  // The nav item is keyed on `schedule`, which a doctor holds — so they now reach
+  // the schedule screen and see their OWN row (the page scopes them). It used to be
+  // keyed on `leave` and hidden from doctors, which made sense when the page was a
+  // stack of every doctor's leave cards and a doctor's own leave lived on the
+  // dashboard. A rota is the one thing a clinician does want to look at.
+  const navResources = accessibleResourceIds(user);
 
   // Discount approvals nav shows for potential approvers: a doctor (decides
   // discounts off their own share) or anyone with the clinic approval capability.

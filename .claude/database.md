@@ -1037,6 +1037,20 @@ these for churn-risk + usage/cost anomaly flags.
   provably a no-op for every clinic it does not concern.
   Existing clinics were backfilled with one row at their current price, effective from
   `activated_at ?? created_at`, so nothing is retrospectively re-priced.
+- Migration **`0107`** is DATA-ONLY and changes no column: it backfills the ACL split
+  that gave the doctor schedule its own resource (ADR-033). `schedule` (view/edit) came
+  out of `leave`, so `users.permissions` and `clinics.capabilities` — both `text[]` of
+  `resource:action` slugs — had to gain the new slugs for anyone who already held the
+  old ones (`leave:view → schedule:view`, `leave:edit → schedule:edit`).
+  **Why a migration at all, when nothing in the schema moved:** `can()` is a set
+  membership test over a stored array, and an array written before a slug existed cannot
+  contain it. So adding a resource silently REVOKES it from every user a clinic admin
+  has customised and every clinic the super admin has scoped — no error, the screen is
+  just gone. The backfill preserves what each already had rather than applying the new
+  role defaults; a user on `permissions IS NULL` is deliberately untouched and reads the
+  new defaults from code. Each statement is idempotent (`NOT (… = ANY(…))`), and a
+  clinic whose capabilities are NULL or `'*'` is skipped because both already mean
+  "everything allowed". `scripts/test-schedule-acl.ts` covers the code side.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

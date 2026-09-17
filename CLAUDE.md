@@ -367,10 +367,17 @@ are in `.env.example`.
 - **Doctor scheduling** — per-weekday working hours + daily appointment cap +
   consultation fee. On `users`: `availability` (jsonb), `daily_appointment_limit`,
   `consultation_fee`. One validator — `core/appointments/availability.ts#checkDoctorSlot`
-  — is enforced by both booking and reschedule.
+  — is enforced by both booking and reschedule. Seen as a week grid at
+  `/clinic/schedule` (who is in, who is away, what is booked against them).
+  **ACL: `schedule`** — `view` for everyone in the clinic (a doctor sees only their own
+  row), `edit` (the daily cap) for clinic admin + manager. The full editor — hours,
+  flexible hours, fee — stays on the staff record behind `requireClinicAdmin()`.
 - **Doctor leave / vacation** — `doctor_leaves` table. Setting leave cancels the
-  doctor's appointments in the range and blocks new bookings; settable by receptionist
-  and clinic admin.
+  doctor's appointments in the range and blocks new bookings. **ACL: `leave`**
+  (view/create/edit/delete) — held by receptionist, manager and clinic admin; a doctor
+  holds it for their OWN leave only, re-checked in the actions. Deliberately separate
+  from `schedule` (ADR-033): reading the rota to book against it is not the same
+  authority as declaring a doctor absent, or as re-shaping their capacity.
 - **Appointments beyond reception** — clinic admin can manage appointments
   (`/clinic/appointments`, `…/new`) and full staff records (`/clinic/staff/[id]`);
   the appointment actions accept receptionist OR clinic_admin.

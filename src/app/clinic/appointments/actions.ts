@@ -637,7 +637,7 @@ export async function setDoctorDailyLimit(
   if (user.role === "doctor") {
     return { error: "Doctors can't set daily appointment limits." };
   }
-  if (!can(user, "leave", "edit")) {
+  if (!can(user, "schedule", "edit")) {
     return { error: "You don't have permission to change doctor scheduling." };
   }
 

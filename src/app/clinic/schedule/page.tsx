@@ -123,7 +123,7 @@ export default async function ClinicSchedulePage({
 }: {
   searchParams: Promise<{ from?: string }>;
 }) {
-  const user = await requireWorkspace("leave");
+  const user = await requireWorkspace("schedule");
   const sp = await searchParams;
   const selfDoctorId = user.role === "doctor" ? user.id : null;
 
@@ -139,7 +139,7 @@ export default async function ClinicSchedulePage({
 
   const canCreate = can(user, "leave", "create");
   const canDelete = can(user, "leave", "delete");
-  const canSetLimit = !selfDoctorId && can(user, "leave", "edit");
+  const canSetLimit = !selfDoctorId && can(user, "schedule", "edit");
   const doctors = rows.map((r) => ({ id: r.doctorId, name: r.name }));
 
   const shiftWeek = (dir: 1 | -1) => localDateStr(new Date(start.getTime() + dir * 7 * DAY_MS));
