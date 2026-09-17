@@ -116,7 +116,25 @@ export function ScatterPlot({
 
   return (
     <div ref={ref} className="relative w-full">
-      <div className="mb-1 text-[10px] text-muted-foreground">↑ {yLabel}</div>
+      <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+        <span>↑ {yLabel}</span>
+        {refLine ? (
+          <span className="flex items-center gap-1.5">
+            <svg width="16" height="4" aria-hidden="true">
+              <line
+                x1="0"
+                y1="2"
+                x2="16"
+                y2="2"
+                className="stroke-muted-foreground/60"
+                strokeWidth={1}
+                strokeDasharray="4 4"
+              />
+            </svg>
+            {refLine.label} {fy(refLine.value)}
+          </span>
+        ) : null}
+      </div>
       {width > 0 && (
         <svg
           width={width}
@@ -165,14 +183,7 @@ export function ScatterPlot({
                 strokeWidth={1}
                 strokeDasharray="4 4"
               />
-              <text
-                x={width - PAD.right}
-                y={yFor(refLine.value) - 5}
-                textAnchor="end"
-                className="fill-muted-foreground text-[9px] tracking-wide uppercase"
-              >
-                {refLine.label}
-              </text>
+
             </g>
           ) : null}
 

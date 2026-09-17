@@ -59,53 +59,35 @@ export function LollipopChart({
   if (rows.length === 0) return null;
 
   if (orientation === "vertical") {
-    // The track has a DEFINITE height (h-40), and the stem is positioned inside it.
-    // Written with `flex-1` first, which silently drew every stem flat on the
-    // baseline: a percentage height resolves against the parent's height, and a flex
-    // item's height is auto until the browser has laid its siblings out — so every
-    // `height: 62%` resolved to nothing and six different figures looked identical.
+    // MOBILE GETS ROWS, not a sideways scroll. Thirteen monthly columns need ~470px
+    // and a phone has ~326: the choice is a scrollbar that hides half the year, or
+    // the same data as a list that simply runs down the page. Simplify, do not shrink
+    // — so the horizontal form renders below `sm` and the columns above it.
     return (
-      <div className={cn("flex items-end gap-1 overflow-x-auto pb-1", className)} aria-label={ariaLabel} role="img">
-        {rows.map((r, i) => {
-          const h = Math.max(2, (Math.abs(r.value) / max) * 100);
-          const negative = r.value < 0;
-          return (
-            <div
-              key={`${r.label}-${i}`}
-              className="group/stem flex min-w-9 flex-1 flex-col items-center gap-1.5"
-              title={`${r.label}: ${formatValue(r.value)}`}
-            >
-              <span className="h-4 text-[10px] font-medium tabular-nums opacity-0 transition-opacity group-hover/stem:opacity-100">
-                {r.value === 0 ? "" : shortNum(r.value)}
-              </span>
-              <div className="relative h-40 w-full">
-                {/* The hairline stem, and the dot at its head — the dot is the value. */}
-                <div
-                  className="absolute bottom-0 left-1/2 w-px -translate-x-1/2 rounded-full transition-all duration-500"
-                  style={{
-                    height: `${h}%`,
-                    background: negative ? "var(--color-destructive)" : color,
-                    opacity: 0.45,
-                  }}
-                />
-                <span
-                  className="absolute left-1/2 size-2.5 -translate-x-1/2 translate-y-1/2 rounded-full ring-2 ring-card transition-all duration-500 group-hover/stem:size-3.5"
-                  style={{
-                    bottom: `${h}%`,
-                    background: negative ? "var(--color-destructive)" : color,
-                  }}
-                  aria-hidden="true"
-                />
-              </div>
-              <span className="w-full truncate text-center text-[10px] text-muted-foreground">
-                {r.label}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+      <>
+        <div className="sm:hidden">
+          <LollipopChart
+            rows={rows}
+            formatValue={formatValue}
+            color={color}
+            ariaLabel={ariaLabel}
+            className={className}
+          />
+        </div>
+        <div className="hidden sm:block">
+          <VerticalLollipop
+            rows={rows}
+            formatValue={formatValue}
+            color={color}
+            ariaLabel={ariaLabel}
+            className={className}
+            max={max}
+          />
+        </div>
+      </>
     );
   }
+
   if (diverging) {
     // One scale either side of centre, so a −40k loss is exactly as long as a
     // +40k gain. Scaling each half to its own extreme would make a rounding error
@@ -134,7 +116,7 @@ export function LollipopChart({
                   {formatValue(r.value)}
                 </span>
               </div>
-              <div className="relative h-2.5">
+              <div className="relative mx-[6px] h-2.5">
                 <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border/70" />
                 {/* The centre line is the zero, and it is the strongest mark: the
                     whole chart is read as "which side of this am I on". */}
@@ -203,7 +185,7 @@ export function LollipopChart({
             </div>
             {/* A 1px rule the full width of the row carries the SCALE, so every dot is
                 read against the same axis rather than against its neighbour's length. */}
-            <div className="relative h-2.5">
+            <div className="relative mx-[6px] h-2.5">
               <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border/70" />
               <div
                 className="absolute top-1/2 left-0 h-0.5 -translate-y-1/2 rounded-full transition-[width] duration-500 ease-out"
@@ -227,5 +209,71 @@ export function LollipopChart({
         );
       })}
     </ul>
+  );
+}
+
+/**
+ * The column form: a hairline stem per period with the value as a dot on top.
+ *
+ * The track has a DEFINITE height (h-40) and the stem is positioned inside it.
+ * Written with `flex-1` first, which silently drew every stem flat on the baseline:
+ * a percentage height resolves against the parent's height, and a flex item's height
+ * is auto until the browser has laid its siblings out — so every `height: 62%`
+ * resolved to nothing and six different figures rendered identically.
+ */
+function VerticalLollipop({
+  rows,
+  formatValue,
+  color,
+  ariaLabel,
+  className,
+  max,
+}: {
+  rows: LollipopRow[];
+  formatValue: (v: number) => string;
+  color: string;
+  ariaLabel: string;
+  className?: string;
+  max: number;
+}) {
+  return (
+    <div className={cn("flex items-end gap-1 pb-1", className)} aria-label={ariaLabel} role="img">
+      {rows.map((r, i) => {
+        const h = Math.max(2, (Math.abs(r.value) / max) * 100);
+        const negative = r.value < 0;
+        return (
+          <div
+            key={`${r.label}-${i}`}
+            className="group/stem flex min-w-0 flex-1 flex-col items-center gap-1.5"
+            title={`${r.label}: ${formatValue(r.value)}`}
+          >
+            <span className="h-4 text-[10px] font-medium tabular-nums opacity-0 transition-opacity group-hover/stem:opacity-100">
+              {r.value === 0 ? "" : shortNum(r.value)}
+            </span>
+            <div className="relative h-40 w-full">
+              <div
+                className="absolute bottom-0 left-1/2 w-px -translate-x-1/2 rounded-full transition-all duration-500"
+                style={{
+                  height: `${h}%`,
+                  background: negative ? "var(--color-destructive)" : color,
+                  opacity: 0.45,
+                }}
+              />
+              <span
+                className="absolute left-1/2 size-2.5 -translate-x-1/2 translate-y-1/2 rounded-full ring-2 ring-card transition-all duration-500 group-hover/stem:size-3.5"
+                style={{
+                  bottom: `${h}%`,
+                  background: negative ? "var(--color-destructive)" : color,
+                }}
+                aria-hidden="true"
+              />
+            </div>
+            <span className="w-full truncate text-center text-[10px] text-muted-foreground">
+              {r.label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
   );
 }

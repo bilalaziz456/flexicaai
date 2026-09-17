@@ -49,8 +49,16 @@ export function Sparkline({
       : color;
   const gradId = `spark-${resolved.replace(/[^a-z0-9]/gi, "")}`;
 
+  // THE SERIES' OWN RANGE, not zero-anchored. A sparkline has no axis, so it cannot
+  // communicate magnitude — the figure above it does that — and all it has to offer is
+  // SHAPE. Forcing zero into the scale destroys exactly that on any series that never
+  // approaches zero: the outstanding-receivable card ran 1.60M to 1.70M and drew a dead
+  // flat line across the top 6% of the box, hiding the only thing it was there to show.
+  //
+  // The cost is that a small wiggle fills the height, which is the classic sparkline
+  // trade-off and the reason the exact number always sits directly above it.
   const max = Math.max(...vals);
-  const min = Math.min(...vals, 0);
+  const min = Math.min(...vals);
   const range = max - min || 1;
   const x = (i: number) => (n <= 1 ? W / 2 : P + (W - 2 * P) * (i / (n - 1)));
   const y = (v: number) => P + (H - 2 * P) * (1 - (v - min) / range);

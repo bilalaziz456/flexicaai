@@ -11,6 +11,7 @@ import {
 } from "@/core/ui/card";
 import { SalesFilters } from "@/core/ui/report-filters";
 import { ScatterPlot } from "@/core/ui/charts/scatter-plot";
+import { StatCard } from "@/core/ui/charts/stat-card";
 import { NoShowsTable } from "./no-shows-table";
 
 /**
@@ -30,7 +31,14 @@ export default async function NoShowsPage({
 
   const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
   const cards = [
-    { title: "No-show rate", value: pct(stats.rate), note: `${stats.noShow} of ${stats.attended} intended visits`, big: true },
+    {
+      title: "No-show rate",
+      value: pct(stats.rate),
+      note: `${stats.noShow} of ${stats.attended} intended visits`,
+      // 15% is the line the report itself draws elsewhere; above it the figure is
+      // the finding, not just a number.
+      tone: (stats.rate >= 0.15 ? "bad" : "default") as "bad" | "default",
+    },
     { title: "No-shows", value: String(stats.noShow), note: "Patient didn't attend" },
     { title: "Completed", value: String(stats.completed), note: "Attended visits" },
     { title: "Cancelled", value: String(stats.cancelled), note: "Called off (not counted in the rate)" },
@@ -49,13 +57,7 @@ export default async function NoShowsPage({
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((c) => (
-          <Card key={c.title}>
-            <CardHeader>
-              <CardDescription>{c.title}</CardDescription>
-              <CardTitle className={c.big ? "text-4xl" : "text-3xl"}>{c.value}</CardTitle>
-              <CardDescription>{c.note}</CardDescription>
-            </CardHeader>
-          </Card>
+          <StatCard key={c.title} label={c.title} value={c.value} hint={c.note} tone={c.tone} />
         ))}
       </div>
 
