@@ -223,19 +223,29 @@ function CellBody({
         <span className="text-xs text-muted-foreground">Off</span>
       )}
 
-      <span className="mt-auto flex items-center justify-between gap-2 text-2xs whitespace-nowrap text-muted-foreground">
+      {/* The booked count and the "Add leave" hint occupy the SAME grid cell, one
+          fading out as the other fades in. Side by side they both needed their full
+          width at once — "1 booked" plus "+ Add leave" does not fit a ~100px day
+          column, and with `whitespace-nowrap` the row overflowed the cell and ran
+          across its neighbour. Stacked, the footer is only ever as wide as the wider
+          of the two, and the count is not information the reader loses: it is there
+          until the pointer arrives, and the cell's tooltip carries it throughout. */}
+      <span className="mt-auto grid min-w-0 text-2xs whitespace-nowrap text-muted-foreground">
         {booked > 0 ? (
-          <span>
+          <span
+            className={cn(
+              "col-start-1 row-start-1 truncate transition-opacity",
+              interactive && !onLeave && "group-hover/cell:opacity-0",
+            )}
+          >
             {booked}
             {dailyLimit > 0 ? `/${dailyLimit}` : ""} booked
           </span>
-        ) : (
-          <span />
-        )}
+        ) : null}
         {/* Says what the click does, rather than leaving the reader to guess. */}
         {interactive && !onLeave ? (
-          <span className="inline-flex items-center gap-0.5 whitespace-nowrap text-primary-text opacity-0 transition-opacity group-hover/cell:opacity-100">
-            <Plus className="size-3" aria-hidden="true" />
+          <span className="col-start-1 row-start-1 inline-flex min-w-0 items-center gap-0.5 truncate text-primary-text opacity-0 transition-opacity group-hover/cell:opacity-100">
+            <Plus className="size-3 shrink-0" aria-hidden="true" />
             Add leave
           </span>
         ) : null}
