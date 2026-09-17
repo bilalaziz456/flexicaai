@@ -40,13 +40,18 @@ const longDate = (date: string) =>
  *
  * Level 0 is deliberately BLANK, not the faintest tint: an empty day and a quiet day
  * are different facts, and the empty ones are the ones a clinic needs to see.
+ *
+ * DARK MODE TAKES STRONGER TINTS, and needs to. The same alpha over a near-black card
+ * lifts far less than it does over white — at 6% the quietest level was indistinguish-
+ * able from an empty day, which collapses the bottom of the scale exactly where a
+ * clinic looks for gaps in the diary.
  */
 const HEAT: Record<0 | 1 | 2 | 3 | 4, string> = {
   0: "",
-  1: "bg-primary/[0.06]",
-  2: "bg-primary/[0.12]",
-  3: "bg-primary/20",
-  4: "bg-primary/30",
+  1: "bg-primary/[0.06] dark:bg-primary/[0.14]",
+  2: "bg-primary/[0.12] dark:bg-primary/[0.24]",
+  3: "bg-primary/20 dark:bg-primary/36",
+  4: "bg-primary/30 dark:bg-primary/50",
 };
 
 export function AppointmentMonth({

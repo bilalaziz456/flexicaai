@@ -16,6 +16,24 @@ const RAMP = [
 ];
 
 /**
+ * The ramp, extended past its own length.
+ *
+ * `RAMP[i % RAMP.length]` is the obvious line and it silently breaks the chart: with
+ * seven expense categories the sixth and seventh slices came out byte-identical to the
+ * first and second, so two pairs of arcs were the same colour in a chart whose entire
+ * job is telling slices apart by colour. Each further cycle desaturates toward the
+ * muted foreground, which stays distinguishable on both the light and the dark ground
+ * because it is derived from a token rather than a fixed tint.
+ */
+function rampColor(i: number): string {
+  const base = RAMP[i % RAMP.length];
+  const cycle = Math.floor(i / RAMP.length);
+  if (cycle === 0) return base;
+  const strength = Math.max(30, 60 - (cycle - 1) * 15);
+  return `color-mix(in oklab, ${base} ${strength}%, var(--color-muted-foreground))`;
+}
+
+/**
  * COMPOSITION — what a total is made of: expenses by category, revenue by doctor,
  * how a clinic's months fall across payer bands.
  *
@@ -94,7 +112,7 @@ export function DonutChart({
     arcs.push({
       label: s.label,
       value: s.value,
-      color: s.color ?? RAMP[i % RAMP.length],
+      color: s.color ?? rampColor(i),
       frac,
       dash: `${len} ${c - len}`,
       // −90° so the first slice starts at twelve o'clock, where a reader starts.
