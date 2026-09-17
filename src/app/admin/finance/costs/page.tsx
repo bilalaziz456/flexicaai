@@ -2,7 +2,9 @@ import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin } from "@/core/auth/admin-permissions";
 import { computeServingCost, effectiveTaxPct, getCostRates } from "@/core/admin/cost";
 import { resolveSalesRange } from "@/core/sales/report";
-import { MultiBarChart } from "@/core/ui/multi-bar-chart";
+import { TrendChart } from "@/core/ui/charts/trend-chart";
+import { StatCard } from "@/core/ui/charts/stat-card";
+import { DonutChart } from "@/core/ui/charts/donut-chart";
 import {
   Card,
   CardContent,
@@ -43,14 +45,10 @@ export default async function CostsPage({
   const rangeLabel = `${range.from} → ${range.to}`;
   const notConfigured = rates.effectiveFrom === null || rates.usdToPkr === 0;
 
-  const chartPoints = cost.trend.map((b) => ({
-    label: b.label,
-    values: { scribe: b.scribeCostPkr, whatsapp: b.whatsappCostPkr },
-  }));
-  const chartSeries = [
-    { key: "scribe", label: "AI scribe", color: "var(--color-chart-2)" },
-    { key: "whatsapp", label: "WhatsApp", color: "var(--color-chart-3)" },
-  ];
+  // Summed from the same buckets the chart draws, so the ring and the curve can
+  // never disagree about the period's total.
+  const scribeTotal = cost.trend.reduce((a, b) => a + b.scribeCostPkr, 0);
+  const whatsappTotal = cost.trend.reduce((a, b) => a + b.whatsappCostPkr, 0);
   const hasTrend = cost.trend.some((b) => b.costPkr > 0);
 
   return (
@@ -73,18 +71,23 @@ export default async function CostsPage({
 
       {/* Cost KPIs for the range */}
       <div className="grid gap-3 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2"><CardDescription>Estimated cost</CardDescription></CardHeader>
-          <CardContent><div className="text-2xl font-semibold tabular-nums">{rs(cost.totalCostPkr)}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardDescription>Scribe calls (voice visits)</CardDescription></CardHeader>
-          <CardContent><div className="text-2xl font-semibold tabular-nums">{cost.totalScribeCalls.toLocaleString("en-PK")}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardDescription>WhatsApp messages (outbound)</CardDescription></CardHeader>
-          <CardContent><div className="text-2xl font-semibold tabular-nums">{cost.totalWhatsappMsgs.toLocaleString("en-PK")}</div></CardContent>
-        </Card>
+        <StatCard
+          label="Estimated cost"
+          value={rs(cost.totalCostPkr)}
+          hint={rangeLabel}
+          trend={cost.trend.map((b) => b.costPkr)}
+          higherIsBetter={false}
+        />
+        <StatCard
+          label="Scribe calls"
+          value={cost.totalScribeCalls.toLocaleString("en-PK")}
+          hint="Voice visits"
+        />
+        <StatCard
+          label="WhatsApp messages"
+          value={cost.totalWhatsappMsgs.toLocaleString("en-PK")}
+          hint="Outbound"
+        />
       </div>
 
       {/* Cost trend */}
@@ -95,7 +98,28 @@ export default async function CostsPage({
         </CardHeader>
         <CardContent>
           {hasTrend ? (
-            <MultiBarChart points={chartPoints} series={chartSeries} ariaLabel="Serving cost by period" />
+            <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr] lg:items-center">
+              {/* The TOTAL as a shape over time… */}
+              <TrendChart
+                points={cost.trend.map((b) => ({ label: b.label, value: b.costPkr }))}
+                ariaLabel="Serving cost over time"
+                valueLabel="Serving cost"
+                color="var(--color-chart-4)"
+              />
+              {/* …and what it is made of, which two bar series made you add up
+                  by eye. Whisper and WhatsApp are the whole cost, so a share is
+                  meaningful. */}
+              <DonutChart
+                ariaLabel="Serving cost by provider"
+                centerLabel="Serving cost"
+                total={cost.totalCostPkr}
+                size={140}
+                slices={[
+                  { label: "Scribe (AI)", value: scribeTotal, color: "var(--color-chart-2)" },
+                  { label: "WhatsApp", value: whatsappTotal, color: "var(--color-chart-3)" },
+                ]}
+              />
+            </div>
           ) : (
             <p className="py-6 text-center text-sm text-muted-foreground">No usage in this period yet.</p>
           )}

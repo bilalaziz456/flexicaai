@@ -17,7 +17,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { AreaChart } from "./area-chart";
+import { TrendChart } from "@/core/ui/charts/trend-chart";
+import { StatCard, InsightLine } from "@/core/ui/charts/stat-card";
+import {
+  latestVsAverageInsight,
+  pickInsight,
+  streakInsight,
+} from "@/core/ui/charts/insights";
 import { HBarChart } from "@/core/ui/h-bar-chart";
 import { SalesFilters } from "@/core/ui/report-filters";
 
@@ -64,12 +70,35 @@ export default async function ClinicSalesPage({
   }
   if (doctorId) exportParams.set("doctorId", doctorId);
 
+  // The collected series the chart below draws. The other three figures have NO
+  // per-bucket series behind them — a visit count and an average are not bucketed by
+  // `getSalesReport` — so those cards carry no sparkline rather than a made-up one.
+  const collectedTrend = report.buckets.map((b) => b.value);
+  const unit =
+    report.granularity === "hour"
+      ? "hour"
+      : report.granularity === "month"
+        ? "month"
+        : report.granularity === "week"
+          ? "week"
+          : "day";
+
   const summary = [
-    { title: "Collected", value: money.format(report.netTotal), note: "Money received (after discounts)" },
+    {
+      title: "Collected",
+      value: money.format(report.netTotal),
+      note: "Money received (after discounts)",
+      trend: collectedTrend,
+    },
     { title: "Paying visits", value: String(report.count), note: "Completed visits with a payment" },
     { title: "Discounts realized", value: money.format(report.discountTotal), note: "On collected revenue" },
     { title: "Avg per visit", value: money.format(report.avgNet), note: "Collected ÷ paying visits" },
   ];
+
+  const revenueInsight = pickInsight(
+    streakInsight(collectedTrend, { noun: "Collected revenue", unit }),
+    latestVsAverageInsight(collectedTrend, { noun: "collected revenue" }),
+  );
 
   return (
     <div className="space-y-6">
@@ -111,13 +140,7 @@ export default async function ClinicSalesPage({
       {/* Summary cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {summary.map((s) => (
-          <Card key={s.title}>
-            <CardHeader>
-              <CardDescription>{s.title}</CardDescription>
-              <CardTitle className="text-3xl">{s.value}</CardTitle>
-              <CardDescription>{s.note}</CardDescription>
-            </CardHeader>
-          </Card>
+          <StatCard key={s.title} label={s.title} value={s.value} hint={s.note} trend={s.trend} />
         ))}
       </div>
 
@@ -141,7 +164,14 @@ export default async function ClinicSalesPage({
               No paid visits in this period.
             </p>
           ) : (
-            <AreaChart points={report.buckets} ariaLabel="Collected revenue over time" />
+            <>
+              <TrendChart
+                points={report.buckets}
+                ariaLabel="Collected revenue over time"
+                valueLabel="Collected"
+              />
+              {revenueInsight ? <InsightLine insight={revenueInsight} className="mt-4" /> : null}
+            </>
           )}
         </CardContent>
       </Card>
@@ -158,6 +188,7 @@ export default async function ClinicSalesPage({
               <p className="text-sm text-muted-foreground">No sales yet.</p>
             ) : (
               <HBarChart
+                showShare
                 ariaLabel="Collected revenue by doctor"
                 rows={report.byDoctor.map((d) => ({
                   label: d.name,
@@ -183,6 +214,7 @@ export default async function ClinicSalesPage({
               </p>
             ) : (
               <HBarChart
+                showShare
                 ariaLabel="Billed value by procedure"
                 rows={report.byProcedure.map((p) => ({
                   label: p.name,

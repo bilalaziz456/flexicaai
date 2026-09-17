@@ -104,7 +104,7 @@ export function concentrationInsight(
  */
 export function profitCrossingInsight(
   values: readonly number[],
-  opts: { unit?: string } = {},
+  opts: { unit?: string; materialPct?: number } = {},
 ): Insight | null {
   const n = values.length;
   if (n < 2) return null;
@@ -112,15 +112,32 @@ export function profitCrossingInsight(
   const prev = values[n - 2];
   const period = opts.unit ?? "period";
 
-  if (prev < 0 && last >= 0) {
+  /**
+   * MATERIALITY. A crossing is only worth announcing when it is big enough to SEE in
+   * the chart the sentence sits under.
+   *
+   * This was found in the live company P&L: the current month stood at −126 rupees on
+   * an axis running to 40,000, so the curve ended flat on the zero line while a red
+   * line underneath announced that the period had closed at a loss. Both were correct.
+   * The reader is left deciding which of the two to believe, and an observation that
+   * loses that argument costs more trust than it ever adds — every other insight on
+   * the page now has to be checked too.
+   *
+   * So: at least 2% of the largest magnitude in the series. Below that, the honest
+   * answer is that nothing happened.
+   */
+  const scale = values.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+  const material = (v: number) => Math.abs(v) >= scale * (opts.materialPct ?? 0.02);
+
+  if (prev < 0 && last >= 0 && material(prev)) {
     return { text: `Returned to profit this ${period} after a loss.`, tone: "good" };
   }
-  if (prev >= 0 && last < 0) {
+  if (prev >= 0 && last < 0 && material(last)) {
     return { text: `This ${period} closed at a loss after a profitable one.`, tone: "bad" };
   }
   // A sustained state is worth saying only once it IS sustained.
-  const allLoss = values.slice(-3).every((v) => v < 0);
-  if (n >= 3 && allLoss) {
+  const tail = values.slice(-3);
+  if (n >= 3 && tail.every((v) => v < 0) && tail.some(material)) {
     return { text: `The last three ${period}s all closed at a loss.`, tone: "bad" };
   }
   return null;

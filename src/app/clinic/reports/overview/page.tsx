@@ -15,7 +15,7 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { HBarChart } from "@/core/ui/h-bar-chart";
-import { WaterfallChart } from "@/app/clinic/sales/waterfall-chart";
+import { WaterfallChart } from "@/core/ui/charts/waterfall-chart";
 import { SalesFilters } from "@/core/ui/report-filters";
 import { PrintButton } from "@/core/ui/print-button";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";

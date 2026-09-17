@@ -10,7 +10,7 @@ import {
   listClinicInvoices,
 } from "@/core/admin/clinic-invoices";
 import { resolveSalesRange } from "@/core/sales/report";
-import { MultiBarChart } from "@/core/ui/multi-bar-chart";
+import { TrendChart } from "@/core/ui/charts/trend-chart";
 import { parsePage, parsePageSize, pageOffset } from "@/core/lib/pagination";
 import { Pagination } from "@/core/ui/pagination";
 import {
@@ -72,7 +72,6 @@ export default async function ClinicInvoicesPage({
   ]);
 
   const rangeLabel = `${range.from} → ${range.to}`;
-  const trendPoints = trend.map((b) => ({ label: b.label, values: { invoiced: b.total } }));
   const hasTrend = trend.some((b) => b.total > 0);
   const period = (s: string | null, e: string | null) =>
     s && e ? `${s} → ${e}` : s ? `from ${s}` : e ? `to ${e}` : "—";
@@ -105,7 +104,11 @@ export default async function ClinicInvoicesPage({
           <CardHeader className="pb-2"><CardTitle className="text-base">Invoiced over time</CardTitle></CardHeader>
           <CardContent>
             {hasTrend ? (
-              <MultiBarChart points={trendPoints} series={[{ key: "invoiced", label: "Invoiced", color: "var(--color-chart-1)" }]} ariaLabel="Invoiced by period" />
+              <TrendChart
+                points={trend.map((b) => ({ label: b.label, value: b.total }))}
+                ariaLabel="Invoiced over time"
+                valueLabel="Invoiced"
+              />
             ) : (
               <p className="py-6 text-center text-sm text-muted-foreground">No invoices in this period yet.</p>
             )}

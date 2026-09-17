@@ -8,7 +8,7 @@ import { getClinic } from "@/core/clinics/get-clinic";
 import { getSalesSummary, resolveSalesRange } from "@/core/sales/report";
 import { getFinanceKpis } from "@/core/finance/kpis";
 import { getNoShowStats } from "@/core/appointments/no-shows";
-import { WaterfallChart } from "@/app/clinic/sales/waterfall-chart";
+import { WaterfallChart } from "@/core/ui/charts/waterfall-chart";
 import {
   Card,
   CardContent,
@@ -17,8 +17,8 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { Sparkline } from "@/core/ui/sparkline";
+import { StatCard } from "@/core/ui/charts/stat-card";
 import { OnboardingChecklist } from "@/core/ui/onboarding-checklist";
-import { DeltaBadge } from "@/core/ui/delta-badge";
 import { AvgVisitValueForm } from "./avg-visit-value-form";
 import { DoctorLeaves } from "@/app/clinic/schedule/doctor-leaves";
 import { clinicStaffSummary } from "@/core/db/vocabulary-cache";
@@ -97,6 +97,21 @@ export default async function ClinicDashboard() {
 
   const revenueRecovered = recovered * avgVisitValue;
   // Last 6 months of recovered revenue (visits × avg value), gap-filled → sparkline.
+  // The hero shows recovered REVENUE (counts × average visit value); the stat card
+  // below shows the visits themselves, so it needs the counts unconverted.
+  const recoveredCounts = (() => {
+    const byMonth = new Map<string, number>();
+    for (const r of recoveredTrendRows) byMonth.set(r.m, Number(r.n));
+    const out: number[] = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      out.push(byMonth.get(key) ?? 0);
+    }
+    return out;
+  })();
+
   const recoveredTrend = (() => {
     const byMonth = new Map<string, number>();
     for (const r of recoveredTrendRows) byMonth.set(r.m, Number(r.n));
@@ -130,6 +145,12 @@ export default async function ClinicDashboard() {
             value: pkr(financeKpis.outstandingReceivable),
             note: "Patients owe us",
             href: "/clinic/appointments?status=completed&payment=unpaid",
+            // The running receivable balance over the same 30 days. `getFinanceKpis`
+            // has computed this since it was written and nothing ever drew it.
+            trend: financeKpis.outstandingTrend,
+            // A rising balance is money we have not been paid, so up is the bad
+            // direction here — the opposite of every other figure on this row.
+            higherIsBetter: false,
           },
         ]
       : []),
@@ -154,7 +175,15 @@ export default async function ClinicDashboard() {
         ]
       : []),
     ...(revenueEnabled
-      ? [{ title: "Return visits", value: recovered, note: "From recall reminders" }]
+      ? [
+          {
+            title: "Return visits",
+            value: recovered,
+            note: "From recall reminders",
+            // The same six monthly buckets the hero converts into money.
+            trend: recoveredCounts,
+          },
+        ]
       : []),
     { title: "Recalls sent", value: counts.recallsSent, note: "Reminders delivered", href: "/clinic/recalls" },
     { title: "Upcoming appts", value: counts.upcoming, note: "Scheduled ahead", href: "/clinic/appointments" },
@@ -233,33 +262,27 @@ export default async function ClinicDashboard() {
               new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 }).format(n);
             const loss = financeKpis.netProfit30d < 0;
             const kpis = [
-              { show: billingKpiOn || financeKpiOn, title: "Collected (30d)", value: fmt(financeKpis.collected30d), note: "Revenue received", href: financeKpiOn ? "/clinic/pl" : "/clinic/sales", tone: "", trend: financeKpis.collectedTrend, trendColor: "var(--color-chart-1)", curr: financeKpis.collected30d, prev: financeKpis.collectedPrev30d, up: true },
-              { show: financeKpiOn, title: "Doctor shares (30d)", value: `− ${fmt(financeKpis.doctorShares30d)}`, note: "Earned on collection", href: "/clinic/pl", tone: "", trend: financeKpis.sharesTrend, trendColor: "var(--color-chart-2)", curr: financeKpis.doctorShares30d, prev: financeKpis.doctorSharesPrev30d, up: false },
-              { show: financeKpiOn, title: "Expenses (30d)", value: `− ${fmt(financeKpis.expenses30d)}`, note: "Costs incurred", href: "/clinic/expenses", tone: "", trend: financeKpis.expenseTrend, trendColor: "var(--color-warning)", curr: financeKpis.expenses30d, prev: financeKpis.expensesPrev30d, up: false },
-              { show: financeKpiOn, title: loss ? "Net loss (30d)" : "Net profit (30d)", value: fmt(Math.abs(financeKpis.netProfit30d)), note: "After shares + expenses", href: "/clinic/pl", tone: loss ? "text-destructive" : "text-success-text", trend: financeKpis.profitTrend, trendColor: loss ? "var(--color-destructive)" : "var(--color-success)", curr: financeKpis.netProfit30d, prev: financeKpis.netProfitPrev30d, up: true },
+              { show: billingKpiOn || financeKpiOn, title: "Collected (30d)", value: fmt(financeKpis.collected30d), note: "Revenue received", href: financeKpiOn ? "/clinic/pl" : "/clinic/sales", tone: "default" as const, trend: financeKpis.collectedTrend, curr: financeKpis.collected30d, prev: financeKpis.collectedPrev30d, up: true },
+              { show: financeKpiOn, title: "Doctor shares (30d)", value: `− ${fmt(financeKpis.doctorShares30d)}`, note: "Earned on collection", href: "/clinic/pl", tone: "default" as const, trend: financeKpis.sharesTrend, curr: financeKpis.doctorShares30d, prev: financeKpis.doctorSharesPrev30d, up: false },
+              { show: financeKpiOn, title: "Expenses (30d)", value: `− ${fmt(financeKpis.expenses30d)}`, note: "Costs incurred", href: "/clinic/expenses", tone: "default" as const, trend: financeKpis.expenseTrend, curr: financeKpis.expenses30d, prev: financeKpis.expensesPrev30d, up: false },
+              { show: financeKpiOn, title: loss ? "Net loss (30d)" : "Net profit (30d)", value: fmt(Math.abs(financeKpis.netProfit30d)), note: "After shares + expenses", href: "/clinic/pl", tone: (loss ? "bad" : "good") as "bad" | "good", trend: financeKpis.profitTrend, curr: financeKpis.netProfit30d, prev: financeKpis.netProfitPrev30d, up: true },
             ].filter((k) => k.show);
-            return kpis.map((k) => {
-              const hasSpark = Boolean(k.trend && k.trend.length > 1);
-              return (
-                <Link key={k.title} href={k.href} className="h-full">
-                  <Card className={`flex h-full flex-col transition-colors hover:border-primary/50 ${hasSpark ? "justify-between" : "justify-center"}`}>
-                    <CardHeader>
-                      <CardDescription>{k.title}</CardDescription>
-                      <CardTitle className={`text-3xl ${k.tone}`}>{k.value}</CardTitle>
-                      <CardDescription className="flex items-center gap-2">
-                        <DeltaBadge current={k.curr} previous={k.prev} higherIsBetter={k.up} />
-                        <span>{k.note}</span>
-                      </CardDescription>
-                    </CardHeader>
-                    {hasSpark ? (
-                      <CardContent className="pt-0">
-                        <Sparkline values={k.trend!} color={k.trendColor} ariaLabel={`${k.title}. Last 30 days`} />
-                      </CardContent>
-                    ) : null}
-                  </Card>
-                </Link>
-              );
-            });
+            return kpis.map((k) => (
+              <Link key={k.title} href={k.href} className="h-full">
+                <StatCard
+                  className="h-full transition-colors hover:border-primary/50"
+                  label={k.title}
+                  value={k.value}
+                  hint={k.note}
+                  trend={k.trend}
+                  current={k.curr}
+                  previous={k.prev}
+                  higherIsBetter={k.up}
+                  tone={k.tone}
+                  comparisonLabel="vs previous 30 days"
+                />
+              </Link>
+            ));
           })()}
         </div>
       ) : null}
@@ -299,13 +322,14 @@ export default async function ClinicDashboard() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {stats.map((s) => {
           const inner = (
-            <Card className={s.href ? "transition-colors hover:border-primary/50" : ""}>
-              <CardHeader>
-                <CardDescription>{s.title}</CardDescription>
-                <CardTitle className="text-3xl">{s.value}</CardTitle>
-                <CardDescription>{s.note}</CardDescription>
-              </CardHeader>
-            </Card>
+            <StatCard
+              className={s.href ? "h-full transition-colors hover:border-primary/50" : "h-full"}
+              label={s.title}
+              value={String(s.value)}
+              hint={s.note}
+              trend={"trend" in s ? s.trend : undefined}
+              higherIsBetter={"higherIsBetter" in s ? s.higherIsBetter : true}
+            />
           );
           return s.href ? (
             <Link key={s.title} href={s.href}>

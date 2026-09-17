@@ -4,7 +4,9 @@ import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin } from "@/core/auth/admin-permissions";
 import { getCompanyPnl } from "@/core/admin/pnl";
 import { resolveSalesRange } from "@/core/sales/report";
-import { MultiBarChart } from "@/core/ui/multi-bar-chart";
+import { ProfitLossChart } from "@/core/ui/charts/profit-loss-chart";
+import { StatCard, InsightLine } from "@/core/ui/charts/stat-card";
+import { pickInsight, profitCrossingInsight, streakInsight } from "@/core/ui/charts/insights";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import {
@@ -53,12 +55,15 @@ export default async function CompanyPnlPage({
     exportParams.set("to", range.to);
   }
 
-  const trendPoints = pnl.trend.map((b) => ({
-    label: b.label,
-    values: { revenue: b.revenue, cost: b.cost, profit: b.netProfit },
-  }));
   const hasTrend = pnl.trend.some((b) => b.revenue !== 0 || b.cost !== 0);
 
+  // Both series come from `pnl.trend`, which this page already fetches.
+  const profitTrend = pnl.trend.map((b) => b.netProfit);
+  const revenueTrend = pnl.trend.map((b) => b.revenue);
+  const profitInsight = pickInsight(
+    profitCrossingInsight(profitTrend),
+    streakInsight(profitTrend, { noun: "Net profit" }),
+  );
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -81,45 +86,39 @@ export default async function CompanyPnlPage({
 
       {/* Headline net profit + the components */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className={pnl.netProfit < 0 ? "border-destructive/40" : "border-emerald-500/40"}>
-          <CardHeader className="pb-2"><CardDescription>Net profit ({rangeLabel})</CardDescription></CardHeader>
-          <CardContent>
-            <div className={cn("text-2xl font-semibold tabular-nums", pnl.netProfit < 0 ? "text-destructive" : "text-success-text")}>
-              {signed(pnl.netProfit)}
-            </div>
-            {pnl.marginPct !== null ? <div className="mt-0.5 text-xs text-muted-foreground">{pnl.marginPct}% margin</div> : null}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardDescription>Collected revenue</CardDescription></CardHeader>
-          <CardContent><div className="text-2xl font-semibold tabular-nums">{rs(pnl.revenue)}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardDescription>Serving cost</CardDescription></CardHeader>
-          <CardContent><div className="text-2xl font-semibold tabular-nums">{rs(pnl.servingCost)}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardDescription>Operating expenses</CardDescription></CardHeader>
-          <CardContent><div className="text-2xl font-semibold tabular-nums">{rs(pnl.operatingExpenses)}</div></CardContent>
-        </Card>
+        <StatCard
+          label="Net profit"
+          value={signed(pnl.netProfit)}
+          tone={pnl.netProfit < 0 ? "bad" : "good"}
+          hint={
+            pnl.marginPct !== null ? `${pnl.marginPct}% margin · ${rangeLabel}` : rangeLabel
+          }
+          trend={profitTrend}
+        />
+        <StatCard
+          label="Collected revenue"
+          value={rs(pnl.revenue)}
+          trend={revenueTrend}
+        />
+        {/* Serving cost and opex are not bucketed separately — `PnlBucket.cost`
+            combines them — so neither card claims a shape it does not have. */}
+        <StatCard label="Serving cost" value={rs(pnl.servingCost)} />
+        <StatCard label="Operating expenses" value={rs(pnl.operatingExpenses)} />
       </div>
 
       {/* Gross margin + run-rate context */}
       <div className="grid gap-3 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2"><CardDescription>Gross margin (revenue − serving cost)</CardDescription></CardHeader>
-          <CardContent><div className="text-xl font-semibold tabular-nums">{signed(pnl.grossMargin)}</div></CardContent>
-        </Card>
+        <StatCard
+          label="Gross margin"
+          value={signed(pnl.grossMargin)}
+          hint="Revenue − serving cost"
+        />
+        {/* Run-rates are a projection of TODAY's subscriptions, not a period total:
+            they have no history to draw and no previous window to compare with. */}
         {showRevenue ? (
           <>
-            <Card>
-              <CardHeader className="pb-2"><CardDescription>MRR (run-rate)</CardDescription></CardHeader>
-              <CardContent><div className="text-xl font-semibold tabular-nums">{rs(pnl.mrr)}</div></CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2"><CardDescription>ARR (run-rate)</CardDescription></CardHeader>
-              <CardContent><div className="text-xl font-semibold tabular-nums">{rs(pnl.arr)}</div></CardContent>
-            </Card>
+            <StatCard label="MRR" value={rs(pnl.mrr)} hint="Run-rate" />
+            <StatCard label="ARR" value={rs(pnl.arr)} hint="Run-rate" />
           </>
         ) : null}
       </div>
@@ -127,20 +126,25 @@ export default async function CompanyPnlPage({
       {/* Trend */}
       <Card>
         <CardHeader>
-          <CardTitle>Revenue, cost &amp; profit over time</CardTitle>
-          <CardDescription>Collected revenue vs total cost (serving + opex), and net profit ({rangeLabel}).</CardDescription>
+          <CardTitle>Profit &amp; loss over time</CardTitle>
+          <CardDescription>Net profit per period — above the line is profit, below it is loss. Hover for the revenue and cost behind it ({rangeLabel}).</CardDescription>
         </CardHeader>
         <CardContent>
           {hasTrend ? (
-            <MultiBarChart
-              ariaLabel="Company revenue, cost and net profit over time"
-              points={trendPoints}
-              series={[
-                { key: "revenue", label: "Collected revenue", color: "var(--color-chart-1)" },
-                { key: "cost", label: "Total cost", color: "var(--color-chart-4)" },
-                { key: "profit", label: "Net profit", color: "var(--color-chart-1)", status: true },
-              ]}
-            />
+            <>
+              <ProfitLossChart
+                ariaLabel="Company net profit over time"
+                points={pnl.trend.map((b) => ({
+                  label: b.label,
+                  value: b.netProfit,
+                  parts: [
+                    { label: "Collected revenue", value: b.revenue },
+                    { label: "Total cost", value: -b.cost },
+                  ],
+                }))}
+              />
+              {profitInsight ? <InsightLine insight={profitInsight} className="mt-4" /> : null}
+            </>
           ) : (
             <p className="py-10 text-center text-sm text-muted-foreground">No revenue or cost in this period yet.</p>
           )}

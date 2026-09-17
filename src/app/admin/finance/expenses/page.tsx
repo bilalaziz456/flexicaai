@@ -10,7 +10,8 @@ import {
   listRecurringCompanyExpenses,
 } from "@/core/admin/company-expenses";
 import { resolveSalesRange } from "@/core/sales/report";
-import { MultiBarChart } from "@/core/ui/multi-bar-chart";
+import { TrendChart } from "@/core/ui/charts/trend-chart";
+import { StatCard } from "@/core/ui/charts/stat-card";
 import { HBarChart } from "@/core/ui/h-bar-chart";
 import { parsePage, parsePageSize, pageOffset } from "@/core/lib/pagination";
 import { Pagination } from "@/core/ui/pagination";
@@ -91,7 +92,6 @@ export default async function CompanyExpensesPage({
 
   const rangeLabel = `${range.from} → ${range.to}`;
   const activeCategories = categories.filter((c) => c.isActive);
-  const trendPoints = trend.map((b) => ({ label: b.label, values: { expenses: b.total } }));
   const hasTrend = trend.some((b) => b.total > 0);
 
   return (
@@ -116,15 +116,22 @@ export default async function CompanyExpensesPage({
 
       {/* KPI + graphs */}
       <div className="grid gap-3 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2"><CardDescription>Total expenses ({rangeLabel})</CardDescription></CardHeader>
-          <CardContent><div className="text-2xl font-semibold tabular-nums">{rs(rangeTotal)}</div></CardContent>
-        </Card>
+        <StatCard
+          label={`Total expenses (${rangeLabel})`}
+          value={rs(rangeTotal)}
+          trend={trend.map((b) => b.total)}
+          higherIsBetter={false}
+        />
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2"><CardTitle className="text-base">Expense trend</CardTitle></CardHeader>
           <CardContent>
             {hasTrend ? (
-              <MultiBarChart points={trendPoints} series={[{ key: "expenses", label: "Expenses", color: "var(--color-chart-5)" }]} ariaLabel="Expenses by period" />
+              <TrendChart
+                points={trend.map((b) => ({ label: b.label, value: b.total }))}
+                ariaLabel="Expenses over time"
+                valueLabel="Expenses"
+                color="var(--color-chart-5)"
+              />
             ) : (
               <p className="py-6 text-center text-sm text-muted-foreground">No expenses in this period yet.</p>
             )}
