@@ -25,6 +25,7 @@ import { ExpenseFilters } from "./expenses-filters";
 import { AddExpenseForm, CategoryManager } from "./expense-ui";
 import { ExpensesTable } from "./expenses-table";
 import { asPaymentMethodCode } from "@/core/db/vocabulary-seed";
+import { StatCard } from "@/core/ui/charts/stat-card";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -141,12 +142,7 @@ export default async function ExpensesPage({
             categories={activeCategories}
           />
 
-          <Card>
-            <CardHeader>
-              <CardDescription>Total this period</CardDescription>
-              <CardTitle className="text-3xl">{money.format(periodTotal)}</CardTitle>
-            </CardHeader>
-          </Card>
+          <StatCard label="Total this period" value={money.format(periodTotal)} />
         </>
       )}
 

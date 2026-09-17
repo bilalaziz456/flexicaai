@@ -1,7 +1,10 @@
+import Link from "next/link";
 import { cn } from "@/core/lib/utils";
 import { money as fmtMoney, shortNum } from "@/core/ui/charts/geometry";
 
-export type LollipopRow = { label: string; value: number; sublabel?: string };
+/** `href` makes the row's NAME a link — a ranking is often a way in to the thing
+ *  ranked, and losing that on the way to a nicer chart is a regression. */
+export type LollipopRow = { label: string; value: number; sublabel?: string; href?: string };
 
 /**
  * RANKING / COMPARISON — one measure across a few named things: collected by doctor,
@@ -174,7 +177,13 @@ export function LollipopChart({
           <li key={`${r.label}-${i}`} className="group/row text-sm">
             <div className="mb-1.5 flex items-baseline justify-between gap-3">
               <span className="min-w-0 truncate">
-                {r.label}
+                {r.href ? (
+                  <Link href={r.href} className="font-medium hover:underline">
+                    {r.label}
+                  </Link>
+                ) : (
+                  r.label
+                )}
                 {r.sublabel ? (
                   <span className="ml-1.5 text-xs text-muted-foreground">{r.sublabel}</span>
                 ) : null}

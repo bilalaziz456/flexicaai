@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { SegmentedBar } from "@/core/ui/charts/segmented-bar";
+import { LollipopChart } from "@/core/ui/charts/lollipop-chart";
 import type { CompanyMetrics } from "@/core/admin/metrics";
 import { CLINIC_STATUSES } from "@/core/clinics/status";
 import { cn } from "@/core/lib/utils";
@@ -34,6 +35,18 @@ function Kpi({
  * view at the top of /admin. Pure server component (the sparkline is server-rendered
  * SVG). AI/WhatsApp cost + margin await Feature 7's unit-cost config.
  */
+/**
+ * Status colours for the portfolio bar. Trial and active are the healthy half, the
+ * rest escalate — so the bar reads left to right as a lifecycle AND as a temperature.
+ */
+const STATUS_COLOUR: Record<string, string> = {
+  trial: "var(--color-chart-2)",
+  active: "var(--color-success)",
+  suspended: "var(--color-warning)",
+  past_due: "var(--color-chart-4)",
+  cancelled: "var(--color-destructive)",
+};
+
 export function CompanyMetricsPanel({
   metrics,
   scoped = false,
@@ -83,14 +96,19 @@ export function CompanyMetricsPanel({
         {/* Clinics by status */}
         <div className="rounded-md border p-4">
           <div className="mb-2 text-sm font-medium">Clinics by status</div>
-          <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
-            {CLINIC_STATUSES.map((s) => (
-              <div key={s} className="flex items-center gap-1.5">
-                <span className="text-muted-foreground">{vocabularyLabel("clinic_statuses", s)}</span>
-                <span className="font-semibold tabular-nums">{m.clinicsByStatus[s] ?? 0}</span>
-              </div>
-            ))}
-          </div>
+          {/* The portfolio as ONE bar. It was a row of count chips, which asserts a
+              split without showing it — five numbers you have to add up to know
+              whether "3 suspended" is a rounding error or a third of the book.
+              Lifecycle order, never sorted by size: the bar would reshuffle itself
+              every time a clinic changed state. */}
+          <SegmentedBar
+            ariaLabel="Clinics by status"
+            segments={CLINIC_STATUSES.map((s) => ({
+              label: vocabularyLabel("clinic_statuses", s),
+              value: m.clinicsByStatus[s] ?? 0,
+              color: STATUS_COLOUR[s] ?? "var(--color-chart-3)",
+            }))}
+          />
           {/* Billing heads-up: payments coming up soon + amounts due/overdue. */}
           <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 border-t pt-3 text-sm">
             <div className="flex items-center gap-1.5">
@@ -113,16 +131,18 @@ export function CompanyMetricsPanel({
           {m.topClinics.length === 0 ? (
             <p className="text-sm text-muted-foreground">No payments recorded yet.</p>
           ) : (
-            <ul className="space-y-1 text-sm">
-              {m.topClinics.map((c) => (
-                <li key={c.id} className="flex items-center justify-between gap-3">
-                  <Link href={`/admin/clinics/${c.id}`} className="truncate font-medium hover:underline">
-                    {c.name}
-                  </Link>
-                  <span className="tabular-nums text-muted-foreground">{rs(c.total)}</span>
-                </li>
-              ))}
-            </ul>
+            /* A ranking with no encoding at all — five names and five figures, and
+               the reader compares the digits. The dot puts them on one scale, and
+               the share says how concentrated the company's revenue is. */
+            <LollipopChart
+              ariaLabel="Top clinics by revenue"
+              showShare
+              rows={m.topClinics.map((c) => ({
+                label: c.name,
+                value: c.total,
+                href: `/admin/clinics/${c.id}`,
+              }))}
+            />
           )}
         </div>
       </div>

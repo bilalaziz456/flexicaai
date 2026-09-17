@@ -8,12 +8,12 @@ import { getPaymentsLedger } from "@/core/finance/payments-ledger";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
 import { PaymentsFilters } from "./payments-filters";
 import { PaymentsTable } from "./payments-table";
+import { StatCard } from "@/core/ui/charts/stat-card";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -110,13 +110,7 @@ export default async function PaymentsPage({
           { title: "Refunds", value: money.format(ledger.totals.out), note: "Money returned" },
           { title: "Net", value: money.format(ledger.totals.net), note: "In − refunds" },
         ].map((s) => (
-          <Card key={s.title}>
-            <CardHeader>
-              <CardDescription>{s.title}</CardDescription>
-              <CardTitle className="text-3xl">{s.value}</CardTitle>
-              <CardDescription>{s.note}</CardDescription>
-            </CardHeader>
-          </Card>
+          <StatCard key={s.title} label={s.title} value={s.value} hint={s.note} />
         ))}
       </div>
 

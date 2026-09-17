@@ -9,12 +9,12 @@ import { getInvoicesList } from "@/core/billing/invoice";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
 import { InvoiceFilters } from "./invoice-filters";
 import { InvoicesTable } from "./invoices-table";
+import { StatCard } from "@/core/ui/charts/stat-card";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -81,20 +81,12 @@ export default async function InvoicesPage({
       <InvoiceFilters period={range?.period ?? "all"} from={range?.from ?? ""} to={range?.to ?? ""} q={q} />
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardDescription>Invoices</CardDescription>
-            <CardTitle className="text-3xl">{list.count}</CardTitle>
-            <CardDescription>Issued in this view</CardDescription>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Total billed</CardDescription>
-            <CardTitle className="text-3xl">{money.format(list.totalBilled)}</CardTitle>
-            <CardDescription>Sum of these invoices</CardDescription>
-          </CardHeader>
-        </Card>
+        <StatCard label="Invoices" value={String(list.count)} hint="Issued in this view" />
+        <StatCard
+          label="Total billed"
+          value={money.format(list.totalBilled)}
+          hint="Sum of these invoices"
+        />
       </div>
 
       <Card>

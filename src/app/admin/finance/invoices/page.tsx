@@ -11,6 +11,7 @@ import {
 } from "@/core/admin/clinic-invoices";
 import { resolveSalesRange } from "@/core/sales/report";
 import { LollipopChart } from "@/core/ui/charts/lollipop-chart";
+import { StatCard } from "@/core/ui/charts/stat-card";
 import { parsePage, parsePageSize, pageOffset } from "@/core/lib/pagination";
 import { Pagination } from "@/core/ui/pagination";
 import {
@@ -93,13 +94,11 @@ export default async function ClinicInvoicesPage({
       />
 
       <div className="grid gap-3 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2"><CardDescription>Invoiced ({rangeLabel})</CardDescription></CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold tabular-nums">{rs(invTotal)}</div>
-            <div className="mt-0.5 text-xs text-muted-foreground">{total} invoice{total === 1 ? "" : "s"}</div>
-          </CardContent>
-        </Card>
+        <StatCard
+          label="Invoiced"
+          value={rs(invTotal)}
+          hint={`${total} invoice${total === 1 ? "" : "s"} · ${rangeLabel}`}
+        />
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2"><CardTitle className="text-base">Invoiced over time</CardTitle></CardHeader>
           <CardContent>

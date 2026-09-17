@@ -9,12 +9,12 @@ import { getDiscountsReport } from "@/core/sales/discounts-report";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
 import { DiscountFilters } from "./discounts-filters";
 import { DiscountsTable } from "./discounts-table";
+import { StatCard } from "@/core/ui/charts/stat-card";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -100,13 +100,7 @@ export default async function DiscountsPage({
           { title: "Pending approval", value: money.format(report.totalPending), note: "Not applied yet" },
           { title: "Count", value: String(report.count), note: "Discounted visits" },
         ].map((s) => (
-          <Card key={s.title}>
-            <CardHeader>
-              <CardDescription>{s.title}</CardDescription>
-              <CardTitle className="text-3xl">{s.value}</CardTitle>
-              <CardDescription>{s.note}</CardDescription>
-            </CardHeader>
-          </Card>
+          <StatCard key={s.title} label={s.title} value={s.value} hint={s.note} />
         ))}
       </div>
 

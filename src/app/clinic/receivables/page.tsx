@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { ReceivablesFilters } from "./receivables-filters";
+import { StatCard } from "@/core/ui/charts/stat-card";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -98,22 +99,16 @@ export default async function ReceivablesPage({
       />
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardDescription>Total outstanding</CardDescription>
-            <CardTitle className="text-3xl text-warning-text">
-              {money.format(report.total)}
-            </CardTitle>
-            <CardDescription>Owed on completed visits</CardDescription>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Patients owing</CardDescription>
-            <CardTitle className="text-3xl">{report.patientCount}</CardTitle>
-            <CardDescription>With an unpaid balance</CardDescription>
-          </CardHeader>
-        </Card>
+        <StatCard
+          label="Total outstanding"
+          value={money.format(report.total)}
+          hint="Owed on completed visits"
+        />
+        <StatCard
+          label="Patients owing"
+          value={String(report.patientCount)}
+          hint="With an unpaid balance"
+        />
       </div>
 
       <Card>
