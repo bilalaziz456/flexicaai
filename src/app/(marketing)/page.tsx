@@ -1,29 +1,42 @@
+import type { CSSProperties, ReactNode } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
-  Activity,
   BadgeCheck,
-  CalendarClock,
-  ClipboardCheck,
+  BookOpen,
+  Calculator,
   Fingerprint,
   History,
+  Layers,
   Mail,
   Mic,
-  Receipt,
-  RefreshCw,
+  NotebookPen,
+  Plus,
   ShieldCheck,
+  Smartphone,
   Sparkles,
-  Wallet,
 } from "lucide-react";
-import { HeroVisual } from "./hero-visual";
+import { HeroProduct } from "./hero-product";
 import { HeroParallax } from "./hero-parallax";
+import { ProductTour, type TourStep } from "./product-tour";
+import { FeatureBento } from "./feature-bento";
 import { ScribeFlow } from "./scribe-flow";
+import { WhatsAppThread } from "./whatsapp-thread";
+import { BillingVisual } from "./billing-visual";
+import { RecallVisual } from "./recall-visual";
 import { SecurityVisual } from "./security-visual";
 import { Magnetic } from "./magnetic";
 import { WhatsAppCta } from "./whatsapp-cta";
 import { WhatsAppIcon } from "./whatsapp-icon";
-import { SALES_EMAIL, SALES_EMAIL_URL } from "./contact-details";
-import { FeatureCard, SectionHeading, Statement } from "./sections";
+import { SALES_EMAIL, SALES_EMAIL_URL, SALES_WHATSAPP_URL } from "./contact-details";
+import {
+  ClosingBand,
+  FeatureCard,
+  HeroBackdrop,
+  SecondaryButton,
+  SectionHeading,
+  Statement,
+} from "./sections";
 import { ORGANIZATION, ORIGIN } from "./structured-data";
 
 /**
@@ -37,7 +50,11 @@ import { ORGANIZATION, ORIGIN } from "./structured-data";
  *
  * No invented social proof: there are no customer counts, logos or testimonials on
  * this page, because we do not have real ones to show. Every claim below is
- * something the product actually does today.
+ * something the product actually does today. Figures inside the product mock-ups are
+ * a sample day and read as such.
+ *
+ * Story order: what it is (hero) → the problem → the day, step by step (tour) →
+ * everything else it does (bento) → the platform → security → questions → the ask.
  */
 
 /**
@@ -136,121 +153,29 @@ export default function LandingPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA) }}
       />
       <Hero />
+      <Problem />
+      <Tour />
       <Capabilities />
-      <HowItWorks />
       <Specialties />
       <Security />
-      <ClosingCta />
+      <Faq />
+      <ClosingBand
+        title="See it on your own workflow"
+        lede="Send us a message and we will walk you through it with your own practice in mind: how you book, how you chart, how you bill. No obligation."
+        secondary={
+          <SecondaryButton href={SALES_EMAIL_URL} icon={<Mail className="size-4" aria-hidden="true" />}>
+            {SALES_EMAIL}
+          </SecondaryButton>
+        }
+      />
     </>
   );
 }
 
 /* ---------------------------------------------------------------- hero ---- */
 
-function Hero() {
-  return (
-    <section data-motion-scope className="relative overflow-hidden">
-      {/* Circuit-grid backdrop, drifting. The mask fades it out before it reaches the
-          copy; the grid itself is oversized so the drift never exposes an edge. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden [mask-image:radial-gradient(ellipse_at_top,black,transparent_72%)]"
-      >
-        <div className="absolute -inset-x-20 -inset-y-20 bg-[linear-gradient(to_right,var(--color-foreground)_1px,transparent_1px),linear-gradient(to_bottom,var(--color-foreground)_1px,transparent_1px)] bg-[size:56px_56px] opacity-[0.04] motion-safe:animate-grid-drift" />
-      </div>
-
-      {/* Breathing brand glow. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-40 left-1/2 -z-10 h-[38rem] w-[68rem] -translate-x-1/2 bg-[radial-gradient(ellipse_at_center,var(--brand-teal)_0%,transparent_65%)] opacity-[0.13] blur-3xl motion-safe:animate-aurora dark:opacity-20"
-      />
-
-      {/* Scanner pass — a wide, very faint beam crossing the hero. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
-      >
-        <div className="h-full w-1/4 bg-[linear-gradient(90deg,transparent,var(--brand-teal),transparent)] opacity-0 blur-2xl motion-safe:animate-scan-x motion-safe:opacity-[0.07] dark:motion-safe:opacity-[0.12]" />
-      </div>
-
-      {/* Padding matches PageHero so the homepage opens at the same height as every
-          feature page. (The copy column is the taller of the two, so `items-center`
-          centres the ARTWORK against it — it was never pushing the copy down.) */}
-      <div className="mx-auto grid w-full max-w-6xl items-center gap-12 px-4 pt-12 pb-14 sm:px-6 lg:grid-cols-2 lg:pt-16 lg:pb-20">
-        <div>
-          {/* The kicker lives INSIDE the h1 on purpose. It was a separate pill above
-              it, which looked identical but sat outside the heading, so the only words
-              in our most weighted element were brand voice — "Spend your day on care"
-              is a good line that nobody searches for. Folding the pill in puts the
-              term people do search into the h1 at no visual cost. */}
-          <h1 className="text-[clamp(2.6rem,7vw,4.6rem)] leading-[0.95] font-semibold tracking-[-0.035em] text-balance">
-            {/* `flex w-fit`, not `inline-flex`. As an inline box this sat inside the
-                h1's own line box, and the h1 is 73px with ~70px line-height, so the
-                pill was trapped in a 70px-tall line and carried 46px of dead space
-                above it — the headline sat far lower than on any other page. As a
-                block-level box it gets its own height and `mb` is the only gap. */}
-            <span className="mb-5 flex w-fit items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs leading-none font-medium tracking-normal text-brand-navy ring-1 ring-primary/25 dark:text-brand-teal">
-              <Sparkles className="size-3.5" aria-hidden="true" />
-              AI-powered health management system
-            </span>
-
-            <span className="block">
-              Spend your day on care,{" "}
-              {/* The brand gradient ends on navy, which is near-invisible on a dark
-                  background, so in dark mode it stops at blue and stays legible. */}
-              <span className="bg-gradient-to-r from-brand-teal via-brand-blue to-brand-navy bg-clip-text text-transparent dark:to-brand-blue">
-                not paperwork
-              </span>
-            </span>
-          </h1>
-
-          <p className="mt-6 max-w-xl text-lg text-pretty text-muted-foreground">
-            FlexicaAI listens to the consultation and drafts the note, keeps patients
-            coming back over WhatsApp, and shows you exactly where the money goes. Your
-            team gets to run the practice instead of chasing it.
-          </p>
-
-          <div className="mt-9 flex flex-wrap items-center gap-3">
-            <Magnetic>
-              <WhatsAppCta ping>Book a demo on WhatsApp</WhatsAppCta>
-            </Magnetic>
-            <a
-              href={SALES_EMAIL_URL}
-              className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-medium ring-1 ring-foreground/15 transition-colors hover:bg-foreground/5"
-            >
-              <Mail className="size-4" aria-hidden="true" />
-              Email us
-            </a>
-          </div>
-
-          <p className="mt-5 text-sm text-muted-foreground">
-            Already a customer?{" "}
-            {/* inline-flex + py-1: vertical padding on a bare inline <a> does not add
-                to layout height, so this measured 43.6x17.6 and missed the 24px
-                minimum target (WCAG 2.5.8). */}
-            <Link
-              href="/login"
-              className="inline-flex items-center py-1 font-medium text-foreground underline-offset-4 hover:underline"
-            >
-              Sign in
-            </Link>
-          </p>
-        </div>
-
-        {/* Entirely server-rendered. The wrapper only publishes the pointer position
-            for the layers to lean on, so with no JS the artwork is complete and
-            simply sits centred. */}
-        <HeroParallax className="relative mx-auto w-full max-w-lg">
-          <HeroVisual />
-        </HeroParallax>
-      </div>
-
-      <ValueStrip />
-    </section>
-  );
-}
-
-/** Four plain capability facts — deliberately not fabricated customer metrics. */
+/** Plain capability facts under the hero — deliberately not fabricated customer
+ *  metrics. When real proof exists (customer count, logos), it belongs here. */
 const VALUES = [
   { Icon: Mic, text: "Notes drafted while you speak" },
   { Icon: BadgeCheck, text: "Nothing final until a provider approves" },
@@ -258,136 +183,275 @@ const VALUES = [
   { Icon: ShieldCheck, text: "Every practice's data kept separate" },
 ];
 
-function ValueStrip() {
+const rise = (ms: number) => ({ "--mk-delay": `${ms}ms` }) as CSSProperties;
+
+function Hero() {
   return (
-    <div className="relative border-y border-foreground/10 bg-muted/40">
-      <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-8 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
-        {VALUES.map(({ Icon, text }) => (
-          <div key={text} className="flex items-start gap-3">
-            <Icon className="mt-0.5 size-5 shrink-0 text-primary-text" aria-hidden="true" />
-            <p className="text-sm text-muted-foreground">{text}</p>
+    <section data-motion-scope className="relative isolate overflow-hidden">
+      <HeroBackdrop />
+
+      <div className="mx-auto grid w-full max-w-6xl items-center gap-20 px-4 pt-12 pb-24 sm:px-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)] lg:gap-16 lg:pt-20 lg:pb-32">
+        <div>
+          {/* The kicker lives INSIDE the h1 on purpose: it puts the term people search
+              for into the page's most weighted element, at no visual cost. It is a
+              block-level box so it gets its own line instead of being trapped in the
+              h1's tall line box. */}
+          <h1 className="mk-display">
+            <span className="mk-rise mb-7 flex w-fit items-center gap-2 rounded-full bg-brand-teal/[0.09] py-1.5 pr-3.5 pl-2 text-xs leading-none font-semibold tracking-normal text-primary-text shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--brand-teal)_26%,transparent)]">
+              <span className="inline-flex size-5 items-center justify-center rounded-full bg-brand-teal text-brand-navy">
+                <Sparkles className="size-3" aria-hidden="true" />
+              </span>
+              AI-powered health management system
+            </span>
+            <span className="mk-rise block" style={rise(90)}>
+              Spend your day
+            </span>{" "}
+            <span className="mk-rise block" style={rise(180)}>
+              on care,
+            </span>{" "}
+            <span className="mk-rise block" style={rise(270)}>
+              <span className="mk-gradient-text">not paperwork</span>
+            </span>
+          </h1>
+
+          <p
+            className="mk-rise mt-7 max-w-xl text-lg leading-relaxed text-pretty text-muted-foreground sm:text-xl"
+            style={rise(300)}
+          >
+            FlexicaAI listens to the consultation and drafts the note, keeps patients
+            coming back over WhatsApp, and shows you exactly where the money goes.
+          </p>
+
+          <div className="mk-rise mt-10 flex flex-wrap items-center gap-3" style={rise(420)}>
+            <Magnetic>
+              <WhatsAppCta ping>Book a demo on WhatsApp</WhatsAppCta>
+            </Magnetic>
+            <SecondaryButton href="#how">See how it works</SecondaryButton>
           </div>
-        ))}
+
+          <p className="mk-rise mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground" style={rise(520)}>
+            <a href={SALES_EMAIL_URL} className="inline-flex items-center gap-2 py-1 transition-colors hover:text-foreground">
+              <Mail className="size-4" aria-hidden="true" />
+              <span className="mk-link">Email us</span>
+            </a>
+            <span aria-hidden="true" className="h-4 w-px bg-[var(--mk-line-strong)]" />
+            {/* inline-flex + py-1: vertical padding on a bare inline <a> does not add
+                to layout height, and this has to clear the 24px minimum target. */}
+            <span>
+              Already a customer?{" "}
+              <Link href="/login" className="mk-link inline-flex items-center py-1 font-semibold text-foreground">
+                Sign in
+              </Link>
+            </span>
+          </p>
+        </div>
+
+        {/* The pointer parallax only publishes two numbers; with no script the product
+            composition is complete and simply sits still. Padded so the floating cards
+            have room and never push past the viewport on a phone. */}
+        <HeroParallax className="relative mx-auto mt-10 w-full max-w-xl px-3 sm:mt-0 sm:px-8 lg:px-0">
+          <HeroProduct />
+        </HeroParallax>
       </div>
-    </div>
+
+      <div className="border-y border-[var(--mk-line)] bg-card/40 backdrop-blur">
+        <ul className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-x-6 gap-y-5 px-4 py-7 sm:px-6 lg:grid-cols-4 lg:divide-x lg:divide-[var(--mk-line)] lg:gap-0">
+          {VALUES.map(({ Icon, text }) => (
+            <li key={text} className="flex items-center gap-3 lg:justify-center lg:px-4">
+              <Icon className="size-5 shrink-0 text-primary-text" aria-hidden="true" />
+              <span className="text-sm font-medium text-foreground/80">{text}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
   );
 }
 
-/* -------------------------------------------------------- capabilities ---- */
+/* ------------------------------------------------------------- problem ---- */
 
-const CAPABILITIES = [
-  {
-    Icon: Mic,
-    title: "The AI scribe",
-    body: "Record the consultation on any device. It comes back as a structured note with the findings, the plan and the prescription, ready for you to read. The draft is never the record. A provider edits it and approves it before anything is saved.",
-  },
-  {
-    Icon: WhatsAppIcon,
-    title: "WhatsApp that works for you",
-    body: "Booking confirmations, day-before reminders and cancellation notices go out on their own. Patients can reply to book or reschedule, and the system checks the diary before it answers them.",
-  },
-  {
-    Icon: RefreshCw,
-    title: "Recalls that bring people back",
-    body: "Note the next visit at the end of this one and the reminder schedules itself. That follow-up nobody got round to calling about is the revenue most practices quietly lose.",
-  },
-  {
-    Icon: CalendarClock,
-    title: "Scheduling that respects reality",
-    body: "Working hours per provider, split shifts, leave, daily limits and a first-come queue number. If a booking breaks one of your rules, it tells you instead of double-booking someone.",
-  },
-  {
-    Icon: Receipt,
-    title: "Billing, end to end",
-    body: "Priced services, line-item discounts that need approval, numbered invoices and receipts, part payments, advances and what is still owed. It all prints the way your front desk already prints.",
-  },
-  {
-    Icon: Wallet,
-    title: "Where the money actually went",
-    body: "Revenue earned, what each provider is owed and has been paid, expenses and profit. It comes from the records your team already keeps, so there is no second spreadsheet to reconcile.",
-  },
+const TOOLS = [
+  { Icon: NotebookPen, name: "A notebook", pain: "Notes written up at the end of the day, if at all." },
+  { Icon: Smartphone, name: "A personal phone", pain: "Reminders sent by hand, when someone remembers." },
+  { Icon: BookOpen, name: "A paper register", pain: "Payments, advances and balances kept by hand." },
+  { Icon: Calculator, name: "A calculator", pain: "Each provider's share worked out at month end." },
 ];
 
-function Capabilities() {
+function Problem() {
   return (
-    <section id="features" className="scroll-mt-20 py-12 sm:py-16">
+    <section className="py-24 sm:py-32">
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
         <SectionHeading
-          eyebrow="What it does"
-          title="One system for the whole day"
-          lede="From the moment a patient books to the moment the money lands, without the four disconnected tools most practices are holding together by hand."
+          align="left"
+          eyebrow="The problem"
+          title="Most practices run on four tools that never talk to each other"
+          lede="Each one works on its own. Together they leave gaps nobody owns — and the gaps are where time and revenue leak out."
         />
 
-        <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {/* No per-card stagger: `animation-delay` is meaningless on a scroll-driven
-              timeline (position in the range is what drives it, not elapsed time), and
-              a grid already staggers itself row by row as each row enters view. */}
-          {CAPABILITIES.map(({ Icon, title, body }) => (
-            <FeatureCard key={title} Icon={Icon} title={title} body={body} />
+        <ul className="mt-14 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          {TOOLS.map(({ Icon, name, pain }) => (
+            <li key={name} className="reveal-up rounded-3xl border border-dashed border-[var(--mk-line-strong)] p-4 sm:p-6">
+              <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+                <Icon className="size-5" aria-hidden="true" />
+              </span>
+              <p className="mt-4 font-semibold sm:mt-5">{name}</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground sm:text-[0.95rem]">{pain}</p>
+            </li>
           ))}
+        </ul>
+
+        {/* The four converge into one. Lines draw as the section scrolls into view. */}
+        <div aria-hidden="true" className="relative hidden h-28 lg:block">
+          <svg viewBox="0 0 1000 112" preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible" fill="none">
+            {[125, 375, 625, 875].map((x) => (
+              <path
+                key={x}
+                d={`M${x} 0 C ${x} 60, 500 50, 500 112`}
+                pathLength={1}
+                stroke="url(#converge)"
+                strokeWidth="1.5"
+                vectorEffect="non-scaling-stroke"
+                className="mk-draw"
+              />
+            ))}
+            <defs>
+              <linearGradient id="converge" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--brand-teal)" stopOpacity="0.15" />
+                <stop offset="100%" stopColor="var(--brand-teal)" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div aria-hidden="true" className="mx-auto h-12 w-px bg-gradient-to-b from-transparent to-brand-teal lg:hidden" />
+
+        <div className="reveal-up flex flex-col items-center text-center">
+          <span className="inline-flex items-center gap-3 rounded-full bg-card py-2 pr-5 pl-2 shadow-[0_0_0_1px_color-mix(in_oklab,var(--brand-teal)_40%,transparent),0_0_40px_-6px_color-mix(in_oklab,var(--brand-teal)_55%,transparent)]">
+            <span className="inline-flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-brand-teal to-brand-blue text-brand-navy">
+              <Sparkles className="size-4" aria-hidden="true" />
+            </span>
+            <span className="font-semibold">One system, FlexicaAI</span>
+          </span>
+          <p className="mt-10 max-w-3xl text-[clamp(1.5rem,3vw,2.25rem)] leading-tight font-semibold tracking-[-0.03em] text-balance">
+            The real cost is not the tools. It is the{" "}
+            <span className="whitespace-nowrap">follow-up</span>{" "}
+            <span className="mk-gradient-text">nobody got round to calling about.</span>
+          </p>
         </div>
       </div>
     </section>
   );
 }
 
-/* --------------------------------------------------------- how it works ---- */
+/* ---------------------------------------------------------------- tour ---- */
 
-const STEPS = [
+/** A soft plate the tour's artwork sits on, so each scene reads as a product screen. */
+function Scene({ children }: { children: ReactNode }) {
+  return <div className="mk-card rounded-[1.75rem] p-5 sm:p-8">{children}</div>;
+}
+
+const TOUR: TourStep[] = [
   {
-    Icon: Mic,
-    title: "Speak",
-    body: "See the patient the way you always do. Just hit record on a phone, tablet or laptop. There is no template to fill in and no form to click through while you are with them.",
+    label: "Book",
+    title: "Patients book and reschedule on WhatsApp",
+    body: "Booking confirmations, day-before reminders and cancellation notices go out on their own. Patients reply in plain words, and the system checks the diary before it answers them.",
+    points: [
+      "Confirmations and reminders send themselves",
+      "Replies are checked against the diary first",
+      "Nothing for the patient to install",
+    ],
+    link: { href: "/whatsapp-for-patients", label: "How WhatsApp works" },
+    visual: (
+      <Scene>
+        <WhatsAppThread />
+      </Scene>
+    ),
   },
   {
-    Icon: ClipboardCheck,
-    title: "Review",
-    body: "The note comes back structured. Anything the audio left unclear is flagged rather than guessed at. You fix what needs fixing and approve it. Until you do, it stays a draft.",
+    label: "Consult",
+    title: "Speak the visit. The note writes itself.",
+    body: "Record on a phone, tablet or laptop — no template, no form to click through. The note comes back structured, with anything the audio left unclear flagged rather than guessed at.",
+    points: [
+      "Complaint, findings and plan in their own fields",
+      "Unclear audio is flagged, never guessed",
+      "Nothing is final until a provider approves it",
+    ],
+    link: { href: "/ai-medical-scribe", label: "Inside the AI scribe" },
+    visual: (
+      <Scene>
+        <ScribeFlow />
+      </Scene>
+    ),
   },
   {
-    Icon: Activity,
-    title: "It carries on without you",
-    body: "The note is filed, the prescription is ready to print or send, the bill is raised, and the follow-up is booked. The patient gets reminded about it automatically.",
+    label: "Bill",
+    title: "The bill is raised from the visit",
+    body: "Priced services, discounts that wait for approval, numbered invoices and receipts, part payments and advances — printed the way your front desk already prints.",
+    points: [
+      "Numbered invoices and receipts",
+      "Discounts count only once they are approved",
+      "Part payments, advances and what is still owed",
+    ],
+    link: { href: "/billing-and-revenue", label: "Billing and revenue" },
+    visual: (
+      <Scene>
+        <BillingVisual />
+      </Scene>
+    ),
+  },
+  {
+    label: "Follow up",
+    title: "The next visit books itself",
+    body: "Note the next visit at the end of this one and the reminder schedules itself. The follow-up nobody got round to calling about is the revenue most practices quietly lose.",
+    points: [
+      "Next visit captured while the patient is still there",
+      "The reminder goes out on WhatsApp on time",
+      "Rebookings land straight in the diary",
+    ],
+    link: { href: "/contact", label: "See it with your own patients" },
+    visual: (
+      <Scene>
+        <RecallVisual />
+      </Scene>
+    ),
   },
 ];
 
-function HowItWorks() {
+function Tour() {
   return (
-    <section id="how" data-motion-scope className="scroll-mt-20 border-y border-foreground/10 bg-muted/40 py-12 sm:py-16">
+    <section id="how" className="relative scroll-mt-24 border-y border-[var(--mk-line)] bg-muted/40 py-24 sm:py-32">
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-        {/* Artwork left, words right — but the WORDS stay first in the DOM and are
-            reordered visually only from `lg` up. Stacked on a phone the heading should
-            still come before the illustration, and that is also the order a screen
-            reader and a crawler read it in. */}
-        <div className="grid items-center gap-12 lg:grid-cols-2">
-          <div className="lg:order-2">
-            <Statement
-              eyebrow="How it works"
-              lines={["Three steps,", "and only one", "is yours"]}
-              lede="The AI drafts and a human decides. That order never changes. Nothing clinical is finalised until a provider has approved it, and a draft is never quietly turned into the record behind your back."
-              cta={{ href: "#features", label: "See everything it does" }}
-            />
-          </div>
-          <ScribeFlow className="reveal-up lg:order-1" />
+        <SectionHeading
+          eyebrow="How it works"
+          title="One system for the whole day"
+          lede="From the moment a patient books to the moment the next visit is booked — without the four disconnected tools most practices hold together by hand."
+        />
+        <div className="mt-12 lg:mt-6">
+          <ProductTour steps={TOUR} />
         </div>
+      </div>
+    </section>
+  );
+}
 
-        <div className="relative mt-10">
-          {/* The steps, in a row. */}
-          <ol className="relative grid gap-6 md:grid-cols-3">
-            {STEPS.map(({ Icon, title, body }, i) => (
-              <FeatureCard
-                key={title}
-                as="li"
-                Icon={Icon}
-                title={title}
-                body={body}
-                eyebrow={`STEP ${i + 1}`}
-                // Each step's ring fires a second after the one before, so the pulse
-                // visibly travels 1 → 2 → 3.
-                pingDelay={`${i * 1000}ms`}
-              />
-            ))}
-          </ol>
+/* -------------------------------------------------------- capabilities ---- */
+
+function Capabilities() {
+  return (
+    <section id="features" className="scroll-mt-24 py-24 sm:py-32">
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+          <SectionHeading
+            align="left"
+            eyebrow="What else it does"
+            title="Everything a practice runs on"
+            lede="The parts nobody puts on a brochure are the parts that decide whether a system survives its first busy Monday."
+          />
+          <div className="reveal-up shrink-0">
+            <SecondaryButton href="/contact">Talk to us</SecondaryButton>
+          </div>
+        </div>
+        <div className="mt-14">
+          <FeatureBento />
         </div>
       </div>
     </section>
@@ -396,55 +460,73 @@ function HowItWorks() {
 
 /* ----------------------------------------------------------- specialties ---- */
 
+const CORE = [
+  "Patient records",
+  "Appointments & queue",
+  "The AI scribe engine",
+  "WhatsApp messaging",
+  "Recalls & reminders",
+  "Invoices & receipts",
+  "Payments & dues",
+  "Revenue & expenses",
+  "Roles & permissions",
+  "Activity audit trail",
+];
+
 function Specialties() {
   return (
-    <section id="specialties" className="scroll-mt-20 py-12 sm:py-16">
-      <div className="mx-auto grid w-full max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-2 lg:items-center">
+    <section id="specialties" className="scroll-mt-24 border-y border-[var(--mk-line)] bg-muted/40 py-24 sm:py-32">
+      <div className="mx-auto grid w-full max-w-6xl items-center gap-16 px-4 sm:px-6 lg:grid-cols-2">
         <div>
           <Statement
             eyebrow="Built to be more than one thing"
             lines={["One platform,", "shaped to", "your specialty"]}
-            lede="Scheduling, records, messaging, billing and reporting are the same work in every practice, so we built them once and built them properly. The parts that do differ, like the vocabulary, the note structure, the formulary and the follow-up intervals, live in a module that sits on top."
+            lede="Scheduling, records, messaging, billing and reporting are the same work in every practice, so we built them once and built them properly. The parts that do differ — the vocabulary, the note structure, the formulary and the follow-up intervals — live in a module on top."
             cta={{ href: "#security", label: "How your data is handled" }}
           />
-          <p className="mt-6 max-w-xl text-muted-foreground">
-            Your team sees only what it actually uses. Adding a specialty later does not
-            mean migrating to a different product.
-          </p>
         </div>
 
-        <div className="reveal-up relative overflow-hidden rounded-2xl bg-card p-8 ring-1 ring-foreground/10">
-          {/* Slow scanner pass over the shared-core list — it reads as the platform
-              enumerating itself. */}
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-            <div className="h-full w-1/3 bg-[linear-gradient(90deg,transparent,var(--brand-teal),transparent)] opacity-[0.06] blur-2xl motion-safe:animate-scan-x dark:opacity-10" />
+        {/* The architecture as a picture: the module slots on top, the shared core
+            underneath. The core list stays a real list — it is content, not art. */}
+        <div className="mk-reveal-scale relative">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-center justify-between rounded-2xl bg-gradient-to-br from-brand-teal to-brand-blue px-5 py-4 text-brand-navy shadow-[0_18px_40px_-18px_color-mix(in_oklab,var(--brand-teal)_80%,transparent)]">
+              <span className="font-semibold">Your specialty</span>
+              <Layers className="size-4" aria-hidden="true" />
+            </div>
+            <div className="flex items-center justify-between rounded-2xl border border-dashed border-[var(--mk-line-strong)] px-5 py-4 text-muted-foreground">
+              <span className="font-medium">The next one</span>
+              <Plus className="size-4" aria-hidden="true" />
+            </div>
           </div>
-          <h3 className="relative font-heading text-sm font-medium tracking-widest text-muted-foreground uppercase">
-            Shared by every practice
-          </h3>
-          <ul className="relative mt-5 grid gap-3 sm:grid-cols-2">
-            {[
-              "Patient records",
-              "Appointments & queue",
-              "The AI scribe engine",
-              "WhatsApp messaging",
-              "Recalls & reminders",
-              "Invoices & receipts",
-              "Payments & dues",
-              "Revenue & expenses",
-              "Roles & permissions",
-              "Activity audit trail",
-            ].map((item) => (
-              <li key={item} className="flex items-center gap-2.5 text-sm">
-                <BadgeCheck className="size-4 shrink-0 text-primary-text" aria-hidden="true" />
-                {item}
-              </li>
-            ))}
-          </ul>
-          <p className="relative mt-6 border-t border-foreground/10 pt-5 text-sm text-muted-foreground">
-            Specialty modules layer on top of all of it. They are never a separate
-            system for you to keep in sync.
-          </p>
+
+          <div aria-hidden="true" className="mx-auto flex h-8 w-1/2 justify-between px-10">
+            <span className="w-px bg-gradient-to-b from-brand-teal to-transparent" />
+            <span className="w-px bg-gradient-to-b from-[var(--mk-line-strong)] to-transparent" />
+          </div>
+
+          <div className="mk-card overflow-hidden p-7">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+                Shared by every practice
+              </h3>
+              <span className="rounded-full bg-brand-teal/12 px-2.5 py-1 font-mono text-3xs font-semibold text-primary-text">
+                CORE
+              </span>
+            </div>
+            <ul className="mt-6 grid gap-x-6 gap-y-3.5 sm:grid-cols-2">
+              {CORE.map((item) => (
+                <li key={item} className="flex items-center gap-2.5 text-[0.95rem]">
+                  <BadgeCheck className="size-4 shrink-0 text-primary-text" aria-hidden="true" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-7 border-t border-[var(--mk-line)] pt-5 text-sm leading-relaxed text-muted-foreground">
+              Your team sees only what it actually uses. Adding a specialty later does not
+              mean migrating to a different product.
+            </p>
+          </div>
         </div>
       </div>
     </section>
@@ -467,18 +549,24 @@ const SECURITY = [
   {
     Icon: History,
     title: "Nothing is ever really deleted",
-    body: "Deleting moves a record to a trash you can restore from, along with who did it and when. With the full activity log beside it, mistakes can be undone and every action has a name against it.",
+    body: "Deleting moves a record to a trash you can restore from, along with who did it and when. Every action has a name against it.",
   },
 ];
 
 function Security() {
   return (
-    <section
-      id="security"
-      className="scroll-mt-20 border-y border-foreground/10 bg-muted/40 py-12 sm:py-16"
-    >
-      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-        <div className="grid items-center gap-12 lg:grid-cols-2">
+    <section id="security" data-motion-scope className="scroll-mt-24 px-4 py-24 sm:px-6 sm:py-32">
+      <div className="mk-inverse ring-1 ring-white/10 relative isolate mx-auto w-full max-w-6xl overflow-hidden rounded-[2rem] px-5 py-16 sm:px-12 sm:py-20">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-40 -right-40 -z-10 h-[34rem] w-[34rem] rounded-full bg-[radial-gradient(circle,var(--brand-teal)_0%,transparent_65%)] opacity-25 blur-3xl"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-teal/60 to-transparent"
+        />
+
+        <div className="grid items-center gap-14 lg:grid-cols-2">
           <Statement
             eyebrow="Security"
             lines={["Patient data,", "treated like", "patient data"]}
@@ -488,7 +576,7 @@ function Security() {
           <SecurityVisual className="reveal-up" />
         </div>
 
-        <div className="mt-10 grid gap-5 md:grid-cols-3">
+        <div className="mt-14 grid gap-5 md:grid-cols-3">
           {SECURITY.map(({ Icon, title, body }) => (
             <FeatureCard key={title} Icon={Icon} title={title} body={body} />
           ))}
@@ -498,34 +586,71 @@ function Security() {
   );
 }
 
-/* ------------------------------------------------------------ closing cta ---- */
+/* ------------------------------------------------------------------- faq ---- */
 
-function ClosingCta() {
+/** Answers are statements about how the product works today — nothing on pricing or
+ *  timelines, which are not published. */
+const FAQ = [
+  {
+    q: "Does the AI write the medical record?",
+    a: "No. It writes a draft. A provider reads it, edits anything that needs changing and approves it. Until then it is labelled a draft, and nothing is billed or sent from it.",
+  },
+  {
+    q: "What happens when the recording is unclear?",
+    a: "The note flags the part it could not make out so the provider can confirm it. It never fills the gap with a plausible-sounding guess.",
+  },
+  {
+    q: "Do patients need to install anything?",
+    a: "No. Confirmations, reminders and replies all happen in WhatsApp, which your patients already use every day.",
+  },
+  {
+    q: "Can the front desk see clinical notes?",
+    a: "Only if you decide they should. Access is granted per person and per capability, so each member of the team sees what their job needs.",
+  },
+  {
+    q: "What if someone deletes something by mistake?",
+    a: "Nothing is permanently deleted. It moves to a trash you can restore from, and the activity log shows who did it and when.",
+  },
+  {
+    q: "Will it work with the printer we already have?",
+    a: "Yes. Invoices and receipts print on a thermal roll, A5 or A4, so the front desk keeps the printer and the habit it already has.",
+  },
+  {
+    q: "How do we get started?",
+    a: "Message us on WhatsApp or send an email. We walk through FlexicaAI around how your practice books, records and bills, then set your account up for you.",
+  },
+];
+
+function Faq() {
   return (
-    <section data-motion-scope className="relative overflow-hidden py-12 sm:py-16">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_center,var(--brand-teal)_0%,transparent_62%)] opacity-[0.12] blur-3xl motion-safe:animate-aurora dark:opacity-20"
-      />
-      <div className="reveal-up mx-auto w-full max-w-3xl px-4 text-center sm:px-6">
-        <h2 className="font-heading text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-          See it on your own workflow
-        </h2>
-        <p className="mx-auto mt-5 max-w-xl text-lg text-pretty text-muted-foreground">
-          Send us a message and we will walk you through it with your own practice in
-          mind: how you book, how you chart, how you bill. No obligation.
-        </p>
-        <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-          <Magnetic>
-            <WhatsAppCta ping>Book a demo on WhatsApp</WhatsAppCta>
-          </Magnetic>
-          <a
-            href={SALES_EMAIL_URL}
-            className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-medium ring-1 ring-foreground/15 transition-colors hover:bg-foreground/5"
-          >
-            <Mail className="size-4" aria-hidden="true" />
-            {SALES_EMAIL}
-          </a>
+    <section id="faq" className="scroll-mt-24 pb-8 sm:pb-12">
+      <div className="mx-auto grid w-full max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-20">
+        <div className="lg:sticky lg:top-28 lg:self-start">
+          <SectionHeading
+            align="left"
+            eyebrow="Questions"
+            title="What practices ask us first"
+            lede="Anything else, ask us directly — a real person answers."
+          />
+          <div className="reveal-up mt-8">
+            <SecondaryButton href={SALES_WHATSAPP_URL} icon={<WhatsAppIcon className="size-4 text-whatsapp-fg" />}>
+              Ask on WhatsApp
+            </SecondaryButton>
+          </div>
+        </div>
+
+        <div className="divide-y divide-[var(--mk-line)] border-y border-[var(--mk-line)]">
+          {FAQ.map(({ q, a }) => (
+            <details key={q} className="mk-faq group">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-6 text-left text-lg font-semibold tracking-[-0.01em] transition-colors hover:text-primary-text">
+                {q}
+                <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full shadow-[0_0_0_1px_var(--mk-line-strong)] transition-all duration-300 group-open:rotate-45 group-open:bg-brand-teal group-open:text-brand-navy group-open:shadow-none">
+                  <Plus className="size-4" aria-hidden="true" />
+                </span>
+              </summary>
+              <p className="max-w-2xl pr-14 pb-6 text-[1.02rem] leading-relaxed text-muted-foreground">{a}</p>
+            </details>
+          ))}
         </div>
       </div>
     </section>

@@ -855,6 +855,909 @@ html {
   }
 }
 
+/* ===========================================================================
+   Marketing design system (public site only)
+   ---------------------------------------------------------------------------
+   Everything below is scoped to `.marketing-root`, so the signed-in app — which
+   people use all day and which has its own, deliberately quieter palette — is not
+   touched by any of it.
+
+   The palette is the brand's own, pushed one step further than the app takes it:
+   neutrals carry a faint navy bias instead of being pure grey, and dark mode is the
+   logo's navy rather than a neutral charcoal. That single change is most of what
+   makes the site read as "FlexicaAI" rather than as a default theme.
+
+   Tokens only. Components keep consuming `--background`, `--card`, `--muted` and
+   friends through the ordinary Tailwind classes, so every existing illustration
+   recolours itself without being edited.
+   =========================================================================== */
+.marketing-root {
+  --background: oklch(0.985 0.004 215);
+  --foreground: oklch(0.2 0.035 255);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --muted: oklch(0.962 0.009 210);
+  /* 5.3:1 on the page ground, 5.6:1 on a card. */
+  --muted-foreground: oklch(0.5 0.025 240);
+  --border: oklch(0.9 0.012 220);
+  --mk-line: color-mix(in oklab, var(--brand-navy) 11%, transparent);
+  --mk-line-strong: color-mix(in oklab, var(--brand-navy) 20%, transparent);
+  --mk-shadow: 0 1px 2px rgb(8 41 87 / 0.05), 0 12px 32px -14px rgb(8 41 87 / 0.18);
+  --mk-shadow-lift: 0 2px 4px rgb(8 41 87 / 0.06), 0 28px 60px -22px rgb(8 41 87 / 0.32);
+  --mk-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dark .marketing-root {
+  --background: oklch(0.165 0.03 258);
+  --foreground: oklch(0.97 0.008 230);
+  --card: oklch(0.21 0.034 256);
+  --card-foreground: var(--foreground);
+  --muted: oklch(0.2 0.032 257);
+  --muted-foreground: oklch(0.76 0.025 235);
+  --border: oklch(1 0 0 / 11%);
+  --mk-line: oklch(1 0 0 / 9%);
+  --mk-line-strong: oklch(1 0 0 / 16%);
+  --mk-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 16px 40px -18px rgb(0 0 0 / 0.6);
+  --mk-shadow-lift: 0 2px 6px rgb(0 0 0 / 0.35), 0 30px 70px -24px rgb(0 0 0 / 0.75);
+}
+
+/* A navy band inside a LIGHT page (security, the closing CTA). It re-points the same
+   tokens at dark values, so anything rendered inside — including the illustrations —
+   picks up legible colours without a `dark:` class of its own. In dark mode the band
+   stays a step lighter than the page so it still reads as a separate surface. */
+.mk-inverse {
+  color-scheme: dark;
+  --background: oklch(0.2 0.05 258);
+  --foreground: oklch(0.97 0.008 230);
+  --card: oklch(0.25 0.05 256);
+  --card-foreground: var(--foreground);
+  --muted: oklch(0.23 0.05 257);
+  --muted-foreground: oklch(0.8 0.025 235);
+  --border: oklch(1 0 0 / 12%);
+  --mk-line: oklch(1 0 0 / 10%);
+  --mk-line-strong: oklch(1 0 0 / 18%);
+  --primary-text: var(--brand-teal);
+  --whatsapp-fg: #4ade80;
+  background-color: var(--background);
+  color: var(--foreground);
+}
+.dark .mk-inverse {
+  --background: oklch(0.21 0.042 256);
+  --card: oklch(0.26 0.045 255);
+}
+
+/* The one card. A hairline border drawn as a gradient (brand teal fading through the
+   neutral line), which is what separates it from a flat Bootstrap panel, plus a lift
+   that answers the pointer. The border is two backgrounds — padding-box fill and
+   border-box gradient — so it needs no pseudo-element and cannot misalign. */
+@utility mk-card {
+  position: relative;
+  border: 1px solid transparent;
+  border-radius: 1.5rem;
+  background:
+    linear-gradient(var(--card), var(--card)) padding-box,
+    linear-gradient(
+        150deg,
+        color-mix(in oklab, var(--brand-teal) 34%, var(--mk-line-strong)),
+        var(--mk-line) 38%,
+        var(--mk-line) 70%,
+        color-mix(in oklab, var(--brand-blue) 22%, var(--mk-line))
+      )
+      border-box;
+  box-shadow: var(--mk-shadow);
+  transition:
+    transform 500ms var(--mk-ease),
+    box-shadow 500ms var(--mk-ease);
+}
+
+@utility mk-card-hover {
+  &:hover {
+    transform: translate3d(0, -4px, 0);
+    box-shadow: var(--mk-shadow-lift);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    &:hover {
+      transform: none;
+    }
+  }
+}
+
+/* Browser/device frame around product mock-ups. */
+@utility mk-frame {
+  border-radius: 1.25rem;
+  background: var(--card);
+  box-shadow:
+    0 0 0 1px var(--mk-line-strong),
+    0 2px 6px rgb(8 41 87 / 0.06),
+    0 40px 90px -30px rgb(8 41 87 / 0.45);
+  overflow: hidden;
+}
+
+/* The kicker above a heading: a pill with a live dot. */
+@utility mk-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem 0.3rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary-text);
+  background: color-mix(in oklab, var(--brand-teal) 9%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--brand-teal) 26%, transparent);
+}
+
+/* Display type. One scale for the whole site; sizes are fluid so a phone gets a
+   deliberate size rather than the desktop one shrunk. */
+@utility mk-display {
+  font-size: clamp(2.5rem, 5vw, 4.4rem);
+  line-height: 0.98;
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+@utility mk-h2 {
+  font-size: clamp(2.1rem, 4.6vw, 3.6rem);
+  line-height: 1.02;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+@utility mk-h3 {
+  font-size: 1.25rem;
+  line-height: 1.3;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+/* Brand gradient text. Ends on blue rather than navy, which disappears on dark. */
+@utility mk-gradient-text {
+  background-image: linear-gradient(100deg, var(--brand-teal) 0%, var(--brand-blue) 55%, var(--brand-navy) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  padding-bottom: 0.06em;
+  .dark &,
+  .mk-inverse & {
+    background-image: linear-gradient(100deg, #6fe6ea 0%, var(--brand-teal) 45%, var(--brand-blue) 100%);
+  }
+}
+
+/* An underline that draws in from the left on hover — for text links. */
+@utility mk-link {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-size: 0% 1px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  transition:
+    background-size 350ms var(--mk-ease),
+    color 200ms;
+  &:hover,
+  &:focus-visible {
+    background-size: 100% 1px;
+  }
+}
+
+/* Arrow nudged forward when its link or button is hovered. */
+@utility mk-arrow {
+  transition: transform 350ms var(--mk-ease);
+  :where(a, button):hover & {
+    transform: translate3d(3px, 0, 0);
+  }
+}
+
+/* The WhatsApp CTA's lift: an inner top highlight plus a green-tinted drop shadow
+   that deepens on hover. */
+@utility mk-cta-shadow {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.45),
+    0 10px 30px -12px color-mix(in oklab, var(--whatsapp) 80%, transparent);
+  &:hover {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.45),
+      0 18px 40px -12px color-mix(in oklab, var(--whatsapp) 95%, transparent);
+  }
+}
+
+/* A light sweep across a button on hover. */
+@utility mk-sheen {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.45) 50%, transparent 65%);
+    transform: translateX(-120%);
+    transition: transform 700ms var(--mk-ease);
+  }
+  &:hover::after {
+    transform: translateX(120%);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    &::after {
+      display: none;
+    }
+  }
+}
+
+/* The sticky header turning from transparent to a frosted bar as the page scrolls.
+   Scroll-driven, so it needs no script and works on a prerendered page; a browser
+   without scroll timelines simply gets the solid state from the start. */
+@keyframes mk-header-solid {
+  to {
+    background-color: color-mix(in oklab, var(--background) 86%, transparent);
+    box-shadow:
+      0 0 0 1px var(--mk-line),
+      0 12px 32px -18px rgb(8 41 87 / 0.3);
+  }
+}
+/* The blur itself is applied with Tailwind's `backdrop-blur-xl` on the element: a raw
+   `backdrop-filter` declared inside this utility was dropped from the compiled rule. */
+@utility mk-header {
+  background-color: color-mix(in oklab, var(--background) 86%, transparent);
+  box-shadow:
+    0 0 0 1px var(--mk-line),
+    0 12px 32px -18px rgb(8 41 87 / 0.3);
+  @supports (animation-timeline: scroll()) {
+    background-color: transparent;
+    box-shadow: 0 0 0 1px transparent;
+    animation: mk-header-solid linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 140px;
+  }
+}
+
+/* Entrance on page load, for content that is in the first screen. Short, so the
+   page is complete within a second; still under reduced motion. */
+@keyframes mk-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 22px, 0);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@utility mk-rise {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: mk-rise 900ms var(--mk-ease) both;
+    animation-delay: var(--mk-delay, 0ms);
+  }
+}
+
+/* Floating UI cards around the hero product: a slow, small bob. */
+@keyframes mk-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -8px, 0);
+  }
+}
+@utility mk-float {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: mk-float 7s ease-in-out infinite;
+    animation-delay: var(--mk-float-delay, 0s);
+  }
+}
+
+/* One-shot product-UI moments in the hero: a bar measured once, and a status that
+   flips once. They play a single time on load — a hero that loops its data reads as
+   a screensaver rather than a product. Resting state (reduced motion) is the END
+   state: bars full, status approved. */
+@keyframes mk-grow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@utility mk-grow {
+  transform-origin: bottom;
+  @media (prefers-reduced-motion: no-preference) {
+    animation: mk-grow 1100ms var(--mk-ease) both;
+    animation-delay: var(--mk-delay, 0ms);
+  }
+}
+/* The horizontal twin, for progress bars. */
+@keyframes mk-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@utility mk-grow-x {
+  transform-origin: left;
+  @media (prefers-reduced-motion: no-preference) {
+    animation: mk-grow-x 1300ms var(--mk-ease) both;
+    animation-delay: var(--mk-delay, 400ms);
+  }
+}
+@keyframes mk-swap-out {
+  to {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+@keyframes mk-swap-in {
+  from {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* Resting state is the END of the swap. */
+@utility mk-swap-out {
+  opacity: 0;
+  @media (prefers-reduced-motion: no-preference) {
+    opacity: 1;
+    animation: mk-swap-out 350ms var(--mk-ease) forwards;
+    animation-delay: var(--mk-delay, 0ms);
+  }
+}
+@utility mk-swap-in {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: mk-swap-in 500ms var(--mk-ease) both;
+    animation-delay: var(--mk-delay, 0ms);
+  }
+}
+
+/* A scroll-linked reveal that scales in rather than rising — for large product
+   frames, where a 20px rise is invisible against their size. Same safety rule as
+   `reveal-up`: the hidden state only exists where the animation can run. */
+@keyframes mk-reveal-scale {
+  from {
+    opacity: 0.2;
+    transform: translate3d(0, 40px, 0) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@utility mk-reveal-scale {
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      animation: mk-reveal-scale linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 30%;
+    }
+  }
+}
+
+/* Connector lines that draw themselves as their section scrolls into view. */
+@keyframes mk-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@utility mk-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      animation: mk-draw linear both;
+      animation-timeline: view();
+      animation-range: entry 20% cover 50%;
+    }
+  }
+}
+
+/* A dot travelling along a connector, once it has drawn. */
+@keyframes mk-travel {
+  from {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  10%,
+  90% {
+    opacity: 1;
+  }
+  to {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+/* FAQ disclosure. The height animates where the browser supports animating to
+   `auto`; elsewhere the answer simply appears, which is the correct fallback. */
+.mk-faq {
+  interpolate-size: allow-keywords;
+}
+.mk-faq::details-content {
+  block-size: 0;
+  overflow-y: clip;
+  transition:
+    block-size 450ms var(--mk-ease),
+    content-visibility 450ms allow-discrete;
+}
+.mk-faq[open]::details-content {
+  block-size: auto;
+}
+.mk-faq summary::-webkit-details-marker {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mk-faq::details-content {
+    transition: none;
+  }
+}
+
+/* ===========================================================================
+   Phase choreography (the AI feature pages)
+   ---------------------------------------------------------------------------
+   A `PhaseLoop` (phase-loop.tsx) stamps `data-phase="N"` on its wrapper and steps it
+   through a sequence. Children declare WHEN they are visible, not HOW they animate:
+
+     data-from="n"  visible once the phase reaches n
+     data-upto="n"  visible until the phase passes n
+     data-only="n"  visible only during phase n
+
+   That turns a multi-step story ("listening, understanding, drafting") into markup that
+   reads like the story, with one transition shared by everything. Stagger with an
+   inline `--d` (ms); it applies on the way IN only, so a scene clears at once.
+
+   The rules are generated for phases 0-9 (the selector lists are long because CSS
+   cannot compare numbers). `.mk-collapse` also folds the element's height, for chat
+   messages that must not leave a gap before they arrive.
+
+   The server renders the LAST phase, so without script, under reduced motion and in a
+   link preview the scene is complete rather than empty. Never nest two loops: the
+   selectors match any ancestor phase.
+   =========================================================================== */
+.mk-phase [data-from],
+.mk-phase [data-upto],
+.mk-phase [data-only] {
+  transition:
+    opacity 600ms var(--mk-ease),
+    transform 700ms var(--mk-ease),
+    filter 600ms var(--mk-ease),
+    grid-template-rows 600ms var(--mk-ease);
+  transition-delay: calc(var(--d, 0) * 1ms);
+}
+.mk-phase [data-only] {
+  opacity: 0;
+  transform: translate3d(0, 8px, 0);
+  filter: blur(4px);
+  pointer-events: none;
+}
+.mk-phase[data-phase="0"] [data-from="1"],
+.mk-phase[data-phase="0"] [data-from="2"],
+.mk-phase[data-phase="1"] [data-from="2"],
+.mk-phase[data-phase="0"] [data-from="3"],
+.mk-phase[data-phase="1"] [data-from="3"],
+.mk-phase[data-phase="2"] [data-from="3"],
+.mk-phase[data-phase="0"] [data-from="4"],
+.mk-phase[data-phase="1"] [data-from="4"],
+.mk-phase[data-phase="2"] [data-from="4"],
+.mk-phase[data-phase="3"] [data-from="4"],
+.mk-phase[data-phase="0"] [data-from="5"],
+.mk-phase[data-phase="1"] [data-from="5"],
+.mk-phase[data-phase="2"] [data-from="5"],
+.mk-phase[data-phase="3"] [data-from="5"],
+.mk-phase[data-phase="4"] [data-from="5"],
+.mk-phase[data-phase="0"] [data-from="6"],
+.mk-phase[data-phase="1"] [data-from="6"],
+.mk-phase[data-phase="2"] [data-from="6"],
+.mk-phase[data-phase="3"] [data-from="6"],
+.mk-phase[data-phase="4"] [data-from="6"],
+.mk-phase[data-phase="5"] [data-from="6"],
+.mk-phase[data-phase="0"] [data-from="7"],
+.mk-phase[data-phase="1"] [data-from="7"],
+.mk-phase[data-phase="2"] [data-from="7"],
+.mk-phase[data-phase="3"] [data-from="7"],
+.mk-phase[data-phase="4"] [data-from="7"],
+.mk-phase[data-phase="5"] [data-from="7"],
+.mk-phase[data-phase="6"] [data-from="7"],
+.mk-phase[data-phase="0"] [data-from="8"],
+.mk-phase[data-phase="1"] [data-from="8"],
+.mk-phase[data-phase="2"] [data-from="8"],
+.mk-phase[data-phase="3"] [data-from="8"],
+.mk-phase[data-phase="4"] [data-from="8"],
+.mk-phase[data-phase="5"] [data-from="8"],
+.mk-phase[data-phase="6"] [data-from="8"],
+.mk-phase[data-phase="7"] [data-from="8"],
+.mk-phase[data-phase="0"] [data-from="9"],
+.mk-phase[data-phase="1"] [data-from="9"],
+.mk-phase[data-phase="2"] [data-from="9"],
+.mk-phase[data-phase="3"] [data-from="9"],
+.mk-phase[data-phase="4"] [data-from="9"],
+.mk-phase[data-phase="5"] [data-from="9"],
+.mk-phase[data-phase="6"] [data-from="9"],
+.mk-phase[data-phase="7"] [data-from="9"],
+.mk-phase[data-phase="8"] [data-from="9"],
+.mk-phase[data-phase="1"] [data-upto="0"],
+.mk-phase[data-phase="2"] [data-upto="0"],
+.mk-phase[data-phase="3"] [data-upto="0"],
+.mk-phase[data-phase="4"] [data-upto="0"],
+.mk-phase[data-phase="5"] [data-upto="0"],
+.mk-phase[data-phase="6"] [data-upto="0"],
+.mk-phase[data-phase="7"] [data-upto="0"],
+.mk-phase[data-phase="8"] [data-upto="0"],
+.mk-phase[data-phase="9"] [data-upto="0"],
+.mk-phase[data-phase="2"] [data-upto="1"],
+.mk-phase[data-phase="3"] [data-upto="1"],
+.mk-phase[data-phase="4"] [data-upto="1"],
+.mk-phase[data-phase="5"] [data-upto="1"],
+.mk-phase[data-phase="6"] [data-upto="1"],
+.mk-phase[data-phase="7"] [data-upto="1"],
+.mk-phase[data-phase="8"] [data-upto="1"],
+.mk-phase[data-phase="9"] [data-upto="1"],
+.mk-phase[data-phase="3"] [data-upto="2"],
+.mk-phase[data-phase="4"] [data-upto="2"],
+.mk-phase[data-phase="5"] [data-upto="2"],
+.mk-phase[data-phase="6"] [data-upto="2"],
+.mk-phase[data-phase="7"] [data-upto="2"],
+.mk-phase[data-phase="8"] [data-upto="2"],
+.mk-phase[data-phase="9"] [data-upto="2"],
+.mk-phase[data-phase="4"] [data-upto="3"],
+.mk-phase[data-phase="5"] [data-upto="3"],
+.mk-phase[data-phase="6"] [data-upto="3"],
+.mk-phase[data-phase="7"] [data-upto="3"],
+.mk-phase[data-phase="8"] [data-upto="3"],
+.mk-phase[data-phase="9"] [data-upto="3"],
+.mk-phase[data-phase="5"] [data-upto="4"],
+.mk-phase[data-phase="6"] [data-upto="4"],
+.mk-phase[data-phase="7"] [data-upto="4"],
+.mk-phase[data-phase="8"] [data-upto="4"],
+.mk-phase[data-phase="9"] [data-upto="4"],
+.mk-phase[data-phase="6"] [data-upto="5"],
+.mk-phase[data-phase="7"] [data-upto="5"],
+.mk-phase[data-phase="8"] [data-upto="5"],
+.mk-phase[data-phase="9"] [data-upto="5"],
+.mk-phase[data-phase="7"] [data-upto="6"],
+.mk-phase[data-phase="8"] [data-upto="6"],
+.mk-phase[data-phase="9"] [data-upto="6"],
+.mk-phase[data-phase="8"] [data-upto="7"],
+.mk-phase[data-phase="9"] [data-upto="7"],
+.mk-phase[data-phase="9"] [data-upto="8"] {
+  opacity: 0;
+  transform: translate3d(0, 10px, 0);
+  filter: blur(4px);
+  pointer-events: none;
+  transition-delay: 0ms;
+}
+.mk-phase[data-phase="0"] [data-only="0"],
+.mk-phase[data-phase="1"] [data-only="1"],
+.mk-phase[data-phase="2"] [data-only="2"],
+.mk-phase[data-phase="3"] [data-only="3"],
+.mk-phase[data-phase="4"] [data-only="4"],
+.mk-phase[data-phase="5"] [data-only="5"],
+.mk-phase[data-phase="6"] [data-only="6"],
+.mk-phase[data-phase="7"] [data-only="7"],
+.mk-phase[data-phase="8"] [data-only="8"],
+.mk-phase[data-phase="9"] [data-only="9"] {
+  opacity: 1;
+  transform: none;
+  filter: none;
+  pointer-events: auto;
+}
+.mk-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+.mk-collapse > * {
+  min-height: 0;
+  overflow: hidden;
+}
+.mk-phase .mk-collapse[data-only] {
+  grid-template-rows: 0fr;
+}
+.mk-phase[data-phase="0"] .mk-collapse[data-only="0"],
+.mk-phase[data-phase="1"] .mk-collapse[data-only="1"],
+.mk-phase[data-phase="2"] .mk-collapse[data-only="2"],
+.mk-phase[data-phase="3"] .mk-collapse[data-only="3"],
+.mk-phase[data-phase="4"] .mk-collapse[data-only="4"],
+.mk-phase[data-phase="5"] .mk-collapse[data-only="5"],
+.mk-phase[data-phase="6"] .mk-collapse[data-only="6"],
+.mk-phase[data-phase="7"] .mk-collapse[data-only="7"],
+.mk-phase[data-phase="8"] .mk-collapse[data-only="8"],
+.mk-phase[data-phase="9"] .mk-collapse[data-only="9"] {
+  grid-template-rows: 1fr;
+}
+.mk-phase[data-phase="0"] .mk-collapse[data-from="1"],
+.mk-phase[data-phase="0"] .mk-collapse[data-from="2"],
+.mk-phase[data-phase="1"] .mk-collapse[data-from="2"],
+.mk-phase[data-phase="0"] .mk-collapse[data-from="3"],
+.mk-phase[data-phase="1"] .mk-collapse[data-from="3"],
+.mk-phase[data-phase="2"] .mk-collapse[data-from="3"],
+.mk-phase[data-phase="0"] .mk-collapse[data-from="4"],
+.mk-phase[data-phase="1"] .mk-collapse[data-from="4"],
+.mk-phase[data-phase="2"] .mk-collapse[data-from="4"],
+.mk-phase[data-phase="3"] .mk-collapse[data-from="4"],
+.mk-phase[data-phase="0"] .mk-collapse[data-from="5"],
+.mk-phase[data-phase="1"] .mk-collapse[data-from="5"],
+.mk-phase[data-phase="2"] .mk-collapse[data-from="5"],
+.mk-phase[data-phase="3"] .mk-collapse[data-from="5"],
+.mk-phase[data-phase="4"] .mk-collapse[data-from="5"],
+.mk-phase[data-phase="0"] .mk-collapse[data-from="6"],
+.mk-phase[data-phase="1"] .mk-collapse[data-from="6"],
+.mk-phase[data-phase="2"] .mk-collapse[data-from="6"],
+.mk-phase[data-phase="3"] .mk-collapse[data-from="6"],
+.mk-phase[data-phase="4"] .mk-collapse[data-from="6"],
+.mk-phase[data-phase="5"] .mk-collapse[data-from="6"],
+.mk-phase[data-phase="0"] .mk-collapse[data-from="7"],
+.mk-phase[data-phase="1"] .mk-collapse[data-from="7"],
+.mk-phase[data-phase="2"] .mk-collapse[data-from="7"],
+.mk-phase[data-phase="3"] .mk-collapse[data-from="7"],
+.mk-phase[data-phase="4"] .mk-collapse[data-from="7"],
+.mk-phase[data-phase="5"] .mk-collapse[data-from="7"],
+.mk-phase[data-phase="6"] .mk-collapse[data-from="7"],
+.mk-phase[data-phase="0"] .mk-collapse[data-from="8"],
+.mk-phase[data-phase="1"] .mk-collapse[data-from="8"],
+.mk-phase[data-phase="2"] .mk-collapse[data-from="8"],
+.mk-phase[data-phase="3"] .mk-collapse[data-from="8"],
+.mk-phase[data-phase="4"] .mk-collapse[data-from="8"],
+.mk-phase[data-phase="5"] .mk-collapse[data-from="8"],
+.mk-phase[data-phase="6"] .mk-collapse[data-from="8"],
+.mk-phase[data-phase="7"] .mk-collapse[data-from="8"],
+.mk-phase[data-phase="0"] .mk-collapse[data-from="9"],
+.mk-phase[data-phase="1"] .mk-collapse[data-from="9"],
+.mk-phase[data-phase="2"] .mk-collapse[data-from="9"],
+.mk-phase[data-phase="3"] .mk-collapse[data-from="9"],
+.mk-phase[data-phase="4"] .mk-collapse[data-from="9"],
+.mk-phase[data-phase="5"] .mk-collapse[data-from="9"],
+.mk-phase[data-phase="6"] .mk-collapse[data-from="9"],
+.mk-phase[data-phase="7"] .mk-collapse[data-from="9"],
+.mk-phase[data-phase="8"] .mk-collapse[data-from="9"],
+.mk-phase[data-phase="1"] .mk-collapse[data-upto="0"],
+.mk-phase[data-phase="2"] .mk-collapse[data-upto="0"],
+.mk-phase[data-phase="3"] .mk-collapse[data-upto="0"],
+.mk-phase[data-phase="4"] .mk-collapse[data-upto="0"],
+.mk-phase[data-phase="5"] .mk-collapse[data-upto="0"],
+.mk-phase[data-phase="6"] .mk-collapse[data-upto="0"],
+.mk-phase[data-phase="7"] .mk-collapse[data-upto="0"],
+.mk-phase[data-phase="8"] .mk-collapse[data-upto="0"],
+.mk-phase[data-phase="9"] .mk-collapse[data-upto="0"],
+.mk-phase[data-phase="2"] .mk-collapse[data-upto="1"],
+.mk-phase[data-phase="3"] .mk-collapse[data-upto="1"],
+.mk-phase[data-phase="4"] .mk-collapse[data-upto="1"],
+.mk-phase[data-phase="5"] .mk-collapse[data-upto="1"],
+.mk-phase[data-phase="6"] .mk-collapse[data-upto="1"],
+.mk-phase[data-phase="7"] .mk-collapse[data-upto="1"],
+.mk-phase[data-phase="8"] .mk-collapse[data-upto="1"],
+.mk-phase[data-phase="9"] .mk-collapse[data-upto="1"],
+.mk-phase[data-phase="3"] .mk-collapse[data-upto="2"],
+.mk-phase[data-phase="4"] .mk-collapse[data-upto="2"],
+.mk-phase[data-phase="5"] .mk-collapse[data-upto="2"],
+.mk-phase[data-phase="6"] .mk-collapse[data-upto="2"],
+.mk-phase[data-phase="7"] .mk-collapse[data-upto="2"],
+.mk-phase[data-phase="8"] .mk-collapse[data-upto="2"],
+.mk-phase[data-phase="9"] .mk-collapse[data-upto="2"],
+.mk-phase[data-phase="4"] .mk-collapse[data-upto="3"],
+.mk-phase[data-phase="5"] .mk-collapse[data-upto="3"],
+.mk-phase[data-phase="6"] .mk-collapse[data-upto="3"],
+.mk-phase[data-phase="7"] .mk-collapse[data-upto="3"],
+.mk-phase[data-phase="8"] .mk-collapse[data-upto="3"],
+.mk-phase[data-phase="9"] .mk-collapse[data-upto="3"],
+.mk-phase[data-phase="5"] .mk-collapse[data-upto="4"],
+.mk-phase[data-phase="6"] .mk-collapse[data-upto="4"],
+.mk-phase[data-phase="7"] .mk-collapse[data-upto="4"],
+.mk-phase[data-phase="8"] .mk-collapse[data-upto="4"],
+.mk-phase[data-phase="9"] .mk-collapse[data-upto="4"],
+.mk-phase[data-phase="6"] .mk-collapse[data-upto="5"],
+.mk-phase[data-phase="7"] .mk-collapse[data-upto="5"],
+.mk-phase[data-phase="8"] .mk-collapse[data-upto="5"],
+.mk-phase[data-phase="9"] .mk-collapse[data-upto="5"],
+.mk-phase[data-phase="7"] .mk-collapse[data-upto="6"],
+.mk-phase[data-phase="8"] .mk-collapse[data-upto="6"],
+.mk-phase[data-phase="9"] .mk-collapse[data-upto="6"],
+.mk-phase[data-phase="8"] .mk-collapse[data-upto="7"],
+.mk-phase[data-phase="9"] .mk-collapse[data-upto="7"],
+.mk-phase[data-phase="9"] .mk-collapse[data-upto="8"] {
+  grid-template-rows: 0fr;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mk-phase [data-from],
+  .mk-phase [data-upto],
+  .mk-phase [data-only] {
+    transition: none;
+  }
+}
+
+/* The scribe transcript: phrases the model lifts out light up once it reaches the
+   "understanding" phase, and the unclear one turns amber. Before that they are plain
+   text, which is the point — the highlight is the AI's work arriving. */
+.mk-phase:not([data-phase="0"]) .mk-hl-early,
+.mk-phase:not([data-phase="0"]):not([data-phase="1"]) .mk-hl {
+  background-color: color-mix(in oklab, var(--brand-teal) 16%, transparent);
+  box-shadow: inset 0 -2px 0 color-mix(in oklab, var(--brand-teal) 70%, transparent);
+}
+.mk-phase:not([data-phase="0"]) .mk-flag-early,
+.mk-phase:not([data-phase="0"]):not([data-phase="1"]) .mk-flag {
+  background-color: color-mix(in oklab, var(--warning) 18%, transparent);
+  box-shadow: inset 0 -2px 0 var(--warning);
+}
+
+/* Text with a light passing across it: "working on it". */
+@keyframes mk-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+@utility mk-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    currentColor 40%,
+    color-mix(in oklab, var(--brand-teal) 70%, white) 50%,
+    currentColor 60%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  @media (prefers-reduced-motion: no-preference) {
+    animation: mk-shimmer 1.8s linear infinite;
+  }
+}
+
+/* A placeholder bar with light sweeping across it, for a field about to be written. */
+@keyframes mk-skeleton {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@utility mk-skeleton {
+  border-radius: 999px;
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--foreground) 7%, transparent) 25%,
+    color-mix(in oklab, var(--brand-teal) 24%, transparent) 50%,
+    color-mix(in oklab, var(--foreground) 7%, transparent) 75%
+  );
+  background-size: 200% 100%;
+  @media (prefers-reduced-motion: no-preference) {
+    animation: mk-skeleton 1.6s linear infinite;
+  }
+}
+
+/* Light travelling along a connector: a bright segment sliding through a faint track.
+   The track is the element, the segment its ::after. Horizontal by default; add
+   `mk-beam-y` for a vertical connector. */
+@keyframes mk-beam-x {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(260%);
+  }
+}
+@keyframes mk-beam-y {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(260%);
+  }
+}
+@utility mk-beam {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--brand-teal) 22%, transparent);
+  &::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, var(--brand-teal), transparent);
+    @media (prefers-reduced-motion: no-preference) {
+      animation: mk-beam-x 2.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+      animation-delay: var(--mk-beam-delay, 0s);
+    }
+  }
+}
+@utility mk-beam-y {
+  &::after {
+    width: 100%;
+    height: 40%;
+    background: linear-gradient(180deg, transparent, var(--brand-teal), transparent);
+    @media (prefers-reduced-motion: no-preference) {
+      animation-name: mk-beam-y;
+    }
+  }
+}
+
+/* The AI core: a slowly turning ring, and a glow that breathes. */
+@keyframes mk-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@utility mk-orbit {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: mk-spin var(--mk-orbit, 14s) linear infinite;
+  }
+}
+@keyframes mk-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+@utility mk-breathe {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: mk-breathe 3.2s ease-in-out infinite;
+    animation-delay: var(--mk-breathe-delay, 0s);
+  }
+}
+
+/* Ambient particles drifting upward and fading, the field behind an AI composition.
+   A few dozen at most, transform and opacity only. */
+@keyframes mk-drift {
+  0% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0;
+  }
+  15%,
+  70% {
+    opacity: var(--mk-drift-opacity, 0.7);
+  }
+  100% {
+    transform: translate3d(var(--mk-drift-x, 12px), -120px, 0);
+    opacity: 0;
+  }
+}
+@utility mk-drift {
+  opacity: 0.35;
+  @media (prefers-reduced-motion: no-preference) {
+    opacity: 0;
+    animation: mk-drift var(--mk-drift-duration, 9s) ease-in-out infinite;
+    animation-delay: var(--mk-drift-delay, 0s);
+  }
+}
+
+/* An animated gradient edge for the small "AI" badge. */
+@keyframes mk-border-flow {
+  to {
+    background-position:
+      0 0,
+      200% 0;
+  }
+}
+@utility mk-ai-edge {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--card), var(--card)) padding-box,
+    linear-gradient(90deg, var(--brand-teal), var(--brand-blue), #6fe6ea, var(--brand-teal)) border-box;
+  background-size:
+    100% 100%,
+    200% 100%;
+  @media (prefers-reduced-motion: no-preference) {
+    animation: mk-border-flow 4s linear infinite;
+  }
+}
+
 /* Chrome/Safari force a pale background on autofilled inputs that normal
    background-color can't override. The inset box-shadow trick paints over it
    with the theme surface colour, and text-fill-color fixes the text — so

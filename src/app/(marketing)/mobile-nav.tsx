@@ -72,7 +72,7 @@ export function MobileNav({ items }: { items: readonly NavItem[] }) {
         <>
           {/* Click-away. Sits under the panel and over the page. */}
           <div
-            className="fixed inset-0 top-16 z-40 md:hidden"
+            className="fixed inset-0 top-[4.25rem] z-40 md:hidden"
             onClick={() => setOpen(false)}
             aria-hidden="true"
           />
@@ -80,9 +80,9 @@ export function MobileNav({ items }: { items: readonly NavItem[] }) {
               positioned ancestor — none of the wrappers in between are positioned. */}
           <div
             id="mobile-nav-panel"
-            className="absolute inset-x-0 top-full z-50 border-b border-foreground/10 bg-background/95 backdrop-blur-lg md:hidden"
+            className="absolute inset-x-3 top-full z-50 mt-2 origin-top rounded-3xl bg-background/95 shadow-[0_0_0_1px_var(--mk-line-strong),var(--mk-shadow-lift)] backdrop-blur-xl motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:slide-in-from-top-2 sm:inset-x-4 md:hidden"
           >
-            <nav aria-label="Site" className="mx-auto w-full max-w-6xl px-4 py-3 sm:px-6">
+            <nav aria-label="Site" className="w-full px-3 py-3">
               <ul className="flex flex-col">
                 {items.map((item) => {
                   const active = isActive(pathname, item.href);
@@ -96,7 +96,7 @@ export function MobileNav({ items }: { items: readonly NavItem[] }) {
                         onClick={() => setOpen(false)}
                         aria-current={active ? "page" : undefined}
                         className={cn(
-                          "flex items-center rounded-lg px-2 py-3 text-base transition-colors",
+                          "flex items-center rounded-2xl px-3 py-3 text-base transition-colors",
                           active
                             ? "font-medium text-foreground"
                             : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
@@ -116,7 +116,7 @@ export function MobileNav({ items }: { items: readonly NavItem[] }) {
                 <li className="mt-1 border-t border-foreground/10 pt-1">
                   <Link
                     href="/login"
-                    className="flex items-center rounded-lg px-2 py-3 text-base text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
+                    className="flex items-center rounded-2xl px-3 py-3 text-base text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
                   >
                     Sign in
                   </Link>
@@ -125,7 +125,7 @@ export function MobileNav({ items }: { items: readonly NavItem[] }) {
                     At 320px the bar could not hold the logo, a menu button, a theme
                     button and the CTA — it ran 19px past the viewport — and of those
                     four this is the one with somewhere sensible to go. */}
-                <li className="mt-1 flex items-center justify-between border-t border-foreground/10 px-2 pt-3 pb-1">
+                <li className="mt-1 flex items-center justify-between border-t border-foreground/10 px-3 pt-3 pb-1">
                   <span className="text-base text-muted-foreground">Theme</span>
                   <ThemeSwitch />
                 </li>

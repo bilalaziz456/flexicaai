@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Mail } from "lucide-react";
+import { ArrowUpRight, Mail } from "lucide-react";
 import { Logo } from "@/core/ui/logo";
 import { ThemeSwitch } from "./theme-switch";
 import { Magnetic } from "./magnetic";
@@ -51,11 +51,8 @@ const SOCIAL_HOVER = {
 } as const;
 
 /**
- * Real pages only. This used to carry "/#security", left over from when the whole nav
- * was homepage anchors — one item jumping back to a section while its neighbours were
- * pages, which read as inconsistent and put a trust topic on a level with the three
- * capability pages. Security still has its section on the homepage and a link in the
- * footer; it is not a peer of these.
+ * Real pages only. Security still has its section on the homepage and a link in the
+ * footer; it is not a peer of the three capability pages.
  */
 const NAV: readonly NavItem[] = [
   { href: "/ai-medical-scribe", label: "AI scribe" },
@@ -66,26 +63,29 @@ const NAV: readonly NavItem[] = [
 
 export function MarketingShell({ children }: { children: ReactNode }) {
   return (
-    // `marketing-root` is the hook the scoped smooth-scroll rule keys off — see
-    // globals.css. It must not appear anywhere in the signed-in app.
-    <div className="marketing-root flex min-h-screen flex-col bg-background">
-
-
+    // `marketing-root` is the hook the scoped smooth-scroll rule AND the marketing
+    // palette key off — see globals.css. It must not appear in the signed-in app.
+    <div className="marketing-root flex min-h-screen flex-col bg-background text-foreground">
       {/* Film grain over the whole page. Fixed + pointer-events-none so it never
           intercepts a click and never scrolls out of alignment. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none fixed inset-0 z-[60] bg-grain opacity-[0.035] mix-blend-overlay dark:opacity-[0.05]"
+        className="pointer-events-none fixed inset-0 z-[60] bg-grain opacity-[0.03] mix-blend-overlay dark:opacity-[0.05]"
       />
-      <header className="sticky top-0 z-50 border-b border-foreground/5 bg-background/80 backdrop-blur-lg">
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-3 px-4 sm:gap-6 sm:px-6">
-          <Link href="/" aria-label="FlexicaAI home" className="shrink-0">
-            <Logo variant="mark" className="h-7" />
+
+      {/* A floating pill rather than a full-width bar. It starts transparent over the
+          hero and frosts as the page scrolls (`mk-header`, scroll-driven, no script).
+          The <header> itself stays the positioned ancestor the mobile menu panel
+          anchors to. */}
+      <header className="sticky top-0 z-50 px-3 pt-3 sm:px-4">
+        <div className="mk-header mx-auto flex h-14 backdrop-blur-xl backdrop-saturate-150 w-full max-w-6xl items-center gap-3 rounded-full pr-2 pl-5 sm:gap-6">
+          <Link href="/" aria-label="FlexicaAI home" className="shrink-0 transition-opacity hover:opacity-80">
+            <Logo variant="mark" className="h-6 sm:h-7" />
           </Link>
 
-          {/* Named, because the footer now carries two <nav>s of its own and an
-              unlabelled landmark is useless when a screen reader lists three. */}
-          <nav aria-label="Main" className="hidden flex-1 items-center gap-7 md:flex">
+          {/* Named, because the footer carries two <nav>s of its own and an unlabelled
+              landmark is useless when a screen reader lists three. */}
+          <nav aria-label="Main" className="hidden flex-1 items-center justify-center gap-1 md:flex">
             <HeaderNavLinks items={NAV} />
           </nav>
 
@@ -98,9 +98,7 @@ export function MarketingShell({ children }: { children: ReactNode }) {
                 worth keeping — signing in is also in the hero and the footer. */}
             <Link
               href="/login"
-              // px-4 py-2 puts this at 36px, matching every other header control; at
-              // px-3 py-1.5 it sat 4px shorter than the CTA right beside it.
-              className="hidden rounded-full px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
+              className="hidden h-9 items-center rounded-full px-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
             >
               Sign in
             </Link>
@@ -118,16 +116,20 @@ export function MarketingShell({ children }: { children: ReactNode }) {
 
       <main className="flex-1">{children}</main>
 
-      <footer className="border-t border-foreground/10 bg-muted/40">
-        <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-          {/* min-w-0 on both columns: at the md breakpoint this becomes a flex row,
-              and flex items default to min-width:auto, so the email address — one long
+      <footer className="relative isolate overflow-hidden border-t border-[var(--mk-line)]">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-40 left-1/2 -z-10 h-80 w-[60rem] -translate-x-1/2 bg-[radial-gradient(ellipse_at_center,var(--brand-teal)_0%,transparent_65%)] opacity-[0.08] blur-3xl dark:opacity-[0.14]"
+        />
+        <div className="mx-auto w-full max-w-6xl px-4 pt-16 pb-10 sm:px-6">
+          {/* min-w-0 on both columns: at the md breakpoint this becomes a flex row, and
+              flex items default to min-width:auto, so the email address — one long
               token with no break opportunity — stopped its column shrinking and pushed
-              the whole document 7px wider than the viewport at exactly 768px. */}
-          <div className="flex flex-col gap-10 md:flex-row md:justify-between">
-            <div className="min-w-0 max-w-sm space-y-4">
+              the whole document wider than the viewport at exactly 768px. */}
+          <div className="flex flex-col gap-12 md:flex-row md:justify-between">
+            <div className="min-w-0 max-w-sm space-y-5">
               <Logo variant="mark" className="h-8" />
-              <p className="text-sm text-muted-foreground">
+              <p className="text-[0.95rem] leading-relaxed text-muted-foreground">
                 AI-powered health management. We handle the record keeping, the
                 messaging and the money side of running a practice.
               </p>
@@ -146,7 +148,7 @@ export function MarketingShell({ children }: { children: ReactNode }) {
                           rel="noopener noreferrer"
                           aria-label={`FlexicaAI on ${social.label}`}
                           className={cn(
-                            "inline-flex size-9 items-center justify-center rounded-full text-muted-foreground ring-1 ring-foreground/10 transition-all hover:-translate-y-0.5",
+                            "inline-flex size-10 items-center justify-center rounded-full bg-card text-muted-foreground ring-1 ring-foreground/10 transition-all duration-300 hover:-translate-y-0.5",
                             SOCIAL_HOVER[social.id],
                           )}
                         >
@@ -159,57 +161,49 @@ export function MarketingShell({ children }: { children: ReactNode }) {
               ) : null}
             </div>
 
-            {/* These column labels were <h2>. Rendered at 12px they were announced
-                as peers of the 36-64px section headings above, so navigating the page
-                by heading put "Product" on a level with "One system for the whole day".
-                They are the names of two link groups, not document sections, so each
-                is now a <nav> whose accessible name comes from its own visible label. */}
-            <div className="grid min-w-0 gap-8 sm:grid-cols-2">
-              <nav aria-labelledby="footer-product" className="space-y-3">
+            {/* Each column is a <nav> named by its own visible label rather than an
+                <h2>: they are the names of two link groups, not document sections. */}
+            <div className="grid min-w-0 gap-10 sm:grid-cols-2 sm:gap-16">
+              <nav aria-labelledby="footer-product" className="space-y-4">
                 <p
                   id="footer-product"
-                  className="text-xs font-semibold tracking-widest text-foreground uppercase"
+                  className="text-xs font-semibold tracking-[0.14em] text-foreground uppercase"
                 >
                   Product
                 </p>
-                <ul className="space-y-2 text-sm text-muted-foreground">
+                <ul className="space-y-2 text-[0.95rem] text-muted-foreground">
                   <FooterNavLinks items={NAV} />
                   <li>
-                    <Link
-                      href="/#security"
-                      className="inline-flex items-center py-1 transition-colors hover:text-foreground"
-                    >
+                    <Link href="/#security" className="mk-link inline-flex items-center py-1 transition-colors hover:text-foreground">
                       Security
                     </Link>
                   </li>
                   <li>
-                    <Link
-                      href="/login"
-                      className="inline-flex items-center py-1 transition-colors hover:text-foreground"
-                    >
+                    <Link href="/login" className="mk-link inline-flex items-center py-1 transition-colors hover:text-foreground">
                       Sign in
                     </Link>
                   </li>
                 </ul>
               </nav>
 
-              <nav aria-labelledby="footer-contact" className="space-y-3">
+              <nav aria-labelledby="footer-contact" className="space-y-4">
                 <p
                   id="footer-contact"
-                  className="text-xs font-semibold tracking-widest text-foreground uppercase"
+                  className="text-xs font-semibold tracking-[0.14em] text-foreground uppercase"
                 >
                   Talk to us
                 </p>
-                <ul className="space-y-2 text-sm text-muted-foreground">
+                <ul className="space-y-2 text-[0.95rem] text-muted-foreground">
                   <li>
                     <a
                       href={SALES_WHATSAPP_URL}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 py-1 transition-colors hover:text-whatsapp"
+                      className="group inline-flex items-center gap-2 py-1 transition-colors hover:text-whatsapp-fg"
                     >
                       <WhatsAppIcon className="size-4" />
                       WhatsApp {SALES_PHONE_DISPLAY}
+                      <ArrowUpRight className="size-3.5 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
                     </a>
                   </li>
                   <li>
@@ -217,8 +211,8 @@ export function MarketingShell({ children }: { children: ReactNode }) {
                       href={SALES_EMAIL_URL}
                       className="inline-flex min-w-0 items-start gap-2 py-1 transition-colors hover:text-foreground"
                     >
-                      <Mail className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                      <span className="break-all">{SALES_EMAIL}</span>
+                      <Mail className="mt-1 size-4 shrink-0" aria-hidden="true" />
+                      <span className="mk-link break-all">{SALES_EMAIL}</span>
                     </a>
                   </li>
                 </ul>
@@ -226,25 +220,26 @@ export function MarketingShell({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          <div className="mt-10 flex flex-col gap-3 border-t border-foreground/10 pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          {/* The wordmark set large and cropped by the footer's edge — a signature
+              rather than another logo. Decorative; the real name is in the logo above. */}
+          <p
+            aria-hidden="true"
+            className="pointer-events-none mt-16 -mb-4 bg-gradient-to-b from-foreground/[0.09] to-transparent bg-clip-text text-center text-[clamp(4rem,17vw,13rem)] leading-[0.8] font-bold tracking-[-0.06em] text-transparent select-none"
+          >
+            FlexicaAI
+          </p>
+
+          <div className="flex flex-col gap-3 border-t border-[var(--mk-line)] pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
             <p>© {new Date().getFullYear()} FlexicaAI. All rights reserved.</p>
-            {/* Policy links belong in the bottom bar rather than a fourth column: they
-                are the two links people go looking for deliberately, and giving them a
-                heading would put them on a level with the product nav. */}
+            {/* Policy links in the bottom bar rather than a fourth column: they are the
+                links people go looking for deliberately. */}
             <div className="flex items-center gap-4">
-              <Link
-                href="/privacy"
-                // py-1.5, not py-1: at 12px/16px line-height these came out 23.99px,
-                // a hair under the 24px minimum once subpixel rounding is applied. This
-                // also matches the 28px of the footer's other links.
-                className="inline-flex items-center py-1.5 transition-colors hover:text-foreground"
-              >
+              {/* py-1.5, not py-1: at 12px these came out a hair under the 24px
+                  minimum target once subpixel rounding is applied. */}
+              <Link href="/privacy" className="mk-link inline-flex items-center py-1.5 transition-colors hover:text-foreground">
                 Privacy
               </Link>
-              <Link
-                href="/terms"
-                className="inline-flex items-center py-1.5 transition-colors hover:text-foreground"
-              >
+              <Link href="/terms" className="mk-link inline-flex items-center py-1.5 transition-colors hover:text-foreground">
                 Terms
               </Link>
               <span>{SITE_DOMAIN}</span>

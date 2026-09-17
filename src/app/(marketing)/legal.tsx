@@ -28,12 +28,12 @@ export function LegalPage({
   children: ReactNode;
 }) {
   return (
-    <section className="py-12 sm:py-16">
+    <section className="py-16 sm:py-24">
       <div className="mx-auto w-full max-w-3xl px-4 sm:px-6">
-        <p className="font-mono text-xs tracking-widest text-brand-navy uppercase dark:text-brand-teal">
+        <p className="mk-eyebrow">
           Legal
         </p>
-        <h1 className="mt-5 font-heading text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+        <h1 className="mk-h2 mt-6">
           {title}
         </h1>
         <p className="mt-4 text-sm text-muted-foreground">Last updated {updated}</p>
@@ -41,7 +41,7 @@ export function LegalPage({
           {intro}
         </div>
 
-        <div className="mt-12 space-y-10">{children}</div>
+        <div className="mt-14 space-y-12 border-t border-[var(--mk-line)] pt-12">{children}</div>
       </div>
     </section>
   );
@@ -50,7 +50,7 @@ export function LegalPage({
 export function Clause({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section>
-      <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground">
+      <h2 className="text-xl font-bold tracking-[-0.02em] text-foreground">
         {title}
       </h2>
       <div className="mt-3 space-y-3 text-sm leading-relaxed text-muted-foreground">

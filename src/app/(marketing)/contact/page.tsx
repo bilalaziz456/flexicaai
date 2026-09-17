@@ -1,8 +1,20 @@
 import type { Metadata } from "next";
+import type { ComponentType, ReactNode } from "react";
 import Link from "next/link";
-import { Mail, MessageSquare, Phone, Stethoscope } from "lucide-react";
-import { FeatureCard, PageHero, SectionHeading } from "../sections";
-import { ContactVisual } from "../contact-visual";
+import {
+  ArrowUpRight,
+  BarChart3,
+  KeyRound,
+  LifeBuoy,
+  Mail,
+  MessageSquare,
+  MonitorPlay,
+  Phone,
+  Stethoscope,
+} from "lucide-react";
+import { SectionHeading, Statement } from "../sections";
+import { CapabilityHero, CapabilityList, Pipeline, type PipelineStep } from "../ai-kit";
+import { ContactHeroArt } from "../contact-hero-art";
 import { WhatsAppIcon } from "../whatsapp-icon";
 import { Magnetic } from "../magnetic";
 import { WhatsAppCta } from "../whatsapp-cta";
@@ -15,7 +27,12 @@ import {
 import { ORGANIZATION, ORIGIN, ORG_ID } from "../structured-data";
 
 /**
- * Contact.
+ * Contact — built in the same shape as the capability pages (split hero with a live
+ * composition, a connected flow, a hairline list, a navy panel), so the site reads as
+ * one product from the first page to the last.
+ *
+ * Story: the first conversation (hero) → the three real channels → what happens after
+ * you reach out → what is worth having to hand → existing customers.
  *
  * No enquiry form on purpose. There is no public signup and no leads table, so a form
  * would either need a new schema and mail pipeline, or would silently go nowhere —
@@ -64,6 +81,29 @@ const STRUCTURED_DATA = {
   ],
 };
 
+const NEXT_STEPS: PipelineStep[] = [
+  {
+    Icon: MessageSquare,
+    title: "You message us",
+    body: "On WhatsApp, by email or by phone — a line is enough, and voice notes are fine.",
+  },
+  {
+    Icon: Stethoscope,
+    title: "We learn how you work",
+    body: "Who books a visit, who writes it up, who bills it. We ask before we show anything.",
+  },
+  {
+    Icon: MonitorPlay,
+    title: "A walkthrough, your way",
+    body: "You see FlexicaAI set up around your own sequence, not a generic demo practice.",
+  },
+  {
+    Icon: KeyRound,
+    title: "We set you up",
+    body: "There is no sign-up form. We create your practice and your team’s logins for you.",
+  },
+];
+
 const BRING = [
   {
     Icon: Stethoscope,
@@ -76,11 +116,102 @@ const BRING = [
     body: "A recording, or just talk one through with us. Seeing the scribe draft a note from your own words answers more questions than any slide.",
   },
   {
-    Icon: Mail,
-    title: "Last month's numbers",
+    Icon: BarChart3,
+    title: "Last month’s numbers",
     body: "Whatever you use to track money now. We will show you where the same figures come from, including the ones that are currently hard to get at.",
   },
 ];
+
+/** One channel: a real link, with the value on it and an action that says what happens. */
+function Channel({
+  href,
+  external,
+  Icon,
+  title,
+  body,
+  value,
+  action,
+  featured,
+}: {
+  href: string;
+  external?: boolean;
+  Icon: ComponentType<{ className?: string }>;
+  title: string;
+  body: string;
+  value: string;
+  action: string;
+  featured?: boolean;
+}) {
+  return (
+    <a
+      href={href}
+      target={external ? "_blank" : undefined}
+      rel={external ? "noopener noreferrer" : undefined}
+      className={`group reveal-up mk-card mk-card-hover relative flex flex-col overflow-hidden p-7 sm:p-8 ${featured ? "lg:row-span-2" : ""}`}
+    >
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute -top-24 -right-24 size-64 rounded-full blur-3xl transition-opacity duration-500 ${
+          featured ? "bg-whatsapp/25 opacity-100" : "bg-brand-teal/20 opacity-0 group-hover:opacity-100"
+        }`}
+      />
+      <span
+        className={`relative inline-flex size-12 items-center justify-center rounded-2xl transition-transform duration-500 group-hover:-rotate-6 group-hover:scale-105 ${
+          featured ? "bg-whatsapp text-brand-navy shadow-[0_12px_30px_-10px_var(--whatsapp)]" : "bg-brand-teal/12 text-primary-text"
+        }`}
+      >
+        <Icon className="size-5" />
+      </span>
+      {featured ? (
+        <span className="relative mt-6 w-fit rounded-full bg-whatsapp/12 px-2.5 py-1 text-3xs font-semibold tracking-[0.12em] text-whatsapp-fg uppercase">
+          Fastest
+        </span>
+      ) : null}
+      <h3 className={`relative ${featured ? "mt-3 text-3xl font-bold tracking-[-0.03em]" : "mk-h3 mt-6"}`}>{title}</h3>
+      <p className="relative mt-2.5 text-[0.95rem] leading-relaxed text-muted-foreground">{body}</p>
+      <p className={`relative mt-5 font-mono break-all text-foreground ${featured ? "text-lg" : "text-sm"}`}>{value}</p>
+      {featured ? (
+        // What the button actually sends — the pre-filled greeting, so there is nothing
+        // to type. Decorative preview; the link itself is the whole card.
+        <div aria-hidden="true" className="relative mt-6 rounded-2xl bg-[#efeae2] p-4 dark:bg-[#0b141a]">
+          <p className="ml-auto w-fit max-w-[90%] rounded-2xl rounded-tr-sm bg-[#d9fdd3] px-3 py-2 text-sm text-[#111b21] shadow-[0_1px_1px_rgb(0_0_0/0.08)] dark:bg-[#005c4b] dark:text-[#e9edef]">
+            Hi FlexicaAI, I would like to see a demo.
+          </p>
+          <p className="mt-2 text-right text-3xs text-muted-foreground">Already typed for you — just press send</p>
+        </div>
+      ) : null}
+      <span className="relative mt-auto inline-flex items-center gap-1.5 pt-6 text-sm font-semibold text-primary-text">
+        <span className="mk-link">{action}</span>
+        <ArrowUpRight className="size-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true" />
+      </span>
+    </a>
+  );
+}
+
+/** A sample support message, so "say which practice you are with" is shown, not told. */
+function SupportSample({ children }: { children: ReactNode }) {
+  return (
+    <div aria-hidden="true" className="reveal-up mk-card space-y-3 rounded-[1.75rem] p-6 sm:p-8">
+      <p className="text-3xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">A good support message</p>
+      <div className="flex justify-end">
+        <p className="max-w-[88%] rounded-2xl rounded-tr-sm bg-[#d9fdd3] px-3.5 py-2.5 text-sm leading-snug text-[#111b21] shadow-[0_1px_1px_rgb(0_0_0/0.08)] dark:bg-[#005c4b] dark:text-[#e9edef]">
+          {children}
+        </p>
+      </div>
+      <ul className="space-y-2 border-t border-[var(--mk-line)] pt-4 text-sm text-muted-foreground">
+        <li className="flex items-center gap-2">
+          <span className="size-1.5 rounded-full bg-brand-teal" /> Which practice you are with
+        </li>
+        <li className="flex items-center gap-2">
+          <span className="size-1.5 rounded-full bg-brand-teal" /> What you were trying to do
+        </li>
+        <li className="flex items-center gap-2">
+          <span className="size-1.5 rounded-full bg-brand-teal" /> A screenshot, if something looks wrong
+        </li>
+      </ul>
+    </div>
+  );
+}
 
 export default function ContactPage() {
   return (
@@ -90,105 +221,117 @@ export default function ContactPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA) }}
       />
 
-      <PageHero
+      <CapabilityHero
         eyebrow="Contact"
         lines={["Tell us how", "your practice", "actually runs."]}
         lede="No form to fill in and nothing to install. Message us on WhatsApp, send an email, or call, and we will set up a walkthrough around how your clinic really works."
-        art={<ContactVisual className="reveal-up" />}
-        artFirst
+        secondary={{ href: "#ways-to-reach-us", label: "Ways to reach us" }}
+        art={<ContactHeroArt />}
       />
 
-      {/* The three channels, as real links rather than decoration.
-
-          The card titles were <h2> with no heading above them, so the section had no
-          name and they rendered at 18px — the same size as the <h3>s further down the
-          page, making two different levels visually identical. A visually-hidden <h2>
-          gives the section its name and puts the cards at the level they read as. */}
-      <section aria-labelledby="contact-channels" className="border-y border-foreground/10 bg-muted/40 py-12 sm:py-16">
+      <section
+        id="ways-to-reach-us"
+        aria-labelledby="contact-channels"
+        className="scroll-mt-24 border-y border-[var(--mk-line)] bg-muted/40 py-24 sm:py-32"
+      >
         <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-          <h2 id="contact-channels" className="sr-only">
-            How to reach us
-          </h2>
-          <div className="grid gap-5 md:grid-cols-3">
-            <a
+          <div className="reveal-up mx-auto max-w-3xl text-center">
+            <h2 id="contact-channels" className="mk-h2">
+              Pick whichever is easiest
+            </h2>
+            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-pretty text-muted-foreground">
+              Every one of these reaches a person on our team. WhatsApp is usually quickest.
+            </p>
+          </div>
+
+          <div className="mt-14 grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+            <Channel
+              featured
               href={SALES_WHATSAPP_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group reveal-up rounded-2xl bg-card p-6 ring-1 ring-foreground/10 transition-all hover:-translate-y-1 hover:ring-whatsapp/50"
-            >
-              <span className="inline-flex size-10 items-center justify-center rounded-xl bg-whatsapp/15 text-whatsapp-fg ring-1 ring-whatsapp/30 transition-transform group-hover:scale-110">
-                <WhatsAppIcon className="size-5" />
-              </span>
-              <h3 className="mt-5 font-heading text-lg font-medium">WhatsApp</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                The fastest way to reach us. Voice notes are fine.
-              </p>
-              <p className="mt-3 font-mono text-sm text-foreground">{SALES_PHONE_DISPLAY}</p>
-            </a>
-
-            <a
+              external
+              Icon={WhatsAppIcon}
+              title="WhatsApp"
+              body="The fastest way to reach us, and the easiest place to send a voice note or a screenshot."
+              value={SALES_PHONE_DISPLAY}
+              action="Open WhatsApp"
+            />
+            <Channel
               href={SALES_EMAIL_URL}
-              className="group reveal-up rounded-2xl bg-card p-6 ring-1 ring-foreground/10 transition-all hover:-translate-y-1 hover:ring-primary/40"
-            >
-              <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary-text ring-1 ring-primary/20 transition-transform group-hover:scale-110">
-                <Mail className="size-5" />
-              </span>
-              <h3 className="mt-5 font-heading text-lg font-medium">Email</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Better for longer questions, or if you want it in writing.
-              </p>
-              <p className="mt-3 font-mono text-sm break-all text-foreground">{SALES_EMAIL}</p>
-            </a>
-
-            <a
+              Icon={Mail}
+              title="Email"
+              body="Better for longer questions, or if you want it in writing."
+              value={SALES_EMAIL}
+              action="Write an email"
+            />
+            <Channel
               href={`tel:${SALES_PHONE_DISPLAY.replace(/\s/g, "")}`}
-              className="group reveal-up rounded-2xl bg-card p-6 ring-1 ring-foreground/10 transition-all hover:-translate-y-1 hover:ring-primary/40"
-            >
-              <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary-text ring-1 ring-primary/20 transition-transform group-hover:scale-110">
-                <Phone className="size-5" />
-              </span>
-              <h3 className="mt-5 font-heading text-lg font-medium">Phone</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                If you would rather just talk it through.
-              </p>
-              <p className="mt-3 font-mono text-sm text-foreground">{SALES_PHONE_DISPLAY}</p>
-            </a>
+              Icon={Phone}
+              title="Phone"
+              body="If you would rather just talk it through."
+              value={SALES_PHONE_DISPLAY}
+              action="Call us"
+            />
           </div>
         </div>
       </section>
 
-      <section className="py-12 sm:py-16">
+      <section className="py-24 sm:py-32">
         <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
           <SectionHeading
-            eyebrow="Before the demo"
-            title="Worth having to hand"
-            lede="None of this is required. It just turns a product tour into a conversation about your practice."
+            eyebrow="What happens next"
+            title="From a first message to your practice, set up"
+            lede="No sales script and no generic demo. Four steps, and the first one is a single message."
           />
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
-            {BRING.map((c) => (
-              <FeatureCard key={c.title} {...c} />
-            ))}
+          <div className="mt-16">
+            <Pipeline steps={NEXT_STEPS} />
           </div>
+        </div>
+      </section>
 
-          <div className="reveal-up mt-12 rounded-2xl bg-card p-8 text-center ring-1 ring-foreground/10">
-            <h2 className="font-heading text-2xl font-semibold tracking-tight">
-              Already using FlexicaAI?
-            </h2>
-            <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
-              Support runs through the same channels. Message us and say which practice
-              you are with so we can pull up the right account.
-            </p>
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-              <Magnetic>
-                <WhatsAppCta ping>Message us on WhatsApp</WhatsAppCta>
-              </Magnetic>
-              <Link
-                href="/login"
-                className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-medium ring-1 ring-foreground/15 transition-colors hover:bg-foreground/5"
-              >
-                Sign in
-              </Link>
+      <section className="border-y border-[var(--mk-line)] bg-muted/40 py-24 sm:py-32">
+        <div className="mx-auto grid w-full max-w-6xl gap-14 px-4 sm:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-20">
+          <div className="lg:sticky lg:top-28 lg:self-start">
+            <SectionHeading
+              align="left"
+              eyebrow="Before the demo"
+              title="Worth having to hand"
+              lede="None of this is required. It just turns a product tour into a conversation about your practice."
+            />
+          </div>
+          <CapabilityList title="Bring if you can" items={BRING} />
+        </div>
+      </section>
+
+      <section className="px-4 py-24 sm:px-6 sm:py-32">
+        <div className="mk-inverse relative isolate mx-auto w-full max-w-6xl overflow-hidden rounded-[2rem] px-5 py-16 ring-1 ring-white/10 sm:px-12 sm:py-20">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -top-40 -left-40 -z-10 h-[34rem] w-[34rem] rounded-full bg-[radial-gradient(circle,var(--brand-teal)_0%,transparent_65%)] opacity-25 blur-3xl"
+          />
+          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-teal/60 to-transparent" />
+          <div className="grid items-center gap-14 lg:grid-cols-2">
+            <div>
+              <Statement
+                eyebrow="Already a customer"
+                lines={["Support runs", "through the", "same channels."]}
+                lede="Message us and say which practice you are with, so we can pull up the right account straight away."
+              />
+              <div className="reveal-up mt-9 flex flex-wrap items-center gap-3">
+                <Magnetic>
+                  <WhatsAppCta ping>Message us on WhatsApp</WhatsAppCta>
+                </Magnetic>
+                <Link
+                  href="/login"
+                  className="group inline-flex h-12 items-center gap-2 rounded-full bg-card/60 px-5 text-[0.95rem] font-medium text-foreground shadow-[0_0_0_1px_var(--mk-line-strong)] backdrop-blur transition-[background-color,transform] duration-300 hover:-translate-y-0.5 hover:bg-card"
+                >
+                  <LifeBuoy className="size-4 text-muted-foreground" aria-hidden="true" />
+                  Sign in
+                </Link>
+              </div>
             </div>
+            <SupportSample>
+              Hi, this is Noor Family Practice. Today’s reminders don’t seem to have gone out — can you check?
+            </SupportSample>
           </div>
         </div>
       </section>

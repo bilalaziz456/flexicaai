@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { ArrowRight } from "lucide-react";
 import { SALES_WHATSAPP_URL } from "./contact-details";
 import { WhatsAppIcon } from "./whatsapp-icon";
 
@@ -10,6 +11,10 @@ import { WhatsAppIcon } from "./whatsapp-icon";
  * purpose: white on this green is about 2:1 contrast, which fails WCAG AA outright,
  * while the navy is roughly 7:1 and still unmistakably a WhatsApp button. The same
  * green works on both themes, so there is no dark: variant.
+ *
+ * The large size carries an arrow that steps forward and a light sweep on hover. The
+ * small header size carries neither: the header is chrome, and chrome that moves on
+ * every pass of the pointer is noise.
  *
  * One component for all three placements so the colour and hover can never drift.
  */
@@ -25,6 +30,7 @@ export function WhatsAppCta({
    *  becomes noise. */
   ping?: boolean;
 }) {
+  const large = size === "lg";
   return (
     <span className="relative inline-flex">
       {ping ? (
@@ -38,13 +44,14 @@ export function WhatsAppCta({
         target="_blank"
         rel="noopener noreferrer"
         className={[
-          "relative inline-flex items-center gap-2 rounded-full bg-whatsapp font-medium text-brand-navy",
-          "shadow-lg shadow-whatsapp/25 transition-all hover:bg-whatsapp-hover hover:-translate-y-0.5",
-          size === "lg" ? "px-6 py-3 text-sm" : "px-4 py-2 text-sm",
+          "relative inline-flex items-center gap-2 rounded-full bg-whatsapp font-semibold text-brand-navy",
+          "mk-cta-shadow transition-[transform,background-color,box-shadow] duration-300 hover:-translate-y-0.5 hover:bg-whatsapp-hover",
+          large ? "mk-sheen h-12 pr-5 pl-5 text-[0.95rem]" : "h-9 px-4 text-sm",
         ].join(" ")}
       >
-        <WhatsAppIcon className={size === "lg" ? "size-5" : "size-4"} />
+        <WhatsAppIcon className={large ? "size-5" : "size-4"} />
         {children}
+        {large ? <ArrowRight className="mk-arrow size-4" aria-hidden="true" /> : null}
       </a>
     </span>
   );

@@ -1,4 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
+import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Magnetic } from "./magnetic";
 import { WhatsAppCta } from "./whatsapp-cta";
@@ -8,14 +9,55 @@ import { WhatsAppCta } from "./whatsapp-cta";
  * the feature pages arrived: four pages copying a card component is four places for
  * the hover, the spacing and the contrast fix to drift apart.
  *
- * Everything here is a server component. The only client code on the public site is
- * the theme switch, the nav (for its active state), the hero parallax and Magnetic.
+ * Everything here is a server component. The client code on the public site is the
+ * theme switch, the nav (for its active state), the hero parallax, Magnetic, the
+ * product tour's active-step tracking and the count-up.
+ *
+ * The visual language (tokens, `mk-*` utilities) lives in globals.css under "Marketing
+ * design system". Nothing here hard-codes a colour.
  */
+
+/* ---------------------------------------------------------------- buttons ---- */
+
+/**
+ * The quiet partner to the WhatsApp CTA: a ringed pill with an arrow that steps
+ * forward on hover. A `Link` for in-site routes and a plain `<a>` for anchors and
+ * `mailto:`, since `Link` adds nothing to either.
+ */
+export function SecondaryButton({
+  href,
+  children,
+  icon,
+}: {
+  href: string;
+  children: ReactNode;
+  /** Replaces the trailing arrow with a leading icon, e.g. for "Email us". */
+  icon?: ReactNode;
+}) {
+  const className =
+    "group inline-flex h-12 items-center gap-2 rounded-full bg-card/60 px-5 text-[0.95rem] font-medium text-foreground shadow-[0_0_0_1px_var(--mk-line-strong)] backdrop-blur transition-[background-color,box-shadow,transform] duration-300 hover:-translate-y-0.5 hover:bg-card hover:shadow-[0_0_0_1px_var(--mk-line-strong),var(--mk-shadow)]";
+  const content = (
+    <>
+      {icon}
+      {children}
+      {icon ? null : <ArrowRight className="mk-arrow size-4 text-muted-foreground" aria-hidden="true" />}
+    </>
+  );
+  return href.startsWith("/") && !href.includes("#") ? (
+    <Link href={href} className={className}>
+      {content}
+    </Link>
+  ) : (
+    <a href={href} className={className}>
+      {content}
+    </a>
+  );
+}
 
 /* ------------------------------------------------------------------ cards ---- */
 
 /**
- * The page's one card, used by every feature grid and the three how-it-works steps.
+ * The page's one card, used by every feature grid.
  *
  * Everything moving is on hover, not on a loop: motion that answers the pointer,
  * rather than grids of cards twitching in the corner of the eye.
@@ -41,56 +83,46 @@ export function FeatureCard({
   as?: "article" | "li";
 }) {
   return (
-    <Tag className="group reveal-up relative overflow-hidden rounded-2xl bg-card p-6 ring-1 ring-foreground/10 transition-all hover:-translate-y-1 hover:ring-primary/40">
+    <Tag className="group reveal-up mk-card mk-card-hover overflow-hidden p-7">
+      {/* A soft brand light that rises into the corner on hover. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -top-16 -right-16 size-32 rounded-full bg-primary/15 opacity-0 blur-2xl transition-opacity group-hover:opacity-100"
+        className="pointer-events-none absolute -top-20 -right-20 size-48 rounded-full bg-brand-teal/20 opacity-0 blur-3xl transition-opacity duration-500 group-hover:opacity-100"
       />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover:opacity-100"
-      >
-        <div className="h-full w-1/3 bg-[linear-gradient(90deg,transparent,var(--brand-teal),transparent)] opacity-10 blur-xl motion-safe:group-hover:animate-scan-x" />
-      </div>
 
       <div className="relative flex items-center gap-3">
-        <span className="relative inline-flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary-text ring-1 ring-primary/20 transition-all group-hover:scale-110 group-hover:bg-primary/20 group-hover:ring-primary/40">
+        <span className="relative inline-flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-teal/15 to-brand-blue/5 text-primary-text shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--brand-teal)_28%,transparent)] transition-transform duration-500 group-hover:-rotate-6 group-hover:scale-105">
           <Icon className="size-5" />
           {pingDelay ? (
             <span
               aria-hidden="true"
               style={{ animationDelay: pingDelay }}
-              className="absolute inset-0 rounded-xl ring-2 ring-primary motion-safe:animate-ping-ring motion-reduce:hidden"
+              className="absolute inset-0 rounded-2xl ring-2 ring-primary motion-safe:animate-ping-ring motion-reduce:hidden"
             />
           ) : null}
         </span>
         {eyebrow ? (
-          <span className="font-mono text-xs tracking-widest text-muted-foreground">
-            {eyebrow}
-          </span>
+          <span className="font-mono text-xs tracking-widest text-muted-foreground">{eyebrow}</span>
         ) : null}
       </div>
 
-      <h3 className="relative mt-5 font-heading text-lg font-medium transition-colors group-hover:text-primary-text">
-        {title}
-      </h3>
-      <p className="relative mt-2 text-sm leading-relaxed text-muted-foreground">{body}</p>
+      <h3 className="mk-h3 relative mt-6">{title}</h3>
+      <p className="relative mt-2.5 text-[0.95rem] leading-relaxed text-muted-foreground">{body}</p>
     </Tag>
   );
 }
 
 /* -------------------------------------------------------------- headings ---- */
 
-/** The mono kicker with its blinking caret. Navy in light mode, not primary teal:
- *  teal at this size measured 2.54:1, under the 4.5:1 AA floor for small text. */
-function Eyebrow({ children }: { children: ReactNode }) {
+/** The kicker above a heading: a pill with a softly pulsing brand dot. */
+export function Eyebrow({ children }: { children: ReactNode }) {
   return (
-    <p className="font-mono text-xs tracking-widest text-brand-navy uppercase dark:text-brand-teal">
+    <p className="mk-eyebrow">
+      <span aria-hidden="true" className="relative inline-flex size-1.5">
+        <span className="absolute inset-0 rounded-full bg-brand-teal motion-safe:animate-ping-ring" />
+        <span className="relative size-1.5 rounded-full bg-brand-teal" />
+      </span>
       {children}
-      <span
-        aria-hidden="true"
-        className="ml-1 inline-block h-3 w-1.5 translate-y-px bg-brand-navy motion-safe:animate-pulse dark:bg-brand-teal"
-      />
     </p>
   );
 }
@@ -103,25 +135,16 @@ function Eyebrow({ children }: { children: ReactNode }) {
  * the form, so `text-balance` is deliberately not used. On narrow screens each line
  * wraps within itself, which is fine because each is short.
  *
- * Left-aligned, unlike the centred SectionHeading. Alternating the two is what stops
- * a page reading as one long column of centred blocks.
- *
  * ---------------------------------------------------------------------------
  * WHICH HEADING COMPONENT TO USE
  *
- * Both render an <h2>, at deliberately different sizes, and the difference is
- * EMPHASIS not rank. An audit measured 64px and 36px <h2>s on the same page and
- * flagged it as drift, so the rule is written down here:
+ * Both render an <h2> by default, and the difference is EMPHASIS not rank:
  *
- *   Statement (64px, left)   — the ONE argument a section exists to make. At most
- *                              two per page, never two in a row. Authored line
- *                              breaks; give it `as="h1"` when it opens a page.
- *   SectionHeading (36px)    — the ordinary label on a band of cards or a grid.
- *                              Everything that is not the page's main argument.
+ *   Statement               — the ONE argument a section exists to make. Authored
+ *                             line breaks; give it `as="h1"` when it opens a page.
+ *   SectionHeading          — the ordinary label on a band of cards or a grid.
  *
- * If a page needs a third size, that is a sign the page has too many sections,
- * not that the scale needs another step. Sub-headings inside either belong at
- * <h3> (18px) — see FeatureCard.
+ * Sub-headings inside either belong at <h3> — see FeatureCard.
  * ---------------------------------------------------------------------------
  */
 export function Statement({
@@ -138,35 +161,22 @@ export function Statement({
   /** `h1` on a page's opening statement, `h2` for the rest. */
   as?: "h1" | "h2";
 }) {
-  // A page opener is a step larger than a mid-page statement. Without this both
-  // render from one clamp, so on the feature pages the <h1> and a later <h2> were
-  // pixel-identical at 64px and the page's primary heading had no visual primacy.
-  // The h1 step matches the homepage hero exactly, so every page now opens at the
-  // same size — previously the homepage was 74px and the feature pages 64px.
-  const size =
-    Tag === "h1"
-      ? "text-[clamp(2.6rem,7vw,4.6rem)] leading-[0.95]"
-      : "text-[clamp(2.1rem,5.6vw,4rem)] leading-[0.98]";
+  // A page opener is a step larger than a mid-page statement, so the page's primary
+  // heading always has visual primacy over any later <h2>.
+  const size = Tag === "h1" ? "mk-display" : "mk-h2";
   return (
     <div className="reveal-up max-w-4xl">
       <Eyebrow>{eyebrow}</Eyebrow>
 
-      <Tag className={`mt-5 font-heading ${size} font-semibold tracking-[-0.035em]`}>
+      <Tag className={`mt-6 ${size} [text-wrap:initial]`}>
         {lines.map((line, i) => (
           <span key={line} className="block">
             {/* The last line carries the brand gradient, so the eye lands on the end
                 of the thought rather than the start. */}
-            {i === lines.length - 1 ? (
-              <span className="bg-gradient-to-r from-brand-teal via-brand-blue to-brand-navy bg-clip-text text-transparent dark:to-brand-blue">
-                {line}
-              </span>
-            ) : (
-              line
-            )}
+            {i === lines.length - 1 ? <span className="mk-gradient-text">{line}</span> : line}
             {/* A trailing space on every line but the last. These lines are `block`,
                 so without it the heading's TEXT runs together with no separator, and
-                that is what a screen reader announces and a crawler indexes. The
-                space is invisible at the end of a block, so it costs nothing. */}
+                that is what a screen reader announces and a crawler indexes. */}
             {i < lines.length - 1 ? " " : null}
           </span>
         ))}
@@ -179,11 +189,11 @@ export function Statement({
       {cta ? (
         <a
           href={cta.href}
-          className="group mt-7 inline-flex items-center gap-2 text-sm font-medium text-foreground"
+          className="group mt-8 inline-flex items-center gap-3 text-sm font-semibold text-foreground"
         >
-          {cta.label}
-          <span className="inline-flex size-7 items-center justify-center rounded-full ring-1 ring-foreground/20 transition-all group-hover:bg-primary group-hover:text-primary-foreground group-hover:ring-primary">
-            <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+          <span className="mk-link">{cta.label}</span>
+          <span className="inline-flex size-8 items-center justify-center rounded-full shadow-[0_0_0_1px_var(--mk-line-strong)] transition-all duration-300 group-hover:bg-brand-teal group-hover:text-brand-navy group-hover:shadow-none">
+            <ArrowRight className="size-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
           </span>
         </a>
       ) : null}
@@ -191,23 +201,31 @@ export function Statement({
   );
 }
 
-/** Centred heading, for sections that introduce a grid rather than sit beside art. */
+/**
+ * Heading for sections that introduce a grid rather than sit beside art. Centred by
+ * default; `align="left"` for a section whose content reads left to right, so the
+ * page does not become one long column of centred blocks.
+ */
 export function SectionHeading({
   eyebrow,
   title,
   lede,
+  align = "center",
 }: {
   eyebrow: string;
   title: string;
   lede: string;
+  align?: "center" | "left";
 }) {
   return (
-    <div className="reveal-up mx-auto max-w-2xl text-center">
+    <div className={`reveal-up max-w-3xl ${align === "center" ? "mx-auto text-center" : ""}`}>
       <Eyebrow>{eyebrow}</Eyebrow>
-      <h2 className="mt-4 font-heading text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-        {title}
-      </h2>
-      <p className="mt-5 text-lg text-pretty text-muted-foreground">{lede}</p>
+      <h2 className="mk-h2 mt-6">{title}</h2>
+      <p
+        className={`mt-6 max-w-2xl text-lg leading-relaxed text-pretty text-muted-foreground ${align === "center" ? "mx-auto" : ""}`}
+      >
+        {lede}
+      </p>
     </div>
   );
 }
@@ -215,74 +233,69 @@ export function SectionHeading({
 /* --------------------------------------------------------------- layouts ---- */
 
 /**
- * A feature page's opening: statement on one side, artwork on the other.
- *
- * The words stay FIRST in the DOM and are reordered visually only from `lg` up, so a
- * phone reads heading before illustration — which is also the order a screen reader
- * and a crawler get.
+ * The backdrop every page opens on: a faint circuit grid masked to the top, and the
+ * brand light breathing behind it. One component so the homepage and the feature
+ * pages cannot drift into two slightly different atmospheres.
  */
-export function PageHero({
-  eyebrow,
-  lines,
-  lede,
-  art,
-  artFirst = false,
-}: {
-  eyebrow: string;
-  lines: string[];
-  lede: string;
-  art: ReactNode;
-  /** Put the artwork on the left from `lg` up. */
-  artFirst?: boolean;
-}) {
+export function HeroBackdrop() {
   return (
-    <section data-motion-scope className="relative overflow-hidden">
-      {/* Drifting circuit grid, masked out before it reaches the copy. */}
+    <>
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden [mask-image:radial-gradient(ellipse_at_top,black,transparent_72%)]"
+        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden [mask-image:radial-gradient(ellipse_70%_60%_at_50%_0%,black,transparent)]"
       >
-        <div className="absolute -inset-x-20 -inset-y-20 bg-[linear-gradient(to_right,var(--color-foreground)_1px,transparent_1px),linear-gradient(to_bottom,var(--color-foreground)_1px,transparent_1px)] bg-[size:56px_56px] opacity-[0.04] motion-safe:animate-grid-drift" />
+        <div className="absolute -inset-x-20 -inset-y-20 bg-[linear-gradient(to_right,var(--color-foreground)_1px,transparent_1px),linear-gradient(to_bottom,var(--color-foreground)_1px,transparent_1px)] bg-[size:56px_56px] opacity-[0.05] motion-safe:animate-grid-drift" />
       </div>
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -top-40 left-1/2 -z-10 h-[34rem] w-[64rem] -translate-x-1/2 bg-[radial-gradient(ellipse_at_center,var(--brand-teal)_0%,transparent_65%)] opacity-[0.13] blur-3xl motion-safe:animate-aurora dark:opacity-20"
+        className="pointer-events-none absolute -top-48 left-[55%] -z-10 h-[40rem] w-[72rem] -translate-x-1/2 bg-[radial-gradient(ellipse_at_center,var(--brand-teal)_0%,transparent_62%)] opacity-[0.16] blur-3xl motion-safe:animate-aurora dark:opacity-[0.22]"
       />
-
-      <div className="mx-auto grid w-full max-w-6xl items-center gap-12 px-4 pt-12 pb-14 sm:px-6 lg:grid-cols-2 lg:pt-16">
-        <div className={artFirst ? "lg:order-2" : undefined}>
-          <Statement as="h1" eyebrow={eyebrow} lines={lines} lede={lede} />
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Magnetic>
-              <WhatsAppCta>Book a demo on WhatsApp</WhatsAppCta>
-            </Magnetic>
-          </div>
-        </div>
-        <div className={artFirst ? "lg:order-1" : undefined}>{art}</div>
-      </div>
-    </section>
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute top-40 -left-40 -z-10 h-[28rem] w-[40rem] bg-[radial-gradient(ellipse_at_center,var(--brand-blue)_0%,transparent_65%)] opacity-[0.08] blur-3xl dark:opacity-[0.16]"
+      />
+    </>
   );
 }
 
-/** The band every feature page ends on. */
-export function ClosingBand({ title, lede }: { title: string; lede: string }) {
+/** The band every page ends on: a navy panel with the one call to action. */
+export function ClosingBand({
+  title,
+  lede,
+  secondary,
+}: {
+  title: string;
+  lede: string;
+  /** Optional quieter second action beside the WhatsApp CTA. */
+  secondary?: ReactNode;
+}) {
   return (
-    <section data-motion-scope className="relative overflow-hidden py-12 sm:py-16">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_center,var(--brand-teal)_0%,transparent_62%)] opacity-[0.12] blur-3xl motion-safe:animate-aurora dark:opacity-20"
-      />
-      <div className="reveal-up mx-auto w-full max-w-3xl px-4 text-center sm:px-6">
-        <h2 className="font-heading text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-          {title}
-        </h2>
-        <p className="mx-auto mt-5 max-w-xl text-lg text-pretty text-muted-foreground">
+    <section data-motion-scope className="px-4 py-20 sm:px-6 sm:py-28">
+      <div className="mk-inverse reveal-up ring-1 ring-white/10 relative isolate mx-auto w-full max-w-6xl overflow-hidden rounded-[2rem] px-6 py-16 text-center shadow-[var(--mk-shadow-lift)] sm:px-12 sm:py-24">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]"
+        >
+          <div className="absolute -inset-20 bg-[linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] bg-[size:48px_48px] opacity-[0.05] motion-safe:animate-grid-drift" />
+        </div>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-1/2 left-1/2 -z-10 h-[36rem] w-[56rem] -translate-x-1/2 bg-[radial-gradient(ellipse_at_center,var(--brand-teal)_0%,transparent_60%)] opacity-35 blur-3xl motion-safe:animate-aurora"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-teal/70 to-transparent"
+        />
+
+        <h2 className="mk-h2 mx-auto max-w-3xl">{title}</h2>
+        <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-pretty text-muted-foreground">
           {lede}
         </p>
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
           <Magnetic>
             <WhatsAppCta ping>Book a demo on WhatsApp</WhatsAppCta>
           </Magnetic>
+          {secondary}
         </div>
       </div>
     </section>
