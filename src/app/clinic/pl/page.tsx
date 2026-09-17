@@ -5,7 +5,7 @@ import { Download } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { clinicHasFeature } from "@/core/lib/features";
 import Link from "next/link";
-import { resolveSalesRange } from "@/core/sales/report";
+import { precedingRange, resolveSalesRange } from "@/core/sales/report";
 import { getProfitAndLoss } from "@/core/finance/pl";
 import { getOutstandingTotal } from "@/core/finance/receivables";
 import {
@@ -15,8 +15,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { MultiBarChart } from "@/core/ui/multi-bar-chart";
 import { HBarChart } from "@/core/ui/h-bar-chart";
+import { DonutChart } from "@/core/ui/charts/donut-chart";
+import { ProfitLossChart } from "@/core/ui/charts/profit-loss-chart";
+import { StatCard, InsightLine } from "@/core/ui/charts/stat-card";
+import {
+  pickInsight,
+  profitCrossingInsight,
+  streakInsight,
+} from "@/core/ui/charts/insights";
 import { SalesFilters } from "@/core/ui/report-filters";
 import { PlByPeriodTable } from "./pl-tables";
 
@@ -45,7 +52,9 @@ export default async function ProfitLossPage({
   const sp = await searchParams;
   const range = resolveSalesRange(sp.period, sp.from, sp.to, clinic?.createdAt);
   const [pl, outstanding] = await Promise.all([
-    getProfitAndLoss(clinicId, range),
+    // The preceding window comes back from the same aggregation (ADR-031), so the
+    // deltas on the cards below cost no extra queries.
+    getProfitAndLoss(clinicId, range, { comparedTo: precedingRange(range) }),
     // All-time (point-in-time) receivable — a memo, deliberately NOT in the P&L math.
     getOutstandingTotal(clinicId),
   ]);
@@ -58,17 +67,63 @@ export default async function ProfitLossPage({
   }
 
   const loss = pl.netProfit < 0;
+  // Every card's sparkline is a series the chart below already draws — one figure,
+  // one shape, no second query and nothing that can drift out of step.
+  const revenueTrend = pl.plBuckets.map((b) => b.revenue);
+  const shareTrend = pl.plBuckets.map((b) => b.share);
+  const expenseTrend = pl.plBuckets.map((b) => b.expense);
+  const profitTrend = pl.plBuckets.map((b) => b.profit);
+  const prev = pl.comparison;
+  const unit =
+    range.granularity === "month" ? "month" : range.granularity === "week" ? "week" : "day";
+
   const cards = [
-    { title: "Collected revenue", value: money.format(pl.revenue), note: "Money received" },
-    { title: "Doctor shares", value: `− ${money.format(pl.doctorShares)}`, note: "Earned on collection" },
-    { title: "Expenses", value: `− ${money.format(pl.expenses)}`, note: "Costs incurred" },
+    {
+      title: "Collected revenue",
+      value: money.format(pl.revenue),
+      note: "Money received",
+      trend: revenueTrend,
+      current: pl.revenue,
+      previous: prev?.revenue,
+      higherIsBetter: true,
+    },
+    {
+      title: "Doctor shares",
+      value: `− ${money.format(pl.doctorShares)}`,
+      note: "Earned on collection",
+      trend: shareTrend,
+      current: pl.doctorShares,
+      previous: prev?.doctorShares,
+      // A bigger share bill is not a failure — it rises WITH revenue — so it is left
+      // uncoloured rather than scored as good or bad in either direction.
+      higherIsBetter: true,
+    },
+    {
+      title: "Expenses",
+      value: `− ${money.format(pl.expenses)}`,
+      note: "Costs incurred",
+      trend: expenseTrend,
+      current: pl.expenses,
+      previous: prev?.expenses,
+      higherIsBetter: false,
+    },
     {
       title: loss ? "Net loss" : "Net profit",
       value: money.format(Math.abs(pl.netProfit)),
       note: "Revenue − shares − expenses",
-      tone: loss ? "text-destructive" : "text-success-text",
+      trend: profitTrend,
+      current: pl.netProfit,
+      previous: prev?.netProfit,
+      higherIsBetter: true,
+      tone: (loss ? "bad" : "good") as "bad" | "good",
     },
   ];
+
+  // One observation, and only when the buckets actually support it.
+  const profitInsight = pickInsight(
+    profitCrossingInsight(profitTrend, { unit }),
+    streakInsight(profitTrend, { noun: "Net profit", unit }),
+  );
 
   return (
     <div className="space-y-6">
@@ -98,13 +153,18 @@ export default async function ProfitLossPage({
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((c) => (
-          <Card key={c.title}>
-            <CardHeader>
-              <CardDescription>{c.title}</CardDescription>
-              <CardTitle className={`text-3xl ${c.tone ?? ""}`}>{c.value}</CardTitle>
-              <CardDescription>{c.note}</CardDescription>
-            </CardHeader>
-          </Card>
+          <StatCard
+            key={c.title}
+            label={c.title}
+            value={c.value}
+            hint={c.note}
+            trend={c.trend}
+            current={c.current}
+            previous={c.previous}
+            higherIsBetter={c.higherIsBetter}
+            tone={c.tone}
+            comparisonLabel="vs previous period"
+          />
         ))}
       </div>
 
@@ -121,9 +181,10 @@ export default async function ProfitLossPage({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Revenue, costs &amp; profit over time</CardTitle>
+          <CardTitle className="text-base">Profit &amp; loss over time</CardTitle>
           <CardDescription>
-            Collected revenue split into doctor share, expense and net profit (red on a loss).
+            What was left after doctor shares and expenses. Above the line is profit, below
+            it is loss — hover a period for the figures behind it.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -132,19 +193,21 @@ export default async function ProfitLossPage({
               No activity in this period.
             </p>
           ) : (
-            <MultiBarChart
-              ariaLabel="Revenue, doctor share, expense and net profit over time"
-              points={pl.plBuckets.map((b) => ({
-                label: b.label,
-                values: { revenue: b.revenue, share: b.share, expense: b.expense, profit: b.profit },
-              }))}
-              series={[
-                { key: "revenue", label: "Collected revenue", color: "var(--color-chart-1)" },
-                { key: "share", label: "Doctor share", color: "var(--color-chart-2)" },
-                { key: "expense", label: "Expense", color: "var(--color-chart-4)" },
-                { key: "profit", label: "Net profit", color: "var(--color-chart-1)", status: true },
-              ]}
-            />
+            <>
+              <ProfitLossChart
+                ariaLabel="Net profit or loss over time"
+                points={pl.plBuckets.map((b) => ({
+                  label: b.label,
+                  value: b.profit,
+                  parts: [
+                    { label: "Collected revenue", value: b.revenue },
+                    { label: "Doctor share", value: -b.share },
+                    { label: "Expenses", value: -b.expense },
+                  ],
+                }))}
+              />
+              {profitInsight ? <InsightLine insight={profitInsight} className="mt-4" /> : null}
+            </>
           )}
         </CardContent>
       </Card>
@@ -170,7 +233,13 @@ export default async function ProfitLossPage({
             {pl.byExpenseCategory.length === 0 ? (
               <p className="text-sm text-muted-foreground">No expenses in this period.</p>
             ) : (
-              <HBarChart ariaLabel="Expenses by category" rows={pl.byExpenseCategory.map((c) => ({ label: c.name, value: c.amount }))} />
+              /* Composition, not ranking: these categories ARE the expense total, so
+                 the question is what share each takes of it. */
+              <DonutChart
+                ariaLabel="Expenses by category"
+                centerLabel="Expenses"
+                slices={pl.byExpenseCategory.map((c) => ({ label: c.name, value: c.amount }))}
+              />
             )}
           </CardContent>
         </Card>
@@ -182,7 +251,11 @@ export default async function ProfitLossPage({
             {pl.byDoctor.length === 0 ? (
               <p className="text-sm text-muted-foreground">No doctor shares in this period.</p>
             ) : (
-              <HBarChart ariaLabel="Doctor shares" rows={pl.byDoctor.map((d) => ({ label: d.name, value: d.amount }))} />
+              <HBarChart
+                ariaLabel="Doctor shares"
+                showShare
+                rows={pl.byDoctor.map((d) => ({ label: d.name, value: d.amount }))}
+              />
             )}
           </CardContent>
         </Card>

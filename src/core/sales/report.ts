@@ -152,6 +152,27 @@ export function resolveSalesRange(
   }
 }
 
+/**
+ * The equally-long window immediately BEFORE `range` — the baseline every "vs
+ * previous period" delta is measured against.
+ *
+ * Here rather than at the call sites because a delta and the report it sits on top of
+ * have to agree about what "previous" means. Span-based, not calendar-based: a
+ * 30-day window compares with the 30 days before it, so the comparison is like for
+ * like even when the range is a custom one that starts mid-month. (A calendar
+ * "previous month" would compare a 31-day January with a 28-day February and call the
+ * difference growth.)
+ */
+export function precedingRange(range: ResolvedRange): ResolvedRange {
+  const spanMs = range.end.getTime() - range.start.getTime();
+  return {
+    ...range,
+    period: "custom",
+    start: new Date(range.start.getTime() - spanMs),
+    end: range.start,
+  };
+}
+
 export function startOfBucket(d: Date, g: SalesGranularity): Date {
   const x = new Date(d);
   x.setMilliseconds(0);

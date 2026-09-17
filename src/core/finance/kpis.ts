@@ -4,7 +4,7 @@ import { and, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, users } from "@/core/db/schema";
-import { resolveSalesRange, type ResolvedRange } from "@/core/sales/report";
+import { precedingRange, resolveSalesRange } from "@/core/sales/report";
 import { getProfitAndLoss } from "@/core/finance/pl";
 import { getDoctorBalances } from "@/core/sales/payouts";
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
@@ -50,13 +50,7 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
   const range30 = resolveSalesRange("30d", undefined, undefined);
   // The equally-long window immediately BEFORE range30, for the "vs previous" deltas.
   // Reuses the P&L math verbatim (so a delta can never disagree with the report).
-  const spanMs = range30.end.getTime() - range30.start.getTime();
-  const priorRange: ResolvedRange = {
-    ...range30,
-    period: "custom",
-    start: new Date(range30.start.getTime() - spanMs),
-    end: range30.start,
-  };
+  const priorRange = precedingRange(range30);
 
   // Outstanding receivable = Σ(bill − collected) over completed visits. Shared bill
   // expression with the Receivables report, so the two always reconcile.

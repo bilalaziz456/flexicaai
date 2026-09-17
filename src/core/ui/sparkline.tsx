@@ -1,31 +1,63 @@
+import { closeToBaseline, smoothPath, type Pt } from "@/core/ui/charts/geometry";
+
 /**
- * Sparkline — a tiny, axis-less, word-sized trend chart to sit under a KPI number, so
- * a card shows both "how much" and "which way it's heading". Pure SVG with a fixed
- * viewBox stretched to the card width (`preserveAspectRatio="none"` + a non-scaling
- * stroke keeps the line crisp), so it needs no measuring and renders in a server
- * component. Colour flows from `color` via `currentColor` (line + faint fill).
+ * Sparkline — a word-sized trend to sit under a KPI number, so a card says both "how
+ * much" and "which way". Smooth monotone curve, a fill that fades to nothing, and a
+ * dot on the latest point.
+ *
+ * Deliberately still PURE SVG with no measuring, so it renders in a server component
+ * — that is what lets it sit in the dashboard's cards without turning each one into
+ * a client island. Interaction belongs to the full chart the card links to; a
+ * 32px-tall trace is not a thing you can meaningfully hover a value out of.
+ *
+ * THE LAST POINT IS THE POINT. The old version drew a bare line, which told you the
+ * shape but not where it left you. The dot marks the current value, and `tone="auto"`
+ * colours the whole trace by its direction, so a glance down a column of cards reads
+ * as a set of directions rather than a set of squiggles.
+ *
+ * The gradient id is derived from the colour rather than `useId` (a hook, unavailable
+ * in a server component). Two sparklines of the same colour therefore share one
+ * definition — harmless, because that definition is identical.
  */
 export function Sparkline({
   values,
   color = "var(--color-chart-1)",
+  tone = "fixed",
+  height = 32,
+  showLast = true,
   ariaLabel = "Trend",
 }: {
   values: number[];
   color?: string;
+  /** "auto" colours by direction (up = success, down = destructive). */
+  tone?: "fixed" | "auto";
+  height?: number;
+  showLast?: boolean;
   ariaLabel?: string;
 }) {
   const W = 120;
   const H = 32;
-  const P = 2;
+  const P = 3;
   const vals = values.length ? values : [0, 0];
   const n = vals.length;
-  const max = Math.max(...vals, 0);
+
+  const resolved =
+    tone === "auto"
+      ? vals[n - 1] >= vals[0]
+        ? "var(--color-success)"
+        : "var(--color-destructive)"
+      : color;
+  const gradId = `spark-${resolved.replace(/[^a-z0-9]/gi, "")}`;
+
+  const max = Math.max(...vals);
   const min = Math.min(...vals, 0);
   const range = max - min || 1;
   const x = (i: number) => (n <= 1 ? W / 2 : P + (W - 2 * P) * (i / (n - 1)));
   const y = (v: number) => P + (H - 2 * P) * (1 - (v - min) / range);
-  const line = vals.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
-  const area = `${line} L${x(n - 1).toFixed(1)},${H - P} L${x(0).toFixed(1)},${H - P} Z`;
+
+  const pts: Pt[] = vals.map((v, i) => ({ x: x(i), y: y(v) }));
+  const line = smoothPath(pts);
+  const area = closeToBaseline(line, pts, H);
 
   return (
     <svg
@@ -33,10 +65,16 @@ export function Sparkline({
       preserveAspectRatio="none"
       role="img"
       aria-label={ariaLabel}
-      className="h-8 w-full"
-      style={{ color }}
+      className="w-full"
+      style={{ color: resolved, height }}
     >
-      <path d={area} fill="currentColor" fillOpacity={0.12} />
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="currentColor" stopOpacity={0.28} />
+          <stop offset="100%" stopColor="currentColor" stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#${gradId})`} />
       <path
         d={line}
         fill="none"
@@ -46,6 +84,21 @@ export function Sparkline({
         strokeLinecap="round"
         vectorEffect="non-scaling-stroke"
       />
+      {showLast && n > 1 ? (
+        // `preserveAspectRatio="none"` stretches the viewBox, which would squash a
+        // circle into an ellipse — so the marker is a non-scaling stroked dot: a
+        // zero-length round-capped line keeps its shape whatever the card's width.
+        <line
+          x1={x(n - 1)}
+          y1={y(vals[n - 1])}
+          x2={x(n - 1)}
+          y2={y(vals[n - 1])}
+          stroke="currentColor"
+          strokeWidth={4.5}
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      ) : null}
     </svg>
   );
 }

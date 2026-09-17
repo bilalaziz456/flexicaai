@@ -1820,3 +1820,48 @@ select:-webkit-autofill {
 .dark .select-chevron-sm {
   background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%2394a3b8'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='m7%2015%205%205%205-5'/%3E%3Cpath%20d='m7%209%205-5%205%205'/%3E%3C/svg%3E");
 }
+
+/* ── Chart motion ─────────────────────────────────────────────────────────────
+   Two gestures, used by every chart in `core/ui/charts`, so a figure arrives the
+   same way wherever it is drawn: the line draws itself left to right and the fill
+   rises behind it. Both are one-shot on mount — a chart that keeps moving is a
+   chart nobody can read a number off.
+
+   `stroke-dasharray: 1` with `pathLength="1"` on the <path> normalises the dash to
+   the path's own length, so a 90-day curve and a 6-point one take the same time.
+   Everything sits inside `prefers-reduced-motion: no-preference`: the final frame
+   is the resting state, so with motion reduced the chart simply appears, complete.
+   `will-change` is deliberately absent — these run once, and promoting every chart
+   to its own layer for a 700ms animation costs more than it buys. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes chart-draw {
+    from {
+      stroke-dashoffset: 1;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes chart-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .chart-draw {
+    stroke-dasharray: 1;
+    animation: chart-draw 0.75s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+  .chart-fade-in {
+    animation: chart-fade-in 0.5s 0.15s ease-out both;
+  }
+  /* A bar or an arc grows from its own baseline rather than fading, because a
+     partial bar still reads as a value — so it must never rest at the wrong one. */
+  .chart-grow {
+    animation: chart-fade-in 0.45s ease-out both;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+}
