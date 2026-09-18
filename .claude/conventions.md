@@ -114,7 +114,16 @@ note above it; obvious logic gets none.
   2. **Everything on a card agrees with everything else on it.** The sparkline takes
      the delta's good/bad judgement, not its own direction: colouring by direction
      put a red trace under a green profit figure and a green one under rising
-     expenses.
+     expenses. **The delta outranks `tone`**, which was the same bug wearing a
+     different hat — `tone` is a fact about the LEVEL (net profit is positive, so the
+     figure is green), while the badge and the trace both describe the MOVEMENT, and
+     a card toned "good" drew a green sparkline under a red −95% badge.
+     **A figure with no good direction says so** (`higherIsBetter="neutral"`): the
+     doctor share bill rises WITH revenue, and scoring it left a rising share bill
+     green beside a rising expense line red, both printed as money out — while the
+     dashboard, scoring the same figure the other way, called a FALLING share bill
+     good. The same number was green on two screens for opposite reasons. Neutral
+     still SHOWS the movement; it just does not applaud it.
   3. **An insight must be legible in the chart it sits under** (`insights.ts`). Each
      detector returns null unless the data supports the sentence, including a
      materiality floor — a −126 rupee month on a 40,000 axis is a true loss and an

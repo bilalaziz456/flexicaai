@@ -96,8 +96,10 @@ export default async function ProfitLossPage({
       current: pl.doctorShares,
       previous: prev?.doctorShares,
       // A bigger share bill is not a failure — it rises WITH revenue — so it is left
-      // uncoloured rather than scored as good or bad in either direction.
-      higherIsBetter: true,
+      // uncoloured rather than scored as good or bad in either direction. (This said so
+      // for weeks while passing `true`, which painted a rising share bill GREEN beside a
+      // rising expense line painted RED — the same direction, the same money out.)
+      higherIsBetter: "neutral" as const,
     },
     {
       title: "Expenses",

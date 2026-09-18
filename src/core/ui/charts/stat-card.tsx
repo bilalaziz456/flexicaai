@@ -50,7 +50,13 @@ export function StatCard({
   /** Pass both to get a delta. Omit `previous` (or pass 0) and none is shown. */
   current?: number;
   previous?: number;
-  higherIsBetter?: boolean;
+  /**
+   * `"neutral"` for a figure that genuinely has no good or bad direction — the doctor
+   * share bill rises WITH revenue, so scoring it green for going up put it beside an
+   * expense line scored red for doing the same thing, on the same page, both printed
+   * as money out. The movement is still shown; it is just not applauded.
+   */
+  higherIsBetter?: boolean | "neutral";
   comparisonLabel?: string;
   insight?: Insight | null;
   tone?: "default" | "good" | "bad";
@@ -60,21 +66,30 @@ export function StatCard({
   const pct =
     current != null && previous != null ? percentChange(current, previous) : null;
   const up = pct != null && pct > 0;
-  const good = pct != null && (pct === 0 ? true : up === higherIsBetter);
+  const scored = higherIsBetter !== "neutral";
+  const good = pct != null && scored && (pct === 0 ? true : up === higherIsBetter);
   const Arrow = up ? ArrowUp : ArrowDown;
 
   const hasSignal = Boolean(trend && trend.length > 1 && trend.some((v) => v !== 0));
 
+  /**
+   * The DELTA decides the trace, and it outranks `tone`. Net profit is the case that
+   * proved it: the figure is positive so the card is toned "good" and the number is
+   * green — but profit had fallen 95%, so the badge beside it was red while the
+   * sparkline under it stayed green. `tone` is a fact about the LEVEL (we are in
+   * profit); the badge and the trace both describe the MOVEMENT, and they have to
+   * agree with each other or the card argues with itself.
+   */
   const sparkColor =
-    tone === "good"
-      ? "var(--color-success)"
-      : tone === "bad"
-        ? "var(--color-destructive)"
-        : pct == null
-          ? "var(--color-chart-1)"
-          : good
-            ? "var(--color-success)"
-            : "var(--color-destructive)";
+    pct != null && scored
+      ? good
+        ? "var(--color-success)"
+        : "var(--color-destructive)"
+      : tone === "good" && pct == null
+        ? "var(--color-success)"
+        : tone === "bad" && pct == null
+          ? "var(--color-destructive)"
+          : "var(--color-chart-1)";
 
   return (
     <Card
@@ -106,9 +121,11 @@ export function StatCard({
           <span
             className={cn(
               "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs font-medium tabular-nums",
-              good
-                ? "bg-success/10 text-success-text"
-                : "bg-destructive/10 text-destructive-text",
+              !scored
+                ? "bg-muted text-muted-foreground"
+                : good
+                  ? "bg-success/10 text-success-text"
+                  : "bg-destructive/10 text-destructive-text",
             )}
           >
             <Arrow className="size-3" aria-hidden="true" />

@@ -253,6 +253,10 @@ export default async function ClinicDashboard() {
       ) : null}
 
       {/* Finance KPIs — mirror the P&L cards: Collected − Doctor shares − Expenses =
+          Net profit. The share bill is scored NEUTRAL: this page once called a FALLING
+          share bill good while /clinic/pl called a RISING one good, so the same figure
+          was green on two screens for opposite reasons. It tracks revenue; it is not a
+          win or a loss on its own.
           Net profit (colours match the P&L chart, except Expenses is yellow here).
           Payable-to-doctors + Outstanding live in the stats grid below. */}
       {financeKpis ? (
@@ -263,7 +267,7 @@ export default async function ClinicDashboard() {
             const loss = financeKpis.netProfit30d < 0;
             const kpis = [
               { show: billingKpiOn || financeKpiOn, title: "Collected (30d)", value: fmt(financeKpis.collected30d), note: "Revenue received", href: financeKpiOn ? "/clinic/pl" : "/clinic/sales", tone: "default" as const, trend: financeKpis.collectedTrend, curr: financeKpis.collected30d, prev: financeKpis.collectedPrev30d, up: true },
-              { show: financeKpiOn, title: "Doctor shares (30d)", value: `− ${fmt(financeKpis.doctorShares30d)}`, note: "Earned on collection", href: "/clinic/pl", tone: "default" as const, trend: financeKpis.sharesTrend, curr: financeKpis.doctorShares30d, prev: financeKpis.doctorSharesPrev30d, up: false },
+              { show: financeKpiOn, title: "Doctor shares (30d)", value: `− ${fmt(financeKpis.doctorShares30d)}`, note: "Earned on collection", href: "/clinic/pl", tone: "default" as const, trend: financeKpis.sharesTrend, curr: financeKpis.doctorShares30d, prev: financeKpis.doctorSharesPrev30d, up: "neutral" as const },
               { show: financeKpiOn, title: "Expenses (30d)", value: `− ${fmt(financeKpis.expenses30d)}`, note: "Costs incurred", href: "/clinic/expenses", tone: "default" as const, trend: financeKpis.expenseTrend, curr: financeKpis.expenses30d, prev: financeKpis.expensesPrev30d, up: false },
               { show: financeKpiOn, title: loss ? "Net loss (30d)" : "Net profit (30d)", value: fmt(Math.abs(financeKpis.netProfit30d)), note: "After shares + expenses", href: "/clinic/pl", tone: (loss ? "bad" : "good") as "bad" | "good", trend: financeKpis.profitTrend, curr: financeKpis.netProfit30d, prev: financeKpis.netProfitPrev30d, up: true },
             ].filter((k) => k.show);
