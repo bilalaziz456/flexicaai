@@ -32,6 +32,7 @@ export function SelectField<T extends string>({
   align = "start",
   popupClassName,
   disabled,
+  size = "default",
 }: {
   value: T;
   onValueChange: (next: T) => void;
@@ -43,6 +44,12 @@ export function SelectField<T extends string>({
   align?: "start" | "end";
   popupClassName?: string;
   disabled?: boolean;
+  /**
+   * `sm` is for a control INSIDE a table row. A field-height select in a row makes
+   * the row as tall as a form field, which is how a dense list turns into a stack
+   * of cards — the same reason the button system keeps xs and sm sizes.
+   */
+  size?: "default" | "sm";
 }) {
   // Base UI renders the SELECTED label from this map, so the trigger shows a
   // label rather than the stored code.
@@ -62,7 +69,8 @@ export function SelectField<T extends string>({
           // Height and focus treatment track `Input` exactly — the docblock above says the
           // trigger is the same shell as a field, and it stopped being true the moment
           // the input grew to 36px.
-          "inline-flex h-9 items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] px-3 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/60 data-[popup-open]:border-ring disabled:pointer-events-none disabled:opacity-50",
+          "inline-flex items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/60 data-[popup-open]:border-ring disabled:pointer-events-none disabled:opacity-50",
+          size === "sm" ? "h-7 px-2.5 text-[0.8rem]" : "h-9 px-3 text-sm",
           className,
         )}
       >

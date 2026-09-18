@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { Button } from "@/core/ui/button";
 import { SelectField } from "@/core/ui/select-field";
 import { setAppointmentStatus } from "@/app/clinic/appointments/actions";
 import { useVocabularyOptions } from "@/core/ui/vocabulary-provider";
@@ -40,18 +41,22 @@ export function AppointmentActions({
 
   return (
     <div className="flex items-center gap-1.5">
+      {/* The design-system Button at row size, not a hand-rolled one. As a
+          full-height primary it made every row as tall as a form field and put the
+          loudest colour in the app on every line of the list. */}
       {advance ? (
-        <button
+        <Button
           type="button"
+          size="sm"
           disabled={pending}
           onClick={() => setStatus(advance.status)}
-          className="inline-flex h-9 items-center rounded-lg border border-primary bg-primary px-3.5 text-sm font-medium text-primary-foreground elev-1 transition-colors hover:bg-[color-mix(in_oklch,var(--primary),black_9%)] disabled:pointer-events-none disabled:opacity-50"
         >
           {advance.label}
-        </button>
+        </Button>
       ) : null}
 
       <SelectField
+        size="sm"
         value={status}
         disabled={pending}
         // Re-selecting the current status is a no-op rather than a status write:
