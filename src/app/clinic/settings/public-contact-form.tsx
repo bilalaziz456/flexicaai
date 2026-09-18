@@ -41,7 +41,7 @@ export function PublicContactForm({
       />
 
       <div className="flex items-center gap-3">
-        <Button type="submit" size="sm" variant="outline" disabled={pending || invalid}>
+        <Button type="submit" size="sm" disabled={pending || invalid}>
           {pending ? "Saving…" : "Save"}
         </Button>
         {invalid ? (

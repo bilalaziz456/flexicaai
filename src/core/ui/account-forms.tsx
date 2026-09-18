@@ -30,6 +30,7 @@ import {
   updateMyDiscountApproval,
   type AccountActionState,
 } from "@/core/account/actions";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Button, buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import { Input } from "@/core/ui/input";
@@ -405,13 +406,10 @@ export function DiscountApprovalForm({
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="discountNeedsApproval" value={needsApproval ? "on" : ""} />
       <label className="flex min-h-6 items-center gap-2 text-sm">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={needsApproval}
           ref={syncChecked(needsApproval)}
-          onChange={(e) => setNeedsApproval(e.target.checked)}
-          className="size-4 accent-[var(--color-primary)]"
-        />
+          onCheckedChange={setNeedsApproval} />
         Discounts taken from my share need my approval
       </label>
       <p className="text-xs text-muted-foreground">

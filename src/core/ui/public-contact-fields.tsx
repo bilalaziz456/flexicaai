@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { WEEKDAYS, timeToMinutes } from "@/core/lib/availability";
 import type { ClinicHour } from "@/core/lib/clinic-hours";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Label } from "@/core/ui/label";
 import { TimeSelect } from "@/core/ui/time-select";
 import { syncChecked } from "@/core/ui/checkbox-sync";
@@ -140,13 +141,10 @@ export function PublicContactFields({
                 {/* w-full on a phone: the day name takes its own line, or the time
                     controls overflow the row. */}
                 <label className="flex w-full shrink-0 items-center gap-2 pt-1.5 text-sm sm:w-32">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={day.open}
                     ref={syncChecked(day.open)}
-                    onChange={(e) => patch(d.value, { open: e.target.checked })}
-                    className="size-4 accent-[var(--color-primary)]"
-                  />
+                    onCheckedChange={(next) => patch(d.value, { open: next })} />
                   <span className="font-medium">{d.label}</span>
                 </label>
 

@@ -139,11 +139,17 @@ note above it; obvious logic gets none.
      invisible one, and a line that appears to contradict its own chart costs more
      trust than it adds. They are computed, so they are never labelled AI.
 - **Shared UI primitives live in `core/ui`, and there is exactly one of each.** The
-  set is `Button` · `Input` / `Textarea` / `SelectField` / `RadioGroup` / `Switch` /
-  `DatePicker`, all wrapped by **`Field`** (label + hint + error, with the a11y wiring
+  set is `Button` · `Input` / `Textarea` / `SelectField` / `RadioGroup` / `Checkbox` /
+  `Switch` / `DatePicker`, all wrapped by **`Field`** (label + hint + error, with the a11y wiring
   done for you) · `Dialog` · `Tooltip` · `Tabs` · `DataTable` · `EmptyState` ·
   `Card` · the `charts/` set. Reach for the primitive; if it does not fit, change the
   primitive.
+  **`Checkbox` vs `Switch` is not cosmetic**: a checkbox is a value you are about to
+  SUBMIT, a switch is a state you are CHANGING now. Twenty raw `<input type="checkbox">`
+  elements were styled with `accent-color`, which cannot carry a focus ring, an
+  indeterminate mark, or a border that reads on a dark ground — and they did not agree
+  with each other (`--primary` in eight, `--color-primary` in twelve, two sizes). One
+  toggle had gone the other way and hand-rolled a copy of the Switch markup.
   **The failure mode this exists to stop is copying markup.** Seven files had grown
   their own copy of the Base UI `Select` trigger/popup, five their own dialog backdrop,
   and the two components meant to be canonical had two consumers between them — so a

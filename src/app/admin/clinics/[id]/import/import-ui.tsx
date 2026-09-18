@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Download, FileUp, Upload } from "lucide-react";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Button, buttonVariants } from "@/core/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/core/ui/card";
 import { TableCard } from "@/core/ui/table-card";
@@ -314,7 +315,7 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
           {/* The one bridge to live data — opt-in, payments pass only. */}
           {entity === "fin_payment" ? (
             <label className="mt-3 flex items-start gap-2 rounded-md border well p-3 text-sm">
-              <input type="checkbox" className="mt-0.5" checked={deriveBalance} onChange={(e) => setDeriveBalance(e.target.checked)} />
+              <Checkbox className="mt-0.5" checked={deriveBalance} onCheckedChange={setDeriveBalance} />
               <span>
                 <span className="font-medium">Set each patient&apos;s outstanding balance from this history</span>
                 <span className="block text-xs text-muted-foreground">

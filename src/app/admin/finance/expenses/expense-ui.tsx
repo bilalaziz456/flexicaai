@@ -10,6 +10,7 @@ import {
   toggleCompanyCategoryAction,
   type ExpenseActionState,
 } from "./actions";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { Input } from "@/core/ui/input";
@@ -139,7 +140,7 @@ export function CompanyExpenseForm({
       <div className="flex flex-wrap items-center gap-4">
         <Button type="submit" disabled={pending}>{pending ? "Saving…" : isEdit ? "Save changes" : "Add expense"}</Button>
         <label className="flex min-h-6 items-center gap-2 text-sm">
-          <input type="checkbox" name="recurring" defaultChecked={!!expense?.recurrence} className="size-4 accent-[var(--color-primary)]" />
+          <Checkbox name="recurring" defaultChecked={!!expense?.recurrence} />
           Recurring cost
         </label>
         <select

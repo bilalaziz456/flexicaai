@@ -8,6 +8,7 @@ import {
   filterFieldCls,
   filterLabelCls,
 } from "@/core/ui/report-filters";
+import { Checkbox } from "@/core/ui/checkbox";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 import { Label } from "@/core/ui/label";
 import { Input } from "@/core/ui/input";
@@ -139,12 +140,9 @@ export function ExpensesFilters({
         }}
       />
       <label className="flex items-center gap-2 pb-1.5 text-sm">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={deleted}
-          onChange={(e) => push({ deleted: e.target.checked })}
-          className="size-4 accent-[var(--color-primary)]"
-        />
+          onCheckedChange={(next) => push({ deleted: next })} />
         Trash
       </label>
     </div>

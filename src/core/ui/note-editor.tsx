@@ -1,5 +1,6 @@
 "use client";
 
+import { Checkbox } from "@/core/ui/checkbox";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { Button } from "@/core/ui/button";
@@ -35,12 +36,9 @@ function PrimitiveField({
 }) {
   if (typeof value === "boolean") {
     return (
-      <input
-        type="checkbox"
+      <Checkbox
         checked={value}
-        onChange={(e) => onChange(e.target.checked)}
-        className="size-4 accent-primary outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-      />
+        onCheckedChange={onChange} className="accent-primary outline-none focus-visible:ring-3 focus-visible:ring-ring/50" />
     );
   }
   const str = value === null || value === undefined ? "" : String(value);

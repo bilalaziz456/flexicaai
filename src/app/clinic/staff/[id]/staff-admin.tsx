@@ -9,6 +9,7 @@ import {
   updateStaffProfile,
   type ClinicActionState,
 } from "@/app/clinic/actions";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
 import { Input } from "@/core/ui/input";
@@ -273,13 +274,10 @@ export function DoctorSharesForm({
       <div className="space-y-2 border-t pt-4">
         <input type="hidden" name="discountNeedsApproval" value={needsApproval ? "on" : ""} />
         <label className="flex min-h-6 items-center gap-2 text-sm">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={needsApproval}
             ref={syncChecked(needsApproval)}
-            onChange={(e) => setNeedsApproval(e.target.checked)}
-            className="size-4 accent-[var(--color-primary)]"
-          />
+            onCheckedChange={setNeedsApproval} />
           Discounts taken from this doctor&apos;s share need their approval
         </label>
         <p className="text-xs text-muted-foreground">

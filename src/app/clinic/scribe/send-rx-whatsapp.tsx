@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { MessageCircle } from "lucide-react";
+import { Check, MessageCircle } from "lucide-react";
+import { Button } from "@/core/ui/button";
 import { sendPrescriptionToWhatsApp } from "@/app/clinic/scribe/actions";
 
 /** Sends the visit's prescription to the patient on WhatsApp (approved visits). */
@@ -24,19 +25,27 @@ export function SendRxWhatsApp({ visitId }: { visitId: string }) {
   }
 
   if (state === "sent") {
-    return <span className="text-xs text-success-text">Sent ✓</span>;
+    // Stays the size of the button it replaces, so the row does not reflow the moment
+    // the send lands — the one time the reader is looking straight at it.
+    return (
+      <span className="inline-flex h-8 items-center gap-1 px-2 text-xs font-medium text-success-text">
+        <Check className="size-3.5" aria-hidden="true" />
+        Sent
+      </span>
+    );
   }
 
   return (
-    <button
+    <Button
       type="button"
+      size="sm"
+      variant="outline"
       onClick={send}
       disabled={pending}
       title={error ?? "Send to patient on WhatsApp"}
-      className="inline-flex items-center gap-1 text-primary-text underline underline-offset-4 disabled:opacity-50"
     >
-      <MessageCircle className="size-3.5" aria-hidden="true" />
+      <MessageCircle aria-hidden="true" />
       {pending ? "Sending…" : state === "error" ? "Retry" : "WhatsApp"}
-    </button>
+    </Button>
   );
 }

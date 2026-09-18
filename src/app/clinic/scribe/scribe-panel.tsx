@@ -16,6 +16,10 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { ScribeWorkspace } from "@/app/clinic/scribe/scribe-workspace";
+import { FileText, Stethoscope } from "lucide-react";
+import { buttonVariants } from "@/core/ui/button";
+import { EmptyState } from "@/core/ui/empty-state";
+import { cn } from "@/core/lib/utils";
 import { SendRxWhatsApp } from "@/app/clinic/scribe/send-rx-whatsapp";
 
 /**
@@ -90,11 +94,16 @@ export async function ScribePanel({
           </CardHeader>
           <CardContent>
             {recentVisits.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No visits yet.</p>
+              <EmptyState
+                compact
+                icon={Stethoscope}
+                title="No visits yet"
+                description="Approved notes appear here, newest first, with a prescription to reprint."
+              />
             ) : (
-              <ul className="divide-y">
+              <ul className="divide-y divide-border/60">
                 {recentVisits.map((v) => (
-                  <li key={v.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                  <li key={v.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2.5 text-sm">
                     <span className="min-w-0 flex-1 truncate font-medium">
                       {v.patientName}
                     </span>
@@ -106,15 +115,20 @@ export async function ScribePanel({
                               href={`/api/prescriptions/${v.id}`}
                               target="_blank"
                               rel="noopener"
-                              className="text-primary-text underline underline-offset-4"
+                              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
                             >
+                              <FileText aria-hidden="true" />
                               Prescription
                             </a>
                           ) : null}
                           {canSendRx ? <SendRxWhatsApp visitId={v.id} /> : null}
                         </>
                       ) : null}
-                      <span className="hidden sm:inline">
+                      {/* Fixed width and tabular figures: the date is the only
+                          variable-width cell between the buttons and the badge, so
+                          without this "8/29/2026" and "9/8/2026" shunted the action
+                          buttons to two different x-positions down the list. */}
+                      <span className="hidden w-[5.5rem] shrink-0 text-right tabular-nums sm:inline">
                         {v.visitDate.toLocaleDateString()}
                       </span>
                       <Badge variant={v.status === "approved" ? "default" : "secondary"}>

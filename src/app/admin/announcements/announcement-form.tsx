@@ -6,6 +6,7 @@ import {
   updateAnnouncementAction,
   type AnnouncementActionState,
 } from "./actions";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { DatePicker } from "@/core/ui/date-picker";
@@ -242,13 +243,10 @@ export function AnnouncementForm({
             <label key={role} className="flex items-center gap-2 text-sm">
               {/* Uncontrolled: the checkboxes ARE the field, and nothing re-renders them
                   except an error, where the user's own ticks must stand. */}
-              <input
-                type="checkbox"
+              <Checkbox
                 name="audience"
                 value={role}
-                defaultChecked={roleChecked(role)}
-                className="size-4 accent-[var(--primary)]"
-              />
+                defaultChecked={roleChecked(role)} />
               {labelFrom(roles, role)}
             </label>
           ))}
@@ -314,11 +312,9 @@ export function AnnouncementForm({
                     {/* Deliberately NOT a form field (no `name`) — the hidden inputs
                         above carry the selection. Filtering unmounts rows, and an
                         unmounted checkbox would take its tick with it. */}
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={picked.has(c.id)}
-                      onChange={() => toggle(c.id)}
-                      className="size-4 accent-[var(--primary)]"
+                      onCheckedChange={() => toggle(c.id)}
                     />
                     {c.name}
                   </label>

@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { createPatient, type ClinicActionState } from "@/app/clinic/actions";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { PhoneInput } from "@/core/ui/phone-input";
@@ -75,11 +76,8 @@ export function AddPatientForm() {
       </div>
 
       <label className="flex items-center gap-2 text-sm text-muted-foreground">
-        <input
-          type="checkbox"
-          name="dataConsent"
-          className="size-4 accent-[var(--primary)]"
-        />
+        <Checkbox
+          name="dataConsent" />
         Patient consents to their data being stored and used for care.
       </label>
 

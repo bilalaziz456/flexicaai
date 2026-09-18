@@ -9,6 +9,7 @@ import {
   updateProcedure,
   type ProcedureActionState,
 } from "@/app/clinic/procedures/procedure-actions";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { Card, CardContent } from "@/core/ui/card";
 import { EmptyState } from "@/core/ui/empty-state";
@@ -175,14 +176,11 @@ function ProcedureRow({
         required
       />
       <label className="flex min-h-6 items-center gap-2 text-sm">
-        <input
+        <Checkbox
           key={`a-${procedure.isActive}`}
-          type="checkbox"
           name="isActive"
           defaultChecked={procedure.isActive}
-          disabled={!perms.edit}
-          className="size-4 accent-[var(--primary)]"
-        />
+          disabled={!perms.edit} />
         Active
       </label>
       {perms.edit ? (

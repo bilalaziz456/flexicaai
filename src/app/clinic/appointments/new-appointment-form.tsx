@@ -11,6 +11,7 @@ import {
   type DoctorDaySlots,
   type ReceptionActionState,
 } from "@/app/clinic/appointments/actions";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { DatePicker } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
@@ -433,13 +434,10 @@ export function NewAppointmentForm({
                 to do something it isn't doing. */}
             {doctorId && !selectedDoctor?.flexibleHours ? (
               <label className="flex min-h-6 cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  className="size-3.5 accent-[var(--primary)]"
+                <Checkbox
                   checked={customTime}
                   ref={syncChecked(customTime)}
-                  onChange={(e) => setCustomTime(e.target.checked)}
-                />
+                  onCheckedChange={setCustomTime} />
                 Custom time (outside visiting hours)
               </label>
             ) : null}
@@ -559,13 +557,10 @@ export function NewAppointmentForm({
             {consultationFee > 0 ? (
               <>
                 <label className="flex min-h-6 items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={chargeConsultation}
                     ref={syncChecked(chargeConsultation)}
-                    onChange={(e) => setChargeConsultation(e.target.checked)}
-                    className="size-4 accent-[var(--color-primary)]"
-                  />
+                    onCheckedChange={setChargeConsultation} />
                   Charge this consultation fee
                 </label>
                 <p className="text-xs text-muted-foreground">
@@ -596,11 +591,10 @@ export function NewAppointmentForm({
                 const checked = planItemSel.has(it.id);
                 return (
                   <label key={it.id} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={checked}
                       ref={syncChecked(checked)}
-                      onChange={() =>
+                      onCheckedChange={() =>
                         setPlanItemSel((prev) => {
                           const next = new Set(prev);
                           if (next.has(it.id)) next.delete(it.id);
@@ -608,7 +602,6 @@ export function NewAppointmentForm({
                           return next;
                         })
                       }
-                      className="size-4 accent-[var(--color-primary)]"
                     />
                     <span>
                       {it.name}

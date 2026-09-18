@@ -1,4 +1,7 @@
+import { CalendarCheck } from "lucide-react";
 import { Badge } from "@/core/ui/badge";
+import { Card, CardContent } from "@/core/ui/card";
+import { EmptyState } from "@/core/ui/empty-state";
 import type { QueueSession } from "@/core/appointments/queue";
 import { statusVariant } from "@/core/appointments/status";
 import { QueueAdvanceButton } from "@/app/clinic/scribe/queue-advance-button";
@@ -15,10 +18,20 @@ const timeFmt = (d: Date) =>
  */
 export function DoctorQueue({ sessions }: { sessions: QueueSession[] }) {
   if (sessions.length === 0) {
+    // It used to be a bare line of muted text between the page header and the first
+    // card — the only thing on the page not sitting on a surface, which read as a
+    // stray sentence rather than as this section's answer.
     return (
-      <p className="text-sm text-muted-foreground">
-        No booked patients in your queue today.
-      </p>
+      <Card>
+        <CardContent className="p-0">
+          <EmptyState
+            compact
+            icon={CalendarCheck}
+            title="Nothing booked today"
+            description="Patients booked with you appear here in the order they arrive. You can still record a visit for anyone below."
+          />
+        </CardContent>
+      </Card>
     );
   }
 

@@ -1,12 +1,14 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { Check, X } from "lucide-react";
+import { Check, CheckCircle2, X } from "lucide-react";
 import {
   decideApproval,
   updateClinicDiscountPolicy,
   type ApprovalActionState,
 } from "./actions";
+import { Checkbox } from "@/core/ui/checkbox";
+import { EmptyState } from "@/core/ui/empty-state";
 import { Button } from "@/core/ui/button";
 import { Toast } from "@/core/ui/toast";
 import { syncChecked } from "@/core/ui/checkbox-sync";
@@ -37,13 +39,10 @@ export function ClinicDiscountPolicy({ initial }: { initial: boolean }) {
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="requireApproval" value={on ? "on" : ""} />
       <label className="flex min-h-6 items-center gap-2 text-sm">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={on}
           ref={syncChecked(on)}
-          onChange={(e) => setOn(e.target.checked)}
-          className="size-4 accent-[var(--color-primary)]"
-        />
+          onCheckedChange={setOn} />
         Clinic-borne discounts need approval before they apply
       </label>
       <p className="text-xs text-muted-foreground">
@@ -132,7 +131,12 @@ function ApprovalRow({ item }: { item: QueueItem }) {
 export function ApprovalQueue({ items }: { items: QueueItem[] }) {
   if (items.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">No discounts are awaiting approval.</p>
+      <EmptyState
+        icon={CheckCircle2}
+        compact
+        title="Nothing awaiting approval"
+        description="Discounts that need a sign-off appear here. Right now every one has been decided."
+      />
     );
   }
   return (

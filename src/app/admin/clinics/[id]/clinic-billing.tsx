@@ -15,6 +15,7 @@ import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { DataTable, type Column } from "@/core/ui/data-table";
 import { DatePicker } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
+import { Switch } from "@/core/ui/switch";
 import { Label } from "@/core/ui/label";
 import { SavedToast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
@@ -134,8 +135,7 @@ export function ClinicBilling({
   const [noticeOn, setNoticeOn] = useState(paymentNoticeEnabled);
   const [togglingNotice, startNotice] = useTransition();
   const [noticeErr, setNoticeErr] = useState<string | null>(null);
-  const toggleNotice = () => {
-    const next = !noticeOn;
+  const toggleNotice = (next: boolean) => {
     setNoticeOn(next);
     setNoticeErr(null);
     startNotice(async () => {
@@ -239,25 +239,17 @@ export function ClinicBilling({
             </p>
             {noticeErr ? <p className="mt-1 text-xs text-destructive" role="alert">{noticeErr}</p> : null}
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={noticeOn}
-            aria-label="Show payment-due notice to clinic staff"
+          {/* Was a hand-rolled copy of the Switch primitive's markup, at its own size
+              and with its own focus ring — the exact duplication core/ui exists to
+              stop. This toggle takes effect immediately, so a switch is the right
+              control; only the copy was wrong. */}
+          <Switch
+            checked={noticeOn}
+            onCheckedChange={toggleNotice}
             disabled={togglingNotice}
-            onClick={toggleNotice}
-            className={cn(
-              "relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60",
-              noticeOn ? "bg-primary" : "bg-input",
-            )}
-          >
-            <span
-              className={cn(
-                "inline-block size-5 rounded-full bg-white shadow transition-transform",
-                noticeOn ? "translate-x-5" : "translate-x-0.5",
-              )}
-            />
-          </button>
+            aria-label="Show payment-due notice to clinic staff"
+            className="mt-0.5"
+          />
         </div>
       ) : null}
 

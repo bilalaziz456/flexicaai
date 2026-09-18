@@ -10,6 +10,7 @@ import {
   toggleCategoryAction,
   type ExpenseActionState,
 } from "./expense-actions";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
@@ -114,7 +115,7 @@ export function AddExpenseForm({
       <div className="flex flex-wrap items-center gap-4">
         <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Add expense"}</Button>
         <label className="flex min-h-6 items-center gap-2 text-sm">
-          <input type="checkbox" name="recurring" className="size-4 accent-[var(--color-primary)]" />
+          <Checkbox name="recurring" />
           Recurring cost
         </label>
         <select
@@ -195,7 +196,7 @@ export function CategoryManager({
           <Label htmlFor="cat-name" className="text-xs text-muted-foreground">New category</Label>
           <Input id="cat-name" name="name" placeholder="e.g. Equipment" className="h-8 w-48" />
         </div>
-        <Button type="submit" size="sm" variant="outline" disabled={pending}>Add</Button>
+        <Button type="submit" size="sm" disabled={pending}>Add</Button>
       </form>
       <ul className="flex flex-wrap gap-2">
         {categories.map((c) => (

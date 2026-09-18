@@ -7,6 +7,7 @@ import {
   updatePatient,
   type ClinicActionState,
 } from "@/app/clinic/actions";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
 import { Input } from "@/core/ui/input";
@@ -132,12 +133,9 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
       </div>
 
       <label className="flex items-center gap-2 text-sm text-muted-foreground">
-        <input
-          type="checkbox"
+        <Checkbox
           name="dataConsent"
-          defaultChecked={patient.dataConsent}
-          className="size-4 accent-[var(--primary)]"
-        />
+          defaultChecked={patient.dataConsent} />
         Patient consents to their data being stored and used for care.
       </label>
 

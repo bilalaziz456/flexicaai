@@ -1,6 +1,7 @@
 "use client";
 
 import { downscaleImage } from "@/core/lib/image-resize";
+import { Checkbox } from "@/core/ui/checkbox";
 import { EmptyState } from "@/core/ui/empty-state";
 
 import { useRef, useState, useTransition } from "react";
@@ -101,7 +102,7 @@ export function AttachmentsCard({
       {/* Photo-consent state */}
       {canUpload ? (
         <label className="flex min-h-6 items-center gap-2 text-sm">
-          <input type="checkbox" checked={photoConsent} onChange={toggleConsent} disabled={pending} className="size-4 accent-[var(--color-primary)]" />
+          <Checkbox checked={photoConsent} onCheckedChange={toggleConsent} disabled={pending} />
           Patient consents to clinical photos
           {!photoConsent ? <span className="text-xs text-muted-foreground">(required to upload photos)</span> : null}
         </label>
