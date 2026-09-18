@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Select } from "@base-ui/react/select";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { SelectField } from "@/core/ui/select-field";
+import { ChevronsUpDown } from "lucide-react";
 import { Label } from "@/core/ui/label";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 
@@ -27,9 +27,6 @@ function FilterSelect({
   disabled?: boolean;
   placeholder?: string;
 }) {
-  const items: Record<string, string> = Object.fromEntries(
-    options.map((o) => [o.value, o.label]),
-  );
   if (disabled) {
     // e.g. the employee filter before a clinic is chosen — a non-interactive
     // trigger showing the hint, so the dependency is obvious.
@@ -37,7 +34,7 @@ function FilterSelect({
       <div
         aria-label={ariaLabel}
         aria-disabled="true"
-        className={`inline-flex h-8 ${width} cursor-not-allowed items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-3.5 text-sm text-muted-foreground opacity-70`}
+        className={`inline-flex h-9 ${width} cursor-not-allowed items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] px-3 text-sm text-muted-foreground opacity-70`}
       >
         <span className="truncate">{placeholder ?? "—"}</span>
         <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" aria-hidden="true" />
@@ -45,41 +42,14 @@ function FilterSelect({
     );
   }
   return (
-    <Select.Root
-      items={items}
+    <SelectField
       value={value}
-      onValueChange={(next) => onChange((next as string | null) ?? "")}
-    >
-      <Select.Trigger
-        aria-label={ariaLabel}
-        className={`inline-flex h-8 ${width} items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-3.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-ring`}
-      >
-        <Select.Value />
-        <Select.Icon>
-          <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" aria-hidden="true" />
-        </Select.Icon>
-      </Select.Trigger>
-      <Select.Portal>
-        <Select.Positioner side="bottom" align="start" sideOffset={4} className="z-50">
-          <Select.Popup className="z-50 max-h-72 min-w-48 overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none">
-            {options.map((o) => (
-              <Select.Item
-                key={o.value}
-                value={o.value}
-                className="flex cursor-default select-none items-center gap-2 rounded-md py-1.5 pl-2 pr-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
-              >
-                <span className="flex w-4 shrink-0 items-center justify-center">
-                  <Select.ItemIndicator>
-                    <Check className="size-3.5" aria-hidden="true" />
-                  </Select.ItemIndicator>
-                </span>
-                <Select.ItemText>{o.label}</Select.ItemText>
-              </Select.Item>
-            ))}
-          </Select.Popup>
-        </Select.Positioner>
-      </Select.Portal>
-    </Select.Root>
+      onValueChange={onChange}
+      options={options}
+      ariaLabel={ariaLabel}
+      className={width}
+      popupClassName="max-h-72 overflow-y-auto min-w-48"
+    />
   );
 }
 

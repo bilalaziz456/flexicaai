@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Select } from "@base-ui/react/select";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { FilterSelect } from "@/core/ui/report-filters";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
@@ -55,9 +54,6 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "cancelled", label: "Cancelled" },
   { value: "no_show", label: "No-show" },
 ];
-const STATUS_LABELS: Record<string, string> = Object.fromEntries(
-  STATUS_OPTIONS.map((o) => [o.value, o.label]),
-);
 
 const PAYMENT_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "Any payment" },
@@ -65,9 +61,6 @@ const PAYMENT_OPTIONS: { value: string; label: string }[] = [
   { value: "partial", label: "Partially paid" },
   { value: "unpaid", label: "Unpaid" },
 ];
-const PAYMENT_LABELS: Record<string, string> = Object.fromEntries(
-  PAYMENT_OPTIONS.map((o) => [o.value, o.label]),
-);
 
 const TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "Any type" },
@@ -75,9 +68,6 @@ const TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "procedure", label: "Procedure" },
   { value: "both", label: "Both" },
 ];
-const TYPE_LABELS: Record<string, string> = Object.fromEntries(
-  TYPE_OPTIONS.map((o) => [o.value, o.label]),
-);
 
 /**
  * Date-range + text filter bar for the appointment lists (clinic + reception).
@@ -231,135 +221,39 @@ export function AppointmentFilters({
           }}
         />
       ) : null}
-      <div className={fieldCls}>
-        <Label className={labelCls}>Status</Label>
-        <Select.Root
-          items={STATUS_LABELS}
-          value={statusV}
-          onValueChange={(next) => {
-            const v = (next as string | null) ?? "";
-            setStatusV(v);
-            push({ status: v });
-          }}
-        >
-          <Select.Trigger
-            aria-label="Filter by status"
-            className="inline-flex h-8 w-44 items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-3.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-ring"
-          >
-            <Select.Value />
-            <Select.Icon>
-              <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" aria-hidden="true" />
-            </Select.Icon>
-          </Select.Trigger>
-          <Select.Portal>
-            <Select.Positioner side="bottom" align="start" sideOffset={4} className="z-50">
-              <Select.Popup className="z-50 min-w-40 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none">
-                {STATUS_OPTIONS.map((o) => (
-                  <Select.Item
-                    key={o.value}
-                    value={o.value}
-                    className="flex cursor-default select-none items-center gap-2 rounded-md py-1.5 pl-2 pr-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
-                  >
-                    <span className="flex w-4 shrink-0 items-center justify-center">
-                      <Select.ItemIndicator>
-                        <Check className="size-3.5" aria-hidden="true" />
-                      </Select.ItemIndicator>
-                    </span>
-                    <Select.ItemText>{o.label}</Select.ItemText>
-                  </Select.Item>
-                ))}
-              </Select.Popup>
-            </Select.Positioner>
-          </Select.Portal>
-        </Select.Root>
-      </div>
+      <FilterSelect
+        label="Status"
+        ariaLabel="Filter by status"
+        value={statusV}
+        options={STATUS_OPTIONS}
+        onChange={(v) => {
+          setStatusV(v);
+          push({ status: v });
+        }}
+      />
 
-      <div className={fieldCls}>
-        <Label className={labelCls}>Type</Label>
-        <Select.Root
-          items={TYPE_LABELS}
-          value={typeV}
-          onValueChange={(next) => {
-            const v = (next as string | null) ?? "";
-            setTypeV(v);
-            push({ type: v });
-          }}
-        >
-          <Select.Trigger
-            aria-label="Filter by visit type"
-            className="inline-flex h-8 w-44 items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-3.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-ring"
-          >
-            <Select.Value />
-            <Select.Icon>
-              <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" aria-hidden="true" />
-            </Select.Icon>
-          </Select.Trigger>
-          <Select.Portal>
-            <Select.Positioner side="bottom" align="start" sideOffset={4} className="z-50">
-              <Select.Popup className="z-50 min-w-40 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none">
-                {TYPE_OPTIONS.map((o) => (
-                  <Select.Item
-                    key={o.value}
-                    value={o.value}
-                    className="flex cursor-default select-none items-center gap-2 rounded-md py-1.5 pl-2 pr-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
-                  >
-                    <span className="flex w-4 shrink-0 items-center justify-center">
-                      <Select.ItemIndicator>
-                        <Check className="size-3.5" aria-hidden="true" />
-                      </Select.ItemIndicator>
-                    </span>
-                    <Select.ItemText>{o.label}</Select.ItemText>
-                  </Select.Item>
-                ))}
-              </Select.Popup>
-            </Select.Positioner>
-          </Select.Portal>
-        </Select.Root>
-      </div>
+      <FilterSelect
+        label="Type"
+        ariaLabel="Filter by visit type"
+        value={typeV}
+        options={TYPE_OPTIONS}
+        onChange={(v) => {
+          setTypeV(v);
+          push({ type: v });
+        }}
+      />
 
       {showPayment ? (
-        <div className={fieldCls}>
-          <Label className={labelCls}>Payment</Label>
-          <Select.Root
-            items={PAYMENT_LABELS}
-            value={paymentV}
-            onValueChange={(next) => {
-              const v = (next as string | null) ?? "";
-              setPaymentV(v);
-              push({ payment: v });
-            }}
-          >
-            <Select.Trigger
-              aria-label="Filter by payment"
-              className="inline-flex h-8 w-44 items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-3.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-ring"
-            >
-              <Select.Value />
-              <Select.Icon>
-                <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" aria-hidden="true" />
-              </Select.Icon>
-            </Select.Trigger>
-            <Select.Portal>
-              <Select.Positioner side="bottom" align="start" sideOffset={4} className="z-50">
-                <Select.Popup className="z-50 min-w-40 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none">
-                  {PAYMENT_OPTIONS.map((o) => (
-                    <Select.Item
-                      key={o.value}
-                      value={o.value}
-                      className="flex cursor-default select-none items-center gap-2 rounded-md py-1.5 pl-2 pr-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
-                    >
-                      <span className="flex w-4 shrink-0 items-center justify-center">
-                        <Select.ItemIndicator>
-                          <Check className="size-3.5" aria-hidden="true" />
-                        </Select.ItemIndicator>
-                      </span>
-                      <Select.ItemText>{o.label}</Select.ItemText>
-                    </Select.Item>
-                  ))}
-                </Select.Popup>
-              </Select.Positioner>
-            </Select.Portal>
-          </Select.Root>
-        </div>
+        <FilterSelect
+          label="Payment"
+          ariaLabel="Filter by payment"
+          value={paymentV}
+          options={PAYMENT_OPTIONS}
+          onChange={(v) => {
+            setPaymentV(v);
+            push({ payment: v });
+          }}
+        />
       ) : null}
 
       <div className={`${fieldCls} min-w-40 flex-1`}>
