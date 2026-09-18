@@ -30,14 +30,18 @@ export function EmptyState({
         className,
       )}
     >
+      {/* A dashed ring rather than a filled disc: an empty state is an outline of
+          something that is not there yet, and a solid chip reads as a real object. */}
       {Icon ? (
-        <div className="mb-1 flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <div className="mb-2 flex size-12 items-center justify-center rounded-full border border-dashed border-border bg-surface-sunken text-muted-foreground">
           <Icon className="size-5" aria-hidden="true" />
         </div>
       ) : null}
-      <p className="text-sm font-medium">{title}</p>
-      {description ? <p className="max-w-sm text-sm text-muted-foreground">{description}</p> : null}
-      {action ? <div className="mt-2">{action}</div> : null}
+      <p className="font-display text-sm font-semibold tracking-[-0.01em]">{title}</p>
+      {description ? (
+        <p className="max-w-xs text-xs leading-relaxed text-muted-foreground">{description}</p>
+      ) : null}
+      {action ? <div className="mt-3">{action}</div> : null}
     </div>
   );
 }

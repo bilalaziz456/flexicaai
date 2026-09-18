@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { EmptyState } from "@/core/ui/empty-state";
+import { Plus, Trash2, FlaskConical } from "lucide-react";
 import { Button } from "@/core/ui/button";
 import { DatePicker } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
@@ -73,7 +74,12 @@ export function LabTrackerCard({
   return (
     <div className="space-y-4">
       {cases.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No lab cases yet.</p>
+        <EmptyState
+                  compact
+                  icon={FlaskConical}
+                  title="No lab cases yet"
+                  description="Crowns, dentures and other lab work sent out for this patient are tracked here."
+                />
       ) : (
         <ul className="divide-y rounded-lg border text-sm">
           {cases.map((c) => (

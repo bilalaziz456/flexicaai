@@ -1,9 +1,10 @@
 "use client";
 
 import { downscaleImage } from "@/core/lib/image-resize";
+import { EmptyState } from "@/core/ui/empty-state";
 
 import { useRef, useState, useTransition } from "react";
-import { FileText, Trash2, Upload } from "lucide-react";
+import { FileText, Trash2, Upload, Paperclip } from "lucide-react";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Badge } from "@/core/ui/badge";
@@ -108,7 +109,12 @@ export function AttachmentsCard({
 
       {/* Gallery */}
       {attachments.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No attachments yet.</p>
+        <EmptyState
+                  compact
+                  icon={Paperclip}
+                  title="No attachments yet"
+                  description="X-rays, photos, consent forms and documents for this patient appear here."
+                />
       ) : (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
           {attachments.map((a) => {

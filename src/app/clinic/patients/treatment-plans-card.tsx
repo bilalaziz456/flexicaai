@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { EmptyState } from "@/core/ui/empty-state";
 import Link from "next/link";
-import { Plus, Printer, Trash2 } from "lucide-react";
+import { Plus, Printer, Trash2, ClipboardList } from "lucide-react";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Badge } from "@/core/ui/badge";
@@ -68,7 +69,12 @@ export function TreatmentPlansCard({
   return (
     <div className="space-y-4">
       {plans.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No treatment plans yet.</p>
+        <EmptyState
+                  compact
+                  icon={ClipboardList}
+                  title="No treatment plans yet"
+                  description="A plan groups the procedures a patient has agreed to, with an estimate."
+                />
       ) : (
         <ul className="space-y-4">
           {plans.map((p) => {
