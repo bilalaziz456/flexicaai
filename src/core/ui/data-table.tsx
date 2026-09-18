@@ -138,7 +138,11 @@ export function DataTable<T>({
                         type="button"
                         onClick={() => toggleSort(c.id)}
                         className={cn(
-                          "inline-flex min-h-6 items-center gap-1 rounded outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60",
+                          // `uppercase` is repeated here on purpose: a BUTTON does not inherit
+                          // text-transform (browsers reset it on form elements), so the sortable
+                          // columns rendered Title Case while the non-sortable ones beside them
+                          // were uppercase — two header styles inside one table.
+                          "inline-flex min-h-6 items-center gap-1 rounded text-2xs font-semibold tracking-[0.07em] uppercase outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60",
                           c.align === "right" && "flex-row-reverse",
                           active && "text-foreground",
                         )}

@@ -154,6 +154,18 @@ note above it; obvious logic gets none.
   there is nothing (§15 of the redesign brief). A muted inline `—` in a table CELL, or
   a one-line note inside a field group, is not an empty state and should stay inline;
   the two are different things and converting every one of them would be churn.
+- **A table sits on the page GROUND when it is the page, and in a CARD when it is one
+  section among several.** Patients, appointments, staff, recalls, trash and the logs
+  are the table — a card around them is a box drawn around the whole page. Payments,
+  invoices, discounts, receivables and history open with summary figures, so their
+  table joins those as another section and takes a card with a title.
+  The split looks like two different designs if you only compare two pages, and it is
+  the same rule both times: **one box per thing, and the page is not a thing.**
+  What WAS inconsistent, and is fixed, is that a sortable column header renders its
+  label inside a `<button>` — and a button does not inherit `text-transform`, because
+  browsers reset it on form elements. So the sortable columns came out Title Case
+  while the non-sortable ones beside them were uppercase, in the same table. Any
+  header treatment applied to a `<th>` has to be repeated on the button inside it.
 - **A shared component must not know your routes.** Nav lives in each panel's
   `nav.ts` and is passed to `PanelShell` as data, with gating declared on the item
   (`resource` / `cap` / `feature` / `gate`). Adding a page never edits `core/ui`.
