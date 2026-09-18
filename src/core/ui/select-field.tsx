@@ -59,7 +59,10 @@ export function SelectField<T extends string>({
         id={id}
         aria-label={ariaLabel}
         className={cn(
-          "inline-flex h-8 items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-ring disabled:pointer-events-none disabled:opacity-50",
+          // Height and focus treatment track `Input` exactly — the docblock above says the
+          // trigger is the same shell as a field, and it stopped being true the moment
+          // the input grew to 36px.
+          "inline-flex h-9 items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] px-3 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/60 data-[popup-open]:border-ring disabled:pointer-events-none disabled:opacity-50",
           className,
         )}
       >
@@ -74,7 +77,7 @@ export function SelectField<T extends string>({
         <Select.Positioner side="bottom" align={align} sideOffset={4} className="z-[110]">
           <Select.Popup
             className={cn(
-              "z-[110] min-w-[var(--anchor-width)] rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none",
+              "z-[110] min-w-[var(--anchor-width)] rounded-xl border border-border/70 bg-elevated p-1 text-popover-foreground elev-3 outline-none",
               popupClassName,
             )}
           >
