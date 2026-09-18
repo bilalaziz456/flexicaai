@@ -16,8 +16,7 @@ import {
 } from "@/core/ui/card";
 import { TrendChart } from "@/core/ui/charts/trend-chart";
 import { StatCard } from "@/core/ui/charts/stat-card";
-import { DonutChart } from "@/core/ui/charts/donut-chart";
-import { Donut3D } from "@/core/ui/charts/donut-3d";
+import { ShareRings } from "@/core/ui/charts/share-rings";
 import { Trend3D } from "@/core/ui/charts/trend-3d";
 import { ChartViewToggle } from "@/core/ui/charts/chart-view-toggle";
 import { SalesFilters } from "@/core/ui/report-filters";
@@ -216,44 +215,22 @@ export default async function ClinicSharesPage({
         </Card>
       ) : null}
 
-      {/* Share of earnings — the composition, shown BOTH ways for comparison.
-
-          The flat ring is the one to keep: a slice covers the fraction of the arc
-          its value earned, wherever it sits. The tilted one is here so the two can
-          be judged side by side — see `donut-3d.tsx` for exactly what the tilt
-          costs. Delete whichever loses. */}
+      {/* Share of earnings — one ring per doctor, every arc swept from twelve
+          o'clock so near-equal shares can actually be ranked. See `share-rings.tsx`
+          for why this is not a donut. */}
       {!singleDoctor && shareSlices.length > 1 ? (
-        <Card>
+        <Card className="overflow-hidden border-border/60 bg-linear-to-b from-card to-muted/20">
           <CardHeader>
             <CardTitle className="text-base">Share of earnings</CardTitle>
             <CardDescription>
-              Each doctor&apos;s share of lifetime earnings.
+              How lifetime earnings divide across the clinic&apos;s doctors.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartViewToggle
-              label="Share of earnings"
-              flat={
-                <DonutChart
-                  ariaLabel="Share of earnings by doctor"
-                  centerLabel="Earned"
-                  slices={shareSlices}
-                />
-              }
-              deep={
-                <Donut3D
-                  ariaLabel="Share of earnings by doctor, three-dimensional"
-                  centerLabel="Earned"
-                  slices={shareSlices}
-                />
-              }
-              note={
-                <>
-                  The front slices carry the side wall and the back ones are squashed by
-                  the tilt, so equal shares do not look equal. The percentages beside each
-                  name are the reliable reading.
-                </>
-              }
+            <ShareRings
+              rows={shareSlices}
+              centerLabel="Total earned"
+              unitLabel={`${shareSlices.length} doctors`}
             />
           </CardContent>
         </Card>

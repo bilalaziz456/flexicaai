@@ -1865,3 +1865,23 @@ select:-webkit-autofill {
     transform-origin: center;
   }
 }
+
+/* The share rings sweep out from twelve o'clock on load. `stroke-dashoffset` animates
+   the arc's LENGTH — which is the encoding — rather than fading the ring in, so what
+   the eye is handed first is the thing it is meant to read. Each ring is delayed a
+   beat behind the last, largest first, so the object assembles in rank order.
+
+   Inside `prefers-reduced-motion: no-preference`: the resting state is the full arc,
+   so with motion reduced the rings are simply there, complete and correct. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes share-sweep {
+    from {
+      stroke-dashoffset: var(--sweep, 1);
+      opacity: 0.2;
+    }
+    to {
+      stroke-dashoffset: 0;
+      opacity: 1;
+    }
+  }
+}

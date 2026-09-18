@@ -115,7 +115,13 @@ note above it; obvious logic gets none.
      the delta's good/bad judgement, not its own direction: colouring by direction
      put a red trace under a green profit figure and a green one under rising
      expenses.
-  3. **A dimensional view is a CHOICE, and flat is the default.** /clinic/shares wraps
+  3. **Composition across a few NAMED people is `ShareRings`, not a donut.** A donut
+     starts each wedge where the last ended, so wedges that are close in size cannot
+     be ranked; share rings give everyone their own ring swept from twelve o'clock, so
+     two shares are two arcs from one origin — the radial version of aligning bars on
+     an axis. Keep `DonutChart` for a composition read as parts of one whole where
+     the total in the hole matters more than the ranking (expenses by category).
+  4. **A dimensional view is a CHOICE, and flat is the default.** /clinic/shares wraps
      its three charts in `ChartViewToggle`, which swaps the flat chart for `Donut3D`
      or `Trend3D` on a 2D/3D switch. Flat is what a reader gets without touching the
      control, because there a value is simply its height and a slice is simply its
@@ -123,7 +129,7 @@ note above it; obvious logic gets none.
      toggle's `note`, so it is stated where it applies. **Depth that changes no
      geometry needs no toggle** — shadow, hover lift, glow — and belongs on the flat
      charts everywhere.
-  4. **An insight must be legible in the chart it sits under** (`insights.ts`). Each
+  5. **An insight must be legible in the chart it sits under** (`insights.ts`). Each
      detector returns null unless the data supports the sentence, including a
      materiality floor — a −126 rupee month on a 40,000 axis is a true loss and an
      invisible one, and a line that appears to contradict its own chart costs more
