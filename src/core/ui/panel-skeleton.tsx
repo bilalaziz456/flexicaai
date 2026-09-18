@@ -33,15 +33,23 @@ function CardShell({ className, children }: { className?: string; children: Reac
   );
 }
 
-/** A row of KPI cards. `count` matches the grid the real page renders. */
+/**
+ * A row of KPI cards. `count` matches the grid the real page renders.
+ *
+ * The column classes are written out rather than interpolated: Tailwind scans for
+ * complete class strings, so `lg:grid-cols-${n}` compiles to nothing and the row
+ * silently collapses to one column.
+ */
+const KPI_COLS: Record<number, string> = {
+  2: "lg:grid-cols-2",
+  3: "lg:grid-cols-3",
+  4: "lg:grid-cols-4",
+  5: "lg:grid-cols-3 xl:grid-cols-5",
+};
+
 function KpiRow({ count = 4 }: { count?: number }) {
   return (
-    <div
-      className={cn(
-        "grid gap-4 sm:grid-cols-2",
-        count === 3 ? "lg:grid-cols-3" : "lg:grid-cols-4",
-      )}
-    >
+    <div className={cn("grid gap-4 sm:grid-cols-2", KPI_COLS[count] ?? KPI_COLS[4])}>
       {Array.from({ length: count }).map((_, i) => (
         <CardShell key={i} className="space-y-3">
           <Skeleton className="h-3 w-20" />
@@ -174,6 +182,104 @@ export function FormSkeleton({ fields = 6 }: { fields?: number }) {
         ))}
         <Skeleton className="h-9 w-32" />
       </CardShell>
+      <span className="sr-only">Loading…</span>
+    </div>
+  );
+}
+
+/**
+ * Figures over a table — the day book, the imported-history archive, the doctor
+ * schedule. Distinct from `ReportSkeleton` because there is no chart: dropping a
+ * 260px plot block on a page that never had one is the exact layout jump these
+ * exist to prevent.
+ */
+export function StatsTableSkeleton({
+  kpis = 4,
+  rows = 8,
+  cols = 4,
+  filters = true,
+}: {
+  kpis?: number;
+  rows?: number;
+  cols?: number;
+  filters?: boolean;
+}) {
+  return (
+    <div className="space-y-6" role="status" aria-label="Loading">
+      <TitleBlock />
+      {filters ? (
+        <div className="flex flex-wrap gap-3">
+          <Skeleton className="h-9 w-56" />
+          <Skeleton className="h-9 w-40" />
+          <Skeleton className="h-9 min-w-40 flex-1" />
+        </div>
+      ) : null}
+      <KpiRow count={kpis} />
+      <CardShell className="space-y-4">
+        <Skeleton className="h-4 w-36" />
+        <TableBlock rows={rows} cols={cols} />
+      </CardShell>
+      <span className="sr-only">Loading…</span>
+    </div>
+  );
+}
+
+/** A hub page: a grid of cards that link somewhere. The reports index. */
+export function CardGridSkeleton({ count = 6 }: { count?: number }) {
+  return (
+    <div className="space-y-6" role="status" aria-label="Loading">
+      <TitleBlock />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: count }).map((_, i) => (
+          <CardShell key={i} className="space-y-3">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-3/4" />
+          </CardShell>
+        ))}
+      </div>
+      <span className="sr-only">Loading…</span>
+    </div>
+  );
+}
+
+/**
+ * One record, opened: a back link, the record's name, then a stack of cards.
+ * `rail` mirrors the patient record's section index, which is a real column in the
+ * layout — leaving it out would shift the whole card stack sideways on arrival.
+ */
+export function DetailSkeleton({ cards = 4, rail = false }: { cards?: number; rail?: boolean }) {
+  const stack = (
+    <div className="space-y-4">
+      {Array.from({ length: cards }).map((_, i) => (
+        <CardShell key={i} className="space-y-3">
+          <Skeleton className="h-4 w-36" />
+          <Skeleton className="h-3 w-64 max-w-full" />
+          <Skeleton className="h-16 w-full" />
+        </CardShell>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="space-y-6" role="status" aria-label="Loading">
+      <div className="space-y-2.5">
+        <Skeleton className="h-3.5 w-24" />
+        <Skeleton className="h-7 w-64 max-w-full" />
+        <Skeleton className="h-4 w-48" />
+      </div>
+      {rail ? (
+        <div className="grid gap-6 lg:grid-cols-[13rem_minmax(0,1fr)] lg:items-start">
+          <div className="hidden space-y-2 lg:block">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-7 w-full" />
+            ))}
+          </div>
+          {stack}
+        </div>
+      ) : (
+        stack
+      )}
       <span className="sr-only">Loading…</span>
     </div>
   );
