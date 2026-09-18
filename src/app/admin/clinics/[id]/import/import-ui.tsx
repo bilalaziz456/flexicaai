@@ -2,8 +2,10 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Upload } from "lucide-react";
-import { Button } from "@/core/ui/button";
+import { Download, FileUp, Upload } from "lucide-react";
+import { Button, buttonVariants } from "@/core/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/core/ui/card";
+import { TableCard } from "@/core/ui/table-card";
 import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { DataTable } from "@/core/ui/data-table";
 import { cn } from "@/core/lib/utils";
@@ -35,6 +37,18 @@ const LABELS: Record<ImportEntity, string> = {
 };
 const RECORD_ENTITIES: ImportEntity[] = ["patients", "procedures", "visits"];
 const FINANCE_ENTITIES: ImportEntity[] = ["fin_invoice", "fin_payment", "fin_expense", "fin_payout"];
+
+/** The step's number, sized to sit on the title's baseline rather than above it. */
+function StepNumber({ n }: { n: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="mr-2 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/12 text-xs font-semibold tabular-nums text-primary-text"
+    >
+      {n}
+    </span>
+  );
+}
 
 export function ImportUI({ clinicId, batches }: { clinicId: string; batches: BatchView[] }) {
   const router = useRouter();
@@ -114,45 +128,80 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
   return (
     <div className="space-y-6">
       {/* Entity + template */}
-      <div className="rounded-xl border border-border/70 bg-card p-5 elev-1">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            <StepNumber n={1} /> What are you importing?
+          </CardTitle>
+          <CardDescription>
+            Pick the record type, then download its template so the columns match.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
         <div className="space-y-3">
           <EntityGroup title="Records" ids={RECORD_ENTITIES} entity={entity} onPick={(id) => { setEntity(id); reset(); }} />
           <EntityGroup title="Financial history (read-only archive)" ids={FINANCE_ENTITIES} entity={entity} onPick={(id) => { setEntity(id); reset(); }} />
         </div>
-        <div className="mt-3 flex items-start justify-between gap-3">
-          <p className="text-xs text-muted-foreground">{IMPORT_TEMPLATES[entity].note}</p>
-          <a
-            href="#"
-            onClick={(ev) => {
-              ev.preventDefault();
-              downloadTemplate();
-            }}
-            className="inline-flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+        <div className="mt-4 flex flex-wrap items-start justify-between gap-3 rounded-lg border well p-3">
+          {/* `basis-64` rather than `flex-1`: flex-1 lets the note shrink without
+              limit, so at phone width it became a six-word-wide column beside the
+              button instead of wrapping the button onto its own line. */}
+          <p className="min-w-0 flex-1 basis-64 text-xs leading-relaxed text-muted-foreground">
+            {IMPORT_TEMPLATES[entity].note}
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="shrink-0"
+            onClick={downloadTemplate}
           >
-            <Download className="size-4" aria-hidden="true" /> Template
-          </a>
-        </div>
-      </div>
-
-      {/* Upload */}
-      <div className="rounded-xl border border-border/70 bg-card p-5 elev-1">
-        <label className="text-sm font-medium">Upload {LABELS[entity]} file (CSV or Excel)</label>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            onChange={(e) => {
-              setFileName(e.target.files?.[0]?.name ?? "");
-              reset();
-            }}
-            className="block w-full max-w-sm text-sm text-muted-foreground file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm hover:file:bg-accent"
-          />
-          <Button size="sm" variant="outline" onClick={runPreview} disabled={pending || !fileName}>
-            {pending ? "Checking…" : "Preview"}
+            <Download aria-hidden="true" />
+            Download template
           </Button>
         </div>
-      </div>
+        </CardContent>
+      </Card>
+
+      {/* Upload */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            <StepNumber n={2} /> Upload the filled file
+          </CardTitle>
+          <CardDescription>
+            CSV or Excel. Nothing is written yet — the next step shows what would happen.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* The LABEL is the control: a file input's own button cannot be made to
+                match a real one's height or hover, so it sat 30px tall beside 36px
+                buttons here and on every other picker in the app. */}
+            <label className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer")}>
+              {fileName ? "Choose another" : "Choose file"}
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                onChange={(e) => {
+                  setFileName(e.target.files?.[0]?.name ?? "");
+                  reset();
+                }}
+                className="sr-only"
+              />
+            </label>
+            {/* `sr-only` takes away the browser's own "No file chosen", and a picker
+                that says nothing after a pick looks like it did not work. */}
+            <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+              {fileName || "No file chosen"}
+            </span>
+            <Button onClick={runPreview} disabled={pending || !fileName}>
+              {pending ? "Checking…" : "Preview"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {error ? (
         <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">
@@ -162,11 +211,17 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
 
       {/* Column mapping — match the file's columns to FlexicaAI fields, then re-check. */}
       {preview ? (
-        <div className="rounded-xl border border-border/70 bg-card p-5 elev-1">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-medium">Column mapping</p>
-            <span className="text-xs text-muted-foreground">Fix any wrong match, then re-check.</span>
-          </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              <StepNumber n={3} /> Check the column mapping
+            </CardTitle>
+            <CardDescription>
+              We matched your columns to FlexicaAI fields. Fix any wrong match, then
+              re-check. Required fields are marked.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
           <div className="grid gap-2 sm:grid-cols-2">
             {FIELDS[entity].map((f) => {
               const val = mapping?.[f.key] ?? "";
@@ -191,17 +246,28 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
               );
             })}
           </div>
-          <div className="mt-3">
+          <div className="mt-4">
             <Button size="sm" variant="outline" onClick={runPreview} disabled={pending}>
               {pending ? "Checking…" : "Re-check with this mapping"}
             </Button>
           </div>
-        </div>
+          </CardContent>
+        </Card>
       ) : null}
 
       {/* Preview (dry run) */}
       {preview ? (
-        <div className="rounded-xl border border-border/70 bg-card p-5 elev-1">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              <StepNumber n={4} /> Review, then import
+            </CardTitle>
+            <CardDescription>
+              This is a dry run — nothing has been written. Rows with errors are left
+              out, and the whole import can be undone afterwards.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Stat label="Ready to import" value={preview.ready} tone="text-success-text" />
             <Stat label="Duplicates (skip)" value={preview.duplicates} />
@@ -234,7 +300,7 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
 
           {/* Reconciliation footer — the operator matches these against the old system. */}
           {preview.totals && preview.totals.length > 0 ? (
-            <div className="mt-4 flex flex-wrap gap-4 rounded-md border bg-muted/30 p-3 text-sm">
+            <div className="mt-4 flex flex-wrap gap-4 rounded-md border well p-3 text-sm">
               {preview.totals.map((t) => (
                 <div key={t.label}>
                   <span className="text-muted-foreground">{t.label}: </span>
@@ -267,7 +333,8 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
               {preview.totalRows} row{preview.totalRows === 1 ? "" : "s"} in the file.
             </span>
           </div>
-        </div>
+          </CardContent>
+        </Card>
       ) : null}
 
       {/* Result */}
@@ -283,12 +350,12 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
       ) : null}
 
       {/* History */}
-      <div>
-        <h2 className="mb-2 text-sm font-semibold">Import history</h2>
+      <TableCard title="Import history">
         <DataTable
           rows={batches}
           getRowKey={(b) => b.id}
-          empty="No imports yet."
+          empty="No imports yet"
+          emptyIcon={FileUp}
           minWidthClassName="min-w-[36rem]"
           initialSort={{ id: "when", dir: "desc" }}
           columns={[
@@ -337,7 +404,7 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
             },
           ]}
         />
-      </div>
+      </TableCard>
     </div>
   );
 }

@@ -3,6 +3,10 @@ import { listAllClinicUsers } from "@/core/users/clinic-staff";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/core/ui/breadcrumbs";
+import { Download, Upload } from "lucide-react";
+import { buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
+import { SectionRail, type RailSection } from "@/core/ui/section-rail";
 import { SPECIALTY_CATALOG } from "@/config/modules";
 import { CLINIC_FEATURES } from "@/core/lib/features";
 import { resourcesForClinic } from "@/core/auth/permissions";
@@ -80,6 +84,22 @@ export default async function ClinicDetailPage({
   // Tenant-scoped: this clinic's staff only (byClinic = the isolation boundary).
   const staff = await listAllClinicUsers(id);
 
+  // Mirrors the guards below, so the rail can never point at a card this admin
+  // cannot see — the bug the patient record's rail was written to avoid.
+  const railSections: RailSection[] = [
+    { id: "subscription", label: "Subscription", group: "Account" },
+    { id: "logo", label: "Logo", group: "Account" },
+    { id: "plan", label: "Plan & features", group: "Account" },
+    ...(billing ? [{ id: "billing", label: "Billing", group: "Account" }] : []),
+    { id: "manager", label: "Account manager", group: "Relationship" },
+    { id: "contact", label: "Owner & contact", group: "Relationship" },
+    { id: "public", label: "Patient-facing", group: "Relationship" },
+    { id: "capabilities", label: "Capabilities", group: "Access" },
+    { id: "log-access", label: "Activity-log access", group: "Access" },
+    { id: "staff", label: "Staff", group: "Access" },
+    { id: "danger", label: "Danger zone", group: "Danger" },
+  ];
+
   return (
     <div className="space-y-6">
       <FlashToast message={created ? "Clinic created." : null} />
@@ -87,27 +107,33 @@ export default async function ClinicDetailPage({
         <Breadcrumbs items={[{ label: "Clinics", href: "/admin" }, { label: clinic.name }]} />
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">{clinic.name}</h1>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2">
             <ClinicAnalyticsDialog clinicId={clinic.id} />
             {canAdmin(admin, "import:create") ? (
               <Link
                 href={`/admin/clinics/${clinic.id}/import`}
-                className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                className={cn(buttonVariants({ variant: "outline" }))}
               >
+                <Upload aria-hidden="true" />
                 Import data
               </Link>
             ) : null}
             <a
               href={`/api/admin/clinics/${clinic.id}/export`}
-              className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+              className={cn(buttonVariants({ variant: "outline" }))}
             >
-              Export data (JSON)
+              <Download aria-hidden="true" />
+              Export JSON
             </a>
           </div>
         </div>
       </div>
 
-      <Card>
+      <div className="grid gap-6 lg:grid-cols-[13rem_minmax(0,1fr)] lg:items-start">
+        <SectionRail sections={railSections} />
+        <div className="min-w-0 space-y-6">
+
+      <Card id="subscription" className="scroll-mt-24">
         <CardHeader>
           <CardTitle>Subscription & access</CardTitle>
           <CardDescription>
@@ -128,11 +154,11 @@ export default async function ClinicDetailPage({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="logo" className="scroll-mt-24">
         <CardHeader>
           <CardTitle>Logo</CardTitle>
           <CardDescription>
-            Printed at the top of this clinic&apos;s invoices &amp; receipts (in black &amp; white).
+            Printed at the top of this clinic&apos;s invoices and receipts.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -140,7 +166,7 @@ export default async function ClinicDetailPage({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="plan" className="scroll-mt-24">
         <CardHeader>
           <CardTitle>Plan &amp; features</CardTitle>
           <CardDescription>
@@ -166,7 +192,7 @@ export default async function ClinicDetailPage({
       </Card>
 
       {billing ? (
-        <Card>
+        <Card id="billing" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Billing</CardTitle>
             <CardDescription>
@@ -214,7 +240,7 @@ export default async function ClinicDetailPage({
         </Card>
       ) : null}
 
-      <Card>
+      <Card id="manager" className="scroll-mt-24">
         <CardHeader>
           <CardTitle>Account manager</CardTitle>
           <CardDescription>
@@ -231,7 +257,7 @@ export default async function ClinicDetailPage({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="contact" className="scroll-mt-24">
         <CardHeader>
           <CardTitle>Owner &amp; contact</CardTitle>
           <CardDescription>
@@ -259,7 +285,7 @@ export default async function ClinicDetailPage({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="public" className="scroll-mt-24">
         <CardHeader>
           <CardTitle>Patient-facing details</CardTitle>
           <CardDescription>
@@ -288,7 +314,7 @@ export default async function ClinicDetailPage({
           </p>
         </div>
 
-        <Card>
+        <Card id="capabilities" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Capabilities</CardTitle>
             <CardDescription>
@@ -306,7 +332,7 @@ export default async function ClinicDetailPage({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="log-access" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Activity-log access</CardTitle>
             <CardDescription>
@@ -319,7 +345,7 @@ export default async function ClinicDetailPage({
         </Card>
       </div>
 
-      <Card>
+      <Card id="staff" className="scroll-mt-24">
         <CardHeader>
           <CardTitle>Staff</CardTitle>
           <CardDescription>
@@ -402,7 +428,7 @@ export default async function ClinicDetailPage({
         </CardContent>
       </Card>
 
-      <Card className="border-destructive/40">
+      <Card id="danger" className="scroll-mt-24 border-destructive/40">
         <CardHeader>
           <CardTitle className="text-destructive">Danger zone</CardTitle>
           <CardDescription>
@@ -414,6 +440,9 @@ export default async function ClinicDetailPage({
           <DeleteClinic clinicId={clinic.id} clinicName={clinic.name} />
         </CardContent>
       </Card>
+
+        </div>
+      </div>
     </div>
   );
 }

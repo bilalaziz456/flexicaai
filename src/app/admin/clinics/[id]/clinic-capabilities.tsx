@@ -52,10 +52,10 @@ export function ClinicCapabilities({
 
   return (
     <div className="space-y-4">
+      {/* The card's description covers what this does; only the default and the
+          current state are new information. */}
       <p className="text-sm text-muted-foreground">
-        Everything is allowed by default. Uncheck an action to disable it for{" "}
-        <span className="font-medium text-foreground">every user</span> in this clinic.
-        This is the control plane over each clinic&apos;s buttons.
+        Everything is allowed by default.
         {restrictedCount > 0 ? (
           <span className="ml-1 font-medium text-warning-text">
             {restrictedCount} action{restrictedCount === 1 ? "" : "s"} disabled.
