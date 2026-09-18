@@ -329,7 +329,7 @@ export default async function ClinicSharesPage({
               </div>
               <div>
                 <div className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  3D — extruded, two depth planes
+                  3D — glass curtains on a floor
                 </div>
                 <Trend3D
                   ariaLabel="Earned vs paid per period, three-dimensional"
@@ -342,9 +342,10 @@ export default async function ClinicSharesPage({
                   overlayLabel="Paid"
                 />
                 <p className="mt-2 text-xs text-muted-foreground">
-                  The slab has a front edge and a back edge, so the single 40k payment
-                  on 09 Sept is drawn as two peaks. The paid ribbon also sits in front
-                  of the earned one and runs near zero, right where the earned wall is.
+                  Each series is one curve with a glass sheet hanging from it, so a spike
+                  stays a single spike and the back curtain reads through the front one.
+                  Values sit further from the axis than in the flat chart — the rails run
+                  forward to help carry one across.
                 </p>
               </div>
               </div>
@@ -378,7 +379,7 @@ export default async function ClinicSharesPage({
                   </div>
                   <div>
                     <div className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                      3D — the gap stops being a quantity
+                      3D — depth, with the gap still visible
                     </div>
                     <Trend3D
                       ariaLabel="Cumulative earned versus paid, three-dimensional"
@@ -391,9 +392,9 @@ export default async function ClinicSharesPage({
                       overlayLabel="Cumulative paid"
                     />
                     <p className="mt-2 text-xs text-muted-foreground">
-                      The gap survives here only because it is enormous. The surfaces no
-                      longer line up with the axis, so the balance cannot be read off it,
-                      and two series running close together would overlap outright.
+                      The two curtains stand on different planes, so the space between them
+                      is part balance and part perspective. Read the exact outstanding figure
+                      from the flat chart or the hover; this one is for the shape.
                     </p>
                   </div>
                 </div>
