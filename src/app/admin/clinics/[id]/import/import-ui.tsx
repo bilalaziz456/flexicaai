@@ -114,7 +114,7 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
   return (
     <div className="space-y-6">
       {/* Entity + template */}
-      <div className="rounded-lg border p-4">
+      <div className="rounded-xl border border-border/70 bg-card p-5 elev-1">
         <div className="space-y-3">
           <EntityGroup title="Records" ids={RECORD_ENTITIES} entity={entity} onPick={(id) => { setEntity(id); reset(); }} />
           <EntityGroup title="Financial history (read-only archive)" ids={FINANCE_ENTITIES} entity={entity} onPick={(id) => { setEntity(id); reset(); }} />
@@ -135,7 +135,7 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
       </div>
 
       {/* Upload */}
-      <div className="rounded-lg border p-4">
+      <div className="rounded-xl border border-border/70 bg-card p-5 elev-1">
         <label className="text-sm font-medium">Upload {LABELS[entity]} file (CSV or Excel)</label>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <input
@@ -162,7 +162,7 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
 
       {/* Column mapping — match the file's columns to FlexicaAI fields, then re-check. */}
       {preview ? (
-        <div className="rounded-lg border p-4">
+        <div className="rounded-xl border border-border/70 bg-card p-5 elev-1">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-medium">Column mapping</p>
             <span className="text-xs text-muted-foreground">Fix any wrong match, then re-check.</span>
@@ -201,7 +201,7 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
 
       {/* Preview (dry run) */}
       {preview ? (
-        <div className="rounded-lg border p-4">
+        <div className="rounded-xl border border-border/70 bg-card p-5 elev-1">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Stat label="Ready to import" value={preview.ready} tone="text-success-text" />
             <Stat label="Duplicates (skip)" value={preview.duplicates} />
@@ -272,8 +272,8 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
 
       {/* Result */}
       {result ? (
-        <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-4 text-sm">
-          <p className="font-medium text-emerald-700 dark:text-emerald-400">
+        <div className="rounded-lg border border-success/35 bg-success/[0.06] p-4 text-sm">
+          <p className="font-medium text-success-text">
             Imported {result.imported} {LABELS[entity]}.
           </p>
           <p className="mt-1 text-muted-foreground">

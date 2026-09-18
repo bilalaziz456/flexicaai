@@ -47,7 +47,7 @@ export function ClinicAssignee({
         className="w-56"
       />
       {pending ? <span className="text-sm text-muted-foreground">Saving…</span> : null}
-      {msg ? <span className="text-sm text-emerald-600">{msg}</span> : null}
+      {msg ? <span className="text-sm text-success-text">{msg}</span> : null}
       {error ? <span className="text-sm text-destructive" role="alert">{error}</span> : null}
     </div>
   );

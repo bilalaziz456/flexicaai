@@ -218,8 +218,8 @@ export default async function AdminHome({
       ) : null}
 
       {upcomingClinics.length > 0 ? (
-        <div className="rounded-md border border-sky-500/40 bg-sky-500/5 p-4">
-          <div className="mb-2 text-sm font-medium text-sky-700 dark:text-sky-400">
+        <div className="rounded-md border border-info/35 bg-info/5 p-4">
+          <div className="mb-2 text-sm font-medium text-info-text">
             {upcomingClinics.length} payment{upcomingClinics.length === 1 ? "" : "s"} coming up
           </div>
           <ul className="space-y-1.5 text-sm">

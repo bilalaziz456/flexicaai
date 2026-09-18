@@ -160,8 +160,8 @@ export default async function AnnouncementsPage({
                           variant="outline"
                           className={
                             a.level === "warning"
-                              ? "border-transparent bg-amber-500/10 text-warning-text"
-                              : "border-transparent bg-sky-500/10 text-info-text"
+                              ? "border-transparent bg-warning/10 text-warning-text"
+                              : "border-transparent bg-info/10 text-info-text"
                           }
                         >
                           {vocabularyLabel("announcement_levels", a.level)}
@@ -197,7 +197,7 @@ export default async function AnnouncementsPage({
                             ended
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="border-transparent bg-emerald-500/10 text-success-text">
+                          <Badge variant="outline" className="border-transparent bg-success/10 text-success-text">
                             showing
                           </Badge>
                         )}

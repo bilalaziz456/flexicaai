@@ -211,7 +211,7 @@ export function ClinicBilling({
           <div
             className={cn(
               "mt-1 text-sm font-semibold",
-              balance.owed > 0 ? "text-destructive" : balance.credit > 0 ? "text-emerald-600" : "",
+              balance.owed > 0 ? "text-destructive" : balance.credit > 0 ? "text-success-text" : "",
             )}
           >
             {rs(balance.credit > 0 ? balance.credit : balance.owed)}
@@ -302,7 +302,7 @@ export function ClinicBilling({
 
       {/* Follow-up commitment on an outstanding balance. */}
       {commitmentAt && balance.owed > 0 ? (
-        <div className="flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+        <div className="flex items-center gap-2 rounded-md border border-warning/35 bg-warning/[0.06] px-3 py-2 text-sm text-warning-text">
           <span className="font-medium">Follow up {fmtDate(commitmentAt)}</span>
           <span className="text-muted-foreground">
            · {rs(balance.owed)} promised{commitmentNote ? ` · ${commitmentNote}` : ""}

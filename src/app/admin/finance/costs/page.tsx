@@ -64,7 +64,7 @@ export default async function CostsPage({
       <CostFilters period={range.period} from={range.from} to={range.to} />
 
       {notConfigured ? (
-        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
+        <div className="rounded-md border border-warning/35 bg-warning/[0.06] p-3 text-sm text-warning-text">
           Cost rates aren&apos;t set yet, so estimated cost shows Rs 0. {canEdit ? "Set them below." : "An admin with finance access can set them."}
         </div>
       ) : null}

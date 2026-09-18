@@ -50,7 +50,7 @@ function FlagBadges({ flags }: { flags: AnomalyFlag[] }) {
             title={m.hint}
             className={cn(
               "border-transparent",
-              m.severity === "high" ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-warning-text",
+              m.severity === "high" ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning-text",
             )}
           >
             {m.label}
@@ -203,7 +203,7 @@ export default async function OverviewPage({
 
       {/* Payments due / overdue — the actionable subscription-dues list */}
       {showBilling && due.length > 0 ? (
-        <Card className={due.some((c) => c.balance.billingStatus === "overdue") ? "border-destructive/30" : "border-amber-500/40"}>
+        <Card className={due.some((c) => c.balance.billingStatus === "overdue") ? "border-destructive/30" : "border-warning/35"}>
           <CardHeader>
             <CardTitle>Payments due / overdue ({due.length})</CardTitle>
             <CardDescription>Clinics with an unpaid subscription balance, worst first. Record a follow-up when they promise to pay.</CardDescription>
@@ -233,7 +233,7 @@ export default async function OverviewPage({
                             variant="outline"
                             className={cn(
                               "border-transparent",
-                              overdue ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-warning-text",
+                              overdue ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning-text",
                             )}
                           >
                             {overdue ? `Overdue · ${c.balance.daysOverdue}d` : `Due · ${c.balance.daysOverdue}d`}
@@ -263,7 +263,7 @@ export default async function OverviewPage({
 
       {/* Payments coming up — a pre-due heads-up (still paid; lapses within N days) */}
       {showBilling && upcoming.length > 0 ? (
-        <Card className="border-sky-500/40">
+        <Card className="border-info/35">
           <CardHeader>
             <CardTitle>Payments coming up ({upcoming.length})</CardTitle>
             <CardDescription>
@@ -288,7 +288,7 @@ export default async function OverviewPage({
                       <TableCell className="font-medium">{c.name}</TableCell>
                       <TableCell className="whitespace-nowrap text-sm">{fmtDate(c.balance.paidThrough)}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="border-transparent bg-sky-500/10 text-info-text">
+                        <Badge variant="outline" className="border-transparent bg-info/10 text-info-text">
                           {c.balance.daysRemaining === 0 ? "Due today" : `${c.balance.daysRemaining}d`}
                         </Badge>
                       </TableCell>
@@ -304,7 +304,7 @@ export default async function OverviewPage({
       ) : null}
 
       {/* At-risk clinics — the actionable churn list (who to contact) */}
-      <Card className={health.atRisk.length > 0 ? "border-amber-500/40" : undefined}>
+      <Card className={health.atRisk.length > 0 ? "border-warning/35" : undefined}>
         <CardHeader>
           <CardTitle>At-risk clinics ({health.atRisk.length})</CardTitle>
           <CardDescription>
@@ -386,7 +386,7 @@ export default async function OverviewPage({
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap items-center gap-1">
-                          {c.isAtRisk ? <Badge variant="outline" className="border-transparent bg-amber-500/10 text-warning-text">Churn risk</Badge> : null}
+                          {c.isAtRisk ? <Badge variant="outline" className="border-transparent bg-warning/10 text-warning-text">Churn risk</Badge> : null}
                           {showRevenue ? <FlagBadges flags={c.flags} /> : null}
                         </div>
                       </TableCell>
@@ -511,7 +511,7 @@ export default async function OverviewPage({
                         <TableCell><ClinicStatusBadge status={c.status} /></TableCell>
                         <TableCell className="whitespace-nowrap text-sm">
                           {ago(c.lastActivityAt, c.daysInactive)}
-                          {stale ? <Badge variant="outline" className="ml-1.5 border-transparent bg-amber-500/10 text-warning-text">quiet</Badge> : null}
+                          {stale ? <Badge variant="outline" className="ml-1.5 border-transparent bg-warning/10 text-warning-text">quiet</Badge> : null}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{c.appointments}</TableCell>
                         <TableCell className="text-right tabular-nums">{c.scribeCalls}</TableCell>

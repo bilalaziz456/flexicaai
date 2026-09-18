@@ -68,7 +68,7 @@ export default async function TeamMemberPage({
           <Badge variant="secondary" className="capitalize">{subRole}</Badge>
           {isSelf ? <Badge variant="outline">you</Badge> : null}
           {accountState !== "active" ? (
-            <Badge variant="outline" className="border-transparent bg-amber-500/10 text-warning-text capitalize">
+            <Badge variant="outline" className="border-transparent bg-warning/10 text-warning-text capitalize">
               {accountState}
             </Badge>
           ) : null}

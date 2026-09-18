@@ -56,7 +56,7 @@ export function ReassignClinics({
           <Button type="button" onClick={go} disabled={pending}>
             {pending ? "Reassigning…" : `Reassign ${count} clinic${count === 1 ? "" : "s"}`}
           </Button>
-          {msg ? <span className="text-sm text-emerald-600">{msg}</span> : null}
+          {msg ? <span className="text-sm text-success-text">{msg}</span> : null}
           {error ? <span className="text-sm text-destructive" role="alert">{error}</span> : null}
         </div>
       ) : null}

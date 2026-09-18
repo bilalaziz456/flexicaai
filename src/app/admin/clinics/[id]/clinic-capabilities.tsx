@@ -80,7 +80,7 @@ export function ClinicCapabilities({
             Allow all
           </Button>
         ) : null}
-        {msg ? <span className="text-sm text-emerald-600">{msg}</span> : null}
+        {msg ? <span className="text-sm text-success-text">{msg}</span> : null}
         {error ? (
           <span className="text-sm text-destructive" role="alert">
             {error}

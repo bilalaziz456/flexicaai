@@ -53,13 +53,13 @@ const monthLabel = (d: Date) =>
   new Date(d).toLocaleDateString("en-PK", { month: "long", year: "numeric" });
 
 const TONE: Record<"good" | "warn" | "bad", string> = {
-  good: "text-emerald-600 dark:text-emerald-400",
-  warn: "text-amber-600 dark:text-amber-400",
+  good: "text-success-text",
+  warn: "text-warning-text",
   bad: "text-destructive",
 };
 const BAND_BG: Record<"good" | "warn" | "bad", string> = {
-  good: "bg-emerald-600",
-  warn: "bg-amber-500",
+  good: "bg-success",
+  warn: "bg-warning",
   bad: "bg-destructive",
 };
 
@@ -413,7 +413,7 @@ export function ClinicAnalyticsCard({
       ) : (
         <>
           {thin ? (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs">
+            <p className="rounded-lg border border-warning/35 bg-warning/10 p-2 text-xs">
               Only {total} month{total === 1 ? "" : "s"} of history — treat the rating as provisional.
             </p>
           ) : null}
