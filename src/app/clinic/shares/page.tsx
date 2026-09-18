@@ -19,6 +19,7 @@ import { StatCard } from "@/core/ui/charts/stat-card";
 import { DonutChart } from "@/core/ui/charts/donut-chart";
 import { Donut3D } from "@/core/ui/charts/donut-3d";
 import { Trend3D } from "@/core/ui/charts/trend-3d";
+import { ChartViewToggle } from "@/core/ui/charts/chart-view-toggle";
 import { SalesFilters } from "@/core/ui/report-filters";
 import { RecordPayoutForm } from "./payout-ui";
 import { SettlementForm, VoidSettlementButton } from "./settlement-ui";
@@ -226,38 +227,34 @@ export default async function ClinicSharesPage({
           <CardHeader>
             <CardTitle className="text-base">Share of earnings</CardTitle>
             <CardDescription>
-              Each doctor&apos;s share of lifetime earnings. The same data drawn flat and
-              tilted — compare how easy it is to rank the slices by eye in each.
+              Each doctor&apos;s share of lifetime earnings.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-8 lg:grid-cols-2">
-              <div>
-                <div className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  Flat — proportion is true
-                </div>
+            <ChartViewToggle
+              label="Share of earnings"
+              flat={
                 <DonutChart
                   ariaLabel="Share of earnings by doctor"
                   centerLabel="Earned"
                   slices={shareSlices}
                 />
-              </div>
-              <div>
-                <div className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  3D — tilted and extruded
-                </div>
+              }
+              deep={
                 <Donut3D
                   ariaLabel="Share of earnings by doctor, three-dimensional"
                   centerLabel="Earned"
                   slices={shareSlices}
                 />
-                <p className="mt-3 text-xs text-muted-foreground">
+              }
+              note={
+                <>
                   The front slices carry the side wall and the back ones are squashed by
-                  the tilt, so equal shares do not look equal. The percentages beside
-                  each name are the reliable reading.
-                </p>
-              </div>
-            </div>
+                  the tilt, so equal shares do not look equal. The percentages beside each
+                  name are the reliable reading.
+                </>
+              }
+            />
           </CardContent>
         </Card>
       ) : null}
@@ -311,44 +308,39 @@ export default async function ClinicSharesPage({
             </p>
           ) : (
             <div className="space-y-8">
-              <div className="grid gap-8 lg:grid-cols-2">
-              <div>
-                <div className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  Flat — a value is its height
-                </div>
-                <TrendChart
-                  ariaLabel={selfOnly ? "Your earned vs paid per period" : "Doctor shares earned vs paid per period"}
-                  points={report.activityBuckets.map((b) => ({
-                    label: b.label,
-                    value: b.earned,
-                    second: b.paid,
-                  }))}
-                  valueLabel="Earned"
-                  overlay={{ label: "Paid" }}
-                />
-              </div>
-              <div>
-                <div className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  3D — glass curtains on a floor
-                </div>
-                <Trend3D
-                  ariaLabel="Earned vs paid per period, three-dimensional"
-                  points={report.activityBuckets.map((b) => ({
-                    label: b.label,
-                    value: b.earned,
-                    second: b.paid,
-                  }))}
-                  valueLabel="Earned"
-                  overlayLabel="Paid"
-                />
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Each series is one curve with a glass sheet hanging from it, so a spike
-                  stays a single spike and the back curtain reads through the front one.
-                  Values sit further from the axis than in the flat chart — the rails run
-                  forward to help carry one across.
-                </p>
-              </div>
-              </div>
+              <ChartViewToggle
+                label="Earned vs paid per period"
+                flat={
+                  <TrendChart
+                    ariaLabel={selfOnly ? "Your earned vs paid per period" : "Doctor shares earned vs paid per period"}
+                    points={report.activityBuckets.map((b) => ({
+                      label: b.label,
+                      value: b.earned,
+                      second: b.paid,
+                    }))}
+                    valueLabel="Earned"
+                    overlay={{ label: "Paid" }}
+                  />
+                }
+                deep={
+                  <Trend3D
+                    ariaLabel="Earned vs paid per period, three-dimensional"
+                    points={report.activityBuckets.map((b) => ({
+                      label: b.label,
+                      value: b.earned,
+                      second: b.paid,
+                    }))}
+                    valueLabel="Earned"
+                    overlayLabel="Paid"
+                  />
+                }
+                note={
+                  <>
+                    Values sit further from the axis than in the flat chart — the rails run
+                    forward to help carry one across.
+                  </>
+                }
+              />
               <div>
                 <div className="text-sm font-medium">Cumulative earned vs paid</div>
                 <p className="mb-3 text-xs text-muted-foreground">
@@ -356,11 +348,9 @@ export default async function ClinicSharesPage({
                 </p>
                 {/* The GAP is the point of this chart — what the clinic still owes
                     — so it is tinted rather than left for the eye to measure. */}
-                <div className="grid gap-8 lg:grid-cols-2">
-                  <div>
-                    <div className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                      Flat — the gap IS the balance
-                    </div>
+                <ChartViewToggle
+                  label="Cumulative earned vs paid"
+                  flat={
                     <TrendChart
                       ariaLabel="Cumulative earned versus paid"
                       points={report.cumulativeBuckets.map((b) => ({
@@ -376,11 +366,8 @@ export default async function ClinicSharesPage({
                         gapLabel: "Outstanding",
                       }}
                     />
-                  </div>
-                  <div>
-                    <div className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                      3D — depth, with the gap still visible
-                    </div>
+                  }
+                  deep={
                     <Trend3D
                       ariaLabel="Cumulative earned versus paid, three-dimensional"
                       points={report.cumulativeBuckets.map((b) => ({
@@ -391,13 +378,15 @@ export default async function ClinicSharesPage({
                       valueLabel="Cumulative earned"
                       overlayLabel="Cumulative paid"
                     />
-                    <p className="mt-2 text-xs text-muted-foreground">
+                  }
+                  note={
+                    <>
                       The two curtains stand on different planes, so the space between them
                       is part balance and part perspective. Read the exact outstanding figure
-                      from the flat chart or the hover; this one is for the shape.
-                    </p>
-                  </div>
-                </div>
+                      from the hover; this view is for the shape.
+                    </>
+                  }
+                />
               </div>
             </div>
           )}
