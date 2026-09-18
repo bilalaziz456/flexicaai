@@ -348,6 +348,16 @@
   font-optical-sizing: auto;
 }
 
+/* A skeleton SWEEP rather than a pulse. A block fading in and out says "something is
+   here, blinking"; a highlight travelling left-to-right says "this is filling in", and
+   it reads as progress even though neither one knows anything about progress. The
+   sweep is suppressed under prefers-reduced-motion, where the plain block remains. */
+@keyframes skeleton-sweep {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 /* Elevation. Named `elev-*` rather than overriding Tailwind's own `shadow-*`, which
    the marketing site uses — clobbering those tokens would have redesigned it by
    accident. One step is almost always enough; reach past `elev-2` only for something
