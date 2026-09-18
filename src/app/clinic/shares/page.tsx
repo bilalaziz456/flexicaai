@@ -18,6 +18,7 @@ import { TrendChart } from "@/core/ui/charts/trend-chart";
 import { StatCard } from "@/core/ui/charts/stat-card";
 import { DonutChart } from "@/core/ui/charts/donut-chart";
 import { Donut3D } from "@/core/ui/charts/donut-3d";
+import { Trend3D } from "@/core/ui/charts/trend-3d";
 import { SalesFilters } from "@/core/ui/report-filters";
 import { RecordPayoutForm } from "./payout-ui";
 import { SettlementForm, VoidSettlementButton } from "./settlement-ui";
@@ -310,16 +311,43 @@ export default async function ClinicSharesPage({
             </p>
           ) : (
             <div className="space-y-8">
-              <TrendChart
-                ariaLabel={selfOnly ? "Your earned vs paid per period" : "Doctor shares earned vs paid per period"}
-                points={report.activityBuckets.map((b) => ({
-                  label: b.label,
-                  value: b.earned,
-                  second: b.paid,
-                }))}
-                valueLabel="Earned"
-                overlay={{ label: "Paid" }}
-              />
+              <div className="grid gap-8 lg:grid-cols-2">
+              <div>
+                <div className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Flat — a value is its height
+                </div>
+                <TrendChart
+                  ariaLabel={selfOnly ? "Your earned vs paid per period" : "Doctor shares earned vs paid per period"}
+                  points={report.activityBuckets.map((b) => ({
+                    label: b.label,
+                    value: b.earned,
+                    second: b.paid,
+                  }))}
+                  valueLabel="Earned"
+                  overlay={{ label: "Paid" }}
+                />
+              </div>
+              <div>
+                <div className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  3D — extruded, two depth planes
+                </div>
+                <Trend3D
+                  ariaLabel="Earned vs paid per period, three-dimensional"
+                  points={report.activityBuckets.map((b) => ({
+                    label: b.label,
+                    value: b.earned,
+                    second: b.paid,
+                  }))}
+                  valueLabel="Earned"
+                  overlayLabel="Paid"
+                />
+                <p className="mt-2 text-xs text-muted-foreground">
+                  The slab has a front edge and a back edge, so the single 40k payment
+                  on 09 Sept is drawn as two peaks. The paid ribbon also sits in front
+                  of the earned one and runs near zero, right where the earned wall is.
+                </p>
+              </div>
+              </div>
               <div>
                 <div className="text-sm font-medium">Cumulative earned vs paid</div>
                 <p className="mb-3 text-xs text-muted-foreground">
@@ -327,21 +355,48 @@ export default async function ClinicSharesPage({
                 </p>
                 {/* The GAP is the point of this chart — what the clinic still owes
                     — so it is tinted rather than left for the eye to measure. */}
-                <TrendChart
-                  ariaLabel="Cumulative earned versus paid"
-                  points={report.cumulativeBuckets.map((b) => ({
-                    label: b.label,
-                    value: b.earned,
-                    second: b.paid,
-                  }))}
-                  valueLabel="Cumulative earned"
-                  mode="line"
-                  overlay={{
-                    label: "Cumulative paid",
-                    fillGap: true,
-                    gapLabel: "Outstanding",
-                  }}
-                />
+                <div className="grid gap-8 lg:grid-cols-2">
+                  <div>
+                    <div className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                      Flat — the gap IS the balance
+                    </div>
+                    <TrendChart
+                      ariaLabel="Cumulative earned versus paid"
+                      points={report.cumulativeBuckets.map((b) => ({
+                        label: b.label,
+                        value: b.earned,
+                        second: b.paid,
+                      }))}
+                      valueLabel="Cumulative earned"
+                      mode="line"
+                      overlay={{
+                        label: "Cumulative paid",
+                        fillGap: true,
+                        gapLabel: "Outstanding",
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <div className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                      3D — the gap stops being a quantity
+                    </div>
+                    <Trend3D
+                      ariaLabel="Cumulative earned versus paid, three-dimensional"
+                      points={report.cumulativeBuckets.map((b) => ({
+                        label: b.label,
+                        value: b.earned,
+                        second: b.paid,
+                      }))}
+                      valueLabel="Cumulative earned"
+                      overlayLabel="Cumulative paid"
+                    />
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      The gap survives here only because it is enormous. The surfaces no
+                      longer line up with the axis, so the balance cannot be read off it,
+                      and two series running close together would overlap outright.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           )}
