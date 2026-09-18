@@ -36,9 +36,11 @@ export function LoginForm({
   const twoFactor = state.totpRequired === true;
 
   return (
-    <Card>
+    // A touch more room and a larger title than a standard card: this is the first
+    // screen of the product, and a 16px heading on a 384px card reads as a dialog.
+    <Card className="p-1.5">
       <CardHeader>
-        <CardTitle>{twoFactor ? "Two-factor authentication" : "Sign in"}</CardTitle>
+        <CardTitle className="text-xl">{twoFactor ? "Two-factor authentication" : "Sign in"}</CardTitle>
         <CardDescription>
           {twoFactor
             ? "Enter the 6-digit code from your authenticator app."
