@@ -2,7 +2,9 @@ import { getClinic } from "@/core/clinics/get-clinic";
 import { listClinicPatients } from "@/core/patients/list";
 import { formatMrn } from "@/core/patients/mrn";
 import Link from "next/link";
-import { CalendarPlus, ChevronRight, Download, Plus } from "lucide-react";
+import { CalendarPlus, ChevronRight, Download, Plus, Users } from "lucide-react";
+import { EmptyState } from "@/core/ui/empty-state";
+import { PageHeader } from "@/core/ui/page-header";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
@@ -80,15 +82,16 @@ export async function PatientsList({
   return (
     <div className="space-y-6">
       <FlashToast message={toastMessage} />
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">Patients</h1>
-          <p className="text-sm text-muted-foreground">
+      <PageHeader
+        title="Patients"
+        description={
+          <>
             {total} patient{total === 1 ? "" : "s"}
             {query ? ` matching “${query}”` : ""}.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+          </>
+        }
+        actions={
+          <>
           {total > 0 ? (
             <a
               href={`/api/patients/export${query ? `?q=${encodeURIComponent(query)}` : ""}`}
@@ -102,8 +105,9 @@ export async function PatientsList({
               Add patient
             </Link>
           ) : null}
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <PatientsSearch initial={query ?? ""} />
 
@@ -117,9 +121,15 @@ export async function PatientsList({
       />
 
       {rows.length === 0 ? (
-        <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {query ? `No patients match “${query}”.` : "No patients yet."}
-        </div>
+        <EmptyState
+          icon={Users}
+          title={query ? "No matching patients" : "No patients yet"}
+          description={
+            query
+              ? `Nothing matches “${query}”. Try a name, a phone number or an MRN.`
+              : "Patients you register appear here, newest first."
+          }
+        />
       ) : (
         <>
           <div className="hidden md:block">
