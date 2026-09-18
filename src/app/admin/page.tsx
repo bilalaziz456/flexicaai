@@ -177,17 +177,17 @@ export default async function AdminHome({
       {metrics ? <CompanyMetricsPanel metrics={metrics} scoped={!seesAll} showRevenue={showRevenue} /> : null}
 
       {dueClinics.length > 0 ? (
-        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-4">
-          <div className="mb-2 text-sm font-medium text-amber-700 dark:text-amber-400">
+        <div className="rounded-xl border border-warning/35 bg-warning/[0.06] p-5">
+          <div className="mb-3 text-sm font-semibold text-warning-text">
             {dueClinics.length} clinic{dueClinics.length === 1 ? "" : "s"} due or overdue
           </div>
           <ul className="space-y-1.5 text-sm">
             {dueClinics.slice(0, 8).map((c) => (
-              <li key={c.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
+              <li key={c.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-warning/15 pb-1.5 last:border-0 last:pb-0">
                 <Link href={`/admin/clinics/${c.id}`} className="font-medium hover:underline">
                   {c.name}
                 </Link>
-                <span className="flex flex-wrap items-center gap-x-2 text-muted-foreground">
+                <span className="flex flex-wrap items-center gap-x-2 text-muted-foreground [&>span+span]:before:mr-2 [&>span+span]:before:text-border [&>span+span]:before:content-['·']">
                   <span>
                     {c.balance.billingStatus === "overdue"
                       ? `Rs ${c.balance.owed.toLocaleString("en-PK")} owed · ${c.balance.daysOverdue}d overdue`
@@ -204,7 +204,7 @@ export default async function AdminHome({
                     ) : null}
                   </span>
                   {c.commitmentAt ? (
-                    <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs text-amber-700 dark:text-amber-400">
+                    <span className="max-w-[18rem] truncate rounded-md bg-warning/15 px-2 py-0.5 text-xs text-warning-text">
                       follow up{" "}
                       {new Date(c.commitmentAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                       {c.commitmentNote ? ` · ${c.commitmentNote}` : ""}

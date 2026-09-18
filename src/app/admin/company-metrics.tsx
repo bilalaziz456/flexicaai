@@ -1,33 +1,43 @@
 import { SegmentedBar } from "@/core/ui/charts/segmented-bar";
+import { StatCard } from "@/core/ui/charts/stat-card";
 import { LollipopChart } from "@/core/ui/charts/lollipop-chart";
 import type { CompanyMetrics } from "@/core/admin/metrics";
 import { CLINIC_STATUSES } from "@/core/clinics/status";
-import { cn } from "@/core/lib/utils";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 
+/**
+ * The company KPI — the SAME component the clinic panel uses.
+ *
+ * It was a private div with `rounded-md border` and no fill (the same latent bug as
+ * the filter bars, invisible while the page ground was white) and its own label and
+ * figure styling, so the owner's headline numbers were set differently from a
+ * clinic's on the screen next door.
+ *
+ * `tone` arrives as a raw class name from the six call sites and is MAPPED to
+ * StatCard's good/bad rather than plumbed through: a component that accepts an
+ * arbitrary colour class is how two places end up disagreeing about what red means.
+ *
+ * The declared `children` prop was never passed by any caller, so it is gone.
+ */
 function Kpi({
   label,
   value,
   sub,
   tone,
-  children,
 }: {
   label: string;
   value: string;
   sub?: string;
   tone?: string;
-  children?: React.ReactNode;
 }) {
-  return (
-    <div className="rounded-md border p-4">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={cn("mt-1 text-2xl font-semibold tabular-nums", tone)}>{value}</div>
-      {sub ? <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div> : null}
-      {children}
-    </div>
-  );
+  const semantic = tone?.includes("destructive")
+    ? ("bad" as const)
+    : tone?.includes("success")
+      ? ("good" as const)
+      : ("default" as const);
+  return <StatCard label={label} value={value} hint={sub} tone={semantic} />;
 }
 
 /**
@@ -94,7 +104,7 @@ export function CompanyMetricsPanel({
 
       <div className="grid gap-3 lg:grid-cols-2">
         {/* Clinics by status */}
-        <div className="rounded-md border p-4">
+        <div className="rounded-xl border border-border/70 bg-card p-5 elev-1">
           <div className="mb-2 text-sm font-medium">Clinics by status</div>
           {/* The portfolio as ONE bar. It was a row of count chips, which asserts a
               split without showing it — five numbers you have to add up to know
@@ -126,7 +136,7 @@ export function CompanyMetricsPanel({
         </div>
 
         {/* Top clinics by revenue */}
-        <div className="rounded-md border p-4">
+        <div className="rounded-xl border border-border/70 bg-card p-5 elev-1">
           <div className="mb-2 text-sm font-medium">Top clinics by revenue (this year)</div>
           {m.topClinics.length === 0 ? (
             <p className="text-sm text-muted-foreground">No payments recorded yet.</p>
