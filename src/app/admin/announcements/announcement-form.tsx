@@ -6,6 +6,7 @@ import {
   updateAnnouncementAction,
   type AnnouncementActionState,
 } from "./actions";
+import { SelectField } from "@/core/ui/select-field";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
@@ -198,10 +199,14 @@ export function AnnouncementForm({
 
       <div className="w-40 space-y-2">
         <Label htmlFor="level">Level</Label>
-        <select id="level" name="level" defaultValue={initial?.level ?? "info"} className={selectClass}>
-          <option value="info">Info</option>
-          <option value="warning">Warning</option>
-        </select>
+        <SelectField
+          id="level"
+          name="level"
+          defaultValue={initial?.level ?? "info"}
+          options={[{ value: "info", label: "Info" }, { value: "warning", label: "Warning" }]}
+          ariaLabel="level"
+          className="h-8 w-full"
+        />
       </div>
 
       <fieldset className="space-y-2">

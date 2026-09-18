@@ -27,7 +27,7 @@ function todayParts() {
 }
 
 const triggerCls =
-  "flex h-8 w-full items-center gap-2 rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm text-left outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[popup-open]:border-ring";
+  "flex h-9 w-full items-center gap-2 rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm text-left outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[popup-open]:border-ring";
 
 // Month/year quick-nav selects in the popover header (fast jumps for e.g. DOB).
 const navSelectCls =

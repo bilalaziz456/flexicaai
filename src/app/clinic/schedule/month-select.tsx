@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { SELECT_CLASS } from "@/app/clinic/schedule/leave-dialog";
+import { nativeSelectClass } from "@/core/ui/select-field";
 
 /**
  * The month filter over the schedule. Picking a month jumps to the week that month
@@ -29,7 +29,7 @@ export function MonthSelect({
 
   return (
     <select
-      className={`${SELECT_CLASS} w-48`}
+      className={`${nativeSelectClass} w-48`}
       value={value}
       aria-label="Month"
       onChange={(e) => {

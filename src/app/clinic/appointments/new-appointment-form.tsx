@@ -11,6 +11,7 @@ import {
   type DoctorDaySlots,
   type ReceptionActionState,
 } from "@/app/clinic/appointments/actions";
+import { SelectField } from "@/core/ui/select-field";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { DatePicker } from "@/core/ui/date-picker";
@@ -49,11 +50,6 @@ const label12 = (hhmm: string) => {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${pad(m)} ${mer}`;
 };
-
-// Native <select> variant: themed chevron with a comfortable gap from the right
-// edge (see `.select-chevron` in globals.css).
-const nativeSelectCls =
-  "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron";
 
 /**
  * Appointment form — create OR edit. The time picker ADAPTS to the doctor: a
@@ -720,17 +716,18 @@ export function NewAppointmentForm({
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="discountValue">Discount (optional)</Label>
           <div className="flex gap-2">
-            <select
+            <SelectField
               id="discountType"
               name="discountType"
               value={discountType}
-              onChange={(e) => setDiscountType(e.target.value as DiscountType)}
-              className={`${nativeSelectCls} w-auto`}
-              aria-label="Discount type"
-            >
-              <option value="amount">Amount (Rs)</option>
-              <option value="percent">Percent (%)</option>
-            </select>
+              onValueChange={(next) => setDiscountType(next as DiscountType)}
+              options={[
+                { value: "amount", label: "Amount (Rs)" },
+                { value: "percent", label: "Percent (%)" },
+              ]}
+              ariaLabel="Discount type"
+              className="h-8 w-auto"
+            />
             <Input
               id="discountValue"
               name="discountValue"
@@ -836,15 +833,16 @@ export function NewAppointmentForm({
                     <div className="space-y-1.5 rounded-lg border border-dashed well p-2.5">
                       <Label className="text-xs text-muted-foreground">Doctor bears</Label>
                       <div className="flex gap-2">
-                        <select
+                        <SelectField
                           value={splitType}
-                          onChange={(e) => setSplitType(e.target.value as DiscountType)}
-                          className={`${nativeSelectCls} w-auto`}
-                          aria-label="Doctor's share type"
-                        >
-                          <option value="percent">Percent (%)</option>
-                          <option value="amount">Amount (Rs)</option>
-                        </select>
+                          onValueChange={(next) => setSplitType(next as DiscountType)}
+                          options={[
+                            { value: "percent", label: "Percent (%)" },
+                            { value: "amount", label: "Amount (Rs)" },
+                          ]}
+                          ariaLabel="Doctor's share type"
+                          className="h-8 w-auto"
+                        />
                         <Input
                           type="number"
                           inputMode="numeric"

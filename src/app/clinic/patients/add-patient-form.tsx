@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { createPatient, type ClinicActionState } from "@/app/clinic/actions";
+import { SelectField } from "@/core/ui/select-field";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
@@ -50,16 +51,14 @@ export function AddPatientForm() {
         </div>
         <div className="space-y-2">
           <Label htmlFor="gender">Gender</Label>
-          <select
+          <SelectField
             id="gender"
             name="gender"
             defaultValue=""
-            className="h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron"
-          >
-            <option value="">—</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-          </select>
+            options={[{ value: "", label: "—" }, { value: "male", label: "Male" }, { value: "female", label: "Female" }]}
+            ariaLabel="gender"
+            className="h-8 w-full"
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="address">Address</Label>

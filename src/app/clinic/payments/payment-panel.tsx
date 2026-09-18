@@ -12,6 +12,7 @@ import {
   sendInvoiceWhatsAppAction,
   type BillingActionState,
 } from "@/app/clinic/payments/payment-actions";
+import { SelectField } from "@/core/ui/select-field";
 import { Button, buttonVariants } from "@/core/ui/button";
 import { Toast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
@@ -200,11 +201,14 @@ export function PaymentPanel({
             </div>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground" htmlFor="pp-method">Method</label>
-              <select id="pp-method" name="method" defaultValue="cash" className={`${inputCls} select-chevron pr-8`}>
-                {methodOptions.map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
-              </select>
+              <SelectField
+                id="pp-method"
+                name="method"
+                defaultValue="cash"
+                options={[...methodOptions.map((m) => ({ value: m.value, label: m.label }))]}
+                ariaLabel="method"
+                className="h-8 w-full"
+              />
             </div>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground" htmlFor="pp-ref">Reference</label>
@@ -261,11 +265,14 @@ export function PaymentPanel({
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground" htmlFor="rf-method">Method</label>
-                <select id="rf-method" name="method" defaultValue="cash" className={`${inputCls} select-chevron pr-8`}>
-                  {methodOptions.map((m) => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
-                  ))}
-                </select>
+                <SelectField
+                  id="rf-method"
+                  name="method"
+                  defaultValue="cash"
+                  options={[...methodOptions.map((m) => ({ value: m.value, label: m.label }))]}
+                  ariaLabel="method"
+                  className="h-8 w-full"
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground" htmlFor="rf-ref">Reference</label>

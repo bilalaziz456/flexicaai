@@ -9,6 +9,7 @@ import {
   updateStaffProfile,
   type ClinicActionState,
 } from "@/app/clinic/actions";
+import { SelectField } from "@/core/ui/select-field";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
@@ -70,20 +71,13 @@ export function EditStaffForm({
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>
           <div className="flex gap-2">
-            <select
-              key={`prefix-${prefix ?? ""}`}
+            <SelectField
               name="prefix"
-              aria-label="Title"
               defaultValue={prefix ?? ""}
-              className="h-8 w-24 shrink-0 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron"
-            >
-              <option value="">Title</option>
-              {STAFF_PREFIXES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+              options={[{ value: "", label: "Title" }, ...STAFF_PREFIXES.map((p) => ({ value: p, label: p }))]}
+              ariaLabel="Title"
+              className="h-8 w-24 shrink-0"
+            />
             <Input
               key={`name-${fullName ?? ""}`}
               id="fullName"

@@ -62,7 +62,7 @@ export function IssueInvoiceForm({ clinics }: { clinics: InvoiceClinic[] }) {
           options={clinicOptions}
           placeholder="Pick a clinic"
           searchPlaceholder="Search clinics…"
-          className="w-full"
+          className="h-8 w-full"
         />
         <div className="space-y-1">
           <Label htmlFor="inv-amount" className="text-xs text-muted-foreground">Amount (Rs)</Label>

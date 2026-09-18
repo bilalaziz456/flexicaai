@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
 import { Undo2 } from "lucide-react";
 import { recordSettlement, voidSettlement, type PayoutActionState } from "./actions";
+import { SelectField } from "@/core/ui/select-field";
 import { Button } from "@/core/ui/button";
 import { Toast } from "@/core/ui/toast";
 
@@ -60,20 +61,18 @@ export function SettlementForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground" htmlFor="st-kind">Action</label>
-          <select
+          <SelectField
             id="st-kind"
             name="kind"
             value={kind}
-            onChange={(e) => {
-              setKind(e.target.value);
-              setAmount(String(options.find((o) => o.value === e.target.value)?.max ?? ""));
+            onValueChange={(next) => {
+              setKind(next);
+              setAmount(String(options.find((o) => o.value === next)?.max ?? ""));
             }}
-            className={`${inputCls} select-chevron pr-8`}
-          >
-            {options.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+            options={[...options.map((o) => ({ value: o.value, label: o.label }))]}
+            ariaLabel="kind"
+            className="h-8 w-full"
+          />
         </div>
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground" htmlFor="st-amount">

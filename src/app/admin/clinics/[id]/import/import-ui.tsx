@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Download, FileUp, Upload } from "lucide-react";
+import { SelectField } from "@/core/ui/select-field";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Button, buttonVariants } from "@/core/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/core/ui/card";
@@ -233,16 +234,13 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
                     {f.label}
                     {f.required ? " *" : ""}
                   </span>
-                  <select
+                  <SelectField
                     value={val}
-                    onChange={(e) => setField(f.key, e.target.value)}
-                    className="h-8 min-w-[9rem] max-w-[12rem] rounded-lg border border-input bg-[var(--input-bg)] pl-2 pr-8 text-sm outline-none focus-visible:border-ring select-chevron"
-                  >
-                    <option value="">— none —</option>
-                    {preview.headers.map((h) => (
-                      <option key={h} value={h}>{h}</option>
-                    ))}
-                  </select>
+                    onValueChange={(next) => setField(f.key, next)}
+                    options={[{ value: "", label: "— none —" }, ...preview.headers.map((h) => ({ value: h, label: h }))]}
+                    ariaLabel="Select"
+                    className="h-8 min-w-[9rem] max-w-[12rem]"
+                  />
                 </label>
               );
             })}

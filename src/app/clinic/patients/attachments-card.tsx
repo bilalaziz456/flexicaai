@@ -2,6 +2,7 @@
 
 import { downscaleImage } from "@/core/lib/image-resize";
 import { Checkbox } from "@/core/ui/checkbox";
+import { SelectField } from "@/core/ui/select-field";
 import { EmptyState } from "@/core/ui/empty-state";
 
 import { useRef, useState, useTransition } from "react";
@@ -111,11 +112,11 @@ export function AttachmentsCard({
       {/* Gallery */}
       {attachments.length === 0 ? (
         <EmptyState
-                  compact
-                  icon={Paperclip}
-                  title="No attachments yet"
-                  description="X-rays, photos, consent forms and documents for this patient appear here."
-                />
+          compact
+          icon={Paperclip}
+          title="No attachments yet"
+          description="X-rays, photos, consent forms and documents for this patient appear here."
+        />
       ) : (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
           {attachments.map((a) => {
@@ -170,18 +171,27 @@ export function AttachmentsCard({
           </div>
           <div className="space-y-1">
             <label htmlFor="att-kind" className="text-xs text-muted-foreground">Type</label>
-            <select
+            {/* Photo stays VISIBLE and unselectable without consent rather than
+                disappearing: an option that is simply absent tells the uploader
+                nothing about why, and consent is the whole point of the rule
+                (conventions §13). This is what `disabled` on an option is for. */}
+            <SelectField
               id="att-kind"
               name="kind"
               value={kind}
-              onChange={(e) => setKind(e.target.value)}
-              className="h-9 rounded-lg border border-input bg-[var(--input-bg)] pl-2 pr-8 text-sm outline-none select-chevron"
-            >
-              <option value="xray">X-ray</option>
-              <option value="photo" disabled={!photoConsent}>Photo{!photoConsent ? " (needs consent)" : ""}</option>
-              <option value="document">Document</option>
-              <option value="consent">Consent form</option>
-            </select>
+              onValueChange={setKind}
+              options={[
+                { value: "xray", label: "X-ray" },
+                {
+                  value: "photo",
+                  label: photoConsent ? "Photo" : "Photo (needs consent)",
+                  disabled: !photoConsent,
+                },
+                { value: "document", label: "Document" },
+                { value: "consent", label: "Consent form" },
+              ]}
+              ariaLabel="Attachment type"
+            />
           </div>
           <div className="space-y-1">
             <label htmlFor="att-caption" className="text-xs text-muted-foreground">Caption</label>

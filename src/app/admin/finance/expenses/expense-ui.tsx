@@ -10,6 +10,7 @@ import {
   toggleCompanyCategoryAction,
   type ExpenseActionState,
 } from "./actions";
+import { SelectField } from "@/core/ui/select-field";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { ConfirmDialog } from "@/core/ui/confirm-dialog";
@@ -22,7 +23,6 @@ import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
 const inputCls =
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
-const selectCls = `${inputCls} select-chevron pr-8`;
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 
 const todayStr = () => {
@@ -95,7 +95,7 @@ export function CompanyExpenseForm({
           onChange={setCategoryId}
           options={categoryOptions}
           placeholder="Category"
-          className="w-full"
+          className="h-8 w-full"
         />
         <div className="space-y-1">
           <Label htmlFor="ex-amount" className="text-xs text-muted-foreground">Amount (Rs)</Label>
@@ -118,11 +118,14 @@ export function CompanyExpenseForm({
         </div>
         <div className="space-y-1">
           <Label htmlFor="ex-method" className="text-xs text-muted-foreground">Method</Label>
-          <select id="ex-method" name="method" defaultValue={expense?.method ?? "bank"} className={selectCls}>
-            {methodOptions.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
+          <SelectField
+            id="ex-method"
+            name="method"
+            defaultValue={expense?.method ?? "bank"}
+            options={[...methodOptions.map((m) => ({ value: m.value, label: m.label }))]}
+            ariaLabel="method"
+            className="h-8 w-full"
+          />
         </div>
         <div className="space-y-1">
           <Label htmlFor="ex-vendor" className="text-xs text-muted-foreground">Vendor / payee</Label>
@@ -143,15 +146,13 @@ export function CompanyExpenseForm({
           <Checkbox name="recurring" defaultChecked={!!expense?.recurrence} />
           Recurring cost
         </label>
-        <select
+        <SelectField
           name="recurrence"
           defaultValue={expense?.recurrence ?? "monthly"}
-          aria-label="Recurrence interval"
-          className="h-8 rounded-lg border border-input bg-[var(--input-bg)] px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <option value="monthly">Monthly</option>
-          <option value="weekly">Weekly</option>
-        </select>
+          options={[{ value: "monthly", label: "Monthly" }, { value: "weekly", label: "Weekly" }]}
+          ariaLabel="Recurrence interval"
+          className="h-8"
+        />
         {isEdit && onDone ? (
           <Button type="button" variant="ghost" size="sm" onClick={onDone}>Cancel</Button>
         ) : null}

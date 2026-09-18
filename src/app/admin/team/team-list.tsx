@@ -4,16 +4,13 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { AdminAccountState, AdminSubRole } from "@/core/auth/admin-permissions";
+import { SelectField } from "@/core/ui/select-field";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { RowLink } from "@/core/ui/row-link";
 import { cn } from "@/core/lib/utils";
 
-const selectClass = cn(
-  "h-8 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none",
-  "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron",
-);
 
 export type TeamMember = {
   id: string;
@@ -50,20 +47,20 @@ export function TeamList({ members }: { members: TeamMember[] }) {
           onChange={(e) => setQ(e.target.value)}
           className="max-w-xs"
         />
-        <select value={role} onChange={(e) => setRole(e.target.value)} className={selectClass}>
-          <option value="all">All roles</option>
-          <option value="owner">Owner</option>
-          <option value="support">Support</option>
-          <option value="sales">Sales</option>
-          <option value="billing">Billing</option>
-          <option value="custom">Custom</option>
-        </select>
-        <select value={status} onChange={(e) => setStatus(e.target.value)} className={selectClass}>
-          <option value="all">All statuses</option>
-          <option value="active">Active</option>
-          <option value="suspended">Suspended</option>
-          <option value="deactivated">Deactivated</option>
-        </select>
+        <SelectField
+          value={role}
+          onValueChange={(next) => setRole(next)}
+          options={[{ value: "all", label: "All roles" }, { value: "owner", label: "Owner" }, { value: "support", label: "Support" }, { value: "sales", label: "Sales" }, { value: "billing", label: "Billing" }, { value: "custom", label: "Custom" }]}
+          ariaLabel="Select"
+          className="h-8 w-full"
+        />
+        <SelectField
+          value={status}
+          onValueChange={(next) => setStatus(next)}
+          options={[{ value: "all", label: "All statuses" }, { value: "active", label: "Active" }, { value: "suspended", label: "Suspended" }, { value: "deactivated", label: "Deactivated" }]}
+          ariaLabel="Select"
+          className="h-8 w-full"
+        />
       </div>
 
       {filtered.length === 0 ? (

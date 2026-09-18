@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { SelectField } from "@/core/ui/select-field";
 import { EmptyState } from "@/core/ui/empty-state";
 import { Plus, Trash2, FlaskConical } from "lucide-react";
 import { Button } from "@/core/ui/button";
@@ -27,7 +28,6 @@ export type LabCaseRow = {
 };
 
 const money = (n: number) => new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 }).format(n);
-const selectCls = "h-8 rounded-lg border border-input bg-[var(--input-bg)] pl-2 pr-8 text-sm outline-none select-chevron";
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = { sent: "secondary", in_lab: "secondary", received: "default", fitted: "outline", remake: "destructive" };
 
 export function LabTrackerCard({
@@ -96,9 +96,14 @@ export function LabTrackerCard({
               </div>
               <div className="flex items-center gap-2">
                 {canEdit ? (
-                  <select value={c.status} aria-label="Lab case status" disabled={pending} className={selectCls} onChange={(e) => run(() => updateLabStatusAction(c.id, patientId, e.target.value), "Status updated.")}>
-                    {statuses.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
-                  </select>
+                  <SelectField
+                    value={c.status}
+                    onValueChange={(next) => run(() => updateLabStatusAction(c.id, patientId, next), "Status updated.")}
+                    disabled={pending}
+                    options={[...statuses.map((s) => ({ value: s, label: s.replace("_", " ") }))]}
+                    ariaLabel="Lab case status"
+                    className="h-8 w-full"
+                  />
                 ) : (
                   <Badge variant={STATUS_VARIANT[c.status] ?? "secondary"}>{c.status.replace("_", " ")}</Badge>
                 )}
@@ -116,9 +121,13 @@ export function LabTrackerCard({
       {canCreate ? (
         <div className="flex flex-wrap items-end gap-2 rounded-xl border border-border/70 bg-surface-sunken p-3.5">
           <Field label="Item">
-            <select value={item} onChange={(e) => setItem(e.target.value)} className={`${selectCls} capitalize`}>
-              {itemTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
+            <SelectField
+              value={item}
+              onValueChange={(next) => setItem(next)}
+              options={[...itemTypes.map((t) => ({ value: t, label: t }))]}
+              ariaLabel="Select"
+              className="h-8 w-full capitalize"
+            />
           </Field>
           <Field label="Lab"><Input value={labName} onChange={(e) => setLabName(e.target.value)} className="h-8 w-32" placeholder="Lab name" /></Field>
           <Field label="Tooth"><Input value={tooth} onChange={(e) => setTooth(e.target.value)} className="h-8 w-16" /></Field>

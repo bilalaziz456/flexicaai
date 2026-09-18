@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Plus, X } from "lucide-react";
+import { SelectField } from "@/core/ui/select-field";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Badge } from "@/core/ui/badge";
@@ -124,13 +125,13 @@ export function MedicalHistoryCard({
                 value={a.reaction ?? ""}
                 onChange={(e) => set("allergies", replace(data.allergies, i, { ...a, reaction: e.target.value }))}
               />
-              <select
-                className="h-8 rounded-lg border border-input bg-[var(--input-bg)] pl-2 pr-8 text-sm outline-none select-chevron"
+              <SelectField
                 value={a.severity ?? ""}
-                onChange={(e) => set("allergies", replace(data.allergies, i, { ...a, severity: e.target.value }))}
-              >
-                {SEVERITIES.map((s) => <option key={s} value={s}>{s || "severity"}</option>)}
-              </select>
+                onValueChange={(next) => set("allergies", replace(data.allergies, i, { ...a, severity: next }))}
+                options={[...SEVERITIES.map((s) => ({ value: s, label: s || "severity" }))]}
+                ariaLabel="Select"
+                className="h-8"
+              />
               <button type="button" onClick={() => set("allergies", remove(data.allergies, i))} aria-label="Remove allergy">
                 <X className="size-4 text-muted-foreground" />
               </button>

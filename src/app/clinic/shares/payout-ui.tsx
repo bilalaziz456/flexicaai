@@ -7,6 +7,7 @@ import {
   voidDoctorPayout,
   type PayoutActionState,
 } from "./actions";
+import { SelectField } from "@/core/ui/select-field";
 import { Button } from "@/core/ui/button";
 import { Toast } from "@/core/ui/toast";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
@@ -68,16 +69,14 @@ export function RecordPayoutForm({
           <label className="text-xs text-muted-foreground" htmlFor="pay-method">
             Method
           </label>
-          <select
+          <SelectField
             id="pay-method"
             name="method"
             defaultValue="cash"
-            className={`${inputCls} select-chevron pr-8`}
-          >
-            {methodOptions.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
+            options={[...methodOptions.map((m) => ({ value: m.value, label: m.label }))]}
+            ariaLabel="method"
+            className="h-8 w-full"
+          />
         </div>
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground" htmlFor="pay-ref">

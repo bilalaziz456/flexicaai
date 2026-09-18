@@ -9,6 +9,7 @@ import {
   voidClinicPaymentAction,
   type AdminActionState,
 } from "@/app/admin/actions";
+import { SelectField } from "@/core/ui/select-field";
 import { Badge } from "@/core/ui/badge";
 import { Button } from "@/core/ui/button";
 import { ConfirmDialog } from "@/core/ui/confirm-dialog";
@@ -21,10 +22,6 @@ import { SavedToast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
-const selectClass = cn(
-  "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none",
-  "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron",
-);
 const CYCLES = [
   { id: "monthly", label: "Monthly" },
   { id: "2m", label: "2-monthly" },
@@ -318,11 +315,14 @@ export function ClinicBilling({
           </div>
           <div className="space-y-2">
             <Label htmlFor="billingCycle">Expected cycle</Label>
-            <select id="billingCycle" name="billingCycle" defaultValue={billingCycle} className={selectClass}>
-              {CYCLES.map((c) => (
-                <option key={c.id} value={c.id}>{c.label}</option>
-              ))}
-            </select>
+            <SelectField
+              id="billingCycle"
+              name="billingCycle"
+              defaultValue={billingCycle}
+              options={[...CYCLES.map((c) => ({ value: c.id, label: c.label }))]}
+              ariaLabel="billingCycle"
+              className="h-8 w-full"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="graceDays">Grace days</Label>
@@ -344,11 +344,14 @@ export function ClinicBilling({
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="kind">Type</Label>
-            <select id="kind" value={kind} onChange={(e) => setKind(e.target.value)} className={selectClass}>
-              <option value="payment">Payment (money in)</option>
-              <option value="refund">Refund (money out)</option>
-              <option value="credit">Credit (non-cash adjustment)</option>
-            </select>
+            <SelectField
+              id="kind"
+              value={kind}
+              onValueChange={(next) => setKind(next)}
+              options={[{ value: "payment", label: "Payment (money in)" }, { value: "refund", label: "Refund (money out)" }, { value: "credit", label: "Credit (non-cash adjustment)" }]}
+              ariaLabel="kind"
+              className="h-8 w-full"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="amount">Amount (PKR)</Label>
@@ -363,11 +366,14 @@ export function ClinicBilling({
           </div>
           <div className="space-y-2">
             <Label htmlFor="method">Method</Label>
-            <select id="method" name="method" defaultValue="bank" className={selectClass}>
-              {methodOptions.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
+            <SelectField
+              id="method"
+              name="method"
+              defaultValue="bank"
+              options={[...methodOptions.map((m) => ({ value: m.value, label: m.label }))]}
+              ariaLabel="method"
+              className="h-8 w-full"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="occurredAt">Date</Label>

@@ -7,6 +7,7 @@ import {
   updatePatient,
   type ClinicActionState,
 } from "@/app/clinic/actions";
+import { SelectField } from "@/core/ui/select-field";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
@@ -28,8 +29,6 @@ type PatientData = {
   dataConsent: boolean;
 };
 
-const selectCls =
-  "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron";
 
 /** Edit a patient's details. */
 export function EditPatientForm({ patient }: { patient: PatientData }) {
@@ -99,17 +98,14 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
         </div>
         <div className="space-y-2">
           <Label htmlFor="gender">Gender</Label>
-          <select
-            key={`g-${patient.gender ?? ""}`}
+          <SelectField
             id="gender"
             name="gender"
             defaultValue={patient.gender ?? ""}
-            className={selectCls}
-          >
-            <option value="">—</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-          </select>
+            options={[{ value: "", label: "—" }, { value: "male", label: "Male" }, { value: "female", label: "Female" }]}
+            ariaLabel="gender"
+            className="h-8 w-full"
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="address">Address</Label>

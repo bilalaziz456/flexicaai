@@ -10,6 +10,7 @@ import {
   toggleCategoryAction,
   type ExpenseActionState,
 } from "./expense-actions";
+import { SelectField } from "@/core/ui/select-field";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
@@ -21,7 +22,6 @@ import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
 const inputCls =
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
-const selectCls = `${inputCls} select-chevron pr-8`;
 
 const todayStr = () => {
   const d = new Date();
@@ -70,7 +70,7 @@ export function AddExpenseForm({
           onChange={setCategoryId}
           options={categoryOptions}
           placeholder="Category"
-          className="w-full"
+          className="h-8 w-full"
         />
         <div className="space-y-1">
           <Label htmlFor="ex-amount" className="text-xs text-muted-foreground">Amount (Rs)</Label>
@@ -93,11 +93,14 @@ export function AddExpenseForm({
         </div>
         <div className="space-y-1">
           <Label htmlFor="ex-method" className="text-xs text-muted-foreground">Method</Label>
-          <select id="ex-method" name="method" defaultValue="cash" className={selectCls}>
-            {methodOptions.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
+          <SelectField
+            id="ex-method"
+            name="method"
+            defaultValue="cash"
+            options={[...methodOptions.map((m) => ({ value: m.value, label: m.label }))]}
+            ariaLabel="method"
+            className="h-8 w-full"
+          />
         </div>
         <div className="space-y-1">
           <Label htmlFor="ex-vendor" className="text-xs text-muted-foreground">Vendor / payee</Label>
@@ -118,15 +121,13 @@ export function AddExpenseForm({
           <Checkbox name="recurring" />
           Recurring cost
         </label>
-        <select
+        <SelectField
           name="recurrence"
           defaultValue="monthly"
-          aria-label="Recurrence interval"
-          className="h-8 rounded-lg border border-input bg-[var(--input-bg)] px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <option value="monthly">Monthly</option>
-          <option value="weekly">Weekly</option>
-        </select>
+          options={[{ value: "monthly", label: "Monthly" }, { value: "weekly", label: "Weekly" }]}
+          ariaLabel="Recurrence interval"
+          className="h-8"
+        />
       </div>
       <Toast
         message={state.saved ? "Expense added." : state.error ?? null}

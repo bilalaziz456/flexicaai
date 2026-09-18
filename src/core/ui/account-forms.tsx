@@ -30,6 +30,7 @@ import {
   updateMyDiscountApproval,
   type AccountActionState,
 } from "@/core/account/actions";
+import { SelectField } from "@/core/ui/select-field";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Button, buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
@@ -40,8 +41,6 @@ import { Toast } from "@/core/ui/toast";
 import { STAFF_PREFIXES } from "@/core/types/auth";
 import { syncChecked } from "@/core/ui/checkbox-sync";
 
-const selectCls =
-  "h-8 w-24 shrink-0 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron";
 
 function useToast(state: AccountActionState) {
   const [nonce, setNonce] = useState(0);
@@ -339,19 +338,13 @@ export function ProfileForm({
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>
           <div className="flex gap-2">
-            <select
+            <SelectField
               name="prefix"
-              aria-label="Title"
               defaultValue={prefix ?? ""}
-              className={selectCls}
-            >
-              <option value="">Title</option>
-              {STAFF_PREFIXES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+              options={[{ value: "", label: "Title" }, ...STAFF_PREFIXES.map((p) => ({ value: p, label: p }))]}
+              ariaLabel="Title"
+              className="h-8 w-full"
+            />
             <Input
               id="fullName"
               name="fullName"

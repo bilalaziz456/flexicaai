@@ -3,6 +3,7 @@
 import { Combobox } from "@base-ui/react/combobox";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Label } from "@/core/ui/label";
+import { cn } from "@/core/lib/utils";
 
 /**
  * SearchableSelect — a themed Base UI combobox using the "input-inside-popup"
@@ -19,7 +20,7 @@ import { Label } from "@/core/ui/label";
 export type SelectOption = { value: string; label: string };
 
 const triggerCls =
-  "inline-flex h-8 items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-2 text-left text-sm outline-none transition-colors hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-ring data-[placeholder]:text-muted-foreground";
+  "inline-flex h-9 items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-2 text-left text-sm outline-none transition-colors hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-ring data-[placeholder]:text-muted-foreground";
 
 export function SearchableSelect({
   label,
@@ -61,7 +62,7 @@ export function SearchableSelect({
         <Combobox.Trigger
           type="button"
           aria-label={ariaLabel}
-          className={`${triggerCls} ${className ?? "w-44"}`}
+          className={cn(triggerCls, className ?? "w-44")}
         >
           <Combobox.Value placeholder={placeholder} />
           <Combobox.Icon>

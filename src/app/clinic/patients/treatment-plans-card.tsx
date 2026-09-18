@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { SelectField } from "@/core/ui/select-field";
 import { EmptyState } from "@/core/ui/empty-state";
 import Link from "next/link";
 import { Plus, Printer, Trash2, ClipboardList } from "lucide-react";
@@ -32,7 +33,6 @@ const PLAN_STATUSES = TREATMENT_PLAN_STATUS_ROWS.map((r) => r.code);
 const ITEM_STATUSES = TREATMENT_ITEM_STATUS_ROWS.map((r) => r.code);
 const PLAN_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = { proposed: "secondary", active: "default", completed: "outline", cancelled: "destructive" };
 
-const selectCls = "h-8 rounded-lg border border-input bg-[var(--input-bg)] pl-2 pr-8 text-sm outline-none select-chevron";
 
 export function TreatmentPlansCard({
   plans,
@@ -90,9 +90,14 @@ export function TreatmentPlansCard({
                       </Link>
                     ) : null}
                     {canEdit ? (
-                      <select value={p.status} disabled={pending} className={selectCls} onChange={(e) => run(() => setPlanStatusAction(p.id, patientId, e.target.value), "Plan updated.")}>
-                        {PLAN_STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
-                      </select>
+                      <SelectField
+                        value={p.status}
+                        onValueChange={(next) => run(() => setPlanStatusAction(p.id, patientId, next), "Plan updated.")}
+                        disabled={pending}
+                        options={[...PLAN_STATUSES.map((s) => ({ value: s, label: s.replace("_", " ") }))]}
+                        ariaLabel="Select"
+                        className="h-8 w-full"
+                      />
                     ) : (
                       <Badge variant={PLAN_VARIANT[p.status] ?? "secondary"}>{p.status}</Badge>
                     )}
@@ -114,9 +119,14 @@ export function TreatmentPlansCard({
                           <td className="py-1 text-right tabular-nums">{money(it.unitPrice * it.quantity)}</td>
                           <td className="py-1 pl-2">
                             {canEdit ? (
-                              <select value={it.status} disabled={pending} className={`${selectCls} h-7`} onChange={(e) => run(() => updatePlanItemAction(it.id, patientId, { status: e.target.value }), "Item updated.")}>
-                                {ITEM_STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
-                              </select>
+                              <SelectField
+                                value={it.status}
+                                onValueChange={(next) => run(() => updatePlanItemAction(it.id, patientId, { status: next }), "Item updated.")}
+                                disabled={pending}
+                                options={[...ITEM_STATUSES.map((s) => ({ value: s, label: s.replace("_", " ") }))]}
+                                ariaLabel="Select"
+                                className="h-8 w-full h-7"
+                              />
                             ) : (
                               <Badge variant="outline">{it.status.replace("_", " ")}</Badge>
                             )}
@@ -166,7 +176,7 @@ export function TreatmentPlansCard({
                   onChange={setTmpl}
                   options={[{ value: "", label: "Choose…" }, ...templates.map((t) => ({ value: t, label: t }))]}
                   placeholder="Choose…"
-                  className="w-48"
+                  className="h-8 w-48"
                 />
               </div>
               <Button size="sm" variant="outline" disabled={pending || !tmpl} onClick={() => run(async () => { const r = await createPlanFromTemplateAction(patientId, tmpl); if (r.ok) setTmpl(""); return r; }, "Plan created.")}>
@@ -200,7 +210,7 @@ function AddItem({ planId, patientId, procedures, pending, onRun }: { planId: st
         onChange={setProcId}
         options={[{ value: "", label: "Add procedure…" }, ...procedures.map((p) => ({ value: p.id, label: p.name }))]}
         placeholder="Add procedure…"
-        className="w-52"
+        className="h-8 w-52"
       />
       <Input value={tooth} onChange={(e) => setTooth(e.target.value)} aria-label="Tooth" placeholder="Tooth" className="h-7 w-16" />
       <Input aria-label="Quantity" value={qty} onChange={(e) => setQty(e.target.value.replace(/[^\d]/g, ""))} className="h-7 w-12" />

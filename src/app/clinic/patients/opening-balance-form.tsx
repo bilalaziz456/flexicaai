@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { SelectField } from "@/core/ui/select-field";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { recordOpeningPayment } from "@/app/clinic/payments/payment-actions";
@@ -24,14 +25,12 @@ export function OpeningBalanceForm({ patientId, owed }: { patientId: string; owe
       </label>
       <label className="text-sm">
         <span className="mb-1 block text-xs text-muted-foreground">Method</span>
-        <select
+        <SelectField
           name="method"
-          className="h-9 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring select-chevron"
-        >
-          {methodOptions.map((m) => (
-            <option key={m.value} value={m.value}>{m.label}</option>
-          ))}
-        </select>
+          options={methodOptions}
+          ariaLabel="method"
+          className="h-9"
+        />
       </label>
       <label className="text-sm">
         <span className="mb-1 block text-xs text-muted-foreground">Reference (optional)</span>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 import {
@@ -13,9 +14,6 @@ import { SearchableSelect } from "@/core/ui/searchable-select";
 
 // Receivables is a point-in-time balance, so it defaults to ALL TIME (no date
 // bound) — the presets narrow it to visits within a window when needed.
-const inputCls =
-  "h-8 w-56 rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
-
 /** Filter bar for Receivables: period (default All time) + custom range, doctor, patient search. */
 export function ReceivablesFilters({
   period,
@@ -80,7 +78,7 @@ export function ReceivablesFilters({
       />
       <div className={filterFieldCls}>
         <Label htmlFor="recv-q" className={filterLabelCls}>Patient</Label>
-        <input
+        <Input
           id="recv-q"
           type="search"
           value={qV}
@@ -90,7 +88,7 @@ export function ReceivablesFilters({
             if (e.key === "Enter") push({ q: qV });
           }}
           onBlur={() => push({ q: qV })}
-          className={inputCls}
+          className="w-56"
         />
       </div>
       <DateRangeFields
