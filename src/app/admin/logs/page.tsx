@@ -1,4 +1,5 @@
 import { requireRole } from "@/core/auth/user";
+import { TableCard } from "@/core/ui/table-card";
 import { ActivityLogList } from "@/core/ui/activity-log";
 import { LogFilters } from "@/core/ui/log-filters";
 import { Pagination } from "@/core/ui/pagination";
@@ -94,11 +95,13 @@ export default async function AdminLogsPage({
         searchParams={sp}
         unit="entry"
       />
-      <ActivityLogList
-        rows={rows}
-        showClinic
-        emptyHint="No activity matches these filters."
-      />
+      <TableCard>
+        <ActivityLogList
+          rows={rows}
+          showClinic
+          emptyHint="No activity matches these filters."
+        />
+      </TableCard>
     </div>
   );
 }

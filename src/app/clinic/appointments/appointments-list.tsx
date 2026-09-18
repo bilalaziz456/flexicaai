@@ -1,4 +1,5 @@
 import { listClinicAppointments } from "@/core/appointments/list-query";
+import { TableCard } from "@/core/ui/table-card";
 import Link from "next/link";
 import { ChevronRight, Download, CalendarSearch } from "lucide-react";
 import { getClinic } from "@/core/clinics/get-clinic";
@@ -388,7 +389,7 @@ export async function AppointmentsList({
           description="Nothing matches the current filters. Widen the date range, or clear a filter to see more."
         />
       ) : (
-        <>
+        <TableCard>
           <div className="hidden md:block">
             <Table>
               <TableHeader>
@@ -532,7 +533,7 @@ export async function AppointmentsList({
               </RowLink>
             ))}
           </ul>
-        </>
+        </TableCard>
       )}
 
       {canCreate ? <NewAppointmentFab href={bookHref} /> : null}

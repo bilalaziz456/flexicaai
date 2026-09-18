@@ -1,4 +1,5 @@
 import { listClinicRecalls } from "@/core/recall/list";
+import { TableCard } from "@/core/ui/table-card";
 import { EmptyState } from "@/core/ui/empty-state";
 import { requireWorkspace } from "@/core/auth/user";
 import { BellRing } from "lucide-react";
@@ -69,7 +70,7 @@ export default async function ClinicRecallsPage({
           description="A recall is created when a doctor approves a visit with a next-visit date. Reminders then go out over WhatsApp when they fall due."
         />
       ) : (
-        <>
+        <TableCard>
           {/* Desktop: full table. */}
           <div className="hidden md:block">
             <Table>
@@ -114,7 +115,7 @@ export default async function ClinicRecallsPage({
               </li>
             ))}
           </ul>
-        </>
+        </TableCard>
       )}
     </div>
   );

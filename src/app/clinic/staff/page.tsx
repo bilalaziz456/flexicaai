@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TableCard } from "@/core/ui/table-card";
 import { EmptyState } from "@/core/ui/empty-state";
 import { ChevronRight, Download, Plus, UserPlus } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
@@ -108,7 +109,7 @@ export default async function ClinicStaffPage({
           }
         />
       ) : (
-        <>
+        <TableCard>
           {/* Desktop: full table. */}
           <div className="hidden md:block">
             <Table>
@@ -194,7 +195,7 @@ export default async function ClinicStaffPage({
               </RowLink>
             ))}
           </ul>
-        </>
+        </TableCard>
       )}
 
       {/* Mobile: floating "+" to add staff (replaces the header button). */}

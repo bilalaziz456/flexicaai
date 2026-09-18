@@ -1,4 +1,5 @@
 import { listClinicActivityLogs } from "@/core/audit/log-query";
+import { TableCard } from "@/core/ui/table-card";
 import { EmptyState } from "@/core/ui/empty-state";
 import { Lock } from "lucide-react";
 import { listClinicActorOptions } from "@/core/clinics/options";
@@ -99,10 +100,12 @@ export default async function ClinicLogsPage({
         searchParams={sp}
         unit="entry"
       />
-      <ActivityLogList
-        rows={rows}
-        emptyHint="No activity matches these filters."
-      />
+      <TableCard>
+        <ActivityLogList
+          rows={rows}
+          emptyHint="No activity matches these filters."
+        />
+      </TableCard>
     </div>
   );
 }

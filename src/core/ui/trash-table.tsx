@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { EmptyState } from "@/core/ui/empty-state";
 import { RotateCcw, Trash2 } from "lucide-react";
 import type { TrashItem, TrashEntity } from "@/core/trash";
 import { Button } from "@/core/ui/button";
@@ -75,9 +76,10 @@ export function TrashTable({
 
   if (items.length === 0) {
     return (
-      <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-        Trash is empty.
-      </div>
+      // No dashed box of its own: this now renders INSIDE a TableCard, and a box
+      // drawn inside a box reads as a mistake.
+      <EmptyState compact icon={Trash2} title="Trash is empty" description="Anything deleted in the last 30 days can be restored from here."
+      />
     );
   }
 

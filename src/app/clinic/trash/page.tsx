@@ -1,4 +1,5 @@
 import { listClinicActorOptions } from "@/core/clinics/options";
+import { TableCard } from "@/core/ui/table-card";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { getClinic } from "@/core/clinics/get-clinic";
@@ -80,7 +81,9 @@ export default async function ClinicTrashPage({
         typeOptions={TYPE_OPTIONS}
         actors={actors}
       />
-      <TrashTable items={trash.items} canRestore={canRestore} onRestore={restoreTrashItem} />
+      <TableCard>
+        <TrashTable items={trash.items} canRestore={canRestore} onRestore={restoreTrashItem} />
+      </TableCard>
       <Pagination
         page={page}
         pageSize={pageSize}

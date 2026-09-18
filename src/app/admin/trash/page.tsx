@@ -1,4 +1,5 @@
 import { requireAdminCapability } from "@/core/auth/user";
+import { TableCard } from "@/core/ui/table-card";
 import { listAllTrash, parseTrashFilters } from "@/core/trash";
 import { listClinicActorOptions, listClinicOptions } from "@/core/clinics/options";
 import { Pagination } from "@/core/ui/pagination";
@@ -80,13 +81,15 @@ export default async function AdminTrashPage({
         actors={actors}
         clinics={clinicRows}
       />
-      <TrashTable
-        items={trash.items}
-        canRestore
-        showClinic
-        onRestore={restoreTrashGlobal}
-        onPurge={purgeTrashGlobal}
-      />
+      <TableCard>
+        <TrashTable
+          items={trash.items}
+          canRestore
+          showClinic
+          onRestore={restoreTrashGlobal}
+          onPurge={purgeTrashGlobal}
+        />
+      </TableCard>
       <Pagination
         page={page}
         pageSize={pageSize}

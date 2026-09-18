@@ -1,4 +1,6 @@
 import { Badge } from "@/core/ui/badge";
+import { EmptyState } from "@/core/ui/empty-state";
+import { ScrollText } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -57,9 +59,9 @@ export function ActivityLogList({
 }) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-        {emptyHint}
-      </div>
+      // Inside a TableCard now — no second box.
+      <EmptyState compact icon={ScrollText} title={emptyHint}
+      />
     );
   }
 

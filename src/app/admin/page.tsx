@@ -1,4 +1,5 @@
 import { clinicListWhere, listClinicsPage } from "@/core/clinics/options";
+import { TableCard } from "@/core/ui/table-card";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { SPECIALTY_CATALOG } from "@/config/modules";
@@ -332,24 +333,26 @@ export default async function AdminHome({
         unit="clinic"
       />
 
-      <ClinicsTable
-        showBilling={showBilling}
-        empty={emptyMessage}
-        rows={allClinics.map((c) => ({
-          id: c.id,
-          name: c.name,
-          status: c.status,
-          isYou: c.assignedTo === user.id,
-          assigneeName: c.assigneeName,
-          assigneeSuspended: c.assigneeSuspended,
-          specialties: c.modulesEnabled.map((id) => SPECIALTY_NAME.get(id) ?? id),
-          trialStartAt: c.trialStartAt,
-          activatedAt: c.activatedAt,
-          billingCycle: c.billingCycle,
-          firstPaymentAt: firstPayments.get(c.id) ?? null,
-          createdAt: c.createdAt,
-        }))}
-      />
+      <TableCard>
+        <ClinicsTable
+          showBilling={showBilling}
+          empty={emptyMessage}
+          rows={allClinics.map((c) => ({
+            id: c.id,
+            name: c.name,
+            status: c.status,
+            isYou: c.assignedTo === user.id,
+            assigneeName: c.assigneeName,
+            assigneeSuspended: c.assigneeSuspended,
+            specialties: c.modulesEnabled.map((id) => SPECIALTY_NAME.get(id) ?? id),
+            trialStartAt: c.trialStartAt,
+            activatedAt: c.activatedAt,
+            billingCycle: c.billingCycle,
+            firstPaymentAt: firstPayments.get(c.id) ?? null,
+            createdAt: c.createdAt,
+          }))}
+        />
+      </TableCard>
 
       {/* Mobile: floating "+" action to add a clinic (replaces the header button). */}
       <Link

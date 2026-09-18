@@ -1,4 +1,5 @@
 import { getClinic } from "@/core/clinics/get-clinic";
+import { TableCard } from "@/core/ui/table-card";
 import { listClinicPatients } from "@/core/patients/list";
 import { formatMrn } from "@/core/patients/mrn";
 import Link from "next/link";
@@ -131,7 +132,7 @@ export async function PatientsList({
           }
         />
       ) : (
-        <>
+        <TableCard>
           <div className="hidden md:block">
             <Table>
               <TableHeader>
@@ -231,7 +232,7 @@ export async function PatientsList({
               </RowLink>
             ))}
           </ul>
-        </>
+        </TableCard>
       )}
 
       {canCreate ? (

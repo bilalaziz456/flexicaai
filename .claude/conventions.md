@@ -154,14 +154,18 @@ note above it; obvious logic gets none.
   there is nothing (§15 of the redesign brief). A muted inline `—` in a table CELL, or
   a one-line note inside a field group, is not an empty state and should stay inline;
   the two are different things and converting every one of them would be churn.
-- **A table sits on the page GROUND when it is the page, and in a CARD when it is one
-  section among several.** Patients, appointments, staff, recalls, trash and the logs
-  are the table — a card around them is a box drawn around the whole page. Payments,
-  invoices, discounts, receivables and history open with summary figures, so their
-  table joins those as another section and takes a card with a title.
-  The split looks like two different designs if you only compare two pages, and it is
-  the same rule both times: **one box per thing, and the page is not a thing.**
-  What WAS inconsistent, and is fixed, is that a sortable column header renders its
+- **Every data table sits in a `TableCard`** (`core/ui/table-card.tsx`) — one surface,
+  app-wide, at the owner's direction. It had previously been split: a table that WAS
+  the page sat on the page ground, a table that was one section among several took a
+  card. That is defensible in the abstract and it loses to the comparison people
+  actually make, which is opening two pages and seeing two designs.
+  `title` is for a table that needs naming because something else shares the page
+  ("24 payments" under a row of KPIs). A list page whose header already carries the
+  count passes none, rather than printing it twice.
+  **A table's own empty state must not draw its own box.** Inside a card, a second
+  bordered container reads as a mistake — `TrashTable` and `ActivityLogList` each had
+  one and now render a bare `EmptyState`.
+  Also fixed: a sortable column header renders its
   label inside a `<button>` — and a button does not inherit `text-transform`, because
   browsers reset it on form elements. So the sortable columns came out Title Case
   while the non-sortable ones beside them were uppercase, in the same table. Any
