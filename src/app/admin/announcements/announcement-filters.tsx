@@ -104,7 +104,7 @@ export function AnnouncementFilters({
   const asItems = (o: Opt[]) => Object.fromEntries(o.map((x) => [x.value, x.label]));
 
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
+    <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border/70 bg-surface-sunken p-3.5">
       {/* Matches posts whose display WINDOW overlaps the range — "what was showing in
           September" — not merely those posted in it. */}
       <DateRangeFields

@@ -38,15 +38,21 @@ export function QueueSummary({
 
   return (
     <section className="space-y-3">
-      <h2 className="text-sm font-semibold">{title}</h2>
+      <h2 className="text-base font-semibold">{title}</h2>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {sessions.map((s) => {
           const active = activeSession === s.key;
           const cardCls = cn(
-            "block rounded-lg border p-3 text-left",
-            clickable && "outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-            active && "border-primary ring-1 ring-primary/40",
-            clickable && "cursor-pointer transition-colors hover:border-primary/60",
+            // `bg-card` is the fix, not a flourish. These were `border` with no fill,
+            // which was invisible while the page ground was also white — now the
+            // ground is a step darker, so an unfilled card showed the PAGE through it
+            // and the queue read as a different, flatter kind of object from every
+            // other card on the screen. Same shell as `Card` now: fill, hairline,
+            // one step of elevation.
+            "block rounded-xl border border-border/70 bg-card p-4 text-left elev-1",
+            clickable &&
+              "cursor-pointer transition-[border-color,box-shadow] duration-150 outline-none hover:border-primary/50 hover:elev-2 focus-visible:ring-2 focus-visible:ring-ring/60",
+            active && "border-primary/60 ring-1 ring-primary/25 elev-2",
           );
           const inner = (
             <>
@@ -63,11 +69,11 @@ export function QueueSummary({
                 </div>
               </div>
 
-              <div className="mt-1.5 text-xs text-muted-foreground">
+              <div className="mt-2 text-xs text-muted-foreground">
                 {s.inRoom} in room · {s.waiting} waiting · {s.notArrived} to arrive · {s.done} done
               </div>
 
-              <ul className="mt-2 flex flex-wrap gap-1">
+              <ul className="mt-3 flex flex-wrap gap-1">
                 {s.items.map((it) => {
                   const inRoom = it.status === "in_progress";
                   const waiting = it.status === "arrived";
@@ -87,7 +93,7 @@ export function QueueSummary({
                         done && "border-transparent bg-accent text-accent-foreground",
                         missed && "border-transparent text-muted-foreground line-through",
                         notArrived && !late && "border-input",
-                        notArrived && late && "border-amber-500 text-warning-text",
+                        notArrived && late && "border-warning/60 text-warning-text",
                       )}
                     >
                       #{it.number}

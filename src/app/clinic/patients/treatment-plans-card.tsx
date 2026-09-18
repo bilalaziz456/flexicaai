@@ -147,7 +147,7 @@ export function TreatmentPlansCard({
       )}
 
       {canCreate ? (
-        <div className="flex flex-wrap items-end gap-2 rounded-lg border p-3">
+        <div className="flex flex-wrap items-end gap-2 rounded-xl border border-border/70 bg-surface-sunken p-3.5">
           {/* label WRAPS the input: as a sibling with no htmlFor it named nothing. */}
           <label className="block space-y-1">
             <span className="block text-xs text-muted-foreground">New plan</span>

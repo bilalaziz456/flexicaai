@@ -44,7 +44,7 @@ export function RetentionForm({
   }
 
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
+    <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border/70 bg-surface-sunken p-3.5">
       <div className="space-y-1">
         <Label htmlFor="retention" className="text-xs text-muted-foreground">
           Keep activity logs for

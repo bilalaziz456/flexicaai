@@ -114,7 +114,7 @@ export function LabTrackerCard({
       )}
 
       {canCreate ? (
-        <div className="flex flex-wrap items-end gap-2 rounded-lg border p-3">
+        <div className="flex flex-wrap items-end gap-2 rounded-xl border border-border/70 bg-surface-sunken p-3.5">
           <Field label="Item">
             <select value={item} onChange={(e) => setItem(e.target.value)} className={`${selectCls} capitalize`}>
               {itemTypes.map((t) => <option key={t} value={t}>{t}</option>)}

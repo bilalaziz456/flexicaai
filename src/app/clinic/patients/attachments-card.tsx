@@ -162,7 +162,7 @@ export function AttachmentsCard({
 
       {/* Upload */}
       {canUpload ? (
-        <form ref={formRef} onSubmit={upload} className="flex flex-wrap items-end gap-2 rounded-lg border p-3">
+        <form ref={formRef} onSubmit={upload} className="flex flex-wrap items-end gap-2 rounded-xl border border-border/70 bg-surface-sunken p-3.5">
           <div className="space-y-1">
             <label htmlFor="att-file" className="text-xs text-muted-foreground">File</label>
             <input id="att-file" name="file" type="file" accept="image/*,application/pdf" required className="block max-w-52 text-sm" />
