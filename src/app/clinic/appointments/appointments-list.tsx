@@ -279,7 +279,7 @@ export async function AppointmentsList({
       <div className="relative flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Appointments</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             {total} appointment{total === 1 ? "" : "s"} · {contextLabel}.
           </p>
         </div>

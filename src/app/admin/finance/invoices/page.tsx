@@ -81,7 +81,7 @@ export default async function ClinicInvoicesPage({
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-[-0.02em]">Company finance: subscription invoices</h1>
-        <p className="text-sm text-muted-foreground">Invoices FlexicaAI issues to clinics for their subscription.</p>
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">Invoices FlexicaAI issues to clinics for their subscription.</p>
       </div>
 
       <InvoiceFilters

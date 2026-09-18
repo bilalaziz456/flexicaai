@@ -81,7 +81,7 @@ export default async function PaymentsPage({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Payments</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             Every payment, advance, and refund. Money in and out of the clinic.
           </p>
         </div>

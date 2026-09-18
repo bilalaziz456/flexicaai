@@ -90,7 +90,7 @@ export default async function ApprovalsPage({
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-[-0.02em]">Discount approvals</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
           Discounts waiting for sign-off before they apply to the bill.
         </p>
       </div>

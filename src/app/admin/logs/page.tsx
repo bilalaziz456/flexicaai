@@ -64,7 +64,7 @@ export default async function AdminLogsPage({
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-[-0.02em]">Activity log</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
           {total} action{total === 1 ? "" : "s"} across all clinics for the
           selected range.
         </p>

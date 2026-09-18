@@ -45,7 +45,7 @@ export default async function ClinicSettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-[-0.02em]">Settings</h1>
-        <p className="text-sm text-muted-foreground">Your profile and password.</p>
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">Your profile and password.</p>
       </div>
 
       <Card>

@@ -71,7 +71,7 @@ export default async function CompanyPnlPage({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Company P&amp;L</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             How much FlexicaAI earns: collected revenue − serving cost − operating expenses.
           </p>
         </div>

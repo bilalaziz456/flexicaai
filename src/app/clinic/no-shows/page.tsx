@@ -48,7 +48,7 @@ export default async function NoShowsPage({
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-[-0.02em]">No-shows</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
           Share of intended appointments (completed + no-show) the patient didn&apos;t attend.
         </p>
       </div>

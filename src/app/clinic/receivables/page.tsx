@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
 
@@ -75,16 +77,16 @@ export default async function ReceivablesPage({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Receivables</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             What patients owe on completed visits. This total matches the dashboard&apos;s Outstanding.
           </p>
         </div>
         {report.patients.length > 0 ? (
           <a
             href={`/api/finance/export?${exportParams.toString()}`}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium hover:bg-accent"
+            className={cn(buttonVariants({ variant: "outline" }))}
           >
-            <Download className="size-3.5" aria-hidden="true" /> CSV
+            <Download aria-hidden="true" /> CSV
           </a>
         ) : null}
       </div>

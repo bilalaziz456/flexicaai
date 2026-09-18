@@ -47,7 +47,7 @@ export default async function ClinicRecallsPage({
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-[-0.02em]">Recalls</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
           {total} recall{total === 1 ? "" : "s"}. Reminders go out automatically
           over WhatsApp when they&apos;re due.
         </p>

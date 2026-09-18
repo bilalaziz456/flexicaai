@@ -94,7 +94,7 @@ export default async function AnnouncementsPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Announcements</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             {total} announcement{total === 1 ? "" : "s"}
             {filtered ? " matching the filters" : ""}. Each one shows in the clinic
             notice bar for the roles and dates it names.

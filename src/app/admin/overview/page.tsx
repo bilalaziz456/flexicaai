@@ -141,7 +141,7 @@ export default async function OverviewPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Overview</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             {seesAll ? "The whole company" : "Your assigned clinics"} at a glance. Money, health &amp; usage.
           </p>
         </div>

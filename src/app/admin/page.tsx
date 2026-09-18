@@ -159,7 +159,7 @@ export default async function AdminHome({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Clinics</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             {total} clinic{total === 1 ? "" : "s"}
             {query ? ` matching “${query}”` : " on the platform"}.
           </p>
