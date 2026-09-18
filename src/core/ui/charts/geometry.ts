@@ -132,14 +132,21 @@ export function closeToBaseline(path: string, pts: readonly Pt[], baseY: number)
  * chart and starts decoding the axis. Snapping to the step also makes ZERO a tick
  * whenever the range crosses it, which the profit chart depends on: its baseline has
  * to be a line the axis actually names.
+ *
+ * `includeZero` is on by default because most of these charts measure quantities, and a
+ * quantity chart that hides its own zero exaggerates every movement on it. Pass false
+ * only for a LEVEL a reader tracks by its change — an outstanding balance that sits near
+ * 800k all month is drawn from zero as a flat lid on a block of colour, which is
+ * accurate and says nothing.
  */
 export function niceScale(
   lo: number,
   hi: number,
   targetTicks = 4,
+  includeZero = true,
 ): { min: number; max: number; ticks: number[] } {
-  const low = Math.min(lo, 0);
-  const high = Math.max(hi, 0);
+  const low = includeZero ? Math.min(lo, 0) : lo;
+  const high = includeZero ? Math.max(hi, 0) : hi;
   const span = high - low;
   if (span <= 0) return { min: 0, max: 1, ticks: [0, 1] };
 

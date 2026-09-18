@@ -14,7 +14,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { TrendChart } from "@/core/ui/charts/trend-chart";
+import { LedgerTimeline } from "@/core/ui/charts/ledger-timeline";
+import { BalanceTrend } from "@/core/ui/charts/balance-trend";
 import { StatCard } from "@/core/ui/charts/stat-card";
 import { ShareRings } from "@/core/ui/charts/share-rings";
 import { Trend3D } from "@/core/ui/charts/trend-3d";
@@ -288,15 +289,17 @@ export default async function ClinicSharesPage({
               <ChartViewToggle
                 label="Earned vs paid per period"
                 flat={
-                  <TrendChart
-                    ariaLabel={selfOnly ? "Your earned vs paid per period" : "Doctor shares earned vs paid per period"}
+                  /* Earnings ACCRUE and payouts HAPPEN — see `ledger-timeline.tsx`
+                     for why drawing both as lines was the wrong sentence. */
+                  <LedgerTimeline
+                    ariaLabel={selfOnly ? "Your earnings and payouts" : "Doctor earnings and payouts"}
                     points={report.activityBuckets.map((b) => ({
                       label: b.label,
-                      value: b.earned,
-                      second: b.paid,
+                      flow: b.earned,
+                      event: b.paid,
                     }))}
-                    valueLabel="Earned"
-                    overlay={{ label: "Paid" }}
+                    flowLabel="Earned"
+                    eventLabel="Paid out"
                   />
                 }
                 deep={
@@ -319,48 +322,47 @@ export default async function ClinicSharesPage({
                 }
               />
               <div>
-                <div className="text-sm font-medium">Cumulative earned vs paid</div>
+                <div className="text-sm font-medium">Outstanding balance</div>
                 <p className="mb-3 text-xs text-muted-foreground">
-                  The gap between the lines is the outstanding balance over time.
+                  What the clinic owes its doctors, after every payout. Each marked point
+                  is a payment landing.
                 </p>
                 {/* The GAP is the point of this chart — what the clinic still owes
                     — so it is tinted rather than left for the eye to measure. */}
                 <ChartViewToggle
                   label="Cumulative earned vs paid"
                   flat={
-                    <TrendChart
-                      ariaLabel="Cumulative earned versus paid"
+                    /* The balance itself, not two lines with the answer in the gap
+                       between them — see `balance-trend.tsx`. */
+                    <BalanceTrend
+                      ariaLabel="Outstanding balance over time"
                       points={report.cumulativeBuckets.map((b) => ({
                         label: b.label,
-                        value: b.earned,
-                        second: b.paid,
+                        balance: b.earned - b.paid,
+                        earned: b.earned,
+                        paid: b.paid,
                       }))}
-                      valueLabel="Cumulative earned"
-                      mode="line"
-                      overlay={{
-                        label: "Cumulative paid",
-                        fillGap: true,
-                        gapLabel: "Outstanding",
-                      }}
+                      valueLabel="Outstanding"
                     />
                   }
                   deep={
+                    /* One curtain, of the SAME series the flat view plots. A toggle
+                       that changes the quantity as well as the dimension is two
+                       charts wearing one control. */
                     <Trend3D
-                      ariaLabel="Cumulative earned versus paid, three-dimensional"
+                      ariaLabel="Outstanding balance over time, three-dimensional"
                       points={report.cumulativeBuckets.map((b) => ({
                         label: b.label,
-                        value: b.earned,
-                        second: b.paid,
+                        value: b.earned - b.paid,
                       }))}
-                      valueLabel="Cumulative earned"
-                      overlayLabel="Cumulative paid"
+                      valueLabel="Outstanding"
                     />
                   }
                   note={
                     <>
-                      The two curtains stand on different planes, so the space between them
-                      is part balance and part perspective. Read the exact outstanding figure
-                      from the hover; this view is for the shape.
+                      The solid stands on zero, so a month of payouts is a shallow step
+                      along the top. The flat view zooms in on that movement; the exact
+                      balance is on the hover.
                     </>
                   }
                 />

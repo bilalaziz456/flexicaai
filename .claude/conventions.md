@@ -129,7 +129,28 @@ note above it; obvious logic gets none.
      toggle's `note`, so it is stated where it applies. **Depth that changes no
      geometry needs no toggle** — shadow, hover lift, glow — and belongs on the flat
      charts everywhere.
-  5. **An insight must be legible in the chart it sits under** (`insights.ts`). Each
+  5. **A measure that ACCRUES and a measure that HAPPENS are not two lines**
+     (`LedgerTimeline`). Doctor earnings build a little on most days as visits
+     complete; a payout is an event — nothing, nothing, then 276,000 rupees. Drawing
+     both as series says they behave alike, implies payouts on the days in between,
+     and hands the whole y-axis to the one spike, flattening the accrual it was meant
+     to be compared with. The flow is an area; the events are labelled stems on their
+     own rail and their own scale, with both figures in the tooltip so the split scale
+     can never read as a difference in size.
+  6. **A LEVEL is not a quantity: zero-anchor it only when it visits zero**
+     (`BalanceTrend`, and `niceScale(..., includeZero)`). A quantity chart that hides
+     its zero exaggerates every movement on it, so zero is the default. But an
+     outstanding balance sitting near 800k all month, drawn from zero, is a shallow
+     dent along the top of a solid block — accurate, and it says nothing. The test is
+     whether the series comes NEAR zero (settled is a fact about zero), not how far it
+     travels. **And when the axis zooms, the fill goes with it:** an area reads as
+     "this much, measured from zero", which stops being true at a 400k baseline — the
+     zoomed view is a line against a dotted OPENING level, so what it shows is the
+     change, which is the only thing a zoomed axis can honestly claim to show.
+     A balance is also plotted DIRECTLY rather than as two cumulative lines with the
+     answer in the gap: a gap between two climbing lines is the hardest quantity on a
+     chart to judge, and neither line is the number anyone came for.
+  7. **An insight must be legible in the chart it sits under** (`insights.ts`). Each
      detector returns null unless the data supports the sentence, including a
      materiality floor — a −126 rupee month on a 40,000 axis is a true loss and an
      invisible one, and a line that appears to contradict its own chart costs more
