@@ -51,8 +51,11 @@ function ToastCard({ item }: { item: ToastItem }) {
 
   const isError = item.variant === "error";
   const styles = isError
-    ? "border-destructive/30 bg-red-50 text-red-800 dark:border-destructive/40 dark:bg-red-950 dark:text-red-200"
-    : "border-emerald-500/30 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-950 dark:text-emerald-200";
+    // Tokens, not raw emerald/red. The badges and the status tones use --success /
+    // --destructive, so a toast saying "saved" in a different green from the badge two
+    // inches above it was the same state rendered as two different colours.
+    ? "border-destructive/25 bg-destructive/8 text-destructive-text"
+    : "border-success/25 bg-success/8 text-success-text";
   const Icon = isError ? AlertCircle : CheckCircle2;
 
   return (
