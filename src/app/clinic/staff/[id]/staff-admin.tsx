@@ -338,7 +338,7 @@ export function ResetPasswordForm({ userId }: { userId: string }) {
         </Button>
       </div>
       {state.saved ? (
-        <p className="text-sm text-emerald-600" role="status">
+        <p className="text-sm text-success-text" role="status">
           Temporary password set. They must change it at next login.
         </p>
       ) : null}

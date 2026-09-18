@@ -174,7 +174,7 @@ export function PaymentPanel({
       </div>
 
       {notBilled ? (
-        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+        <p className="rounded-lg border border-warning/35 bg-warning/10 px-3 py-2 text-xs text-warning-text">
           This visit isn&apos;t completed yet, so the total is an estimate and anything
           paid is a <strong>deposit</strong>. It only counts as revenue, and the
           balance only becomes a receivable, once the visit is marked completed.

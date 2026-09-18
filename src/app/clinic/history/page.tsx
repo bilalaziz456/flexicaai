@@ -1,3 +1,6 @@
+import { cn } from "@/core/lib/utils";
+import { buttonVariants } from "@/core/ui/button";
+import { Download } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getClinic } from "@/core/clinics/get-clinic";
 
@@ -12,6 +15,7 @@ import {
   type HistoryType,
 } from "@/core/finance/imported-history";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/core/ui/card";
+import { EmptyState } from "@/core/ui/empty-state";
 import { HistoryFilters } from "./history-filters";
 import { HistoryTable } from "./history-table";
 
@@ -89,15 +93,15 @@ export default async function HistoryPage({
         {summary.hasAny ? (
           <a
             href={`/api/finance/export?${exportParams.toString()}`}
-            className="inline-flex h-9 items-center rounded-lg border px-3 text-sm font-medium hover:bg-accent"
+            className={cn(buttonVariants({ variant: "outline" }))}
           >
-            Export CSV
+            <Download aria-hidden="true" /> CSV
           </a>
         ) : null}
       </div>
 
       {/* Unmistakable: these are historical, not live figures. */}
-      <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+      <div className="flex items-start gap-2 rounded-lg border border-warning/35 bg-warning/[0.06] p-3 text-sm">
         <Archive className="mt-0.5 size-4 shrink-0 text-warning-text" aria-hidden="true" />
         <p>
           <span className="font-medium">Historical: imported from previous software, read-only.</span>{" "}
@@ -108,9 +112,14 @@ export default async function HistoryPage({
 
       {!summary.hasAny ? (
         <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            No financial history has been imported for this clinic yet. Your account manager can
-            upload it during onboarding.
+          <CardContent className="p-0">
+            {/* Not a failure and not the clinic's to fix — say who does it, so the
+                screen answers the question it raises. */}
+            <EmptyState
+              icon={Archive}
+              title="Nothing imported yet"
+              description="This clinic's records from its previous software would appear here. Your account manager uploads them during onboarding."
+            />
           </CardContent>
         </Card>
       ) : (

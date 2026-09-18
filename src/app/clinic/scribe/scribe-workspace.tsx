@@ -262,7 +262,7 @@ export function ScribeWorkspace({
         </CardHeader>
         <CardContent className="space-y-4">
           {draft.allergyWarnings && draft.allergyWarnings.length > 0 && (
-            <div className="rounded-md border border-red-500/60 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive-text">
               <p className="font-semibold">⚠ Allergy conflict. Review before prescribing:</p>
               <ul className="mt-1 list-inside list-disc">
                 {draft.allergyWarnings.map((w, i) => (
@@ -273,7 +273,7 @@ export function ScribeWorkspace({
           )}
 
           {draft.drugWarnings.length > 0 && (
-            <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
+            <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
               <p className="font-medium">These drugs are not in the formulary:</p>
               <p className="text-muted-foreground">{draft.drugWarnings.join(", ")}</p>
             </div>

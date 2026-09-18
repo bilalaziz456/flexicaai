@@ -24,7 +24,7 @@ export function SendRxWhatsApp({ visitId }: { visitId: string }) {
   }
 
   if (state === "sent") {
-    return <span className="text-xs text-emerald-600">Sent ✓</span>;
+    return <span className="text-xs text-success-text">Sent ✓</span>;
   }
 
   return (

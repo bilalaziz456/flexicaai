@@ -36,7 +36,7 @@ export function DailyLimitForm({
         {pending ? "Saving…" : "Save"}
       </Button>
       {state.saved ? (
-        <span className="text-xs text-emerald-600" role="status">
+        <span className="text-xs text-success-text" role="status">
           Saved.
         </span>
       ) : null}

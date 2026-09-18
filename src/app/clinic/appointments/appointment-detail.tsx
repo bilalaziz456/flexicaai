@@ -253,7 +253,7 @@ export async function AppointmentDetail({
                 <dd className="tabular-nums">{formatPkr(bill.net)}</dd>
               </div>
               {discountBlocked && appt.discountValue > 0 ? (
-                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                <div className="rounded-lg border border-warning/35 bg-warning/10 px-3 py-2 text-xs text-warning-text">
                   {appt.discountStatus === "rejected"
                     ? "A discount was entered but was rejected. It is not applied. Edit the appointment to re-submit."
                     : "A discount is awaiting approval and is not applied yet. It will apply once approved."}

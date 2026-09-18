@@ -64,7 +64,7 @@ export default async function ClinicLayout({
     notices.push(
       <div
         key="impersonation"
-        className="flex items-center justify-between gap-3 border-b border-amber-500/40 bg-amber-500/15 px-4 py-2 text-sm text-amber-900 dark:text-amber-100"
+        className="flex items-center justify-between gap-3 border-b border-warning/35 bg-warning/15 px-4 py-2 text-sm text-warning-text"
       >
         <span className="flex items-center gap-2">
           <ShieldAlert className="size-4 shrink-0" aria-hidden="true" />
@@ -74,7 +74,7 @@ export default async function ClinicLayout({
         <form action={endImpersonation}>
           <button
             type="submit"
-            className="rounded-md border border-amber-600/50 px-2.5 py-1 text-xs font-medium hover:bg-amber-500/20"
+            className="rounded-md border border-warning/45 px-2.5 py-1 text-xs font-medium transition-colors hover:bg-warning/20"
           >
             Exit
           </button>
@@ -108,8 +108,8 @@ export default async function ClinicLayout({
         className={
           "flex items-start gap-2 border-b px-4 py-2 text-sm " +
           (warn
-            ? "border-amber-500/40 bg-amber-500/15 text-amber-900 dark:text-amber-100"
-            : "border-sky-500/40 bg-sky-500/15 text-sky-900 dark:text-sky-100")
+            ? "border-warning/35 bg-warning/12 text-warning-text"
+            : "border-info/35 bg-info/12 text-info-text")
         }
       >
         <Megaphone className="mt-0.5 size-4 shrink-0" aria-hidden="true" />

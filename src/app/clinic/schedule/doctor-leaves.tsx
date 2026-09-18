@@ -267,7 +267,7 @@ export function DoctorLeaves({
             {pending ? "Saving…" : "Add leave"}
           </Button>
           {state.saved ? (
-            <span className="text-xs text-emerald-600" role="status">
+            <span className="text-xs text-success-text" role="status">
               Leave added
               {typeof state.cancelled === "number" && state.cancelled > 0
                 ? ` · ${state.cancelled} appointment${state.cancelled === 1 ? "" : "s"} cancelled`

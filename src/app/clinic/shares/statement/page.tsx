@@ -89,7 +89,7 @@ export default async function ShareStatementPage({
       <div className={`grid gap-4 ${borneTotal !== 0 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
         {[
           { label: "Earned", value: balance.earned, show: true, tone: "" },
-          { label: "Discount adjustment", value: borneTotal, show: borneTotal !== 0, tone: borneTotal < 0 ? "text-destructive" : "text-emerald-600" },
+          { label: "Discount adjustment", value: borneTotal, show: borneTotal !== 0, tone: borneTotal < 0 ? "text-destructive-text" : "text-success-text" },
           { label: "Paid", value: balance.paid, show: true, tone: "" },
           { label: owes ? "Owes clinic" : "Outstanding", value: Math.abs(balance.outstanding), show: true, tone: owes ? "text-destructive" : "" },
         ]

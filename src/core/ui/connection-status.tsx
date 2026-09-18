@@ -77,7 +77,7 @@ export function ConnectionStatus() {
       className={
         "flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-medium shadow-lg " +
         (online
-          ? "bg-emerald-600 text-white"
+          ? "bg-success text-[color-mix(in_oklch,var(--success)_15%,black)]"
           : "bg-destructive text-destructive-foreground")
       }
     >
