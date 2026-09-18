@@ -1,11 +1,12 @@
 import { listClinicAppointments } from "@/core/appointments/list-query";
 import Link from "next/link";
-import { ChevronRight, Download } from "lucide-react";
+import { ChevronRight, Download, CalendarSearch } from "lucide-react";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicHasFeature } from "@/core/lib/features";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
+import { EmptyState } from "@/core/ui/empty-state";
 import {
   billFromTotals,
   effectiveDiscountValue,
@@ -277,7 +278,7 @@ export async function AppointmentsList({
       <FlashToast message={toastMessage} />
       <div className="relative flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Appointments</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Appointments</h1>
           <p className="text-sm text-muted-foreground">
             {total} appointment{total === 1 ? "" : "s"} · {contextLabel}.
           </p>
@@ -381,9 +382,11 @@ export async function AppointmentsList({
       />
 
       {rows.length === 0 ? (
-        <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          No appointments match these filters.
-        </div>
+        <EmptyState
+          icon={CalendarSearch}
+          title="No appointments here"
+          description="Nothing matches the current filters. Widen the date range, or clear a filter to see more."
+        />
       ) : (
         <>
           <div className="hidden md:block">

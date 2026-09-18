@@ -51,7 +51,7 @@ export async function WhatsappQueue({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">WhatsApp</h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">WhatsApp</h1>
         {phone ? (
           <p className="text-sm text-muted-foreground">
             {/* The name is on the rows below; the NUMBER is the thing being filtered

@@ -69,7 +69,7 @@ export default async function DiscountsPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Discounts</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Discounts</h1>
           <p className="text-sm text-muted-foreground">
             Every discount given: who got it, who bears it, and whether it&apos;s applied.
           </p>

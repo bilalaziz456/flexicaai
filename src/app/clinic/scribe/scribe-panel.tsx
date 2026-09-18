@@ -53,7 +53,7 @@ export async function ScribePanel({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Voice scribe</h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">Voice scribe</h1>
         <p className="text-sm text-muted-foreground">
           Record a visit, review the AI draft, then approve to save.
         </p>

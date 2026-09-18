@@ -63,7 +63,7 @@ export default async function TeamMemberPage({
           ← Back to team
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-semibold">{member.fullName ?? member.username}</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">{member.fullName ?? member.username}</h1>
           <span className="text-muted-foreground">@{member.username}</span>
           <Badge variant="secondary" className="capitalize">{subRole}</Badge>
           {isSelf ? <Badge variant="outline">you</Badge> : null}

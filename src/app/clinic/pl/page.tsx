@@ -132,7 +132,7 @@ export default async function ProfitLossPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Profit &amp; Loss</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Profit &amp; Loss</h1>
           <p className="text-sm text-muted-foreground">
             What the clinic kept after doctor shares and expenses. On collected revenue.
           </p>

@@ -68,7 +68,7 @@ export default async function DayBookPage({
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Day book</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Day book</h1>
           {/* On screen: what the page is. On paper: WHICH day and WHOSE clinic —
               a printed cash sheet with no date or clinic name is not a record. */}
           <p className="text-sm text-muted-foreground no-print">The day&apos;s cash in and out, by method.</p>

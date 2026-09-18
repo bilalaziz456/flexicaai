@@ -86,7 +86,7 @@ export default async function ClinicDetailPage({
       <div>
         <Breadcrumbs items={[{ label: "Clinics", href: "/admin" }, { label: clinic.name }]} />
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-xl font-semibold">{clinic.name}</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">{clinic.name}</h1>
           <div className="flex items-center gap-4">
             <ClinicAnalyticsDialog clinicId={clinic.id} />
             {canAdmin(admin, "import:create") ? (

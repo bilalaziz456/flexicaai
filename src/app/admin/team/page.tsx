@@ -25,7 +25,7 @@ export default async function TeamPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Team</h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">Team</h1>
         <p className="text-sm text-muted-foreground">
           Company team members and their roles. <strong>Super admin</strong>: full access.{" "}
           <strong>Support</strong>: clinics, impersonate, announcements, metrics.{" "}

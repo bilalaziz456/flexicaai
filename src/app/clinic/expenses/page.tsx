@@ -88,7 +88,7 @@ export default async function ExpensesPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Expenses</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Expenses</h1>
           <p className="text-sm text-muted-foreground">The clinic&apos;s costs. Feeds the P&amp;L.</p>
         </div>
         <div className="flex items-center gap-4">

@@ -93,7 +93,7 @@ export default async function AnnouncementsPage({
       <FlashToast message={sp.posted ? "Announcement posted." : sp.saved ? "Announcement updated." : null} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Announcements</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Announcements</h1>
           <p className="text-sm text-muted-foreground">
             {total} announcement{total === 1 ? "" : "s"}
             {filtered ? " matching the filters" : ""}. Each one shows in the clinic

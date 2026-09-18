@@ -76,7 +76,7 @@ export default async function ShareStatementPage({
       {/* Statement header */}
       <div className="flex flex-wrap items-start justify-between gap-4 border-b pb-4">
         <div>
-          <h1 className="text-xl font-semibold">Revenue share statement</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Revenue share statement</h1>
           <p className="text-sm text-muted-foreground">{doctorName}</p>
         </div>
         <div className="text-right text-sm">

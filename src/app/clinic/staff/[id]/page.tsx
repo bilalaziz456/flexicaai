@@ -114,7 +114,7 @@ export default async function StaffDetailPage({
           ← Back to staff
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-semibold">{label}</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">{label}</h1>
           <Badge variant="secondary">{vocabularyLabel("user_roles", member.role)}</Badge>
           {member.isActive ? (
             <Badge variant="outline">Active</Badge>

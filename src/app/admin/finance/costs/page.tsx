@@ -54,7 +54,7 @@ export default async function CostsPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Company finance: serving cost</h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">Company finance: serving cost</h1>
         <p className="text-sm text-muted-foreground">
           FlexicaAI&apos;s estimated variable cost of serving clinics (AI scribe + WhatsApp).
           Counts × your unit rates.

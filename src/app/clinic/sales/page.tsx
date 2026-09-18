@@ -104,7 +104,7 @@ export default async function ClinicSalesPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Sales</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Sales</h1>
           <p className="text-sm text-muted-foreground">
             Revenue <strong>collected</strong> from completed visits. Consultation +
             procedures, after discounts. A visit appears here once it&apos;s paid, and what

@@ -65,7 +65,7 @@ export default async function ClinicTrashPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Trash</h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">Trash</h1>
         <p className="text-sm text-muted-foreground">
           Deleted items are kept here for {retention} day{retention === 1 ? "" : "s"}.
           Restore brings an item, and anything deleted along with it, back.

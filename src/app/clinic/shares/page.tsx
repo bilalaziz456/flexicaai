@@ -100,7 +100,7 @@ export default async function ClinicSharesPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Revenue shares</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Revenue shares</h1>
           <p className="text-sm text-muted-foreground">
             {selfOnly
               ? "Your share of completed visits, and what's been paid."

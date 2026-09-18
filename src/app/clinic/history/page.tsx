@@ -81,7 +81,7 @@ export default async function HistoryPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-xl font-semibold">History</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">History</h1>
           <p className="text-sm text-muted-foreground">
             Records imported from the clinic&apos;s previous software.
           </p>

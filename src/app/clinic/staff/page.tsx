@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ChevronRight, Download, Plus } from "lucide-react";
+import { EmptyState } from "@/core/ui/empty-state";
+import { ChevronRight, Download, Plus, UserPlus } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { listClinicStaff } from "@/core/users/staff-list";
 import { Badge } from "@/core/ui/badge";
@@ -58,7 +59,7 @@ export default async function ClinicStaffPage({
       <FlashToast message={toastMessage} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Staff</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Staff</h1>
           <p className="text-sm text-muted-foreground">
             {total} staff member{total === 1 ? "" : "s"}
             {query ? ` matching “${query}”` : ""}.
@@ -97,11 +98,15 @@ export default async function ClinicStaffPage({
       />
 
       {staff.length === 0 ? (
-        <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {query
-            ? `No staff match “${query}”.`
-            : "No staff yet. Add your first doctor or receptionist."}
-        </div>
+        <EmptyState
+          icon={UserPlus}
+          title={query ? "No matching staff" : "No staff yet"}
+          description={
+            query
+              ? `Nothing matches “${query}”. Try a name or a username.`
+              : "Add your first doctor or receptionist to start booking against them."
+          }
+        />
       ) : (
         <>
           {/* Desktop: full table. */}

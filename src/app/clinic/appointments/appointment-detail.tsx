@@ -154,7 +154,7 @@ export async function AppointmentDetail({
       <div>
         <Breadcrumbs items={[{ label: "Appointments", href: backHref }, { label: appt.patientName }]} />
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-semibold">{appt.patientName}</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">{appt.patientName}</h1>
           <Badge variant={APPOINTMENT_STATUS_VARIANT[appt.status] ?? "secondary"}>
             {vocabularyLabel("appointment_statuses", appt.status)}
           </Badge>

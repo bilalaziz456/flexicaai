@@ -158,7 +158,7 @@ export default async function AdminHome({
       <FlashToast message={toastMessage} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Clinics</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Clinics</h1>
           <p className="text-sm text-muted-foreground">
             {total} clinic{total === 1 ? "" : "s"}
             {query ? ` matching “${query}”` : " on the platform"}.

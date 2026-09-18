@@ -62,7 +62,7 @@ export default async function InvoicesPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Invoices</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Invoices</h1>
           <p className="text-sm text-muted-foreground">
             The numbered invoice register. Search by invoice #, patient name, phone, MRN or patient
             number, and reprint any invoice.

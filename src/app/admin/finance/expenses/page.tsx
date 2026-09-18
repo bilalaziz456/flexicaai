@@ -97,7 +97,7 @@ export default async function CompanyExpensesPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Company finance: operating expenses</h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">Company finance: operating expenses</h1>
         <p className="text-sm text-muted-foreground">
           FlexicaAI&apos;s own costs (payroll, rent, software, marketing…). Feeds the company P&amp;L.
         </p>

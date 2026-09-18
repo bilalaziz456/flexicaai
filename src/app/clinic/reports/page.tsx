@@ -42,7 +42,7 @@ export default async function ReportsHubPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Reports</h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">Reports</h1>
         <p className="text-sm text-muted-foreground">Finance reports, with CSV export where available.</p>
       </div>
 
