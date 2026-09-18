@@ -14,12 +14,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { LedgerTimeline } from "@/core/ui/charts/ledger-timeline";
-import { BalanceTrend } from "@/core/ui/charts/balance-trend";
+import { TrendChart } from "@/core/ui/charts/trend-chart";
 import { StatCard } from "@/core/ui/charts/stat-card";
-import { ShareRings } from "@/core/ui/charts/share-rings";
-import { Trend3D } from "@/core/ui/charts/trend-3d";
-import { ChartViewToggle } from "@/core/ui/charts/chart-view-toggle";
 import { SalesFilters } from "@/core/ui/report-filters";
 import { RecordPayoutForm } from "./payout-ui";
 import { SettlementForm, VoidSettlementButton } from "./settlement-ui";
@@ -99,13 +95,6 @@ export default async function ClinicSharesPage({
       tone: owes ? "text-destructive" : "",
     },
   ];
-
-  // Composition of lifetime earnings. Only positive earners: a doctor who net-bore
-  // a discount has a NEGATIVE balance, and a negative slice of a ring is not a
-  // thing — it would have to be drawn as an absence, which no reader would decode.
-  const shareSlices = balances
-    .filter((b) => b.earned > 0)
-    .map((b) => ({ label: b.name, value: b.earned }));
 
   return (
     <div className="space-y-6">
@@ -216,27 +205,6 @@ export default async function ClinicSharesPage({
         </Card>
       ) : null}
 
-      {/* Share of earnings — one ring per doctor, every arc swept from twelve
-          o'clock so near-equal shares can actually be ranked. See `share-rings.tsx`
-          for why this is not a donut. */}
-      {!singleDoctor && shareSlices.length > 1 ? (
-        <Card className="overflow-hidden border-border/60 bg-linear-to-b from-card to-muted/20">
-          <CardHeader>
-            <CardTitle className="text-base">Share of earnings</CardTitle>
-            <CardDescription>
-              How lifetime earnings divide across the clinic&apos;s doctors.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ShareRings
-              rows={shareSlices}
-              centerLabel="Total earned"
-              unitLabel={`${shareSlices.length} doctors`}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
-
       {/* Per-doctor balances (full, unscoped view) — click a doctor to pay them. */}
       {!singleDoctor ? (
         <Card>
@@ -286,85 +254,37 @@ export default async function ClinicSharesPage({
             </p>
           ) : (
             <div className="space-y-8">
-              <ChartViewToggle
-                label="Earned vs paid per period"
-                flat={
-                  /* Earnings ACCRUE and payouts HAPPEN — see `ledger-timeline.tsx`
-                     for why drawing both as lines was the wrong sentence. */
-                  <LedgerTimeline
-                    ariaLabel={selfOnly ? "Your earnings and payouts" : "Doctor earnings and payouts"}
-                    points={report.activityBuckets.map((b) => ({
-                      label: b.label,
-                      flow: b.earned,
-                      event: b.paid,
-                    }))}
-                    flowLabel="Earned"
-                    eventLabel="Paid out"
-                  />
-                }
-                deep={
-                  <Trend3D
-                    ariaLabel="Earned vs paid per period, three-dimensional"
-                    points={report.activityBuckets.map((b) => ({
-                      label: b.label,
-                      value: b.earned,
-                      second: b.paid,
-                    }))}
-                    valueLabel="Earned"
-                    overlayLabel="Paid"
-                  />
-                }
-                note={
-                  <>
-                    Values sit further from the axis than in the flat chart — the rails run
-                    forward to help carry one across.
-                  </>
-                }
+              <TrendChart
+                ariaLabel={selfOnly ? "Your earned vs paid per period" : "Doctor shares earned vs paid per period"}
+                points={report.activityBuckets.map((b) => ({
+                  label: b.label,
+                  value: b.earned,
+                  second: b.paid,
+                }))}
+                valueLabel="Earned"
+                overlay={{ label: "Paid" }}
               />
               <div>
-                <div className="text-sm font-medium">Outstanding balance</div>
+                <div className="text-sm font-medium">Cumulative earned vs paid</div>
                 <p className="mb-3 text-xs text-muted-foreground">
-                  What the clinic owes its doctors, after every payout. Each marked point
-                  is a payment landing.
+                  The gap between the lines is the outstanding balance over time.
                 </p>
                 {/* The GAP is the point of this chart — what the clinic still owes
                     — so it is tinted rather than left for the eye to measure. */}
-                <ChartViewToggle
-                  label="Cumulative earned vs paid"
-                  flat={
-                    /* The balance itself, not two lines with the answer in the gap
-                       between them — see `balance-trend.tsx`. */
-                    <BalanceTrend
-                      ariaLabel="Outstanding balance over time"
-                      points={report.cumulativeBuckets.map((b) => ({
-                        label: b.label,
-                        balance: b.earned - b.paid,
-                        earned: b.earned,
-                        paid: b.paid,
-                      }))}
-                      valueLabel="Outstanding"
-                    />
-                  }
-                  deep={
-                    /* One curtain, of the SAME series the flat view plots. A toggle
-                       that changes the quantity as well as the dimension is two
-                       charts wearing one control. */
-                    <Trend3D
-                      ariaLabel="Outstanding balance over time, three-dimensional"
-                      points={report.cumulativeBuckets.map((b) => ({
-                        label: b.label,
-                        value: b.earned - b.paid,
-                      }))}
-                      valueLabel="Outstanding"
-                    />
-                  }
-                  note={
-                    <>
-                      The solid stands on zero, so a month of payouts is a shallow step
-                      along the top. The flat view zooms in on that movement; the exact
-                      balance is on the hover.
-                    </>
-                  }
+                <TrendChart
+                  ariaLabel="Cumulative earned versus paid"
+                  points={report.cumulativeBuckets.map((b) => ({
+                    label: b.label,
+                    value: b.earned,
+                    second: b.paid,
+                  }))}
+                  valueLabel="Cumulative earned"
+                  mode="line"
+                  overlay={{
+                    label: "Cumulative paid",
+                    fillGap: true,
+                    gapLabel: "Outstanding",
+                  }}
                 />
               </div>
             </div>

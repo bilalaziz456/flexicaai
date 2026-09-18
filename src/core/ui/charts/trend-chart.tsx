@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId } from "react";
+import { useCallback } from "react";
 import {
   ChartEmpty,
   ChartTooltip,
@@ -87,8 +87,6 @@ export function TrendChart({
 }) {
   const [ref, width] = useChartWidth<HTMLDivElement>();
   const [gradId, gradDef] = useGradient();
-  const uid = useId();
-  const glow = `${uid}-glow`;
 
   const n = points.length;
   const hasComparison = points.some((p) => typeof p.previous === "number");
@@ -182,16 +180,7 @@ export function TrendChart({
           onPointerLeave={clear}
           className="touch-pan-y select-none"
         >
-          <defs>
-            {gradDef(color)}
-            {/* DEPTH WITHOUT DISTORTION. A soft shadow directly under the stroke, so
-                the line reads as sitting ABOVE its fill rather than being a border of
-                it. Nothing here moves a point: the curve is still the data, and a
-                value is still its height against the axis. */}
-            <filter id={glow} x="-5%" y="-20%" width="110%" height="150%">
-              <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.22" />
-            </filter>
-          </defs>
+          <defs>{gradDef(color)}</defs>
 
           <Grid ticks={scale.ticks} yFor={yFor} width={width} format={shortNum} />
 
@@ -222,7 +211,6 @@ export function TrendChart({
             strokeWidth={2}
             strokeLinejoin="round"
             strokeLinecap="round"
-            filter={`url(#${glow})`}
             className="chart-draw"
           />
 

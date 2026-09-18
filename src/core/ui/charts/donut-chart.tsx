@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useState } from "react";
 import { money as fmtMoney } from "@/core/ui/charts/geometry";
 import { cn } from "@/core/lib/utils";
 
@@ -74,9 +74,6 @@ export function DonutChart({
   className?: string;
 }) {
   const [active, setActive] = useState<number | null>(null);
-  const uid = useId();
-  const hollow = `${uid}-hollow`;
-  const lift = `${uid}-lift`;
 
   const rows = slices.filter((s) => s.value > 0);
   const sum = rows.reduce((a, s) => a + s.value, 0);
@@ -129,28 +126,7 @@ export function DonutChart({
   return (
     <div className={cn("flex flex-col items-center gap-5 sm:flex-row sm:items-center", className)}>
       <div className="relative shrink-0" style={{ width: size, height: size }}>
-        <svg
-          width={size}
-          height={size}
-          role="img"
-          aria-label={ariaLabel}
-          className="overflow-visible"
-        >
-          {/* DEPTH WITHOUT DISTORTION. Every effect here is applied to the ring as
-              drawn — nothing tilts, nothing is extruded, no slice gains area its
-              value did not earn. A 20% slice covers 20% of the arc wherever it
-              sits, which is the whole contract of a composition chart.
-
-              The shadow points DOWN and INWARD at the hole, so the ring reads as a
-              solid band sitting above the card rather than a painted circle. */}
-          <defs>
-            <filter id={hollow} x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="1" stdDeviation="1.5" floodOpacity="0.18" />
-            </filter>
-            <filter id={lift} x="-35%" y="-35%" width="170%" height="170%">
-              <feDropShadow dx="0" dy="2" stdDeviation="4" floodOpacity="0.30" />
-            </filter>
-          </defs>
+        <svg width={size} height={size} role="img" aria-label={ariaLabel} className="-rotate-0">
           <g transform={`translate(${size / 2}, ${size / 2})`}>
             <circle
               r={r}
@@ -159,21 +135,17 @@ export function DonutChart({
               strokeWidth={stroke}
               opacity={0.35}
             />
-            {/* The hovered arc thickens OUTWARD and lifts on a softer shadow.
-                Thickness is not the encoding here — arc LENGTH is — so growing it
-                says "this one" without saying "this one is bigger". */}
             {arcs.map((a, i) => (
               <circle
                 key={`${a.label}-${i}`}
                 r={r}
                 fill="none"
                 stroke={a.color}
-                strokeWidth={active === i ? stroke + 4 : stroke}
+                strokeWidth={active === i ? stroke + 3 : stroke}
                 strokeDasharray={a.dash}
                 strokeLinecap="butt"
                 transform={`rotate(${a.rotate})`}
-                opacity={active == null || active === i ? 1 : 0.4}
-                filter={`url(#${active === i ? lift : hollow})`}
+                opacity={active == null || active === i ? 1 : 0.35}
                 className="chart-grow transition-all duration-200"
                 onPointerEnter={() => setActive(i)}
                 onPointerLeave={() => setActive(null)}

@@ -18,7 +18,6 @@ import {
   labelStride,
   money,
   niceCeil,
-  niceScale,
   percentChange,
   shortNum,
   smoothPath,
@@ -134,28 +133,6 @@ check("normal growth", Math.round(percentChange(118, 100) ?? 0), 18);
 // A loss shrinking from -100 to -50 is an IMPROVEMENT of 50%, not -50%: the
 // denominator is |previous|, so the sign tracks the direction of the change.
 check("a shrinking loss reads as positive", Math.round(percentChange(-50, -100) ?? 0), 50);
-
-console.log("\nThe value axis snaps to round numbers, and only lets go of zero when asked");
-{
-  const anchored = niceScale(515_000, 832_000);
-  ok(
-    "a level far from zero still starts at zero by default",
-    anchored.min === 0,
-    `min ${anchored.min}`,
-  );
-  // The balance chart's zoomed view (`balance-trend.tsx`): drawn from zero, three
-  // hundred thousand rupees of movement is a dent along the top of a solid block.
-  const zoomed = niceScale(388_000, 911_000, 4, false);
-  ok("includeZero:false keeps the axis on the data", zoomed.min > 0, `min ${zoomed.min}`);
-  ok(
-    "and the bounds are still round numbers that contain the range",
-    zoomed.min <= 388_000 && zoomed.max >= 911_000 && zoomed.min % 100_000 === 0,
-    `${zoomed.min}…${zoomed.max}`,
-  );
-  // A range that genuinely crosses zero must keep it whichever way it is called: the
-  // P&L baseline has to be a line the axis names.
-  ok("a range crossing zero keeps zero as a tick", niceScale(-40_000, 90_000, 4, false).ticks.includes(0));
-}
 
 console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
