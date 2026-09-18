@@ -94,23 +94,25 @@ export function StatCard({
   return (
     <Card
       className={cn(
-        "relative gap-0 overflow-hidden p-4",
+        "relative gap-0 overflow-hidden p-5 transition-shadow duration-200 hover:elev-2",
         tone === "good" && "border-success/30",
         tone === "bad" && "border-destructive/30",
         className,
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        <span className="text-2xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
           {label}
         </span>
         {action}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+      <div className="mt-2.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span
           className={cn(
-            "text-2xl leading-none font-semibold tabular-nums",
+            // The figure IS the card: display face, negative tracking, tabular figures so a
+            // column of them lines up.
+            "font-display text-[1.7rem] leading-none font-semibold tracking-[-0.02em] tabular-nums",
             tone === "good" && "text-success-text",
             tone === "bad" && "text-destructive-text",
           )}
@@ -137,7 +139,7 @@ export function StatCard({
         ) : null}
       </div>
 
-      {hint ? <p className="mt-1.5 text-xs text-muted-foreground">{hint}</p> : null}
+      {hint ? <p className="mt-2 text-xs text-muted-foreground">{hint}</p> : null}
       {pct != null ? (
         <p className="mt-0.5 text-2xs text-muted-foreground">{comparisonLabel}</p>
       ) : null}

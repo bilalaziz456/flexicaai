@@ -12,7 +12,9 @@ import { Logo } from "@/core/ui/logo";
  */
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/10 via-background to-background px-4 py-12">
+    // `app-root` opts these screens into the panel type system (globals.css) — the
+    // credentials screens belong to the application, not to the marketing site.
+    <div className="app-root flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/8 via-background to-background px-4 py-12">
       <div className="w-full max-w-sm">
         {/* max-w tuned for the wide horizontal logo so it sits centred with margin,
             not edge-to-edge across the card. */}

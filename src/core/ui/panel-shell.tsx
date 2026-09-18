@@ -178,6 +178,17 @@ export function PanelShell({
     item.exact ? pathname === item.href : pathname.startsWith(item.href);
   const groupHasActive = (g: NavGroup) => g.items.some(isActive);
 
+  /**
+   * What the header calls the current page. Read off the nav the panel already handed
+   * us — no new data, no new prop, and it can never name a page the sidebar is hiding.
+   * Longest matching href wins, so `/clinic/patients/[id]` resolves to Patients rather
+   * than to whichever shorter prefix also matched.
+   */
+  const currentLabel = visibleNodes
+    .flatMap((n): NavItem[] => (isGroup(n) ? n.items : [n]))
+    .filter(isActive)
+    .sort((a, b) => b.href.length - a.href.length)[0]?.label;
+
   // A group is open if the user toggled it, else auto-open when it holds the active
   // page. Explicit toggles persist across navigations.
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
@@ -201,6 +212,27 @@ export function PanelShell({
     });
   const isGroupOpen = (g: NavGroup) => expandedGroups[g.group] ?? groupHasActive(g);
 
+  /**
+   * Escape closes the drawer, and the page behind it stops scrolling while it is open.
+   * The drawer is hand-rolled rather than a Base UI Dialog, so it never inherited
+   * either behaviour — on a phone you could scroll the page underneath the overlay,
+   * and the only way out was to hit the backdrop. Both are interaction defects, not
+   * new features.
+   */
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
   // Reserve just enough bottom space to clear the floating pill stack — grows with the
   // NUMBER of pills actually showing (payment-due + a transient no-internet toast, …).
   // Measured at runtime (a ResizeObserver on the stack) so it tracks pills that pop in
@@ -219,23 +251,48 @@ export function PanelShell({
     return () => ro.disconnect();
   }, []);
 
-  const navLink = (item: NavItem, onClick?: () => void) => (
-    <Link
-      key={item.href}
-      href={item.href}
-      onClick={onClick}
-      aria-current={isActive(item) ? "page" : undefined}
-      className={cn(
-        "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-        isActive(item)
-          ? "bg-primary text-primary-foreground"
-          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-      )}
-    >
-      <item.Icon className="size-4 shrink-0" aria-hidden="true" />
-      {item.label}
-    </Link>
-  );
+  /**
+   * A nav row. The active state is a LIFTED SURFACE, not a filled block.
+   *
+   * It used to be `bg-primary text-primary-foreground` — a solid teal slab with navy
+   * text. That made the single most repeated element in the product also the loudest
+   * thing on the screen, and it spent the brand colour on "you are here", which is the
+   * one fact the user already knows. Now the sidebar sits on the ground tone and the
+   * active row rises out of it as a card with a teal rail; the colour is reduced to a
+   * 2px edge and the icon, where it reads as an accent instead of a shout.
+   */
+  const navLink = (item: NavItem, onClick?: () => void) => {
+    const active = isActive(item);
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={onClick}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "group/nav relative flex items-center gap-2.5 rounded-lg py-2 pr-3 pl-3.5 text-sm transition-[background-color,color,box-shadow] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+          active
+            ? "bg-card font-semibold text-foreground elev-1"
+            : "font-medium text-muted-foreground hover:bg-foreground/[0.045] hover:text-foreground",
+        )}
+      >
+        {active ? (
+          <span
+            className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-primary"
+            aria-hidden="true"
+          />
+        ) : null}
+        <item.Icon
+          className={cn(
+            "size-[1.05rem] shrink-0 transition-colors",
+            active ? "text-primary-text" : "text-muted-foreground/80 group-hover/nav:text-foreground",
+          )}
+          aria-hidden="true"
+        />
+        <span className="truncate">{item.label}</span>
+      </Link>
+    );
+  };
 
   /** Render the nav tree (top-level items + collapsible groups). */
   const renderNodes = (onNavClick?: () => void) =>
@@ -244,23 +301,42 @@ export function PanelShell({
       const openGroup = isGroupOpen(n);
       return (
         <div key={n.group}>
+          {/* A section, not another button competing with its own children. The label
+              is set as a quiet micro-caption so the eye reads the group as a heading
+              and the pages inside it as the list — the old styling made the group look
+              exactly like the items, so a nine-row sidebar read as nine equal things. */}
           <button
             type="button"
             onClick={() => setGroupOpen(n.group, !openGroup)}
             aria-expanded={openGroup}
-            className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:bg-accent hover:text-accent-foreground"
+            className={cn(
+              "flex w-full items-center justify-between rounded-lg py-1.5 pr-2 pl-3.5 text-2xs font-semibold tracking-wider uppercase transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+              groupHasActive(n) && !openGroup
+                ? "text-foreground"
+                : "text-muted-foreground/70 hover:text-foreground",
+            )}
           >
-            <span className="flex items-center gap-3">
-              <n.Icon className="size-4 shrink-0" aria-hidden="true" />
+            <span className="flex items-center gap-2.5">
+              <n.Icon className="size-[0.95rem] shrink-0 opacity-70" aria-hidden="true" />
               {n.group}
             </span>
-            <ChevronRight
-              className={cn("size-4 shrink-0 transition-transform", openGroup && "rotate-90")}
-              aria-hidden="true"
-            />
+            <span className="flex items-center gap-1.5">
+              {/* A collapsed group holding the active page would otherwise give no sign
+                  that the current location is inside it. */}
+              {groupHasActive(n) && !openGroup ? (
+                <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" />
+              ) : null}
+              <ChevronRight
+                className={cn(
+                  "size-3.5 shrink-0 transition-transform duration-200",
+                  openGroup && "rotate-90",
+                )}
+                aria-hidden="true"
+              />
+            </span>
           </button>
           {openGroup ? (
-            <div className="ml-4 mt-0.5 space-y-0.5 border-l pl-2">
+            <div className="mt-0.5 mb-1 space-y-0.5 pl-2.5">
               {n.items.map((i) => navLink(i, onNavClick))}
             </div>
           ) : null}
@@ -274,7 +350,7 @@ export function PanelShell({
     // sideways. `clip` (not `hidden`) doesn't create a scroll container, so the sticky
     // headers below keep working; content that needs to scroll uses its own
     // overflow-x-auto box.
-    <div className="min-h-screen overflow-x-clip md:pl-60">
+    <div className="app-root min-h-screen overflow-x-clip md:pl-64">
       {/* Skip link — the FIRST focusable element, so a keyboard user can Tab once and
           jump past the sidebar nav to the page content (WCAG 2.4.1). Hidden until focused. */}
       <a
@@ -284,20 +360,25 @@ export function PanelShell({
         Skip to content
       </a>
       {/* ---- Desktop sidebar ---- */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r bg-card md:flex">
-        <div className="p-4">
-          <Link href={brand} className="flex items-center rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-            <Logo className="h-9" />
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-sidebar-border bg-sidebar md:flex">
+        <div className="px-4 pt-5 pb-4">
+          <Link
+            href={brand}
+            className="flex items-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+          >
+            <Logo className="h-8" />
           </Link>
         </div>
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-3">{renderNodes()}</nav>
-        <div className="border-t p-3">
+        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-3">{renderNodes()}</nav>
+        {/* No top border: the sign-out sits on the same ground as the nav and is
+            separated by space instead of a rule. One less line on the screen. */}
+        <div className="px-3 pt-2 pb-4">
           <form action={signOut}>
             <button
               type="submit"
-              className="flex w-full items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:bg-accent hover:text-accent-foreground"
+              className="flex w-full items-center gap-2.5 rounded-lg py-2 pr-3 pl-3.5 text-sm font-medium text-muted-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60 hover:bg-destructive/8 hover:text-destructive-text"
             >
-              <LogOut className="size-4 shrink-0" aria-hidden="true" />
+              <LogOut className="size-[1.05rem] shrink-0" aria-hidden="true" />
               Sign out
             </button>
           </form>
@@ -314,32 +395,49 @@ export function PanelShell({
           alphas (`bg-amber-500/15`), which is 85% transparent. Unpinned that never
           showed, but a STICKY translucent bar lets the page scroll visibly through it.
           The opaque base restores the tint's intended look over card colour. */}
-      <div className="sticky top-0 z-40 bg-card">
+      {/* Frosted rather than opaque. The opaque base was there because the notice bars
+          tint with /15 alphas and a translucent sticky bar let the page scroll visibly
+          through them; `backdrop-blur` solves the same problem the other way — what
+          shows through is diffused, so the tint still reads as a tint. The /85 base
+          keeps it legible where backdrop-filter is unsupported. */}
+      <div className="sticky top-0 z-40 bg-background/85 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">
         {banner}
         {/* ---- Desktop top bar (clinic name left; theme + profile top-right) ---- */}
-        <header className="hidden items-center justify-between gap-3 border-b bg-card px-6 py-2 md:flex">
-        <span className="max-w-xs shrink-0 truncate text-sm font-medium text-muted-foreground">
-          {identityLabel}
-        </span>
+        <header className="hidden items-center justify-between gap-4 border-b border-border/70 px-6 py-2.5 md:flex">
+        {/* Where you are, then whose data you are looking at. The clinic name alone
+            answered the second question and left the first to the sidebar, which meant
+            the header carried no information about the page at all. */}
+        <div className="flex min-w-0 shrink items-baseline gap-2">
+          {currentLabel ? (
+            <span className="truncate font-display text-[0.95rem] font-semibold tracking-[-0.015em]">
+              {currentLabel}
+            </span>
+          ) : null}
+          <span className="hidden max-w-[14rem] shrink truncate text-xs text-muted-foreground lg:inline">
+            {currentLabel ? <span className="mr-2 text-border">/</span> : null}
+            {identityLabel}
+          </span>
+        </div>
         {searchBox ? (
-          <div className="mx-auto w-full max-w-md px-4">{searchBox}</div>
+          <div className="mx-auto w-full max-w-sm shrink-0">{searchBox}</div>
         ) : null}
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex shrink-0 items-center gap-1.5">
           <NotificationBell initialUnread={notificationCount} />
           <ThemeToggle initial={theme} />
+          <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
           <Link
             href={accountHref}
             aria-label="Account settings"
-            className="flex items-center gap-2 rounded-full py-0.5 pl-0.5 pr-3 transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:bg-accent"
+            className="flex items-center gap-2 rounded-full py-0.5 pr-3 pl-0.5 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60 hover:bg-foreground/[0.05]"
           >
             <SelfAvatar key={avatarVersion} version={avatarVersion} initials={userInitials} className="size-7" />
-            <span className="max-w-[12rem] truncate text-sm font-medium">{userName}</span>
+            <span className="max-w-[10rem] truncate text-sm font-medium">{userName}</span>
           </Link>
         </div>
       </header>
 
       {/* ---- Mobile top bar ---- */}
-      <header className="flex items-center justify-between border-b bg-card px-4 py-3 md:hidden">
+      <header className="flex items-center justify-between border-b border-border/70 px-4 py-2.5 md:hidden">
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -372,7 +470,7 @@ export function PanelShell({
       {/* Mobile search sits on its OWN row: that bar already carries five
           controls, so an inline field would crush the logo. */}
       {searchBox ? (
-        <div className="border-b bg-card px-4 py-2 md:hidden">
+        <div className="border-b border-border/70 px-4 pt-0.5 pb-2 md:hidden">
           {searchBox}
         </div>
       ) : null}
@@ -432,7 +530,7 @@ export function PanelShell({
       <main
         id="main-content"
         tabIndex={-1}
-        className="mx-auto max-w-5xl px-4 pt-8 outline-none sm:px-6"
+        className="mx-auto w-full max-w-[80rem] px-4 pt-7 outline-none sm:px-6 lg:px-8"
         style={{ paddingBottom: pillPad || 32 }}
       >
         {children}

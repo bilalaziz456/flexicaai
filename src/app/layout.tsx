@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Bricolage_Grotesque, Plus_Jakarta_Sans } from "next/font/google";
 import { BRAND_WEBSITE } from "@/core/lib/brand";
 import { THEME_SCRIPT } from "@/core/theme/theme-script";
 import { Toaster } from "@/core/ui/toast";
@@ -17,6 +17,30 @@ const fontSans = Plus_Jakarta_Sans({
   variable: "--font-sans",
   subsets: ["latin"],
   display: "swap",
+});
+
+/**
+ * DISPLAY face — page titles, card titles and big figures inside the panels.
+ *
+ * Jakarta is a UI typeface: excellent at 13px in a table, unremarkable at 28px in a
+ * heading, and a hierarchy built only from size and weight of one family is most of
+ * what makes a dashboard look generic. Bricolage is a variable grotesque with real
+ * character at display sizes and an optical-size axis, so it tightens as it grows
+ * instead of being one shape scaled up.
+ *
+ * `preload: false` deliberately: the marketing pages never use this face, and they
+ * are the only prerendered, SEO-sensitive routes in the app. Panels pay one extra
+ * request on a cold visit and it is cached from then on.
+ *
+ * Swapping it is a one-line change here plus `--font-display` in globals.css —
+ * nothing else in the app names a font.
+ */
+const fontDisplay = Bricolage_Grotesque({
+  variable: "--font-display-face",
+  subsets: ["latin"],
+  display: "swap",
+  preload: false,
+  axes: ["opsz"],
 });
 
 export const metadata: Metadata = {
@@ -57,7 +81,11 @@ export default async function RootLayout({
   const vocabulary = vocabularySnapshot();
 
   return (
-    <html lang="en" className={`${fontSans.variable} h-full antialiased`} suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`${fontSans.variable} ${fontDisplay.variable} h-full antialiased`}
+      suppressHydrationWarning
+    >
       {/* suppressHydrationWarning: the theme script sets the `dark` class on <html>
           before hydration (and extensions like Grammarly touch attributes too);
           this silences the resulting mismatch. */}
