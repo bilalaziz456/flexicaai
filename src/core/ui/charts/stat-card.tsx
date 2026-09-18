@@ -33,6 +33,7 @@ export function StatCard({
   comparisonLabel = "vs previous period",
   insight,
   tone = "default",
+  variant = "card",
   action,
   className,
 }: {
@@ -60,6 +61,14 @@ export function StatCard({
   comparisonLabel?: string;
   insight?: Insight | null;
   tone?: "default" | "good" | "bad";
+  /**
+   * `quiet` drops the card chrome — no border, no fill, no elevation — for a figure
+   * that is SUPPORTING rather than headline. The dashboard is the reason: it showed
+   * four money KPIs and eight secondary counts as twelve identical cards, so nothing
+   * on the page claimed to matter more than anything else. Hierarchy has to come from
+   * the surface, not from reading order.
+   */
+  variant?: "card" | "quiet";
   action?: ReactNode;
   className?: string;
 }) {
@@ -91,12 +100,16 @@ export function StatCard({
           ? "var(--color-destructive)"
           : "var(--color-chart-1)";
 
+  const Shell = variant === "quiet" ? QuietShell : Card;
+
   return (
-    <Card
+    <Shell
       className={cn(
-        "relative gap-0 overflow-hidden p-5 transition-shadow duration-200 hover:elev-2",
-        tone === "good" && "border-success/30",
-        tone === "bad" && "border-destructive/30",
+        variant === "quiet"
+          ? "relative"
+          : "relative gap-0 overflow-hidden p-5 transition-shadow duration-200 hover:elev-2",
+        variant === "card" && tone === "good" && "border-success/30",
+        variant === "card" && tone === "bad" && "border-destructive/30",
         className,
       )}
     >
@@ -112,7 +125,8 @@ export function StatCard({
           className={cn(
             // The figure IS the card: display face, negative tracking, tabular figures so a
             // column of them lines up.
-            "font-display text-[1.7rem] leading-none font-semibold tracking-[-0.02em] tabular-nums",
+            "font-display leading-none font-semibold tracking-[-0.02em] tabular-nums",
+            variant === "quiet" ? "text-xl" : "text-[1.7rem]",
             tone === "good" && "text-success-text",
             tone === "bad" && "text-destructive-text",
           )}
@@ -176,8 +190,19 @@ export function StatCard({
       ) : null}
 
       {insight ? <InsightLine insight={insight} className="mt-3" /> : null}
-    </Card>
+    </Shell>
   );
+}
+
+/** The chrome-less shell for `variant="quiet"`. Same API shape as `Card`. */
+function QuietShell({
+  className,
+  children,
+}: {
+  className?: string;
+  children?: ReactNode;
+}) {
+  return <div className={cn("flex flex-col text-sm", className)}>{children}</div>;
 }
 
 /**

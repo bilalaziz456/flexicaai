@@ -16,6 +16,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
+import { ArrowRight } from "lucide-react";
+import { buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
 import { Sparkline } from "@/core/ui/sparkline";
 import { StatCard } from "@/core/ui/charts/stat-card";
 import { OnboardingChecklist } from "@/core/ui/onboarding-checklist";
@@ -211,10 +214,10 @@ export default async function ClinicDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Your clinic at a glance.
           </p>
         </div>
@@ -224,9 +227,10 @@ export default async function ClinicDashboard() {
         {billingKpiOn ? (
           <Link
             href="/clinic/reports/daybook"
-            className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent"
+            className={cn(buttonVariants({ variant: "outline" }))}
           >
-            Day book →
+            Day book
+            <ArrowRight aria-hidden="true" />
           </Link>
         ) : null}
       </div>
@@ -330,27 +334,49 @@ export default async function ClinicDashboard() {
         </Card>
       ) : null}
 
-      {/* Supporting stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {stats.map((s) => {
-          const inner = (
-            <StatCard
-              className={s.href ? "h-full transition-colors hover:border-primary/50" : "h-full"}
-              label={s.title}
-              value={String(s.value)}
-              hint={s.note}
-              trend={"trend" in s ? s.trend : undefined}
-              higherIsBetter={"higherIsBetter" in s ? s.higherIsBetter : true}
-            />
-          );
-          return s.href ? (
-            <Link key={s.title} href={s.href}>
-              {inner}
-            </Link>
-          ) : (
-            <div key={s.title}>{inner}</div>
-          );
-        })}
+      {/* Supporting stats — ONE panel divided, rather than eight separate cards.
+          These are the clinic's second-order numbers (counts, a rate, a balance) and
+          as individual bordered cards they carried exactly the same visual weight as
+          the money KPIs above, so the page had twelve equal headlines and therefore
+          no headline at all. Grouped behind one border with hairline dividers they
+          read as a single supporting block, which is what they are. */}
+      <div className="overflow-hidden rounded-xl border border-border/70 bg-card elev-1">
+        <div className="grid grid-cols-1 divide-y divide-border/60 sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3">
+          {stats.map((s, i) => {
+            const inner = (
+              <StatCard
+                variant="quiet"
+                className={cn(
+                  "h-full p-5 transition-colors",
+                  // The dividers are drawn per cell rather than by `divide-x`, because
+                  // the column count changes at two breakpoints and `divide-*` cannot
+                  // follow it — it would leave a rule hanging at the end of a row.
+                  "sm:border-b sm:border-border/60",
+                  i % 2 === 0 && "sm:border-r sm:border-border/60",
+                  // The last cell drops its right rule: the grid rarely divides
+                  // evenly, so otherwise a divider hangs in the empty tail of the row.
+                  i === stats.length - 1 ? "lg:border-r-0" : "lg:border-r",
+                  s.href &&
+                    "hover:bg-foreground/[0.02]",
+                )}
+                label={s.title}
+                value={String(s.value)}
+                hint={s.note}
+                trend={"trend" in s ? s.trend : undefined}
+                higherIsBetter={"higherIsBetter" in s ? s.higherIsBetter : true}
+              />
+            );
+            return s.href ? (
+              <Link key={s.title} href={s.href} className="block">
+                {inner}
+              </Link>
+            ) : (
+              <div key={s.title} className="block">
+                {inner}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Doctor: manage your own leave / vacation (no separate nav page) — kept
