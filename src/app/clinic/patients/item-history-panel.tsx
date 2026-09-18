@@ -121,7 +121,7 @@ export function ItemHistoryPanel({
     });
 
   return (
-    <div className="space-y-2 rounded-lg border p-3">
+    <div className="space-y-2 rounded-lg border well p-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-medium">History of {itemKey}</p>
         <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close history">
@@ -201,7 +201,7 @@ export function ItemHistoryPanel({
 
                 {/* Edit in place, on the row it belongs to. */}
                 {editing && ItemEditor ? (
-                  <div className="mt-2 space-y-2 rounded-md border p-2.5">
+                  <div className="mt-2 space-y-2 rounded-md border well p-2.5">
                     <ItemEditor value={editDraft} onChange={setEditDraft} disabled={pending} />
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" disabled={pending} onClick={() => saveEdit(e.recordId!)}>
@@ -232,14 +232,14 @@ export function ItemHistoryPanel({
           in the history, and the history is the thing being built here. */}
       {canAmend && ItemEditor ? (
         adding ? (
-          <div className="space-y-2 rounded-md border p-2.5">
+          <div className="space-y-2 rounded-md border well p-2.5">
             <p className="text-xs font-medium">What are you recording on {itemKey}?</p>
             {/* Treatment or pre-existing. They write to different places on purpose:
                 a treatment is an event that joins the history, while "already there"
                 corrects the intake snapshot. Collapsing them would have the history
                 claim the clinic did work it never did. */}
             <div
-              className="flex w-fit overflow-hidden rounded-md border"
+              className="flex w-fit overflow-hidden rounded-md border well"
               role="group"
               aria-label="What kind of record"
             >

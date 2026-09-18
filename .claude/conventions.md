@@ -154,6 +154,28 @@ note above it; obvious logic gets none.
   there is nothing (§15 of the redesign brief). A muted inline `—` in a table CELL, or
   a one-line note inside a field group, is not an empty state and should stay inline;
   the two are different things and converting every one of them would be churn.
+- **A bordered box nested inside something else gets `well`, never a hardcoded
+  `bg-*`.** The surface ladder is `--surface-sunken` < the page ground < `--card` <
+  `--elevated`, and which way a nested box should move depends on what is BEHIND it:
+  on the page ground it rises to `--card`, inside a card it recedes to
+  `--surface-sunken`. Going the wrong way is worse than no fill — a card on a card is
+  two identical planes with a line between them.
+  **So the surface publishes and the box reads.** `.app-root` sets `--nested-surface`
+  / `--nested-shadow`; `[data-slot="card"]` and `[data-slot="dialog-popup"]` flip
+  them; the `well` utility (globals.css) just reads them. A component cannot decide
+  this for itself — `note-editor`, `data-table`, `trash-table` and `activity-log` each
+  render both ways, so anything they hardcode is wrong half the time. A static pass
+  over the JSX guessed 57 of these were on the ground; rendering showed almost all
+  were inside a card.
+  **`well` must never also publish a value for its own children**: a custom property
+  set on an element is visible to that element's own declarations, so the publish
+  would be what `background-color` picked up and every well in the app would come out
+  one colour.
+  **This was invisible until the ground got a tint.** While the page and `--card` were
+  both pure white, `rounded-lg border p-3` with no fill looked exactly like a card;
+  69 containers had been written that way. Controls are the exception and keep no
+  fill — an outline button, a switch track, a checkbox square, a count chip and a
+  dashed drop-slot are all *supposed* to be transparent.
 - **Every data table sits in a `TableCard`** (`core/ui/table-card.tsx`) — one surface,
   app-wide, at the owner's direction. It had previously been split: a table that WAS
   the page sat on the page ground, a table that was one section among several took a

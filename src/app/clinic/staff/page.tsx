@@ -163,7 +163,7 @@ export default async function ClinicStaffPage({
                 key={u.id}
                 as="li"
                 href={`/clinic/staff/${u.id}`}
-                className="block space-y-2 rounded-md border p-3"
+                className="block space-y-2 rounded-md border well p-3"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">

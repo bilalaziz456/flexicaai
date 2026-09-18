@@ -353,7 +353,7 @@ export function NewAppointmentForm({
                 aria-label="Search patients"
               />
             </div>
-            <ul className="max-h-48 divide-y overflow-y-auto rounded-md border">
+            <ul className="max-h-48 divide-y overflow-y-auto rounded-md border well">
               {results.length === 0 ? (
                 <li className="p-3 text-sm text-muted-foreground">
                   No patients found.
@@ -549,7 +549,7 @@ export function NewAppointmentForm({
           value={chargeConsultation ? "1" : "0"}
         />
         {selectedDoctor ? (
-          <div className="space-y-2 rounded-lg border p-3 sm:col-span-2">
+          <div className="space-y-2 rounded-lg border well p-3 sm:col-span-2">
             <div className="flex items-center justify-between gap-3">
               <Label className="font-medium">Consultation fee</Label>
               <span className="text-sm font-semibold">
@@ -658,7 +658,7 @@ export function NewAppointmentForm({
             {/* Per-procedure quantity + the line total (no per-line discount — the
                 discount is applied once to the whole appointment below). */}
             {procSel.size > 0 ? (
-              <ul className="divide-y rounded-lg border">
+              <ul className="divide-y rounded-lg border well">
                 {procedures
                   .filter((p) => procSel.has(p.id))
                   .map((p) => {
@@ -840,7 +840,7 @@ export function NewAppointmentForm({
                       : Math.round((bill.discount * splitNumber) / 100);
                   const clinicBorne = Math.max(0, bill.discount - doctorBorne);
                   return (
-                    <div className="space-y-1.5 rounded-lg border border-dashed p-2.5">
+                    <div className="space-y-1.5 rounded-lg border border-dashed well p-2.5">
                       <Label className="text-xs text-muted-foreground">Doctor bears</Label>
                       <div className="flex gap-2">
                         <select

@@ -60,7 +60,7 @@ function LeaveEntry({
 
   if (editing) {
     return (
-      <li className="rounded-md border p-3">
+      <li className="rounded-md border well p-3">
         <form action={formAction} className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
@@ -128,7 +128,7 @@ function LeaveEntry({
   }
 
   return (
-    <li className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm">
+    <li className="flex items-center justify-between gap-2 rounded-md border well p-2 text-sm">
       <span className="flex items-center gap-2">
         <CalendarOff
           className="size-4 shrink-0 text-muted-foreground"
@@ -221,7 +221,7 @@ export function DoctorLeaves({
       )}
 
       {canCreate ? (
-      <form action={formAction} className="space-y-3 rounded-md border p-3">
+      <form action={formAction} className="space-y-3 rounded-md border well p-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
             <Label htmlFor={`from-${doctorId}`} className="text-xs">

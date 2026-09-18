@@ -189,7 +189,7 @@ export async function PatientsList({
                 key={p.id}
                 as="li"
                 href={`${detailBase}/${p.id}`}
-                className="block space-y-2 rounded-md border p-3"
+                className="block space-y-2 rounded-md border well p-3"
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="font-medium">{p.fullName}</div>

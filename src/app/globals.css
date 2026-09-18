@@ -348,6 +348,51 @@
   font-optical-sizing: auto;
 }
 
+/* ───────────────────────────────────────────────────────────────────────────
+   NESTED SURFACES — `.well`
+
+   The app is full of bordered boxes that group a few things INSIDE something else:
+   a summary block in a form, a divided list in a card, a detail strip under a row.
+   They were written as `rounded-lg border p-3` with no fill, which was invisible
+   while the page ground and `--card` were both pure white. The ground is a tinted
+   surface now, so every one of them reads as an outline drawn on the page.
+
+   The fill cannot be written on the box, because the RIGHT fill depends on what is
+   behind it: on the page ground a nested box should rise to `--card`; inside a card
+   it should recede to `--surface-sunken`. Going the wrong way is worse than no fill
+   — a card-on-card is two identical planes with a line between them.
+
+   Nor can a component decide for itself. `note-editor`, `data-table`, `trash-table`
+   and `activity-log` are each rendered both ways, so any class they hardcode is
+   wrong half the time.
+
+   So the SURFACE publishes what its children should use, and `.well` reads it — the
+   box says "I am nested", and what is around it decides which way that goes.
+   ─────────────────────────────────────────────────────────────────────────── */
+.app-root {
+  --nested-surface: var(--card);
+  /* On the ground a well IS a card, so it takes a card's lift. Recessed wells get
+     `none` below: a shadow on something set into a surface is a contradiction. */
+  --nested-shadow: var(--shadow-xs);
+}
+.app-root :is([data-slot="card"], [data-slot="dialog-popup"]) {
+  --nested-surface: var(--surface-sunken);
+  --nested-shadow: none;
+}
+
+@utility well {
+  /* Read only — `.well` must NOT also publish a value for its own children here. A
+     custom property set on an element is visible to that element's own declarations,
+     so `--nested-surface: …` in this block would be what `background-color` picked
+     up, and every well in the app would come out the same colour.
+
+     The fallback matters too: `.well` lives in `core/ui`, and a component carrying it
+     can render outside `.app-root` (a print frame, the marketing site). Falling back
+     to `--card` gives a defined surface rather than a transparent box. */
+  background-color: var(--nested-surface, var(--card));
+  box-shadow: var(--nested-shadow, none);
+}
+
 /* A skeleton SWEEP rather than a pulse. A block fading in and out says "something is
    here, blinking"; a highlight travelling left-to-right says "this is filling in", and
    it reads as progress even though neither one knows anything about progress. The

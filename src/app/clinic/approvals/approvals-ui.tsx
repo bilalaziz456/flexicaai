@@ -136,7 +136,7 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
     );
   }
   return (
-    <ul className="divide-y rounded-lg border">
+    <ul className="divide-y rounded-lg border well">
       {items.map((it) => (
         <ApprovalRow key={it.id} item={it} />
       ))}

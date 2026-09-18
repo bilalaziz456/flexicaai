@@ -95,7 +95,7 @@ export default async function ShareStatementPage({
         ]
           .filter((b) => b.show)
           .map((b) => (
-            <div key={b.label} className="rounded-lg border p-3">
+            <div key={b.label} className="rounded-lg border well p-3">
               <p className="text-xs text-muted-foreground">{b.label}</p>
               <p className={`text-lg font-semibold tabular-nums ${b.tone}`}>{money.format(b.value)}</p>
             </div>

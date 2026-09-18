@@ -293,7 +293,7 @@ export function AnnouncementForm({
         </div>
 
         {!everyClinic ? (
-          <div className="space-y-2 rounded-lg border p-2">
+          <div className="space-y-2 rounded-lg border well p-2">
             <Input
               type="search"
               value={search}

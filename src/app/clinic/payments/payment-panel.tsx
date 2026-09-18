@@ -183,7 +183,7 @@ export function PaymentPanel({
 
       {/* Collect */}
       {canCollect && outstanding > 0 ? (
-        <form action={formAction} className="space-y-2 rounded-lg border p-3">
+        <form action={formAction} className="space-y-2 rounded-lg border well p-3">
           <div className="grid gap-2 sm:grid-cols-3">
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground" htmlFor="pp-amount">Amount (Rs)</label>
@@ -241,7 +241,7 @@ export function PaymentPanel({
       {/* Refund: give back money already collected on this visit. */}
       {canRefund && collected > 0 ? (
         refundOpen ? (
-          <form action={refundAction} className="space-y-2 rounded-lg border border-destructive/40 p-3">
+          <form action={refundAction} className="space-y-2 rounded-lg border border-destructive/40 well p-3">
             <p className="text-xs font-medium text-destructive">
               Refund from {money.format(collected)} collected
             </p>
@@ -346,7 +346,7 @@ export function PaymentPanel({
 
       {/* History */}
       {ledger.length > 0 ? (
-        <ul className="divide-y rounded-lg border text-sm">
+        <ul className="divide-y rounded-lg border well text-sm">
           {ledger.map((e) => (
             <li key={e.id} className="flex items-center justify-between gap-3 px-3 py-2">
               <div className="min-w-0">

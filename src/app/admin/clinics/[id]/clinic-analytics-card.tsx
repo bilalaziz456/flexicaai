@@ -405,7 +405,7 @@ export function ClinicAnalyticsCard({
       </div>
 
       {total === 0 ? (
-        <p className="rounded-lg border p-3 text-muted-foreground">
+        <p className="rounded-lg border well p-3 text-muted-foreground">
           {clinic.monthlyPrice > 0
             ? "No month has been billed yet, so there is nothing to rate."
             : "This clinic has no subscription price, so it is never billed."}
@@ -419,7 +419,7 @@ export function ClinicAnalyticsCard({
           ) : null}
 
           {/* ── KPI strip ─────────────────────────────────────────────────── */}
-          <div className="flex flex-wrap items-stretch divide-x divide-border rounded-lg border">
+          <div className="flex flex-wrap items-stretch divide-x divide-border rounded-lg border well">
             <div className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
               <RadialGauge
                 value={behaviour.onTimeRate ?? 0}
@@ -473,7 +473,7 @@ export function ClinicAnalyticsCard({
           {/* Only periods the history can fill are offered — a "24m" button on a
               14-month clinic would return the same rows as All time and read as a
               broken filter. */}
-          <div className="no-print flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2">
+          <div className="no-print flex flex-wrap items-center gap-2 rounded-lg border well px-3 py-2">
             <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
               Period
             </span>
@@ -502,7 +502,7 @@ export function ClinicAnalyticsCard({
           </div>
 
           {/* ── Category share ────────────────────────────────────────────── */}
-          <div className="rounded-lg border p-4">
+          <div className="rounded-lg border well p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 Category share — {periodLabel}
@@ -583,7 +583,7 @@ export function ClinicAnalyticsCard({
           </div>
 
           {/* ── Rating comparison ─────────────────────────────────────────── */}
-          <div className="rounded-lg border p-4">
+          <div className="rounded-lg border well p-4">
             <div className="mb-1 flex items-baseline justify-between gap-3">
               <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 Rating comparison — all time
@@ -595,7 +595,7 @@ export function ClinicAnalyticsCard({
 
           {/* ── How late, month by month ──────────────────────────────────── */}
           {lateTrend.length > 1 ? (
-            <div className="rounded-lg border p-4">
+            <div className="rounded-lg border well p-4">
               <div className="mb-1 text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
                 Days late — {periodLabel}
               </div>
@@ -625,7 +625,7 @@ export function ClinicAnalyticsCard({
 
           {/* ── Every billed month ───────────────────────────────────────── */}
           {scoped.length > 0 ? (
-            <div className="overflow-hidden rounded-lg border">
+            <div className="overflow-hidden rounded-lg border well">
               <div className="flex items-center justify-between gap-3 border-b bg-muted/30 px-3 py-2">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                   Payment history — {periodLabel}

@@ -210,7 +210,7 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
           </div>
 
           {preview.issues.length > 0 ? (
-            <div className="mt-4 max-h-64 overflow-y-auto rounded-md border">
+            <div className="mt-4 max-h-64 overflow-y-auto rounded-md border well">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-muted/50 text-left text-xs text-muted-foreground">
                   <tr>
@@ -247,7 +247,7 @@ export function ImportUI({ clinicId, batches }: { clinicId: string; batches: Bat
 
           {/* The one bridge to live data — opt-in, payments pass only. */}
           {entity === "fin_payment" ? (
-            <label className="mt-3 flex items-start gap-2 rounded-md border p-3 text-sm">
+            <label className="mt-3 flex items-start gap-2 rounded-md border well p-3 text-sm">
               <input type="checkbox" className="mt-0.5" checked={deriveBalance} onChange={(e) => setDeriveBalance(e.target.checked)} />
               <span>
                 <span className="font-medium">Set each patient&apos;s outstanding balance from this history</span>
@@ -383,7 +383,7 @@ function entityLabel(e: string): string {
 
 function Stat({ label, value, tone = "" }: { label: string; value: number; tone?: string }) {
   return (
-    <div className="rounded-md border p-3">
+    <div className="rounded-md border well p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className={cn("text-2xl font-semibold tabular-nums", tone)}>{value}</div>
     </div>

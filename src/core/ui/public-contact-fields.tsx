@@ -129,7 +129,7 @@ export function PublicContactFields({
 
       <div className="space-y-2">
         <Label>Opening hours</Label>
-        <div className="space-y-2 rounded-md border p-3">
+        <div className="space-y-2 rounded-md border well p-3">
           {WEEKDAYS.map((d) => {
             const day = days.find((x) => x.weekday === d.value)!;
             return (

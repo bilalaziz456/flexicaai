@@ -248,7 +248,7 @@ export default async function AdminHome({
           count and the clinics behind it can never disagree — they are one query with
           one predicate. */}
       {cityCounts.length > 0 ? (
-        <div className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2">
+        <div className="grid gap-4 rounded-lg border well p-4 sm:grid-cols-2">
           <div>
             <div className="mb-2 text-sm font-medium">Clinics by city</div>
             <ul className="space-y-1 text-sm">
@@ -291,7 +291,7 @@ export default async function AdminHome({
           </div>
         </div>
       ) : noCity > 0 ? (
-        <p className="rounded-lg border p-3 text-sm text-muted-foreground">
+        <p className="rounded-lg border well p-3 text-sm text-muted-foreground">
           None of the {noCity} clinics has a city recorded yet. Set one on a
           clinic&apos;s Owner &amp; contact card and the breakdowns by city and province
           appear here.

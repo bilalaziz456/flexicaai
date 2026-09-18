@@ -474,7 +474,7 @@ export async function AppointmentsList({
                 key={a.id}
                 as="li"
                 href={`${detailBase}/${a.id}`}
-                className="block space-y-2 rounded-md border p-3"
+                className="block space-y-2 rounded-md border well p-3"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-2 font-medium">

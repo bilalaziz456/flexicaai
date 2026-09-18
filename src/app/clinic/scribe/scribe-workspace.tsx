@@ -279,7 +279,7 @@ export function ScribeWorkspace({
             </div>
           )}
 
-          <details className="rounded-md border p-3 text-sm">
+          <details className="rounded-md border well p-3 text-sm">
             <summary className="cursor-pointer font-medium">Transcript</summary>
             <p className="mt-2 whitespace-pre-wrap text-muted-foreground">
               {draft.transcript}
@@ -289,7 +289,7 @@ export function ScribeWorkspace({
           <NoteEditor note={note} onChange={setNote} />
 
           {clinicalUi ? (
-            <div className="space-y-2 rounded-lg border p-3">
+            <div className="space-y-2 rounded-lg border well p-3">
               <p className="text-sm font-medium">Tooth chart</p>
               <p className="text-xs text-muted-foreground">
                 Pre-filled from the note. Adjust any tooth. It saves with the visit and
@@ -349,7 +349,7 @@ export function ScribeWorkspace({
                 value={query}
                 onChange={(e) => void runSearch(e.target.value)}
               />
-              <ul className="max-h-64 divide-y overflow-y-auto rounded-md border">
+              <ul className="max-h-64 divide-y overflow-y-auto rounded-md border well">
                 {results.length === 0 ? (
                   <li className="p-3 text-sm text-muted-foreground">
                     No patients found.

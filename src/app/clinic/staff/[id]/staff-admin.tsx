@@ -236,7 +236,7 @@ export function DoctorSharesForm({
             Leave blank to use the default ({defaultProc || 0}%). Enter 0 for an
             explicit 0% (all to the clinic).
           </p>
-          <ul className="divide-y rounded-lg border">
+          <ul className="divide-y rounded-lg border well">
             {procedures.map((p) => {
               const v = overrides.get(p.id) ?? "";
               return (

@@ -363,7 +363,7 @@ export async function PatientDetail({
                 { label: "Outstanding", value: money(account.totals.outstanding) },
                 { label: "Advance credit", value: money(account.credit) },
               ].map((s) => (
-                <div key={s.label} className="rounded-lg border p-3">
+                <div key={s.label} className="rounded-lg border well p-3">
                   <div className="text-xs text-muted-foreground">{s.label}</div>
                   <div className="text-lg font-semibold tabular-nums">{s.value}</div>
                 </div>
@@ -371,7 +371,7 @@ export async function PatientDetail({
             </div>
 
             {canRecordPayment && account.openingBalance > 0 ? (
-              <div className="rounded-lg border p-3">
+              <div className="rounded-lg border well p-3">
                 <p className="mb-2 text-sm font-medium">Settle opening balance (pre-FlexicaAI dues)</p>
                 <OpeningBalanceForm key={account.openingBalance} patientId={patient.id} owed={account.openingBalance} />
               </div>
@@ -380,7 +380,7 @@ export async function PatientDetail({
             {account.visits.some((v) => v.outstanding > 0) ? (
               <div>
                 <p className="mb-1 text-sm font-medium">Outstanding visits</p>
-                <ul className="divide-y rounded-lg border text-sm">
+                <ul className="divide-y rounded-lg border well text-sm">
                   {account.visits
                     .filter((v) => v.outstanding > 0)
                     .map((v) => (
@@ -406,7 +406,7 @@ export async function PatientDetail({
             {account.payments.length > 0 ? (
               <div>
                 <p className="mb-1 text-sm font-medium">Recent payments</p>
-                <ul className="divide-y rounded-lg border text-sm">
+                <ul className="divide-y rounded-lg border well text-sm">
                   {account.payments.slice(0, 10).map((p) => (
                     <li key={p.id} className="flex items-center justify-between gap-3 px-3 py-2">
                       <span>
@@ -544,7 +544,7 @@ export async function PatientDetail({
                   return (
                     <li
                       key={v.id}
-                      className="relative rounded-lg border p-3 text-sm"
+                      className="relative rounded-lg border well p-3 text-sm"
                     >
                       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                         <span className="font-medium">
@@ -627,7 +627,7 @@ export async function PatientDetail({
             ) : (
               <ol className="space-y-3">
                 {prescriptionVisits.map((rx) => (
-                  <li key={rx.visitId} className="rounded-lg border p-3 text-sm">
+                  <li key={rx.visitId} className="rounded-lg border well p-3 text-sm">
                     <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                       <span className="font-medium">
                         {rx.date ? dayFmt(rx.date) : "—"}
@@ -778,7 +778,7 @@ export async function PatientDetail({
               {appts.map((a) => (
                 <li
                   key={a.id}
-                  className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm"
+                  className="flex items-center justify-between gap-2 rounded-md border well p-2 text-sm"
                 >
                   <span>
                     {fmt(a.scheduledAt)}

@@ -224,11 +224,11 @@ export function DataTable<T>({
             </>
           );
           return rowHref ? (
-            <RowLink key={getRowKey(row, i)} as="li" href={rowHref(row)} className="block rounded-lg border p-3 text-sm">
+            <RowLink key={getRowKey(row, i)} as="li" href={rowHref(row)} className="block rounded-lg border well p-3 text-sm">
               {inner}
             </RowLink>
           ) : (
-            <li key={getRowKey(row, i)} className="rounded-lg border p-3 text-sm">
+            <li key={getRowKey(row, i)} className="rounded-lg border well p-3 text-sm">
               {inner}
             </li>
           );

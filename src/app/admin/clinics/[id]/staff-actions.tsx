@@ -89,7 +89,7 @@ export function StaffActions({
       {editOpen ? (
         <form
           action={editFormAction}
-          className="flex flex-col items-end gap-2 rounded-md border p-3 sm:flex-row sm:items-end"
+          className="flex flex-col items-end gap-2 rounded-md border well p-3 sm:flex-row sm:items-end"
         >
           <div className="w-full space-y-1 sm:w-auto">
             <Label htmlFor={`name-${userId}`} className="text-xs">

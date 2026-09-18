@@ -80,7 +80,7 @@ export function TreatmentPlansCard({
           {plans.map((p) => {
             const total = p.items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
             return (
-              <li key={p.id} className="space-y-2 rounded-lg border p-3">
+              <li key={p.id} className="space-y-2 rounded-lg border well p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-medium">{p.title}</span>
                   <div className="flex items-center gap-2">

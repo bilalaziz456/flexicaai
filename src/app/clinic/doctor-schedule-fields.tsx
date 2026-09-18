@@ -119,7 +119,7 @@ export function DoctorScheduleFields({
   }, [hasInvalid, onValidChange]);
 
   return (
-    <div className="space-y-4 rounded-md border p-3 sm:p-4">
+    <div className="space-y-4 rounded-md border well p-3 sm:p-4">
       <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/50">
         <Checkbox
           className="mt-0.5"
@@ -148,7 +148,7 @@ export function DoctorScheduleFields({
           {WEEKDAYS.map((d) => {
             const day = days.find((x) => x.weekday === d.value)!;
             return (
-              <div key={d.value} className="space-y-2 rounded-md border p-2">
+              <div key={d.value} className="space-y-2 rounded-md border well p-2">
                 <label className="flex min-h-6 items-center gap-2 text-sm">
                   <Checkbox
                     checked={day.on}

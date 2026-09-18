@@ -188,7 +188,7 @@ export function RecurringExpensesManager({
   return (
     <ul className="space-y-2">
       {templates.map((t) => (
-        <li key={t.id} className="rounded-md border p-3">
+        <li key={t.id} className="rounded-md border well p-3">
           {editingId === t.id ? (
             <CompanyExpenseForm categories={categories} expense={t} onDone={() => setEditingId(null)} />
           ) : (

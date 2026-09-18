@@ -380,7 +380,7 @@ export default async function ClinicDetailPage({
               {/* Mobile: stacked cards — no horizontal scroll; icon-only actions. */}
               <ul className="space-y-3 md:hidden">
                 {staff.map((u) => (
-                  <li key={u.id} className="space-y-2 rounded-md border p-3">
+                  <li key={u.id} className="space-y-2 rounded-md border well p-3">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium">{u.fullName ?? "—"}</span>
                       <Badge variant="secondary">{u.role}</Badge>

@@ -55,6 +55,9 @@ export function Dialog({
             there, you are just not in it", which is what a modal means. */}
         <DialogPrimitive.Backdrop className="fixed inset-0 z-[100] bg-[hsl(var(--shadow-color)/0.45)] backdrop-blur-[3px] transition-opacity duration-200 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
         <DialogPrimitive.Popup
+          // Publishes the surface a nested `.well` inside the dialog should take
+          // (globals.css). A dialog is an elevated plane, so boxes inside it recede.
+          data-slot="dialog-popup"
           className={cn(
             "fixed top-1/2 left-1/2 z-[100] flex max-h-[90vh] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border/70 bg-elevated text-card-foreground elev-4 outline-none",
             // Rises very slightly as it arrives rather than only scaling — a scale-only

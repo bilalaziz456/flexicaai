@@ -185,7 +185,7 @@ export default async function ClinicSharesPage({
               canDoctorWaive={canWaive || selfOnly}
             />
             {settlementActions.length > 0 ? (
-              <ul className="divide-y rounded-lg border text-sm">
+              <ul className="divide-y rounded-lg border well text-sm">
                 {settlementActions.map((a) => (
                   <li key={a.id} className="flex items-center justify-between gap-3 px-3 py-2">
                     <div className="min-w-0">

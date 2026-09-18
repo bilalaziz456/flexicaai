@@ -188,7 +188,7 @@ export function ClinicBilling({
       <SavedToast state={payState} message="Recorded." />
 
       {/* ---- Balance summary ---- */}
-      <div className="grid gap-3 rounded-md border p-4 sm:grid-cols-4">
+      <div className="grid gap-3 rounded-md border well p-4 sm:grid-cols-4">
         <div>
           <div className="text-xs text-muted-foreground">Status</div>
           <div className="mt-1"><StatusBadge s={balance.billingStatus} /></div>
@@ -229,7 +229,7 @@ export function ClinicBilling({
 
       {/* Clinic-facing payment-due notice toggle (owner/super-admin/account manager). */}
       {canToggleNotice && monthlyPrice > 0 ? (
-        <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+        <div className="flex items-start justify-between gap-3 rounded-md border well p-3">
           <div>
             <div className="text-sm font-medium">Show payment-due notice to clinic staff</div>
             <p className="mt-0.5 text-xs text-muted-foreground">
@@ -264,7 +264,7 @@ export function ClinicBilling({
       {/* "Payment coming up" reminder window (owner/super-admin/account manager). Shown
           regardless of price for discoverability; it only takes effect once a price is set. */}
       {canToggleNotice ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border well p-3">
           <div>
             <div className="text-sm font-medium">Remind me before the payment is due</div>
             <p className="mt-0.5 text-xs text-muted-foreground">
@@ -346,7 +346,7 @@ export function ClinicBilling({
 
       {/* ---- Record a payment (manage only) ---- */}
       {canManage ? (
-      <form action={payAction} className="space-y-3 rounded-md border p-4">
+      <form action={payAction} className="space-y-3 rounded-md border well p-4">
         <input type="hidden" name="kind" value={kind} />
         <div className="text-sm font-medium">Record payment / refund / credit</div>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -398,7 +398,7 @@ export function ClinicBilling({
 
         {/* Follow-up on any remaining balance (payment only). */}
         {isPayment ? (
-          <div className="grid gap-3 rounded-md border border-dashed p-3 sm:grid-cols-2">
+          <div className="grid gap-3 rounded-md border border-dashed well p-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="commitmentAt">Follow-up date (if balance remains)</Label>
               <input type="hidden" name="commitmentAt" value={newCommitmentAt} />

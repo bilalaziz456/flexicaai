@@ -91,7 +91,7 @@ function FieldBlock({
         <Label className="text-sm font-medium">{humanize(label)}</Label>
         <div className="space-y-2">
           {value.map((item, i) => (
-            <div key={i} className="flex items-start gap-2 rounded-md border p-2">
+            <div key={i} className="flex items-start gap-2 rounded-md border well p-2">
               <div className="flex-1">
                 {isPlainObject(item) ? (
                   <ObjectFields
@@ -139,7 +139,7 @@ function FieldBlock({
   // Nested object
   if (isPlainObject(value)) {
     return (
-      <div className="space-y-2 rounded-md border p-2">
+      <div className="space-y-2 rounded-md border well p-2">
         <Label className="text-sm font-medium">{humanize(label)}</Label>
         <ObjectFields value={value} onChange={(nv) => onChange(nv)} />
       </div>

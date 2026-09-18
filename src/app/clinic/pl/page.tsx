@@ -175,7 +175,7 @@ export default async function ProfitLossPage({
       </div>
 
       {outstanding > 0 ? (
-        <p className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">
+        <p className="rounded-lg border border-dashed well px-3 py-2 text-sm text-muted-foreground">
           Memo: <span className="font-medium text-foreground">{money.format(outstanding)}</span>{" "}
           outstanding from patients is <strong>not</strong> in this profit. It counts only
           when collected.{" "}
