@@ -21,6 +21,7 @@ import {
 } from "@/core/ui/card";
 import { ViewLogger } from "@/core/ui/view-logger";
 import { AllergyBanner } from "@/core/ui/allergy-banner";
+import { SectionRail, type RailSection } from "@/core/ui/section-rail";
 import { ageFromDob } from "@/core/lib/age";
 import { formatMrn } from "@/core/patients/mrn";
 import { APPOINTMENT_STATUS_VARIANT } from "@/core/appointments/status";
@@ -257,6 +258,39 @@ export async function PatientDetail({
       minute: "2-digit",
     });
 
+  // Mirrors the guards below exactly — a rail that lists a section the viewer's
+  // permissions hide would scroll them to nothing.
+  const railSections: RailSection[] = [
+    ...(account ? [{ id: "account", label: "Account", group: "Overview" }] : []),
+    { id: "details", label: "Details", group: "Overview" },
+    ...(canViewClinical && medHistory
+      ? [{ id: "medical-history", label: "Medical history", group: "Overview" }]
+      : []),
+    ...(canViewClinical
+      ? [{ id: "clinical-history", label: "Visits", group: "Clinical" }]
+      : []),
+    ...(canViewPrescriptions
+      ? [{ id: "prescriptions", label: "Prescriptions", group: "Clinical" }]
+      : []),
+    ...(canViewClinical && clinicalRecord
+      ? [{ id: "odontogram", label: "Odontogram", group: "Clinical" }]
+      : []),
+    ...(canViewClinical && clinicalRecord?.perio
+      ? [{ id: "perio", label: "Periodontal chart", group: "Clinical" }]
+      : []),
+    ...(canViewAttachments
+      ? [{ id: "imaging", label: "Imaging & documents", group: "Records" }]
+      : []),
+    ...(canViewPlans
+      ? [{ id: "treatment-plans", label: "Treatment plans", group: "Records" }]
+      : []),
+    ...(canViewLab && labBundle
+      ? [{ id: "lab-cases", label: "Lab cases", group: "Records" }]
+      : []),
+    { id: "appointments", label: "Appointments", group: "Records" },
+    ...(canDelete ? [{ id: "danger", label: "Danger zone", group: "Records" }] : []),
+  ];
+
   return (
     <div className="space-y-6">
       <ViewLogger
@@ -296,8 +330,16 @@ export async function PatientDetail({
 
       <AllergyBanner allergies={allergies} />
 
+      {/* The record itself, with a sticky index beside it. Twelve stacked cards and
+          ~6,200px meant reaching the odontogram was a scroll past the whole account,
+          the details and every visit. Tabs were the obvious alternative and were
+          rejected: this is a clinical record, and tabs would hide four fifths of it
+          behind a click, drop it out of Ctrl+F and take it off the printed page. */}
+      <div className="grid gap-6 lg:grid-cols-[13rem_minmax(0,1fr)] lg:items-start">
+        <SectionRail sections={railSections} />
+        <div className="min-w-0 space-y-6">
       {account ? (
-        <Card>
+        <Card id="account" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Account</CardTitle>
             <CardDescription>
@@ -387,7 +429,7 @@ export async function PatientDetail({
         </Card>
       ) : null}
 
-      <Card>
+      <Card id="details" className="scroll-mt-24">
         <CardHeader>
           <CardTitle>Details</CardTitle>
           <CardDescription>
@@ -441,7 +483,7 @@ export async function PatientDetail({
       </Card>
 
       {canViewClinical && medHistory ? (
-        <Card>
+        <Card id="medical-history" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Medical &amp; dental history</CardTitle>
             <CardDescription>
@@ -459,7 +501,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewClinical ? (
-        <Card>
+        <Card id="clinical-history" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Clinical history</CardTitle>
             <CardDescription>
@@ -572,7 +614,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewPrescriptions ? (
-        <Card>
+        <Card id="prescriptions" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Prescriptions</CardTitle>
             <CardDescription>
@@ -614,7 +656,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewClinical && clinicalRecord ? (
-        <Card>
+        <Card id="odontogram" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Odontogram</CardTitle>
             <CardDescription>The patient&apos;s current tooth chart.</CardDescription>
@@ -637,7 +679,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewClinical && clinicalRecord?.perio ? (
-        <Card>
+        <Card id="perio" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Periodontal chart</CardTitle>
             <CardDescription>
@@ -661,7 +703,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewAttachments ? (
-        <Card>
+        <Card id="imaging" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Imaging &amp; documents</CardTitle>
             <CardDescription>X-rays, clinical photos, documents and consent forms.</CardDescription>
@@ -679,7 +721,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewPlans ? (
-        <Card>
+        <Card id="treatment-plans" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Treatment plans</CardTitle>
             <CardDescription>
@@ -702,7 +744,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewLab && labBundle ? (
-        <Card>
+        <Card id="lab-cases" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Lab cases</CardTitle>
             <CardDescription>Crowns, dentures &amp; appliances. Status → &ldquo;ready&rdquo; WhatsApp.</CardDescription>
@@ -721,7 +763,7 @@ export async function PatientDetail({
         </Card>
       ) : null}
 
-      <Card>
+      <Card id="appointments" className="scroll-mt-24">
         <CardHeader>
           <CardTitle>Appointments</CardTitle>
           <CardDescription>
@@ -756,7 +798,7 @@ export async function PatientDetail({
       </Card>
 
       {canDelete ? (
-        <Card className="border-destructive/40">
+        <Card id="danger" className="border-destructive/40 scroll-mt-24">
           <CardHeader>
             <CardTitle className="text-destructive">Danger zone</CardTitle>
             <CardDescription>
@@ -769,6 +811,9 @@ export async function PatientDetail({
           </CardContent>
         </Card>
       ) : null}
+
+        </div>
+      </div>
 
       {/* Mobile: a floating "create appointment" action (icon only), mirroring the
           list FABs. The header button covers desktop. */}
