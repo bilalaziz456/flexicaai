@@ -6,7 +6,7 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, users } from "@/core/db/schema";
 import { precedingRange, resolveSalesRange } from "@/core/sales/report";
 import { getProfitAndLoss } from "@/core/finance/pl";
-import { getDoctorBalances } from "@/core/sales/payouts";
+import { getDoctorBalances, getPayableTrend } from "@/core/sales/payouts";
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
 import { procedureTotals } from "@/core/appointments/procedures";
 
@@ -39,6 +39,7 @@ export type FinanceKpis = {
   sharesTrend: number[]; // daily doctor shares (accruing) — for the Doctor-shares card
   expenseTrend: number[]; // daily expenses — for the Expenses card
   outstandingTrend: number[]; // RUNNING receivable balance — rises to outstandingReceivable
+  payableTrend: number[]; // RUNNING unpaid-shares balance — ends at payableToDoctors
 };
 
 const isoDate = (d: Date): string => {
@@ -134,6 +135,9 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
   // Payable = Σ of each doctor's POSITIVE balance (owed to us doctors); a doctor who
   // owes the clinic (negative, from discount-bearing) doesn't reduce what we owe others.
   const payableToDoctors = balances.reduce((s, b) => s + Math.max(0, b.outstanding), 0);
+  // The same balance as a daily series. Anchored to the figure above rather than
+  // re-summed, so the two can never disagree (see getPayableTrend).
+  const payableTrend = await getPayableTrend(clinicId, range30, balances);
 
   // RUNNING receivable balance: seed with the opening (visits before the window), then
   // add each day's new receivable → the line rises to `outstandingReceivable`.
@@ -161,5 +165,6 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
     sharesTrend: pl.plBuckets.map((b) => b.share),
     expenseTrend: pl.plBuckets.map((b) => b.expense),
     outstandingTrend,
+    payableTrend,
   };
 }

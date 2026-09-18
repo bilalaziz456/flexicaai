@@ -161,6 +161,12 @@ export default async function ClinicDashboard() {
             value: pkr(financeKpis.payableToDoctors),
             note: "Unpaid shares",
             href: "/clinic/shares",
+            // The running unpaid balance over the same 30 days. It ENDS at the
+            // figure above it by construction — see `getPayableTrend`.
+            trend: financeKpis.payableTrend,
+            // Owing doctors more is not a win: the balance going up means we have
+            // not settled, which is the same reading as the receivable above.
+            higherIsBetter: false,
           },
         ]
       : []),
@@ -169,6 +175,8 @@ export default async function ClinicDashboard() {
           {
             title: "Net sales (30 days)",
             value: pkr(salesSummary.netTotal),
+            // Daily net sales, summed from the very rows that produced the total.
+            trend: salesSummary.trend,
             note: `${salesSummary.count} completed visit${salesSummary.count === 1 ? "" : "s"} · View report`,
             href: "/clinic/sales",
           },

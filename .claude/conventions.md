@@ -111,6 +111,15 @@ note above it; obvious logic gets none.
      receivable is a balance) and a flat line drawn to tidy a grid is a lie. Where a
      series DOES exist it is nearly always already on the page — check the report's
      buckets before adding a query.
+     **And when it does exist, it must ARRIVE at the figure it sits under.** A series
+     that ends somewhere other than the number above it, or sums to something else, is
+     worse than no series: it is two contradictory claims in one card. Build it so
+     that holds by construction rather than by care — `getSalesSummary` totals the
+     very rows it buckets, and `getPayableTrend` takes the lifetime balances as its
+     anchor and subtracts in-window movement to find the opening, instead of re-summing
+     the balance formula from scratch (which would be a second copy of a money rule,
+     ADR-015). `scripts/test-dashboard-trends.ts` asserts both relationships against
+     every clinic in the database.
   2. **Everything on a card agrees with everything else on it.** The sparkline takes
      the delta's good/bad judgement, not its own direction: colouring by direction
      put a red trace under a green profit figure and a green one under rising
