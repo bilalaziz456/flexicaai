@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Dialog } from "@base-ui/react/dialog";
+import { Dialog } from "@/core/ui/dialog";
 import { CalendarOff, Clock, Plus } from "lucide-react";
 import { removeDoctorLeave } from "@/app/clinic/appointments/actions";
 import { AddLeaveForm, type LeaveDoctor } from "@/app/clinic/schedule/leave-dialog";
@@ -101,7 +101,9 @@ export function LeaveCell({
   if (!interactive) return body;
 
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
+    // The trigger is a plain button that sets state, so it sits OUTSIDE the dialog
+    // rather than needing a Trigger slot.
+    <>
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -112,19 +114,15 @@ export function LeaveCell({
       >
         {body}
       </button>
-      <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 z-[100] bg-black/50 transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
-        <Dialog.Popup className="fixed top-1/2 left-1/2 z-[100] max-h-[90vh] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border bg-card p-5 text-card-foreground shadow-xl outline-none transition-all duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
-          <Dialog.Title className="text-base font-semibold">
-            {onLeave ? "Leave" : "Add leave"} · {doctorName}
-          </Dialog.Title>
-          <Dialog.Description className="mt-1 text-sm text-muted-foreground">
-            {dateLabel}
-            {booked > 0 && !onLeave
-              ? ` · ${booked} appointment${booked === 1 ? "" : "s"} booked`
-              : ""}
-          </Dialog.Description>
-
+      <Dialog
+        open={open}
+        onOpenChange={setOpen}
+        size="md"
+        title={`${onLeave ? "Leave" : "Add leave"} · ${doctorName}`}
+        description={`${dateLabel}${
+          booked > 0 && !onLeave ? ` · ${booked} appointment${booked === 1 ? "" : "s"} booked` : ""
+        }`}
+      >
           {onLeave && leaveId ? (
             <RemoveLeave
               leaveId={leaveId}
@@ -141,9 +139,8 @@ export function LeaveCell({
               onDone={() => setOpen(false)}
             />
           )}
-        </Dialog.Popup>
-      </Dialog.Portal>
-    </Dialog.Root>
+      </Dialog>
+    </>
   );
 }
 

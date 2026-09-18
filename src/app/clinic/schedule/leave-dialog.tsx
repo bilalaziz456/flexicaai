@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, type ReactNode } from "react";
-import { Dialog } from "@base-ui/react/dialog";
+import { Dialog } from "@/core/ui/dialog";
 import { CalendarOff } from "lucide-react";
 import {
   addDoctorLeave,
@@ -177,25 +177,28 @@ export function AddLeaveButton({
         {label}
       </Button>
 
-      <Dialog.Root open={open} onOpenChange={setOpen}>
-        <Dialog.Portal>
-          <Dialog.Backdrop className="fixed inset-0 z-[100] bg-black/50 transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
-          <Dialog.Popup className="fixed top-1/2 left-1/2 z-[100] max-h-[90vh] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border bg-card p-5 text-card-foreground shadow-xl outline-none transition-all duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
-            <Dialog.Title className="text-base font-semibold">
+      <Dialog
+        open={open}
+        onOpenChange={setOpen}
+        size="md"
+        title={
+          <>
               Add leave{who ? ` · ${who}` : ""}
-            </Dialog.Title>
-            <Dialog.Description className="mt-1 text-sm text-muted-foreground">
+          </>
+        }
+        description={
+          <>
               The doctor is marked away for these days, and cannot be booked.
-            </Dialog.Description>
-            <AddLeaveForm
-              doctors={doctors}
-              doctorId={doctorId}
-              date={date}
-              onDone={() => setOpen(false)}
-            />
-          </Dialog.Popup>
-        </Dialog.Portal>
-      </Dialog.Root>
+          </>
+        }
+      >
+        <AddLeaveForm
+          doctors={doctors}
+          doctorId={doctorId}
+          date={date}
+          onDone={() => setOpen(false)}
+        />
+      </Dialog>
     </>
   );
 }

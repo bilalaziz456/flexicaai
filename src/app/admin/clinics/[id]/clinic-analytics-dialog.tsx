@@ -103,6 +103,12 @@ export function ClinicAnalyticsDialog({ clinicId }: { clinicId: string }) {
         }
       />
       <Dialog.Portal>
+        {/* NOT migrated to `core/ui/dialog`, deliberately. This one is a PRINT surface:
+            `data-analytics-backdrop` / `data-analytics-popup` are hooks the print CSS
+            targets to turn the modal into a page, and it carries its own header, its own
+            width and its own scroll region. Wrapping it would mean re-exposing all of
+            that through the shared component for a single caller, and the thing at risk
+            is what comes out of a printer. */}
         <Dialog.Backdrop data-analytics-backdrop className="fixed inset-0 z-50 bg-black/50" />
         <Dialog.Popup data-analytics-popup className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[min(60rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl bg-card shadow-lg ring-1 ring-foreground/10">
           <style dangerouslySetInnerHTML={{ __html: css }} />

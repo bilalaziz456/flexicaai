@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog } from "@base-ui/react/dialog";
+import { Dialog } from "@/core/ui/dialog";
 import { Eye, EyeOff } from "lucide-react";
 import type { VariantProps } from "class-variance-authority";
 import { Button, buttonVariants } from "@/core/ui/button";
@@ -23,6 +23,9 @@ type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];
  * non-standard field name, manager-ignore data attributes, and a readOnly-until-focus
  * toggle that stops Chrome filling it on open.
  */
+/** Ties the footer's submit button to the form in the dialog body. */
+const FORM_ID = "confirm-delete-form";
+
 export function ConfirmDeleteDialog({
   triggerLabel,
   triggerIcon,
@@ -107,25 +110,42 @@ export function ConfirmDeleteDialog({
         <span className={triggerIcon ? "hidden md:inline" : undefined}>{triggerLabel}</span>
       </Button>
 
-      <Dialog.Root open={open} onOpenChange={handleOpenChange}>
-        <Dialog.Portal>
-          <Dialog.Backdrop className="fixed inset-0 z-[100] bg-black/50 transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
-          <Dialog.Popup className="fixed left-1/2 top-1/2 z-[100] max-h-[90vh] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border bg-card p-5 text-card-foreground shadow-xl outline-none transition-all duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
-            <Dialog.Title className="text-base font-semibold break-words">{title}</Dialog.Title>
-            <Dialog.Description className="mt-1 text-sm break-words text-muted-foreground">
-              {description}
-            </Dialog.Description>
+      <Dialog
+        open={open}
+        onOpenChange={handleOpenChange}
+        title={title}
+        description={description}
+        dismissible={!pending}
+        footer={
+          <>
+            <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)} disabled={pending}>
+              Cancel
+            </Button>
+            {/* The buttons sit in the dialog's footer while the field stays in the
+                body, so they are outside the <form> element. `form=` is what keeps
+                the submit wired to it — verified by submitting a wrong password and
+                watching the server's error come back. */}
+            <Button
+              type="submit"
+              form={FORM_ID}
+              variant="destructive"
+              disabled={pending || !password}
+            >
+              {pending ? "Deleting…" : confirmLabel}
+            </Button>
+          </>
+        }
+      >
+        {warning ? (
+          <p
+            role="alert"
+            className="mb-4 rounded-lg border border-destructive/30 bg-destructive/8 p-3 text-sm break-words text-destructive-text"
+          >
+            {warning}
+          </p>
+        ) : null}
 
-            {warning ? (
-              <p
-                role="alert"
-                className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm break-words text-destructive"
-              >
-                {warning}
-              </p>
-            ) : null}
-
-            <form onSubmit={submit} autoComplete="off" className="mt-4 space-y-2">
+        <form id={FORM_ID} onSubmit={submit} autoComplete="off" className="space-y-2">
               <Label htmlFor="reauth-password" className="text-sm">
                 Enter your password to confirm
               </Label>
@@ -167,7 +187,7 @@ export function ConfirmDeleteDialog({
                   onClick={() => setShow((s) => !s)}
                   aria-label={show ? "Hide password" : "Show password"}
                   aria-pressed={show}
-                  className="absolute inset-y-0 right-0 flex items-center rounded-md px-2.5 text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:text-foreground"
+                  className="absolute inset-y-0 right-0 flex items-center rounded-md px-2.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
                 >
                   {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
@@ -178,18 +198,8 @@ export function ConfirmDeleteDialog({
                 </p>
               ) : null}
 
-              <div className="mt-4 flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={pending}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="destructive" disabled={pending || !password}>
-                  {pending ? "Deleting…" : confirmLabel}
-                </Button>
-              </div>
             </form>
-          </Dialog.Popup>
-        </Dialog.Portal>
-      </Dialog.Root>
+      </Dialog>
     </>
   );
 }
