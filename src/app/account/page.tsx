@@ -29,7 +29,7 @@ export default async function AccountPage() {
   if (!u) return null;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
+    <div className="app-root mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
       <div>
         <Link
           href={ROLE_HOME_ROUTE[u.role]}
@@ -37,7 +37,7 @@ export default async function AccountPage() {
         >
           ← Back
         </Link>
-        <h1 className="mt-2 text-xl font-semibold">Account settings</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em]">Account settings</h1>
         <p className="text-sm text-muted-foreground">
           {vocabularyLabel("user_roles", u.role)} · @{u.username}
         </p>

@@ -3,6 +3,7 @@ import { requireUser } from "@/core/auth/user";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { isClinicUsable, unusableReason } from "@/core/clinics/status";
 import { SignOutButton } from "@/core/auth/sign-out-button";
+import { PauseCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/core/ui/card";
 
 /**
@@ -22,18 +23,28 @@ export default async function PausedPage() {
   if (!clinic || isClinicUsable(clinic)) redirect("/clinic");
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+    <main className="app-root relative flex min-h-screen items-center justify-center overflow-hidden p-4">
+      {/* The same quiet brand wash as the credentials screens — this is the other
+          moment you are outside the product looking in. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute -top-32 left-1/2 size-[34rem] -translate-x-1/2 rounded-full bg-[var(--brand-teal)] opacity-[0.06] blur-[110px]" />
+        <div className="absolute -bottom-40 right-[12%] size-[28rem] rounded-full bg-[var(--brand-navy)] opacity-[0.05] blur-[120px]" />
+      </div>
+      <Card className="w-full max-w-md p-1.5">
         <CardHeader>
-          <CardTitle>Access paused</CardTitle>
+          <div className="mb-1 flex size-11 items-center justify-center rounded-full border border-dashed border-warning/40 bg-warning/[0.08] text-warning-text">
+            <PauseCircle className="size-5" aria-hidden="true" />
+          </div>
+          <CardTitle className="text-xl">Access paused</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">{unusableReason(clinic)}</p>
-          <p className="text-sm text-muted-foreground">
-            Please contact FlexicaAI support to restore access to{" "}
-            <span className="font-medium text-foreground">{clinic.name}</span>.
+          <p className="text-sm leading-relaxed text-muted-foreground">{unusableReason(clinic)}</p>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Contact FlexicaAI support to restore access to{" "}
+            <span className="font-medium text-foreground">{clinic.name}</span>. Nothing has
+            been deleted — your records are exactly as you left them.
           </p>
-          <div className="pt-2">
+          <div className="pt-1">
             <SignOutButton />
           </div>
         </CardContent>

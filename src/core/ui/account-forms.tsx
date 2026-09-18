@@ -30,7 +30,8 @@ import {
   updateMyDiscountApproval,
   type AccountActionState,
 } from "@/core/account/actions";
-import { Button } from "@/core/ui/button";
+import { Button, buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { PasswordInput } from "@/core/ui/password-input";
@@ -265,7 +266,11 @@ export function AvatarForm({
             )}
           </div>
           <div className="space-y-2">
-            <label className="inline-flex cursor-pointer items-center rounded-md border bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground hover:bg-accent/80">
+            {/* A file input has no styleable button of its own, so the LABEL is the
+                control. Borrowing buttonVariants rather than hand-rolling it keeps it the
+                same height and hover as every other secondary action — it had drifted to
+                30px and an accent fill that appears nowhere else. */}
+            <label className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer")}>
               Choose image
               <input
                 type="file"
