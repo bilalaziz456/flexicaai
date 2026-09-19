@@ -101,13 +101,17 @@ export function ClinicAnalyticsDialog({ clinicId }: { clinicId: string }) {
 
   return (
     <Dialog.Root onOpenChange={onOpenChange}>
+      {/* A VERB, like Import and Export beside it — the three are one row of actions,
+          and a noun among them read as a label rather than a control. The dialog it
+          opens keeps the noun ("Clinic analytics"): the button says what you DO, the
+          title says what you are looking AT. */}
       <Dialog.Trigger
         render={
-          <Button variant="outline">
+          <Button variant="outline" title="The clinic&apos;s payment record and activity">
             {/* No explicit size: it sits in a row with Import and Export, and the
                 Button already sizes its own icon. */}
             <BarChart3 aria-hidden="true" />
-            Clinic analytics
+            View analytics
           </Button>
         }
       />
