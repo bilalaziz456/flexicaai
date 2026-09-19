@@ -23,7 +23,7 @@ export default async function NewStaffPage() {
         <BackLink href="/clinic/staff">
           Back to staff
         </BackLink>
-        <h1 className="mt-2 text-xl font-semibold">Add staff</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em]">Add staff</h1>
       </div>
 
       <Card>

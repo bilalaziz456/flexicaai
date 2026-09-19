@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Building2, ChevronRight } from "lucide-react";
+import { ArrowRight, Building2, ChevronRight } from "lucide-react";
 import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin, canManageTeam, canSeeBilling } from "@/core/auth/admin-permissions";
 import { getCompanyMetrics } from "@/core/admin/metrics";
@@ -146,8 +146,12 @@ export default async function OverviewPage({
             {seesAll ? "The whole company" : "Your assigned clinics"} at a glance. Money, health &amp; usage.
           </p>
         </div>
-        <Link href="/admin/finance" className="text-sm text-primary-text underline underline-offset-4">
-          Full P&amp;L →
+        <Link
+          href="/admin/finance"
+          className="inline-flex min-h-7 items-center gap-1.5 text-sm font-medium text-primary-text underline-offset-4 transition-colors hover:underline"
+        >
+          Full P&amp;L
+          <ArrowRight className="size-3.5 shrink-0" aria-hidden="true" />
         </Link>
       </div>
 

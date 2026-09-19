@@ -290,7 +290,10 @@ export async function PatientDetail({
       ? [{ id: "lab-cases", label: "Lab cases", group: "Records" }]
       : []),
     { id: "appointments", label: "Appointments", group: "Records" },
-    ...(canDelete ? [{ id: "danger", label: "Danger zone", group: "Records" }] : []),
+    // Its own group: deleting a patient is not a record, and listing it under
+    // "Records" put a destructive action one line below Appointments as though it
+    // were the next thing to read.
+    ...(canDelete ? [{ id: "danger", label: "Danger zone", group: "Danger" }] : []),
   ];
 
   return (
@@ -305,7 +308,7 @@ export async function PatientDetail({
           <BackLink href={backHref}>
             Back to patients
           </BackLink>
-          <h1 className="mt-2 text-xl font-semibold">{patient.fullName}</h1>
+          <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em]">{patient.fullName}</h1>
           {mrnLabel ? (
             <p className="text-sm font-medium tabular-nums text-muted-foreground">{mrnLabel}</p>
           ) : null}
@@ -346,9 +349,10 @@ export async function PatientDetail({
             </CardDescription>
             <Link
               href={`/clinic/patients/${patient.id}/statement`}
-              className="text-sm font-medium underline underline-offset-4"
+              className="inline-flex min-h-7 items-center gap-1.5 text-sm font-medium underline-offset-4 transition-colors hover:underline"
             >
-              Print statement →
+              <Printer className="size-3.5 shrink-0" aria-hidden="true" />
+              Print statement
             </Link>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -671,9 +675,10 @@ export async function PatientDetail({
             <CardDescription>The patient&apos;s current tooth chart.</CardDescription>
             <Link
               href={`${backHref}/${patient.id}/chart-print`}
-              className="text-sm font-medium underline underline-offset-4"
+              className="inline-flex min-h-7 items-center gap-1.5 text-sm font-medium underline-offset-4 transition-colors hover:underline"
             >
-              Print chart →
+              <Printer className="size-3.5 shrink-0" aria-hidden="true" />
+              Print chart
             </Link>
           </CardHeader>
           <CardContent>

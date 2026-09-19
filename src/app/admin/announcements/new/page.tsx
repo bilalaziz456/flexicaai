@@ -13,7 +13,7 @@ export default async function NewAnnouncementPage() {
         <BackLink href="/admin/announcements">
           Back to announcements
         </BackLink>
-        <h1 className="mt-2 text-xl font-semibold">New announcement</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em]">New announcement</h1>
         <p className="text-sm text-muted-foreground">
           Defaults to every clinic and every staff member; narrow either below.
         </p>

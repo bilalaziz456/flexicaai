@@ -14,7 +14,7 @@ export default async function NewClinicPage() {
         <BackLink href="/admin">
           Back to clinics
         </BackLink>
-        <h1 className="mt-2 text-xl font-semibold">New clinic</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em]">New clinic</h1>
       </div>
       <CreateClinicForm catalog={SPECIALTY_CATALOG} team={team} />
     </div>

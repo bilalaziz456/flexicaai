@@ -22,7 +22,7 @@ export default async function EditAnnouncementPage({
         <BackLink href="/admin/announcements">
           Back to announcements
         </BackLink>
-        <h1 className="mt-2 text-xl font-semibold">Edit announcement</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em]">Edit announcement</h1>
         <p className="text-sm text-muted-foreground">
           Changes apply to every clinic this notice reaches. Adding or removing clinics
           re-targets it; the clinics that stay keep the post they already have.

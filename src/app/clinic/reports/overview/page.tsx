@@ -1,4 +1,4 @@
-import { ListChecks, Stethoscope } from "lucide-react";
+import { ArrowRight, ListChecks, Stethoscope } from "lucide-react";
 import Link from "next/link";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
@@ -120,8 +120,12 @@ export default async function OverviewPage({
             </div>
             <div className="text-right">
               <div className={`text-3xl font-semibold ${noShow.rate >= 0.15 ? "text-destructive" : ""}`}>{noShowPct}</div>
-              <Link href="/clinic/no-shows" className="no-print text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground">
-                Full report →
+              <Link
+                href="/clinic/no-shows"
+                className="no-print inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+              >
+                Full report
+                <ArrowRight className="size-3 shrink-0" aria-hidden="true" />
               </Link>
             </div>
           </div>

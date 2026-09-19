@@ -34,7 +34,7 @@ export default async function ClinicImportPage({
             { label: "Import data" },
           ]}
         />
-        <h1 className="mt-2 text-xl font-semibold">Import data</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em]">Import data</h1>
         <p className="text-sm text-muted-foreground">
           Bring {clinic.name}&apos;s existing records into FlexicaAI. Download a template,
           fill it, upload, preview, then import. Nothing is written until you confirm,

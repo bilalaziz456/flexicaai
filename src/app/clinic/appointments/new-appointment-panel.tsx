@@ -64,7 +64,7 @@ export async function NewAppointmentPanel({
         <BackLink href={backHref}>
           Back to appointments
         </BackLink>
-        <h1 className="mt-2 text-xl font-semibold">New appointment</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em]">New appointment</h1>
       </div>
 
       <Card>

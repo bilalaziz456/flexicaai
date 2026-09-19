@@ -17,7 +17,7 @@ export function NewPatientPanel({ backHref }: { backHref: string }) {
         <BackLink href={backHref}>
           Back to patients
         </BackLink>
-        <h1 className="mt-2 text-xl font-semibold">Add patient</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em]">Add patient</h1>
       </div>
 
       <Card>
