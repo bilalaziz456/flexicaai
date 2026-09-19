@@ -130,13 +130,16 @@ export function PublicContactFields({
 
       <div className="space-y-2">
         <Label>Opening hours</Label>
-        <div className="space-y-2 rounded-md border well p-3">
+        {/* Seven weekday rows — a LIST that happens to contain controls, not a field
+            group, so it takes the same hairline treatment as every other list rather
+            than a recess. It fills half this card, and as a slab it was the card. */}
+        <div className="divide-y divide-border/60 rounded-lg border border-border/60">
           {WEEKDAYS.map((d) => {
             const day = days.find((x) => x.weekday === d.value)!;
             return (
               <div
                 key={d.value}
-                className="flex flex-wrap items-start gap-3 border-b pb-2 last:border-0 last:pb-0"
+                className="flex flex-wrap items-start gap-3 px-3 py-2"
               >
                 {/* w-full on a phone: the day name takes its own line, or the time
                     controls overflow the row. */}
