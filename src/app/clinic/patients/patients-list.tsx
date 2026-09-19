@@ -183,13 +183,13 @@ export async function PatientsList({
             </Table>
           </div>
 
-          <ul className="space-y-3 md:hidden">
+          <ul className="divide-y divide-border/60 rounded-lg border border-border/60 md:hidden">
             {rows.map((p) => (
               <RowLink
                 key={p.id}
                 as="li"
                 href={`${detailBase}/${p.id}`}
-                className="block space-y-2 rounded-md border well p-3"
+                className="block space-y-2 p-3"
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="font-medium">{p.fullName}</div>

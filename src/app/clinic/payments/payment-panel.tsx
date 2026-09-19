@@ -353,7 +353,7 @@ export function PaymentPanel({
 
       {/* History */}
       {ledger.length > 0 ? (
-        <ul className="divide-y rounded-lg border well text-sm">
+        <ul className="divide-y divide-border/60 rounded-lg border border-border/60 text-sm">
           {ledger.map((e) => (
             <li key={e.id} className="flex items-center justify-between gap-3 px-3 py-2">
               <div className="min-w-0">

@@ -52,7 +52,7 @@ export function LineWaives({
 
   return (
     <div className="space-y-2">
-      <ul className="divide-y rounded-lg border well text-sm">
+      <ul className="divide-y divide-border/60 rounded-lg border border-border/60 text-sm">
         {lines.map((l) => (
           <li key={l.lineRef} className="flex items-center justify-between gap-3 px-3 py-2">
             <div className="min-w-0">

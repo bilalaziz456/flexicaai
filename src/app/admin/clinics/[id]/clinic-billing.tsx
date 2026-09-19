@@ -185,12 +185,15 @@ export function ClinicBilling({
       <SavedToast state={payState} message="Recorded." />
 
       {/* ---- Balance summary ---- */}
-      <div className="grid gap-3 rounded-md border well p-4 sm:grid-cols-4">
-        <div>
+      {/* The card's headline figures, so hairlines rather than a recess — the same
+          correction the patient Account card needed. A well is for a grouping or an
+          aside; these are the content. */}
+      <div className="grid grid-cols-2 divide-x divide-y divide-border/60 overflow-hidden rounded-lg border border-border/60 sm:grid-cols-4 sm:divide-y-0">
+        <div className="p-3">
           <div className="text-xs text-muted-foreground">Status</div>
           <div className="mt-1"><StatusBadge s={balance.billingStatus} /></div>
         </div>
-        <div>
+        <div className="p-3">
           <div className="text-xs text-muted-foreground">Paid through</div>
           <div className="mt-1 text-sm font-medium">{fmtDate(balance.paidThrough)}</div>
           <div className="text-xs text-muted-foreground">
@@ -201,7 +204,7 @@ export function ClinicBilling({
                 : `${balance.daysRemaining}d left`}
           </div>
         </div>
-        <div>
+        <div className="p-3">
           <div className="text-xs text-muted-foreground">
             {balance.credit > 0 ? "Credit (paid ahead)" : "Owed (remaining)"}
           </div>
@@ -217,7 +220,7 @@ export function ClinicBilling({
             <div className="text-xs text-muted-foreground">billed {rs(balance.accrued)}</div>
           ) : null}
         </div>
-        <div>
+        <div className="p-3">
           <div className="text-xs text-muted-foreground">Total collected</div>
           <div className="mt-1 text-sm font-medium">{rs(balance.totalPaid)}</div>
           <div className="text-xs text-muted-foreground">{balance.monthsPaid} months paid</div>

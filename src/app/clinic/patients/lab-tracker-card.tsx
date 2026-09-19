@@ -81,7 +81,7 @@ export function LabTrackerCard({
                   description="Crowns, dentures and other lab work sent out for this patient are tracked here."
                 />
       ) : (
-        <ul className="divide-y rounded-lg border well text-sm">
+        <ul className="divide-y divide-border/60 rounded-lg border border-border/60 text-sm">
           {cases.map((c) => (
             <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 p-2.5">
               <div className="min-w-0">

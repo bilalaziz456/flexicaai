@@ -349,7 +349,7 @@ export function ScribeWorkspace({
                 value={query}
                 onChange={(e) => void runSearch(e.target.value)}
               />
-              <ul className="max-h-64 divide-y overflow-y-auto rounded-md border well">
+              <ul className="max-h-64 divide-y divide-border/60 overflow-y-auto rounded-md border border-border/60">
                 {results.length === 0 ? (
                   <li className="p-3 text-sm text-muted-foreground">
                     No patients found.

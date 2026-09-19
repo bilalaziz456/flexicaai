@@ -208,7 +208,7 @@ export function DataTable<T>({
       </div>
 
       {/* Mobile: each row as a card */}
-      <ul className="space-y-2 md:hidden">
+      <ul className="divide-y divide-border/60 rounded-lg border border-border/60 md:hidden">
         {sorted.map((row, i) => {
           const inner = (
             <>
@@ -224,11 +224,11 @@ export function DataTable<T>({
             </>
           );
           return rowHref ? (
-            <RowLink key={getRowKey(row, i)} as="li" href={rowHref(row)} className="block rounded-lg border well p-3 text-sm">
+            <RowLink key={getRowKey(row, i)} as="li" href={rowHref(row)} className="block p-3 text-sm">
               {inner}
             </RowLink>
           ) : (
-            <li key={getRowKey(row, i)} className="rounded-lg border well p-3 text-sm">
+            <li key={getRowKey(row, i)} className="p-3 text-sm">
               {inner}
             </li>
           );

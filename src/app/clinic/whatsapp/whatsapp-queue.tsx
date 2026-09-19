@@ -111,9 +111,9 @@ export async function WhatsappQueue({
           </CardContent>
         </Card>
       ) : (
-        <ul className="space-y-3">
+        <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
           {rows.map((m) => (
-            <li key={m.id} className="rounded-md border well p-3">
+            <li key={m.id} className="p-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="flex items-center gap-2 text-sm font-medium">
                   {m.patientName ?? m.phone}

@@ -468,13 +468,13 @@ export async function AppointmentsList({
             </Table>
           </div>
 
-          <ul className="space-y-3 md:hidden">
+          <ul className="divide-y divide-border/60 rounded-lg border border-border/60 md:hidden">
             {rows.map((a) => (
               <RowLink
                 key={a.id}
                 as="li"
                 href={`${detailBase}/${a.id}`}
-                className="block space-y-2 rounded-md border well p-3"
+                className="block space-y-2 p-3"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-2 font-medium">

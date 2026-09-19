@@ -104,9 +104,9 @@ export function ActivityLogList({
       </div>
 
       {/* Mobile cards. */}
-      <ul className="space-y-3 md:hidden">
+      <ul className="divide-y divide-border/60 rounded-lg border border-border/60 md:hidden">
         {rows.map((r) => (
-          <li key={r.id} className="space-y-1 rounded-md border well p-3">
+          <li key={r.id} className="space-y-1 p-3">
             <div className="flex items-center justify-between gap-2">
               <Badge variant={ACTION_VARIANT[r.action] ?? "secondary"}>
                 {r.action}

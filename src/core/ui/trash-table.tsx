@@ -85,11 +85,11 @@ export function TrashTable({
 
   return (
     <>
-      <div className="space-y-2">
+      <div className="divide-y divide-border/60 rounded-lg border border-border/60">
         {items.map((it) => (
           <div
             key={`${it.entity}-${it.id}`}
-            className="flex flex-col gap-3 rounded-md border well p-3 sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2">

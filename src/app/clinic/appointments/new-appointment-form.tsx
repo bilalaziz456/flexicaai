@@ -346,7 +346,7 @@ export function NewAppointmentForm({
                 aria-label="Search patients"
               />
             </div>
-            <ul className="max-h-48 divide-y overflow-y-auto rounded-md border well">
+            <ul className="max-h-48 divide-y divide-border/60 overflow-y-auto rounded-md border border-border/60">
               {results.length === 0 ? (
                 <li className="p-3 text-sm text-muted-foreground">
                   No patients found.
@@ -643,7 +643,7 @@ export function NewAppointmentForm({
             {/* Per-procedure quantity + the line total (no per-line discount — the
                 discount is applied once to the whole appointment below). */}
             {procSel.size > 0 ? (
-              <ul className="divide-y rounded-lg border well">
+              <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
                 {procedures
                   .filter((p) => procSel.has(p.id))
                   .map((p) => {

@@ -129,7 +129,7 @@ function LeaveEntry({
   }
 
   return (
-    <li className="flex items-center justify-between gap-2 rounded-md border well p-2 text-sm">
+    <li className="flex items-center justify-between gap-2 p-2.5 text-sm">
       <span className="flex items-center gap-2">
         <CalendarOff
           className="size-4 shrink-0 text-muted-foreground"
@@ -207,7 +207,7 @@ export function DoctorLeaves({
   return (
     <div className="space-y-4">
       {leaves.length > 0 ? (
-        <ul className="space-y-2">
+        <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
           {leaves.map((l) => (
             <LeaveEntry
               key={l.id}

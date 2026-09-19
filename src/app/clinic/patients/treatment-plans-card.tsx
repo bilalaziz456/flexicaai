@@ -76,11 +76,11 @@ export function TreatmentPlansCard({
                   description="A plan groups the procedures a patient has agreed to, with an estimate."
                 />
       ) : (
-        <ul className="space-y-4">
+        <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
           {plans.map((p) => {
             const total = p.items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
             return (
-              <li key={p.id} className="space-y-2 rounded-lg border well p-3">
+              <li key={p.id} className="space-y-2 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-medium">{p.title}</span>
                   <div className="flex items-center gap-2">
