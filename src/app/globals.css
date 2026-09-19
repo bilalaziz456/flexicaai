@@ -375,7 +375,18 @@
      `none` below: a shadow on something set into a surface is a contradiction. */
   --nested-shadow: var(--shadow-xs);
 }
-.app-root :is([data-slot="card"], [data-slot="dialog-popup"]) {
+.app-root :is([data-slot="card"]) {
+  --nested-surface: var(--surface-sunken);
+  --nested-shadow: none;
+}
+/* A dialog is NOT scoped under `.app-root`, and that is not an oversight: every
+   dialog PORTALS to document.body, so it is a sibling of the panel rather than a
+   descendant. Scoping it the same way as a card meant the rule never matched a real
+   popup, and every well inside every dialog in the app silently fell back to
+   `--card` — the popup's own colour — drawing as a border with no fill. The popup
+   also publishes the ground it sits on, because a dialog that contains its own card
+   should have somewhere for that card to rise TO. */
+[data-slot="dialog-popup"] {
   --nested-surface: var(--surface-sunken);
   --nested-shadow: none;
 }

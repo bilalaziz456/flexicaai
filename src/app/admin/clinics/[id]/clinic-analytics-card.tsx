@@ -686,43 +686,82 @@ export function ClinicAnalyticsCard({
         </h3>
         <div
           className={cn(
-            "grid gap-3 transition-opacity sm:grid-cols-2 lg:grid-cols-4",
+            "grid grid-cols-1 overflow-hidden rounded-lg border border-border/60 transition-opacity sm:grid-cols-2 lg:grid-cols-4",
             refreshing && "opacity-50",
           )}
         >
-          <StatCard
-            label="Patients"
-            value={business.patientsTotal.toLocaleString("en-PK")}
-            hint={`all time · ${business.patientsNew} new in period`}
-          />
-          <StatCard
-            label="Appointments"
-            value={business.appointments.toLocaleString("en-PK")}
-            hint={`${business.completed} completed · ${business.cancelled} cancelled`}
-          />
-          <StatCard
-            label="No-show rate"
-            value={pct(business.noShowRate)}
-            hint={`${business.noShows} of ${business.completed + business.noShows} expected`}
-            tone={business.noShowRate !== null && business.noShowRate > 0.2 ? "bad" : "default"}
-          />
-          <StatCard
-            label="Visits recorded"
-            value={business.visits.toLocaleString("en-PK")}
-            hint={`${business.scribeRuns} used the scribe`}
-          />
-          <StatCard label="Collected" value={rs(business.collected)} hint="from their patients, this period" />
-          <StatCard
-            label="Their receivable"
-            value={rs(business.outstanding)}
-            hint="all time · what patients still owe them"
-          />
-          <StatCard
-            label="Staff"
-            value={business.staffActive.toLocaleString("en-PK")}
-            hint={`now · ${business.doctors} doctor${business.doctors === 1 ? "" : "s"}`}
-          />
-          <StatCard label="WhatsApp" value={`${business.whatsappOut} out`} hint={`${business.whatsappIn} in`} />
+          {/* Dividers are drawn PER CELL, not with `divide-*`. The column count
+              changes at two breakpoints and `divide-*` cannot follow it — in a
+              wrapping grid it reads as "every cell but the first gets a left rule",
+              which hangs a divider at the start of each new row. The dashboard's
+              supporting-stat block already had to solve this the same way. */}
+          {[
+            {
+              label: "Patients",
+              value: business.patientsTotal.toLocaleString("en-PK"),
+              hint: `all time · ${business.patientsNew} new in period`,
+            },
+            {
+              label: "Appointments",
+              value: business.appointments.toLocaleString("en-PK"),
+              hint: `${business.completed} completed · ${business.cancelled} cancelled`,
+            },
+            {
+              label: "No-show rate",
+              value: pct(business.noShowRate),
+              hint: `${business.noShows} of ${business.completed + business.noShows} expected`,
+              tone:
+                business.noShowRate !== null && business.noShowRate > 0.2
+                  ? ("bad" as const)
+                  : ("default" as const),
+            },
+            {
+              label: "Visits recorded",
+              value: business.visits.toLocaleString("en-PK"),
+              hint: `${business.scribeRuns} used the scribe`,
+            },
+            {
+              label: "Collected",
+              value: rs(business.collected),
+              hint: "from their patients, this period",
+            },
+            {
+              label: "Their receivable",
+              value: rs(business.outstanding),
+              hint: "all time · what patients still owe them",
+            },
+            {
+              label: "Staff",
+              value: business.staffActive.toLocaleString("en-PK"),
+              hint: `now · ${business.doctors} doctor${business.doctors === 1 ? "" : "s"}`,
+            },
+            {
+              label: "WhatsApp",
+              value: `${business.whatsappOut} out`,
+              hint: `${business.whatsappIn} in`,
+            },
+          ].map((k, i, all) => (
+            <StatCard
+              key={k.label}
+              variant="quiet"
+              className={cn(
+                "h-full p-4",
+                // A rule under every cell except the ones on the last visible row,
+                // which differs per breakpoint.
+                i < all.length - 1 && "border-b border-border/60",
+                i < all.length - 2 && "sm:border-b",
+                `${i >= all.length - 2 ? "sm:border-b-0" : ""}`,
+                i < all.length - 4 ? "lg:border-b" : "lg:border-b-0",
+                // …and a rule to the right of every cell that is not last in its row.
+                i % 2 === 0 && "sm:border-r sm:border-border/60",
+                (i + 1) % 4 === 0 ? "lg:border-r-0" : "lg:border-r lg:border-border/60",
+              )}
+              label={k.label}
+              value={k.value}
+              hint={k.hint}
+              tone={"tone" in k ? k.tone : undefined}
+            />
+          ))}
         </div>
         <p className="text-xs text-muted-foreground">
           Last appointment booked {business.lastActivityAt ? day(business.lastActivityAt) : "— never"}.

@@ -110,12 +110,24 @@ export function ClinicAnalyticsDialog({ clinicId }: { clinicId: string }) {
             width and its own scroll region. Wrapping it would mean re-exposing all of
             that through the shared component for a single caller, and the thing at risk
             is what comes out of a printer. */}
-        <Dialog.Backdrop data-analytics-backdrop className="fixed inset-0 z-50 bg-black/50" />
-        <Dialog.Popup data-analytics-popup className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[min(60rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl bg-card shadow-lg ring-1 ring-foreground/10">
+        {/* The same scrim as every other dialog: diffused rather than a flat black
+            sheet, so the page reads as still there but not in focus. */}
+        <Dialog.Backdrop
+          data-analytics-backdrop
+          className="fixed inset-0 z-50 bg-[hsl(var(--shadow-color)/0.45)] backdrop-blur-[3px]"
+        />
+        {/* `data-slot` is what puts this popup INTO the surface ladder (globals.css):
+            without it the panels inside resolved to the popup's own colour and drew as
+            borders with no fill. `data-analytics-popup` stays — it is the print hook. */}
+        <Dialog.Popup
+          data-analytics-popup
+          data-slot="dialog-popup"
+          className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[min(60rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border/70 bg-elevated elev-4"
+        >
           <style dangerouslySetInnerHTML={{ __html: css }} />
 
           <div className="no-print flex items-center justify-between gap-3 border-b px-4 py-3">
-            <Dialog.Title className="font-heading text-base font-semibold">
+            <Dialog.Title className="font-display text-base font-semibold tracking-[-0.015em]">
               Clinic analytics
             </Dialog.Title>
             <div className="flex items-center gap-2">
