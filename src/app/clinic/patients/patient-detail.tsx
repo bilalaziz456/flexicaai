@@ -527,7 +527,7 @@ export async function PatientDetail({
                 description="Notes appear here once a visit is dictated and approved."
               />
             ) : (
-              <ol className="space-y-4">
+              <ol className="divide-y divide-border/60 rounded-lg border border-border/60">
                 {clinicalVisits.map((v) => {
                   const note = (v.note && typeof v.note === "object" ? v.note : {}) as {
                     chiefComplaint?: string | null;
@@ -558,7 +558,7 @@ export async function PatientDetail({
                   return (
                     <li
                       key={v.id}
-                      className="relative rounded-lg border well p-3 text-sm"
+                      className="p-3 text-sm"
                     >
                       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                         <span className="font-medium">
@@ -644,9 +644,9 @@ export async function PatientDetail({
                 description="Approved visits that include drugs appear here, ready to reprint."
               />
             ) : (
-              <ol className="space-y-3">
+              <ol className="divide-y divide-border/60 rounded-lg border border-border/60">
                 {prescriptionVisits.map((rx) => (
-                  <li key={rx.visitId} className="rounded-lg border well p-3 text-sm">
+                  <li key={rx.visitId} className="p-3 text-sm">
                     <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                       <span className="font-medium">
                         {rx.date ? dayFmt(rx.date) : "—"}
@@ -799,11 +799,11 @@ export async function PatientDetail({
               description="Book one from the button above and it will be listed here."
             />
           ) : (
-            <ul className="space-y-2">
+            <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
               {appts.map((a) => (
                 <li
                   key={a.id}
-                  className="flex items-center justify-between gap-2 rounded-md border well p-2 text-sm"
+                  className="flex items-center justify-between gap-2 p-2.5 text-sm"
                 >
                   <span>
                     {fmt(a.scheduledAt)}
