@@ -340,7 +340,7 @@ export default async function ClinicDashboard() {
           the money KPIs above, so the page had twelve equal headlines and therefore
           no headline at all. Grouped behind one border with hairline dividers they
           read as a single supporting block, which is what they are. */}
-      <div className="overflow-hidden rounded-xl border border-border/70 bg-card elev-1">
+      <Card className="overflow-hidden p-0">
         <div className="grid grid-cols-1 divide-y divide-border/60 sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3">
           {stats.map((s, i) => {
             const inner = (
@@ -377,7 +377,7 @@ export default async function ClinicDashboard() {
             );
           })}
         </div>
-      </div>
+      </Card>
 
       {/* Doctor: manage your own leave / vacation (no separate nav page) — kept
           at the end of the dashboard. */}

@@ -39,6 +39,7 @@ export function CreateClinicForm({
   >(createClinicWithAdmin, {});
   const [assignee, setAssignee] = useState("");
   const [logoError, setLogoError] = useState<string | null>(null);
+  const [logoName, setLogoName] = useState("");
   // Success redirects to the new clinic's own page (flash toast there); a failed
   // create pops an error toast here, re-triggered per attempt.
   const [hoursInvalid, setHoursInvalid] = useState(false);
@@ -85,24 +86,42 @@ export function CreateClinicForm({
           </div>
           <div className="space-y-2">
             <Label htmlFor="logo">Logo (optional)</Label>
-            <input
-              id="logo"
-              type="file"
-              name="logo"
-              accept="image/png,image/jpeg,image/webp"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                // Block an oversized logo before submit (else the whole create request
-                // trips Next's 1 MB body limit and crashes).
-                if (file && file.size > MAX_LOGO_BYTES) {
-                  setLogoError("Logo is too large. Please use an image under 1 MB.");
-                  e.target.value = "";
-                } else {
-                  setLogoError(null);
-                }
-              }}
-              className="block text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-[var(--input-bg)] file:px-3 file:py-1.5 file:text-sm hover:file:bg-accent"
-            />
+            {/* The LABEL is the control — a file input's own button cannot be made to
+                match a real one's height or hover. Same move as the avatar, clinic
+                logo and importer pickers; this was the last one left. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <label
+                htmlFor="logo"
+                className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer")}
+              >
+                {logoName ? "Choose another" : "Choose file"}
+              </label>
+              <input
+                id="logo"
+                type="file"
+                name="logo"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  // Block an oversized logo before submit (else the whole create request
+                  // trips Next's 1 MB body limit and crashes).
+                  if (file && file.size > MAX_LOGO_BYTES) {
+                    setLogoError("Logo is too large. Please use an image under 1 MB.");
+                    e.target.value = "";
+                    setLogoName("");
+                  } else {
+                    setLogoError(null);
+                    setLogoName(file?.name ?? "");
+                  }
+                }}
+                className="sr-only"
+              />
+              {/* `sr-only` takes away the browser's own "No file chosen", and a picker
+                  that says nothing after a pick looks like it did not work. */}
+              <span className="min-w-0 truncate text-sm text-muted-foreground">
+                {logoName || "No file chosen"}
+              </span>
+            </div>
             {logoError ? (
               <p className="text-xs text-destructive">{logoError}</p>
             ) : (

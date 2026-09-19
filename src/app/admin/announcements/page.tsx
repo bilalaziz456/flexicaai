@@ -176,10 +176,7 @@ export default async function AnnouncementsPage({
                         {/* NULL audience is every staff member, which is the norm — so
                             only a NARROWED audience is worth a badge. */}
                         {a.audience?.length ? (
-                          <Badge
-                            variant="outline"
-                            className="border-transparent bg-violet-500/10 text-violet-700 dark:text-violet-300"
-                          >
+                          <Badge variant="info">
                             {a.audience.map((r) => vocabularyLabel("user_roles", r)).join(", ")} only
                           </Badge>
                         ) : null}
@@ -189,13 +186,9 @@ export default async function AnnouncementsPage({
                         {!a.active ? (
                           <span className="text-xs text-muted-foreground">deactivated</span>
                         ) : notYet ? (
-                          <Badge variant="outline" className="border-transparent bg-slate-500/10 text-muted-foreground">
-                            scheduled
-                          </Badge>
+                          <Badge variant="secondary">scheduled</Badge>
                         ) : closed ? (
-                          <Badge variant="outline" className="border-transparent bg-slate-500/10 text-muted-foreground">
-                            ended
-                          </Badge>
+                          <Badge variant="secondary">ended</Badge>
                         ) : (
                           <Badge variant="outline" className="border-transparent bg-success/10 text-success-text">
                             showing

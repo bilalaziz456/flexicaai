@@ -392,7 +392,7 @@ export function PanelShell({
           and stay put together — and the mobile search bar no longer needs a hand-tuned
           `top-[3.75rem]` offset that any change in header height would falsify. */}
       {/* `bg-card` is load-bearing, not decoration: the notice bars tint with /15
-          alphas (`bg-amber-500/15`), which is 85% transparent. Unpinned that never
+          alphas (`bg-warning/15`), which is 85% transparent. Unpinned that never
           showed, but a STICKY translucent bar lets the page scroll visibly through it.
           The opaque base restores the tint's intended look over card colour. */}
       {/* Frosted rather than opaque. The opaque base was there because the notice bars

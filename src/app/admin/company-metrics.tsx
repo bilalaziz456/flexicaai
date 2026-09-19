@@ -1,4 +1,5 @@
 import { HandCoins } from "lucide-react";
+import { Card } from "@/core/ui/card";
 import { EmptyState } from "@/core/ui/empty-state";
 import { SegmentedBar } from "@/core/ui/charts/segmented-bar";
 import { StatCard } from "@/core/ui/charts/stat-card";
@@ -106,7 +107,7 @@ export function CompanyMetricsPanel({
 
       <div className="grid gap-3 lg:grid-cols-2">
         {/* Clinics by status */}
-        <div className="rounded-xl border border-border/70 bg-card p-5 elev-1">
+        <Card className="p-5">
           <div className="mb-2 text-sm font-medium">Clinics by status</div>
           {/* The portfolio as ONE bar. It was a row of count chips, which asserts a
               split without showing it — five numbers you have to add up to know
@@ -135,10 +136,10 @@ export function CompanyMetricsPanel({
               <span className="font-semibold tabular-nums">{m.overdueCount}</span>
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Top clinics by revenue */}
-        <div className="rounded-xl border border-border/70 bg-card p-5 elev-1">
+        <Card className="p-5">
           <div className="mb-2 text-sm font-medium">Top clinics by revenue (this year)</div>
           {m.topClinics.length === 0 ? (
             <EmptyState
@@ -161,7 +162,7 @@ export function CompanyMetricsPanel({
               }))}
             />
           )}
-        </div>
+        </Card>
       </div>
     </section>
   );
