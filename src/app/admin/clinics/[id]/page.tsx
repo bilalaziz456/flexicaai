@@ -113,6 +113,7 @@ export default async function ClinicDetailPage({
             {canAdmin(admin, "import:create") ? (
               <Link
                 href={`/admin/clinics/${clinic.id}/import`}
+                title="Upload this clinic's records from a CSV or Excel file"
                 className={cn(buttonVariants({ variant: "outline" }))}
               >
                 <Upload aria-hidden="true" />
@@ -121,10 +122,11 @@ export default async function ClinicDetailPage({
             ) : null}
             <a
               href={`/api/admin/clinics/${clinic.id}/export`}
+              title="Downloads this clinic's records as a JSON file"
               className={cn(buttonVariants({ variant: "outline" }))}
             >
               <Download aria-hidden="true" />
-              Export JSON
+              Export data
             </a>
           </div>
         </div>

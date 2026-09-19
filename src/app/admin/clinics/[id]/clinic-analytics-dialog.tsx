@@ -103,8 +103,11 @@ export function ClinicAnalyticsDialog({ clinicId }: { clinicId: string }) {
     <Dialog.Root onOpenChange={onOpenChange}>
       <Dialog.Trigger
         render={
-          <Button variant="outline" size="sm">
-            <BarChart3 className="size-4" /> Clinic analytics
+          <Button variant="outline">
+            {/* No explicit size: it sits in a row with Import and Export, and the
+                Button already sizes its own icon. */}
+            <BarChart3 aria-hidden="true" />
+            Clinic analytics
           </Button>
         }
       />
