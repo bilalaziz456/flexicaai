@@ -390,6 +390,15 @@
   --nested-surface: var(--surface-sunken);
   --nested-shadow: none;
 }
+/* A dialog that is a DOCUMENT rather than a card inverts that. The clinic scorecard
+   prints as a page, and a page is a ground carrying cards — not a card carrying
+   recesses. So its popup takes the tinted ground and publishes `--card` for what sits
+   inside, which is the same relationship a panel page has with the cards on it.
+   Declared after the rule above, at equal specificity, so it wins for this one. */
+[data-analytics-popup] {
+  --nested-surface: var(--card);
+  --nested-shadow: var(--shadow-xs);
+}
 
 @utility well {
   /* Read only — `.well` must NOT also publish a value for its own children here. A

@@ -75,8 +75,13 @@ export function ClinicAnalyticsDialog({ clinicId }: { clinicId: string }) {
     max-height: none !important;
     width: auto !important;
     box-shadow: none !important;
+    border: 0 !important;
     border-radius: 0 !important;
     --tw-ring-shadow: 0 0 #0000 !important;
+    /* On SCREEN the popup is the tinted ground the cards sit on. Paper already is
+       that ground, and \`print-color-adjust: exact\` below would otherwise lay the
+       tint down as ink across every sheet. */
+    background: transparent !important;
   }
   [data-analytics-scroll] { overflow: visible !important; max-height: none !important; padding: 0 !important; }
   /* The history table has its own inner scroll; unclipped it prints every month. */
@@ -122,11 +127,13 @@ export function ClinicAnalyticsDialog({ clinicId }: { clinicId: string }) {
         <Dialog.Popup
           data-analytics-popup
           data-slot="dialog-popup"
-          className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[min(60rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border/70 bg-elevated elev-4"
+          className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[min(60rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border/70 bg-background elev-4"
         >
           <style dangerouslySetInnerHTML={{ __html: css }} />
 
-          <div className="no-print flex items-center justify-between gap-3 border-b px-4 py-3">
+          {/* The header keeps the card surface so it reads as chrome over the
+              document below it, the way the panel header sits over the page. */}
+          <div className="no-print flex items-center justify-between gap-3 border-b border-border/70 bg-card px-4 py-3">
             <Dialog.Title className="font-display text-base font-semibold tracking-[-0.015em]">
               Clinic analytics
             </Dialog.Title>

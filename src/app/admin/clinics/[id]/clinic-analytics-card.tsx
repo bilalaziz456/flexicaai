@@ -563,7 +563,7 @@ export function ClinicAnalyticsCard({
                       <span className={cn("w-32 shrink-0 text-xs", n === 0 && "text-muted-foreground")}>
                         {c.label}
                       </span>
-                      <span className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                      <span className="h-2 flex-1 overflow-hidden rounded-full bg-foreground/[0.09]">
                         <span
                           className="block h-full rounded-full"
                           style={{ width: `${share * 100}%`, backgroundColor: c.colour }}
@@ -577,9 +577,18 @@ export function ClinicAnalyticsCard({
                 })}
               </ul>
             </div>
-            <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-              {[...PAYER_CATEGORIES.map((c) => `${c.label} = ${c.hint}`), `${PENDING_META.label} = ${PENDING_META.hint}`].join(" · ")}
-            </p>
+            {/* Nine definitions joined by "·" made one unreadable paragraph: the
+                reader had to parse the separators to find where each term ended. A
+                term/definition grid lets them look ONE up, which is the only way
+                anybody reads a key. */}
+            <dl className="mt-4 grid gap-x-6 gap-y-1.5 border-t border-border/60 pt-3 text-[11px] leading-relaxed sm:grid-cols-2">
+              {[...PAYER_CATEGORIES, PENDING_META].map((c) => (
+                <div key={c.label} className="flex gap-2">
+                  <dt className="w-32 shrink-0 font-medium text-foreground">{c.label}</dt>
+                  <dd className="min-w-0 flex-1 text-muted-foreground">{c.hint}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
 
           {/* ── Rating comparison ─────────────────────────────────────────── */}
