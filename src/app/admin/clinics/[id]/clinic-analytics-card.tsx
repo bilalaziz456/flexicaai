@@ -695,7 +695,10 @@ export function ClinicAnalyticsCard({
         </h3>
         <div
           className={cn(
-            "grid grid-cols-1 overflow-hidden rounded-lg border border-border/60 transition-opacity sm:grid-cols-2 lg:grid-cols-4",
+            // `well` rather than a literal `bg-card`: inside this popup it resolves
+            // to the card surface (the dialog publishes the ground), so the block
+            // stays correct in both themes and follows the popup if it ever changes.
+            "grid grid-cols-1 overflow-hidden rounded-lg border border-border/60 well transition-opacity sm:grid-cols-2 lg:grid-cols-4",
             refreshing && "opacity-50",
           )}
         >
