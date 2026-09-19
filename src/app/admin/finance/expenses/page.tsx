@@ -1,3 +1,4 @@
+import { Receipt } from "lucide-react";
 import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin } from "@/core/auth/admin-permissions";
 import {
@@ -10,6 +11,7 @@ import {
   listRecurringCompanyExpenses,
 } from "@/core/admin/company-expenses";
 import { resolveSalesRange } from "@/core/sales/report";
+import { EmptyState } from "@/core/ui/empty-state";
 import { TrendChart } from "@/core/ui/charts/trend-chart";
 import { StatCard } from "@/core/ui/charts/stat-card";
 import { LollipopChart } from "@/core/ui/charts/lollipop-chart";
@@ -133,7 +135,12 @@ export default async function CompanyExpensesPage({
                 color="var(--color-chart-5)"
               />
             ) : (
-              <p className="py-6 text-center text-sm text-muted-foreground">No expenses in this period yet.</p>
+              <EmptyState
+                compact
+                icon={Receipt}
+                title="Nothing to chart yet"
+                description="The trend needs at least one recorded expense in this period."
+              />
             )}
           </CardContent>
         </Card>
@@ -146,7 +153,12 @@ export default async function CompanyExpensesPage({
         </CardHeader>
         <CardContent>
           {byCategory.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">No expenses in this period yet.</p>
+            <EmptyState
+              compact
+              icon={Receipt}
+              title="No expenses in this period"
+              description="Record one below and it will be grouped by category here."
+            />
           ) : (
             <LollipopChart ariaLabel="Company expenses by category" rows={byCategory.map((c) => ({ label: c.category, value: c.total }))} />
           )}
@@ -187,7 +199,16 @@ export default async function CompanyExpensesPage({
         </CardHeader>
         <CardContent className="space-y-3">
           {rows.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">No {deleted ? "trashed " : ""}expenses match.</p>
+            <EmptyState
+              compact
+              icon={Receipt}
+              title={deleted ? "Nothing in the expense trash" : "No expenses match"}
+              description={
+                deleted
+                  ? "Voided expenses appear here and keep their place in the ledger."
+                  : "Try a wider period, or clear the filters above."
+              }
+            />
           ) : (
             <Table>
               <TableHeader>

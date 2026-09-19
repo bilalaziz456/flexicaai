@@ -1,10 +1,11 @@
 import Link from "next/link";
+import { EmptyState } from "@/core/ui/empty-state";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
 
-import { Download } from "lucide-react";
+import { Download, ListChecks, Stethoscope, TrendingUp } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { clinicHasFeature } from "@/core/lib/features";
 import {
@@ -162,9 +163,11 @@ export default async function ClinicSalesPage({
         </CardHeader>
         <CardContent>
           {report.count === 0 ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">
-              No paid visits in this period.
-            </p>
+            <EmptyState
+              icon={TrendingUp}
+              title="No paid visits in this period"
+              description="Revenue is counted when a visit is marked completed. Try a wider period."
+            />
           ) : (
             <>
               <TrendChart
@@ -187,7 +190,12 @@ export default async function ClinicSalesPage({
           </CardHeader>
           <CardContent>
             {report.byDoctor.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No sales yet.</p>
+              <EmptyState
+                compact
+                icon={Stethoscope}
+                title="No sales by doctor yet"
+                description="Each doctor appears here once one of their visits completes."
+              />
             ) : (
               <LollipopChart
                 showShare
@@ -211,9 +219,12 @@ export default async function ClinicSalesPage({
           </CardHeader>
           <CardContent>
             {report.byProcedure.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No procedures on completed appointments yet.
-              </p>
+              <EmptyState
+                compact
+                icon={ListChecks}
+                title="No procedures billed yet"
+                description="Procedures added to a completed appointment are ranked here."
+              />
             ) : (
               <LollipopChart
                 showShare

@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Users } from "lucide-react";
 import type { AdminAccountState, AdminSubRole } from "@/core/auth/admin-permissions";
+import { EmptyState } from "@/core/ui/empty-state";
 import { SelectField } from "@/core/ui/select-field";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
@@ -64,7 +65,12 @@ export function TeamList({ members }: { members: TeamMember[] }) {
       </div>
 
       {filtered.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">No team members match.</p>
+        <EmptyState
+          compact
+          icon={Users}
+          title="No team members match"
+          description="Try a different search, or clear the role filter."
+        />
       ) : (
         <ul className="divide-y">
           {filtered.map((m) => (

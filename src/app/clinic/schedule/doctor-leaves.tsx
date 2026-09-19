@@ -8,6 +8,7 @@ import {
   updateDoctorLeave,
   type LeaveActionState,
 } from "@/app/clinic/appointments/actions";
+import { EmptyState } from "@/core/ui/empty-state";
 import { Button } from "@/core/ui/button";
 import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
 import { DatePicker } from "@/core/ui/date-picker";
@@ -217,7 +218,12 @@ export function DoctorLeaves({
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-muted-foreground">No leave scheduled.</p>
+        <EmptyState
+          compact
+          icon={CalendarOff}
+          title="No leave scheduled"
+          description="Booked leave cancels that day's appointments and blocks new ones."
+        />
       )}
 
       {canCreate ? (

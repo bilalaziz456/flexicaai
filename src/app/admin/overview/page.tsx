@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { Building2, ChevronRight } from "lucide-react";
 import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin, canManageTeam, canSeeBilling } from "@/core/auth/admin-permissions";
 import { getCompanyMetrics } from "@/core/admin/metrics";
@@ -26,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/core/ui/table";
+import { EmptyState } from "@/core/ui/empty-state";
 import { Badge } from "@/core/ui/badge";
 import { RowLink } from "@/core/ui/row-link";
 import { ClinicStatusBadge } from "../clinics/status-badge";
@@ -478,7 +479,12 @@ export default async function OverviewPage({
         </CardHeader>
         <CardContent>
           {health.rows.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">No clinics yet.</p>
+            <EmptyState
+              compact
+              icon={Building2}
+              title="No clinics yet"
+              description="Create the first one from the Clinics page and its health appears here."
+            />
           ) : (
             <div className="overflow-x-auto">
               <Table>

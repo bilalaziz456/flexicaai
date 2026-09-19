@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, X } from "lucide-react";
+import { HeartPulse, Plus, X } from "lucide-react";
+import { EmptyState } from "@/core/ui/empty-state";
 import { SelectField } from "@/core/ui/select-field";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
@@ -59,7 +60,12 @@ export function MedicalHistoryCard({
     return (
       <div className="space-y-3 text-sm">
         {empty ? (
-          <p className="text-muted-foreground">No medical history recorded.</p>
+          <EmptyState
+            compact
+            icon={HeartPulse}
+            title="No medical history recorded"
+            description="Allergies, conditions and medications recorded here are shown to whoever treats this patient."
+          />
         ) : (
           <>
             {data.allergies.length > 0 ? (

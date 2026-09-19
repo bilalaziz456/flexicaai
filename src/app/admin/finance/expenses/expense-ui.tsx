@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { Pencil, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import {
   saveCompanyExpense,
   deleteCompanyExpenseAction,
@@ -10,6 +10,7 @@ import {
   toggleCompanyCategoryAction,
   type ExpenseActionState,
 } from "./actions";
+import { EmptyState } from "@/core/ui/empty-state";
 import { SelectField } from "@/core/ui/select-field";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
@@ -185,7 +186,14 @@ export function RecurringExpensesManager({
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   if (templates.length === 0) {
-    return <p className="text-sm text-muted-foreground">No recurring expenses yet. Record one below and tick &ldquo;Recurring cost&rdquo;.</p>;
+    return (
+      <EmptyState
+        compact
+        icon={RefreshCw}
+        title="No recurring expenses"
+        description={'Record an expense below and tick "Recurring cost" to have it repeat on its own.'}
+      />
+    );
   }
   return (
     <ul className="space-y-2">

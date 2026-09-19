@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Download } from "lucide-react";
+import { Building2, Download, Wallet } from "lucide-react";
 import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin } from "@/core/auth/admin-permissions";
 import { getCompanyPnl } from "@/core/admin/pnl";
 import { resolveSalesRange } from "@/core/sales/report";
+import { EmptyState } from "@/core/ui/empty-state";
 import { ProfitLossChart } from "@/core/ui/charts/profit-loss-chart";
 import { LollipopChart } from "@/core/ui/charts/lollipop-chart";
 import { StatCard, InsightLine } from "@/core/ui/charts/stat-card";
@@ -150,7 +151,11 @@ export default async function CompanyPnlPage({
               {profitInsight ? <InsightLine insight={profitInsight} className="mt-4" /> : null}
             </>
           ) : (
-            <p className="py-10 text-center text-sm text-muted-foreground">No revenue or cost in this period yet.</p>
+            <EmptyState
+              icon={Wallet}
+              title="No revenue or cost in this period"
+              description="The P&L is built from clinic payments, serving cost and operating expenses. Try a wider period."
+            />
           )}
         </CardContent>
       </Card>
@@ -163,7 +168,12 @@ export default async function CompanyPnlPage({
         </CardHeader>
         <CardContent>
           {pnl.perClinic.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">No clinic revenue or cost in this period yet.</p>
+            <EmptyState
+              compact
+              icon={Building2}
+              title="No clinic activity in this period"
+              description="A clinic appears here once it has paid something or cost something to serve."
+            />
           ) : (
             <>
             {/* Zero in the middle: "spot a clinic that costs more than it pays" is

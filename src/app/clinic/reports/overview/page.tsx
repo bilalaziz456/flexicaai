@@ -1,3 +1,4 @@
+import { ListChecks, Stethoscope } from "lucide-react";
 import Link from "next/link";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
@@ -14,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
+import { EmptyState } from "@/core/ui/empty-state";
 import { LollipopChart } from "@/core/ui/charts/lollipop-chart";
 import { DonutChart } from "@/core/ui/charts/donut-chart";
 import { StatCard } from "@/core/ui/charts/stat-card";
@@ -197,7 +199,12 @@ export default async function OverviewPage({
             </CardHeader>
             <CardContent>
               {ov.salesByDoctor.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No sales yet.</p>
+                <EmptyState
+                  compact
+                  icon={Stethoscope}
+                  title="No sales by doctor yet"
+                  description="Each doctor appears here once one of their visits completes."
+                />
               ) : (
                 <LollipopChart showShare ariaLabel="Collected by doctor" rows={ov.salesByDoctor.map((d) => ({ label: d.name, value: d.net, sublabel: `${d.count} visit${d.count === 1 ? "" : "s"}` }))} />
               )}
@@ -210,7 +217,12 @@ export default async function OverviewPage({
           </CardHeader>
           <CardContent>
             {ov.salesByProcedure.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No procedures yet.</p>
+              <EmptyState
+                compact
+                icon={ListChecks}
+                title="No procedures billed yet"
+                description="Procedures added to a completed appointment are ranked here."
+              />
             ) : (
               <LollipopChart showShare ariaLabel="Billed by procedure" rows={ov.salesByProcedure.map((p) => ({ label: p.name, value: p.gross, sublabel: `×${p.qty}` }))} />
             )}

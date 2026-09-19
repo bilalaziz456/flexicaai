@@ -1,10 +1,11 @@
 import Link from "next/link";
+import { EmptyState } from "@/core/ui/empty-state";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
 
-import { Download } from "lucide-react";
+import { CheckCircle2, Download } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { clinicHasFeature } from "@/core/lib/features";
 import { getSalesDoctors, resolveSalesRange } from "@/core/sales/report";
@@ -120,7 +121,12 @@ export default async function ReceivablesPage({
         </CardHeader>
         <CardContent>
           {report.patients.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nothing outstanding. Every completed visit is paid.</p>
+            <EmptyState
+              compact
+              icon={CheckCircle2}
+              title="Nothing outstanding"
+              description="Every completed visit in this period has been paid in full."
+            />
           ) : (
             <ul className="divide-y">
               {report.patients.map((p) => (

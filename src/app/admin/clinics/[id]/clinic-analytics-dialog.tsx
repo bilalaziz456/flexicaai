@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { BarChart3, Printer, X } from "lucide-react";
 import type { ClinicAnalytics } from "@/core/admin/clinic-analytics";
+import { EmptyState } from "@/core/ui/empty-state";
 import { Button } from "@/core/ui/button";
 import { loadClinicAnalytics } from "@/app/admin/actions";
 import { ClinicAnalyticsCard } from "./clinic-analytics-card";
@@ -139,7 +140,11 @@ export function ClinicAnalyticsDialog({ clinicId }: { clinicId: string }) {
             ) : data ? (
               <ClinicAnalyticsCard data={data} onPeriodChange={load} refreshing={pending} />
             ) : (
-              <p className="py-10 text-center text-sm text-muted-foreground">No data.</p>
+              <EmptyState
+                icon={BarChart3}
+                title="Nothing to analyse yet"
+                description="This clinic has no activity in the selected period. Try a wider one."
+              />
             )}
           </div>
         </Dialog.Popup>

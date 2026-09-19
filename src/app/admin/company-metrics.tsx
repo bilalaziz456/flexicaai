@@ -1,3 +1,5 @@
+import { HandCoins } from "lucide-react";
+import { EmptyState } from "@/core/ui/empty-state";
 import { SegmentedBar } from "@/core/ui/charts/segmented-bar";
 import { StatCard } from "@/core/ui/charts/stat-card";
 import { LollipopChart } from "@/core/ui/charts/lollipop-chart";
@@ -139,7 +141,12 @@ export function CompanyMetricsPanel({
         <div className="rounded-xl border border-border/70 bg-card p-5 elev-1">
           <div className="mb-2 text-sm font-medium">Top clinics by revenue (this year)</div>
           {m.topClinics.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No payments recorded yet.</p>
+            <EmptyState
+              compact
+              icon={HandCoins}
+              title="No payments recorded yet"
+              description="Clinics appear here once a subscription payment is logged against them."
+            />
           ) : (
             /* A ranking with no encoding at all — five names and five figures, and
                the reader compares the digits. The dot puts them on one scale, and

@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
+import { EmptyState } from "@/core/ui/empty-state";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import { getClinic } from "@/core/clinics/get-clinic";
 
-import { Download } from "lucide-react";
+import { Download, PieChart, Receipt, Wallet } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { clinicHasFeature } from "@/core/lib/features";
 import Link from "next/link";
@@ -195,9 +196,11 @@ export default async function ProfitLossPage({
         </CardHeader>
         <CardContent>
           {pl.revenue === 0 && pl.expenses === 0 ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">
-              No activity in this period.
-            </p>
+            <EmptyState
+              icon={Wallet}
+              title="No activity in this period"
+              description="Profit and loss is built from completed visits and recorded expenses. Try a wider period."
+            />
           ) : (
             <>
               <ProfitLossChart
@@ -237,7 +240,12 @@ export default async function ProfitLossPage({
           </CardHeader>
           <CardContent>
             {pl.byExpenseCategory.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No expenses in this period.</p>
+              <EmptyState
+                compact
+                icon={Receipt}
+                title="No expenses in this period"
+                description="Costs recorded on the Expenses page are subtracted here."
+              />
             ) : (
               /* Composition, not ranking: these categories ARE the expense total, so
                  the question is what share each takes of it. */
@@ -255,7 +263,12 @@ export default async function ProfitLossPage({
           </CardHeader>
           <CardContent>
             {pl.byDoctor.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No doctor shares in this period.</p>
+              <EmptyState
+                compact
+                icon={PieChart}
+                title="No doctor shares in this period"
+                description="A share is earned when a visit completes and the doctor has a percentage set."
+              />
             ) : (
               <LollipopChart
                 ariaLabel="Doctor shares"

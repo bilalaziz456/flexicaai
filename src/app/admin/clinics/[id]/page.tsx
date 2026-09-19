@@ -2,8 +2,9 @@ import { getClinic } from "@/core/clinics/get-clinic";
 import { listAllClinicUsers } from "@/core/users/clinic-staff";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { EmptyState } from "@/core/ui/empty-state";
 import { Breadcrumbs } from "@/core/ui/breadcrumbs";
-import { Download, Upload } from "lucide-react";
+import { Download, Upload, Users } from "lucide-react";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import { SectionRail, type RailSection } from "@/core/ui/section-rail";
@@ -355,9 +356,12 @@ export default async function ClinicDetailPage({
         </CardHeader>
         <CardContent>
           {staff.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No staff yet. The clinic admin adds doctors and receptionists.
-            </p>
+            <EmptyState
+              compact
+              icon={Users}
+              title="No staff accounts yet"
+              description="The clinic admin adds doctors and receptionists from their own panel — you do not create them here."
+            />
           ) : (
             <>
               {/* Desktop: full table. */}

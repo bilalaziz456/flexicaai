@@ -6,9 +6,10 @@ import {
 } from "@/core/patients/manage";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarPlus, Printer } from "lucide-react";
+import { CalendarDays, CalendarPlus, ClipboardList, Pill, Printer } from "lucide-react";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicalRecordFor } from "@/config/modules";
+import { EmptyState } from "@/core/ui/empty-state";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
@@ -511,7 +512,12 @@ export async function PatientDetail({
           </CardHeader>
           <CardContent>
             {clinicalVisits.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No clinical notes yet.</p>
+              <EmptyState
+                compact
+                icon={ClipboardList}
+                title="No clinical notes yet"
+                description="Notes appear here once a visit is dictated and approved."
+              />
             ) : (
               <ol className="space-y-4">
                 {clinicalVisits.map((v) => {
@@ -623,7 +629,12 @@ export async function PatientDetail({
           </CardHeader>
           <CardContent>
             {prescriptionVisits.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No prescriptions yet.</p>
+              <EmptyState
+                compact
+                icon={Pill}
+                title="No prescriptions yet"
+                description="Approved visits that include drugs appear here, ready to reprint."
+              />
             ) : (
               <ol className="space-y-3">
                 {prescriptionVisits.map((rx) => (
@@ -772,7 +783,12 @@ export async function PatientDetail({
         </CardHeader>
         <CardContent>
           {appts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No appointments yet.</p>
+            <EmptyState
+              compact
+              icon={CalendarDays}
+              title="No appointments yet"
+              description="Book one from the button above and it will be listed here."
+            />
           ) : (
             <ul className="space-y-2">
               {appts.map((a) => (
