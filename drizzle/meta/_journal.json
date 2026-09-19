@@ -757,6 +757,13 @@
       "when": 1789677691279,
       "tag": "0107_lucky_wolverine",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1789779530407,
+      "tag": "0108_advance_payment_label",
+      "breakpoints": true
     }
   ]
 }

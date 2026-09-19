@@ -58,7 +58,7 @@ export function paymentMethodOrder(method: string): number {
  * holds and every stored-value check must allow it.
  *
  * Kept out of `PAYMENT_METHODS` deliberately: that list drives the dropdowns and the
- * zod schemas, and offering "Advance credit" as a tender would let someone record a
+ * zod schemas, and offering "Advance payment" as a tender would let someone record a
  * payment from credit without the balance arithmetic `applyAdvance` performs.
  */
 export const SYSTEM_PAYMENT_METHODS: readonly PaymentMethodCode[] = PAYMENT_METHOD_ROWS.filter(
