@@ -132,7 +132,7 @@ export default async function PatientStatementPage({
           </div>
           {account.credit > 0 ? (
             <div className="flex justify-between">
-              <span className="opacity-70">Advance credit</span>
+              <span className="opacity-70">Advance payment</span>
               <span className="tabular-nums">{formatPkr(account.credit)}</span>
             </div>
           ) : null}

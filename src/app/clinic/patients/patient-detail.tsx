@@ -356,7 +356,13 @@ export async function PatientDetail({
             </Link>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {/* Figures separated by hairlines rather than four sunken boxes — the
+                same treatment the dashboard's supporting stats use. A well is a
+                RECESS, which suits an input or a secondary grouping; these are the
+                headline numbers of the card, and recessing them put the figures on
+                the card's lowest plane. It also meant almost the whole card body was
+                grey, so the white card read as a grey block with white gutters. */}
+            <div className="grid grid-cols-2 divide-x divide-y divide-border/60 overflow-hidden rounded-lg border border-border/60 sm:grid-cols-4 sm:divide-y-0">
               {[
                 { label: "Billed", value: money(account.totals.billed) },
                 { label: "Collected", value: money(account.totals.collected) },
@@ -364,9 +370,9 @@ export async function PatientDetail({
                   ? [{ label: "Opening balance", value: money(account.openingBalance) }]
                   : []),
                 { label: "Outstanding", value: money(account.totals.outstanding) },
-                { label: "Advance credit", value: money(account.credit) },
+                { label: "Advance payment", value: money(account.credit) },
               ].map((s) => (
-                <div key={s.label} className="rounded-lg border well p-3">
+                <div key={s.label} className="p-3">
                   <div className="text-xs text-muted-foreground">{s.label}</div>
                   <div className="text-lg font-semibold tabular-nums">{s.value}</div>
                 </div>
@@ -383,7 +389,7 @@ export async function PatientDetail({
             {account.visits.some((v) => v.outstanding > 0) ? (
               <div>
                 <p className="mb-1 text-sm font-medium">Outstanding visits</p>
-                <ul className="divide-y rounded-lg border well text-sm">
+                <ul className="divide-y divide-border/60 rounded-lg border border-border/60 text-sm">
                   {account.visits
                     .filter((v) => v.outstanding > 0)
                     .map((v) => (
@@ -409,7 +415,7 @@ export async function PatientDetail({
             {account.payments.length > 0 ? (
               <div>
                 <p className="mb-1 text-sm font-medium">Recent payments</p>
-                <ul className="divide-y rounded-lg border well text-sm">
+                <ul className="divide-y divide-border/60 rounded-lg border border-border/60 text-sm">
                   {account.payments.slice(0, 10).map((p) => (
                     <li key={p.id} className="flex items-center justify-between gap-3 px-3 py-2">
                       <span>
