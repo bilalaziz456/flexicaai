@@ -362,8 +362,12 @@ export function PanelShell({
       {/* ---- Desktop sidebar ---- */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-sidebar-border bg-sidebar md:flex">
         <div className="px-4 pt-5 pb-4">
+          {/* The logo is the only name this link has, and it is an image — so the
+              link needs one of its own or a screen reader announces the primary way
+              home on every panel page as an unlabelled "link". */}
           <Link
             href={brand}
+            aria-label="FlexicaAI home"
             className="flex items-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
           >
             <Logo className="h-8" />
@@ -446,7 +450,11 @@ export function PanelShell({
         >
           <Menu className="size-6" aria-hidden="true" />
         </button>
-        <Link href={brand} className="flex items-center rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+        <Link
+          href={brand}
+          aria-label="FlexicaAI home"
+          className="flex items-center rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
           <Logo className="h-8" />
         </Link>
         <div className="flex items-center gap-1">
