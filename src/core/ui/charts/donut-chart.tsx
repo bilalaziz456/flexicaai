@@ -153,9 +153,20 @@ export function DonutChart({
             ))}
           </g>
         </svg>
-        {/* The hole is not decoration — it is where the total lives. */}
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-          <span className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+        {/* The hole is not decoration — it is where the total lives.
+            Inset by the STROKE, not `inset-0`: the box used to span the whole donut,
+            so a long slice name ("Outstanding Payer") rendered at its natural width
+            straight across the ring it was describing. Constrained to the hole it
+            wraps instead, and `overflow-hidden` means the worst case is a clipped
+            word rather than text lying on top of the chart. */}
+        <div
+          className="pointer-events-none absolute flex flex-col items-center justify-center overflow-hidden text-center"
+          style={{ inset: stroke }}
+        >
+          <span
+            className="text-[9px] leading-[1.15] font-medium tracking-wide text-balance text-muted-foreground uppercase"
+            title={shown ? shown.label : centerLabel}
+          >
             {shown ? shown.label : centerLabel}
           </span>
           <span className="mt-0.5 text-lg leading-tight font-semibold tabular-nums">
