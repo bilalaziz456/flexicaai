@@ -173,40 +173,6 @@ export default async function StaffDetailPage({
         </Card>
       ) : null}
 
-      {isAdmin ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {member.role === "doctor" ? (
-                <CalendarClock
-                  className="size-5 text-muted-foreground"
-                  aria-hidden="true"
-                />
-              ) : null}
-              Details
-            </CardTitle>
-            <CardDescription>
-              {member.role === "doctor"
-                ? "Name, login, working hours, daily cap and fee. Saved together."
-                : "Edit the name and login username."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <EditStaffForm
-              userId={member.id}
-              prefix={member.prefix}
-              fullName={member.fullName}
-              username={member.username}
-              role={member.role}
-              availability={member.availability}
-              dailyLimit={member.dailyLimit}
-              fee={member.fee}
-              flexibleHours={member.flexibleHours}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
-
       {activity ? (
         <Card>
           <CardHeader>
@@ -309,6 +275,40 @@ export default async function StaffDetailPage({
                 </Link>
               </div>
             ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {isAdmin ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {member.role === "doctor" ? (
+                <CalendarClock
+                  className="size-5 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              ) : null}
+              Details
+            </CardTitle>
+            <CardDescription>
+              {member.role === "doctor"
+                ? "Name, login, working hours, daily cap and fee. Saved together."
+                : "Edit the name and login username."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <EditStaffForm
+              userId={member.id}
+              prefix={member.prefix}
+              fullName={member.fullName}
+              username={member.username}
+              role={member.role}
+              availability={member.availability}
+              dailyLimit={member.dailyLimit}
+              fee={member.fee}
+              flexibleHours={member.flexibleHours}
+            />
           </CardContent>
         </Card>
       ) : null}
