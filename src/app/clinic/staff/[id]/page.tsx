@@ -173,6 +173,40 @@ export default async function StaffDetailPage({
         </Card>
       ) : null}
 
+      {isAdmin ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {member.role === "doctor" ? (
+                <CalendarClock
+                  className="size-5 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              ) : null}
+              Details
+            </CardTitle>
+            <CardDescription>
+              {member.role === "doctor"
+                ? "Name, login, working hours, daily cap and fee. Saved together."
+                : "Edit the name and login username."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <EditStaffForm
+              userId={member.id}
+              prefix={member.prefix}
+              fullName={member.fullName}
+              username={member.username}
+              role={member.role}
+              availability={member.availability}
+              dailyLimit={member.dailyLimit}
+              fee={member.fee}
+              flexibleHours={member.flexibleHours}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
       {activity ? (
         <Card>
           <CardHeader>
@@ -239,34 +273,56 @@ export default async function StaffDetailPage({
               ))}
             </div>
 
-            {/* The BALANCE, which is lifetime and therefore a different kind of
-                figure from the four above. Same numbers the shares page settles
-                against — this reads the one ledger rather than re-deriving it.
+            {/* The BALANCE. Same ledger the shares page settles against, read rather
+                than re-derived.
 
-                The terms are shown so they ADD UP. Outstanding is earned plus
-                adjustments minus paid, so printing only three of those four invites
-                a subtraction that fails by the size of the adjustment — which is
-                what this line did until the adjustment was put back in. It appears
-                only when there is one, so the common case stays a simple sum. */}
+                It LEADS WITH WHAT IT MEANS, because the arithmetic alone was
+                misleading in the one case that matters. A NEGATIVE balance does not
+                mean a small amount is outstanding — it means the money runs the other
+                way, and the doctor owes the clinic (they bore a discount). Printing
+                that as "Rs -9,868 outstanding" said the opposite of the truth while
+                looking precise, and put the minus sign in a different place from the
+                one on the adjustment beside it. Which side owes is the fact; the
+                terms are the working, so they sit underneath in smaller type and the
+                zero ones are left out. */}
             {activity.hasShareRate ? (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 well p-3 text-sm">
-                <span className="text-muted-foreground">
-                  Lifetime: <span className="font-medium text-foreground">{rs(activity.earnedLifetime)}</span> earned
-                  {activity.adjustments !== 0 ? (
-                    <>
-                      {" · "}
-                      <span className="font-medium text-foreground">
-                        {activity.adjustments < 0 ? "−" : "+"}
-                        {rs(Math.abs(activity.adjustments))}
-                      </span>{" "}
-                      adjustments
-                    </>
-                  ) : null}
-                  {" · "}
-                  <span className="font-medium text-foreground">{rs(activity.paidLifetime)}</span> paid
-                  {" = "}
-                  <span className="font-medium text-foreground">{rs(activity.outstanding)}</span> outstanding
-                </span>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 well p-3">
+                <div className="text-sm">
+                  <div>
+                    {activity.outstanding > 0 ? (
+                      <>
+                        <span className="font-medium">{rs(activity.outstanding)}</span>{" "}
+                        <span className="text-muted-foreground">owed to this doctor</span>
+                      </>
+                    ) : activity.outstanding < 0 ? (
+                      <>
+                        <span className="font-medium">{rs(Math.abs(activity.outstanding))}</span>{" "}
+                        <span className="text-muted-foreground">
+                          owed BY this doctor to the clinic
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">Settled up — nothing owed either way</span>
+                    )}
+                  </div>
+                  {/* The working. Earnings ALWAYS lead, even at zero — they are what
+                      the other two terms modify, and "less Rs 9,868 in adjustments"
+                      standing alone reads as a fragment rather than a subtraction.
+                      A zero adjustment or payout is dropped, because those are
+                      genuinely absent rather than a starting point of nothing. */}
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    Lifetime:{" "}
+                    {[
+                      `${rs(activity.earnedLifetime)} earned`,
+                      activity.adjustments !== 0
+                        ? `${activity.adjustments < 0 ? "less " : "plus "}${rs(Math.abs(activity.adjustments))} in adjustments`
+                        : null,
+                      activity.paidLifetime !== 0 ? `${rs(activity.paidLifetime)} paid out` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </div>
+                </div>
                 <Link
                   href={`/clinic/shares?doctorId=${member.id}`}
                   className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
@@ -275,40 +331,6 @@ export default async function StaffDetailPage({
                 </Link>
               </div>
             ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {isAdmin ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {member.role === "doctor" ? (
-                <CalendarClock
-                  className="size-5 text-muted-foreground"
-                  aria-hidden="true"
-                />
-              ) : null}
-              Details
-            </CardTitle>
-            <CardDescription>
-              {member.role === "doctor"
-                ? "Name, login, working hours, daily cap and fee. Saved together."
-                : "Edit the name and login username."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <EditStaffForm
-              userId={member.id}
-              prefix={member.prefix}
-              fullName={member.fullName}
-              username={member.username}
-              role={member.role}
-              availability={member.availability}
-              dailyLimit={member.dailyLimit}
-              fee={member.fee}
-              flexibleHours={member.flexibleHours}
-            />
           </CardContent>
         </Card>
       ) : null}
