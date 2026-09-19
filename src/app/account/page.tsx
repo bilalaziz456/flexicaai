@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { BackLink } from "@/core/ui/back-link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/core/auth/user";
 import { getMyProfile } from "@/core/users/profile";
@@ -31,12 +31,9 @@ export default async function AccountPage() {
   return (
     <div className="app-root mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
       <div>
-        <Link
-          href={ROLE_HOME_ROUTE[u.role]}
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
-          ← Back
-        </Link>
+        <BackLink href={ROLE_HOME_ROUTE[u.role]}>
+          Back
+        </BackLink>
         <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em]">Account settings</h1>
         <p className="text-sm text-muted-foreground">
           {vocabularyLabel("user_roles", u.role)} · @{u.username}

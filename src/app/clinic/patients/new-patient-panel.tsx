@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { BackLink } from "@/core/ui/back-link";
 import {
   Card,
   CardContent,
@@ -14,12 +14,9 @@ export function NewPatientPanel({ backHref }: { backHref: string }) {
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href={backHref}
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
-          ← Back to patients
-        </Link>
+        <BackLink href={backHref}>
+          Back to patients
+        </BackLink>
         <h1 className="mt-2 text-xl font-semibold">Add patient</h1>
       </div>
 

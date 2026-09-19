@@ -369,15 +369,17 @@ export function PaymentPanel({
                 </span>
               </div>
               {(e.kind === "refund" ? canVoidRefundEntry : canVoidPayment) ? (
-                <button
+                <Button
                   type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="shrink-0 text-destructive hover:text-destructive"
                   disabled={busy}
                   onClick={() => doVoid(e.id)}
-                  className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
                 >
-                  <Undo2 className="size-3" aria-hidden="true" />{" "}
+                  <Undo2 aria-hidden="true" />
                   {e.kind === "refund" ? "Reverse" : "Void"}
-                </button>
+                </Button>
               ) : null}
             </li>
           ))}

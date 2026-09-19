@@ -108,7 +108,7 @@ export function VoidPayoutButton({ payoutId }: { payoutId: string }) {
   const [nonce, setNonce] = useState(0);
   return (
     <>
-      <button
+      <Button
         type="button"
         disabled={pending}
         onClick={() =>
@@ -120,10 +120,10 @@ export function VoidPayoutButton({ payoutId }: { payoutId: string }) {
             }
           })
         }
-        className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
+        size="sm" variant="outline"
       >
         <Undo2 className="size-3" aria-hidden="true" /> Reverse
-      </button>
+      </Button>
       <Toast message={err} variant="error" token={nonce} />
     </>
   );

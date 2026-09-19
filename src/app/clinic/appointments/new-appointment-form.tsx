@@ -330,13 +330,9 @@ export function NewAppointmentForm({
             <span className="rounded-full bg-accent px-2.5 py-1 text-sm font-medium text-accent-foreground">
               {patient.fullName}
             </span>
-            <button
-              type="button"
-              className="text-sm text-muted-foreground underline underline-offset-4"
-              onClick={() => setPatient(null)}
-            >
+            <Button type="button" size="sm" variant="ghost" onClick={() => setPatient(null)}>
               Change
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="space-y-2">

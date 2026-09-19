@@ -1,7 +1,6 @@
 import { getClinic } from "@/core/clinics/get-clinic";
 import { assertNotLastAdmin, getClinicStaffMember } from "@/core/users/clinic-staff";
 import { listUpcomingLeaves } from "@/core/appointments/availability";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Ban, CalendarClock, CalendarOff, Percent, RotateCcw, ShieldCheck } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
@@ -16,6 +15,7 @@ import {
   resourcesForClinic,
 } from "@/core/auth/permissions";
 import { PermissionsGrid } from "./permissions-grid";
+import { BackLink } from "@/core/ui/back-link";
 import { Badge } from "@/core/ui/badge";
 import { Button } from "@/core/ui/button";
 import {
@@ -107,12 +107,9 @@ export default async function StaffDetailPage({
         summary={`Viewed staff member ${label}`}
       />
       <div>
-        <Link
-          href="/clinic/staff"
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
-          ← Back to staff
-        </Link>
+        <BackLink href="/clinic/staff">
+          Back to staff
+        </BackLink>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">{label}</h1>
           <Badge variant="secondary">{vocabularyLabel("user_roles", member.role)}</Badge>

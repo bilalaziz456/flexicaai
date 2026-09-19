@@ -75,14 +75,14 @@ export function PermissionsGrid({
         <Button type="submit" disabled={pending || resetting}>
           {pending ? "Saving…" : "Save permissions"}
         </Button>
-        <button
+        <Button
           type="button"
           onClick={onReset}
           disabled={resetting || pending}
-          className="text-sm text-muted-foreground underline underline-offset-4 disabled:opacity-50"
+          size="sm" variant="outline"
         >
           {resetting ? "Resetting…" : "Reset to role defaults"}
-        </button>
+        </Button>
       </div>
 
       <Toast message={successMsg} variant="success" token={successNonce} />

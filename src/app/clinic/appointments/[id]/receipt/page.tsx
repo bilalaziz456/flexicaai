@@ -1,6 +1,5 @@
 import { getAppointmentForDocument } from "@/core/billing/invoice";
 import { getClinic } from "@/core/clinics/get-clinic";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
@@ -18,6 +17,7 @@ import {
 import { displayStaffName } from "@/core/types/auth";
 import { formatMrn } from "@/core/patients/mrn";
 import { getClinicLogoDataUri } from "@/core/clinics/logo";
+import { BackLink } from "@/core/ui/back-link";
 import { InvoicePrintFrame } from "@/core/ui/invoice-print";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
@@ -93,12 +93,9 @@ export default async function ReceiptPage({
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="no-print">
-        <Link
-          href={`/clinic/appointments/${id}`}
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
-          ← Back to appointment
-        </Link>
+        <BackLink href={`/clinic/appointments/${id}`}>
+          Back to appointment
+        </BackLink>
       </div>
 
       <InvoicePrintFrame

@@ -154,23 +154,23 @@ export function ExpenseRowActions({ id, deleted }: { id: string; deleted: boolea
   return (
     <>
       {deleted ? (
-        <button
+        <Button
           type="button"
           disabled={pending}
           onClick={() => run(() => restoreExpenseAction(id))}
-          className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
+          size="sm" variant="outline"
         >
           <RotateCcw className="size-3.5" aria-hidden="true" /> Restore
-        </button>
+        </Button>
       ) : (
-        <button
+        <Button
           type="button"
           disabled={pending}
           onClick={() => run(() => deleteExpenseAction(id))}
-          className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-destructive disabled:opacity-50"
+          size="sm" variant="ghost" className="text-destructive hover:text-destructive"
         >
           <Trash2 className="size-3.5" aria-hidden="true" /> Delete
-        </button>
+        </Button>
       )}
       <Toast message={err} variant="error" token={nonce} />
     </>

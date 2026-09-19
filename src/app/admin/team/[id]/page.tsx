@@ -11,6 +11,7 @@ import {
 } from "@/core/auth/admin-permissions";
 import { listActiveTeam } from "@/core/admin/assignment";
 import { countManagedClinics, getTeamMember } from "@/core/admin/team";
+import { BackLink } from "@/core/ui/back-link";
 import { Badge } from "@/core/ui/badge";
 import {
   Card,
@@ -59,9 +60,9 @@ export default async function TeamMemberPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/admin/team" className="text-sm text-muted-foreground underline underline-offset-4">
-          ← Back to team
-        </Link>
+        <BackLink href="/admin/team">
+          Back to team
+        </BackLink>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">{member.fullName ?? member.username}</h1>
           <span className="text-muted-foreground">@{member.username}</span>

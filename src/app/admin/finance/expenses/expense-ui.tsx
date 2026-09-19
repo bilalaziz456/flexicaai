@@ -215,13 +215,13 @@ export function RecurringExpensesManager({
               </div>
               <div className="flex items-center gap-3">
                 {canEdit ? (
-                  <button
+                  <Button
                     type="button"
                     onClick={() => setEditingId(t.id)}
-                    className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                    size="sm" variant="outline"
                   >
                     <Pencil className="size-3.5" aria-hidden="true" /> Edit
-                  </button>
+                  </Button>
                 ) : null}
                 {canDelete ? <CompanyExpenseRowActions id={t.id} deleted={false} /> : null}
               </div>
@@ -249,14 +249,14 @@ export function CompanyExpenseRowActions({ id, deleted }: { id: string; deleted:
   return (
     <>
       {deleted ? (
-        <button
+        <Button
           type="button"
           disabled={pending}
           onClick={() => run(() => restoreCompanyExpenseAction(id))}
-          className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
+          size="sm" variant="outline"
         >
           <RotateCcw className="size-3.5" aria-hidden="true" /> Restore
-        </button>
+        </Button>
       ) : (
         // Styled confirm dialog (no password — an expense soft-deletes and is restorable).
         <ConfirmDialog

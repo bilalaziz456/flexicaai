@@ -1,9 +1,9 @@
 import { getPatientHeader } from "@/core/patients/list";
 import { getClinic } from "@/core/clinics/get-clinic";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { clinicalRecordFor } from "@/config/modules";
 import { formatMrn } from "@/core/patients/mrn";
+import { BackLink } from "@/core/ui/back-link";
 import { InvoicePrintFrame } from "@/core/ui/invoice-print";
 
 /**
@@ -38,9 +38,9 @@ export async function ClinicalChartPrint({
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="no-print">
-        <Link href={backHref} className="text-sm text-muted-foreground underline underline-offset-4">
-          ← Back to patient
-        </Link>
+        <BackLink href={backHref}>
+          Back to patient
+        </BackLink>
       </div>
 
       <InvoicePrintFrame

@@ -113,13 +113,13 @@ export function InvoiceRowActions({ id, deleted }: { id: string; deleted: boolea
   return (
     <>
       {deleted ? (
-        <button type="button" disabled={pending} onClick={() => run(() => restoreClinicInvoiceAction(id))} className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50">
+        <Button type="button" disabled={pending} onClick={() => run(() => restoreClinicInvoiceAction(id))} size="sm" variant="outline">
           <RotateCcw className="size-3.5" aria-hidden="true" /> Restore
-        </button>
+        </Button>
       ) : (
-        <button type="button" disabled={pending} onClick={() => run(() => voidClinicInvoiceAction(id))} className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-destructive disabled:opacity-50">
+        <Button type="button" disabled={pending} onClick={() => run(() => voidClinicInvoiceAction(id))} size="sm" variant="ghost" className="text-destructive hover:text-destructive">
           <Trash2 className="size-3.5" aria-hidden="true" /> Void
-        </button>
+        </Button>
       )}
       <Toast message={err} variant="error" token={nonce} />
     </>

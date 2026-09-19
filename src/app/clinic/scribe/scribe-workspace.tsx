@@ -376,16 +376,17 @@ export function ScribeWorkspace({
                 <span className="rounded-full bg-accent px-2.5 py-1 text-sm font-medium text-accent-foreground">
                   {patient.fullName}
                 </span>
-                <button
+                <Button
                   type="button"
-                  className="text-sm text-muted-foreground underline underline-offset-4"
+                  size="sm"
+                  variant="ghost"
                   onClick={() => {
                     setPatient(null);
                     reset();
                   }}
                 >
                   Change
-                </button>
+                </Button>
               </div>
 
               {processing ? (

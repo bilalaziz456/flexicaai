@@ -1,12 +1,12 @@
 import { listClinicDoctors } from "@/core/appointments/doctors";
 import { getClinic } from "@/core/clinics/get-clinic";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/core/auth/user";
 import { getDoctorBalance, listPayouts } from "@/core/sales/payouts";
 import { listDoctorEarnings, listDoctorSettlements } from "@/core/sales/share-report";
 import { listSettlementActions } from "@/core/sales/settlement-actions";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
+import { BackLink } from "@/core/ui/back-link";
 import { PrintButton } from "@/core/ui/print-button";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
@@ -67,9 +67,9 @@ export default async function ShareStatementPage({
       <style dangerouslySetInnerHTML={{ __html: PRINT_CSS }} />
 
       <div className="no-print flex items-center justify-between">
-        <Link href={backHref} className="text-sm text-muted-foreground underline underline-offset-4">
-          ← Back
-        </Link>
+        <BackLink href={backHref}>
+          Back
+        </BackLink>
         <PrintButton />
       </div>
 

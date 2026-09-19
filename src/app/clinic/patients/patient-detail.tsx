@@ -9,6 +9,7 @@ import { notFound } from "next/navigation";
 import { CalendarDays, CalendarPlus, ClipboardList, Pill, Printer } from "lucide-react";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicalRecordFor } from "@/config/modules";
+import { BackLink } from "@/core/ui/back-link";
 import { EmptyState } from "@/core/ui/empty-state";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
@@ -301,12 +302,9 @@ export async function PatientDetail({
       />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link
-            href={backHref}
-            className="text-sm text-muted-foreground underline underline-offset-4"
-          >
-            ← Back to patients
-          </Link>
+          <BackLink href={backHref}>
+            Back to patients
+          </BackLink>
           <h1 className="mt-2 text-xl font-semibold">{patient.fullName}</h1>
           {mrnLabel ? (
             <p className="text-sm font-medium tabular-nums text-muted-foreground">{mrnLabel}</p>

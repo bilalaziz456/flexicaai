@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { BackLink } from "@/core/ui/back-link";
 import { SPECIALTY_CATALOG } from "@/config/modules";
 import { requireAdminCapability } from "@/core/auth/user";
 import { listActiveTeam } from "@/core/admin/assignment";
@@ -11,12 +11,9 @@ export default async function NewClinicPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href="/admin"
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
-          ← Back to clinics
-        </Link>
+        <BackLink href="/admin">
+          Back to clinics
+        </BackLink>
         <h1 className="mt-2 text-xl font-semibold">New clinic</h1>
       </div>
       <CreateClinicForm catalog={SPECIALTY_CATALOG} team={team} />

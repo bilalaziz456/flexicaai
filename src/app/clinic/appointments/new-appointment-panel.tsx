@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { BackLink } from "@/core/ui/back-link";
 import { getPatientForPicker, listRecentPatients } from "@/core/patients/list";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { formatMrn } from "@/core/patients/mrn";
@@ -61,12 +61,9 @@ export async function NewAppointmentPanel({
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href={backHref}
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
-          ← Back to appointments
-        </Link>
+        <BackLink href={backHref}>
+          Back to appointments
+        </BackLink>
         <h1 className="mt-2 text-xl font-semibold">New appointment</h1>
       </div>
 

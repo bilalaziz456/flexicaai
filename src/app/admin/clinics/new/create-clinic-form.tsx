@@ -9,7 +9,8 @@ import {
   type AdminActionState,
 } from "@/app/admin/actions";
 import { SpecialtyCheckboxes } from "@/app/admin/clinics/specialty-checkboxes";
-import { Button } from "@/core/ui/button";
+import { Button, buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
 import { Toast } from "@/core/ui/toast";
 import {
   Card,
@@ -172,10 +173,10 @@ export function CreateClinicForm({
         <Button type="submit" disabled={pending || hoursInvalid}>
           {pending ? "Creating…" : "Create clinic"}
         </Button>
-        <Link
-          href="/admin"
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
+        {/* Cancel sits beside Submit, so it is one of a PAIR of actions — as an
+            underlined line of text it read as a footnote to the button rather than
+            the other half of the choice. */}
+        <Link href="/admin" className={cn(buttonVariants({ variant: "ghost" }))}>
           Cancel
         </Link>
       </div>
