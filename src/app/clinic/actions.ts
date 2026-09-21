@@ -33,6 +33,8 @@ import { dobFromAgeField } from "@/core/lib/age";
 import { logActivity } from "@/core/audit/log";
 import { CLINIC_STAFF_ROLES, STAFF_PREFIXES, USERNAME_REGEX } from "@/core/types/auth";
 import { sanitizePermissions } from "@/core/auth/permissions";
+import { getDoctorActivity, type DoctorActivity } from "@/core/users/doctor-activity";
+import { resolveActivityRange } from "@/core/users/activity-range";
 
 export type ClinicActionState = { error?: string; saved?: boolean };
 
@@ -729,4 +731,39 @@ export async function updateClinicSettings(
   });
   revalidatePath("/clinic");
   return { saved: true };
+}
+
+/**
+ * The doctor activity card's figures over a chosen window.
+ *
+ * A server action rather than a query string, because this card sits on a page of
+ * EDITABLE FORMS. Pushing `?activityPeriod=…` would re-render the whole staff record
+ * — working hours, permissions, revenue share — to change four numbers in one card,
+ * and would put a half-typed name at the mercy of reconciliation. Fetching just this
+ * leaves the rest of the page, and anything in progress on it, untouched. It is the
+ * shape the clinic scorecard already uses for the same reason.
+ *
+ * `requireClinicAdmin()` matches the gate the card is rendered behind. A manager can
+ * hold `staff:view` and open this page; what one colleague has been doing is not
+ * something that permission was granted for.
+ */
+export async function loadDoctorActivity(
+  doctorId: string,
+  period: string,
+  from?: string,
+  to?: string,
+): Promise<{ data: DoctorActivity; from: string; to: string } | { error: string }> {
+  const { clinicId } = await requireClinicAdmin();
+
+  // The doctor must be one of OUR staff. `findEditableStaff` is the same lookup the
+  // page does, so an id from another clinic gets the same answer here as there.
+  const member = await findEditableStaff(clinicId, doctorId);
+  if (!member || member.role !== "doctor") return { error: "Doctor not found." };
+
+  const range = resolveActivityRange(period, from, to);
+  return {
+    data: await getDoctorActivity(clinicId, doctorId, range),
+    from: range.from,
+    to: range.to,
+  };
 }

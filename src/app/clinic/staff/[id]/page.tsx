@@ -2,13 +2,15 @@ import { getClinic } from "@/core/clinics/get-clinic";
 import { assertNotLastAdmin, getClinicStaffMember } from "@/core/users/clinic-staff";
 import { listUpcomingLeaves } from "@/core/appointments/availability";
 import { notFound } from "next/navigation";
-import { Activity, Ban, CalendarClock, CalendarOff, Percent, RotateCcw, ShieldCheck } from "lucide-react";
+import { Ban, CalendarClock, CalendarOff, Percent, RotateCcw, ShieldCheck } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { setStaffActive } from "@/app/clinic/actions";
 import { DoctorLeaves } from "@/app/clinic/schedule/doctor-leaves";
 import { getBookingProcedures } from "@/core/appointments/procedures";
 import { getDoctorActivity } from "@/core/users/doctor-activity";
-import { resolveSalesRange } from "@/core/sales/report";
+import { resolveActivityRange } from "@/core/users/activity-range";
+import { DEFAULT_ACTIVITY_PERIOD } from "@/core/users/activity-periods";
+import { DoctorActivityCard } from "./doctor-activity-card";
 import { countOpenDrafts } from "@/core/clinical/drafts";
 import { getDoctorProcedureOverrides } from "@/core/appointments/share-config";
 import { CLINIC_STAFF_ROLES } from "@/core/types/auth";
@@ -17,11 +19,9 @@ import {
   resourcesForClinic,
 } from "@/core/auth/permissions";
 import { PermissionsGrid } from "./permissions-grid";
-import Link from "next/link";
 import { BackLink } from "@/core/ui/back-link";
-import { cn } from "@/core/lib/utils";
 import { Badge } from "@/core/ui/badge";
-import { Button, buttonVariants } from "@/core/ui/button";
+import { Button } from "@/core/ui/button";
 import {
   Card,
   CardContent,
@@ -44,8 +44,6 @@ import {
  * reactivate, and delete. Clinic-scoped, any clinic role including a peer admin —
  * except that the LAST active admin cannot be suspended or deleted.
  */
-const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
-
 export default async function StaffDetailPage({
   params,
 }: {
@@ -86,10 +84,11 @@ export default async function StaffDetailPage({
   // a manager holding `staff:view` can open this page, and one colleague's output
   // is not something the viewing permission was granted for.
   //
-  // Last 90 days: long enough that a quiet fortnight does not read as a collapse,
-  // short enough to describe what is happening NOW. The money figures carry their
-  // own lifetime totals alongside, because a balance is not a rate.
-  const activityRange = resolveSalesRange("quarter", undefined, undefined);
+  // The opening window is three months: long enough that a quiet fortnight does not
+  // read as a collapse, short enough to describe what is happening NOW. The reader
+  // widens it from the card; this render is what they see before touching anything,
+  // so it is done on the SERVER rather than fetched after paint.
+  const activityRange = resolveActivityRange(DEFAULT_ACTIVITY_PERIOD);
   const activity =
     isAdmin && member.role === "doctor"
       ? await getDoctorActivity(clinicId, member.id, activityRange)
@@ -208,152 +207,12 @@ export default async function StaffDetailPage({
       ) : null}
 
       {activity ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="size-5 text-muted-foreground" aria-hidden="true" />
-              Activity
-            </CardTitle>
-            <CardDescription>
-              The last 90 days. Figures, not a score — each one is shown with what it
-              is measured against, because a single number over these would hide more
-              than it told you.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 overflow-hidden rounded-lg border border-border/60 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                {
-                  label: "Appointments",
-                  value: activity.appointments.toLocaleString("en-PK"),
-                  // EVERY bucket, or none. Naming two of the five read as a sum that
-                  // did not come out — 13 appointments, "5 completed · 4 cancelled",
-                  // and the missing four looked like an error rather than the
-                  // no-shows and the visits nobody had closed out. A breakdown under
-                  // a total is a promise that it reconciles, so the terms are the
-                  // outcomes plus the remainder, and only the zero ones drop out.
-                  //
-                  // The spaces are non-breaking ON PURPOSE. Four terms do not fit a
-                  // quarter-width tile, and the first wrap landed between "5" and
-                  // "cancelled" — a figure orphaned from its noun, which is worse
-                  // than the two-term line this replaces. Binding each term, and
-                  // binding the separator to the term before it, leaves the only
-                  // legal break points AFTER a "·".
-                  hint:
-                    [
-                      activity.completed ? `${activity.completed} completed` : null,
-                      activity.noShows ? `${activity.noShows} no-show` : null,
-                      activity.cancelled ? `${activity.cancelled} cancelled` : null,
-                      activity.stillOpen ? `${activity.stillOpen} still open` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ") || "none booked",
-                },
-                {
-                  label: "No-show rate",
-                  value:
-                    activity.noShowRate === null
-                      ? "—"
-                      : `${Math.round(activity.noShowRate * 100)}%`,
-                  // The denominator is EXPECTED visits, and saying so matters: a
-                  // rate over everything booked would fall every time someone
-                  // cancelled a week ahead.
-                  hint:
-                    activity.noShowRate === null
-                      ? "no completed or missed visits yet"
-                      : `${activity.noShows} of ${activity.completed + activity.noShows} expected`,
-                },
-                {
-                  label: "Visits recorded",
-                  value: activity.visits.toLocaleString("en-PK"),
-                  hint: `${activity.scribeRuns} dictated`,
-                },
-                {
-                  label: "Earned",
-                  value: rs(activity.earnedInWindow),
-                  hint: activity.hasShareRate
-                    ? "revenue share, this period"
-                    : "no share percentage set",
-                },
-              ].map((k, i, all) => (
-                <div
-                  key={k.label}
-                  className={cn(
-                    "p-4",
-                    i < all.length - 1 && "border-b border-border/60",
-                    i >= all.length - 2 && "sm:border-b-0",
-                    i < all.length - 4 ? "lg:border-b" : "lg:border-b-0",
-                    i % 2 === 0 && "sm:border-r sm:border-border/60",
-                    (i + 1) % 4 === 0 ? "lg:border-r-0" : "lg:border-r lg:border-border/60",
-                  )}
-                >
-                  <div className="text-xs text-muted-foreground">{k.label}</div>
-                  <div className="mt-0.5 text-lg font-semibold tabular-nums">{k.value}</div>
-                  <div className="text-xs text-muted-foreground">{k.hint}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* The BALANCE. Same ledger the shares page settles against, read rather
-                than re-derived.
-
-                It LEADS WITH WHAT IT MEANS, because the arithmetic alone was
-                misleading in the one case that matters. A NEGATIVE balance does not
-                mean a small amount is outstanding — it means the money runs the other
-                way, and the doctor owes the clinic (they bore a discount). Printing
-                that as "Rs -9,868 outstanding" said the opposite of the truth while
-                looking precise, and put the minus sign in a different place from the
-                one on the adjustment beside it. Which side owes is the fact; the
-                terms are the working, so they sit underneath in smaller type and the
-                zero ones are left out. */}
-            {activity.hasShareRate ? (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 well p-3">
-                <div className="text-sm">
-                  <div>
-                    {activity.outstanding > 0 ? (
-                      <>
-                        <span className="font-medium">{rs(activity.outstanding)}</span>{" "}
-                        <span className="text-muted-foreground">owed to this doctor</span>
-                      </>
-                    ) : activity.outstanding < 0 ? (
-                      <>
-                        <span className="font-medium">{rs(Math.abs(activity.outstanding))}</span>{" "}
-                        <span className="text-muted-foreground">
-                          owed BY this doctor to the clinic
-                        </span>
-                      </>
-                    ) : (
-                      <span className="text-muted-foreground">Settled up — nothing owed either way</span>
-                    )}
-                  </div>
-                  {/* The working. Earnings ALWAYS lead, even at zero — they are what
-                      the other two terms modify, and "less Rs 9,868 in adjustments"
-                      standing alone reads as a fragment rather than a subtraction.
-                      A zero adjustment or payout is dropped, because those are
-                      genuinely absent rather than a starting point of nothing. */}
-                  <div className="mt-0.5 text-xs text-muted-foreground">
-                    Lifetime:{" "}
-                    {[
-                      `${rs(activity.earnedLifetime)} earned`,
-                      activity.adjustments !== 0
-                        ? `${activity.adjustments < 0 ? "less " : "plus "}${rs(Math.abs(activity.adjustments))} in adjustments`
-                        : null,
-                      activity.paidLifetime !== 0 ? `${rs(activity.paidLifetime)} paid out` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(", ")}
-                  </div>
-                </div>
-                <Link
-                  href={`/clinic/shares?doctorId=${member.id}`}
-                  className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-                >
-                  Open shares
-                </Link>
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
+        <DoctorActivityCard
+          doctorId={member.id}
+          initial={activity}
+          initialFrom={activityRange.from}
+          initialTo={activityRange.to}
+        />
       ) : null}
 
       {isAdmin && member.role === "doctor" ? (
