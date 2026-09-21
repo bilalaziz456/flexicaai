@@ -87,40 +87,40 @@ export default async function CashPage() {
                   <p className="text-xs text-muted-foreground">expected in the drawer right now</p>
                 </div>
 
-                {/* The working, so the figure is answerable rather than asserted. */}
-                <dl className="grid grid-cols-1 overflow-hidden rounded-lg border border-border/60 sm:grid-cols-3">
+                {/* The working, so the figure is answerable rather than asserted.
+                    READS DOWN, not across. It was a row of tiles, which is the wrong
+                    shape twice over: the number of terms VARIES (the two transfer
+                    lines appear only when there were transfers), so a fixed
+                    three-column grid left a four-term sum sitting in two rows with a
+                    hole in it — and more fundamentally, a sum is read by running an
+                    eye down a column of figures with the operators lined up. Across a
+                    row the reader has to hunt for the sign.
+                    Zero terms drop out, except the opening float: it is what the rest
+                    modify, so it stays even at zero. */}
+                <dl className="divide-y divide-border/60 overflow-hidden rounded-lg border border-border/60">
                   {[
-                    { label: "Opened with", value: rs(drawer.openingTotal) },
-                    { label: "Cash taken", value: `+ ${rs(m.collected)}` },
-                    {
-                      label: "Cash out",
-                      value: `− ${rs(m.refunded + m.expenses + m.payouts)}`,
-                      hint: [
-                        m.expenses ? `${rs(m.expenses)} expenses` : null,
-                        m.payouts ? `${rs(m.payouts)} to doctors` : null,
-                        m.refunded ? `${rs(m.refunded)} refunded` : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · "),
-                    },
-                    ...(m.transfersIn ? [{ label: "Float added", value: `+ ${rs(m.transfersIn)}` }] : []),
-                    ...(m.transfersOut
-                      ? [{ label: "Banked / taken", value: `− ${rs(m.transfersOut)}` }]
-                      : []),
-                  ].map((k, i, all) => (
-                    <div
-                      key={k.label}
-                      className={[
-                        "p-3",
-                        i < all.length - 1 ? "border-b border-border/60 sm:border-b-0" : "",
-                        (i + 1) % 3 === 0 ? "" : "sm:border-r sm:border-border/60",
-                      ].join(" ")}
-                    >
-                      <dt className="text-xs text-muted-foreground">{k.label}</dt>
-                      <dd className="mt-0.5 font-medium tabular-nums">{k.value}</dd>
-                      {k.hint ? <dd className="text-xs text-muted-foreground">{k.hint}</dd> : null}
-                    </div>
-                  ))}
+                    { label: "Opened with", value: drawer.openingTotal, sign: "" },
+                    m.collected ? { label: "Cash taken", value: m.collected, sign: "+" } : null,
+                    m.transfersIn ? { label: "Float added", value: m.transfersIn, sign: "+" } : null,
+                    m.expenses ? { label: "Paid out in cash", value: m.expenses, sign: "−" } : null,
+                    m.payouts ? { label: "Paid to doctors", value: m.payouts, sign: "−" } : null,
+                    m.refunded ? { label: "Refunded", value: m.refunded, sign: "−" } : null,
+                    m.transfersOut ? { label: "Banked or taken", value: m.transfersOut, sign: "−" } : null,
+                  ]
+                    .filter((k) => k !== null)
+                    .map((k) => (
+                      <div key={k.label} className="flex items-baseline justify-between gap-4 px-3 py-2">
+                        <dt className="text-sm text-muted-foreground">{k.label}</dt>
+                        <dd className="text-sm font-medium tabular-nums">
+                          {k.sign ? `${k.sign} ` : ""}
+                          {rs(k.value)}
+                        </dd>
+                      </div>
+                    ))}
+                  <div className="flex items-baseline justify-between gap-4 px-3 py-2">
+                    <dt className="text-sm font-medium">Should be in the drawer</dt>
+                    <dd className="text-sm font-semibold tabular-nums">{rs(drawer.expected)}</dd>
+                  </div>
                 </dl>
 
                 {untendered > 0 ? (
