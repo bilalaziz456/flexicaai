@@ -283,8 +283,29 @@ async function run() {
   record("receptionist GET /reception → redirect (folded)", is3xx((await req("/reception", { cookie: S.recepA })).status));
   record("receptionist GET /clinic/appointments/new → 200", (await req("/clinic/appointments/new", { cookie: S.recepA })).status === 200);
   {
-    const r = await req("/clinic/doctors", { cookie: S.recepA });
-    record("receptionist GET /clinic/doctors → 200 + limit + leave controls", r.status === 200 && r.text.includes("Daily appointment limit") && r.text.includes("Leave / vacation"));
+    // The doctors/leave screen became `/clinic/schedule` (19cf342), and ADR-033 split
+    // `schedule` out of `leave` at the same time: the front desk must SEE the rota to
+    // book against it, but re-shaping a doctor's capacity is `schedule:edit`, which a
+    // receptionist does not hold by default. So this asserts both halves — the page
+    // renders, and the daily-cap control is NOT offered. It checked the old route and
+    // the old permission split until now, which is why it failed against a product
+    // that had deliberately changed.
+    const r = await req("/clinic/schedule", { cookie: S.recepA });
+    record(
+      "receptionist GET /clinic/schedule → 200, rota visible, no cap editor",
+      r.status === 200 &&
+        r.text.includes("Doctor schedule") &&
+        !r.text.includes('aria-label="Daily appointment limit"'),
+    );
+    // The old bookmark still works, but NOT as a 3xx: the panel layout has already
+    // begun streaming when `redirect()` throws, so Next delivers it inside a 200 —
+    // the same mechanism ADR-026 records for `notFound()` in a panel. Asserting a
+    // redirect STATUS here would be asserting something this app never sends.
+    const old = await req("/clinic/doctors", { cookie: S.recepA });
+    record(
+      "old /clinic/doctors bookmark still points at the schedule",
+      old.status === 200 && old.text.includes("/clinic/schedule"),
+    );
   }
   {
     const r = await req("/clinic/whatsapp", { cookie: S.recepA });
