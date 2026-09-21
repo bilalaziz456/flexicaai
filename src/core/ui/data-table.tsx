@@ -120,14 +120,14 @@ export function DataTable<T>({
       <div className="hidden overflow-x-auto md:block">
         <table className={cn("w-full text-sm", minWidthClassName)}>
           <thead>
-            <tr className="border-b text-left text-xs text-muted-foreground">
+            <tr className="border-b border-border text-left text-2xs font-semibold tracking-[0.07em] text-muted-foreground uppercase">
               {columns.map((c) => {
                 const active = sort?.id === c.id;
                 return (
                   <th
                     key={c.id}
                     className={cn(
-                      "pb-2 font-normal",
+                      "pb-2.5 font-semibold",
                       stickyHeader && "sticky top-0 z-10 bg-background",
                       c.align && alignClass[c.align],
                       c.headerClassName,
@@ -138,7 +138,11 @@ export function DataTable<T>({
                         type="button"
                         onClick={() => toggleSort(c.id)}
                         className={cn(
-                          "inline-flex min-h-6 items-center gap-1 rounded outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                          // `uppercase` is repeated here on purpose: a BUTTON does not inherit
+                          // text-transform (browsers reset it on form elements), so the sortable
+                          // columns rendered Title Case while the non-sortable ones beside them
+                          // were uppercase — two header styles inside one table.
+                          "inline-flex min-h-6 items-center gap-1 rounded text-2xs font-semibold tracking-[0.07em] uppercase outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60",
                           c.align === "right" && "flex-row-reverse",
                           active && "text-foreground",
                         )}
@@ -166,16 +170,24 @@ export function DataTable<T>({
           <tbody>
             {sorted.map((row, i) => {
               const cells = columns.map((c) => (
-                <td key={c.id} className={cn("py-2 align-middle", c.align && alignClass[c.align], c.cellClassName)}>
+                <td key={c.id} className={cn("py-3 align-middle", c.align && alignClass[c.align], c.cellClassName)}>
                   {c.cell(row)}
                 </td>
               ));
               return rowHref ? (
-                <RowLink key={getRowKey(row, i)} as="tr" href={rowHref(row)} className="border-b last:border-0">
+                <RowLink
+                  key={getRowKey(row, i)}
+                  as="tr"
+                  href={rowHref(row)}
+                  className="border-b border-border/55 transition-colors duration-100 last:border-0 hover:bg-foreground/[0.028]"
+                >
                   {cells}
                 </RowLink>
               ) : (
-                <tr key={getRowKey(row, i)} className="border-b transition-colors last:border-0 hover:bg-muted/40">
+                <tr
+                  key={getRowKey(row, i)}
+                  className="border-b border-border/55 transition-colors duration-100 last:border-0 hover:bg-foreground/[0.028]"
+                >
                   {cells}
                 </tr>
               );
@@ -185,7 +197,7 @@ export function DataTable<T>({
             <tfoot>
               <tr className="border-t font-medium">
                 {columns.map((c) => (
-                  <td key={c.id} className={cn("py-2 align-middle", c.align && alignClass[c.align], c.cellClassName)}>
+                  <td key={c.id} className={cn("py-3 align-middle", c.align && alignClass[c.align], c.cellClassName)}>
                     {c.footer ? c.footer() : null}
                   </td>
                 ))}
@@ -196,7 +208,7 @@ export function DataTable<T>({
       </div>
 
       {/* Mobile: each row as a card */}
-      <ul className="space-y-2 md:hidden">
+      <ul className="divide-y divide-border/60 rounded-lg border border-border/60 md:hidden">
         {sorted.map((row, i) => {
           const inner = (
             <>
@@ -212,11 +224,11 @@ export function DataTable<T>({
             </>
           );
           return rowHref ? (
-            <RowLink key={getRowKey(row, i)} as="li" href={rowHref(row)} className="block rounded-lg border p-3 text-sm">
+            <RowLink key={getRowKey(row, i)} as="li" href={rowHref(row)} className="block p-3 text-sm">
               {inner}
             </RowLink>
           ) : (
-            <li key={getRowKey(row, i)} className="rounded-lg border p-3 text-sm">
+            <li key={getRowKey(row, i)} className="p-3 text-sm">
               {inner}
             </li>
           );

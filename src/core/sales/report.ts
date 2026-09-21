@@ -324,16 +324,27 @@ export async function getSalesReport(
 }
 
 /**
- * Lightweight net-sales summary over a range (net total + completed-visit count) —
- * for the clinic dashboard card, without the report's buckets/breakdowns. Uses the
- * (`clinic_id`,`occurred_at`) index. Clinic-scoped.
+ * Lightweight net-sales summary over a range — net total, completed-visit count,
+ * and one figure per DAY for the dashboard card's sparkline. Still the report's
+ * cheap cousin: no per-doctor or per-procedure breakdown, and still one query.
+ *
+ * Grouped by day rather than totalled flat, because the card needs both and a
+ * second query for a number already in hand is the redundancy ADR-031 removed
+ * elsewhere. Totalling the returned rows also means the sparkline and the figure
+ * above it come from the SAME rows, so they cannot disagree — a sparkline that
+ * sums to something other than the number it sits under is worse than no
+ * sparkline at all.
+ *
+ * Empty days are pre-seeded as zero, so a quiet week reads as a flat stretch
+ * rather than being silently compressed out of the series.
  */
 export async function getSalesSummary(
   clinicId: string,
   range: ResolvedRange,
-): Promise<{ netTotal: number; count: number }> {
-  const [row] = await db
+): Promise<{ netTotal: number; count: number; trend: number[] }> {
+  const rows = await db
     .select({
+      d: sql<string>`to_char(date_trunc('day', ${sales.occurredAt}), 'YYYY-MM-DD')`,
       net: sql<number>`coalesce(sum(${sales.netAmount}), 0)::int`,
       count: sql<number>`count(*)::int`,
     })
@@ -344,8 +355,26 @@ export async function getSalesSummary(
         clinicId,
         and(gte(sales.occurredAt, range.start), lt(sales.occurredAt, range.end)),
       ),
-    );
-  return { netTotal: Number(row?.net ?? 0), count: Number(row?.count ?? 0) };
+    )
+    .groupBy(sql`date_trunc('day', ${sales.occurredAt})`);
+
+  const byDay = new Map(rows.map((r) => [r.d, Number(r.net)]));
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const trend: number[] = [];
+  for (
+    const cursor = new Date(range.start);
+    cursor < range.end;
+    cursor.setDate(cursor.getDate() + 1)
+  ) {
+    const key = `${cursor.getFullYear()}-${pad(cursor.getMonth() + 1)}-${pad(cursor.getDate())}`;
+    trend.push(byDay.get(key) ?? 0);
+  }
+
+  return {
+    netTotal: rows.reduce((a, r) => a + Number(r.net), 0),
+    count: rows.reduce((a, r) => a + Number(r.count), 0),
+    trend,
+  };
 }
 
 export type SalesLedgerRow = {

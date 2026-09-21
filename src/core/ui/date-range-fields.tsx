@@ -1,6 +1,6 @@
 "use client";
 
-import { DatePicker } from "@/core/ui/date-picker";
+import { DatePicker, DATE_FIELD_W } from "@/core/ui/date-picker";
 import { Label } from "@/core/ui/label";
 
 /**
@@ -9,6 +9,11 @@ import { Label } from "@/core/ui/label";
  * the surrounding filter bar wraps). Shared by every filter bar for a consistent
  * layout. Each picker is a controlled value + onChange; `idPrefix` keeps the input
  * ids unique when a page hosts more than one range.
+ *
+ * The width comes from `DATE_FIELD_W`, not from a number chosen here. Each of the six
+ * places that wrapped a picker used to pick its own, two of them too small to fit the
+ * date the picker always renders — see the constant for the measurement and why the
+ * weekday stays in the format.
  */
 export function DateRangeFields({
   from,
@@ -30,13 +35,13 @@ export function DateRangeFields({
     <div className="flex items-end gap-3">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={fromId} className={labelCls}>From</Label>
-        <div className="w-40">
+        <div className={DATE_FIELD_W}>
           <DatePicker id={fromId} ariaLabel="From date" value={from} onChange={onFrom} />
         </div>
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={toId} className={labelCls}>To</Label>
-        <div className="w-40">
+        <div className={DATE_FIELD_W}>
           <DatePicker id={toId} ariaLabel="To date" value={to} onChange={onTo} />
         </div>
       </div>

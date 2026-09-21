@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useState, type ReactNode } from "react";
-import { Dialog } from "@base-ui/react/dialog";
+import { SelectField } from "@/core/ui/select-field";
+import { Dialog } from "@/core/ui/dialog";
 import { CalendarOff } from "lucide-react";
 import {
   addDoctorLeave,
@@ -11,7 +12,6 @@ import { Button } from "@/core/ui/button";
 import { DatePicker } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
-import { cn } from "@/core/lib/utils";
 
 /**
  * Adding leave, in one place — used by the page's "Add leave" button, by each doctor
@@ -26,13 +26,6 @@ import { cn } from "@/core/lib/utils";
  */
 
 export type LeaveDoctor = { id: string; name: string };
-
-export const SELECT_CLASS = cn(
-  // No width here on purpose: callers set it (the picker is full-width in the form,
-  // fixed in the toolbar), and a `w-full` baked in would win over either by source order.
-  "h-9 rounded-lg border border-input bg-[var(--input-bg)] pr-8 pl-2.5 text-sm outline-none",
-  "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron",
-);
 
 /** The shared form body. `onDone` closes whatever dialog is holding it. */
 export function AddLeaveForm({
@@ -73,18 +66,14 @@ export function AddLeaveForm({
           <Label htmlFor={`leave-doctor-${id}`} className="text-xs">
             Doctor
           </Label>
-          <select
+          <SelectField
             id={`leave-doctor-${id}`}
-            className={`${SELECT_CLASS} w-full`}
             value={chosen}
-            onChange={(e) => setChosen(e.target.value)}
-          >
-            {doctors.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
+            onValueChange={(next) => setChosen(next)}
+            options={[...doctors.map((d) => ({ value: d.id, label: d.name }))]}
+            ariaLabel="`leave-doctor-${id}`"
+            className="h-8 w-full w-full"
+          />
         </div>
       )}
 
@@ -177,25 +166,28 @@ export function AddLeaveButton({
         {label}
       </Button>
 
-      <Dialog.Root open={open} onOpenChange={setOpen}>
-        <Dialog.Portal>
-          <Dialog.Backdrop className="fixed inset-0 z-[100] bg-black/50 transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
-          <Dialog.Popup className="fixed top-1/2 left-1/2 z-[100] max-h-[90vh] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border bg-card p-5 text-card-foreground shadow-xl outline-none transition-all duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
-            <Dialog.Title className="text-base font-semibold">
+      <Dialog
+        open={open}
+        onOpenChange={setOpen}
+        size="md"
+        title={
+          <>
               Add leave{who ? ` · ${who}` : ""}
-            </Dialog.Title>
-            <Dialog.Description className="mt-1 text-sm text-muted-foreground">
+          </>
+        }
+        description={
+          <>
               The doctor is marked away for these days, and cannot be booked.
-            </Dialog.Description>
-            <AddLeaveForm
-              doctors={doctors}
-              doctorId={doctorId}
-              date={date}
-              onDone={() => setOpen(false)}
-            />
-          </Dialog.Popup>
-        </Dialog.Portal>
-      </Dialog.Root>
+          </>
+        }
+      >
+        <AddLeaveForm
+          doctors={doctors}
+          doctorId={doctorId}
+          date={date}
+          onDone={() => setOpen(false)}
+        />
+      </Dialog>
     </>
   );
 }

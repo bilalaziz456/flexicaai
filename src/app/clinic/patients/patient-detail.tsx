@@ -6,9 +6,11 @@ import {
 } from "@/core/patients/manage";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarPlus, Printer } from "lucide-react";
+import { CalendarDays, CalendarPlus, ClipboardList, Pill, Printer } from "lucide-react";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicalRecordFor } from "@/config/modules";
+import { BackLink } from "@/core/ui/back-link";
+import { EmptyState } from "@/core/ui/empty-state";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
@@ -21,6 +23,7 @@ import {
 } from "@/core/ui/card";
 import { ViewLogger } from "@/core/ui/view-logger";
 import { AllergyBanner } from "@/core/ui/allergy-banner";
+import { SectionRail, type RailSection } from "@/core/ui/section-rail";
 import { ageFromDob } from "@/core/lib/age";
 import { formatMrn } from "@/core/patients/mrn";
 import { APPOINTMENT_STATUS_VARIANT } from "@/core/appointments/status";
@@ -257,6 +260,42 @@ export async function PatientDetail({
       minute: "2-digit",
     });
 
+  // Mirrors the guards below exactly — a rail that lists a section the viewer's
+  // permissions hide would scroll them to nothing.
+  const railSections: RailSection[] = [
+    ...(account ? [{ id: "account", label: "Account", group: "Overview" }] : []),
+    { id: "details", label: "Details", group: "Overview" },
+    ...(canViewClinical && medHistory
+      ? [{ id: "medical-history", label: "Medical history", group: "Overview" }]
+      : []),
+    ...(canViewClinical
+      ? [{ id: "clinical-history", label: "Visits", group: "Clinical" }]
+      : []),
+    ...(canViewPrescriptions
+      ? [{ id: "prescriptions", label: "Prescriptions", group: "Clinical" }]
+      : []),
+    ...(canViewClinical && clinicalRecord
+      ? [{ id: "odontogram", label: "Odontogram", group: "Clinical" }]
+      : []),
+    ...(canViewClinical && clinicalRecord?.perio
+      ? [{ id: "perio", label: "Periodontal chart", group: "Clinical" }]
+      : []),
+    ...(canViewAttachments
+      ? [{ id: "imaging", label: "Imaging & documents", group: "Records" }]
+      : []),
+    ...(canViewPlans
+      ? [{ id: "treatment-plans", label: "Treatment plans", group: "Records" }]
+      : []),
+    ...(canViewLab && labBundle
+      ? [{ id: "lab-cases", label: "Lab cases", group: "Records" }]
+      : []),
+    { id: "appointments", label: "Appointments", group: "Records" },
+    // Its own group: deleting a patient is not a record, and listing it under
+    // "Records" put a destructive action one line below Appointments as though it
+    // were the next thing to read.
+    ...(canDelete ? [{ id: "danger", label: "Danger zone", group: "Danger" }] : []),
+  ];
+
   return (
     <div className="space-y-6">
       <ViewLogger
@@ -266,13 +305,10 @@ export async function PatientDetail({
       />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link
-            href={backHref}
-            className="text-sm text-muted-foreground underline underline-offset-4"
-          >
-            ← Back to patients
-          </Link>
-          <h1 className="mt-2 text-xl font-semibold">{patient.fullName}</h1>
+          <BackLink href={backHref}>
+            Back to patients
+          </BackLink>
+          <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em]">{patient.fullName}</h1>
           {mrnLabel ? (
             <p className="text-sm font-medium tabular-nums text-muted-foreground">{mrnLabel}</p>
           ) : null}
@@ -296,8 +332,16 @@ export async function PatientDetail({
 
       <AllergyBanner allergies={allergies} />
 
+      {/* The record itself, with a sticky index beside it. Twelve stacked cards and
+          ~6,200px meant reaching the odontogram was a scroll past the whole account,
+          the details and every visit. Tabs were the obvious alternative and were
+          rejected: this is a clinical record, and tabs would hide four fifths of it
+          behind a click, drop it out of Ctrl+F and take it off the printed page. */}
+      <div className="grid gap-6 lg:grid-cols-[13rem_minmax(0,1fr)] lg:items-start">
+        <SectionRail sections={railSections} />
+        <div className="min-w-0 space-y-6">
       {account ? (
-        <Card>
+        <Card id="account" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Account</CardTitle>
             <CardDescription>
@@ -305,13 +349,20 @@ export async function PatientDetail({
             </CardDescription>
             <Link
               href={`/clinic/patients/${patient.id}/statement`}
-              className="text-sm font-medium underline underline-offset-4"
+              className="inline-flex min-h-7 items-center gap-1.5 text-sm font-medium underline-offset-4 transition-colors hover:underline"
             >
-              Print statement →
+              <Printer className="size-3.5 shrink-0" aria-hidden="true" />
+              Print statement
             </Link>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {/* Figures separated by hairlines rather than four sunken boxes — the
+                same treatment the dashboard's supporting stats use. A well is a
+                RECESS, which suits an input or a secondary grouping; these are the
+                headline numbers of the card, and recessing them put the figures on
+                the card's lowest plane. It also meant almost the whole card body was
+                grey, so the white card read as a grey block with white gutters. */}
+            <div className="grid grid-cols-2 divide-x divide-y divide-border/60 overflow-hidden rounded-lg border border-border/60 sm:grid-cols-4 sm:divide-y-0">
               {[
                 { label: "Billed", value: money(account.totals.billed) },
                 { label: "Collected", value: money(account.totals.collected) },
@@ -319,9 +370,9 @@ export async function PatientDetail({
                   ? [{ label: "Opening balance", value: money(account.openingBalance) }]
                   : []),
                 { label: "Outstanding", value: money(account.totals.outstanding) },
-                { label: "Advance credit", value: money(account.credit) },
+                { label: "Advance payment", value: money(account.credit) },
               ].map((s) => (
-                <div key={s.label} className="rounded-lg border p-3">
+                <div key={s.label} className="p-3">
                   <div className="text-xs text-muted-foreground">{s.label}</div>
                   <div className="text-lg font-semibold tabular-nums">{s.value}</div>
                 </div>
@@ -329,7 +380,7 @@ export async function PatientDetail({
             </div>
 
             {canRecordPayment && account.openingBalance > 0 ? (
-              <div className="rounded-lg border p-3">
+              <div className="rounded-lg border well p-3">
                 <p className="mb-2 text-sm font-medium">Settle opening balance (pre-FlexicaAI dues)</p>
                 <OpeningBalanceForm key={account.openingBalance} patientId={patient.id} owed={account.openingBalance} />
               </div>
@@ -338,7 +389,7 @@ export async function PatientDetail({
             {account.visits.some((v) => v.outstanding > 0) ? (
               <div>
                 <p className="mb-1 text-sm font-medium">Outstanding visits</p>
-                <ul className="divide-y rounded-lg border text-sm">
+                <ul className="divide-y divide-border/60 rounded-lg border border-border/60 text-sm">
                   {account.visits
                     .filter((v) => v.outstanding > 0)
                     .map((v) => (
@@ -364,7 +415,7 @@ export async function PatientDetail({
             {account.payments.length > 0 ? (
               <div>
                 <p className="mb-1 text-sm font-medium">Recent payments</p>
-                <ul className="divide-y rounded-lg border text-sm">
+                <ul className="divide-y divide-border/60 rounded-lg border border-border/60 text-sm">
                   {account.payments.slice(0, 10).map((p) => (
                     <li key={p.id} className="flex items-center justify-between gap-3 px-3 py-2">
                       <span>
@@ -387,7 +438,7 @@ export async function PatientDetail({
         </Card>
       ) : null}
 
-      <Card>
+      <Card id="details" className="scroll-mt-24">
         <CardHeader>
           <CardTitle>Details</CardTitle>
           <CardDescription>
@@ -441,7 +492,7 @@ export async function PatientDetail({
       </Card>
 
       {canViewClinical && medHistory ? (
-        <Card>
+        <Card id="medical-history" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Medical &amp; dental history</CardTitle>
             <CardDescription>
@@ -459,7 +510,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewClinical ? (
-        <Card>
+        <Card id="clinical-history" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Clinical history</CardTitle>
             <CardDescription>
@@ -469,9 +520,14 @@ export async function PatientDetail({
           </CardHeader>
           <CardContent>
             {clinicalVisits.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No clinical notes yet.</p>
+              <EmptyState
+                compact
+                icon={ClipboardList}
+                title="No clinical notes yet"
+                description="Notes appear here once a visit is dictated and approved."
+              />
             ) : (
-              <ol className="space-y-4">
+              <ol className="divide-y divide-border/60 rounded-lg border border-border/60">
                 {clinicalVisits.map((v) => {
                   const note = (v.note && typeof v.note === "object" ? v.note : {}) as {
                     chiefComplaint?: string | null;
@@ -502,7 +558,7 @@ export async function PatientDetail({
                   return (
                     <li
                       key={v.id}
-                      className="relative rounded-lg border p-3 text-sm"
+                      className="p-3 text-sm"
                     >
                       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                         <span className="font-medium">
@@ -515,9 +571,30 @@ export async function PatientDetail({
                             </span>
                           ) : null}
                         </span>
-                        <Badge variant={note.imported ? "outline" : v.status === "approved" ? "default" : "secondary"}>
-                          {note.imported ? "Imported" : v.status === "approved" ? "Approved" : "Draft"}
-                        </Badge>
+                        {/* A badge marks the EXCEPTION, never the norm. This list is
+                            approved notes plus the viewer's own unsigned ones, so
+                            "Approved" printed on almost every row said nothing and
+                            cost the one thing a badge is for: a "Draft" two rows
+                            down stopped being visible, because the eye gives up on a
+                            column that always reads the same. Approved is now silent
+                            — the date and the clinician already say what the row is,
+                            and an adopted draft still names its signer beside them.
+                            `transcribing` and `failed` reach only their own author
+                            (ADR-020) and are named rather than lumped into "Draft":
+                            a run that died is not a note awaiting a signature. */}
+                        {note.imported ? (
+                          <Badge variant="outline">Imported</Badge>
+                        ) : v.status === "draft" ? (
+                          <Badge variant="secondary">Draft</Badge>
+                        ) : v.status === "transcribing" ? (
+                          <Badge variant="secondary">Writing the note…</Badge>
+                        ) : v.status === "failed" ? (
+                          // `warning`, not `destructive`: the scribe workspace calls
+                          // this same run retryable and words it the same way. A
+                          // record the reader can fix with one click should not be
+                          // the loudest thing on the page.
+                          <Badge variant="warning">Scribe failed</Badge>
+                        ) : null}
                       </div>
                       {note.imported && note.summary ? (
                         <p className="whitespace-pre-line">{note.summary}</p>
@@ -572,7 +649,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewPrescriptions ? (
-        <Card>
+        <Card id="prescriptions" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Prescriptions</CardTitle>
             <CardDescription>
@@ -581,11 +658,16 @@ export async function PatientDetail({
           </CardHeader>
           <CardContent>
             {prescriptionVisits.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No prescriptions yet.</p>
+              <EmptyState
+                compact
+                icon={Pill}
+                title="No prescriptions yet"
+                description="Approved visits that include drugs appear here, ready to reprint."
+              />
             ) : (
-              <ol className="space-y-3">
+              <ol className="divide-y divide-border/60 rounded-lg border border-border/60">
                 {prescriptionVisits.map((rx) => (
-                  <li key={rx.visitId} className="rounded-lg border p-3 text-sm">
+                  <li key={rx.visitId} className="p-3 text-sm">
                     <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                       <span className="font-medium">
                         {rx.date ? dayFmt(rx.date) : "—"}
@@ -614,15 +696,16 @@ export async function PatientDetail({
       ) : null}
 
       {canViewClinical && clinicalRecord ? (
-        <Card>
+        <Card id="odontogram" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Odontogram</CardTitle>
             <CardDescription>The patient&apos;s current tooth chart.</CardDescription>
             <Link
               href={`${backHref}/${patient.id}/chart-print`}
-              className="text-sm font-medium underline underline-offset-4"
+              className="inline-flex min-h-7 items-center gap-1.5 text-sm font-medium underline-offset-4 transition-colors hover:underline"
             >
-              Print chart →
+              <Printer className="size-3.5 shrink-0" aria-hidden="true" />
+              Print chart
             </Link>
           </CardHeader>
           <CardContent>
@@ -637,7 +720,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewClinical && clinicalRecord?.perio ? (
-        <Card>
+        <Card id="perio" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Periodontal chart</CardTitle>
             <CardDescription>
@@ -661,7 +744,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewAttachments ? (
-        <Card>
+        <Card id="imaging" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Imaging &amp; documents</CardTitle>
             <CardDescription>X-rays, clinical photos, documents and consent forms.</CardDescription>
@@ -679,7 +762,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewPlans ? (
-        <Card>
+        <Card id="treatment-plans" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Treatment plans</CardTitle>
             <CardDescription>
@@ -702,7 +785,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewLab && labBundle ? (
-        <Card>
+        <Card id="lab-cases" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Lab cases</CardTitle>
             <CardDescription>Crowns, dentures &amp; appliances. Status → &ldquo;ready&rdquo; WhatsApp.</CardDescription>
@@ -721,7 +804,7 @@ export async function PatientDetail({
         </Card>
       ) : null}
 
-      <Card>
+      <Card id="appointments" className="scroll-mt-24">
         <CardHeader>
           <CardTitle>Appointments</CardTitle>
           <CardDescription>
@@ -730,13 +813,18 @@ export async function PatientDetail({
         </CardHeader>
         <CardContent>
           {appts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No appointments yet.</p>
+            <EmptyState
+              compact
+              icon={CalendarDays}
+              title="No appointments yet"
+              description="Book one from the button above and it will be listed here."
+            />
           ) : (
-            <ul className="space-y-2">
+            <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
               {appts.map((a) => (
                 <li
                   key={a.id}
-                  className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm"
+                  className="flex items-center justify-between gap-2 p-2.5 text-sm"
                 >
                   <span>
                     {fmt(a.scheduledAt)}
@@ -756,7 +844,7 @@ export async function PatientDetail({
       </Card>
 
       {canDelete ? (
-        <Card className="border-destructive/40">
+        <Card id="danger" className="border-destructive/40 scroll-mt-24">
           <CardHeader>
             <CardTitle className="text-destructive">Danger zone</CardTitle>
             <CardDescription>
@@ -769,6 +857,9 @@ export async function PatientDetail({
           </CardContent>
         </Card>
       ) : null}
+
+        </div>
+      </div>
 
       {/* Mobile: a floating "create appointment" action (icon only), mirroring the
           list FABs. The header button covers desktop. */}

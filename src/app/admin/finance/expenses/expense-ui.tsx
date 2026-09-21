@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
-import { Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { useActionState, useState, useTransition } from "react";
+import { Pencil, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import {
   saveCompanyExpense,
   deleteCompanyExpenseAction,
@@ -10,18 +10,20 @@ import {
   toggleCompanyCategoryAction,
   type ExpenseActionState,
 } from "./actions";
+import { EmptyState } from "@/core/ui/empty-state";
+import { SelectField } from "@/core/ui/select-field";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { DatePicker } from "@/core/ui/date-picker";
-import { Toast } from "@/core/ui/toast";
+import { Toast, useActionToast } from "@/core/ui/toast";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
 const inputCls =
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
-const selectCls = `${inputCls} select-chevron pr-8`;
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 
 const todayStr = () => {
@@ -60,26 +62,28 @@ export function CompanyExpenseForm({
   // Methods come from the database (ADR-027): active only, in its own order.
   const methodOptions = useTenderOptions();
   const isEdit = !!expense;
-  const [state, formAction, pending] = useActionState<ExpenseActionState, FormData>(
-    saveCompanyExpense.bind(null, expense?.id ?? null),
-    {},
-  );
-  const [nonce, setNonce] = useState(0);
   const [date, setDate] = useState(expense?.incurredOn ?? todayStr());
   const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
   const [categoryId, setCategoryId] = useState(expense?.categoryId ?? "");
-  useEffect(() => {
-    if (state.saved) {
-      if (isEdit) onDone?.();
-      else {
-        setAmount("");
-        setDate(todayStr());
-        setCategoryId("");
+  // What a successful save DOES: close the editor, or clear the add form ready
+  // for the next expense. Both belong to the submission, so they run in the
+  // action rather than in an effect watching for the save to have happened.
+  const [state, formAction, pending] = useActionState<ExpenseActionState, FormData>(
+    async (prev, fd) => {
+      const res = await saveCompanyExpense(expense?.id ?? null, prev, fd);
+      if (res.saved) {
+        if (isEdit) onDone?.();
+        else {
+          setAmount("");
+          setDate(todayStr());
+          setCategoryId("");
+        }
       }
-    }
-    if (state.saved || state.error) setNonce((n) => n + 1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+      return res;
+    },
+    {},
+  );
+  useActionToast(state, { saved: isEdit ? "Expense updated." : "Expense added.", error: true });
 
   const categoryOptions = [{ value: "", label: "Uncategorized" }, ...categories.map((c) => ({ value: c.id, label: c.name }))];
 
@@ -94,7 +98,7 @@ export function CompanyExpenseForm({
           onChange={setCategoryId}
           options={categoryOptions}
           placeholder="Category"
-          className="w-full"
+          className="h-8 w-full"
         />
         <div className="space-y-1">
           <Label htmlFor="ex-amount" className="text-xs text-muted-foreground">Amount (Rs)</Label>
@@ -117,11 +121,14 @@ export function CompanyExpenseForm({
         </div>
         <div className="space-y-1">
           <Label htmlFor="ex-method" className="text-xs text-muted-foreground">Method</Label>
-          <select id="ex-method" name="method" defaultValue={expense?.method ?? "bank"} className={selectCls}>
-            {methodOptions.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
+          <SelectField
+            id="ex-method"
+            name="method"
+            defaultValue={expense?.method ?? "bank"}
+            options={[...methodOptions.map((m) => ({ value: m.value, label: m.label }))]}
+            ariaLabel="method"
+            className="h-8 w-full"
+          />
         </div>
         <div className="space-y-1">
           <Label htmlFor="ex-vendor" className="text-xs text-muted-foreground">Vendor / payee</Label>
@@ -139,23 +146,20 @@ export function CompanyExpenseForm({
       <div className="flex flex-wrap items-center gap-4">
         <Button type="submit" disabled={pending}>{pending ? "Saving…" : isEdit ? "Save changes" : "Add expense"}</Button>
         <label className="flex min-h-6 items-center gap-2 text-sm">
-          <input type="checkbox" name="recurring" defaultChecked={!!expense?.recurrence} className="size-4 accent-[var(--color-primary)]" />
+          <Checkbox name="recurring" defaultChecked={!!expense?.recurrence} />
           Recurring cost
         </label>
-        <select
+        <SelectField
           name="recurrence"
           defaultValue={expense?.recurrence ?? "monthly"}
-          aria-label="Recurrence interval"
-          className="h-8 rounded-lg border border-input bg-[var(--input-bg)] px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <option value="monthly">Monthly</option>
-          <option value="weekly">Weekly</option>
-        </select>
+          options={[{ value: "monthly", label: "Monthly" }, { value: "weekly", label: "Weekly" }]}
+          ariaLabel="Recurrence interval"
+          className="h-8"
+        />
         {isEdit && onDone ? (
           <Button type="button" variant="ghost" size="sm" onClick={onDone}>Cancel</Button>
         ) : null}
       </div>
-      <Toast message={state.saved ? (isEdit ? "Expense updated." : "Expense added.") : state.error ?? null} variant={state.error ? "error" : "success"} token={nonce} />
     </form>
   );
 }
@@ -183,12 +187,19 @@ export function RecurringExpensesManager({
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   if (templates.length === 0) {
-    return <p className="text-sm text-muted-foreground">No recurring expenses yet. Record one below and tick &ldquo;Recurring cost&rdquo;.</p>;
+    return (
+      <EmptyState
+        compact
+        icon={RefreshCw}
+        title="No recurring expenses"
+        description={'Record an expense below and tick "Recurring cost" to have it repeat on its own.'}
+      />
+    );
   }
   return (
-    <ul className="space-y-2">
+    <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
       {templates.map((t) => (
-        <li key={t.id} className="rounded-md border p-3">
+        <li key={t.id} className="p-3">
           {editingId === t.id ? (
             <CompanyExpenseForm categories={categories} expense={t} onDone={() => setEditingId(null)} />
           ) : (
@@ -205,13 +216,13 @@ export function RecurringExpensesManager({
               </div>
               <div className="flex items-center gap-3">
                 {canEdit ? (
-                  <button
+                  <Button
                     type="button"
                     onClick={() => setEditingId(t.id)}
-                    className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                    size="sm" variant="outline"
                   >
                     <Pencil className="size-3.5" aria-hidden="true" /> Edit
-                  </button>
+                  </Button>
                 ) : null}
                 {canDelete ? <CompanyExpenseRowActions id={t.id} deleted={false} /> : null}
               </div>
@@ -239,14 +250,14 @@ export function CompanyExpenseRowActions({ id, deleted }: { id: string; deleted:
   return (
     <>
       {deleted ? (
-        <button
+        <Button
           type="button"
           disabled={pending}
           onClick={() => run(() => restoreCompanyExpenseAction(id))}
-          className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
+          size="sm" variant="outline"
         >
           <RotateCcw className="size-3.5" aria-hidden="true" /> Restore
-        </button>
+        </Button>
       ) : (
         // Styled confirm dialog (no password — an expense soft-deletes and is restorable).
         <ConfirmDialog
@@ -269,10 +280,7 @@ export function CompanyExpenseRowActions({ id, deleted }: { id: string; deleted:
 /** Add / activate / deactivate company expense categories. */
 export function CompanyCategoryManager({ categories }: { categories: { id: string; name: string; isActive: boolean }[] }) {
   const [state, formAction, pending] = useActionState<ExpenseActionState, FormData>(addCompanyCategoryAction, {});
-  const [nonce, setNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved || state.error) setNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { saved: "Category added.", error: true });
   const [busy, start] = useTransition();
 
   return (
@@ -301,7 +309,6 @@ export function CompanyCategoryManager({ categories }: { categories: { id: strin
           </li>
         ))}
       </ul>
-      <Toast message={state.saved ? "Category added." : state.error ?? null} variant={state.error ? "error" : "success"} token={nonce} />
     </div>
   );
 }

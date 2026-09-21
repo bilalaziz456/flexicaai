@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
+import { useActionState, useMemo, useState, useTransition } from "react";
 import { Undo2 } from "lucide-react";
 import { recordSettlement, voidSettlement, type PayoutActionState } from "./actions";
+import { SelectField } from "@/core/ui/select-field";
 import { Button } from "@/core/ui/button";
-import { Toast } from "@/core/ui/toast";
+import { Toast, useActionToast } from "@/core/ui/toast";
 
 const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
 const inputCls =
@@ -43,14 +44,11 @@ export function SettlementForm({
   }, [owedToDoctor, owedByDoctor, canClinic, canDoctorWaive]);
 
   const [state, formAction, pending] = useActionState<PayoutActionState, FormData>(recordSettlement, {});
-  const [nonce, setNonce] = useState(0);
   const [kind, setKind] = useState(options[0]?.value ?? "");
   const max = options.find((o) => o.value === kind)?.max ?? 0;
   const [amount, setAmount] = useState(String(max || ""));
 
-  useEffect(() => {
-    if (state.saved || state.error) setNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { saved: "Recorded.", error: true });
 
   if (options.length === 0) return null;
 
@@ -60,20 +58,18 @@ export function SettlementForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground" htmlFor="st-kind">Action</label>
-          <select
+          <SelectField
             id="st-kind"
             name="kind"
             value={kind}
-            onChange={(e) => {
-              setKind(e.target.value);
-              setAmount(String(options.find((o) => o.value === e.target.value)?.max ?? ""));
+            onValueChange={(next) => {
+              setKind(next);
+              setAmount(String(options.find((o) => o.value === next)?.max ?? ""));
             }}
-            className={`${inputCls} select-chevron pr-8`}
-          >
-            {options.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+            options={[...options.map((o) => ({ value: o.value, label: o.label }))]}
+            ariaLabel="kind"
+            className="h-8 w-full"
+          />
         </div>
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground" htmlFor="st-amount">
@@ -96,11 +92,6 @@ export function SettlementForm({
       <Button type="submit" disabled={pending || Number(amount) <= 0 || Number(amount) > max}>
         {pending ? "Recording…" : "Record"}
       </Button>
-      <Toast
-        message={state.saved ? "Recorded." : state.error ?? null}
-        variant={state.error ? "error" : "success"}
-        token={nonce}
-      />
     </form>
   );
 }
@@ -112,7 +103,7 @@ export function VoidSettlementButton({ actionId }: { actionId: string }) {
   const [nonce, setNonce] = useState(0);
   return (
     <>
-      <button
+      <Button
         type="button"
         disabled={pending}
         onClick={() =>
@@ -124,10 +115,10 @@ export function VoidSettlementButton({ actionId }: { actionId: string }) {
             }
           })
         }
-        className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
+        size="sm" variant="outline"
       >
         <Undo2 className="size-3" aria-hidden="true" /> Reverse
-      </button>
+      </Button>
       <Toast message={err} variant="error" token={nonce} />
     </>
   );

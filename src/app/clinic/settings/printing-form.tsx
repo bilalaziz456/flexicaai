@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { Toast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
@@ -83,13 +84,11 @@ export function PrintingForm({ paper, enabled }: { paper: string; enabled: strin
                 )}
               >
                 <span className="flex items-center gap-2 text-sm font-medium">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={isOn}
                     ref={syncChecked(isOn)}
                     disabled={isLast}
-                    onChange={() => toggle(p.value)}
-                    className="size-4 accent-[var(--color-primary)]"
+                    onCheckedChange={() => toggle(p.value)}
                   />
                   {p.label}
                 </span>
@@ -127,7 +126,7 @@ export function PrintingForm({ paper, enabled }: { paper: string; enabled: strin
       </div>
 
       <div className="flex items-center gap-3">
-        <Button type="submit" size="sm" variant="outline" disabled={pending || !dirty}>
+        <Button type="submit" size="sm" disabled={pending || !dirty}>
           {pending ? "Saving…" : "Save"}
         </Button>
         {state.error ? <span className="text-sm text-destructive">{state.error}</span> : null}

@@ -53,13 +53,13 @@ const monthLabel = (d: Date) =>
   new Date(d).toLocaleDateString("en-PK", { month: "long", year: "numeric" });
 
 const TONE: Record<"good" | "warn" | "bad", string> = {
-  good: "text-emerald-600 dark:text-emerald-400",
-  warn: "text-amber-600 dark:text-amber-400",
+  good: "text-success-text",
+  warn: "text-warning-text",
   bad: "text-destructive",
 };
 const BAND_BG: Record<"good" | "warn" | "bad", string> = {
-  good: "bg-emerald-600",
-  warn: "bg-amber-500",
+  good: "bg-success",
+  warn: "bg-warning",
   bad: "bg-destructive",
 };
 
@@ -405,7 +405,7 @@ export function ClinicAnalyticsCard({
       </div>
 
       {total === 0 ? (
-        <p className="rounded-lg border p-3 text-muted-foreground">
+        <p className="rounded-lg border well p-3 text-muted-foreground">
           {clinic.monthlyPrice > 0
             ? "No month has been billed yet, so there is nothing to rate."
             : "This clinic has no subscription price, so it is never billed."}
@@ -413,13 +413,13 @@ export function ClinicAnalyticsCard({
       ) : (
         <>
           {thin ? (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs">
+            <p className="rounded-lg border border-warning/35 bg-warning/10 p-2 text-xs">
               Only {total} month{total === 1 ? "" : "s"} of history — treat the rating as provisional.
             </p>
           ) : null}
 
           {/* ── KPI strip ─────────────────────────────────────────────────── */}
-          <div className="flex flex-wrap items-stretch divide-x divide-border rounded-lg border">
+          <div className="flex flex-wrap items-stretch divide-x divide-border rounded-lg border well">
             <div className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
               <RadialGauge
                 value={behaviour.onTimeRate ?? 0}
@@ -473,7 +473,7 @@ export function ClinicAnalyticsCard({
           {/* Only periods the history can fill are offered — a "24m" button on a
               14-month clinic would return the same rows as All time and read as a
               broken filter. */}
-          <div className="no-print flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2">
+          <div className="no-print flex flex-wrap items-center gap-2 rounded-lg border well px-3 py-2">
             <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
               Period
             </span>
@@ -502,7 +502,7 @@ export function ClinicAnalyticsCard({
           </div>
 
           {/* ── Category share ────────────────────────────────────────────── */}
-          <div className="rounded-lg border p-4">
+          <div className="rounded-lg border well p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 Category share — {periodLabel}
@@ -563,7 +563,7 @@ export function ClinicAnalyticsCard({
                       <span className={cn("w-32 shrink-0 text-xs", n === 0 && "text-muted-foreground")}>
                         {c.label}
                       </span>
-                      <span className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                      <span className="h-2 flex-1 overflow-hidden rounded-full bg-foreground/[0.09]">
                         <span
                           className="block h-full rounded-full"
                           style={{ width: `${share * 100}%`, backgroundColor: c.colour }}
@@ -577,13 +577,22 @@ export function ClinicAnalyticsCard({
                 })}
               </ul>
             </div>
-            <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-              {[...PAYER_CATEGORIES.map((c) => `${c.label} = ${c.hint}`), `${PENDING_META.label} = ${PENDING_META.hint}`].join(" · ")}
-            </p>
+            {/* Nine definitions joined by "·" made one unreadable paragraph: the
+                reader had to parse the separators to find where each term ended. A
+                term/definition grid lets them look ONE up, which is the only way
+                anybody reads a key. */}
+            <dl className="mt-4 grid gap-x-6 gap-y-1.5 border-t border-border/60 pt-3 text-[11px] leading-relaxed sm:grid-cols-2">
+              {[...PAYER_CATEGORIES, PENDING_META].map((c) => (
+                <div key={c.label} className="flex gap-2">
+                  <dt className="w-32 shrink-0 font-medium text-foreground">{c.label}</dt>
+                  <dd className="min-w-0 flex-1 text-muted-foreground">{c.hint}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
 
           {/* ── Rating comparison ─────────────────────────────────────────── */}
-          <div className="rounded-lg border p-4">
+          <div className="rounded-lg border well p-4">
             <div className="mb-1 flex items-baseline justify-between gap-3">
               <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 Rating comparison — all time
@@ -595,7 +604,7 @@ export function ClinicAnalyticsCard({
 
           {/* ── How late, month by month ──────────────────────────────────── */}
           {lateTrend.length > 1 ? (
-            <div className="rounded-lg border p-4">
+            <div className="rounded-lg border well p-4">
               <div className="mb-1 text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
                 Days late — {periodLabel}
               </div>
@@ -625,7 +634,7 @@ export function ClinicAnalyticsCard({
 
           {/* ── Every billed month ───────────────────────────────────────── */}
           {scoped.length > 0 ? (
-            <div className="overflow-hidden rounded-lg border">
+            <div className="overflow-hidden rounded-lg border well">
               <div className="flex items-center justify-between gap-3 border-b bg-muted/30 px-3 py-2">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                   Payment history — {periodLabel}
@@ -686,43 +695,85 @@ export function ClinicAnalyticsCard({
         </h3>
         <div
           className={cn(
-            "grid gap-3 transition-opacity sm:grid-cols-2 lg:grid-cols-4",
+            // `well` rather than a literal `bg-card`: inside this popup it resolves
+            // to the card surface (the dialog publishes the ground), so the block
+            // stays correct in both themes and follows the popup if it ever changes.
+            "grid grid-cols-1 overflow-hidden rounded-lg border border-border/60 well transition-opacity sm:grid-cols-2 lg:grid-cols-4",
             refreshing && "opacity-50",
           )}
         >
-          <StatCard
-            label="Patients"
-            value={business.patientsTotal.toLocaleString("en-PK")}
-            hint={`all time · ${business.patientsNew} new in period`}
-          />
-          <StatCard
-            label="Appointments"
-            value={business.appointments.toLocaleString("en-PK")}
-            hint={`${business.completed} completed · ${business.cancelled} cancelled`}
-          />
-          <StatCard
-            label="No-show rate"
-            value={pct(business.noShowRate)}
-            hint={`${business.noShows} of ${business.completed + business.noShows} expected`}
-            tone={business.noShowRate !== null && business.noShowRate > 0.2 ? "bad" : "default"}
-          />
-          <StatCard
-            label="Visits recorded"
-            value={business.visits.toLocaleString("en-PK")}
-            hint={`${business.scribeRuns} used the scribe`}
-          />
-          <StatCard label="Collected" value={rs(business.collected)} hint="from their patients, this period" />
-          <StatCard
-            label="Their receivable"
-            value={rs(business.outstanding)}
-            hint="all time · what patients still owe them"
-          />
-          <StatCard
-            label="Staff"
-            value={business.staffActive.toLocaleString("en-PK")}
-            hint={`now · ${business.doctors} doctor${business.doctors === 1 ? "" : "s"}`}
-          />
-          <StatCard label="WhatsApp" value={`${business.whatsappOut} out`} hint={`${business.whatsappIn} in`} />
+          {/* Dividers are drawn PER CELL, not with `divide-*`. The column count
+              changes at two breakpoints and `divide-*` cannot follow it — in a
+              wrapping grid it reads as "every cell but the first gets a left rule",
+              which hangs a divider at the start of each new row. The dashboard's
+              supporting-stat block already had to solve this the same way. */}
+          {[
+            {
+              label: "Patients",
+              value: business.patientsTotal.toLocaleString("en-PK"),
+              hint: `all time · ${business.patientsNew} new in period`,
+            },
+            {
+              label: "Appointments",
+              value: business.appointments.toLocaleString("en-PK"),
+              hint: `${business.completed} completed · ${business.cancelled} cancelled`,
+            },
+            {
+              label: "No-show rate",
+              value: pct(business.noShowRate),
+              hint: `${business.noShows} of ${business.completed + business.noShows} expected`,
+              tone:
+                business.noShowRate !== null && business.noShowRate > 0.2
+                  ? ("bad" as const)
+                  : ("default" as const),
+            },
+            {
+              label: "Visits recorded",
+              value: business.visits.toLocaleString("en-PK"),
+              hint: `${business.scribeRuns} used the scribe`,
+            },
+            {
+              label: "Collected",
+              value: rs(business.collected),
+              hint: "from their patients, this period",
+            },
+            {
+              label: "Their receivable",
+              value: rs(business.outstanding),
+              hint: "all time · what patients still owe them",
+            },
+            {
+              label: "Staff",
+              value: business.staffActive.toLocaleString("en-PK"),
+              hint: `now · ${business.doctors} doctor${business.doctors === 1 ? "" : "s"}`,
+            },
+            {
+              label: "WhatsApp",
+              value: `${business.whatsappOut} out`,
+              hint: `${business.whatsappIn} in`,
+            },
+          ].map((k, i, all) => (
+            <StatCard
+              key={k.label}
+              variant="quiet"
+              className={cn(
+                "h-full p-4",
+                // A rule under every cell except the ones on the last visible row,
+                // which differs per breakpoint.
+                i < all.length - 1 && "border-b border-border/60",
+                i < all.length - 2 && "sm:border-b",
+                `${i >= all.length - 2 ? "sm:border-b-0" : ""}`,
+                i < all.length - 4 ? "lg:border-b" : "lg:border-b-0",
+                // …and a rule to the right of every cell that is not last in its row.
+                i % 2 === 0 && "sm:border-r sm:border-border/60",
+                (i + 1) % 4 === 0 ? "lg:border-r-0" : "lg:border-r lg:border-border/60",
+              )}
+              label={k.label}
+              value={k.value}
+              hint={k.hint}
+              tone={"tone" in k ? k.tone : undefined}
+            />
+          ))}
         </div>
         <p className="text-xs text-muted-foreground">
           Last appointment booked {business.lastActivityAt ? day(business.lastActivityAt) : "— never"}.

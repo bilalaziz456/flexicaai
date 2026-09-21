@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { ChevronRight, Download, Plus } from "lucide-react";
+import { TableCard } from "@/core/ui/table-card";
+import { EmptyState } from "@/core/ui/empty-state";
+import { ChevronRight, Download, Plus, UserPlus } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { listClinicStaff } from "@/core/users/staff-list";
 import { Badge } from "@/core/ui/badge";
@@ -58,8 +60,8 @@ export default async function ClinicStaffPage({
       <FlashToast message={toastMessage} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Staff</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Staff</h1>
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             {total} staff member{total === 1 ? "" : "s"}
             {query ? ` matching “${query}”` : ""}.
           </p>
@@ -97,13 +99,17 @@ export default async function ClinicStaffPage({
       />
 
       {staff.length === 0 ? (
-        <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {query
-            ? `No staff match “${query}”.`
-            : "No staff yet. Add your first doctor or receptionist."}
-        </div>
+        <EmptyState
+          icon={UserPlus}
+          title={query ? "No matching staff" : "No staff yet"}
+          description={
+            query
+              ? `Nothing matches “${query}”. Try a name or a username.`
+              : "Add your first doctor or receptionist to start booking against them."
+          }
+        />
       ) : (
-        <>
+        <TableCard>
           {/* Desktop: full table. */}
           <div className="hidden md:block">
             <Table>
@@ -151,13 +157,13 @@ export default async function ClinicStaffPage({
           </div>
 
           {/* Mobile: stacked cards — no horizontal scroll; icon-only actions. */}
-          <ul className="space-y-3 md:hidden">
+          <ul className="divide-y divide-border/60 rounded-lg border border-border/60 md:hidden">
             {staff.map((u) => (
               <RowLink
                 key={u.id}
                 as="li"
                 href={`/clinic/staff/${u.id}`}
-                className="block space-y-2 rounded-md border p-3"
+                className="block space-y-2 p-3"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">
@@ -189,7 +195,7 @@ export default async function ClinicStaffPage({
               </RowLink>
             ))}
           </ul>
-        </>
+        </TableCard>
       )}
 
       {/* Mobile: floating "+" to add staff (replaces the header button). */}

@@ -1,5 +1,8 @@
 import { listClinicRecalls } from "@/core/recall/list";
+import { TableCard } from "@/core/ui/table-card";
+import { EmptyState } from "@/core/ui/empty-state";
 import { requireWorkspace } from "@/core/auth/user";
+import { BellRing } from "lucide-react";
 import { Badge } from "@/core/ui/badge";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { Pagination } from "@/core/ui/pagination";
@@ -44,8 +47,8 @@ export default async function ClinicRecallsPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Recalls</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">Recalls</h1>
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
           {total} recall{total === 1 ? "" : "s"}. Reminders go out automatically
           over WhatsApp when they&apos;re due.
         </p>
@@ -61,12 +64,13 @@ export default async function ClinicRecallsPage({
       />
 
       {rows.length === 0 ? (
-        <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          No recalls yet. They&apos;re created when a doctor approves a visit with
-          a next-visit date.
-        </div>
+        <EmptyState
+          icon={BellRing}
+          title="No recalls yet"
+          description="A recall is created when a doctor approves a visit with a next-visit date. Reminders then go out over WhatsApp when they fall due."
+        />
       ) : (
-        <>
+        <TableCard>
           {/* Desktop: full table. */}
           <div className="hidden md:block">
             <Table>
@@ -96,9 +100,9 @@ export default async function ClinicRecallsPage({
           </div>
 
           {/* Mobile: stacked cards — no horizontal scroll. */}
-          <ul className="space-y-3 md:hidden">
+          <ul className="divide-y divide-border/60 rounded-lg border border-border/60 md:hidden">
             {rows.map((r) => (
-              <li key={r.id} className="space-y-1 rounded-md border p-3">
+              <li key={r.id} className="space-y-1 p-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">{r.patientName}</span>
                   <Badge variant={STATUS_VARIANT[r.status] ?? "secondary"}>
@@ -111,7 +115,7 @@ export default async function ClinicRecallsPage({
               </li>
             ))}
           </ul>
-        </>
+        </TableCard>
       )}
     </div>
   );

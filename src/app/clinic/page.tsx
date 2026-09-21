@@ -16,6 +16,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
+import { ArrowRight } from "lucide-react";
+import { buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
 import { Sparkline } from "@/core/ui/sparkline";
 import { StatCard } from "@/core/ui/charts/stat-card";
 import { OnboardingChecklist } from "@/core/ui/onboarding-checklist";
@@ -161,6 +164,12 @@ export default async function ClinicDashboard() {
             value: pkr(financeKpis.payableToDoctors),
             note: "Unpaid shares",
             href: "/clinic/shares",
+            // The running unpaid balance over the same 30 days. It ENDS at the
+            // figure above it by construction — see `getPayableTrend`.
+            trend: financeKpis.payableTrend,
+            // Owing doctors more is not a win: the balance going up means we have
+            // not settled, which is the same reading as the receivable above.
+            higherIsBetter: false,
           },
         ]
       : []),
@@ -169,6 +178,8 @@ export default async function ClinicDashboard() {
           {
             title: "Net sales (30 days)",
             value: pkr(salesSummary.netTotal),
+            // Daily net sales, summed from the very rows that produced the total.
+            trend: salesSummary.trend,
             note: `${salesSummary.count} completed visit${salesSummary.count === 1 ? "" : "s"} · View report`,
             href: "/clinic/sales",
           },
@@ -203,10 +214,10 @@ export default async function ClinicDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Your clinic at a glance.
           </p>
         </div>
@@ -216,9 +227,10 @@ export default async function ClinicDashboard() {
         {billingKpiOn ? (
           <Link
             href="/clinic/reports/daybook"
-            className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent"
+            className={cn(buttonVariants({ variant: "outline" }))}
           >
-            Day book →
+            Day book
+            <ArrowRight aria-hidden="true" />
           </Link>
         ) : null}
       </div>
@@ -303,8 +315,12 @@ export default async function ClinicDashboard() {
                 <CardTitle className="text-base">Money flow (30 days)</CardTitle>
                 <CardDescription>How the last 30 days&apos; collected revenue became profit.</CardDescription>
               </div>
-              <Link href="/clinic/pl" className="inline-flex min-h-6 items-center no-underline text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
-                Full report →
+              <Link
+                href="/clinic/pl"
+                className="inline-flex min-h-7 items-center gap-1.5 text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+              >
+                Full report
+                <ArrowRight className="size-3.5 shrink-0" aria-hidden="true" />
               </Link>
             </div>
           </CardHeader>
@@ -322,28 +338,50 @@ export default async function ClinicDashboard() {
         </Card>
       ) : null}
 
-      {/* Supporting stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {stats.map((s) => {
-          const inner = (
-            <StatCard
-              className={s.href ? "h-full transition-colors hover:border-primary/50" : "h-full"}
-              label={s.title}
-              value={String(s.value)}
-              hint={s.note}
-              trend={"trend" in s ? s.trend : undefined}
-              higherIsBetter={"higherIsBetter" in s ? s.higherIsBetter : true}
-            />
-          );
-          return s.href ? (
-            <Link key={s.title} href={s.href}>
-              {inner}
-            </Link>
-          ) : (
-            <div key={s.title}>{inner}</div>
-          );
-        })}
-      </div>
+      {/* Supporting stats — ONE panel divided, rather than eight separate cards.
+          These are the clinic's second-order numbers (counts, a rate, a balance) and
+          as individual bordered cards they carried exactly the same visual weight as
+          the money KPIs above, so the page had twelve equal headlines and therefore
+          no headline at all. Grouped behind one border with hairline dividers they
+          read as a single supporting block, which is what they are. */}
+      <Card className="overflow-hidden p-0">
+        <div className="grid grid-cols-1 divide-y divide-border/60 sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3">
+          {stats.map((s, i) => {
+            const inner = (
+              <StatCard
+                variant="quiet"
+                className={cn(
+                  "h-full p-5 transition-colors",
+                  // The dividers are drawn per cell rather than by `divide-x`, because
+                  // the column count changes at two breakpoints and `divide-*` cannot
+                  // follow it — it would leave a rule hanging at the end of a row.
+                  "sm:border-b sm:border-border/60",
+                  i % 2 === 0 && "sm:border-r sm:border-border/60",
+                  // The last cell drops its right rule: the grid rarely divides
+                  // evenly, so otherwise a divider hangs in the empty tail of the row.
+                  i === stats.length - 1 ? "lg:border-r-0" : "lg:border-r",
+                  s.href &&
+                    "hover:bg-foreground/[0.02]",
+                )}
+                label={s.title}
+                value={String(s.value)}
+                hint={s.note}
+                trend={"trend" in s ? s.trend : undefined}
+                higherIsBetter={"higherIsBetter" in s ? s.higherIsBetter : true}
+              />
+            );
+            return s.href ? (
+              <Link key={s.title} href={s.href} className="block">
+                {inner}
+              </Link>
+            ) : (
+              <div key={s.title} className="block">
+                {inner}
+              </div>
+            );
+          })}
+        </div>
+      </Card>
 
       {/* Doctor: manage your own leave / vacation (no separate nav page) — kept
           at the end of the dashboard. */}

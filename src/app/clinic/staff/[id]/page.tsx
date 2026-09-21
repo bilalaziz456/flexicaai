@@ -1,13 +1,16 @@
 import { getClinic } from "@/core/clinics/get-clinic";
 import { assertNotLastAdmin, getClinicStaffMember } from "@/core/users/clinic-staff";
 import { listUpcomingLeaves } from "@/core/appointments/availability";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Ban, CalendarClock, CalendarOff, Percent, RotateCcw, ShieldCheck } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { setStaffActive } from "@/app/clinic/actions";
 import { DoctorLeaves } from "@/app/clinic/schedule/doctor-leaves";
 import { getBookingProcedures } from "@/core/appointments/procedures";
+import { getDoctorActivity } from "@/core/users/doctor-activity";
+import { resolveActivityRange } from "@/core/users/activity-range";
+import { DEFAULT_ACTIVITY_PERIOD } from "@/core/users/activity-periods";
+import { DoctorActivityCard } from "./doctor-activity-card";
 import { countOpenDrafts } from "@/core/clinical/drafts";
 import { getDoctorProcedureOverrides } from "@/core/appointments/share-config";
 import { CLINIC_STAFF_ROLES } from "@/core/types/auth";
@@ -16,6 +19,7 @@ import {
   resourcesForClinic,
 } from "@/core/auth/permissions";
 import { PermissionsGrid } from "./permissions-grid";
+import { BackLink } from "@/core/ui/back-link";
 import { Badge } from "@/core/ui/badge";
 import { Button } from "@/core/ui/button";
 import {
@@ -76,6 +80,20 @@ export default async function StaffDetailPage({
   const roleDefaults = defaultPermissionsForRole(member.role);
   const effectivePermissions = member.permissions ?? roleDefaults;
 
+  // What this doctor has been doing, for the activity card. Clinic admin only —
+  // a manager holding `staff:view` can open this page, and one colleague's output
+  // is not something the viewing permission was granted for.
+  //
+  // The opening window is three months: long enough that a quiet fortnight does not
+  // read as a collapse, short enough to describe what is happening NOW. The reader
+  // widens it from the card; this render is what they see before touching anything,
+  // so it is done on the SERVER rather than fetched after paint.
+  const activityRange = resolveActivityRange(DEFAULT_ACTIVITY_PERIOD);
+  const activity =
+    isAdmin && member.role === "doctor"
+      ? await getDoctorActivity(clinicId, member.id, activityRange)
+      : null;
+
   // Current + upcoming leave for doctors.
   const now = new Date();
   const p = (n: number) => String(n).padStart(2, "0");
@@ -107,14 +125,11 @@ export default async function StaffDetailPage({
         summary={`Viewed staff member ${label}`}
       />
       <div>
-        <Link
-          href="/clinic/staff"
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
-          ← Back to staff
-        </Link>
+        <BackLink href="/clinic/staff">
+          Back to staff
+        </BackLink>
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-semibold">{label}</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">{label}</h1>
           <Badge variant="secondary">{vocabularyLabel("user_roles", member.role)}</Badge>
           {member.isActive ? (
             <Badge variant="outline">Active</Badge>
@@ -189,6 +204,15 @@ export default async function StaffDetailPage({
             />
           </CardContent>
         </Card>
+      ) : null}
+
+      {activity ? (
+        <DoctorActivityCard
+          doctorId={member.id}
+          initial={activity}
+          initialFrom={activityRange.from}
+          initialTo={activityRange.to}
+        />
       ) : null}
 
       {isAdmin && member.role === "doctor" ? (

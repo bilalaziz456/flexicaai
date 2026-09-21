@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useCallback, useState } from "react";
+import { useActionState, useCallback, useState } from "react";
 import type { SpecialtyCatalogEntry } from "@/core/types/module";
 import type { TeamMemberOption } from "@/core/admin/assignment";
 import {
@@ -9,8 +9,9 @@ import {
   type AdminActionState,
 } from "@/app/admin/actions";
 import { SpecialtyCheckboxes } from "@/app/admin/clinics/specialty-checkboxes";
-import { Button } from "@/core/ui/button";
-import { Toast } from "@/core/ui/toast";
+import { Button, buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
+import { useActionToast } from "@/core/ui/toast";
 import {
   Card,
   CardContent,
@@ -38,15 +39,13 @@ export function CreateClinicForm({
   >(createClinicWithAdmin, {});
   const [assignee, setAssignee] = useState("");
   const [logoError, setLogoError] = useState<string | null>(null);
+  const [logoName, setLogoName] = useState("");
   // Success redirects to the new clinic's own page (flash toast there); a failed
   // create pops an error toast here, re-triggered per attempt.
   const [hoursInvalid, setHoursInvalid] = useState(false);
   // Stable identity: the child reports validity from an effect.
   const onInvalidChange = useCallback((v: boolean) => setHoursInvalid(v), []);
-  const [errorNonce, setErrorNonce] = useState(0);
-  useEffect(() => {
-    if (state.error) setErrorNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { error: true });
 
   return (
     <form action={formAction} className="space-y-6">
@@ -84,24 +83,42 @@ export function CreateClinicForm({
           </div>
           <div className="space-y-2">
             <Label htmlFor="logo">Logo (optional)</Label>
-            <input
-              id="logo"
-              type="file"
-              name="logo"
-              accept="image/png,image/jpeg,image/webp"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                // Block an oversized logo before submit (else the whole create request
-                // trips Next's 1 MB body limit and crashes).
-                if (file && file.size > MAX_LOGO_BYTES) {
-                  setLogoError("Logo is too large. Please use an image under 1 MB.");
-                  e.target.value = "";
-                } else {
-                  setLogoError(null);
-                }
-              }}
-              className="block text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-[var(--input-bg)] file:px-3 file:py-1.5 file:text-sm hover:file:bg-accent"
-            />
+            {/* The LABEL is the control — a file input's own button cannot be made to
+                match a real one's height or hover. Same move as the avatar, clinic
+                logo and importer pickers; this was the last one left. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <label
+                htmlFor="logo"
+                className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer")}
+              >
+                {logoName ? "Choose another" : "Choose file"}
+              </label>
+              <input
+                id="logo"
+                type="file"
+                name="logo"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  // Block an oversized logo before submit (else the whole create request
+                  // trips Next's 1 MB body limit and crashes).
+                  if (file && file.size > MAX_LOGO_BYTES) {
+                    setLogoError("Logo is too large. Please use an image under 1 MB.");
+                    e.target.value = "";
+                    setLogoName("");
+                  } else {
+                    setLogoError(null);
+                    setLogoName(file?.name ?? "");
+                  }
+                }}
+                className="sr-only"
+              />
+              {/* `sr-only` takes away the browser's own "No file chosen", and a picker
+                  that says nothing after a pick looks like it did not work. */}
+              <span className="min-w-0 truncate text-sm text-muted-foreground">
+                {logoName || "No file chosen"}
+              </span>
+            </div>
             {logoError ? (
               <p className="text-xs text-destructive">{logoError}</p>
             ) : (
@@ -172,15 +189,13 @@ export function CreateClinicForm({
         <Button type="submit" disabled={pending || hoursInvalid}>
           {pending ? "Creating…" : "Create clinic"}
         </Button>
-        <Link
-          href="/admin"
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
+        {/* Cancel sits beside Submit, so it is one of a PAIR of actions — as an
+            underlined line of text it read as a footnote to the button rather than
+            the other half of the choice. */}
+        <Link href="/admin" className={cn(buttonVariants({ variant: "ghost" }))}>
           Cancel
         </Link>
       </div>
-
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
 }

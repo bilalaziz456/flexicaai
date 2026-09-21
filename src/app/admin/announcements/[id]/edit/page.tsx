@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { BackLink } from "@/core/ui/back-link";
 import { notFound } from "next/navigation";
 import { requireAdminCapability } from "@/core/auth/user";
 import { getAnnouncementPost } from "@/core/admin/announcements";
@@ -19,13 +19,10 @@ export default async function EditAnnouncementPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href="/admin/announcements"
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
-          ← Back to announcements
-        </Link>
-        <h1 className="mt-2 text-xl font-semibold">Edit announcement</h1>
+        <BackLink href="/admin/announcements">
+          Back to announcements
+        </BackLink>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em]">Edit announcement</h1>
         <p className="text-sm text-muted-foreground">
           Changes apply to every clinic this notice reaches. Adding or removing clinics
           re-targets it; the clinics that stay keep the post they already have.

@@ -21,9 +21,9 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
   >(changePassword, {});
 
   return (
-    <Card>
+    <Card className="p-1.5">
       <CardHeader>
-        <CardTitle>Set a new password</CardTitle>
+        <CardTitle className="text-xl">Set a new password</CardTitle>
         <CardDescription>
           {forced
             ? "Your account uses a temporary password. Set your own to continue."

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
 import { Download } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
@@ -100,8 +102,8 @@ export default async function ClinicSharesPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Revenue shares</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Revenue shares</h1>
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             {selfOnly
               ? "Your share of completed visits, and what's been paid."
               : "What each doctor has earned from completed visits, and what's owed."}
@@ -111,9 +113,9 @@ export default async function ClinicSharesPage({
           {balances.length > 0 ? (
             <a
               href={`/api/finance/export?${exportParams.toString()}`}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium hover:bg-accent"
+              className={cn(buttonVariants({ variant: "outline" }))}
             >
-              <Download className="size-3.5" aria-hidden="true" /> CSV
+              <Download aria-hidden="true" /> CSV
             </a>
           ) : null}
           {singleDoctor ? (
@@ -183,7 +185,7 @@ export default async function ClinicSharesPage({
               canDoctorWaive={canWaive || selfOnly}
             />
             {settlementActions.length > 0 ? (
-              <ul className="divide-y rounded-lg border text-sm">
+              <ul className="divide-y divide-border/60 rounded-lg border border-border/60 text-sm">
                 {settlementActions.map((a) => (
                   <li key={a.id} className="flex items-center justify-between gap-3 px-3 py-2">
                     <div className="min-w-0">

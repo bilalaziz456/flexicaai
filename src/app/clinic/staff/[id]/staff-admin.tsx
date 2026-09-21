@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { Trash2 } from "lucide-react";
 import {
   deleteStaff,
@@ -9,12 +9,14 @@ import {
   updateStaffProfile,
   type ClinicActionState,
 } from "@/app/clinic/actions";
+import { SelectField } from "@/core/ui/select-field";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
 import { Input } from "@/core/ui/input";
 import { PasswordInput } from "@/core/ui/password-input";
 import { Label } from "@/core/ui/label";
-import { Toast } from "@/core/ui/toast";
+import { useActionToast } from "@/core/ui/toast";
 import { DoctorScheduleFields } from "@/app/clinic/doctor-schedule-fields";
 import type { DayAvailability } from "@/core/lib/availability";
 import { STAFF_PREFIXES } from "@/core/types/auth";
@@ -52,14 +54,9 @@ export function EditStaffForm({
     FormData
   >(action, {});
   // Both outcomes toast in place — the save no longer bounces to the staff list.
-  // The nonces let an identical message fire again on a repeated save, since
-  // useActionState hands back an equal state object each time.
-  const [savedNonce, setSavedNonce] = useState(0);
-  const [errorNonce, setErrorNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved) setSavedNonce((n) => n + 1);
-    if (state.error) setErrorNonce((n) => n + 1);
-  }, [state]);
+  // The hook keys on the state object's identity, so a second identical save still
+  // announces itself rather than falling silent.
+  useActionToast(state, { saved: "Staff member updated.", error: true });
   const isDoctor = role === "doctor";
   const [scheduleValid, setScheduleValid] = useState(true);
 
@@ -69,20 +66,13 @@ export function EditStaffForm({
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>
           <div className="flex gap-2">
-            <select
-              key={`prefix-${prefix ?? ""}`}
+            <SelectField
               name="prefix"
-              aria-label="Title"
               defaultValue={prefix ?? ""}
-              className="h-8 w-24 shrink-0 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron"
-            >
-              <option value="">Title</option>
-              {STAFF_PREFIXES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+              options={[{ value: "", label: "Title" }, ...STAFF_PREFIXES.map((p) => ({ value: p, label: p }))]}
+              ariaLabel="Title"
+              className="h-8 w-24 shrink-0"
+            />
             <Input
               key={`name-${fullName ?? ""}`}
               id="fullName"
@@ -125,12 +115,6 @@ export function EditStaffForm({
           {pending ? "Saving…" : "Save changes"}
         </Button>
       </div>
-      <Toast
-        message={state.saved ? "Staff member updated." : null}
-        variant="success"
-        token={savedNonce}
-      />
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
 }
@@ -161,12 +145,7 @@ export function DoctorSharesForm({
     ClinicActionState,
     FormData
   >(action, {});
-  const [savedNonce, setSavedNonce] = useState(0);
-  const [errorNonce, setErrorNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved) setSavedNonce((n) => n + 1);
-    if (state.error) setErrorNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { saved: "Revenue share saved.", error: true });
 
   const [consult, setConsult] = useState(String(consultationSharePct));
   const [defaultProc, setDefaultProc] = useState(String(procedureSharePct));
@@ -236,7 +215,7 @@ export function DoctorSharesForm({
             Leave blank to use the default ({defaultProc || 0}%). Enter 0 for an
             explicit 0% (all to the clinic).
           </p>
-          <ul className="divide-y rounded-lg border">
+          <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
             {procedures.map((p) => {
               const v = overrides.get(p.id) ?? "";
               return (
@@ -273,13 +252,10 @@ export function DoctorSharesForm({
       <div className="space-y-2 border-t pt-4">
         <input type="hidden" name="discountNeedsApproval" value={needsApproval ? "on" : ""} />
         <label className="flex min-h-6 items-center gap-2 text-sm">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={needsApproval}
             ref={syncChecked(needsApproval)}
-            onChange={(e) => setNeedsApproval(e.target.checked)}
-            className="size-4 accent-[var(--color-primary)]"
-          />
+            onCheckedChange={setNeedsApproval} />
           Discounts taken from this doctor&apos;s share need their approval
         </label>
         <p className="text-xs text-muted-foreground">
@@ -293,18 +269,6 @@ export function DoctorSharesForm({
           {pending ? "Saving…" : "Save revenue share"}
         </Button>
       </div>
-      {/* The message must be null until a save has actually happened. <Toast> fires
-          whenever `message` is non-empty and its (variant, token, message) key differs
-          from the last one pushed — and that key starts out null, so a CONSTANT string
-          here announced "Revenue share saved." the moment the page opened. `token`
-          alone does not gate it; it only lets an identical message fire a second time.
-          The error toast below already had this shape. */}
-      <Toast
-        message={state.saved ? "Revenue share saved." : null}
-        variant="success"
-        token={savedNonce}
-      />
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
 }
@@ -338,7 +302,7 @@ export function ResetPasswordForm({ userId }: { userId: string }) {
         </Button>
       </div>
       {state.saved ? (
-        <p className="text-sm text-emerald-600" role="status">
+        <p className="text-sm text-success-text" role="status">
           Temporary password set. They must change it at next login.
         </p>
       ) : null}

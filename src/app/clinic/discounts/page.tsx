@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
 import { getClinic } from "@/core/clinics/get-clinic";
 
 import { Download } from "lucide-react";
@@ -69,17 +71,17 @@ export default async function DiscountsPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Discounts</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Discounts</h1>
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             Every discount given: who got it, who bears it, and whether it&apos;s applied.
           </p>
         </div>
         {report.rows.length > 0 ? (
           <a
             href={`/api/finance/export?${exportParams.toString()}`}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium hover:bg-accent"
+            className={cn(buttonVariants({ variant: "outline" }))}
           >
-            <Download className="size-3.5" aria-hidden="true" /> CSV
+            <Download aria-hidden="true" /> CSV
           </a>
         ) : null}
       </div>

@@ -1,4 +1,7 @@
 import { listClinicActivityLogs } from "@/core/audit/log-query";
+import { TableCard } from "@/core/ui/table-card";
+import { EmptyState } from "@/core/ui/empty-state";
+import { Lock } from "lucide-react";
 import { listClinicActorOptions } from "@/core/clinics/options";
 import { requireClinicAdmin } from "@/core/auth/user";
 import { getClinic } from "@/core/clinics/get-clinic";
@@ -42,12 +45,13 @@ export default async function ClinicLogsPage({
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-xl font-semibold">Activity log</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Activity log</h1>
         </div>
-        <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          Your clinic doesn&apos;t have activity-log access. Ask the platform
-          administrator to enable it.
-        </div>
+        <EmptyState
+          icon={Lock}
+          title="Activity log not enabled"
+          description="Your clinic does not have activity-log access. Ask the platform administrator to turn it on."
+        />
       </div>
     );
   }
@@ -71,8 +75,8 @@ export default async function ClinicLogsPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Activity log</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">Activity log</h1>
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
           Showing: {allowedActions.map(logActionLabel).join(", ")}.
         </p>
       </div>
@@ -96,10 +100,12 @@ export default async function ClinicLogsPage({
         searchParams={sp}
         unit="entry"
       />
-      <ActivityLogList
-        rows={rows}
-        emptyHint="No activity matches these filters."
-      />
+      <TableCard>
+        <ActivityLogList
+          rows={rows}
+          emptyHint="No activity matches these filters."
+        />
+      </TableCard>
     </div>
   );
 }

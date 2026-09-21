@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { RotateCcw, Trash2 } from "lucide-react";
 import {
   saveExpense,
@@ -10,17 +10,18 @@ import {
   toggleCategoryAction,
   type ExpenseActionState,
 } from "./expense-actions";
+import { SelectField } from "@/core/ui/select-field";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { DatePicker } from "@/core/ui/date-picker";
-import { Toast } from "@/core/ui/toast";
+import { Toast, useActionToast } from "@/core/ui/toast";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
 const inputCls =
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
-const selectCls = `${inputCls} select-chevron pr-8`;
 
 const todayStr = () => {
   const d = new Date();
@@ -36,22 +37,25 @@ export function AddExpenseForm({
 }) {
   // Methods come from the database (ADR-027): active only, in its own order.
   const methodOptions = useTenderOptions();
-  const [state, formAction, pending] = useActionState<ExpenseActionState, FormData>(
-    saveExpense.bind(null, null),
-    {},
-  );
-  const [nonce, setNonce] = useState(0);
   const [date, setDate] = useState(todayStr());
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  useEffect(() => {
-    if (state.saved) {
-      setAmount("");
-      setDate(todayStr());
-      setCategoryId("");
-    }
-    if (state.saved || state.error) setNonce((n) => n + 1);
-  }, [state]);
+  // Clearing the form is part of adding the expense — the next one is usually
+  // typed straight after — so it happens in the action, not in an effect that
+  // notices the save afterwards and re-renders to undo the fields.
+  const [state, formAction, pending] = useActionState<ExpenseActionState, FormData>(
+    async (prev, fd) => {
+      const res = await saveExpense(null, prev, fd);
+      if (res.saved) {
+        setAmount("");
+        setDate(todayStr());
+        setCategoryId("");
+      }
+      return res;
+    },
+    {},
+  );
+  useActionToast(state, { saved: "Expense added.", error: true });
 
   const categoryOptions = [
     { value: "", label: "Uncategorized" },
@@ -69,7 +73,7 @@ export function AddExpenseForm({
           onChange={setCategoryId}
           options={categoryOptions}
           placeholder="Category"
-          className="w-full"
+          className="h-8 w-full"
         />
         <div className="space-y-1">
           <Label htmlFor="ex-amount" className="text-xs text-muted-foreground">Amount (Rs)</Label>
@@ -92,11 +96,14 @@ export function AddExpenseForm({
         </div>
         <div className="space-y-1">
           <Label htmlFor="ex-method" className="text-xs text-muted-foreground">Method</Label>
-          <select id="ex-method" name="method" defaultValue="cash" className={selectCls}>
-            {methodOptions.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
+          <SelectField
+            id="ex-method"
+            name="method"
+            defaultValue="cash"
+            options={[...methodOptions.map((m) => ({ value: m.value, label: m.label }))]}
+            ariaLabel="method"
+            className="h-8 w-full"
+          />
         </div>
         <div className="space-y-1">
           <Label htmlFor="ex-vendor" className="text-xs text-muted-foreground">Vendor / payee</Label>
@@ -114,24 +121,17 @@ export function AddExpenseForm({
       <div className="flex flex-wrap items-center gap-4">
         <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Add expense"}</Button>
         <label className="flex min-h-6 items-center gap-2 text-sm">
-          <input type="checkbox" name="recurring" className="size-4 accent-[var(--color-primary)]" />
+          <Checkbox name="recurring" />
           Recurring cost
         </label>
-        <select
+        <SelectField
           name="recurrence"
           defaultValue="monthly"
-          aria-label="Recurrence interval"
-          className="h-8 rounded-lg border border-input bg-[var(--input-bg)] px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <option value="monthly">Monthly</option>
-          <option value="weekly">Weekly</option>
-        </select>
+          options={[{ value: "monthly", label: "Monthly" }, { value: "weekly", label: "Weekly" }]}
+          ariaLabel="Recurrence interval"
+          className="h-8"
+        />
       </div>
-      <Toast
-        message={state.saved ? "Expense added." : state.error ?? null}
-        variant={state.error ? "error" : "success"}
-        token={nonce}
-      />
     </form>
   );
 }
@@ -152,23 +152,23 @@ export function ExpenseRowActions({ id, deleted }: { id: string; deleted: boolea
   return (
     <>
       {deleted ? (
-        <button
+        <Button
           type="button"
           disabled={pending}
           onClick={() => run(() => restoreExpenseAction(id))}
-          className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
+          size="sm" variant="outline"
         >
           <RotateCcw className="size-3.5" aria-hidden="true" /> Restore
-        </button>
+        </Button>
       ) : (
-        <button
+        <Button
           type="button"
           disabled={pending}
           onClick={() => run(() => deleteExpenseAction(id))}
-          className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-destructive disabled:opacity-50"
+          size="sm" variant="ghost" className="text-destructive hover:text-destructive"
         >
           <Trash2 className="size-3.5" aria-hidden="true" /> Delete
-        </button>
+        </Button>
       )}
       <Toast message={err} variant="error" token={nonce} />
     </>
@@ -182,10 +182,7 @@ export function CategoryManager({
   categories: { id: string; name: string; isActive: boolean }[];
 }) {
   const [state, formAction, pending] = useActionState<ExpenseActionState, FormData>(addCategoryAction, {});
-  const [nonce, setNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved || state.error) setNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { saved: "Category added.", error: true });
   const [busy, start] = useTransition();
 
   return (
@@ -195,7 +192,7 @@ export function CategoryManager({
           <Label htmlFor="cat-name" className="text-xs text-muted-foreground">New category</Label>
           <Input id="cat-name" name="name" placeholder="e.g. Equipment" className="h-8 w-48" />
         </div>
-        <Button type="submit" size="sm" variant="outline" disabled={pending}>Add</Button>
+        <Button type="submit" size="sm" disabled={pending}>Add</Button>
       </form>
       <ul className="flex flex-wrap gap-2">
         {categories.map((c) => (
@@ -214,11 +211,6 @@ export function CategoryManager({
           </li>
         ))}
       </ul>
-      <Toast
-        message={state.saved ? "Category added." : state.error ?? null}
-        variant={state.error ? "error" : "success"}
-        token={nonce}
-      />
     </div>
   );
 }

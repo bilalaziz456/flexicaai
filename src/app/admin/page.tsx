@@ -1,4 +1,5 @@
 import { clinicListWhere, listClinicsPage } from "@/core/clinics/options";
+import { TableCard } from "@/core/ui/table-card";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { SPECIALTY_CATALOG } from "@/config/modules";
@@ -158,8 +159,8 @@ export default async function AdminHome({
       <FlashToast message={toastMessage} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Clinics</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Clinics</h1>
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             {total} clinic{total === 1 ? "" : "s"}
             {query ? ` matching “${query}”` : " on the platform"}.
           </p>
@@ -176,17 +177,17 @@ export default async function AdminHome({
       {metrics ? <CompanyMetricsPanel metrics={metrics} scoped={!seesAll} showRevenue={showRevenue} /> : null}
 
       {dueClinics.length > 0 ? (
-        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-4">
-          <div className="mb-2 text-sm font-medium text-amber-700 dark:text-amber-400">
+        <div className="rounded-xl border border-warning/35 bg-warning/[0.06] p-5">
+          <div className="mb-3 text-sm font-semibold text-warning-text">
             {dueClinics.length} clinic{dueClinics.length === 1 ? "" : "s"} due or overdue
           </div>
           <ul className="space-y-1.5 text-sm">
             {dueClinics.slice(0, 8).map((c) => (
-              <li key={c.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
+              <li key={c.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-warning/15 pb-1.5 last:border-0 last:pb-0">
                 <Link href={`/admin/clinics/${c.id}`} className="font-medium hover:underline">
                   {c.name}
                 </Link>
-                <span className="flex flex-wrap items-center gap-x-2 text-muted-foreground">
+                <span className="flex flex-wrap items-center gap-x-2 text-muted-foreground [&>span+span]:before:mr-2 [&>span+span]:before:text-border [&>span+span]:before:content-['·']">
                   <span>
                     {c.balance.billingStatus === "overdue"
                       ? `Rs ${c.balance.owed.toLocaleString("en-PK")} owed · ${c.balance.daysOverdue}d overdue`
@@ -203,7 +204,7 @@ export default async function AdminHome({
                     ) : null}
                   </span>
                   {c.commitmentAt ? (
-                    <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs text-amber-700 dark:text-amber-400">
+                    <span className="max-w-[18rem] truncate rounded-md bg-warning/15 px-2 py-0.5 text-xs text-warning-text">
                       follow up{" "}
                       {new Date(c.commitmentAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                       {c.commitmentNote ? ` · ${c.commitmentNote}` : ""}
@@ -217,8 +218,8 @@ export default async function AdminHome({
       ) : null}
 
       {upcomingClinics.length > 0 ? (
-        <div className="rounded-md border border-sky-500/40 bg-sky-500/5 p-4">
-          <div className="mb-2 text-sm font-medium text-sky-700 dark:text-sky-400">
+        <div className="rounded-md border border-info/35 bg-info/5 p-4">
+          <div className="mb-2 text-sm font-medium text-info-text">
             {upcomingClinics.length} payment{upcomingClinics.length === 1 ? "" : "s"} coming up
           </div>
           <ul className="space-y-1.5 text-sm">
@@ -247,7 +248,7 @@ export default async function AdminHome({
           count and the clinics behind it can never disagree — they are one query with
           one predicate. */}
       {cityCounts.length > 0 ? (
-        <div className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2">
+        <div className="grid gap-4 rounded-lg border well p-4 sm:grid-cols-2">
           <div>
             <div className="mb-2 text-sm font-medium">Clinics by city</div>
             <ul className="space-y-1 text-sm">
@@ -290,7 +291,7 @@ export default async function AdminHome({
           </div>
         </div>
       ) : noCity > 0 ? (
-        <p className="rounded-lg border p-3 text-sm text-muted-foreground">
+        <p className="rounded-lg border well p-3 text-sm text-muted-foreground">
           None of the {noCity} clinics has a city recorded yet. Set one on a
           clinic&apos;s Owner &amp; contact card and the breakdowns by city and province
           appear here.
@@ -332,24 +333,26 @@ export default async function AdminHome({
         unit="clinic"
       />
 
-      <ClinicsTable
-        showBilling={showBilling}
-        empty={emptyMessage}
-        rows={allClinics.map((c) => ({
-          id: c.id,
-          name: c.name,
-          status: c.status,
-          isYou: c.assignedTo === user.id,
-          assigneeName: c.assigneeName,
-          assigneeSuspended: c.assigneeSuspended,
-          specialties: c.modulesEnabled.map((id) => SPECIALTY_NAME.get(id) ?? id),
-          trialStartAt: c.trialStartAt,
-          activatedAt: c.activatedAt,
-          billingCycle: c.billingCycle,
-          firstPaymentAt: firstPayments.get(c.id) ?? null,
-          createdAt: c.createdAt,
-        }))}
-      />
+      <TableCard>
+        <ClinicsTable
+          showBilling={showBilling}
+          empty={emptyMessage}
+          rows={allClinics.map((c) => ({
+            id: c.id,
+            name: c.name,
+            status: c.status,
+            isYou: c.assignedTo === user.id,
+            assigneeName: c.assigneeName,
+            assigneeSuspended: c.assigneeSuspended,
+            specialties: c.modulesEnabled.map((id) => SPECIALTY_NAME.get(id) ?? id),
+            trialStartAt: c.trialStartAt,
+            activatedAt: c.activatedAt,
+            billingCycle: c.billingCycle,
+            firstPaymentAt: firstPayments.get(c.id) ?? null,
+            createdAt: c.createdAt,
+          }))}
+        />
+      </TableCard>
 
       {/* Mobile: floating "+" action to add a clinic (replaces the header button). */}
       <Link

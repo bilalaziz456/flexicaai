@@ -32,6 +32,14 @@ export function ThemeToggle({ initial }: { initial: ThemePreference }) {
     setTheme(pref);
     applyTheme(pref);
     // Mirror to the cookie so the next server render is correct with no flash.
+    //
+    // `react-hooks/immutability` reads any assignment to something declared outside
+    // the component as mutating shared state, and cannot tell that `document.cookie`
+    // is a browser API rather than a value React might be caching. This runs from a
+    // CLICK, never during render, which is exactly where a side effect belongs — and
+    // the write is the point: without it the next server render picks the old theme
+    // and the page flashes. Narrowed to this one line rather than the file.
+    // eslint-disable-next-line react-hooks/immutability
     document.cookie = `${THEME_COOKIE_NAME}=${pref}; path=/; max-age=${THEME_COOKIE_MAX_AGE}; samesite=lax`;
     // Persist to the account (fire-and-forget; the UI already updated).
     void setThemePreference(pref);

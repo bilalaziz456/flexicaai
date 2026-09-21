@@ -1,4 +1,5 @@
 import { requireAdminCapability } from "@/core/auth/user";
+import { TableCard } from "@/core/ui/table-card";
 import { listAllTrash, parseTrashFilters } from "@/core/trash";
 import { listClinicActorOptions, listClinicOptions } from "@/core/clinics/options";
 import { Pagination } from "@/core/ui/pagination";
@@ -63,8 +64,8 @@ export default async function AdminTrashPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Trash</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">Trash</h1>
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
           Everything deleted across all clinics. Kept indefinitely. Restore brings
           an item back; Purge permanently erases it (legal requests only).
         </p>
@@ -80,13 +81,15 @@ export default async function AdminTrashPage({
         actors={actors}
         clinics={clinicRows}
       />
-      <TrashTable
-        items={trash.items}
-        canRestore
-        showClinic
-        onRestore={restoreTrashGlobal}
-        onPurge={purgeTrashGlobal}
-      />
+      <TableCard>
+        <TrashTable
+          items={trash.items}
+          canRestore
+          showClinic
+          onRestore={restoreTrashGlobal}
+          onPurge={purgeTrashGlobal}
+        />
+      </TableCard>
       <Pagination
         page={page}
         pageSize={pageSize}

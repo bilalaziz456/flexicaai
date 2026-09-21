@@ -22,9 +22,9 @@ export function ResetPasswordForm({ token }: { token: string }) {
   );
 
   return (
-    <Card>
+    <Card className="p-1.5">
       <CardHeader>
-        <CardTitle>Set a new password</CardTitle>
+        <CardTitle className="text-xl">Set a new password</CardTitle>
         <CardDescription>Choose a new password for your account.</CardDescription>
       </CardHeader>
       <form action={formAction}>

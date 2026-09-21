@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import Link from "next/link";
 import { Printer, Undo2 } from "lucide-react";
 import {
@@ -12,8 +12,9 @@ import {
   sendInvoiceWhatsAppAction,
   type BillingActionState,
 } from "@/app/clinic/payments/payment-actions";
+import { SelectField } from "@/core/ui/select-field";
 import { Button, buttonVariants } from "@/core/ui/button";
-import { Toast } from "@/core/ui/toast";
+import { Toast, useActionToast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import { MessageCircle } from "lucide-react";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
@@ -93,23 +94,23 @@ export function PaymentPanel({
     collectPayment.bind(null, appointmentId),
     {},
   );
-  const [nonce, setNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved || state.error) setNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { saved: "Payment recorded.", error: true });
   const [amount, setAmount] = useState(String(outstanding || ""));
 
   // Refund form (collapsed by default; only offered when there's money to give back).
   const [refundOpen, setRefundOpen] = useState(false);
+  // Collapsing the form again is what a successful refund DOES, so it happens in the
+  // action. As an effect on `refundState` it also reopened nothing: the flag stays
+  // true, so a second refund found the panel already closed and never reacted.
   const [refundState, refundAction, refundPending] = useActionState<BillingActionState, FormData>(
-    refundAppointmentPayment.bind(null, appointmentId),
+    async (prev, fd) => {
+      const res = await refundAppointmentPayment(appointmentId, prev, fd);
+      if (res.saved) setRefundOpen(false);
+      return res;
+    },
     {},
   );
-  const [refundNonce, setRefundNonce] = useState(0);
-  useEffect(() => {
-    if (refundState.saved || refundState.error) setRefundNonce((n) => n + 1);
-    if (refundState.saved) setRefundOpen(false);
-  }, [refundState]);
+  useActionToast(refundState, { saved: "Refund recorded.", error: true });
 
   const [busy, startTransition] = useTransition();
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null);
@@ -174,7 +175,7 @@ export function PaymentPanel({
       </div>
 
       {notBilled ? (
-        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+        <p className="rounded-lg border border-warning/35 bg-warning/10 px-3 py-2 text-xs text-warning-text">
           This visit isn&apos;t completed yet, so the total is an estimate and anything
           paid is a <strong>deposit</strong>. It only counts as revenue, and the
           balance only becomes a receivable, once the visit is marked completed.
@@ -183,7 +184,7 @@ export function PaymentPanel({
 
       {/* Collect */}
       {canCollect && outstanding > 0 ? (
-        <form action={formAction} className="space-y-2 rounded-lg border p-3">
+        <form action={formAction} className="space-y-2 rounded-lg border well p-3">
           <div className="grid gap-2 sm:grid-cols-3">
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground" htmlFor="pp-amount">Amount (Rs)</label>
@@ -200,11 +201,14 @@ export function PaymentPanel({
             </div>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground" htmlFor="pp-method">Method</label>
-              <select id="pp-method" name="method" defaultValue="cash" className={`${inputCls} select-chevron pr-8`}>
-                {methodOptions.map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
-              </select>
+              <SelectField
+                id="pp-method"
+                name="method"
+                defaultValue="cash"
+                options={[...methodOptions.map((m) => ({ value: m.value, label: m.label }))]}
+                ariaLabel="method"
+                className="h-8 w-full"
+              />
             </div>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground" htmlFor="pp-ref">Reference</label>
@@ -222,11 +226,6 @@ export function PaymentPanel({
               </Button>
             ) : null}
           </div>
-          <Toast
-            message={state.saved ? "Payment recorded." : state.error ?? null}
-            variant={state.error ? "error" : "success"}
-            token={nonce}
-          />
         </form>
       ) : outstanding <= 0 && billTotal > 0 ? (
         <p className="text-sm text-success-text">Fully paid.</p>
@@ -241,7 +240,7 @@ export function PaymentPanel({
       {/* Refund: give back money already collected on this visit. */}
       {canRefund && collected > 0 ? (
         refundOpen ? (
-          <form action={refundAction} className="space-y-2 rounded-lg border border-destructive/40 p-3">
+          <form action={refundAction} className="space-y-2 rounded-lg border border-destructive/40 well p-3">
             <p className="text-xs font-medium text-destructive">
               Refund from {money.format(collected)} collected
             </p>
@@ -261,11 +260,14 @@ export function PaymentPanel({
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground" htmlFor="rf-method">Method</label>
-                <select id="rf-method" name="method" defaultValue="cash" className={`${inputCls} select-chevron pr-8`}>
-                  {methodOptions.map((m) => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
-                  ))}
-                </select>
+                <SelectField
+                  id="rf-method"
+                  name="method"
+                  defaultValue="cash"
+                  options={[...methodOptions.map((m) => ({ value: m.value, label: m.label }))]}
+                  ariaLabel="method"
+                  className="h-8 w-full"
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground" htmlFor="rf-ref">Reference</label>
@@ -281,11 +283,6 @@ export function PaymentPanel({
                 Cancel
               </Button>
             </div>
-            <Toast
-              message={refundState.saved ? "Refund recorded." : refundState.error ?? null}
-              variant={refundState.error ? "error" : "success"}
-              token={refundNonce}
-            />
           </form>
         ) : (
           <Button type="button" size="sm" variant="outline" onClick={() => setRefundOpen(true)}>
@@ -346,7 +343,7 @@ export function PaymentPanel({
 
       {/* History */}
       {ledger.length > 0 ? (
-        <ul className="divide-y rounded-lg border text-sm">
+        <ul className="divide-y divide-border/60 rounded-lg border border-border/60 text-sm">
           {ledger.map((e) => (
             <li key={e.id} className="flex items-center justify-between gap-3 px-3 py-2">
               <div className="min-w-0">
@@ -362,15 +359,17 @@ export function PaymentPanel({
                 </span>
               </div>
               {(e.kind === "refund" ? canVoidRefundEntry : canVoidPayment) ? (
-                <button
+                <Button
                   type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="shrink-0 text-destructive hover:text-destructive"
                   disabled={busy}
                   onClick={() => doVoid(e.id)}
-                  className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
                 >
-                  <Undo2 className="size-3" aria-hidden="true" />{" "}
+                  <Undo2 aria-hidden="true" />
                   {e.kind === "refund" ? "Reverse" : "Void"}
-                </button>
+                </Button>
               ) : null}
             </li>
           ))}

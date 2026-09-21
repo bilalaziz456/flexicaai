@@ -5,6 +5,7 @@ import { setLogRetentionAction } from "./actions";
 // The PURE module, never `@/core/admin/company-settings` — that one is `server-only`
 // and importing it here pulls the database into the browser bundle (conventions.md §3).
 import { RETENTION_DAYS_OPTIONS, retentionLabel } from "@/core/audit/retention-options";
+import { SelectField } from "@/core/ui/select-field";
 import { Button } from "@/core/ui/button";
 import { Label } from "@/core/ui/label";
 import { Toast } from "@/core/ui/toast";
@@ -44,23 +45,26 @@ export function RetentionForm({
   }
 
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
+    <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border/70 bg-surface-sunken p-3.5">
       <div className="space-y-1">
         <Label htmlFor="retention" className="text-xs text-muted-foreground">
           Keep activity logs for
         </Label>
-        <select
+        {/* The stored value is a NUMBER of days, and `SelectField` is keyed on a
+            string — as a native `<select>` was too, it just hid the coercion in the
+            DOM. Converting at the boundary keeps `days` a number everywhere else, so
+            the comparison against `retentionDays` below still works. */}
+        <SelectField
           id="retention"
-          value={days}
-          onChange={(e) => setDays(Number(e.target.value))}
-          className="h-8 rounded-md border bg-background px-2 text-sm"
-        >
-          {RETENTION_DAYS_OPTIONS.map((d) => (
-            <option key={d} value={d}>
-              {retentionLabel(d)}
-            </option>
-          ))}
-        </select>
+          value={String(days)}
+          onValueChange={(next) => setDays(Number(next))}
+          options={RETENTION_DAYS_OPTIONS.map((d) => ({
+            value: String(d),
+            label: retentionLabel(d),
+          }))}
+          ariaLabel="Keep activity logs for"
+          className="h-8"
+        />
       </div>
 
       {/* WHY: the button and the note both carry h-8, matching the select. `items-end`

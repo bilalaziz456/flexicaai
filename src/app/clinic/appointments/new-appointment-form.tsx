@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { Check, Minus, Plus, Search } from "lucide-react";
 import { cn } from "@/core/lib/utils";
 import {
@@ -11,12 +11,14 @@ import {
   type DoctorDaySlots,
   type ReceptionActionState,
 } from "@/app/clinic/appointments/actions";
+import { SelectField } from "@/core/ui/select-field";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { DatePicker } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { TimeSelect } from "@/core/ui/time-select";
-import { Toast } from "@/core/ui/toast";
+import { useActionToast } from "@/core/ui/toast";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 import { syncChecked } from "@/core/ui/checkbox-sync";
 import {
@@ -49,11 +51,6 @@ const label12 = (hhmm: string) => {
   return `${h12}:${pad(m)} ${mer}`;
 };
 
-// Native <select> variant: themed chevron with a comfortable gap from the right
-// edge (see `.select-chevron` in globals.css).
-const nativeSelectCls =
-  "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron";
-
 /**
  * Appointment form — create OR edit. The time picker ADAPTS to the doctor: a
  * doctor with set visiting hours shows radio buttons of the day's window(s); a
@@ -72,6 +69,7 @@ export function NewAppointmentForm({
   preselectedDate,
   planItems = [],
   initial,
+  initialSlots,
 }: {
   initialPatients: Patient[];
   doctors: Doctor[];
@@ -87,6 +85,9 @@ export function NewAppointmentForm({
   /** Create mode: start on this date (the day the appointments list was showing),
    *  still changeable. Ignored in edit mode, where  is the real one. */
   preselectedDate?: string;
+  /** Edit mode: the doctor's windows for the appointment's own date, resolved on the
+   *  server so the time picker is already constrained when the page paints. */
+  initialSlots?: DoctorDaySlots | null;
   initial?: {
     doctorId: string;
     date: string;
@@ -117,7 +118,7 @@ export function NewAppointmentForm({
   // `initial.date` wins over the prefill: in edit mode it IS the appointment's own
   // date, and a stray `?date=` must never silently move a booking that exists.
   const [date, setDate] = useState(initial?.date ?? preselectedDate ?? "");
-  const [time, setTime] = useState(initial?.time ?? "09:00");
+  const [rawTime, setTime] = useState(initial?.time ?? "09:00");
   const [duration, setDuration] = useState(initial?.durationMinutes ?? 30);
   const [reason, setReason] = useState(initial?.reason ?? "");
   const [discountType, setDiscountType] = useState<DiscountType>(
@@ -199,7 +200,11 @@ export function NewAppointmentForm({
       discountType: "amount" as DiscountType,
       discountValue: 0,
     }));
-  const [slots, setSlots] = useState<DoctorDaySlots | null>(null);
+  // Seeded by the server when editing, so the picker is constrained on the first
+  // paint. It used to be null with an effect that fetched the same thing on mount:
+  // a round trip after hydration, and a moment where the form offered times the
+  // doctor does not work. The create flow has no doctor yet, so it passes nothing.
+  const [slots, setSlots] = useState<DoctorDaySlots | null>(initialSlots ?? null);
   const action = isEdit
     ? updateAppointment.bind(null, appointmentId!)
     : createAppointment;
@@ -211,12 +216,7 @@ export function NewAppointmentForm({
   // Re-trigger the error toast on every failed submit — `state` is a fresh
   // object each time the action settles, so this bumps even for an identical
   // error message on a second attempt.
-  const [errorNonce, setErrorNonce] = useState(0);
-  const [savedNonce, setSavedNonce] = useState(0);
-  useEffect(() => {
-    if (state.error) setErrorNonce((n) => n + 1);
-    else if (state.saved) setSavedNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { saved: "Changes saved.", error: true });
 
   async function runSearch(q: string) {
     setQuery(q);
@@ -232,12 +232,6 @@ export function NewAppointmentForm({
     }
     setSlots(await doctorDayAvailability(dId, `${d}T12:00`));
   }
-
-  // On mount (edit prefill), load the doctor's windows for the initial date.
-  useEffect(() => {
-    if (doctorId && date) void refreshSlots(doctorId, date);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const selectedDoctor = doctors.find((d) => d.id === doctorId) ?? null;
   const doctorOptions = [
@@ -265,6 +259,31 @@ export function NewAppointmentForm({
   // plain consultation, which a procedure window would refuse.
   const hasProcedures = procSel.size > 0;
 
+  const constrained =
+    !freeTime &&
+    Boolean(date) &&
+    slots !== null &&
+    !slots.onLeave &&
+    slots.available &&
+    slots.windows.length > 0;
+  const windows = constrained
+    ? slots!.windows.filter((w) => hasProcedures || w.kind !== "procedure")
+    : [];
+  const inWindow = (t: string, w: { start: string; end: string }) =>
+    timeToMin(t) >= timeToMin(w.start) && timeToMin(t) < timeToMin(w.end);
+
+  // The time actually in play. A time outside every BOOKABLE window snaps to the
+  // first one — after switching doctor or date, and after removing the last
+  // procedure, which can strand it inside a procedure window that no longer applies.
+  //
+  // DERIVED, not corrected. This was an effect that wrote the snapped value back into
+  // state, so the form rendered once showing a time it was about to reject and again
+  // with the right one; the effect also listed `time` among its dependencies, which
+  // is a state update watching the state it updates. Computing it here means the
+  // first render is already correct and there is nothing to keep in step.
+  const time =
+    windows.length > 0 && !windows.some((w) => inWindow(rawTime, w)) ? windows[0].start : rawTime;
+
   // With the override ON, is the chosen time inside the doctor's hours ANYWAY? The
   // server asks exactly this (checkDoctorSlot's `withinHours`) and drops the flag when
   // it is true, so without saying so here the form silently disagrees with what gets
@@ -280,35 +299,10 @@ export function NewAppointmentForm({
     slots.available &&
     slots.windows
       .filter((w) => hasProcedures || w.kind !== "procedure")
-      .some((w) => timeToMin(time) >= timeToMin(w.start) && timeToMin(time) < timeToMin(w.end));
+      .some((w) => inWindow(time, w));
 
-  const constrained =
-    !freeTime &&
-    Boolean(date) &&
-    slots !== null &&
-    !slots.onLeave &&
-    slots.available &&
-    slots.windows.length > 0;
-  const windows = constrained
-    ? slots!.windows.filter((w) => hasProcedures || w.kind !== "procedure")
-    : [];
   // The selected window is whichever one contains the current time.
-  const selectedWindowIdx = windows.findIndex(
-    (w) => timeToMin(time) >= timeToMin(w.start) && timeToMin(time) < timeToMin(w.end),
-  );
-
-  // Keep `time` inside a BOOKABLE window (snap to the first if it isn't) — after
-  // switching doctor or date, and after removing the last procedure, which can
-  // strand the time inside a procedure window that no longer applies.
-  useEffect(() => {
-    if (freeTime || !slots) return;
-    const ws = slots.windows.filter((w) => hasProcedures || w.kind !== "procedure");
-    if (ws.length === 0) return;
-    const inWindow = ws.some(
-      (w) => timeToMin(time) >= timeToMin(w.start) && timeToMin(time) < timeToMin(w.end),
-    );
-    if (!inWindow) setTime(ws[0].start);
-  }, [slots, freeTime, time, hasProcedures]);
+  const selectedWindowIdx = windows.findIndex((w) => inWindow(time, w));
 
   const effectiveTime = freeTime ? time : selectedWindowIdx >= 0 ? time : "";
   const scheduledAt =
@@ -333,13 +327,9 @@ export function NewAppointmentForm({
             <span className="rounded-full bg-accent px-2.5 py-1 text-sm font-medium text-accent-foreground">
               {patient.fullName}
             </span>
-            <button
-              type="button"
-              className="text-sm text-muted-foreground underline underline-offset-4"
-              onClick={() => setPatient(null)}
-            >
+            <Button type="button" size="sm" variant="ghost" onClick={() => setPatient(null)}>
               Change
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="space-y-2">
@@ -353,7 +343,7 @@ export function NewAppointmentForm({
                 aria-label="Search patients"
               />
             </div>
-            <ul className="max-h-48 divide-y overflow-y-auto rounded-md border">
+            <ul className="max-h-48 divide-y divide-border/60 overflow-y-auto rounded-md border border-border/60">
               {results.length === 0 ? (
                 <li className="p-3 text-sm text-muted-foreground">
                   No patients found.
@@ -433,13 +423,10 @@ export function NewAppointmentForm({
                 to do something it isn't doing. */}
             {doctorId && !selectedDoctor?.flexibleHours ? (
               <label className="flex min-h-6 cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  className="size-3.5 accent-[var(--primary)]"
+                <Checkbox
                   checked={customTime}
                   ref={syncChecked(customTime)}
-                  onChange={(e) => setCustomTime(e.target.checked)}
-                />
+                  onCheckedChange={setCustomTime} />
                 Custom time (outside visiting hours)
               </label>
             ) : null}
@@ -549,7 +536,7 @@ export function NewAppointmentForm({
           value={chargeConsultation ? "1" : "0"}
         />
         {selectedDoctor ? (
-          <div className="space-y-2 rounded-lg border p-3 sm:col-span-2">
+          <div className="space-y-2 rounded-lg border well p-3 sm:col-span-2">
             <div className="flex items-center justify-between gap-3">
               <Label className="font-medium">Consultation fee</Label>
               <span className="text-sm font-semibold">
@@ -559,13 +546,10 @@ export function NewAppointmentForm({
             {consultationFee > 0 ? (
               <>
                 <label className="flex min-h-6 items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={chargeConsultation}
                     ref={syncChecked(chargeConsultation)}
-                    onChange={(e) => setChargeConsultation(e.target.checked)}
-                    className="size-4 accent-[var(--color-primary)]"
-                  />
+                    onCheckedChange={setChargeConsultation} />
                   Charge this consultation fee
                 </label>
                 <p className="text-xs text-muted-foreground">
@@ -596,11 +580,10 @@ export function NewAppointmentForm({
                 const checked = planItemSel.has(it.id);
                 return (
                   <label key={it.id} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={checked}
                       ref={syncChecked(checked)}
-                      onChange={() =>
+                      onCheckedChange={() =>
                         setPlanItemSel((prev) => {
                           const next = new Set(prev);
                           if (next.has(it.id)) next.delete(it.id);
@@ -608,7 +591,6 @@ export function NewAppointmentForm({
                           return next;
                         })
                       }
-                      className="size-4 accent-[var(--color-primary)]"
                     />
                     <span>
                       {it.name}
@@ -658,7 +640,7 @@ export function NewAppointmentForm({
             {/* Per-procedure quantity + the line total (no per-line discount — the
                 discount is applied once to the whole appointment below). */}
             {procSel.size > 0 ? (
-              <ul className="divide-y rounded-lg border">
+              <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
                 {procedures
                   .filter((p) => procSel.has(p.id))
                   .map((p) => {
@@ -727,17 +709,18 @@ export function NewAppointmentForm({
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="discountValue">Discount (optional)</Label>
           <div className="flex gap-2">
-            <select
+            <SelectField
               id="discountType"
               name="discountType"
               value={discountType}
-              onChange={(e) => setDiscountType(e.target.value as DiscountType)}
-              className={`${nativeSelectCls} w-auto`}
-              aria-label="Discount type"
-            >
-              <option value="amount">Amount (Rs)</option>
-              <option value="percent">Percent (%)</option>
-            </select>
+              onValueChange={(next) => setDiscountType(next as DiscountType)}
+              options={[
+                { value: "amount", label: "Amount (Rs)" },
+                { value: "percent", label: "Percent (%)" },
+              ]}
+              ariaLabel="Discount type"
+              className="h-8 w-auto"
+            />
             <Input
               id="discountValue"
               name="discountValue"
@@ -840,18 +823,19 @@ export function NewAppointmentForm({
                       : Math.round((bill.discount * splitNumber) / 100);
                   const clinicBorne = Math.max(0, bill.discount - doctorBorne);
                   return (
-                    <div className="space-y-1.5 rounded-lg border border-dashed p-2.5">
+                    <div className="space-y-1.5 rounded-lg border border-dashed well p-2.5">
                       <Label className="text-xs text-muted-foreground">Doctor bears</Label>
                       <div className="flex gap-2">
-                        <select
+                        <SelectField
                           value={splitType}
-                          onChange={(e) => setSplitType(e.target.value as DiscountType)}
-                          className={`${nativeSelectCls} w-auto`}
-                          aria-label="Doctor's share type"
-                        >
-                          <option value="percent">Percent (%)</option>
-                          <option value="amount">Amount (Rs)</option>
-                        </select>
+                          onValueChange={(next) => setSplitType(next as DiscountType)}
+                          options={[
+                            { value: "percent", label: "Percent (%)" },
+                            { value: "amount", label: "Amount (Rs)" },
+                          ]}
+                          ariaLabel="Doctor's share type"
+                          className="h-8 w-auto"
+                        />
                         <Input
                           type="number"
                           inputMode="numeric"
@@ -916,13 +900,8 @@ export function NewAppointmentForm({
       </div>
 
       {/* Failed create/edit → error toast (re-triggered per attempt via nonce). */}
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
       {/* Edit success → stay on the edit form, show a saved toast (re-triggered per
           save). Create instead redirects to the new appointment's detail page. */}
-      <Toast
-        message={state.saved ? "Changes saved." : null}
-        token={savedNonce}
-      />
     </form>
   );
 }

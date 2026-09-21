@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { WEEKDAYS, timeToMinutes } from "@/core/lib/availability";
 import type { ClinicHour } from "@/core/lib/clinic-hours";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Label } from "@/core/ui/label";
 import { TimeSelect } from "@/core/ui/time-select";
 import { syncChecked } from "@/core/ui/checkbox-sync";
@@ -129,24 +130,24 @@ export function PublicContactFields({
 
       <div className="space-y-2">
         <Label>Opening hours</Label>
-        <div className="space-y-2 rounded-md border p-3">
+        {/* Seven weekday rows — a LIST that happens to contain controls, not a field
+            group, so it takes the same hairline treatment as every other list rather
+            than a recess. It fills half this card, and as a slab it was the card. */}
+        <div className="divide-y divide-border/60 rounded-lg border border-border/60">
           {WEEKDAYS.map((d) => {
             const day = days.find((x) => x.weekday === d.value)!;
             return (
               <div
                 key={d.value}
-                className="flex flex-wrap items-start gap-3 border-b pb-2 last:border-0 last:pb-0"
+                className="flex flex-wrap items-start gap-3 px-3 py-2"
               >
                 {/* w-full on a phone: the day name takes its own line, or the time
                     controls overflow the row. */}
                 <label className="flex w-full shrink-0 items-center gap-2 pt-1.5 text-sm sm:w-32">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={day.open}
                     ref={syncChecked(day.open)}
-                    onChange={(e) => patch(d.value, { open: e.target.checked })}
-                    className="size-4 accent-[var(--color-primary)]"
-                  />
+                    onCheckedChange={(next) => patch(d.value, { open: next })} />
                   <span className="font-medium">{d.label}</span>
                 </label>
 

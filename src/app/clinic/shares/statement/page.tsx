@@ -1,12 +1,12 @@
 import { listClinicDoctors } from "@/core/appointments/doctors";
 import { getClinic } from "@/core/clinics/get-clinic";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/core/auth/user";
 import { getDoctorBalance, listPayouts } from "@/core/sales/payouts";
 import { listDoctorEarnings, listDoctorSettlements } from "@/core/sales/share-report";
 import { listSettlementActions } from "@/core/sales/settlement-actions";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
+import { BackLink } from "@/core/ui/back-link";
 import { PrintButton } from "@/core/ui/print-button";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
@@ -67,17 +67,17 @@ export default async function ShareStatementPage({
       <style dangerouslySetInnerHTML={{ __html: PRINT_CSS }} />
 
       <div className="no-print flex items-center justify-between">
-        <Link href={backHref} className="text-sm text-muted-foreground underline underline-offset-4">
-          ← Back
-        </Link>
+        <BackLink href={backHref}>
+          Back
+        </BackLink>
         <PrintButton />
       </div>
 
       {/* Statement header */}
       <div className="flex flex-wrap items-start justify-between gap-4 border-b pb-4">
         <div>
-          <h1 className="text-xl font-semibold">Revenue share statement</h1>
-          <p className="text-sm text-muted-foreground">{doctorName}</p>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Revenue share statement</h1>
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">{doctorName}</p>
         </div>
         <div className="text-right text-sm">
           <p className="font-medium">{clinic?.name ?? "Clinic"}</p>
@@ -89,13 +89,13 @@ export default async function ShareStatementPage({
       <div className={`grid gap-4 ${borneTotal !== 0 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
         {[
           { label: "Earned", value: balance.earned, show: true, tone: "" },
-          { label: "Discount adjustment", value: borneTotal, show: borneTotal !== 0, tone: borneTotal < 0 ? "text-destructive" : "text-emerald-600" },
+          { label: "Discount adjustment", value: borneTotal, show: borneTotal !== 0, tone: borneTotal < 0 ? "text-destructive-text" : "text-success-text" },
           { label: "Paid", value: balance.paid, show: true, tone: "" },
           { label: owes ? "Owes clinic" : "Outstanding", value: Math.abs(balance.outstanding), show: true, tone: owes ? "text-destructive" : "" },
         ]
           .filter((b) => b.show)
           .map((b) => (
-            <div key={b.label} className="rounded-lg border p-3">
+            <div key={b.label} className="rounded-lg border well p-3">
               <p className="text-xs text-muted-foreground">{b.label}</p>
               <p className={`text-lg font-semibold tabular-nums ${b.tone}`}>{money.format(b.value)}</p>
             </div>

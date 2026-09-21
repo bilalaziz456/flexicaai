@@ -152,7 +152,7 @@ export function ClinicLifecycle({
 
       {/* Pause (suspend) step-up: reason (optional) + the admin's own password. */}
       {showSuspend ? (
-        <div className="flex flex-wrap items-end gap-2 rounded-md border p-3">
+        <div className="flex flex-wrap items-end gap-2 rounded-md border well p-3">
           <label className="text-sm">
             <span className="mb-1 block text-xs text-muted-foreground">Reason (optional, shown to the clinic)</span>
             <Input

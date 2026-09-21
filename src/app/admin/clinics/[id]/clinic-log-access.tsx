@@ -39,9 +39,11 @@ export function ClinicLogAccess({ clinicId, logAccess }: { clinicId: string; log
 
   return (
     <div className="space-y-4">
+      {/* The card's own description already says WHAT this controls; repeating it
+          here put two near-identical sentences one under the other. What is left is
+          the part the description cannot carry — the current state. */}
       <p className="text-sm text-muted-foreground">
-        Which activity the clinic admin can see in their log. Uncheck everything to remove
-        their log access entirely.
+        Uncheck everything to remove their log access entirely.
         {granted.size === 0 ? (
           <span className="ml-1 font-medium text-warning-text">No log access.</span>
         ) : null}
@@ -63,7 +65,7 @@ export function ClinicLogAccess({ clinicId, logAccess }: { clinicId: string; log
         <Button type="button" onClick={save} disabled={pending || !dirty}>
           {pending ? "Saving…" : "Save log access"}
         </Button>
-        {msg ? <span className="text-sm text-emerald-600">{msg}</span> : null}
+        {msg ? <span className="text-sm text-success-text">{msg}</span> : null}
         {error ? (
           <span className="text-sm text-destructive" role="alert">
             {error}

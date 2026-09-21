@@ -89,7 +89,7 @@ export function StaffActions({
       {editOpen ? (
         <form
           action={editFormAction}
-          className="flex flex-col items-end gap-2 rounded-md border p-3 sm:flex-row sm:items-end"
+          className="flex flex-col items-end gap-2 rounded-md border well p-3 sm:flex-row sm:items-end"
         >
           <div className="w-full space-y-1 sm:w-auto">
             <Label htmlFor={`name-${userId}`} className="text-xs">
@@ -150,7 +150,7 @@ export function StaffActions({
         </p>
       ) : null}
       {editState.saved ? (
-        <p className="text-right text-xs text-emerald-600" role="status">
+        <p className="text-right text-xs text-success-text" role="status">
           Saved.
         </p>
       ) : null}
@@ -160,7 +160,7 @@ export function StaffActions({
         </p>
       ) : null}
       {resetState.saved ? (
-        <p className="text-right text-xs text-emerald-600" role="status">
+        <p className="text-right text-xs text-success-text" role="status">
           Temporary password set. They must change it at next login.
         </p>
       ) : null}

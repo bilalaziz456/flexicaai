@@ -17,7 +17,7 @@ export function PaymentNoticePill({ status }: { status: "due" | "overdue" }) {
       aria-live="polite"
       className={
         "flex max-w-[92vw] items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-medium shadow-lg " +
-        (overdue ? "bg-destructive text-destructive-foreground" : "bg-amber-500 text-amber-950")
+        (overdue ? "bg-destructive text-destructive-foreground" : "bg-warning text-[color-mix(in_oklch,var(--warning)_18%,black)]")
       }
     >
       <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />

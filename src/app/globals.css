@@ -10,6 +10,11 @@
   --font-sans: var(--font-sans);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-heading: var(--font-sans);
+  /* Display face, panels only (scoped by `.app-root` below so the marketing site,
+     which has its own type system, is untouched). Pairing rather than one family:
+     hierarchy built from size and weight alone is what makes a dashboard read as
+     generic, and Jakarta is a UI face — excellent at 13px, unremarkable at 28px. */
+  --font-display: var(--font-display-face), var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -59,6 +64,22 @@
   --text-3xs--line-height: calc(0.875 / 0.625);
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: calc(1 / 0.6875);
+
+  /* SURFACE LADDER. Three levels, and the reason there are three is that the app
+     had ONE: `--background` and `--card` were both pure white, so a card could only
+     be distinguished from the page by drawing a border around it — which is why
+     every screen ended up as a grid of outlined boxes. The ground is now tinted a
+     step down from the card, so a card LIFTS instead of being fenced off, and a
+     border becomes a choice rather than a necessity. */
+  --color-surface-sunken: var(--surface-sunken);
+  --color-elevated: var(--elevated);
+
+  /* The AI accent. Deliberately a DIFFERENT hue family from the brand teal so that
+     "this was computed" never reads as "this is a primary action". Used only where
+     the product genuinely derives something — the scribe, and the insight lines that
+     `charts/insights.ts` already computes. It is not decoration and must not spread. */
+  --color-ai: var(--ai);
+  --color-ai-text: var(--ai-text);
 
   --color-brand-teal: var(--brand-teal);
   --color-brand-blue: var(--brand-blue);
@@ -110,12 +131,21 @@
   --instagram: #e4405f;
   --linkedin: #0a66c2;
 
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* The GROUND the app sits on — a step below the card, faintly cool so it reads as
+     paper rather than as a grey. The card stays pure white and therefore lifts. */
+  --background: oklch(0.981 0.004 225);
+  /* Ink with a navy bias rather than neutral black: it belongs to the same family as
+     the logo, and a pure-black body text on a tinted ground looks like two designs. */
+  --foreground: oklch(0.19 0.017 255);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --card-foreground: var(--foreground);
+  /* A well — table headers, code, inset panels. Reads as BELOW the card. */
+  --surface-sunken: oklch(0.967 0.005 225);
+  /* Anything floating above the page: popovers, dialogs, dropdowns. Same colour as
+     the card in light mode; the separation comes from the shadow, not the fill. */
+  --elevated: oklch(1 0 0);
+  --popover: var(--elevated);
+  --popover-foreground: var(--foreground);
   --primary: var(--brand-teal);
   --primary-foreground: var(--brand-navy);
   /* The brand teal is a FILL colour, not a text colour. On white it measures 2.54:1
@@ -161,8 +191,10 @@
   --success-text: oklch(0.48 0.145 163.225);
   --warning-text: oklch(0.52 0.179 58.318);
   --info-text: oklch(0.5 0.158 241.966);
-  --border: oklch(0.91 0.008 210);
-  --input: oklch(0.91 0.008 210);
+  /* Softer than before (0.91 → 0.925). With a tinted ground carrying the separation,
+     a border is now a hairline hint rather than the thing holding the layout up. */
+  --border: oklch(0.925 0.006 225);
+  --input: oklch(0.90 0.008 225);
   --input-bg: oklch(0.98 0.005 200);
   --ring: var(--brand-teal);
   --chart-1: var(--brand-teal);
@@ -170,9 +202,25 @@
   --chart-3: var(--brand-navy);
   --chart-4: oklch(0.75 0.15 65);
   --chart-5: oklch(0.65 0.19 15);
+  /* AI accent — indigo, far enough from teal (hue 195) to never be mistaken for a
+     brand action, close enough in temperature to sit beside it calmly. */
+  --ai: oklch(0.55 0.19 286);
+  --ai-text: oklch(0.47 0.19 286);
+
+  /* ELEVATION. Tinted with the brand navy instead of black: a neutral-black shadow
+     over a cool ground goes muddy, and muddy is the single clearest tell of a
+     cheap-looking interface. Four steps, and most surfaces should use the first. */
+  --shadow-color: 225 45% 12%;
+  --shadow-xs: 0 1px 2px -1px hsl(var(--shadow-color) / 0.06);
+  --shadow-sm: 0 1px 2px -1px hsl(var(--shadow-color) / 0.07), 0 2px 6px -2px hsl(var(--shadow-color) / 0.06);
+  --shadow-md: 0 2px 4px -2px hsl(var(--shadow-color) / 0.08), 0 8px 20px -6px hsl(var(--shadow-color) / 0.10);
+  --shadow-lg: 0 4px 8px -4px hsl(var(--shadow-color) / 0.10), 0 18px 40px -12px hsl(var(--shadow-color) / 0.16);
+
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0.005 200);
-  --sidebar-foreground: oklch(0.145 0 0);
+  /* The sidebar is GROUND, not a card. As a white slab beside a white page it read
+     as the heaviest object on screen while being the least important. */
+  --sidebar: oklch(0.974 0.005 225);
+  --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--brand-teal);
   --sidebar-primary-foreground: var(--brand-navy);
   --sidebar-accent: oklch(0.97 0 0);
@@ -183,12 +231,17 @@
 
 .dark {
   color-scheme: dark;
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+  /* Same ladder, inverted: the ground is the darkest thing and each level lifts.
+     Navy-biased rather than neutral charcoal, so dark mode belongs to the brand. */
+  --background: oklch(0.158 0.012 255);
+  --foreground: oklch(0.97 0.004 250);
+  --card: oklch(0.203 0.014 255);
+  --card-foreground: var(--foreground);
+  --surface-sunken: oklch(0.178 0.013 255);
+  /* In dark mode a shadow cannot separate anything, so elevation is LIGHTER fill. */
+  --elevated: oklch(0.243 0.016 255);
+  --popover: var(--elevated);
+  --popover-foreground: var(--foreground);
   /* Lightened so it stays readable on a dark surface. */
   --whatsapp-fg: #4ade80;
 
@@ -213,22 +266,31 @@
   --success-text: var(--success);
   --warning-text: var(--warning);
   --info-text: var(--info);
-  --border: oklch(1 0 0 / 18%);
-  --input: oklch(1 0 0 / 22%);
-  --input-bg: oklch(0.26 0.014 200);
+  --border: oklch(1 0 0 / 13%);
+  --input: oklch(1 0 0 / 18%);
+  --input-bg: oklch(0.243 0.015 255);
+  --ai: oklch(0.72 0.16 286);
+  --ai-text: oklch(0.78 0.14 286);
+  /* Black, and deeper: a shadow on a dark ground only works as a cast, never as a
+     separator — the fill ladder above does the separating. */
+  --shadow-color: 255 60% 2%;
+  --shadow-xs: 0 1px 2px -1px hsl(var(--shadow-color) / 0.40);
+  --shadow-sm: 0 1px 2px -1px hsl(var(--shadow-color) / 0.45), 0 2px 6px -2px hsl(var(--shadow-color) / 0.40);
+  --shadow-md: 0 2px 4px -2px hsl(var(--shadow-color) / 0.50), 0 8px 20px -6px hsl(var(--shadow-color) / 0.45);
+  --shadow-lg: 0 4px 8px -4px hsl(var(--shadow-color) / 0.55), 0 18px 40px -12px hsl(var(--shadow-color) / 0.55);
   --ring: var(--brand-teal);
   --chart-1: var(--brand-teal);
   --chart-2: var(--brand-blue);
   --chart-3: oklch(0.75 0.15 155);
   --chart-4: oklch(0.78 0.15 65);
   --chart-5: oklch(0.7 0.19 15);
-  --sidebar: oklch(0.205 0.01 200);
-  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar: oklch(0.138 0.012 255);
+  --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--brand-teal);
   --sidebar-primary-foreground: var(--brand-navy);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-accent: oklch(0.243 0.016 255);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: oklch(1 0 0 / 8%);
   --sidebar-ring: var(--brand-teal);
 }
 
@@ -261,6 +323,144 @@
     overflow-y: scroll;
     scrollbar-gutter: stable;
   }
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   THE APP SCOPE
+
+   `.app-root` wraps the signed-in panels and the auth screens. Everything below
+   applies ONLY inside it, which is what keeps the marketing site — which has its own
+   type system and palette under `.marketing-root` — out of the redesign entirely.
+   Scoping by a class rather than by remapping `--font-heading` globally matters
+   because `core/ui/card.tsx` is shared by both, so a global remap would have dragged
+   the marketing cards along with it.
+   ─────────────────────────────────────────────────────────────────────────── */
+.app-root :is(h1, h2, h3, [data-slot="card-title"]) {
+  /* The font stack is named directly rather than through `--font-display`: that token
+     lives in `@theme inline`, and `inline` means Tailwind inlines the value into its
+     own utilities instead of emitting a CSS variable — so `var(--font-display)` here
+     resolves to nothing and the heading silently keeps the body face. The `font-display`
+     UTILITY works fine; only a hand-written `var()` reference does not. */
+  font-family: var(--font-display-face), var(--font-sans);
+  /* Bricolage sets loose by default for text sizes; display type wants to close up.
+     Negative tracking is doing most of the work of making a heading look composed. */
+  letter-spacing: -0.015em;
+  font-optical-sizing: auto;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   NESTED SURFACES — `.well`
+
+   The app is full of bordered boxes that group a few things INSIDE something else:
+   a summary block in a form, a divided list in a card, a detail strip under a row.
+   They were written as `rounded-lg border p-3` with no fill, which was invisible
+   while the page ground and `--card` were both pure white. The ground is a tinted
+   surface now, so every one of them reads as an outline drawn on the page.
+
+   The fill cannot be written on the box, because the RIGHT fill depends on what is
+   behind it: on the page ground a nested box should rise to `--card`; inside a card
+   it should recede to `--surface-sunken`. Going the wrong way is worse than no fill
+   — a card-on-card is two identical planes with a line between them.
+
+   Nor can a component decide for itself. `note-editor`, `data-table`, `trash-table`
+   and `activity-log` are each rendered both ways, so any class they hardcode is
+   wrong half the time.
+
+   So the SURFACE publishes what its children should use, and `.well` reads it — the
+   box says "I am nested", and what is around it decides which way that goes.
+   ─────────────────────────────────────────────────────────────────────────── */
+.app-root {
+  --nested-surface: var(--card);
+  /* On the ground a well IS a card, so it takes a card's lift. Recessed wells get
+     `none` below: a shadow on something set into a surface is a contradiction. */
+  --nested-shadow: var(--shadow-xs);
+}
+.app-root :is([data-slot="card"]) {
+  --nested-surface: var(--surface-sunken);
+  --nested-shadow: none;
+}
+/* A dialog is NOT scoped under `.app-root`, and that is not an oversight: every
+   dialog PORTALS to document.body, so it is a sibling of the panel rather than a
+   descendant. Scoping it the same way as a card meant the rule never matched a real
+   popup, and every well inside every dialog in the app silently fell back to
+   `--card` — the popup's own colour — drawing as a border with no fill. The popup
+   also publishes the ground it sits on, because a dialog that contains its own card
+   should have somewhere for that card to rise TO. */
+[data-slot="dialog-popup"] {
+  --nested-surface: var(--surface-sunken);
+  --nested-shadow: none;
+}
+/* A dialog that is a DOCUMENT rather than a card inverts that. The clinic scorecard
+   prints as a page, and a page is a ground carrying cards — not a card carrying
+   recesses. So its popup takes the tinted ground and publishes `--card` for what sits
+   inside, which is the same relationship a panel page has with the cards on it.
+   Declared after the rule above, at equal specificity, so it wins for this one. */
+[data-analytics-popup] {
+  --nested-surface: var(--card);
+  --nested-shadow: var(--shadow-xs);
+}
+
+/* The rung the ladder was missing. `.well` RECEDES from whatever is behind it;
+   `.raised` is its opposite — a box that comes back UP to card level because what is
+   behind it is already recessed.
+
+   Why it was needed: a well inside a well reads the same `--nested-surface` as its
+   parent and paints the identical colour, so the doctor's schedule panel and the
+   seven weekday rows on it were one flat plane scored with hairlines. `.well` cannot
+   fix that by publishing for its children, because a custom property set on an
+   element is visible to that element's own declarations (see `@utility well`) — the
+   publish would become its own background.
+
+   `.raised` can, and it is the same relationship a card has with the page: it paints
+   at card level and hands its children the recess to sink into. So a sunken panel
+   carrying raised boxes carrying wells keeps alternating, which is what makes each
+   edge readable. Reach for it ONLY on a recessed ground — on the page ground a plain
+   `.well` is already a card, and `.raised` there would say the same thing twice. */
+@utility raised {
+  background-color: var(--card);
+  box-shadow: var(--shadow-xs);
+  --nested-surface: var(--surface-sunken);
+  --nested-shadow: none;
+}
+
+@utility well {
+  /* Read only — `.well` must NOT also publish a value for its own children here. A
+     custom property set on an element is visible to that element's own declarations,
+     so `--nested-surface: …` in this block would be what `background-color` picked
+     up, and every well in the app would come out the same colour.
+
+     The fallback matters too: `.well` lives in `core/ui`, and a component carrying it
+     can render outside `.app-root` (a print frame, the marketing site). Falling back
+     to `--card` gives a defined surface rather than a transparent box. */
+  background-color: var(--nested-surface, var(--card));
+  box-shadow: var(--nested-shadow, none);
+}
+
+/* A skeleton SWEEP rather than a pulse. A block fading in and out says "something is
+   here, blinking"; a highlight travelling left-to-right says "this is filling in", and
+   it reads as progress even though neither one knows anything about progress. The
+   sweep is suppressed under prefers-reduced-motion, where the plain block remains. */
+@keyframes skeleton-sweep {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Elevation. Named `elev-*` rather than overriding Tailwind's own `shadow-*`, which
+   the marketing site uses — clobbering those tokens would have redesigned it by
+   accident. One step is almost always enough; reach past `elev-2` only for something
+   that genuinely floats above the page. */
+@utility elev-1 {
+  box-shadow: var(--shadow-xs);
+}
+@utility elev-2 {
+  box-shadow: var(--shadow-sm);
+}
+@utility elev-3 {
+  box-shadow: var(--shadow-md);
+}
+@utility elev-4 {
+  box-shadow: var(--shadow-lg);
 }
 
 /* Brand gradient — the logo's teal→blue→navy chevron sweep. Use on hero

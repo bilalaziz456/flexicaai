@@ -8,7 +8,6 @@ import { clinics, clinicPayments } from "@/core/db/schema";
 import { computeServingCost } from "@/core/admin/cost";
 import { companyExpensesTotal, companyExpensesTrend } from "@/core/admin/company-expenses";
 import {
-  bucketLabel,
   nextBucket,
   startOfBucket,
   type ResolvedRange,

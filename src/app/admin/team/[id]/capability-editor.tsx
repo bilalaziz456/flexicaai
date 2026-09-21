@@ -77,7 +77,7 @@ export function CapabilityEditor({
         <Button type="button" onClick={save} disabled={pending || !dirty}>
           {pending ? "Saving…" : "Save capabilities"}
         </Button>
-        {msg ? <span className="text-sm text-emerald-600">{msg}</span> : null}
+        {msg ? <span className="text-sm text-success-text">{msg}</span> : null}
         {error ? <span className="text-sm text-destructive" role="alert">{error}</span> : null}
       </div>
     </div>

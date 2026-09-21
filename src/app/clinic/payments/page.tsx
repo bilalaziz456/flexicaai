@@ -1,3 +1,6 @@
+import { cn } from "@/core/lib/utils";
+import { buttonVariants } from "@/core/ui/button";
+import { Download } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getClinic } from "@/core/clinics/get-clinic";
 
@@ -80,16 +83,16 @@ export default async function PaymentsPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-xl font-semibold">Payments</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Payments</h1>
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             Every payment, advance, and refund. Money in and out of the clinic.
           </p>
         </div>
         <a
           href={`/api/finance/export?${exportParams.toString()}`}
-          className="inline-flex h-9 items-center rounded-lg border px-3 text-sm font-medium hover:bg-accent"
+          className={cn(buttonVariants({ variant: "outline" }))}
         >
-          Export CSV
+          <Download aria-hidden="true" /> CSV
         </a>
       </div>
 

@@ -1,11 +1,13 @@
 import { listClinicAppointments } from "@/core/appointments/list-query";
+import { TableCard } from "@/core/ui/table-card";
 import Link from "next/link";
-import { ChevronRight, Download } from "lucide-react";
+import { ChevronRight, Download, CalendarSearch } from "lucide-react";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicHasFeature } from "@/core/lib/features";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
+import { EmptyState } from "@/core/ui/empty-state";
 import {
   billFromTotals,
   effectiveDiscountValue,
@@ -277,8 +279,8 @@ export async function AppointmentsList({
       <FlashToast message={toastMessage} />
       <div className="relative flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Appointments</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Appointments</h1>
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             {total} appointment{total === 1 ? "" : "s"} · {contextLabel}.
           </p>
         </div>
@@ -381,11 +383,13 @@ export async function AppointmentsList({
       />
 
       {rows.length === 0 ? (
-        <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          No appointments match these filters.
-        </div>
+        <EmptyState
+          icon={CalendarSearch}
+          title="No appointments here"
+          description="Nothing matches the current filters. Widen the date range, or clear a filter to see more."
+        />
       ) : (
-        <>
+        <TableCard>
           <div className="hidden md:block">
             <Table>
               <TableHeader>
@@ -464,13 +468,13 @@ export async function AppointmentsList({
             </Table>
           </div>
 
-          <ul className="space-y-3 md:hidden">
+          <ul className="divide-y divide-border/60 rounded-lg border border-border/60 md:hidden">
             {rows.map((a) => (
               <RowLink
                 key={a.id}
                 as="li"
                 href={`${detailBase}/${a.id}`}
-                className="block space-y-2 rounded-md border p-3"
+                className="block space-y-2 p-3"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-2 font-medium">
@@ -529,7 +533,7 @@ export async function AppointmentsList({
               </RowLink>
             ))}
           </ul>
-        </>
+        </TableCard>
       )}
 
       {canCreate ? <NewAppointmentFab href={bookHref} /> : null}

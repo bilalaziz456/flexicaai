@@ -1,9 +1,11 @@
-import { Download } from "lucide-react";
+import { Download, LockKeyhole } from "lucide-react";
 import { procedureTemplatesFor } from "@/config/modules";
 import { listProcedureCatalog } from "@/core/appointments/procedures";
 import { getCurrentUser } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { buttonVariants } from "@/core/ui/button";
+import { Card, CardContent } from "@/core/ui/card";
+import { EmptyState } from "@/core/ui/empty-state";
 import { cn } from "@/core/lib/utils";
 import { ProceduresManager } from "@/app/clinic/procedures/procedures-manager";
 
@@ -28,9 +30,15 @@ export async function ProceduresPanel({
   };
   if (!perms.view) {
     return (
-      <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-        You don&apos;t have permission to view procedures.
-      </div>
+      <Card>
+        <CardContent className="p-0">
+          <EmptyState
+            icon={LockKeyhole}
+            title="You don't have access to procedures"
+            description="Ask a clinic admin to grant you the procedures permission."
+          />
+        </CardContent>
+      </Card>
     );
   }
 
@@ -42,8 +50,8 @@ export async function ProceduresPanel({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Procedures</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Procedures</h1>
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             Priced services patients can book. These feed appointment totals and
             the Sales report. {list.length} procedure{list.length === 1 ? "" : "s"}.
           </p>

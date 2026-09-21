@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdminCapability } from "@/core/auth/user";
 import { getClinicInvoiceForPrint } from "@/core/admin/clinic-invoices";
+import { BackLink } from "@/core/ui/back-link";
 import { InvoicePrintFrame } from "@/core/ui/invoice-print";
 
 const fmtMoney = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
@@ -32,9 +32,9 @@ export default async function ClinicInvoicePrintPage({ params }: { params: Promi
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="no-print">
-        <Link href="/admin/finance/invoices" className="text-sm text-muted-foreground underline underline-offset-4">
-          ← Back to invoices
-        </Link>
+        <BackLink href="/admin/finance/invoices">
+          Back to invoices
+        </BackLink>
       </div>
 
       <InvoicePrintFrame defaultFormat="a4">

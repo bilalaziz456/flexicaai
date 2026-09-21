@@ -93,8 +93,8 @@ export default async function AnnouncementsPage({
       <FlashToast message={sp.posted ? "Announcement posted." : sp.saved ? "Announcement updated." : null} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Announcements</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Announcements</h1>
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             {total} announcement{total === 1 ? "" : "s"}
             {filtered ? " matching the filters" : ""}. Each one shows in the clinic
             notice bar for the roles and dates it names.
@@ -160,8 +160,8 @@ export default async function AnnouncementsPage({
                           variant="outline"
                           className={
                             a.level === "warning"
-                              ? "border-transparent bg-amber-500/10 text-warning-text"
-                              : "border-transparent bg-sky-500/10 text-info-text"
+                              ? "border-transparent bg-warning/10 text-warning-text"
+                              : "border-transparent bg-info/10 text-info-text"
                           }
                         >
                           {vocabularyLabel("announcement_levels", a.level)}
@@ -176,10 +176,7 @@ export default async function AnnouncementsPage({
                         {/* NULL audience is every staff member, which is the norm — so
                             only a NARROWED audience is worth a badge. */}
                         {a.audience?.length ? (
-                          <Badge
-                            variant="outline"
-                            className="border-transparent bg-violet-500/10 text-violet-700 dark:text-violet-300"
-                          >
+                          <Badge variant="info">
                             {a.audience.map((r) => vocabularyLabel("user_roles", r)).join(", ")} only
                           </Badge>
                         ) : null}
@@ -189,15 +186,11 @@ export default async function AnnouncementsPage({
                         {!a.active ? (
                           <span className="text-xs text-muted-foreground">deactivated</span>
                         ) : notYet ? (
-                          <Badge variant="outline" className="border-transparent bg-slate-500/10 text-muted-foreground">
-                            scheduled
-                          </Badge>
+                          <Badge variant="secondary">scheduled</Badge>
                         ) : closed ? (
-                          <Badge variant="outline" className="border-transparent bg-slate-500/10 text-muted-foreground">
-                            ended
-                          </Badge>
+                          <Badge variant="secondary">ended</Badge>
                         ) : (
-                          <Badge variant="outline" className="border-transparent bg-emerald-500/10 text-success-text">
+                          <Badge variant="outline" className="border-transparent bg-success/10 text-success-text">
                             showing
                           </Badge>
                         )}

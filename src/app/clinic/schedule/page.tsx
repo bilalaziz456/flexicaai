@@ -7,6 +7,7 @@ import { dateFromStr, localDateStr } from "@/core/appointments/availability";
 import { describeAvailability } from "@/core/lib/availability";
 import { buttonVariants } from "@/core/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/core/ui/card";
+import { EmptyState } from "@/core/ui/empty-state";
 import { cn } from "@/core/lib/utils";
 import { LeaveCell } from "@/app/clinic/schedule/leave-cell";
 import { AddLeaveButton, type LeaveDoctor } from "@/app/clinic/schedule/leave-dialog";
@@ -202,7 +203,7 @@ export default async function ClinicSchedulePage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold">
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">
             {selfDoctorId ? "My schedule" : "Doctor schedule"}
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -268,9 +269,15 @@ export default async function ClinicSchedulePage({
       </div>
 
       {rows.length === 0 ? (
-        <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          No doctors yet. The clinic admin adds them under Staff.
-        </div>
+        <Card>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={Stethoscope}
+              title="No doctors yet"
+              description="The week grid fills in once the clinic has doctors. A clinic admin adds them under Staff."
+            />
+          </CardContent>
+        </Card>
       ) : (
         <>
           {/* ---- wide screens: the week as a grid ---- */}

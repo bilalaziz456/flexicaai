@@ -1,6 +1,11 @@
 import Link from "next/link";
+import { MessageSquare } from "lucide-react";
 import { listWhatsappQueue } from "@/core/integrations/whatsapp/queue";
 import { Badge } from "@/core/ui/badge";
+import { buttonVariants } from "@/core/ui/button";
+import { Card, CardContent } from "@/core/ui/card";
+import { EmptyState } from "@/core/ui/empty-state";
+import { cn } from "@/core/lib/utils";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { Pagination } from "@/core/ui/pagination";
 
@@ -51,7 +56,7 @@ export async function WhatsappQueue({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">WhatsApp</h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">WhatsApp</h1>
         {phone ? (
           <p className="text-sm text-muted-foreground">
             {/* The name is on the rows below; the NUMBER is the thing being filtered
@@ -79,28 +84,36 @@ export async function WhatsappQueue({
       />
 
       {rows.length === 0 ? (
-        <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {phone ? (
-            // Distinct from "no messages at all": a filtered view with nothing in it
-            // means the number is wrong or the log was pruned, and the generic copy
-            // would read as "this clinic has never sent a message", which is a lie.
-            <>
-              No messages with {phone}.{" "}
-              <Link href={basePath} className="underline underline-offset-4">
-                Show all messages
-              </Link>
-            </>
-          ) : (
-            <>
-              No WhatsApp messages yet. Prescriptions and recall reminders you send
-              appear here, along with patient replies.
-            </>
-          )}
-        </div>
+        <Card>
+          <CardContent className="p-0">
+            {/* A FILTERED view with nothing in it is a different fact from an empty
+                log — it means the number is wrong or the log was pruned, and the
+                generic copy would read as "this clinic has never sent a message",
+                which is a lie. */}
+            {phone ? (
+              <EmptyState
+                icon={MessageSquare}
+                title={`No messages with ${phone}`}
+                description="That number has no history here. Check the digits, or clear the filter."
+                action={
+                  <Link href={basePath} className={cn(buttonVariants({ variant: "outline" }))}>
+                    Show all messages
+                  </Link>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={MessageSquare}
+                title="No WhatsApp messages yet"
+                description="Prescriptions and recall reminders you send appear here, along with patient replies."
+              />
+            )}
+          </CardContent>
+        </Card>
       ) : (
-        <ul className="space-y-3">
+        <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
           {rows.map((m) => (
-            <li key={m.id} className="rounded-md border p-3">
+            <li key={m.id} className="p-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="flex items-center gap-2 text-sm font-medium">
                   {m.patientName ?? m.phone}

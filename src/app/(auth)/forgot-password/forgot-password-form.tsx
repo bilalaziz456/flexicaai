@@ -1,9 +1,9 @@
 "use client";
 
 import { useActionState } from "react";
-import Link from "next/link";
 import { requestResetAction } from "../reset-actions";
 import type { AuthActionState } from "@/core/auth/actions";
+import { BackLink } from "@/core/ui/back-link";
 import { Button } from "@/core/ui/button";
 import {
   Card,
@@ -23,9 +23,9 @@ export function ForgotPasswordForm() {
   );
 
   return (
-    <Card>
+    <Card className="p-1.5">
       <CardHeader>
-        <CardTitle>Reset your password</CardTitle>
+        <CardTitle className="text-xl">Reset your password</CardTitle>
         <CardDescription>
           Enter your username or email and we&apos;ll send you a reset link.
         </CardDescription>
@@ -61,9 +61,9 @@ export function ForgotPasswordForm() {
               {pending ? "Sending…" : "Send reset link"}
             </Button>
             <p className="text-center text-sm text-muted-foreground">
-              <Link href="/login" className="underline underline-offset-4 hover:text-foreground">
+              <BackLink href="/login">
                 Back to sign in
-              </Link>
+              </BackLink>
             </p>
           </div>
         </CardFooter>

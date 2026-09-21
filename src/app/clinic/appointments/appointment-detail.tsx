@@ -32,6 +32,7 @@ import {
   normalizeDiscountType,
 } from "@/core/appointments/fee";
 import { AppointmentActions } from "@/app/clinic/appointments/appointment-actions";
+import { doctorDayAvailability } from "@/app/clinic/appointments/actions";
 import { DeleteAppointmentButton } from "@/app/clinic/appointments/edit-appointment-form";
 import { NewAppointmentForm } from "@/app/clinic/appointments/new-appointment-form";
 import { APPOINTMENT_STATUS_VARIANT } from "@/core/appointments/status";
@@ -135,6 +136,14 @@ export async function AppointmentDetail({
   const d = appt.scheduledAt;
   const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const timeStr = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  // The edit form's time picker is constrained to the doctor's windows. Resolving
+  // them HERE rather than from an effect when the form mounts costs the same one
+  // query — the form is always rendered on this page — and spends it before the
+  // paint instead of after it, so the picker never briefly offers a time the doctor
+  // does not work. No doctor assigned means nothing to constrain.
+  const initialSlots = appt.doctorId
+    ? await doctorDayAvailability(appt.doctorId, `${dateStr}T12:00`)
+    : null;
   const whenLabel = d.toLocaleString("en-GB", {
     weekday: "short",
     day: "2-digit",
@@ -154,7 +163,7 @@ export async function AppointmentDetail({
       <div>
         <Breadcrumbs items={[{ label: "Appointments", href: backHref }, { label: appt.patientName }]} />
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-semibold">{appt.patientName}</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">{appt.patientName}</h1>
           <Badge variant={APPOINTMENT_STATUS_VARIANT[appt.status] ?? "secondary"}>
             {vocabularyLabel("appointment_statuses", appt.status)}
           </Badge>
@@ -253,7 +262,7 @@ export async function AppointmentDetail({
                 <dd className="tabular-nums">{formatPkr(bill.net)}</dd>
               </div>
               {discountBlocked && appt.discountValue > 0 ? (
-                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                <div className="rounded-lg border border-warning/35 bg-warning/10 px-3 py-2 text-xs text-warning-text">
                   {appt.discountStatus === "rejected"
                     ? "A discount was entered but was rejected. It is not applied. Edit the appointment to re-submit."
                     : "A discount is awaiting approval and is not applied yet. It will apply once approved."}
@@ -349,6 +358,7 @@ export async function AppointmentDetail({
               procedures={bookingProcedures}
               appointmentId={appt.id}
               fixedPatient={{ id: appt.patientId, fullName: appt.patientName }}
+              initialSlots={initialSlots}
               initial={{
                 doctorId: appt.doctorId ?? "",
                 date: dateStr,

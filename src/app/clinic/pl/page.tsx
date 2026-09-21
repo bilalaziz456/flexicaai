@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
+import { EmptyState } from "@/core/ui/empty-state";
+import { buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
 import { getClinic } from "@/core/clinics/get-clinic";
 
-import { Download } from "lucide-react";
+import { Download, PieChart, Receipt, Wallet } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { clinicHasFeature } from "@/core/lib/features";
 import Link from "next/link";
@@ -132,16 +135,16 @@ export default async function ProfitLossPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Profit &amp; Loss</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Profit &amp; Loss</h1>
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             What the clinic kept after doctor shares and expenses. On collected revenue.
           </p>
         </div>
         <a
           href={`/api/finance/export?${exportParams.toString()}`}
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium hover:bg-accent"
+          className={cn(buttonVariants({ variant: "outline" }))}
         >
-          <Download className="size-3.5" aria-hidden="true" /> CSV
+          <Download aria-hidden="true" /> CSV
         </a>
       </div>
 
@@ -173,7 +176,7 @@ export default async function ProfitLossPage({
       </div>
 
       {outstanding > 0 ? (
-        <p className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">
+        <p className="rounded-lg border border-dashed well px-3 py-2 text-sm text-muted-foreground">
           Memo: <span className="font-medium text-foreground">{money.format(outstanding)}</span>{" "}
           outstanding from patients is <strong>not</strong> in this profit. It counts only
           when collected.{" "}
@@ -193,9 +196,11 @@ export default async function ProfitLossPage({
         </CardHeader>
         <CardContent>
           {pl.revenue === 0 && pl.expenses === 0 ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">
-              No activity in this period.
-            </p>
+            <EmptyState
+              icon={Wallet}
+              title="No activity in this period"
+              description="Profit and loss is built from completed visits and recorded expenses. Try a wider period."
+            />
           ) : (
             <>
               <ProfitLossChart
@@ -235,7 +240,12 @@ export default async function ProfitLossPage({
           </CardHeader>
           <CardContent>
             {pl.byExpenseCategory.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No expenses in this period.</p>
+              <EmptyState
+                compact
+                icon={Receipt}
+                title="No expenses in this period"
+                description="Costs recorded on the Expenses page are subtracted here."
+              />
             ) : (
               /* Composition, not ranking: these categories ARE the expense total, so
                  the question is what share each takes of it. */
@@ -253,7 +263,12 @@ export default async function ProfitLossPage({
           </CardHeader>
           <CardContent>
             {pl.byDoctor.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No doctor shares in this period.</p>
+              <EmptyState
+                compact
+                icon={PieChart}
+                title="No doctor shares in this period"
+                description="A share is earned when a visit completes and the doctor has a percentage set."
+              />
             ) : (
               <LollipopChart
                 ariaLabel="Doctor shares"

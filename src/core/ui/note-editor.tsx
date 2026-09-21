@@ -1,5 +1,6 @@
 "use client";
 
+import { Checkbox } from "@/core/ui/checkbox";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { Button } from "@/core/ui/button";
@@ -35,12 +36,9 @@ function PrimitiveField({
 }) {
   if (typeof value === "boolean") {
     return (
-      <input
-        type="checkbox"
+      <Checkbox
         checked={value}
-        onChange={(e) => onChange(e.target.checked)}
-        className="size-4 accent-primary outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-      />
+        onCheckedChange={onChange} className="accent-primary outline-none focus-visible:ring-3 focus-visible:ring-ring/50" />
     );
   }
   const str = value === null || value === undefined ? "" : String(value);
@@ -91,7 +89,7 @@ function FieldBlock({
         <Label className="text-sm font-medium">{humanize(label)}</Label>
         <div className="space-y-2">
           {value.map((item, i) => (
-            <div key={i} className="flex items-start gap-2 rounded-md border p-2">
+            <div key={i} className="flex items-start gap-2 rounded-md border well p-2">
               <div className="flex-1">
                 {isPlainObject(item) ? (
                   <ObjectFields
@@ -139,7 +137,7 @@ function FieldBlock({
   // Nested object
   if (isPlainObject(value)) {
     return (
-      <div className="space-y-2 rounded-md border p-2">
+      <div className="space-y-2 rounded-md border well p-2">
         <Label className="text-sm font-medium">{humanize(label)}</Label>
         <ObjectFields value={value} onChange={(nv) => onChange(nv)} />
       </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { Receipt } from "lucide-react";
 import { DataTable, type Column } from "@/core/ui/data-table";
 import { Badge } from "@/core/ui/badge";
 import { ExpenseRowActions } from "./expense-ui";
@@ -55,5 +56,5 @@ export function ExpensesTable({ rows, canManage, empty }: { rows: Row[]; canMana
       ? [{ id: "actions", header: "", align: "right", cell: (r: Row) => <ExpenseRowActions id={r.id} deleted={r.deleted} /> } as Column<Row>]
       : []),
   ];
-  return <DataTable rows={rows} columns={columns} getRowKey={(r) => r.id} minWidthClassName="min-w-[44rem]" empty={empty} />;
+  return <DataTable rows={rows} columns={columns} getRowKey={(r) => r.id} minWidthClassName="min-w-[44rem]" empty={empty} emptyIcon={Receipt} />;
 }

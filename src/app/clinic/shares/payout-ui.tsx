@@ -1,14 +1,15 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { Undo2 } from "lucide-react";
 import {
   recordDoctorPayout,
   voidDoctorPayout,
   type PayoutActionState,
 } from "./actions";
+import { SelectField } from "@/core/ui/select-field";
 import { Button } from "@/core/ui/button";
-import { Toast } from "@/core/ui/toast";
+import { Toast, useActionToast } from "@/core/ui/toast";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
 const money = new Intl.NumberFormat("en-PK", {
@@ -38,10 +39,7 @@ export function RecordPayoutForm({
     recordDoctorPayout,
     {},
   );
-  const [nonce, setNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved || state.error) setNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { saved: "Payment recorded.", error: true });
   const [amount, setAmount] = useState(String(outstanding));
 
   return (
@@ -68,16 +66,14 @@ export function RecordPayoutForm({
           <label className="text-xs text-muted-foreground" htmlFor="pay-method">
             Method
           </label>
-          <select
+          <SelectField
             id="pay-method"
             name="method"
             defaultValue="cash"
-            className={`${inputCls} select-chevron pr-8`}
-          >
-            {methodOptions.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
+            options={[...methodOptions.map((m) => ({ value: m.value, label: m.label }))]}
+            ariaLabel="method"
+            className="h-8 w-full"
+          />
         </div>
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground" htmlFor="pay-ref">
@@ -93,11 +89,6 @@ export function RecordPayoutForm({
       >
         {pending ? "Recording…" : "Record payment"}
       </Button>
-      <Toast
-        message={state.saved ? "Payment recorded." : state.error ?? null}
-        variant={state.error ? "error" : "success"}
-        token={nonce}
-      />
     </form>
   );
 }
@@ -109,7 +100,7 @@ export function VoidPayoutButton({ payoutId }: { payoutId: string }) {
   const [nonce, setNonce] = useState(0);
   return (
     <>
-      <button
+      <Button
         type="button"
         disabled={pending}
         onClick={() =>
@@ -121,10 +112,10 @@ export function VoidPayoutButton({ payoutId }: { payoutId: string }) {
             }
           })
         }
-        className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
+        size="sm" variant="outline"
       >
         <Undo2 className="size-3" aria-hidden="true" /> Reverse
-      </button>
+      </Button>
       <Toast message={err} variant="error" token={nonce} />
     </>
   );

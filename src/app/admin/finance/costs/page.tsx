@@ -1,7 +1,9 @@
+import { Activity, Building2 } from "lucide-react";
 import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin } from "@/core/auth/admin-permissions";
 import { computeServingCost, effectiveTaxPct, getCostRates } from "@/core/admin/cost";
 import { resolveSalesRange } from "@/core/sales/report";
+import { EmptyState } from "@/core/ui/empty-state";
 import { TrendChart } from "@/core/ui/charts/trend-chart";
 import { StatCard } from "@/core/ui/charts/stat-card";
 import { DonutChart } from "@/core/ui/charts/donut-chart";
@@ -54,8 +56,8 @@ export default async function CostsPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Company finance: serving cost</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">Company finance: serving cost</h1>
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
           FlexicaAI&apos;s estimated variable cost of serving clinics (AI scribe + WhatsApp).
           Counts × your unit rates.
         </p>
@@ -64,7 +66,7 @@ export default async function CostsPage({
       <CostFilters period={range.period} from={range.from} to={range.to} />
 
       {notConfigured ? (
-        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
+        <div className="rounded-md border border-warning/35 bg-warning/[0.06] p-3 text-sm text-warning-text">
           Cost rates aren&apos;t set yet, so estimated cost shows Rs 0. {canEdit ? "Set them below." : "An admin with finance access can set them."}
         </div>
       ) : null}
@@ -121,7 +123,12 @@ export default async function CostsPage({
               />
             </div>
           ) : (
-            <p className="py-6 text-center text-sm text-muted-foreground">No usage in this period yet.</p>
+            <EmptyState
+              compact
+              icon={Activity}
+              title="No usage in this period"
+              description="Scribe runs and WhatsApp sends are metered as they happen. Widen the period, or wait for the first clinic to use one."
+            />
           )}
         </CardContent>
       </Card>
@@ -173,7 +180,12 @@ export default async function CostsPage({
         </CardHeader>
         <CardContent>
           {cost.perClinic.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">No scribe or WhatsApp usage in this period yet.</p>
+            <EmptyState
+              compact
+              icon={Building2}
+              title="No clinic used a paid service"
+              description="Once a clinic runs the scribe or sends a WhatsApp message, its share of the bill appears here."
+            />
           ) : (
             <Table>
               <TableHeader>

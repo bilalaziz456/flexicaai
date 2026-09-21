@@ -98,7 +98,7 @@ export function CostRatesForm({
       </div>
 
       {/* International-transaction bank tax / charges */}
-      <div className="space-y-3 rounded-lg border p-4">
+      <div className="space-y-3 rounded-xl border border-border/70 bg-surface-sunken p-4">
         <div>
           <div className="text-sm font-medium">Bank tax &amp; charges on international payments</div>
           <p className="mt-0.5 text-xs text-muted-foreground">

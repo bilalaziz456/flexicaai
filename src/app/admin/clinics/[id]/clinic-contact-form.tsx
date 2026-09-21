@@ -2,10 +2,11 @@
 
 import { useActionState, useState } from "react";
 import { updateClinicContact, type AdminActionState } from "@/app/admin/actions";
+import { SelectField } from "@/core/ui/select-field";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
-import { SavedToast } from "@/core/ui/toast";
+import { ActionToast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import { PROVINCES } from "@/core/clinics/provinces";
 import type { CityOption } from "@/core/clinics/cities";
@@ -80,7 +81,7 @@ export function ClinicContactForm({
 
   return (
     <form action={formAction} className="space-y-4">
-      <SavedToast state={state} message="Owner & contact saved." />
+      <ActionToast state={state} saved="Owner & contact saved." />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
@@ -97,20 +98,15 @@ export function ClinicContactForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="province">Province</Label>
-          <select
+          <SelectField
             id="province"
             name="province"
             value={province}
-            onChange={(e) => setProvince(e.target.value)}
-            className={selectClass}
-          >
-            <option value="">—</option>
-            {PROVINCES.map((p) => (
-              <option key={p.code} value={p.code}>
-                {p.label}
-              </option>
-            ))}
-          </select>
+            onValueChange={(next) => setProvince(next)}
+            options={[{ value: "", label: "—" }, ...PROVINCES.map((p) => ({ value: p.code, label: p.label }))]}
+            ariaLabel="province"
+            className="h-8 w-full"
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="city">City</Label>
@@ -136,29 +132,25 @@ export function ClinicContactForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="region">Data region</Label>
-          <select id="region" name="region" defaultValue={contact.region ?? ""} className={selectClass}>
-            <option value="">—</option>
-            {REGIONS.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
+          <SelectField
+            id="region"
+            name="region"
+            defaultValue={contact.region ?? ""}
+            options={[{ value: "", label: "—" }, ...REGIONS.map((r) => ({ value: r, label: r }))]}
+            ariaLabel="region"
+            className="h-8 w-full"
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="timezone">Timezone</Label>
-          <select
+          <SelectField
             id="timezone"
             name="timezone"
             defaultValue={contact.timezone || "Asia/Karachi"}
-            className={selectClass}
-          >
-            {TIMEZONES.map((tz) => (
-              <option key={tz} value={tz}>
-                {tz}
-              </option>
-            ))}
-          </select>
+            options={[...TIMEZONES.map((tz) => ({ value: tz, label: tz }))]}
+            ariaLabel="timezone"
+            className="h-8 w-full"
+          />
         </div>
       </div>
 

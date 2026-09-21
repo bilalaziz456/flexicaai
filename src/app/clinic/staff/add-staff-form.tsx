@@ -1,24 +1,21 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { createStaff, type ClinicActionState } from "@/app/clinic/actions";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
+import { SelectField } from "@/core/ui/select-field";
 import { PasswordInput } from "@/core/ui/password-input";
-import { Toast } from "@/core/ui/toast";
+import { useActionToast } from "@/core/ui/toast";
 import { DoctorScheduleFields } from "@/app/clinic/doctor-schedule-fields";
 import {
   defaultPermissionsForRole,
   type PermResource,
 } from "@/core/auth/permissions";
-import { cn } from "@/core/lib/utils";
 import { STAFF_PREFIXES, type UserRole } from "@/core/types/auth";
 import { PermissionMatrix } from "@/core/ui/permission-matrix";
 import { useVocabularyLabel } from "@/core/ui/vocabulary-provider";
-
-const selectCls =
-  "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron";
 
 export function AddStaffForm({ resources }: { resources: PermResource[] }) {
   const [state, formAction, pending] = useActionState<
@@ -35,10 +32,7 @@ export function AddStaffForm({ resources }: { resources: PermResource[] }) {
   // The role's label comes from the database (ADR-027), not a compiled map.
   const roleLabel = useVocabularyLabel("user_roles", role);
   // Re-pop the error toast on each failed submit (success redirects away).
-  const [errorNonce, setErrorNonce] = useState(0);
-  useEffect(() => {
-    if (state.error) setErrorNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { error: true });
 
   return (
     <form action={formAction} className="space-y-4">
@@ -46,49 +40,43 @@ export function AddStaffForm({ resources }: { resources: PermResource[] }) {
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>
           <div className="flex gap-2">
-            <select
+            <SelectField
               name="prefix"
-              aria-label="Title"
+              ariaLabel="Title"
               defaultValue=""
               required
-              // cn() (tailwind-merge) so w-24 actually beats selectCls's
-              // w-full — plain concatenation loses, and the Title select then
-              // eats the whole column, leaving no room for the name input.
-              className={cn(selectCls, "w-24 shrink-0")}
-            >
-              <option value="" disabled>
-                Title
-              </option>
-              {STAFF_PREFIXES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "Title", disabled: true },
+                ...STAFF_PREFIXES.map((p) => ({ value: p, label: p })),
+              ]}
+              className="w-24 shrink-0"
+            />
             <Input id="fullName" name="fullName" required className="flex-1" />
           </div>
         </div>
         <div className="space-y-2">
           <Label htmlFor="role">Role</Label>
-          <select
+          {/* `clinic_admin` is a second (or third) admin — a peer of whoever is adding
+              them, with the same access, including staff and settings. The clinic can
+              never be left with none: the last active admin cannot be suspended or
+              deleted. */}
+          <SelectField
             id="role"
             name="role"
             value={role}
-            onChange={(e) => {
-              const next = e.target.value as UserRole;
+            onValueChange={(next: UserRole) => {
               setRole(next);
               setGranted(new Set(defaultPermissionsForRole(next)));
             }}
-            className="h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron"
-          >
-            <option value="doctor">Doctor</option>
-            <option value="receptionist">Receptionist</option>
-            <option value="manager">Manager</option>
-            {/* A second (or third) admin — a peer of whoever is adding them, with the
-                same access, including staff and settings. The clinic can never be
-                left with none: the last active admin cannot be suspended or deleted. */}
-            <option value="clinic_admin">Clinic admin</option>
-          </select>
+            options={[
+              { value: "doctor", label: "Doctor" },
+              { value: "receptionist", label: "Receptionist" },
+              { value: "manager", label: "Manager" },
+              { value: "clinic_admin", label: "Clinic admin" },
+            ]}
+            ariaLabel="Role"
+            className="w-full"
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="username">Username</Label>
@@ -134,8 +122,6 @@ export function AddStaffForm({ resources }: { resources: PermResource[] }) {
       >
         {pending ? "Adding…" : "Add staff"}
       </Button>
-
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
 }

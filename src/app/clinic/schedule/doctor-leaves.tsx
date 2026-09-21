@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { CalendarOff, Pencil, X } from "lucide-react";
 import {
   addDoctorLeave,
@@ -8,6 +8,7 @@ import {
   updateDoctorLeave,
   type LeaveActionState,
 } from "@/app/clinic/appointments/actions";
+import { EmptyState } from "@/core/ui/empty-state";
 import { Button } from "@/core/ui/button";
 import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
 import { DatePicker } from "@/core/ui/date-picker";
@@ -45,22 +46,24 @@ function LeaveEntry({
 }) {
   const [editing, setEditing] = useState(false);
   const action = updateDoctorLeave.bind(null, leave.id);
+  // Leaving edit mode is what a successful save DOES, so it is part of the
+  // action. As an effect on `state.saved` it also had a latch: the flag stays
+  // true, so reopening the editor and saving the same values again left it open.
   const [state, formAction, pending] = useActionState<LeaveActionState, FormData>(
-    action,
+    async (prev, fd) => {
+      const res = await action(prev, fd);
+      if (res.saved) setEditing(false);
+      return res;
+    },
     {},
   );
   const [startDate, setStartDate] = useState(leave.startDate);
   const [endDate, setEndDate] = useState(leave.endDate);
   const [reason, setReason] = useState(leave.reason ?? "");
 
-  // Close the editor once a save succeeds (the list re-renders from the server).
-  useEffect(() => {
-    if (state.saved) setEditing(false);
-  }, [state.saved]);
-
   if (editing) {
     return (
-      <li className="rounded-md border p-3">
+      <li className="rounded-md border well p-3">
         <form action={formAction} className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
@@ -128,7 +131,7 @@ function LeaveEntry({
   }
 
   return (
-    <li className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm">
+    <li className="flex items-center justify-between gap-2 p-2.5 text-sm">
       <span className="flex items-center gap-2">
         <CalendarOff
           className="size-4 shrink-0 text-muted-foreground"
@@ -206,7 +209,7 @@ export function DoctorLeaves({
   return (
     <div className="space-y-4">
       {leaves.length > 0 ? (
-        <ul className="space-y-2">
+        <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
           {leaves.map((l) => (
             <LeaveEntry
               key={l.id}
@@ -217,11 +220,16 @@ export function DoctorLeaves({
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-muted-foreground">No leave scheduled.</p>
+        <EmptyState
+          compact
+          icon={CalendarOff}
+          title="No leave scheduled"
+          description="Booked leave cancels that day's appointments and blocks new ones."
+        />
       )}
 
       {canCreate ? (
-      <form action={formAction} className="space-y-3 rounded-md border p-3">
+      <form action={formAction} className="space-y-3 rounded-md border well p-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
             <Label htmlFor={`from-${doctorId}`} className="text-xs">
@@ -267,7 +275,7 @@ export function DoctorLeaves({
             {pending ? "Saving…" : "Add leave"}
           </Button>
           {state.saved ? (
-            <span className="text-xs text-emerald-600" role="status">
+            <span className="text-xs text-success-text" role="status">
               Leave added
               {typeof state.cancelled === "number" && state.cancelled > 0
                 ? ` · ${state.cancelled} appointment${state.cancelled === 1 ? "" : "s"} cancelled`

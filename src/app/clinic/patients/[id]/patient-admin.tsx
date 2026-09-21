@@ -1,18 +1,20 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState } from "react";
 import { Trash2 } from "lucide-react";
 import {
   deletePatient,
   updatePatient,
   type ClinicActionState,
 } from "@/app/clinic/actions";
+import { SelectField } from "@/core/ui/select-field";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
 import { Input } from "@/core/ui/input";
 import { PhoneInput } from "@/core/ui/phone-input";
 import { Label } from "@/core/ui/label";
-import { Toast } from "@/core/ui/toast";
+import { useActionToast } from "@/core/ui/toast";
 import { ageFromDob } from "@/core/lib/age";
 
 type PatientData = {
@@ -27,8 +29,6 @@ type PatientData = {
   dataConsent: boolean;
 };
 
-const selectCls =
-  "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron";
 
 /** Edit a patient's details. */
 export function EditPatientForm({ patient }: { patient: PatientData }) {
@@ -41,12 +41,7 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
   // Success redirects to the list (flash toast); a failed save pops an error toast.
   // The nonces let an identical message fire again on a repeated save, since
   // useActionState hands back an equal state object each time.
-  const [savedNonce, setSavedNonce] = useState(0);
-  const [errorNonce, setErrorNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved) setSavedNonce((n) => n + 1);
-    if (state.error) setErrorNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { saved: "Patient updated.", error: true });
 
   return (
     <form action={formAction} className="space-y-4">
@@ -98,17 +93,14 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
         </div>
         <div className="space-y-2">
           <Label htmlFor="gender">Gender</Label>
-          <select
-            key={`g-${patient.gender ?? ""}`}
+          <SelectField
             id="gender"
             name="gender"
             defaultValue={patient.gender ?? ""}
-            className={selectCls}
-          >
-            <option value="">—</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-          </select>
+            options={[{ value: "", label: "—" }, { value: "male", label: "Male" }, { value: "female", label: "Female" }]}
+            ariaLabel="gender"
+            className="h-8 w-full"
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="address">Address</Label>
@@ -132,12 +124,9 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
       </div>
 
       <label className="flex items-center gap-2 text-sm text-muted-foreground">
-        <input
-          type="checkbox"
+        <Checkbox
           name="dataConsent"
-          defaultChecked={patient.dataConsent}
-          className="size-4 accent-[var(--primary)]"
-        />
+          defaultChecked={patient.dataConsent} />
         Patient consents to their data being stored and used for care.
       </label>
 
@@ -146,12 +135,6 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
           {pending ? "Saving…" : "Save changes"}
         </Button>
       </div>
-      <Toast
-        message={state.saved ? "Patient updated." : null}
-        variant="success"
-        token={savedNonce}
-      />
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
 }

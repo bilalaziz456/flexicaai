@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { Popover } from "@base-ui/react/popover";
 import { cn } from "@/core/lib/utils";
@@ -26,8 +26,26 @@ function todayParts() {
   return { y: t.getFullYear(), m0: t.getMonth(), d: t.getDate() };
 }
 
+/**
+ * The width a date field needs, in one place, because the component is the only
+ * thing that knows how long its own label gets.
+ *
+ * MEASURED: the trigger spends 46px on the calendar icon, the gap and the padding,
+ * and the label renders "Tue, 22 Sept 2026" at 119px — 127px at its worst
+ * ("Wed, 22 Sept 2026"). So anything under about 173px cuts the tail, and the tail is
+ * the YEAR, the one part of a date a reader cannot infer from the rest. `w-48` leaves
+ * 146px for the text: clearance for a wider font, rather than the three pixels `w-44`
+ * would have left.
+ *
+ * Six call sites each wrapped the picker in their own fixed-width div, and two of
+ * them chose `w-40` — which is how the year came to be cut in the Trash filters and
+ * the lab tracker while the reports were fine. Import this instead of picking a
+ * number; `min-w-48` on the trigger below is the backstop for when someone doesn't.
+ */
+export const DATE_FIELD_W = "w-48";
+
 const triggerCls =
-  "flex h-8 w-full items-center gap-2 rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm text-left outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[popup-open]:border-ring";
+  "flex h-9 w-full min-w-48 items-center gap-2 rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm text-left outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[popup-open]:border-ring";
 
 // Month/year quick-nav selects in the popover header (fast jumps for e.g. DOB).
 const navSelectCls =
@@ -69,11 +87,19 @@ export function DatePicker({
   const [view, setView] = useState({ y: base.y, m0: base.m0 });
 
   // When the popover opens, jump the visible month to the selected date (or today).
-  useEffect(() => {
-    if (!open) return;
-    const b = parseYMD(value) ?? todayParts();
-    setView({ y: b.y, m0: b.m0 });
-  }, [open, value]);
+  //
+  // Done ON THE OPEN, not in an effect watching `open`. The effect set state as a
+  // reaction to state it had just set, which costs a second render of the calendar
+  // every time it opens — and it also listed `value`, so a value changing while the
+  // popover happened to be open yanked the visible month out from under whoever was
+  // reading it. Opening IS the event; this is where the decision belongs.
+  function openChange(next: boolean) {
+    if (next) {
+      const b = parseYMD(value) ?? todayParts();
+      setView({ y: b.y, m0: b.m0 });
+    }
+    setOpen(next);
+  }
 
   const selected = parseYMD(value);
   const today = todayParts();
@@ -118,7 +144,7 @@ export function DatePicker({
   };
 
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
+    <Popover.Root open={open} onOpenChange={openChange}>
       <Popover.Trigger
         id={id}
         disabled={disabled}

@@ -4,8 +4,9 @@ import { useActionState, useState, useTransition } from "react";
 import { uploadClinicLogo, removeClinicLogo, type AdminActionState } from "@/app/admin/actions";
 import { LOGO_MAX_PX, MAX_LOGO_BYTES } from "@/core/clinics/logo-limits";
 import { downscaleImage } from "@/core/lib/image-resize";
-import { Button } from "@/core/ui/button";
-import { SavedToast } from "@/core/ui/toast";
+import { Button, buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
+import { ActionToast } from "@/core/ui/toast";
 
 /**
  * Clinic logo upload (owner/super-admin/account-manager). Shows the current logo (via a
@@ -83,11 +84,15 @@ export function ClinicLogoForm({ clinicId, logo }: { clinicId: string; logo: str
 
   return (
     <form onSubmit={onSubmit} className="space-y-3">
-      <p className="text-sm text-muted-foreground">
-        Printed at the top of invoices &amp; receipts. A thermal / black-and-white printer
-        renders it in B&amp;W automatically. For the cleanest B&amp;W result, upload a
-        <span className="font-medium"> black (or transparent) PNG</span> — transparency is
-        preserved. Large images are resized automatically; no logo = nothing printed.
+      {/* Opens on the CONSTRAINT, not on where the logo appears — the card's own
+          description already says that, and the two sentences ran one under the other
+          saying the same thing. What is left is the part that changes what someone
+          uploads. */}
+      <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
+        A thermal or black-and-white printer converts it automatically. For the cleanest
+        result upload a <span className="font-medium">black or transparent PNG</span> —
+        transparency is preserved. Large images are resized for you; no logo means
+        nothing is printed.
       </p>
       <div className="flex flex-wrap items-center gap-4">
         {current ? (
@@ -102,13 +107,28 @@ export function ClinicLogoForm({ clinicId, logo }: { clinicId: string; logo: str
             No logo
           </div>
         )}
-        <input
-          type="file"
-          name="logo"
-          accept="image/png,image/jpeg,image/webp"
-          onChange={onPick}
-          className="text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-[var(--input-bg)] file:px-3 file:py-1.5 file:text-sm hover:file:bg-accent"
-        />
+        {/* A file input has no styleable button of its own, so the LABEL is the
+            control — the same move as the account avatar picker. The `file:` pseudo
+            element it used before could not be made to match a real button's height
+            or hover, so this one control sat 30px tall among 36px ones. */}
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <label className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer")}>
+            {file ? "Choose another" : "Choose file"}
+            <input
+              type="file"
+              name="logo"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={onPick}
+              className="sr-only"
+            />
+          </label>
+          {/* The filename has to be shown by us now: `sr-only` takes away the
+              browser's own "No file chosen", and a picker that says nothing after a
+              pick looks like it did not work. */}
+          <span className="min-w-0 truncate text-sm text-muted-foreground">
+            {file ? file.name : "No file chosen"}
+          </span>
+        </div>
         {/* Says what happened to their file. Silent resizing of something that gets
             printed on a patient's receipt would be a surprise worth avoiding. */}
         {shrunkFrom && file ? (
@@ -118,7 +138,9 @@ export function ClinicLogoForm({ clinicId, logo }: { clinicId: string; logo: str
         ) : null}
       </div>
       <div className="flex items-center gap-2">
-        <Button type="submit" size="sm" variant="outline" disabled={pending || !file}>
+        {/* The primary action of this form, so it takes the primary variant. It was
+            `outline`, which put it at the same weight as the picker beside it. */}
+        <Button type="submit" size="sm" disabled={pending || !file}>
           {pending ? "Uploading…" : "Save logo"}
         </Button>
         {logo ? (
@@ -139,7 +161,7 @@ export function ClinicLogoForm({ clinicId, logo }: { clinicId: string; logo: str
           <span className="text-sm text-destructive">{state.error}</span>
         ) : null}
       </div>
-      <SavedToast state={state} message="Logo saved." />
+      <ActionToast state={state} saved="Logo saved." />
     </form>
   );
 }

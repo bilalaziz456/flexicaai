@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { RotateCcw, Trash2 } from "lucide-react";
 import {
   issueClinicInvoiceAction,
@@ -12,7 +12,7 @@ import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { DatePicker } from "@/core/ui/date-picker";
-import { Toast } from "@/core/ui/toast";
+import { Toast, useActionToast } from "@/core/ui/toast";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 
 const inputCls =
@@ -22,22 +22,32 @@ export type InvoiceClinic = { id: string; name: string; monthlyPrice: number };
 
 /** Issue a subscription invoice to a clinic (sub_invoices:create). */
 export function IssueInvoiceForm({ clinics }: { clinics: InvoiceClinic[] }) {
-  const [state, formAction, pending] = useActionState<InvoiceActionState, FormData>(issueClinicInvoiceAction, {});
-  const [nonce, setNonce] = useState(0);
   const [clinicId, setClinicId] = useState("");
   const [amount, setAmount] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
 
-  useEffect(() => {
-    if (state.saved) {
-      setClinicId("");
-      setAmount("");
-      setStart("");
-      setEnd("");
-    }
-    if (state.saved || state.error) setNonce((n) => n + 1);
-  }, [state]);
+  // Clearing the form is part of issuing the invoice, so it happens in the action
+  // once the server has accepted it — not in an effect that watches for the save to
+  // have happened and then re-renders to undo the fields. The fields are declared
+  // ABOVE this on purpose: the closure only runs after a submit, so referencing them
+  // from above worked, but it read as using a value before it exists and the linter
+  // said so.
+  const [state, formAction, pending] = useActionState<InvoiceActionState, FormData>(
+    async (prev, fd) => {
+      const res = await issueClinicInvoiceAction(prev, fd);
+      if (res.saved) {
+        setClinicId("");
+        setAmount("");
+        setStart("");
+        setEnd("");
+      }
+      return res;
+    },
+    {},
+  );
+
+  useActionToast(state, { saved: "Invoice issued.", error: true });
 
   // Pre-fill the amount with the selected clinic's monthly price.
   function onPickClinic(id: string) {
@@ -62,7 +72,7 @@ export function IssueInvoiceForm({ clinics }: { clinics: InvoiceClinic[] }) {
           options={clinicOptions}
           placeholder="Pick a clinic"
           searchPlaceholder="Search clinics…"
-          className="w-full"
+          className="h-8 w-full"
         />
         <div className="space-y-1">
           <Label htmlFor="inv-amount" className="text-xs text-muted-foreground">Amount (Rs)</Label>
@@ -92,7 +102,6 @@ export function IssueInvoiceForm({ clinics }: { clinics: InvoiceClinic[] }) {
         </div>
       </div>
       <Button type="submit" disabled={pending || !clinicId}>{pending ? "Issuing…" : "Issue invoice"}</Button>
-      <Toast message={state.saved ? "Invoice issued." : state.error ?? null} variant={state.error ? "error" : "success"} token={nonce} />
     </form>
   );
 }
@@ -113,13 +122,13 @@ export function InvoiceRowActions({ id, deleted }: { id: string; deleted: boolea
   return (
     <>
       {deleted ? (
-        <button type="button" disabled={pending} onClick={() => run(() => restoreClinicInvoiceAction(id))} className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50">
+        <Button type="button" disabled={pending} onClick={() => run(() => restoreClinicInvoiceAction(id))} size="sm" variant="outline">
           <RotateCcw className="size-3.5" aria-hidden="true" /> Restore
-        </button>
+        </Button>
       ) : (
-        <button type="button" disabled={pending} onClick={() => run(() => voidClinicInvoiceAction(id))} className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-destructive disabled:opacity-50">
+        <Button type="button" disabled={pending} onClick={() => run(() => voidClinicInvoiceAction(id))} size="sm" variant="ghost" className="text-destructive hover:text-destructive">
           <Trash2 className="size-3.5" aria-hidden="true" /> Void
-        </button>
+        </Button>
       )}
       <Toast message={err} variant="error" token={nonce} />
     </>

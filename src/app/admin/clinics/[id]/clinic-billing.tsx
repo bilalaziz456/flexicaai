@@ -9,21 +9,19 @@ import {
   voidClinicPaymentAction,
   type AdminActionState,
 } from "@/app/admin/actions";
+import { SelectField } from "@/core/ui/select-field";
 import { Badge } from "@/core/ui/badge";
 import { Button } from "@/core/ui/button";
 import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { DataTable, type Column } from "@/core/ui/data-table";
 import { DatePicker } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
+import { Switch } from "@/core/ui/switch";
 import { Label } from "@/core/ui/label";
-import { SavedToast } from "@/core/ui/toast";
+import { ActionToast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
-const selectClass = cn(
-  "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none",
-  "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron",
-);
 const CYCLES = [
   { id: "monthly", label: "Monthly" },
   { id: "2m", label: "2-monthly" },
@@ -134,8 +132,7 @@ export function ClinicBilling({
   const [noticeOn, setNoticeOn] = useState(paymentNoticeEnabled);
   const [togglingNotice, startNotice] = useTransition();
   const [noticeErr, setNoticeErr] = useState<string | null>(null);
-  const toggleNotice = () => {
-    const next = !noticeOn;
+  const toggleNotice = (next: boolean) => {
     setNoticeOn(next);
     setNoticeErr(null);
     startNotice(async () => {
@@ -184,16 +181,19 @@ export function ClinicBilling({
 
   return (
     <div className="space-y-6">
-      <SavedToast state={priceState} message="Billing settings saved." />
-      <SavedToast state={payState} message="Recorded." />
+      <ActionToast state={priceState} saved="Billing settings saved." />
+      <ActionToast state={payState} saved="Recorded." />
 
       {/* ---- Balance summary ---- */}
-      <div className="grid gap-3 rounded-md border p-4 sm:grid-cols-4">
-        <div>
+      {/* The card's headline figures, so hairlines rather than a recess — the same
+          correction the patient Account card needed. A well is for a grouping or an
+          aside; these are the content. */}
+      <div className="grid grid-cols-2 divide-x divide-y divide-border/60 overflow-hidden rounded-lg border border-border/60 sm:grid-cols-4 sm:divide-y-0">
+        <div className="p-3">
           <div className="text-xs text-muted-foreground">Status</div>
           <div className="mt-1"><StatusBadge s={balance.billingStatus} /></div>
         </div>
-        <div>
+        <div className="p-3">
           <div className="text-xs text-muted-foreground">Paid through</div>
           <div className="mt-1 text-sm font-medium">{fmtDate(balance.paidThrough)}</div>
           <div className="text-xs text-muted-foreground">
@@ -204,14 +204,14 @@ export function ClinicBilling({
                 : `${balance.daysRemaining}d left`}
           </div>
         </div>
-        <div>
+        <div className="p-3">
           <div className="text-xs text-muted-foreground">
             {balance.credit > 0 ? "Credit (paid ahead)" : "Owed (remaining)"}
           </div>
           <div
             className={cn(
               "mt-1 text-sm font-semibold",
-              balance.owed > 0 ? "text-destructive" : balance.credit > 0 ? "text-emerald-600" : "",
+              balance.owed > 0 ? "text-destructive" : balance.credit > 0 ? "text-success-text" : "",
             )}
           >
             {rs(balance.credit > 0 ? balance.credit : balance.owed)}
@@ -220,7 +220,7 @@ export function ClinicBilling({
             <div className="text-xs text-muted-foreground">billed {rs(balance.accrued)}</div>
           ) : null}
         </div>
-        <div>
+        <div className="p-3">
           <div className="text-xs text-muted-foreground">Total collected</div>
           <div className="mt-1 text-sm font-medium">{rs(balance.totalPaid)}</div>
           <div className="text-xs text-muted-foreground">{balance.monthsPaid} months paid</div>
@@ -229,7 +229,7 @@ export function ClinicBilling({
 
       {/* Clinic-facing payment-due notice toggle (owner/super-admin/account manager). */}
       {canToggleNotice && monthlyPrice > 0 ? (
-        <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+        <div className="flex items-start justify-between gap-3 rounded-md border well p-3">
           <div>
             <div className="text-sm font-medium">Show payment-due notice to clinic staff</div>
             <p className="mt-0.5 text-xs text-muted-foreground">
@@ -239,32 +239,24 @@ export function ClinicBilling({
             </p>
             {noticeErr ? <p className="mt-1 text-xs text-destructive" role="alert">{noticeErr}</p> : null}
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={noticeOn}
-            aria-label="Show payment-due notice to clinic staff"
+          {/* Was a hand-rolled copy of the Switch primitive's markup, at its own size
+              and with its own focus ring — the exact duplication core/ui exists to
+              stop. This toggle takes effect immediately, so a switch is the right
+              control; only the copy was wrong. */}
+          <Switch
+            checked={noticeOn}
+            onCheckedChange={toggleNotice}
             disabled={togglingNotice}
-            onClick={toggleNotice}
-            className={cn(
-              "relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60",
-              noticeOn ? "bg-primary" : "bg-input",
-            )}
-          >
-            <span
-              className={cn(
-                "inline-block size-5 rounded-full bg-white shadow transition-transform",
-                noticeOn ? "translate-x-5" : "translate-x-0.5",
-              )}
-            />
-          </button>
+            aria-label="Show payment-due notice to clinic staff"
+            className="mt-0.5"
+          />
         </div>
       ) : null}
 
       {/* "Payment coming up" reminder window (owner/super-admin/account manager). Shown
           regardless of price for discoverability; it only takes effect once a price is set. */}
       {canToggleNotice ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border well p-3">
           <div>
             <div className="text-sm font-medium">Remind me before the payment is due</div>
             <p className="mt-0.5 text-xs text-muted-foreground">
@@ -302,7 +294,7 @@ export function ClinicBilling({
 
       {/* Follow-up commitment on an outstanding balance. */}
       {commitmentAt && balance.owed > 0 ? (
-        <div className="flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+        <div className="flex items-center gap-2 rounded-md border border-warning/35 bg-warning/[0.06] px-3 py-2 text-sm text-warning-text">
           <span className="font-medium">Follow up {fmtDate(commitmentAt)}</span>
           <span className="text-muted-foreground">
            · {rs(balance.owed)} promised{commitmentNote ? ` · ${commitmentNote}` : ""}
@@ -326,11 +318,14 @@ export function ClinicBilling({
           </div>
           <div className="space-y-2">
             <Label htmlFor="billingCycle">Expected cycle</Label>
-            <select id="billingCycle" name="billingCycle" defaultValue={billingCycle} className={selectClass}>
-              {CYCLES.map((c) => (
-                <option key={c.id} value={c.id}>{c.label}</option>
-              ))}
-            </select>
+            <SelectField
+              id="billingCycle"
+              name="billingCycle"
+              defaultValue={billingCycle}
+              options={[...CYCLES.map((c) => ({ value: c.id, label: c.label }))]}
+              ariaLabel="billingCycle"
+              className="h-8 w-full"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="graceDays">Grace days</Label>
@@ -346,17 +341,20 @@ export function ClinicBilling({
 
       {/* ---- Record a payment (manage only) ---- */}
       {canManage ? (
-      <form action={payAction} className="space-y-3 rounded-md border p-4">
+      <form action={payAction} className="space-y-3 rounded-md border well p-4">
         <input type="hidden" name="kind" value={kind} />
         <div className="text-sm font-medium">Record payment / refund / credit</div>
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="kind">Type</Label>
-            <select id="kind" value={kind} onChange={(e) => setKind(e.target.value)} className={selectClass}>
-              <option value="payment">Payment (money in)</option>
-              <option value="refund">Refund (money out)</option>
-              <option value="credit">Credit (non-cash adjustment)</option>
-            </select>
+            <SelectField
+              id="kind"
+              value={kind}
+              onValueChange={(next) => setKind(next)}
+              options={[{ value: "payment", label: "Payment (money in)" }, { value: "refund", label: "Refund (money out)" }, { value: "credit", label: "Credit (non-cash adjustment)" }]}
+              ariaLabel="kind"
+              className="h-8 w-full"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="amount">Amount (PKR)</Label>
@@ -371,11 +369,14 @@ export function ClinicBilling({
           </div>
           <div className="space-y-2">
             <Label htmlFor="method">Method</Label>
-            <select id="method" name="method" defaultValue="bank" className={selectClass}>
-              {methodOptions.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
+            <SelectField
+              id="method"
+              name="method"
+              defaultValue="bank"
+              options={[...methodOptions.map((m) => ({ value: m.value, label: m.label }))]}
+              ariaLabel="method"
+              className="h-8 w-full"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="occurredAt">Date</Label>
@@ -398,7 +399,7 @@ export function ClinicBilling({
 
         {/* Follow-up on any remaining balance (payment only). */}
         {isPayment ? (
-          <div className="grid gap-3 rounded-md border border-dashed p-3 sm:grid-cols-2">
+          <div className="grid gap-3 rounded-md border border-dashed well p-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="commitmentAt">Follow-up date (if balance remains)</Label>
               <input type="hidden" name="commitmentAt" value={newCommitmentAt} />

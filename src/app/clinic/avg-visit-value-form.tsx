@@ -42,7 +42,7 @@ export function AvgVisitValueForm({ value }: { value: number }) {
           <span className="text-xs text-destructive">{state.error}</span>
         ) : null}
         {state.saved ? (
-          <span className="text-xs text-emerald-600">Saved.</span>
+          <span className="text-xs text-success-text">Saved.</span>
         ) : null}
       </div>
     </form>

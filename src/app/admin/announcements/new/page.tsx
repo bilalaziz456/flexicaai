@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { BackLink } from "@/core/ui/back-link";
 import { requireAdminCapability } from "@/core/auth/user";
 import { listClinicOptions } from "@/core/clinics/options";
 import { AnnouncementForm } from "../announcement-form";
@@ -10,13 +10,10 @@ export default async function NewAnnouncementPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href="/admin/announcements"
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
-          ← Back to announcements
-        </Link>
-        <h1 className="mt-2 text-xl font-semibold">New announcement</h1>
+        <BackLink href="/admin/announcements">
+          Back to announcements
+        </BackLink>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em]">New announcement</h1>
         <p className="text-sm text-muted-foreground">
           Defaults to every clinic and every staff member; narrow either below.
         </p>

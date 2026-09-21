@@ -24,9 +24,9 @@ export default async function ResetPasswordPage({
 
   if (!valid || !token) {
     return (
-      <Card>
+      <Card className="p-1.5">
         <CardHeader>
-          <CardTitle>Reset link invalid</CardTitle>
+          <CardTitle className="text-xl">Reset link invalid</CardTitle>
           <CardDescription>This password-reset link is invalid or has expired.</CardDescription>
         </CardHeader>
         <CardContent>

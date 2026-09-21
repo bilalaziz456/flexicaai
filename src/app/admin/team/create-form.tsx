@@ -2,17 +2,13 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { createSuperAdminAction, type TeamActionState } from "./actions";
+import { SelectField } from "@/core/ui/select-field";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { PasswordInput } from "@/core/ui/password-input";
 import { Toast } from "@/core/ui/toast";
-import { cn } from "@/core/lib/utils";
 
-const selectClass = cn(
-  "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none",
-  "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron",
-);
 
 export function CreateSuperAdminForm() {
   const [state, action, pending] = useActionState<TeamActionState, FormData>(
@@ -42,12 +38,14 @@ export function CreateSuperAdminForm() {
         </div>
         <div className="space-y-2">
           <Label htmlFor="subRole">Sub-role</Label>
-          <select id="subRole" name="subRole" defaultValue="support" className={selectClass}>
-            <option value="super_admin">Super admin: full access</option>
-            <option value="support">Support: clinics, impersonate, announcements</option>
-            <option value="sales">Sales: add & manage clinics</option>
-            <option value="billing">Billing: record payments</option>
-          </select>
+          <SelectField
+            id="subRole"
+            name="subRole"
+            defaultValue="support"
+            options={[{ value: "super_admin", label: "Super admin: full access" }, { value: "support", label: "Support: clinics, impersonate, announcements" }, { value: "sales", label: "Sales: add & manage clinics" }, { value: "billing", label: "Billing: record payments" }]}
+            ariaLabel="subRole"
+            className="h-8 w-full"
+          />
         </div>
       </div>
       {state.error ? <p className="text-sm text-destructive" role="alert">{state.error}</p> : null}

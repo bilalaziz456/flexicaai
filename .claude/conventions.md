@@ -79,6 +79,21 @@ note above it; obvious logic gets none.
   reverts to how it first painted while React state and the hidden input keep the new
   value, and the form starts contradicting itself. Hidden inputs do NOT need this
   (React keeps `defaultValue` in step) and neither does a form that redirects on submit.
+- **A form announces its result with `useActionToast(state, { saved, error })`**
+  (`core/ui/toast.tsx`), and **what a submission DOES belongs inside the action** —
+  not in an effect watching `state.saved` for it to have happened. `useActionState`
+  hands back a new state object per submission carrying the same message, so
+  `{state.saved ? <Toast …/> : null}` fires once and is silent on every save after
+  it; twenty-one forms had each answered that with a nonce bumped from an effect,
+  which is a second render per submit and the whole of
+  `react-hooks/set-state-in-effect`. The hook keys on the state object's IDENTITY and
+  pushes to the toast store, which is an external store — exactly what an effect is
+  for — so there is no React state left to update. Each outcome is opted into,
+  because several forms print their error beside the field instead.
+  **Clearing the form, closing the dialog, refreshing a preview: all of it goes in
+  the action**, awaited after the server call. An effect on `state.saved` also
+  LATCHES — the flag stays true, so a second identical save changes nothing and the
+  dialog stays open.
 
 ## 6. Database access
 
@@ -111,6 +126,15 @@ note above it; obvious logic gets none.
      receivable is a balance) and a flat line drawn to tidy a grid is a lie. Where a
      series DOES exist it is nearly always already on the page — check the report's
      buckets before adding a query.
+     **And when it does exist, it must ARRIVE at the figure it sits under.** A series
+     that ends somewhere other than the number above it, or sums to something else, is
+     worse than no series: it is two contradictory claims in one card. Build it so
+     that holds by construction rather than by care — `getSalesSummary` totals the
+     very rows it buckets, and `getPayableTrend` takes the lifetime balances as its
+     anchor and subtracts in-window movement to find the opening, instead of re-summing
+     the balance formula from scratch (which would be a second copy of a money rule,
+     ADR-015). `scripts/test-dashboard-trends.ts` asserts both relationships against
+     every clinic in the database.
   2. **Everything on a card agrees with everything else on it.** The sparkline takes
      the delta's good/bad judgement, not its own direction: colouring by direction
      put a red trace under a green profit figure and a green one under rising
@@ -129,6 +153,74 @@ note above it; obvious logic gets none.
      materiality floor — a −126 rupee month on a 40,000 axis is a true loss and an
      invisible one, and a line that appears to contradict its own chart costs more
      trust than it adds. They are computed, so they are never labelled AI.
+- **Shared UI primitives live in `core/ui`, and there is exactly one of each.** The
+  set is `Button` · `Input` / `Textarea` / `SelectField` / `RadioGroup` / `Checkbox` /
+  `Switch` / `DatePicker`, all wrapped by **`Field`** (label + hint + error, with the a11y wiring
+  done for you) · `Dialog` · `Tooltip` · `Tabs` · `DataTable` · `EmptyState` ·
+  `Card` · the `charts/` set. Reach for the primitive; if it does not fit, change the
+  primitive.
+  **`Checkbox` vs `Switch` is not cosmetic**: a checkbox is a value you are about to
+  SUBMIT, a switch is a state you are CHANGING now. Twenty raw `<input type="checkbox">`
+  elements were styled with `accent-color`, which cannot carry a focus ring, an
+  indeterminate mark, or a border that reads on a dark ground — and they did not agree
+  with each other (`--primary` in eight, `--color-primary` in twelve, two sizes). One
+  toggle had gone the other way and hand-rolled a copy of the Switch markup.
+  **The failure mode this exists to stop is copying markup.** Seven files had grown
+  their own copy of the Base UI `Select` trigger/popup, five their own dialog backdrop,
+  and the two components meant to be canonical had two consumers between them — so a
+  dropdown opened inside a dialog rendered *behind* it in five places and correctly in
+  two, and nobody could tell which was the bug.
+  **An `EmptyState` is for a region that would otherwise be blank** — a list, a table,
+  a card's whole body — and it says what is missing and what goes there, not just that
+  there is nothing (§15 of the redesign brief). A muted inline `—` in a table CELL, or
+  a one-line note inside a field group, is not an empty state and should stay inline;
+  the two are different things and converting every one of them would be churn.
+- **A bordered box nested inside something else gets `well`, never a hardcoded
+  `bg-*`.** The surface ladder is `--surface-sunken` < the page ground < `--card` <
+  `--elevated`, and which way a nested box should move depends on what is BEHIND it:
+  on the page ground it rises to `--card`, inside a card it recedes to
+  `--surface-sunken`. Going the wrong way is worse than no fill — a card on a card is
+  two identical planes with a line between them.
+  **So the surface publishes and the box reads.** `.app-root` sets `--nested-surface`
+  / `--nested-shadow`; `[data-slot="card"]` and `[data-slot="dialog-popup"]` flip
+  them; the `well` utility (globals.css) just reads them. A component cannot decide
+  this for itself — `note-editor`, `data-table`, `trash-table` and `activity-log` each
+  render both ways, so anything they hardcode is wrong half the time. A static pass
+  over the JSX guessed 57 of these were on the ground; rendering showed almost all
+  were inside a card.
+  **`well` must never also publish a value for its own children**: a custom property
+  set on an element is visible to that element's own declarations, so the publish
+  would be what `background-color` picked up and every well in the app would come out
+  one colour.
+  **This was invisible until the ground got a tint.** While the page and `--card` were
+  both pure white, `rounded-lg border p-3` with no fill looked exactly like a card;
+  69 containers had been written that way. Controls are the exception and keep no
+  fill — an outline button, a switch track, a checkbox square, a count chip and a
+  dashed drop-slot are all *supposed* to be transparent.
+  **A box sitting ON a recessed panel takes `raised`, not `well`.** `well` recedes
+  from what is behind it, so a well inside a well reads the same `--nested-surface`
+  as its parent and paints the identical colour — two flat planes with a hairline
+  between them, which is the mistake the ladder exists to prevent (the doctor's
+  schedule panel and its seven weekday rows were exactly that). `raised` paints at
+  card level and publishes the recess for its own children, the same relationship a
+  card has with the page, so panel → rows → anything inside a row keeps alternating.
+  Only on a recessed ground: on the page ground a plain `well` is already a card.
+- **Every data table sits in a `TableCard`** (`core/ui/table-card.tsx`) — one surface,
+  app-wide, at the owner's direction. It had previously been split: a table that WAS
+  the page sat on the page ground, a table that was one section among several took a
+  card. That is defensible in the abstract and it loses to the comparison people
+  actually make, which is opening two pages and seeing two designs.
+  `title` is for a table that needs naming because something else shares the page
+  ("24 payments" under a row of KPIs). A list page whose header already carries the
+  count passes none, rather than printing it twice.
+  **A table's own empty state must not draw its own box.** Inside a card, a second
+  bordered container reads as a mistake — `TrashTable` and `ActivityLogList` each had
+  one and now render a bare `EmptyState`.
+  Also fixed: a sortable column header renders its
+  label inside a `<button>` — and a button does not inherit `text-transform`, because
+  browsers reset it on form elements. So the sortable columns came out Title Case
+  while the non-sortable ones beside them were uppercase, in the same table. Any
+  header treatment applied to a `<th>` has to be repeated on the button inside it.
 - **A shared component must not know your routes.** Nav lives in each panel's
   `nav.ts` and is passed to `PanelShell` as data, with gating declared on the item
   (`resource` / `cap` / `feature` / `gate`). Adding a page never edits `core/ui`.

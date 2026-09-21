@@ -262,7 +262,7 @@ export function ScribeWorkspace({
         </CardHeader>
         <CardContent className="space-y-4">
           {draft.allergyWarnings && draft.allergyWarnings.length > 0 && (
-            <div className="rounded-md border border-red-500/60 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive-text">
               <p className="font-semibold">⚠ Allergy conflict. Review before prescribing:</p>
               <ul className="mt-1 list-inside list-disc">
                 {draft.allergyWarnings.map((w, i) => (
@@ -273,13 +273,13 @@ export function ScribeWorkspace({
           )}
 
           {draft.drugWarnings.length > 0 && (
-            <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
+            <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
               <p className="font-medium">These drugs are not in the formulary:</p>
               <p className="text-muted-foreground">{draft.drugWarnings.join(", ")}</p>
             </div>
           )}
 
-          <details className="rounded-md border p-3 text-sm">
+          <details className="rounded-md border well p-3 text-sm">
             <summary className="cursor-pointer font-medium">Transcript</summary>
             <p className="mt-2 whitespace-pre-wrap text-muted-foreground">
               {draft.transcript}
@@ -289,7 +289,7 @@ export function ScribeWorkspace({
           <NoteEditor note={note} onChange={setNote} />
 
           {clinicalUi ? (
-            <div className="space-y-2 rounded-lg border p-3">
+            <div className="space-y-2 rounded-lg border well p-3">
               <p className="text-sm font-medium">Tooth chart</p>
               <p className="text-xs text-muted-foreground">
                 Pre-filled from the note. Adjust any tooth. It saves with the visit and
@@ -349,7 +349,7 @@ export function ScribeWorkspace({
                 value={query}
                 onChange={(e) => void runSearch(e.target.value)}
               />
-              <ul className="max-h-64 divide-y overflow-y-auto rounded-md border">
+              <ul className="max-h-64 divide-y divide-border/60 overflow-y-auto rounded-md border border-border/60">
                 {results.length === 0 ? (
                   <li className="p-3 text-sm text-muted-foreground">
                     No patients found.
@@ -376,16 +376,17 @@ export function ScribeWorkspace({
                 <span className="rounded-full bg-accent px-2.5 py-1 text-sm font-medium text-accent-foreground">
                   {patient.fullName}
                 </span>
-                <button
+                <Button
                   type="button"
-                  className="text-sm text-muted-foreground underline underline-offset-4"
+                  size="sm"
+                  variant="ghost"
                   onClick={() => {
                     setPatient(null);
                     reset();
                   }}
                 >
                   Change
-                </button>
+                </Button>
               </div>
 
               {processing ? (

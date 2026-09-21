@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Select } from "@base-ui/react/select";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { SelectField } from "@/core/ui/select-field";
 import { Label } from "@/core/ui/label";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 import { SearchableSelect } from "@/core/ui/searchable-select";
@@ -74,15 +73,19 @@ export function PeriodTabs({
     </div>
   );
 }
-const triggerCls =
-  "inline-flex h-8 items-center justify-between gap-1.5 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-3.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[popup-open]:border-ring";
-
-/** A themed Base UI select matching the appointment/log filter bars. */
+/**
+ * A labelled dropdown for a filter bar.
+ *
+ * It used to carry its own copy of the Base UI Select markup — trigger, positioner,
+ * popup, item, indicator — which is how six near-identical copies of that markup came
+ * to exist. It is a `SelectField` with a label above it now, and that is all it ever
+ * was. Delegating also inherits the popup's `z-[110]`, so a filter dropdown opened
+ * inside a dialog no longer renders behind it.
+ */
 export function FilterSelect({
   label,
   ariaLabel,
   value,
-  items,
   options,
   onChange,
   className,
@@ -90,7 +93,8 @@ export function FilterSelect({
   label: string;
   ariaLabel: string;
   value: string;
-  items: Record<string, string>;
+  /** Accepted and ignored — `SelectField` derives the label map from `options`. */
+  items?: Record<string, string>;
   options: { value: string; label: string }[];
   onChange: (v: string) => void;
   className?: string;
@@ -98,38 +102,13 @@ export function FilterSelect({
   return (
     <div className={fieldCls}>
       <Label className={labelCls}>{label}</Label>
-      <Select.Root
-        items={items}
+      <SelectField
         value={value}
-        onValueChange={(next) => onChange((next as string | null) ?? "")}
-      >
-        <Select.Trigger aria-label={ariaLabel} className={`${triggerCls} ${className ?? "w-44"}`}>
-          <Select.Value />
-          <Select.Icon>
-            <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" aria-hidden="true" />
-          </Select.Icon>
-        </Select.Trigger>
-        <Select.Portal>
-          <Select.Positioner side="bottom" align="start" sideOffset={4} className="z-50">
-            <Select.Popup className="z-50 min-w-40 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none">
-              {options.map((o) => (
-                <Select.Item
-                  key={o.value}
-                  value={o.value}
-                  className="flex cursor-default select-none items-center gap-2 rounded-md py-1.5 pl-2 pr-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
-                >
-                  <span className="flex w-4 shrink-0 items-center justify-center">
-                    <Select.ItemIndicator>
-                      <Check className="size-3.5" aria-hidden="true" />
-                    </Select.ItemIndicator>
-                  </span>
-                  <Select.ItemText>{o.label}</Select.ItemText>
-                </Select.Item>
-              ))}
-            </Select.Popup>
-          </Select.Positioner>
-        </Select.Portal>
-      </Select.Root>
+        onValueChange={onChange}
+        options={options}
+        ariaLabel={ariaLabel}
+        className={className ?? "w-44"}
+      />
     </div>
   );
 }
@@ -189,7 +168,7 @@ export function SalesFilters({
   ];
 
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
+    <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border/70 bg-surface-sunken p-3.5">
       <PeriodTabs
         value={periodV}
         onChange={(v) => {

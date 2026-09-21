@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
 
@@ -12,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
+import { BackLink } from "@/core/ui/back-link";
 import { PrintButton } from "@/core/ui/print-button";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
 import { DayBookControls } from "./daybook-controls";
@@ -68,7 +68,7 @@ export default async function DayBookPage({
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Day book</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Day book</h1>
           {/* On screen: what the page is. On paper: WHICH day and WHOSE clinic —
               a printed cash sheet with no date or clinic name is not a record. */}
           <p className="text-sm text-muted-foreground no-print">The day&apos;s cash in and out, by method.</p>
@@ -115,7 +115,9 @@ export default async function DayBookPage({
       </Card>
 
       <p className="no-print text-sm text-muted-foreground">
-        <Link href="/clinic/reports" className="underline underline-offset-4">← All reports</Link>
+        <BackLink href="/clinic/reports">
+          All reports
+        </BackLink>
       </p>
 
       <p className="hidden text-center text-xs text-muted-foreground print:block">{BRAND_POWERED_BY}</p>

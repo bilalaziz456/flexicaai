@@ -41,7 +41,7 @@ export async function PanelPlaceholder({
           {user.clinicId ?? "—"}
         </div>
       </dl>
-      <p className="mt-6 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+      <p className="mt-6 rounded-md border border-dashed well p-4 text-sm text-muted-foreground">
         Placeholder panel. The full experience is built in {buildStep}.
       </p>
     </main>

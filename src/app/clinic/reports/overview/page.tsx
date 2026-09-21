@@ -1,3 +1,4 @@
+import { ArrowRight, ListChecks, Stethoscope } from "lucide-react";
 import Link from "next/link";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
@@ -14,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
+import { EmptyState } from "@/core/ui/empty-state";
 import { LollipopChart } from "@/core/ui/charts/lollipop-chart";
 import { DonutChart } from "@/core/ui/charts/donut-chart";
 import { StatCard } from "@/core/ui/charts/stat-card";
@@ -77,8 +79,8 @@ export default async function OverviewPage({
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Overview</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Overview</h1>
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             Your clinic, end to end · <span className="font-medium text-foreground">{rangeLabel}</span>
             {ov.scoped ? " · one doctor" : ""}
           </p>
@@ -118,8 +120,12 @@ export default async function OverviewPage({
             </div>
             <div className="text-right">
               <div className={`text-3xl font-semibold ${noShow.rate >= 0.15 ? "text-destructive" : ""}`}>{noShowPct}</div>
-              <Link href="/clinic/no-shows" className="no-print text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground">
-                Full report →
+              <Link
+                href="/clinic/no-shows"
+                className="no-print inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+              >
+                Full report
+                <ArrowRight className="size-3 shrink-0" aria-hidden="true" />
               </Link>
             </div>
           </div>
@@ -197,7 +203,12 @@ export default async function OverviewPage({
             </CardHeader>
             <CardContent>
               {ov.salesByDoctor.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No sales yet.</p>
+                <EmptyState
+                  compact
+                  icon={Stethoscope}
+                  title="No sales by doctor yet"
+                  description="Each doctor appears here once one of their visits completes."
+                />
               ) : (
                 <LollipopChart showShare ariaLabel="Collected by doctor" rows={ov.salesByDoctor.map((d) => ({ label: d.name, value: d.net, sublabel: `${d.count} visit${d.count === 1 ? "" : "s"}` }))} />
               )}
@@ -210,7 +221,12 @@ export default async function OverviewPage({
           </CardHeader>
           <CardContent>
             {ov.salesByProcedure.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No procedures yet.</p>
+              <EmptyState
+                compact
+                icon={ListChecks}
+                title="No procedures billed yet"
+                description="Procedures added to a completed appointment are ranked here."
+              />
             ) : (
               <LollipopChart showShare ariaLabel="Billed by procedure" rows={ov.salesByProcedure.map((p) => ({ label: p.name, value: p.gross, sublabel: `×${p.qty}` }))} />
             )}
@@ -224,8 +240,8 @@ export default async function OverviewPage({
             <CardTitle className="text-base">Expenses by category</CardTitle>
           </CardHeader>
           <CardContent>
-            /* Composition — these categories ARE the expense total. Same data, same
-               treatment as the P&L's version of this card. */
+            {/* Composition — these categories ARE the expense total. Same data, same
+                treatment as the P&L's version of this card. */}
             <DonutChart
               ariaLabel="Expenses by category"
               centerLabel="Expenses"

@@ -6,9 +6,11 @@ import {
   updateAnnouncementAction,
   type AnnouncementActionState,
 } from "./actions";
+import { SelectField } from "@/core/ui/select-field";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
-import { DatePicker } from "@/core/ui/date-picker";
+import { DatePicker, DATE_FIELD_W } from "@/core/ui/date-picker";
 import { TimeSelect } from "@/core/ui/time-select";
 import { Label } from "@/core/ui/label";
 import { CLINIC_STAFF_ROLES } from "@/core/types/auth";
@@ -101,7 +103,7 @@ function WindowField({
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
-      <div className="w-44">
+      <div className={DATE_FIELD_W}>
         <DatePicker id={id} ariaLabel={label} value={date} onChange={onDate} />
       </div>
       {/* The time control appears only once there IS a date. A time without a date is
@@ -197,10 +199,14 @@ export function AnnouncementForm({
 
       <div className="w-40 space-y-2">
         <Label htmlFor="level">Level</Label>
-        <select id="level" name="level" defaultValue={initial?.level ?? "info"} className={selectClass}>
-          <option value="info">Info</option>
-          <option value="warning">Warning</option>
-        </select>
+        <SelectField
+          id="level"
+          name="level"
+          defaultValue={initial?.level ?? "info"}
+          options={[{ value: "info", label: "Info" }, { value: "warning", label: "Warning" }]}
+          ariaLabel="level"
+          className="h-8 w-full"
+        />
       </div>
 
       <fieldset className="space-y-2">
@@ -242,13 +248,10 @@ export function AnnouncementForm({
             <label key={role} className="flex items-center gap-2 text-sm">
               {/* Uncontrolled: the checkboxes ARE the field, and nothing re-renders them
                   except an error, where the user's own ticks must stand. */}
-              <input
-                type="checkbox"
+              <Checkbox
                 name="audience"
                 value={role}
-                defaultChecked={roleChecked(role)}
-                className="size-4 accent-[var(--primary)]"
-              />
+                defaultChecked={roleChecked(role)} />
               {labelFrom(roles, role)}
             </label>
           ))}
@@ -293,7 +296,7 @@ export function AnnouncementForm({
         </div>
 
         {!everyClinic ? (
-          <div className="space-y-2 rounded-lg border p-2">
+          <div className="space-y-2 rounded-lg border well p-2">
             <Input
               type="search"
               value={search}
@@ -314,11 +317,9 @@ export function AnnouncementForm({
                     {/* Deliberately NOT a form field (no `name`) — the hidden inputs
                         above carry the selection. Filtering unmounts rows, and an
                         unmounted checkbox would take its tick with it. */}
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={picked.has(c.id)}
-                      onChange={() => toggle(c.id)}
-                      className="size-4 accent-[var(--primary)]"
+                      onCheckedChange={() => toggle(c.id)}
                     />
                     {c.name}
                   </label>

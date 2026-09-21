@@ -52,7 +52,10 @@ export const PAYMENT_METHOD_ROWS = [
   { id: 2, code: "bank", label: "Bank transfer", sortOrder: 2, isTender: true },
   { id: 3, code: "cheque", label: "Cheque", sortOrder: 3, isTender: true },
   { id: 4, code: "other", label: "Other", sortOrder: 4, isTender: true },
-  { id: 5, code: "advance", label: "Advance credit", sortOrder: 5, isTender: false },
+  // Label renamed by migration 0108. The constant has to move with it: it is the
+  // seed for a fresh database AND the list `loadVocabularies()` checks the live rows
+  // against, so leaving it behind would report drift on every start-up.
+  { id: 5, code: "advance", label: "Advance payment", sortOrder: 5, isTender: false },
 ] as const satisfies readonly VocabularyRow[];
 
 /** `doctor_settlement_actions.kind`. `reversal` is designed for, not yet written. */

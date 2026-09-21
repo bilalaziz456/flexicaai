@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Printer } from "lucide-react";
+import { FileText, Printer } from "lucide-react";
 import { listClinicOptionsWithPrice } from "@/core/clinics/options";
 
 import { requireAdminCapability } from "@/core/auth/user";
@@ -10,6 +10,7 @@ import {
   listClinicInvoices,
 } from "@/core/admin/clinic-invoices";
 import { resolveSalesRange } from "@/core/sales/report";
+import { EmptyState } from "@/core/ui/empty-state";
 import { LollipopChart } from "@/core/ui/charts/lollipop-chart";
 import { StatCard } from "@/core/ui/charts/stat-card";
 import { parsePage, parsePageSize, pageOffset } from "@/core/lib/pagination";
@@ -80,8 +81,8 @@ export default async function ClinicInvoicesPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Company finance: subscription invoices</h1>
-        <p className="text-sm text-muted-foreground">Invoices FlexicaAI issues to clinics for their subscription.</p>
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">Company finance: subscription invoices</h1>
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">Invoices FlexicaAI issues to clinics for their subscription.</p>
       </div>
 
       <InvoiceFilters
@@ -113,7 +114,12 @@ export default async function ClinicInvoicesPage({
                 ariaLabel="Invoiced over time"
               />
             ) : (
-              <p className="py-6 text-center text-sm text-muted-foreground">No invoices in this period yet.</p>
+              <EmptyState
+                compact
+                icon={FileText}
+                title="Nothing to chart yet"
+                description="The trend needs at least one invoice issued in this period."
+              />
             )}
           </CardContent>
         </Card>
@@ -138,7 +144,16 @@ export default async function ClinicInvoicesPage({
         </CardHeader>
         <CardContent className="space-y-3">
           {rows.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">No {deleted ? "voided " : ""}invoices match.</p>
+            <EmptyState
+              compact
+              icon={FileText}
+              title={deleted ? "No voided invoices" : "No invoices match"}
+              description={
+                deleted
+                  ? "A voided invoice keeps its number, so the sequence never has a gap."
+                  : "Try a wider period, or clear the filters above."
+              }
+            />
           ) : (
             <Table>
               <TableHeader>

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { BackLink } from "@/core/ui/back-link";
 import { getClinic } from "@/core/clinics/get-clinic";
 
 import { requireClinicAdmin } from "@/core/auth/user";
@@ -20,13 +20,10 @@ export default async function NewStaffPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href="/clinic/staff"
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
-          ← Back to staff
-        </Link>
-        <h1 className="mt-2 text-xl font-semibold">Add staff</h1>
+        <BackLink href="/clinic/staff">
+          Back to staff
+        </BackLink>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em]">Add staff</h1>
       </div>
 
       <Card>

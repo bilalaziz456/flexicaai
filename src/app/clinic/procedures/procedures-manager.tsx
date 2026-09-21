@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
-import { Trash2 } from "lucide-react";
+import { useActionState, useState, useTransition } from "react";
+import { ListPlus, Trash2 } from "lucide-react";
 import {
   createProcedure,
   deleteProcedure,
@@ -9,10 +9,13 @@ import {
   updateProcedure,
   type ProcedureActionState,
 } from "@/app/clinic/procedures/procedure-actions";
+import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
+import { Card, CardContent } from "@/core/ui/card";
+import { EmptyState } from "@/core/ui/empty-state";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
-import { Toast } from "@/core/ui/toast";
+import { useActionToast } from "@/core/ui/toast";
 
 export type ProcedureItem = {
   id: string;
@@ -42,11 +45,21 @@ export function ProceduresManager({
       ) : null}
 
       {procedures.length === 0 ? (
-        <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          No procedures yet.
-          {perms.create ? " Add your first one above" : ""}
-          {perms.create && templatesAvailable ? " or import the suggested list." : "."}
-        </div>
+        <Card>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={ListPlus}
+              title="No procedures yet"
+              description={
+                perms.create
+                  ? templatesAvailable
+                    ? "Add your first one above, or import the suggested list for this specialty."
+                    : "Add your first one using the form above."
+                  : "Your clinic admin sets up the procedure catalog."
+              }
+            />
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-2">
           {procedures.map((p) => (
@@ -63,14 +76,11 @@ function AddProcedureForm({ templatesAvailable }: { templatesAvailable: boolean 
     ProcedureActionState,
     FormData
   >(createProcedure, {});
-  const [errorNonce, setErrorNonce] = useState(0);
-  useEffect(() => {
-    if (state.error) setErrorNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { error: true });
   const [importing, startImport] = useTransition();
 
   return (
-    <div className="space-y-3 rounded-lg border p-4">
+    <div className="space-y-3 rounded-lg border well p-4">
       <form action={formAction} className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="new-proc-name">Procedure</Label>
@@ -111,7 +121,6 @@ function AddProcedureForm({ templatesAvailable }: { templatesAvailable: boolean 
         </button>
       ) : null}
 
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </div>
   );
 }
@@ -128,17 +137,14 @@ function ProcedureRow({
     ProcedureActionState,
     FormData
   >(action, {});
-  const [errorNonce, setErrorNonce] = useState(0);
-  useEffect(() => {
-    if (state.error) setErrorNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { error: true });
   const [confirming, setConfirming] = useState(false);
   const [deleting, startDelete] = useTransition();
 
   return (
     <form
       action={formAction}
-      className="flex flex-wrap items-center gap-2 rounded-md border p-2"
+      className="flex flex-wrap items-center gap-2 rounded-md border well p-2"
     >
       <Input
         key={`n-${procedure.name}`}
@@ -163,14 +169,11 @@ function ProcedureRow({
         required
       />
       <label className="flex min-h-6 items-center gap-2 text-sm">
-        <input
+        <Checkbox
           key={`a-${procedure.isActive}`}
-          type="checkbox"
           name="isActive"
           defaultChecked={procedure.isActive}
-          disabled={!perms.edit}
-          className="size-4 accent-[var(--primary)]"
-        />
+          disabled={!perms.edit} />
         Active
       </label>
       {perms.edit ? (
@@ -202,7 +205,6 @@ function ProcedureRow({
         )
       ) : null}
       <span className="sr-only">{fmtPkr(procedure.price)}</span>
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
 }

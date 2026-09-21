@@ -1,4 +1,5 @@
 import { requireRole } from "@/core/auth/user";
+import { TableCard } from "@/core/ui/table-card";
 import { ActivityLogList } from "@/core/ui/activity-log";
 import { LogFilters } from "@/core/ui/log-filters";
 import { Pagination } from "@/core/ui/pagination";
@@ -63,8 +64,8 @@ export default async function AdminLogsPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Activity log</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">Activity log</h1>
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
           {total} action{total === 1 ? "" : "s"} across all clinics for the
           selected range.
         </p>
@@ -94,11 +95,13 @@ export default async function AdminLogsPage({
         searchParams={sp}
         unit="entry"
       />
-      <ActivityLogList
-        rows={rows}
-        showClinic
-        emptyHint="No activity matches these filters."
-      />
+      <TableCard>
+        <ActivityLogList
+          rows={rows}
+          showClinic
+          emptyHint="No activity matches these filters."
+        />
+      </TableCard>
     </div>
   );
 }

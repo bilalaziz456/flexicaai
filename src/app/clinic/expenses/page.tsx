@@ -1,4 +1,8 @@
 import Link from "next/link";
+import { ArrowLeft, Download, Trash2 } from "lucide-react";
+import { TableCard } from "@/core/ui/table-card";
+import { buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
 
@@ -88,10 +92,10 @@ export default async function ExpensesPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Expenses</h1>
-          <p className="text-sm text-muted-foreground">The clinic&apos;s costs. Feeds the P&amp;L.</p>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Expenses</h1>
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">The clinic&apos;s costs. Feeds the P&amp;L.</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2">
           {!deleted ? (
             <a
               href={`/api/finance/export?${new URLSearchParams({
@@ -103,16 +107,30 @@ export default async function ExpensesPage({
                 ...(sp.method ? { method: sp.method } : {}),
                 ...(sp.q ? { q: sp.q } : {}),
               }).toString()}`}
-              className="inline-flex min-h-6 items-center text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+              className={cn(buttonVariants({ variant: "outline" }))}
             >
-              Export CSV
+              <Download aria-hidden="true" />
+              CSV
             </a>
           ) : null}
+          {/* Not a back link in both directions: going TO the trash is a filter, and
+              only the return leg is navigation. One control, so it takes the shape of
+              the thing it mostly is — a button beside the export. */}
           <Link
             href={deleted ? "/clinic/expenses" : "/clinic/expenses?deleted=1"}
-            className="inline-flex min-h-6 items-center text-sm text-muted-foreground underline underline-offset-4"
+            className={cn(buttonVariants({ variant: "outline" }))}
           >
-            {deleted ? "← Back to expenses" : "View deleted"}
+            {deleted ? (
+              <>
+                <ArrowLeft aria-hidden="true" />
+                Back to expenses
+              </>
+            ) : (
+              <>
+                <Trash2 aria-hidden="true" />
+                View deleted
+              </>
+            )}
           </Link>
         </div>
       </div>
@@ -148,11 +166,15 @@ export default async function ExpensesPage({
 
       <Pagination page={page} pageSize={pageSize} total={total} basePath="/clinic/expenses" searchParams={sp} unit="expense" />
 
-      <ExpensesTable
-        rows={rows}
-        canManage={canManage}
-        empty={`No expenses${deleted ? " in the Trash" : " match these filters"}.`}
-      />
+      {/* Every data table sits in a card (conventions §6); this one was the last
+          that did not, so its empty state floated as a bare line on the page. */}
+      <TableCard title={`${total} ${total === 1 ? "expense" : "expenses"}`}>
+        <ExpensesTable
+          rows={rows}
+          canManage={canManage}
+          empty={deleted ? "Nothing in the Trash" : "No expenses match these filters"}
+        />
+      </TableCard>
 
       {!deleted && canManage ? (
         <Card>

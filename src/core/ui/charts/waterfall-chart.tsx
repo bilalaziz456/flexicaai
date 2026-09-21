@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ChartEmpty, Grid, PAD, useChartWidth } from "@/core/ui/charts/chart-kit";
 import { money as fmtMoney, niceScale, shortNum } from "@/core/ui/charts/geometry";
 
@@ -41,6 +41,8 @@ export function WaterfallChart({
 }) {
   const [ref, width] = useChartWidth<HTMLDivElement>();
   const [active, setActive] = useState<number | null>(null);
+  // Above the empty-state early return: hooks must run in the same order every render.
+  const uid = useId();
 
   // Each bar's span: a deduction hangs from the running total before it; a total is
   // anchored at zero.
@@ -86,6 +88,26 @@ export function WaterfallChart({
           aria-label={ariaLabel}
           onPointerLeave={() => setActive(null)}
         >
+          {/* A bar is a SOLID standing on the axis, so it catches light down its
+              length. A flat fill reads as a sticker; a vertical ramp from the colour
+              into a slightly softer version of itself reads as an object — and it
+              costs nothing in accuracy, because the whole bar is still one hue and
+              the height is untouched. */}
+          <defs>
+            {bars.map((b, i) => (
+              <linearGradient
+                key={`grad-${i}`}
+                id={`${uid}-b${i}`}
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
+                <stop offset="0%" stopColor={colorFor(b)} stopOpacity={0.96} />
+                <stop offset="100%" stopColor={colorFor(b)} stopOpacity={0.7} />
+              </linearGradient>
+            ))}
+          </defs>
           <Grid ticks={scale.ticks} yFor={yFor} width={width} format={shortNum} zero={0} />
 
           {bars.map((b, i) => {
@@ -119,8 +141,8 @@ export function WaterfallChart({
                   y={yTop}
                   width={barW}
                   height={h}
-                  rx={5}
-                  fill={colorFor(b)}
+                  rx={6}
+                  fill={`url(#${uid}-b${i})`}
                   className="chart-fade-in"
                 />
                 {/* The figure sits ON the bar, so the eye never travels to an axis to

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ArrowRight, Building2, ChevronRight } from "lucide-react";
 import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin, canManageTeam, canSeeBilling } from "@/core/auth/admin-permissions";
 import { getCompanyMetrics } from "@/core/admin/metrics";
@@ -26,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/core/ui/table";
+import { EmptyState } from "@/core/ui/empty-state";
 import { Badge } from "@/core/ui/badge";
 import { RowLink } from "@/core/ui/row-link";
 import { ClinicStatusBadge } from "../clinics/status-badge";
@@ -50,7 +51,7 @@ function FlagBadges({ flags }: { flags: AnomalyFlag[] }) {
             title={m.hint}
             className={cn(
               "border-transparent",
-              m.severity === "high" ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-warning-text",
+              m.severity === "high" ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning-text",
             )}
           >
             {m.label}
@@ -140,13 +141,17 @@ export default async function OverviewPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Overview</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Overview</h1>
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             {seesAll ? "The whole company" : "Your assigned clinics"} at a glance. Money, health &amp; usage.
           </p>
         </div>
-        <Link href="/admin/finance" className="text-sm text-primary-text underline underline-offset-4">
-          Full P&amp;L →
+        <Link
+          href="/admin/finance"
+          className="inline-flex min-h-7 items-center gap-1.5 text-sm font-medium text-primary-text underline-offset-4 transition-colors hover:underline"
+        >
+          Full P&amp;L
+          <ArrowRight className="size-3.5 shrink-0" aria-hidden="true" />
         </Link>
       </div>
 
@@ -203,7 +208,7 @@ export default async function OverviewPage({
 
       {/* Payments due / overdue — the actionable subscription-dues list */}
       {showBilling && due.length > 0 ? (
-        <Card className={due.some((c) => c.balance.billingStatus === "overdue") ? "border-destructive/30" : "border-amber-500/40"}>
+        <Card className={due.some((c) => c.balance.billingStatus === "overdue") ? "border-destructive/30" : "border-warning/35"}>
           <CardHeader>
             <CardTitle>Payments due / overdue ({due.length})</CardTitle>
             <CardDescription>Clinics with an unpaid subscription balance, worst first. Record a follow-up when they promise to pay.</CardDescription>
@@ -233,7 +238,7 @@ export default async function OverviewPage({
                             variant="outline"
                             className={cn(
                               "border-transparent",
-                              overdue ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-warning-text",
+                              overdue ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning-text",
                             )}
                           >
                             {overdue ? `Overdue · ${c.balance.daysOverdue}d` : `Due · ${c.balance.daysOverdue}d`}
@@ -263,7 +268,7 @@ export default async function OverviewPage({
 
       {/* Payments coming up — a pre-due heads-up (still paid; lapses within N days) */}
       {showBilling && upcoming.length > 0 ? (
-        <Card className="border-sky-500/40">
+        <Card className="border-info/35">
           <CardHeader>
             <CardTitle>Payments coming up ({upcoming.length})</CardTitle>
             <CardDescription>
@@ -288,7 +293,7 @@ export default async function OverviewPage({
                       <TableCell className="font-medium">{c.name}</TableCell>
                       <TableCell className="whitespace-nowrap text-sm">{fmtDate(c.balance.paidThrough)}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="border-transparent bg-sky-500/10 text-info-text">
+                        <Badge variant="outline" className="border-transparent bg-info/10 text-info-text">
                           {c.balance.daysRemaining === 0 ? "Due today" : `${c.balance.daysRemaining}d`}
                         </Badge>
                       </TableCell>
@@ -304,7 +309,7 @@ export default async function OverviewPage({
       ) : null}
 
       {/* At-risk clinics — the actionable churn list (who to contact) */}
-      <Card className={health.atRisk.length > 0 ? "border-amber-500/40" : undefined}>
+      <Card className={health.atRisk.length > 0 ? "border-warning/35" : undefined}>
         <CardHeader>
           <CardTitle>At-risk clinics ({health.atRisk.length})</CardTitle>
           <CardDescription>
@@ -386,7 +391,7 @@ export default async function OverviewPage({
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap items-center gap-1">
-                          {c.isAtRisk ? <Badge variant="outline" className="border-transparent bg-amber-500/10 text-warning-text">Churn risk</Badge> : null}
+                          {c.isAtRisk ? <Badge variant="outline" className="border-transparent bg-warning/10 text-warning-text">Churn risk</Badge> : null}
                           {showRevenue ? <FlagBadges flags={c.flags} /> : null}
                         </div>
                       </TableCell>
@@ -478,7 +483,12 @@ export default async function OverviewPage({
         </CardHeader>
         <CardContent>
           {health.rows.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">No clinics yet.</p>
+            <EmptyState
+              compact
+              icon={Building2}
+              title="No clinics yet"
+              description="Create the first one from the Clinics page and its health appears here."
+            />
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -511,7 +521,7 @@ export default async function OverviewPage({
                         <TableCell><ClinicStatusBadge status={c.status} /></TableCell>
                         <TableCell className="whitespace-nowrap text-sm">
                           {ago(c.lastActivityAt, c.daysInactive)}
-                          {stale ? <Badge variant="outline" className="ml-1.5 border-transparent bg-amber-500/10 text-warning-text">quiet</Badge> : null}
+                          {stale ? <Badge variant="outline" className="ml-1.5 border-transparent bg-warning/10 text-warning-text">quiet</Badge> : null}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{c.appointments}</TableCell>
                         <TableCell className="text-right tabular-nums">{c.scribeCalls}</TableCell>

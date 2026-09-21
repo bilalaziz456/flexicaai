@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { Checkbox } from "@/core/ui/checkbox";
 import { PeriodTabs } from "@/core/ui/report-filters";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 import { SearchableSelect } from "@/core/ui/searchable-select";
@@ -50,7 +51,7 @@ export function InvoiceFilters({
   const clinicOptions = [{ value: "", label: "All clinics" }, ...clinics.map((c) => ({ value: c.id, label: c.name }))];
 
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
+    <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border/70 bg-surface-sunken p-3.5">
       <PeriodTabs
         value={periodV}
         onChange={(v) => {
@@ -85,7 +86,7 @@ export function InvoiceFilters({
         }}
       />
       <label className="flex items-center gap-2 pb-1.5 text-sm">
-        <input type="checkbox" checked={deleted} onChange={(e) => push({ deleted: e.target.checked })} className="size-4 accent-[var(--color-primary)]" />
+        <Checkbox checked={deleted} onCheckedChange={(next) => push({ deleted: next })} />
         Trash
       </label>
     </div>

@@ -1,0 +1,16 @@
+-- Rename the `payment_methods.advance` LABEL, at the owner's direction.
+--
+-- Only the label. The id (5) and the code (`advance`) are untouched, because the
+-- code is what the application branches on and ids are never renumbered (ADR-027) —
+-- `applyAdvance` still writes `method: "advance"` and `paymentMethodId("advance")`
+-- still resolves to 5. Nothing about how the money behaves changes; this row is only
+-- ever read for display.
+--
+-- Keyed on the CODE, not the id. The id is what must never move, so matching on it
+-- would work — but the code is what makes the intent readable at a glance, and the
+-- two are pinned to each other by scripts/test-vocabulary-tables.ts anyway.
+--
+-- This is what "the database owns presentation" means in practice: the cache
+-- (core/db/vocabulary-cache.ts) re-reads on a 60-second TTL, so the new label
+-- appears without a deploy or a restart.
+UPDATE "payment_methods" SET "label" = 'Advance payment' WHERE "code" = 'advance';

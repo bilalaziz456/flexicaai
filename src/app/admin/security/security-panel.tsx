@@ -33,7 +33,7 @@ function groupSecret(secret: string): string {
 function BackupCodes({ codes, title }: { codes: string[]; title: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-4">
+    <div className="rounded-md border border-warning/35 bg-warning/[0.06] p-4">
       <p className="text-sm font-medium">{title}</p>
       <p className="mt-1 text-xs text-muted-foreground">
         Save these now: each works once and they won&apos;t be shown again. Use one if you
@@ -272,7 +272,7 @@ function EnabledView({ backupCount }: { backupCount: number }) {
               </p>
             ) : null}
             {disableState.message ? (
-              <p className="text-sm text-emerald-600" role="status">
+              <p className="text-sm text-success-text" role="status">
                 {disableState.message}
               </p>
             ) : null}

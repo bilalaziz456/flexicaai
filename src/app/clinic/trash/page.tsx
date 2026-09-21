@@ -1,4 +1,5 @@
 import { listClinicActorOptions } from "@/core/clinics/options";
+import { TableCard } from "@/core/ui/table-card";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { getClinic } from "@/core/clinics/get-clinic";
@@ -65,8 +66,8 @@ export default async function ClinicTrashPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Trash</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">Trash</h1>
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
           Deleted items are kept here for {retention} day{retention === 1 ? "" : "s"}.
           Restore brings an item, and anything deleted along with it, back.
         </p>
@@ -80,7 +81,9 @@ export default async function ClinicTrashPage({
         typeOptions={TYPE_OPTIONS}
         actors={actors}
       />
-      <TrashTable items={trash.items} canRestore={canRestore} onRestore={restoreTrashItem} />
+      <TableCard>
+        <TrashTable items={trash.items} canRestore={canRestore} onRestore={restoreTrashItem} />
+      </TableCard>
       <Pagination
         page={page}
         pageSize={pageSize}

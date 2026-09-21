@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { SelectField } from "@/core/ui/select-field";
+import { EmptyState } from "@/core/ui/empty-state";
+import { Plus, Trash2, FlaskConical } from "lucide-react";
 import { Button } from "@/core/ui/button";
-import { DatePicker } from "@/core/ui/date-picker";
+import { DatePicker, DATE_FIELD_W } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
 import { Badge } from "@/core/ui/badge";
 import { Toast } from "@/core/ui/toast";
@@ -26,7 +28,6 @@ export type LabCaseRow = {
 };
 
 const money = (n: number) => new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 }).format(n);
-const selectCls = "h-8 rounded-lg border border-input bg-[var(--input-bg)] pl-2 pr-8 text-sm outline-none select-chevron";
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = { sent: "secondary", in_lab: "secondary", received: "default", fitted: "outline", remake: "destructive" };
 
 export function LabTrackerCard({
@@ -73,9 +74,14 @@ export function LabTrackerCard({
   return (
     <div className="space-y-4">
       {cases.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No lab cases yet.</p>
+        <EmptyState
+                  compact
+                  icon={FlaskConical}
+                  title="No lab cases yet"
+                  description="Crowns, dentures and other lab work sent out for this patient are tracked here."
+                />
       ) : (
-        <ul className="divide-y rounded-lg border text-sm">
+        <ul className="divide-y divide-border/60 rounded-lg border border-border/60 text-sm">
           {cases.map((c) => (
             <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 p-2.5">
               <div className="min-w-0">
@@ -90,9 +96,14 @@ export function LabTrackerCard({
               </div>
               <div className="flex items-center gap-2">
                 {canEdit ? (
-                  <select value={c.status} aria-label="Lab case status" disabled={pending} className={selectCls} onChange={(e) => run(() => updateLabStatusAction(c.id, patientId, e.target.value), "Status updated.")}>
-                    {statuses.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
-                  </select>
+                  <SelectField
+                    value={c.status}
+                    onValueChange={(next) => run(() => updateLabStatusAction(c.id, patientId, next), "Status updated.")}
+                    disabled={pending}
+                    options={[...statuses.map((s) => ({ value: s, label: s.replace("_", " ") }))]}
+                    ariaLabel="Lab case status"
+                    className="h-8 w-full"
+                  />
                 ) : (
                   <Badge variant={STATUS_VARIANT[c.status] ?? "secondary"}>{c.status.replace("_", " ")}</Badge>
                 )}
@@ -108,16 +119,20 @@ export function LabTrackerCard({
       )}
 
       {canCreate ? (
-        <div className="flex flex-wrap items-end gap-2 rounded-lg border p-3">
+        <div className="flex flex-wrap items-end gap-2 rounded-xl border border-border/70 bg-surface-sunken p-3.5">
           <Field label="Item">
-            <select value={item} onChange={(e) => setItem(e.target.value)} className={`${selectCls} capitalize`}>
-              {itemTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
+            <SelectField
+              value={item}
+              onValueChange={(next) => setItem(next)}
+              options={[...itemTypes.map((t) => ({ value: t, label: t }))]}
+              ariaLabel="Select"
+              className="h-8 w-full capitalize"
+            />
           </Field>
           <Field label="Lab"><Input value={labName} onChange={(e) => setLabName(e.target.value)} className="h-8 w-32" placeholder="Lab name" /></Field>
           <Field label="Tooth"><Input value={tooth} onChange={(e) => setTooth(e.target.value)} className="h-8 w-16" /></Field>
           <Field label="Shade"><Input value={shade} onChange={(e) => setShade(e.target.value)} className="h-8 w-16" placeholder="A2" /></Field>
-          <Field label="Due"><div className="w-40"><DatePicker ariaLabel="Due date" value={due} onChange={setDue} /></div></Field>
+          <Field label="Due"><div className={DATE_FIELD_W}><DatePicker ariaLabel="Due date" value={due} onChange={setDue} /></div></Field>
           <Field label="Cost (Rs)"><Input value={cost} onChange={(e) => setCost(e.target.value.replace(/[^\d]/g, ""))} className="h-8 w-24" /></Field>
           <Button size="sm" disabled={pending} onClick={add}><Plus className="size-4" /> Send to lab</Button>
         </div>

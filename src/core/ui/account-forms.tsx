@@ -30,24 +30,17 @@ import {
   updateMyDiscountApproval,
   type AccountActionState,
 } from "@/core/account/actions";
-import { Button } from "@/core/ui/button";
+import { SelectField } from "@/core/ui/select-field";
+import { Checkbox } from "@/core/ui/checkbox";
+import { Button, buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { PasswordInput } from "@/core/ui/password-input";
-import { Toast } from "@/core/ui/toast";
+import { Toast, useActionToast } from "@/core/ui/toast";
 import { STAFF_PREFIXES } from "@/core/types/auth";
 import { syncChecked } from "@/core/ui/checkbox-sync";
 
-const selectCls =
-  "h-8 w-24 shrink-0 rounded-lg border border-input bg-[var(--input-bg)] pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 select-chevron";
-
-function useToast(state: AccountActionState) {
-  const [nonce, setNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved || state.error) setNonce((n) => n + 1);
-  }, [state]);
-  return nonce;
-}
 
 const CROP_VIEWPORT = 256; // on-screen square crop box (px)
 const CROP_OUTPUT = 512; // saved image size (px, square)
@@ -68,12 +61,26 @@ export function AvatarForm({
   hasAvatar: boolean;
   version: string;
 }) {
+  // The follow-up work happens INSIDE the action, after the upload resolves, rather
+  // than in an effect watching `state.saved` for it to have happened. Closing the
+  // cropper and busting the preview cache are things this submission does — not
+  // facts about the world that something has to notice and react to. The effect also
+  // depended on `state.saved` alone, so two uploads in a row left the flag true and
+  // the second one never closed the cropper.
   const [state, formAction, pending] = useActionState<AccountActionState, FormData>(
-    uploadMyAvatar,
+    async (prev, fd) => {
+      const res = await uploadMyAvatar(prev, fd);
+      if (res.saved) {
+        resetCropper();
+        setShowAvatar(true);
+        setBust(Date.now());
+      }
+      return res;
+    },
     {},
   );
   const [, startTransition] = useTransition();
-  const nonce = useToast(state);
+  useActionToast(state, { saved: "Picture updated.", error: true });
   const [showAvatar, setShowAvatar] = useState(hasAvatar);
   // A local error (e.g. file too big) that isn't a server action result.
   const [localError, setLocalError] = useState<string | null>(null);
@@ -98,26 +105,23 @@ export function AvatarForm({
   const imgW = natural.w * scale;
   const imgH = natural.h * scale;
 
-  const clamp = (o: { x: number; y: number }) => ({
-    x: Math.min(0, Math.max(CROP_VIEWPORT - imgW, o.x)),
-    y: Math.min(0, Math.max(CROP_VIEWPORT - imgH, o.y)),
+  // Keeps the image covering the crop square: the offset may never expose an edge.
+  // Takes the dimensions so it can be applied to a zoom that has not rendered yet.
+  const clamp = (o: { x: number; y: number }, w = imgW, h = imgH) => ({
+    x: Math.min(0, Math.max(CROP_VIEWPORT - w, o.x)),
+    y: Math.min(0, Math.max(CROP_VIEWPORT - h, o.y)),
   });
 
-  // Re-centre / re-clamp when the zoom changes.
-  useEffect(() => {
-    setOffset((o) => clamp(o));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoom]);
-
-  // Close the cropper once the upload succeeds, and refresh the preview.
-  useEffect(() => {
-    if (state.saved) {
-      resetCropper();
-      setShowAvatar(true);
-      setBust(Date.now());
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.saved]);
+  // Zooming OUT can leave the image too small for its current offset, exposing a
+  // gap. The re-clamp used to be an effect on `zoom`, which meant every drag of the
+  // slider rendered once with the gap showing and again with it corrected. Doing it
+  // in the handler needs the dimensions the NEW zoom implies — which is the whole
+  // reason the effect existed, since it ran after the render that had them.
+  function changeZoom(next: number) {
+    const s = coverScale * next;
+    setZoom(next);
+    setOffset((o) => clamp(o, natural.w * s, natural.h * s));
+  }
 
   function resetCropper() {
     setImgSrc((cur) => {
@@ -229,7 +233,7 @@ export function AvatarForm({
               max={3}
               step={0.01}
               value={zoom}
-              onChange={(e) => setZoom(Number(e.target.value))}
+              onChange={(e) => changeZoom(Number(e.target.value))}
               className="w-48 accent-[var(--primary)]"
               aria-label="Zoom"
             />
@@ -265,7 +269,11 @@ export function AvatarForm({
             )}
           </div>
           <div className="space-y-2">
-            <label className="inline-flex cursor-pointer items-center rounded-md border bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground hover:bg-accent/80">
+            {/* A file input has no styleable button of its own, so the LABEL is the
+                control. Borrowing buttonVariants rather than hand-rolling it keeps it the
+                same height and hover as every other secondary action — it had drifted to
+                30px and an accent fill that appears nowhere else. */}
+            <label className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer")}>
               Choose image
               <input
                 type="file"
@@ -295,13 +303,7 @@ export function AvatarForm({
           </div>
         </div>
       )}
-      <Toast
-        message={
-          localError ?? (state.saved ? "Picture updated." : state.error ?? null)
-        }
-        variant={localError || state.error ? "error" : "success"}
-        token={nonce + localNonce}
-      />
+      <Toast message={localError} variant="error" token={localNonce} />
     </div>
   );
 }
@@ -322,7 +324,7 @@ export function ProfileForm({
     updateMyProfile,
     {},
   );
-  const nonce = useToast(state);
+  useActionToast(state, { saved: "Profile saved.", error: true });
   // Controlled — avoids the Base UI uncontrolled-FieldControl warning on re-render.
   const [nameVal, setNameVal] = useState(fullName ?? "");
   const [emailVal, setEmailVal] = useState(email ?? "");
@@ -333,19 +335,13 @@ export function ProfileForm({
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>
           <div className="flex gap-2">
-            <select
+            <SelectField
               name="prefix"
-              aria-label="Title"
               defaultValue={prefix ?? ""}
-              className={selectCls}
-            >
-              <option value="">Title</option>
-              {STAFF_PREFIXES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+              options={[{ value: "", label: "Title" }, ...STAFF_PREFIXES.map((p) => ({ value: p, label: p }))]}
+              ariaLabel="Title"
+              className="h-8 w-full"
+            />
             <Input
               id="fullName"
               name="fullName"
@@ -371,11 +367,6 @@ export function ProfileForm({
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Save profile"}
       </Button>
-      <Toast
-        message={state.saved ? "Profile saved." : state.error ?? null}
-        variant={state.error ? "error" : "success"}
-        token={nonce}
-      />
     </form>
   );
 }
@@ -393,20 +384,17 @@ export function DiscountApprovalForm({
     updateMyDiscountApproval,
     {},
   );
-  const nonce = useToast(state);
+  useActionToast(state, { saved: "Setting saved.", error: true });
   const [needsApproval, setNeedsApproval] = useState(discountNeedsApproval);
 
   return (
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="discountNeedsApproval" value={needsApproval ? "on" : ""} />
       <label className="flex min-h-6 items-center gap-2 text-sm">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={needsApproval}
           ref={syncChecked(needsApproval)}
-          onChange={(e) => setNeedsApproval(e.target.checked)}
-          className="size-4 accent-[var(--color-primary)]"
-        />
+          onCheckedChange={setNeedsApproval} />
         Discounts taken from my share need my approval
       </label>
       <p className="text-xs text-muted-foreground">
@@ -416,11 +404,6 @@ export function DiscountApprovalForm({
       <Button type="submit" size="sm" disabled={pending}>
         {pending ? "Saving…" : "Save"}
       </Button>
-      <Toast
-        message={state.saved ? "Setting saved." : state.error ?? null}
-        variant={state.error ? "error" : "success"}
-        token={nonce}
-      />
     </form>
   );
 }
@@ -431,7 +414,7 @@ export function PasswordForm() {
     changeMyPassword,
     {},
   );
-  const nonce = useToast(state);
+  useActionToast(state, { saved: "Password changed.", error: true });
   const formRef = useRef<HTMLFormElement>(null);
   useEffect(() => {
     if (state.saved) formRef.current?.reset();
@@ -471,11 +454,6 @@ export function PasswordForm() {
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Change password"}
       </Button>
-      <Toast
-        message={state.saved ? "Password changed." : state.error ?? null}
-        variant={state.error ? "error" : "success"}
-        token={nonce}
-      />
     </form>
   );
 }

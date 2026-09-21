@@ -38,7 +38,7 @@ export function ImpersonateClinic({ clinicId }: { clinicId: string }) {
   }
 
   return (
-    <div className="max-w-sm space-y-3 rounded-md border p-4">
+    <div className="max-w-sm space-y-3 rounded-md border well p-4">
       <p className="text-sm text-muted-foreground">
         You&apos;ll enter this clinic&apos;s workspace <span className="font-medium">read-only</span>.
         Confirm your identity to continue.

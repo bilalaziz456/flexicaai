@@ -78,7 +78,7 @@ export function DiscountFilters({
   ];
 
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
+    <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border/70 bg-surface-sunken p-3.5">
       <PeriodTabs
         value={periodV}
         onChange={(v) => {
