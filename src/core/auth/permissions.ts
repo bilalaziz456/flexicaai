@@ -116,6 +116,18 @@ export const PERM_RESOURCES: PermResource[] = [
   { id: "expenses", label: "Expenses", actions: ["view", "create", "edit", "delete"], feature: "finance" },
   // P&L + the unified finance reports/dashboard KPIs (owner overview).
   { id: "finance", label: "Profit & Loss", actions: ["view"], feature: "finance" },
+  // The petty-cash drawer: `view` reads what should be in it, `create` records a
+  // handover count or a transfer (banking the takings, topping the float up).
+  //
+  // ITS OWN RESOURCE RATHER THAN `finance`, for two reasons. `finance` is view-only —
+  // a count is a write, so it would have had to grow actions it does not otherwise
+  // want — and the people are different: `finance` is the owner reading a P&L, this
+  // is the front desk counting a box at the end of a shift. Nothing about holding one
+  // implies the other.
+  //
+  // No `delete`: a count is an assertion somebody made about a moment, and the way to
+  // correct it is another count, not the quiet removal of the first.
+  { id: "cash", label: "Petty cash", actions: ["view", "create"], feature: "finance" },
   // Discount approvals: `view` = review & decide CLINIC-borne discount requests in
   // the approval queue (createLabel "Approve" is just the column's label). A doctor
   // always decides discounts off their OWN share regardless of this — it is only
@@ -206,6 +218,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     receivables: [V],
     // Full billing incl. void (manager oversees the money).
     billing: [V, C, E, D],
+    // A manager runs the front desk, so they count the drawer too.
+    cash: [V, C],
     // Manager can refund + reverse a refund (money oversight).
     refund: [V, C, D],
     // Capacity is a manager function: they run the rota and the daily caps.
@@ -261,6 +275,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     // Front desk READS the week to book against it. Setting a doctor's daily cap
     // is not a booking decision, so no edit by default — grantable per user.
     schedule: [V],
+    // The drawer is counted at handover, by whoever is handing over.
+    cash: [V, C],
     leave: [V, C, E, D],
     // Front desk can view/print a prescription PDF (not author it).
     prescriptions: [V],

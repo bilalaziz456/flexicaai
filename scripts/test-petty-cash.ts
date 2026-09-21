@@ -18,6 +18,8 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/core/db";
 import { cashCounts, cashTransfers, clinics, expenses, patientPayments, patients } from "@/core/db/schema";
+import { ALL_PERMISSIONS, ROLE_DEFAULTS } from "@/core/auth/permissions";
+import type { UserRole } from "@/core/types/auth";
 import {
   getDrawerState,
   recordCashCount,
@@ -44,7 +46,27 @@ function localDate(offsetDays = 0): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+/**
+ * The ACL defaults, pinned. A new resource is a silent revocation (ADR-033), so the
+ * thing worth asserting is not that the slugs exist but WHO ends up holding them —
+ * that is the part a later "tidy-up" changes without noticing.
+ */
+function checkAcl() {
+  console.log("\nWho may count the drawer:");
+  const holds = (role: UserRole, action: string) =>
+    ROLE_DEFAULTS[role].includes(`cash:${action}`);
+  check("the front desk counts it", holds("receptionist", "create"), true);
+  check("so does a manager", holds("manager", "create"), true);
+  check("and a clinic admin", holds("clinic_admin", "create"), true);
+  check("a doctor does not", holds("doctor", "create"), false);
+  check("…and cannot even read it", holds("doctor", "view"), false);
+  // A count is an assertion about a moment; the way to correct one is another count.
+  check("nobody can delete a count", ALL_PERMISSIONS.includes("cash:delete"), false);
+}
+
 async function main() {
+  checkAcl();
+
   const [clinic] = await db
     .insert(clinics)
     .values({ name: `PettyCash Test ${Date.now()}`, modulesEnabled: ["dental"] })
