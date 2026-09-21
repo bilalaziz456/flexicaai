@@ -30,12 +30,15 @@ import {
   type DiscountTypeCode,
   RECURRENCE_ROWS,
   type RecurrenceCode,
+  CASH_TRANSFER_KIND_ROWS,
+  type CashTransferKindCode,
 } from "@/core/db/vocabulary-seed";
 import {
   approvalStatuses,
   discountTypes,
   paymentKinds,
   paymentMethods,
+  cashTransferKinds,
   settlementKinds,
   settlementParties,
   vocabularyRef,
@@ -677,3 +680,98 @@ export type Invoice = typeof invoices.$inferSelect;
 export type ExpenseCategory = typeof expenseCategories.$inferSelect;
 
 export type Expense = typeof expenses.$inferSelect;
+
+/**
+ * PETTY CASH — a handover count of the shared front-desk drawer.
+ *
+ * A COUNT IS A FACT ("Asma counted 11,500 at 18:04"); the expectation at that moment
+ * is derived, and that is exactly why both it and the variance are SNAPSHOT here
+ * rather than recomputed on read. A cash expense back-dated into a counted day, or a
+ * `doctor_payouts` row voided afterwards (it is hard-deleted today), would otherwise
+ * rewrite a variance somebody had already signed off — the same reasoning that makes
+ * `sales` snapshot its amounts and its `doctor_name` (ADR-016).
+ *
+ * THE FLOAT CARRIES FORWARD FROM `counted_total`, NEVER FROM `expected_total`.
+ * Reality is re-based at every handover, so a one-off shortfall is recorded, explained
+ * and absorbed. Carrying the expectation forward instead would make one bad Tuesday
+ * wrong for ever.
+ *
+ * The FIRST count is the opening float: nothing precedes it, so `expected_total` and
+ * `variance` are NULL rather than zero — "not known" and "balanced" are different
+ * claims, and storing 0 would invent a reconciliation that never happened.
+ *
+ * One shared drawer per clinic (owner's decision, 2026-09-22), which is per branch by
+ * construction: a multi-site group is already several clinic rows.
+ * See docs/petty-cash-plan.md.
+ */
+export const cashCounts = pgTable(
+  "cash_counts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    countedAt: timestamp("counted_at", { withTimezone: true }).notNull().defaultNow(),
+    /** What was physically in the drawer. Whole PKR. */
+    countedTotal: integer("counted_total").notNull(),
+    /** What the ledgers said should be there. NULL on the opening count. */
+    expectedTotal: integer("expected_total"),
+    /** `counted − expected`, SIGNED: negative is a shortfall. NULL on the opening count. */
+    variance: integer("variance"),
+    note: text("note"),
+    // No FK: users soft-delete, and a count must survive the counter leaving.
+    countedBy: uuid("counted_by"),
+    countedByName: text("counted_by_name"),
+    ...softDeleteColumns(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // The hot query is "the most recent count for this clinic" — every expected
+    // figure starts from it — so the index is ordered to answer that with a limit 1.
+    index("cash_counts_clinic_at_idx").on(t.clinicId, t.countedAt.desc()),
+    index("cash_counts_deleted_idx")
+      .on(t.clinicId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
+  ],
+);
+
+/**
+ * PETTY CASH — money into or out of the drawer that is NOT a cost.
+ *
+ * Banking the day's takings, the owner taking cash, topping the float up. None of
+ * these buys anything, so none is an expense: filing a deposit as one would understate
+ * profit by the amount banked. **This table must never be joined into the P&L or the
+ * sales report** — it moves money between the clinic's own pockets.
+ *
+ * `amount` is always positive and the direction is carried by `kind`, the same shape
+ * as `patient_payments`.
+ */
+export const cashTransfers = pgTable(
+  "cash_transfers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    kind: vocabularyRef<CashTransferKindCode>(CASH_TRANSFER_KIND_ROWS, "kind_id")
+      .notNull()
+      .references(() => cashTransferKinds.id),
+    amount: integer("amount").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+    reference: text("reference"),
+    note: text("note"),
+    createdBy: uuid("created_by"),
+    createdByName: text("created_by_name"),
+    ...softDeleteColumns(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("cash_transfers_clinic_at_idx").on(t.clinicId, t.occurredAt),
+    index("cash_transfers_deleted_idx")
+      .on(t.clinicId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
+  ],
+);
+
+export type CashCount = typeof cashCounts.$inferSelect;
+export type CashTransfer = typeof cashTransfers.$inferSelect;
