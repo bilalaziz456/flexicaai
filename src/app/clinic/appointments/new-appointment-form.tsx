@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { Check, Minus, Plus, Search } from "lucide-react";
 import { cn } from "@/core/lib/utils";
 import {
@@ -69,6 +69,7 @@ export function NewAppointmentForm({
   preselectedDate,
   planItems = [],
   initial,
+  initialSlots,
 }: {
   initialPatients: Patient[];
   doctors: Doctor[];
@@ -84,6 +85,9 @@ export function NewAppointmentForm({
   /** Create mode: start on this date (the day the appointments list was showing),
    *  still changeable. Ignored in edit mode, where  is the real one. */
   preselectedDate?: string;
+  /** Edit mode: the doctor's windows for the appointment's own date, resolved on the
+   *  server so the time picker is already constrained when the page paints. */
+  initialSlots?: DoctorDaySlots | null;
   initial?: {
     doctorId: string;
     date: string;
@@ -114,7 +118,7 @@ export function NewAppointmentForm({
   // `initial.date` wins over the prefill: in edit mode it IS the appointment's own
   // date, and a stray `?date=` must never silently move a booking that exists.
   const [date, setDate] = useState(initial?.date ?? preselectedDate ?? "");
-  const [time, setTime] = useState(initial?.time ?? "09:00");
+  const [rawTime, setTime] = useState(initial?.time ?? "09:00");
   const [duration, setDuration] = useState(initial?.durationMinutes ?? 30);
   const [reason, setReason] = useState(initial?.reason ?? "");
   const [discountType, setDiscountType] = useState<DiscountType>(
@@ -196,7 +200,11 @@ export function NewAppointmentForm({
       discountType: "amount" as DiscountType,
       discountValue: 0,
     }));
-  const [slots, setSlots] = useState<DoctorDaySlots | null>(null);
+  // Seeded by the server when editing, so the picker is constrained on the first
+  // paint. It used to be null with an effect that fetched the same thing on mount:
+  // a round trip after hydration, and a moment where the form offered times the
+  // doctor does not work. The create flow has no doctor yet, so it passes nothing.
+  const [slots, setSlots] = useState<DoctorDaySlots | null>(initialSlots ?? null);
   const action = isEdit
     ? updateAppointment.bind(null, appointmentId!)
     : createAppointment;
@@ -225,12 +233,6 @@ export function NewAppointmentForm({
     setSlots(await doctorDayAvailability(dId, `${d}T12:00`));
   }
 
-  // On mount (edit prefill), load the doctor's windows for the initial date.
-  useEffect(() => {
-    if (doctorId && date) void refreshSlots(doctorId, date);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const selectedDoctor = doctors.find((d) => d.id === doctorId) ?? null;
   const doctorOptions = [
     { value: "", label: "— Any —" },
@@ -257,6 +259,31 @@ export function NewAppointmentForm({
   // plain consultation, which a procedure window would refuse.
   const hasProcedures = procSel.size > 0;
 
+  const constrained =
+    !freeTime &&
+    Boolean(date) &&
+    slots !== null &&
+    !slots.onLeave &&
+    slots.available &&
+    slots.windows.length > 0;
+  const windows = constrained
+    ? slots!.windows.filter((w) => hasProcedures || w.kind !== "procedure")
+    : [];
+  const inWindow = (t: string, w: { start: string; end: string }) =>
+    timeToMin(t) >= timeToMin(w.start) && timeToMin(t) < timeToMin(w.end);
+
+  // The time actually in play. A time outside every BOOKABLE window snaps to the
+  // first one — after switching doctor or date, and after removing the last
+  // procedure, which can strand it inside a procedure window that no longer applies.
+  //
+  // DERIVED, not corrected. This was an effect that wrote the snapped value back into
+  // state, so the form rendered once showing a time it was about to reject and again
+  // with the right one; the effect also listed `time` among its dependencies, which
+  // is a state update watching the state it updates. Computing it here means the
+  // first render is already correct and there is nothing to keep in step.
+  const time =
+    windows.length > 0 && !windows.some((w) => inWindow(rawTime, w)) ? windows[0].start : rawTime;
+
   // With the override ON, is the chosen time inside the doctor's hours ANYWAY? The
   // server asks exactly this (checkDoctorSlot's `withinHours`) and drops the flag when
   // it is true, so without saying so here the form silently disagrees with what gets
@@ -272,35 +299,10 @@ export function NewAppointmentForm({
     slots.available &&
     slots.windows
       .filter((w) => hasProcedures || w.kind !== "procedure")
-      .some((w) => timeToMin(time) >= timeToMin(w.start) && timeToMin(time) < timeToMin(w.end));
+      .some((w) => inWindow(time, w));
 
-  const constrained =
-    !freeTime &&
-    Boolean(date) &&
-    slots !== null &&
-    !slots.onLeave &&
-    slots.available &&
-    slots.windows.length > 0;
-  const windows = constrained
-    ? slots!.windows.filter((w) => hasProcedures || w.kind !== "procedure")
-    : [];
   // The selected window is whichever one contains the current time.
-  const selectedWindowIdx = windows.findIndex(
-    (w) => timeToMin(time) >= timeToMin(w.start) && timeToMin(time) < timeToMin(w.end),
-  );
-
-  // Keep `time` inside a BOOKABLE window (snap to the first if it isn't) — after
-  // switching doctor or date, and after removing the last procedure, which can
-  // strand the time inside a procedure window that no longer applies.
-  useEffect(() => {
-    if (freeTime || !slots) return;
-    const ws = slots.windows.filter((w) => hasProcedures || w.kind !== "procedure");
-    if (ws.length === 0) return;
-    const inWindow = ws.some(
-      (w) => timeToMin(time) >= timeToMin(w.start) && timeToMin(time) < timeToMin(w.end),
-    );
-    if (!inWindow) setTime(ws[0].start);
-  }, [slots, freeTime, time, hasProcedures]);
+  const selectedWindowIdx = windows.findIndex((w) => inWindow(time, w));
 
   const effectiveTime = freeTime ? time : selectedWindowIdx >= 0 ? time : "";
   const scheduledAt =

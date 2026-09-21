@@ -32,6 +32,7 @@ import {
   normalizeDiscountType,
 } from "@/core/appointments/fee";
 import { AppointmentActions } from "@/app/clinic/appointments/appointment-actions";
+import { doctorDayAvailability } from "@/app/clinic/appointments/actions";
 import { DeleteAppointmentButton } from "@/app/clinic/appointments/edit-appointment-form";
 import { NewAppointmentForm } from "@/app/clinic/appointments/new-appointment-form";
 import { APPOINTMENT_STATUS_VARIANT } from "@/core/appointments/status";
@@ -135,6 +136,14 @@ export async function AppointmentDetail({
   const d = appt.scheduledAt;
   const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const timeStr = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  // The edit form's time picker is constrained to the doctor's windows. Resolving
+  // them HERE rather than from an effect when the form mounts costs the same one
+  // query — the form is always rendered on this page — and spends it before the
+  // paint instead of after it, so the picker never briefly offers a time the doctor
+  // does not work. No doctor assigned means nothing to constrain.
+  const initialSlots = appt.doctorId
+    ? await doctorDayAvailability(appt.doctorId, `${dateStr}T12:00`)
+    : null;
   const whenLabel = d.toLocaleString("en-GB", {
     weekday: "short",
     day: "2-digit",
@@ -349,6 +358,7 @@ export async function AppointmentDetail({
               procedures={bookingProcedures}
               appointmentId={appt.id}
               fixedPatient={{ id: appt.patientId, fullName: appt.patientName }}
+              initialSlots={initialSlots}
               initial={{
                 doctorId: appt.doctorId ?? "",
                 date: dateStr,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { Pencil, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import {
   saveCompanyExpense,
@@ -62,24 +62,27 @@ export function CompanyExpenseForm({
   // Methods come from the database (ADR-027): active only, in its own order.
   const methodOptions = useTenderOptions();
   const isEdit = !!expense;
-  const [state, formAction, pending] = useActionState<ExpenseActionState, FormData>(
-    saveCompanyExpense.bind(null, expense?.id ?? null),
-    {},
-  );
   const [date, setDate] = useState(expense?.incurredOn ?? todayStr());
   const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
   const [categoryId, setCategoryId] = useState(expense?.categoryId ?? "");
-  useEffect(() => {
-    if (state.saved) {
-      if (isEdit) onDone?.();
-      else {
-        setAmount("");
-        setDate(todayStr());
-        setCategoryId("");
+  // What a successful save DOES: close the editor, or clear the add form ready
+  // for the next expense. Both belong to the submission, so they run in the
+  // action rather than in an effect watching for the save to have happened.
+  const [state, formAction, pending] = useActionState<ExpenseActionState, FormData>(
+    async (prev, fd) => {
+      const res = await saveCompanyExpense(expense?.id ?? null, prev, fd);
+      if (res.saved) {
+        if (isEdit) onDone?.();
+        else {
+          setAmount("");
+          setDate(todayStr());
+          setCategoryId("");
+        }
       }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+      return res;
+    },
+    {},
+  );
   useActionToast(state, { saved: isEdit ? "Expense updated." : "Expense added.", error: true });
 
   const categoryOptions = [{ value: "", label: "Uncategorized" }, ...categories.map((c) => ({ value: c.id, label: c.name }))];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { CalendarOff, Pencil, X } from "lucide-react";
 import {
   addDoctorLeave,
@@ -46,18 +46,20 @@ function LeaveEntry({
 }) {
   const [editing, setEditing] = useState(false);
   const action = updateDoctorLeave.bind(null, leave.id);
+  // Leaving edit mode is what a successful save DOES, so it is part of the
+  // action. As an effect on `state.saved` it also had a latch: the flag stays
+  // true, so reopening the editor and saving the same values again left it open.
   const [state, formAction, pending] = useActionState<LeaveActionState, FormData>(
-    action,
+    async (prev, fd) => {
+      const res = await action(prev, fd);
+      if (res.saved) setEditing(false);
+      return res;
+    },
     {},
   );
   const [startDate, setStartDate] = useState(leave.startDate);
   const [endDate, setEndDate] = useState(leave.endDate);
   const [reason, setReason] = useState(leave.reason ?? "");
-
-  // Close the editor once a save succeeds (the list re-renders from the server).
-  useEffect(() => {
-    if (state.saved) setEditing(false);
-  }, [state.saved]);
 
   if (editing) {
     return (

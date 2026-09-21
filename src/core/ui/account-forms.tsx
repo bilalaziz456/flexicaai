@@ -61,8 +61,22 @@ export function AvatarForm({
   hasAvatar: boolean;
   version: string;
 }) {
+  // The follow-up work happens INSIDE the action, after the upload resolves, rather
+  // than in an effect watching `state.saved` for it to have happened. Closing the
+  // cropper and busting the preview cache are things this submission does — not
+  // facts about the world that something has to notice and react to. The effect also
+  // depended on `state.saved` alone, so two uploads in a row left the flag true and
+  // the second one never closed the cropper.
   const [state, formAction, pending] = useActionState<AccountActionState, FormData>(
-    uploadMyAvatar,
+    async (prev, fd) => {
+      const res = await uploadMyAvatar(prev, fd);
+      if (res.saved) {
+        resetCropper();
+        setShowAvatar(true);
+        setBust(Date.now());
+      }
+      return res;
+    },
     {},
   );
   const [, startTransition] = useTransition();
@@ -91,25 +105,23 @@ export function AvatarForm({
   const imgW = natural.w * scale;
   const imgH = natural.h * scale;
 
-  const clamp = (o: { x: number; y: number }) => ({
-    x: Math.min(0, Math.max(CROP_VIEWPORT - imgW, o.x)),
-    y: Math.min(0, Math.max(CROP_VIEWPORT - imgH, o.y)),
+  // Keeps the image covering the crop square: the offset may never expose an edge.
+  // Takes the dimensions so it can be applied to a zoom that has not rendered yet.
+  const clamp = (o: { x: number; y: number }, w = imgW, h = imgH) => ({
+    x: Math.min(0, Math.max(CROP_VIEWPORT - w, o.x)),
+    y: Math.min(0, Math.max(CROP_VIEWPORT - h, o.y)),
   });
 
-  // Re-centre / re-clamp when the zoom changes.
-  useEffect(() => {
-    setOffset((o) => clamp(o));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoom]);
-
-  // Close the cropper once the upload succeeds, and refresh the preview.
-  useEffect(() => {
-    if (state.saved) {
-      resetCropper();
-      setShowAvatar(true);
-      setBust(Date.now());
-    }
-  }, [state.saved]);
+  // Zooming OUT can leave the image too small for its current offset, exposing a
+  // gap. The re-clamp used to be an effect on `zoom`, which meant every drag of the
+  // slider rendered once with the gap showing and again with it corrected. Doing it
+  // in the handler needs the dimensions the NEW zoom implies — which is the whole
+  // reason the effect existed, since it ran after the render that had them.
+  function changeZoom(next: number) {
+    const s = coverScale * next;
+    setZoom(next);
+    setOffset((o) => clamp(o, natural.w * s, natural.h * s));
+  }
 
   function resetCropper() {
     setImgSrc((cur) => {
@@ -221,7 +233,7 @@ export function AvatarForm({
               max={3}
               step={0.01}
               value={zoom}
-              onChange={(e) => setZoom(Number(e.target.value))}
+              onChange={(e) => changeZoom(Number(e.target.value))}
               className="w-48 accent-[var(--primary)]"
               aria-label="Zoom"
             />

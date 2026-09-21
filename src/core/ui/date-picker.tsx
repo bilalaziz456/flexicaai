@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { Popover } from "@base-ui/react/popover";
 import { cn } from "@/core/lib/utils";
@@ -87,11 +87,19 @@ export function DatePicker({
   const [view, setView] = useState({ y: base.y, m0: base.m0 });
 
   // When the popover opens, jump the visible month to the selected date (or today).
-  useEffect(() => {
-    if (!open) return;
-    const b = parseYMD(value) ?? todayParts();
-    setView({ y: b.y, m0: b.m0 });
-  }, [open, value]);
+  //
+  // Done ON THE OPEN, not in an effect watching `open`. The effect set state as a
+  // reaction to state it had just set, which costs a second render of the calendar
+  // every time it opens — and it also listed `value`, so a value changing while the
+  // popover happened to be open yanked the visible month out from under whoever was
+  // reading it. Opening IS the event; this is where the decision belongs.
+  function openChange(next: boolean) {
+    if (next) {
+      const b = parseYMD(value) ?? todayParts();
+      setView({ y: b.y, m0: b.m0 });
+    }
+    setOpen(next);
+  }
 
   const selected = parseYMD(value);
   const today = todayParts();
@@ -136,7 +144,7 @@ export function DatePicker({
   };
 
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
+    <Popover.Root open={open} onOpenChange={openChange}>
       <Popover.Trigger
         id={id}
         disabled={disabled}

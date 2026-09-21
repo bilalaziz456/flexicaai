@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  getNavGroups,
+  getNavGroupsServer,
+  setNavGroupOpen,
+  subscribeNavGroups,
+} from "@/core/ui/nav-groups-store";
 import { ConnectionStatus } from "@/core/ui/connection-status";
 import { GlobalSearch, type SearchNavItem } from "@/core/ui/global-search";
 // Only the icons the CHROME itself draws. Every route icon moved out with the nav
@@ -190,26 +196,15 @@ export function PanelShell({
     .sort((a, b) => b.href.length - a.href.length)[0]?.label;
 
   // A group is open if the user toggled it, else auto-open when it holds the active
-  // page. Explicit toggles persist across navigations.
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("klenic:nav-groups");
-      if (raw) setExpandedGroups(JSON.parse(raw));
-    } catch {
-      /* ignore */
-    }
-  }, []);
-  const setGroupOpen = (name: string, next: boolean) =>
-    setExpandedGroups((prev) => {
-      const merged = { ...prev, [name]: next };
-      try {
-        localStorage.setItem("klenic:nav-groups", JSON.stringify(merged));
-      } catch {
-        /* ignore */
-      }
-      return merged;
-    });
+  // page. Explicit toggles persist across navigations, in localStorage — which the
+  // server cannot see, so it is read through a store with its own server snapshot
+  // rather than into state from an effect (nav-groups-store.ts says why).
+  const expandedGroups = useSyncExternalStore(
+    subscribeNavGroups,
+    getNavGroups,
+    getNavGroupsServer,
+  );
+  const setGroupOpen = setNavGroupOpen;
   const isGroupOpen = (g: NavGroup) => expandedGroups[g.group] ?? groupHasActive(g);
 
   /**

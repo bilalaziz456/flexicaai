@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { RotateCcw, Trash2 } from "lucide-react";
 import {
   saveExpense,
@@ -37,20 +37,24 @@ export function AddExpenseForm({
 }) {
   // Methods come from the database (ADR-027): active only, in its own order.
   const methodOptions = useTenderOptions();
-  const [state, formAction, pending] = useActionState<ExpenseActionState, FormData>(
-    saveExpense.bind(null, null),
-    {},
-  );
   const [date, setDate] = useState(todayStr());
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  useEffect(() => {
-    if (state.saved) {
-      setAmount("");
-      setDate(todayStr());
-      setCategoryId("");
-    }
-  }, [state]);
+  // Clearing the form is part of adding the expense — the next one is usually
+  // typed straight after — so it happens in the action, not in an effect that
+  // notices the save afterwards and re-renders to undo the fields.
+  const [state, formAction, pending] = useActionState<ExpenseActionState, FormData>(
+    async (prev, fd) => {
+      const res = await saveExpense(null, prev, fd);
+      if (res.saved) {
+        setAmount("");
+        setDate(todayStr());
+        setCategoryId("");
+      }
+      return res;
+    },
+    {},
+  );
   useActionToast(state, { saved: "Expense added.", error: true });
 
   const categoryOptions = [

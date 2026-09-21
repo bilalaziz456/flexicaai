@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import Link from "next/link";
 import { Printer, Undo2 } from "lucide-react";
 import {
@@ -99,14 +99,18 @@ export function PaymentPanel({
 
   // Refund form (collapsed by default; only offered when there's money to give back).
   const [refundOpen, setRefundOpen] = useState(false);
+  // Collapsing the form again is what a successful refund DOES, so it happens in the
+  // action. As an effect on `refundState` it also reopened nothing: the flag stays
+  // true, so a second refund found the panel already closed and never reacted.
   const [refundState, refundAction, refundPending] = useActionState<BillingActionState, FormData>(
-    refundAppointmentPayment.bind(null, appointmentId),
+    async (prev, fd) => {
+      const res = await refundAppointmentPayment(appointmentId, prev, fd);
+      if (res.saved) setRefundOpen(false);
+      return res;
+    },
     {},
   );
   useActionToast(refundState, { saved: "Refund recorded.", error: true });
-  useEffect(() => {
-    if (refundState.saved) setRefundOpen(false);
-  }, [refundState]);
 
   const [busy, startTransition] = useTransition();
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null);
