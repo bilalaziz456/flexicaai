@@ -1,13 +1,13 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { createStaff, type ClinicActionState } from "@/app/clinic/actions";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { SelectField } from "@/core/ui/select-field";
 import { PasswordInput } from "@/core/ui/password-input";
-import { Toast } from "@/core/ui/toast";
+import { useActionToast } from "@/core/ui/toast";
 import { DoctorScheduleFields } from "@/app/clinic/doctor-schedule-fields";
 import {
   defaultPermissionsForRole,
@@ -32,10 +32,7 @@ export function AddStaffForm({ resources }: { resources: PermResource[] }) {
   // The role's label comes from the database (ADR-027), not a compiled map.
   const roleLabel = useVocabularyLabel("user_roles", role);
   // Re-pop the error toast on each failed submit (success redirects away).
-  const [errorNonce, setErrorNonce] = useState(0);
-  useEffect(() => {
-    if (state.error) setErrorNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { error: true });
 
   return (
     <form action={formAction} className="space-y-4">
@@ -125,8 +122,6 @@ export function AddStaffForm({ resources }: { resources: PermResource[] }) {
       >
         {pending ? "Adding…" : "Add staff"}
       </Button>
-
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
 }

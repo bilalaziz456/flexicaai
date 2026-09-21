@@ -5,7 +5,7 @@ import { updateClinicPublicContact, type AdminActionState } from "@/app/admin/ac
 import type { ClinicHour } from "@/core/lib/clinic-hours";
 import { Button } from "@/core/ui/button";
 import { PublicContactFields } from "@/core/ui/public-contact-fields";
-import { SavedToast, Toast } from "@/core/ui/toast";
+import { ActionToast, Toast } from "@/core/ui/toast";
 
 /**
  * The super admin's copy of the clinic's patient-facing address and hours.
@@ -70,7 +70,7 @@ export function ClinicPublicContact({
         ) : null}
         {state.error ? <span className="text-sm text-destructive">{state.error}</span> : null}
       </div>
-      <SavedToast state={state} message="Patient-facing details saved." />
+      <ActionToast state={state} saved="Patient-facing details saved." />
       <Toast message={state.error ?? null} variant="error" token={state.error ?? ""} />
     </form>
   );

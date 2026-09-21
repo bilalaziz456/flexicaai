@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { Trash2 } from "lucide-react";
 import {
   deleteStaff,
@@ -16,7 +16,7 @@ import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
 import { Input } from "@/core/ui/input";
 import { PasswordInput } from "@/core/ui/password-input";
 import { Label } from "@/core/ui/label";
-import { Toast } from "@/core/ui/toast";
+import { useActionToast } from "@/core/ui/toast";
 import { DoctorScheduleFields } from "@/app/clinic/doctor-schedule-fields";
 import type { DayAvailability } from "@/core/lib/availability";
 import { STAFF_PREFIXES } from "@/core/types/auth";
@@ -54,14 +54,9 @@ export function EditStaffForm({
     FormData
   >(action, {});
   // Both outcomes toast in place — the save no longer bounces to the staff list.
-  // The nonces let an identical message fire again on a repeated save, since
-  // useActionState hands back an equal state object each time.
-  const [savedNonce, setSavedNonce] = useState(0);
-  const [errorNonce, setErrorNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved) setSavedNonce((n) => n + 1);
-    if (state.error) setErrorNonce((n) => n + 1);
-  }, [state]);
+  // The hook keys on the state object's identity, so a second identical save still
+  // announces itself rather than falling silent.
+  useActionToast(state, { saved: "Staff member updated.", error: true });
   const isDoctor = role === "doctor";
   const [scheduleValid, setScheduleValid] = useState(true);
 
@@ -120,12 +115,6 @@ export function EditStaffForm({
           {pending ? "Saving…" : "Save changes"}
         </Button>
       </div>
-      <Toast
-        message={state.saved ? "Staff member updated." : null}
-        variant="success"
-        token={savedNonce}
-      />
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
 }
@@ -156,12 +145,7 @@ export function DoctorSharesForm({
     ClinicActionState,
     FormData
   >(action, {});
-  const [savedNonce, setSavedNonce] = useState(0);
-  const [errorNonce, setErrorNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved) setSavedNonce((n) => n + 1);
-    if (state.error) setErrorNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { saved: "Revenue share saved.", error: true });
 
   const [consult, setConsult] = useState(String(consultationSharePct));
   const [defaultProc, setDefaultProc] = useState(String(procedureSharePct));
@@ -285,18 +269,6 @@ export function DoctorSharesForm({
           {pending ? "Saving…" : "Save revenue share"}
         </Button>
       </div>
-      {/* The message must be null until a save has actually happened. <Toast> fires
-          whenever `message` is non-empty and its (variant, token, message) key differs
-          from the last one pushed — and that key starts out null, so a CONSTANT string
-          here announced "Revenue share saved." the moment the page opened. `token`
-          alone does not gate it; it only lets an identical message fire a second time.
-          The error toast below already had this shape. */}
-      <Toast
-        message={state.saved ? "Revenue share saved." : null}
-        variant="success"
-        token={savedNonce}
-      />
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
 }

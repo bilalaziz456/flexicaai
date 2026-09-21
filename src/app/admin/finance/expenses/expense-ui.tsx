@@ -18,7 +18,7 @@ import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { DatePicker } from "@/core/ui/date-picker";
-import { Toast } from "@/core/ui/toast";
+import { Toast, useActionToast } from "@/core/ui/toast";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
@@ -66,7 +66,6 @@ export function CompanyExpenseForm({
     saveCompanyExpense.bind(null, expense?.id ?? null),
     {},
   );
-  const [nonce, setNonce] = useState(0);
   const [date, setDate] = useState(expense?.incurredOn ?? todayStr());
   const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
   const [categoryId, setCategoryId] = useState(expense?.categoryId ?? "");
@@ -79,9 +78,9 @@ export function CompanyExpenseForm({
         setCategoryId("");
       }
     }
-    if (state.saved || state.error) setNonce((n) => n + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
+  useActionToast(state, { saved: isEdit ? "Expense updated." : "Expense added.", error: true });
 
   const categoryOptions = [{ value: "", label: "Uncategorized" }, ...categories.map((c) => ({ value: c.id, label: c.name }))];
 
@@ -158,7 +157,6 @@ export function CompanyExpenseForm({
           <Button type="button" variant="ghost" size="sm" onClick={onDone}>Cancel</Button>
         ) : null}
       </div>
-      <Toast message={state.saved ? (isEdit ? "Expense updated." : "Expense added.") : state.error ?? null} variant={state.error ? "error" : "success"} token={nonce} />
     </form>
   );
 }
@@ -279,10 +277,7 @@ export function CompanyExpenseRowActions({ id, deleted }: { id: string; deleted:
 /** Add / activate / deactivate company expense categories. */
 export function CompanyCategoryManager({ categories }: { categories: { id: string; name: string; isActive: boolean }[] }) {
   const [state, formAction, pending] = useActionState<ExpenseActionState, FormData>(addCompanyCategoryAction, {});
-  const [nonce, setNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved || state.error) setNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { saved: "Category added.", error: true });
   const [busy, start] = useTransition();
 
   return (
@@ -311,7 +306,6 @@ export function CompanyCategoryManager({ categories }: { categories: { id: strin
           </li>
         ))}
       </ul>
-      <Toast message={state.saved ? "Category added." : state.error ?? null} variant={state.error ? "error" : "success"} token={nonce} />
     </div>
   );
 }

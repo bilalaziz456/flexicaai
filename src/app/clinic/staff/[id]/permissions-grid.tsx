@@ -1,13 +1,13 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import {
   resetStaffPermissions,
   updateStaffPermissions,
   type ClinicActionState,
 } from "@/app/clinic/actions";
 import { Button } from "@/core/ui/button";
-import { Toast } from "@/core/ui/toast";
+import { toast, useActionToast } from "@/core/ui/toast";
 import type { PermResource } from "@/core/auth/permissions";
 import { PermissionMatrix } from "@/core/ui/permission-matrix";
 
@@ -37,21 +37,7 @@ export function PermissionsGrid({
   );
   const [resetting, startReset] = useTransition();
 
-  // One success toast, re-triggered for both save and reset via a bumping nonce.
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [successNonce, setSuccessNonce] = useState(0);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [errorNonce, setErrorNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved) {
-      setSuccessMsg("Permissions saved.");
-      setSuccessNonce((n) => n + 1);
-    }
-    if (state.error) {
-      setErrorMsg(state.error);
-      setErrorNonce((n) => n + 1);
-    }
-  }, [state]);
+  useActionToast(state, { saved: "Permissions saved.", error: true });
 
   const onReset = () =>
     startReset(async () => {
@@ -59,11 +45,9 @@ export function PermissionsGrid({
       if (res.saved) {
         // Follow the role defaults now that the override is cleared.
         setGranted(new Set(roleDefaults));
-        setSuccessMsg("Reset to role defaults.");
-        setSuccessNonce((n) => n + 1);
+        toast.success("Reset to role defaults.");
       } else if (res.error) {
-        setErrorMsg(res.error);
-        setErrorNonce((n) => n + 1);
+        toast.error(res.error);
       }
     });
 
@@ -85,8 +69,6 @@ export function PermissionsGrid({
         </Button>
       </div>
 
-      <Toast message={successMsg} variant="success" token={successNonce} />
-      <Toast message={errorMsg} variant="error" token={errorNonce} />
     </form>
   );
 }

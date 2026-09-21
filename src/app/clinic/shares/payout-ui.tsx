@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { Undo2 } from "lucide-react";
 import {
   recordDoctorPayout,
@@ -9,7 +9,7 @@ import {
 } from "./actions";
 import { SelectField } from "@/core/ui/select-field";
 import { Button } from "@/core/ui/button";
-import { Toast } from "@/core/ui/toast";
+import { Toast, useActionToast } from "@/core/ui/toast";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
 const money = new Intl.NumberFormat("en-PK", {
@@ -39,10 +39,7 @@ export function RecordPayoutForm({
     recordDoctorPayout,
     {},
   );
-  const [nonce, setNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved || state.error) setNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { saved: "Payment recorded.", error: true });
   const [amount, setAmount] = useState(String(outstanding));
 
   return (
@@ -92,11 +89,6 @@ export function RecordPayoutForm({
       >
         {pending ? "Recording…" : "Record payment"}
       </Button>
-      <Toast
-        message={state.saved ? "Payment recorded." : state.error ?? null}
-        variant={state.error ? "error" : "success"}
-        token={nonce}
-      />
     </form>
   );
 }

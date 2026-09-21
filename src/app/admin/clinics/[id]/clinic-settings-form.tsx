@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import type { SpecialtyCatalogEntry } from "@/core/types/module";
 import type { ClinicFeature } from "@/core/lib/features";
 import { updateClinic, type AdminActionState } from "@/app/admin/actions";
@@ -9,7 +9,7 @@ import { Button } from "@/core/ui/button";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
-import { Toast, SavedToast } from "@/core/ui/toast";
+import { ActionToast, useActionToast } from "@/core/ui/toast";
 
 /**
  * A clinic's core super-admin settings in ONE save — name, specialties, optional
@@ -46,10 +46,7 @@ export function ClinicSettingsForm({
     AdminActionState,
     FormData
   >(action, {});
-  const [errorNonce, setErrorNonce] = useState(0);
-  useEffect(() => {
-    if (state.error) setErrorNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { error: true });
 
   const [modules, setModules] = useState<Set<string>>(() => new Set(modulesEnabled));
   const [feats, setFeats] = useState<Set<string>>(() => new Set(featuresEnabled));
@@ -211,8 +208,7 @@ export function ClinicSettingsForm({
           {pending ? "Saving…" : "Save changes"}
         </Button>
       </div>
-      <SavedToast state={state} message="Clinic settings saved." />
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
+      <ActionToast state={state} saved="Clinic settings saved." />
     </form>
   );
 }

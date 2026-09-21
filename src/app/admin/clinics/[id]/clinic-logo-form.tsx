@@ -6,7 +6,7 @@ import { LOGO_MAX_PX, MAX_LOGO_BYTES } from "@/core/clinics/logo-limits";
 import { downscaleImage } from "@/core/lib/image-resize";
 import { Button, buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
-import { SavedToast } from "@/core/ui/toast";
+import { ActionToast } from "@/core/ui/toast";
 
 /**
  * Clinic logo upload (owner/super-admin/account-manager). Shows the current logo (via a
@@ -161,7 +161,7 @@ export function ClinicLogoForm({ clinicId, logo }: { clinicId: string; logo: str
           <span className="text-sm text-destructive">{state.error}</span>
         ) : null}
       </div>
-      <SavedToast state={state} message="Logo saved." />
+      <ActionToast state={state} saved="Logo saved." />
     </form>
   );
 }

@@ -18,7 +18,7 @@ import { DatePicker } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
 import { Switch } from "@/core/ui/switch";
 import { Label } from "@/core/ui/label";
-import { SavedToast } from "@/core/ui/toast";
+import { ActionToast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
@@ -181,8 +181,8 @@ export function ClinicBilling({
 
   return (
     <div className="space-y-6">
-      <SavedToast state={priceState} message="Billing settings saved." />
-      <SavedToast state={payState} message="Recorded." />
+      <ActionToast state={priceState} saved="Billing settings saved." />
+      <ActionToast state={payState} saved="Recorded." />
 
       {/* ---- Balance summary ---- */}
       {/* The card's headline figures, so hairlines rather than a recess — the same

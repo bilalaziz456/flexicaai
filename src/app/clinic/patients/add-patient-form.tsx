@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState } from "react";
 import { createPatient, type ClinicActionState } from "@/app/clinic/actions";
 import { SelectField } from "@/core/ui/select-field";
 import { Checkbox } from "@/core/ui/checkbox";
@@ -8,7 +8,7 @@ import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { PhoneInput } from "@/core/ui/phone-input";
 import { Label } from "@/core/ui/label";
-import { Toast } from "@/core/ui/toast";
+import { useActionToast } from "@/core/ui/toast";
 
 export function AddPatientForm() {
   const [state, formAction, pending] = useActionState<
@@ -17,10 +17,7 @@ export function AddPatientForm() {
   >(createPatient, {});
   // Success redirects to the list (with a flash toast); a failed add pops an
   // error toast here, re-triggered per attempt.
-  const [errorNonce, setErrorNonce] = useState(0);
-  useEffect(() => {
-    if (state.error) setErrorNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { error: true });
 
   return (
     <form action={formAction} className="space-y-4">
@@ -83,8 +80,6 @@ export function AddPatientForm() {
       <Button type="submit" disabled={pending}>
         {pending ? "Adding…" : "Add patient"}
       </Button>
-
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
 }

@@ -1,11 +1,11 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
+import { useActionState, useMemo, useState, useTransition } from "react";
 import { Undo2 } from "lucide-react";
 import { recordSettlement, voidSettlement, type PayoutActionState } from "./actions";
 import { SelectField } from "@/core/ui/select-field";
 import { Button } from "@/core/ui/button";
-import { Toast } from "@/core/ui/toast";
+import { Toast, useActionToast } from "@/core/ui/toast";
 
 const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
 const inputCls =
@@ -44,14 +44,11 @@ export function SettlementForm({
   }, [owedToDoctor, owedByDoctor, canClinic, canDoctorWaive]);
 
   const [state, formAction, pending] = useActionState<PayoutActionState, FormData>(recordSettlement, {});
-  const [nonce, setNonce] = useState(0);
   const [kind, setKind] = useState(options[0]?.value ?? "");
   const max = options.find((o) => o.value === kind)?.max ?? 0;
   const [amount, setAmount] = useState(String(max || ""));
 
-  useEffect(() => {
-    if (state.saved || state.error) setNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { saved: "Recorded.", error: true });
 
   if (options.length === 0) return null;
 
@@ -95,11 +92,6 @@ export function SettlementForm({
       <Button type="submit" disabled={pending || Number(amount) <= 0 || Number(amount) > max}>
         {pending ? "Recording…" : "Record"}
       </Button>
-      <Toast
-        message={state.saved ? "Recorded." : state.error ?? null}
-        variant={state.error ? "error" : "success"}
-        token={nonce}
-      />
     </form>
   );
 }

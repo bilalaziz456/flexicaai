@@ -16,7 +16,7 @@ import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { DatePicker } from "@/core/ui/date-picker";
-import { Toast } from "@/core/ui/toast";
+import { Toast, useActionToast } from "@/core/ui/toast";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
@@ -41,7 +41,6 @@ export function AddExpenseForm({
     saveExpense.bind(null, null),
     {},
   );
-  const [nonce, setNonce] = useState(0);
   const [date, setDate] = useState(todayStr());
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -51,8 +50,8 @@ export function AddExpenseForm({
       setDate(todayStr());
       setCategoryId("");
     }
-    if (state.saved || state.error) setNonce((n) => n + 1);
   }, [state]);
+  useActionToast(state, { saved: "Expense added.", error: true });
 
   const categoryOptions = [
     { value: "", label: "Uncategorized" },
@@ -129,11 +128,6 @@ export function AddExpenseForm({
           className="h-8"
         />
       </div>
-      <Toast
-        message={state.saved ? "Expense added." : state.error ?? null}
-        variant={state.error ? "error" : "success"}
-        token={nonce}
-      />
     </form>
   );
 }
@@ -184,10 +178,7 @@ export function CategoryManager({
   categories: { id: string; name: string; isActive: boolean }[];
 }) {
   const [state, formAction, pending] = useActionState<ExpenseActionState, FormData>(addCategoryAction, {});
-  const [nonce, setNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved || state.error) setNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { saved: "Category added.", error: true });
   const [busy, start] = useTransition();
 
   return (
@@ -216,11 +207,6 @@ export function CategoryManager({
           </li>
         ))}
       </ul>
-      <Toast
-        message={state.saved ? "Category added." : state.error ?? null}
-        variant={state.error ? "error" : "success"}
-        token={nonce}
-      />
     </div>
   );
 }

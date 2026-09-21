@@ -1,12 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { updateWhatsappSettings } from "@/app/clinic/actions";
 import type { ClinicActionState } from "@/app/clinic/actions";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
-import { Toast } from "@/core/ui/toast";
+import { useActionToast } from "@/core/ui/toast";
 
 /**
  * Clinic WhatsApp message personalization — the signature/footer fed into the
@@ -25,10 +25,7 @@ export function WhatsappSettingsForm({
     updateWhatsappSettings,
     {},
   );
-  const [nonce, setNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved || state.error) setNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { saved: "WhatsApp signature saved.", error: true });
 
   // Controlled so a post-save revalidation (which changes the prop) doesn't trip
   // Base UI's "changing uncontrolled default" warning.
@@ -68,11 +65,6 @@ export function WhatsappSettingsForm({
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Save signature"}
       </Button>
-      <Toast
-        message={state.saved ? "WhatsApp signature saved." : state.error ?? null}
-        variant={state.error ? "error" : "success"}
-        token={nonce}
-      />
     </form>
   );
 }

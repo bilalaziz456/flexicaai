@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { Check, CheckCircle2, X } from "lucide-react";
 import {
   decideApproval,
@@ -10,7 +10,7 @@ import {
 import { Checkbox } from "@/core/ui/checkbox";
 import { EmptyState } from "@/core/ui/empty-state";
 import { Button } from "@/core/ui/button";
-import { Toast } from "@/core/ui/toast";
+import { useActionToast } from "@/core/ui/toast";
 import { syncChecked } from "@/core/ui/checkbox-sync";
 
 export type QueueItem = {
@@ -30,10 +30,7 @@ export function ClinicDiscountPolicy({ initial }: { initial: boolean }) {
     {},
   );
   const [on, setOn] = useState(initial);
-  const [nonce, setNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved || state.error) setNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { saved: "Saved.", error: true });
 
   return (
     <form action={formAction} className="space-y-3">
@@ -52,11 +49,6 @@ export function ClinicDiscountPolicy({ initial }: { initial: boolean }) {
       <Button type="submit" size="sm" disabled={pending}>
         {pending ? "Saving…" : "Save"}
       </Button>
-      <Toast
-        message={state.saved ? "Saved." : state.error ?? null}
-        variant={state.error ? "error" : "success"}
-        token={nonce}
-      />
     </form>
   );
 }
@@ -67,10 +59,7 @@ function ApprovalRow({ item }: { item: QueueItem }) {
     decideApproval,
     {},
   );
-  const [errNonce, setErrNonce] = useState(0);
-  useEffect(() => {
-    if (state.error) setErrNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { error: true });
 
   return (
     <li className="space-y-3 p-4">
@@ -121,7 +110,6 @@ function ApprovalRow({ item }: { item: QueueItem }) {
             <X className="size-4" aria-hidden="true" /> Reject
           </Button>
         </div>
-        <Toast message={state.error ?? null} variant="error" token={errNonce} />
       </form>
     </li>
   );

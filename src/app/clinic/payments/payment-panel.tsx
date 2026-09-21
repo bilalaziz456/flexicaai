@@ -14,7 +14,7 @@ import {
 } from "@/app/clinic/payments/payment-actions";
 import { SelectField } from "@/core/ui/select-field";
 import { Button, buttonVariants } from "@/core/ui/button";
-import { Toast } from "@/core/ui/toast";
+import { Toast, useActionToast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import { MessageCircle } from "lucide-react";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
@@ -94,10 +94,7 @@ export function PaymentPanel({
     collectPayment.bind(null, appointmentId),
     {},
   );
-  const [nonce, setNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved || state.error) setNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { saved: "Payment recorded.", error: true });
   const [amount, setAmount] = useState(String(outstanding || ""));
 
   // Refund form (collapsed by default; only offered when there's money to give back).
@@ -106,9 +103,8 @@ export function PaymentPanel({
     refundAppointmentPayment.bind(null, appointmentId),
     {},
   );
-  const [refundNonce, setRefundNonce] = useState(0);
+  useActionToast(refundState, { saved: "Refund recorded.", error: true });
   useEffect(() => {
-    if (refundState.saved || refundState.error) setRefundNonce((n) => n + 1);
     if (refundState.saved) setRefundOpen(false);
   }, [refundState]);
 
@@ -226,11 +222,6 @@ export function PaymentPanel({
               </Button>
             ) : null}
           </div>
-          <Toast
-            message={state.saved ? "Payment recorded." : state.error ?? null}
-            variant={state.error ? "error" : "success"}
-            token={nonce}
-          />
         </form>
       ) : outstanding <= 0 && billTotal > 0 ? (
         <p className="text-sm text-success-text">Fully paid.</p>
@@ -288,11 +279,6 @@ export function PaymentPanel({
                 Cancel
               </Button>
             </div>
-            <Toast
-              message={refundState.saved ? "Refund recorded." : refundState.error ?? null}
-              variant={refundState.error ? "error" : "success"}
-              token={refundNonce}
-            />
           </form>
         ) : (
           <Button type="button" size="sm" variant="outline" onClick={() => setRefundOpen(true)}>

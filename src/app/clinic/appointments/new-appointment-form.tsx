@@ -18,7 +18,7 @@ import { DatePicker } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { TimeSelect } from "@/core/ui/time-select";
-import { Toast } from "@/core/ui/toast";
+import { useActionToast } from "@/core/ui/toast";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 import { syncChecked } from "@/core/ui/checkbox-sync";
 import {
@@ -208,12 +208,7 @@ export function NewAppointmentForm({
   // Re-trigger the error toast on every failed submit — `state` is a fresh
   // object each time the action settles, so this bumps even for an identical
   // error message on a second attempt.
-  const [errorNonce, setErrorNonce] = useState(0);
-  const [savedNonce, setSavedNonce] = useState(0);
-  useEffect(() => {
-    if (state.error) setErrorNonce((n) => n + 1);
-    else if (state.saved) setSavedNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { saved: "Changes saved.", error: true });
 
   async function runSearch(q: string) {
     setQuery(q);
@@ -903,13 +898,8 @@ export function NewAppointmentForm({
       </div>
 
       {/* Failed create/edit → error toast (re-triggered per attempt via nonce). */}
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
       {/* Edit success → stay on the edit form, show a saved toast (re-triggered per
           save). Create instead redirects to the new appointment's detail page. */}
-      <Toast
-        message={state.saved ? "Changes saved." : null}
-        token={savedNonce}
-      />
     </form>
   );
 }

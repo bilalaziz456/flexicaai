@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { ListPlus, Trash2 } from "lucide-react";
 import {
   createProcedure,
@@ -15,7 +15,7 @@ import { Card, CardContent } from "@/core/ui/card";
 import { EmptyState } from "@/core/ui/empty-state";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
-import { Toast } from "@/core/ui/toast";
+import { useActionToast } from "@/core/ui/toast";
 
 export type ProcedureItem = {
   id: string;
@@ -76,10 +76,7 @@ function AddProcedureForm({ templatesAvailable }: { templatesAvailable: boolean 
     ProcedureActionState,
     FormData
   >(createProcedure, {});
-  const [errorNonce, setErrorNonce] = useState(0);
-  useEffect(() => {
-    if (state.error) setErrorNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { error: true });
   const [importing, startImport] = useTransition();
 
   return (
@@ -124,7 +121,6 @@ function AddProcedureForm({ templatesAvailable }: { templatesAvailable: boolean 
         </button>
       ) : null}
 
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </div>
   );
 }
@@ -141,10 +137,7 @@ function ProcedureRow({
     ProcedureActionState,
     FormData
   >(action, {});
-  const [errorNonce, setErrorNonce] = useState(0);
-  useEffect(() => {
-    if (state.error) setErrorNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { error: true });
   const [confirming, setConfirming] = useState(false);
   const [deleting, startDelete] = useTransition();
 
@@ -212,7 +205,6 @@ function ProcedureRow({
         )
       ) : null}
       <span className="sr-only">{fmtPkr(procedure.price)}</span>
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
 }

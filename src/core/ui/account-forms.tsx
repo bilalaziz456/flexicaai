@@ -37,18 +37,10 @@ import { cn } from "@/core/lib/utils";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { PasswordInput } from "@/core/ui/password-input";
-import { Toast } from "@/core/ui/toast";
+import { Toast, useActionToast } from "@/core/ui/toast";
 import { STAFF_PREFIXES } from "@/core/types/auth";
 import { syncChecked } from "@/core/ui/checkbox-sync";
 
-
-function useToast(state: AccountActionState) {
-  const [nonce, setNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved || state.error) setNonce((n) => n + 1);
-  }, [state]);
-  return nonce;
-}
 
 const CROP_VIEWPORT = 256; // on-screen square crop box (px)
 const CROP_OUTPUT = 512; // saved image size (px, square)
@@ -74,7 +66,7 @@ export function AvatarForm({
     {},
   );
   const [, startTransition] = useTransition();
-  const nonce = useToast(state);
+  useActionToast(state, { saved: "Picture updated.", error: true });
   const [showAvatar, setShowAvatar] = useState(hasAvatar);
   // A local error (e.g. file too big) that isn't a server action result.
   const [localError, setLocalError] = useState<string | null>(null);
@@ -299,13 +291,7 @@ export function AvatarForm({
           </div>
         </div>
       )}
-      <Toast
-        message={
-          localError ?? (state.saved ? "Picture updated." : state.error ?? null)
-        }
-        variant={localError || state.error ? "error" : "success"}
-        token={nonce + localNonce}
-      />
+      <Toast message={localError} variant="error" token={localNonce} />
     </div>
   );
 }
@@ -326,7 +312,7 @@ export function ProfileForm({
     updateMyProfile,
     {},
   );
-  const nonce = useToast(state);
+  useActionToast(state, { saved: "Profile saved.", error: true });
   // Controlled — avoids the Base UI uncontrolled-FieldControl warning on re-render.
   const [nameVal, setNameVal] = useState(fullName ?? "");
   const [emailVal, setEmailVal] = useState(email ?? "");
@@ -369,11 +355,6 @@ export function ProfileForm({
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Save profile"}
       </Button>
-      <Toast
-        message={state.saved ? "Profile saved." : state.error ?? null}
-        variant={state.error ? "error" : "success"}
-        token={nonce}
-      />
     </form>
   );
 }
@@ -391,7 +372,7 @@ export function DiscountApprovalForm({
     updateMyDiscountApproval,
     {},
   );
-  const nonce = useToast(state);
+  useActionToast(state, { saved: "Setting saved.", error: true });
   const [needsApproval, setNeedsApproval] = useState(discountNeedsApproval);
 
   return (
@@ -411,11 +392,6 @@ export function DiscountApprovalForm({
       <Button type="submit" size="sm" disabled={pending}>
         {pending ? "Saving…" : "Save"}
       </Button>
-      <Toast
-        message={state.saved ? "Setting saved." : state.error ?? null}
-        variant={state.error ? "error" : "success"}
-        token={nonce}
-      />
     </form>
   );
 }
@@ -426,7 +402,7 @@ export function PasswordForm() {
     changeMyPassword,
     {},
   );
-  const nonce = useToast(state);
+  useActionToast(state, { saved: "Password changed.", error: true });
   const formRef = useRef<HTMLFormElement>(null);
   useEffect(() => {
     if (state.saved) formRef.current?.reset();
@@ -466,11 +442,6 @@ export function PasswordForm() {
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Change password"}
       </Button>
-      <Toast
-        message={state.saved ? "Password changed." : state.error ?? null}
-        variant={state.error ? "error" : "success"}
-        token={nonce}
-      />
     </form>
   );
 }

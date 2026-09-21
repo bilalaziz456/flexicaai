@@ -109,28 +109,72 @@ export function Toast({
   return null;
 }
 
+/** What `useActionState` gives a form back. Both fields optional: a form may report
+ *  only failure (the success is the page changing) or only success. */
+export type ActionResult = { saved?: boolean; error?: string } | null | undefined;
+
 /**
- * Success toast for a Server Action form.
+ * Announce a Server Action's result, once per submission.
  *
- * WHY THIS EXISTS: `useActionState` returns a NEW state object per submission but the
- * SAME message text, and `Toast` pushes at most once per (variant, token, message).
- * So the obvious `{state.saved ? <Toast message="Saved." /> : null}` fires on the first
- * save and is SILENT on every save after it — the user presses the button, nothing
- * happens, and they cannot tell whether it worked. Keying the token on the state
- * object's identity re-fires it each time, which is what the caller meant.
+ * THE PROBLEM IT SOLVES: `useActionState` returns a NEW state object per submission
+ * but the SAME message text, so `{state.saved ? <Toast message="Saved." /> : null}`
+ * fires on the first save and is silent on every save after it — the user presses the
+ * button, nothing visibly happens, and they cannot tell whether it worked. The object's
+ * IDENTITY is the only thing that distinguishes one submission from the next.
+ *
+ * WHY A HOOK RATHER THAN THE NONCE IT REPLACES: twenty-odd forms had each grown
+ * `const [nonce, setNonce] = useState(0); useEffect(() => { if (state.saved ||
+ * state.error) setNonce((n) => n + 1); }, [state])` — calling setState from an effect
+ * purely to make a prop change, which cascades a second render on every submit and is
+ * what `react-hooks/set-state-in-effect` is warning about. There is no React state
+ * here to update: the toast queue is an external store, and pushing to an external
+ * store on a change is precisely what an effect is for. So the nonce is not replaced
+ * with a cleverer nonce — the render it existed to trigger is deleted.
+ *
+ * The ref is what makes it fire ONCE per submission: an effect re-runs for reasons
+ * that have nothing to do with a new result (a parent re-render, StrictMode's double
+ * invoke in development), and comparing identity means only a genuinely new state
+ * object speaks. The initial state seeds it, so a form cannot announce itself on
+ * mount — a bug the `<Toast>` call sites had to guard by hand with
+ * `state.saved ? message : null`.
+ *
+ * EACH OUTCOME IS OPTED INTO, and that is not ceremony. Some of these forms print
+ * their error beside the field instead, and one prints it nowhere; announcing errors
+ * by default would have quietly added a toast to five screens while this change was
+ * supposed to be about how the existing ones fire. `saved` gives the success text;
+ * `error` turns the failure toast on, carrying whatever the action put in
+ * `state.error`. Omit either and it stays silent for that outcome.
  */
-export function SavedToast({
-  state,
-  message,
-}: {
-  state: { saved?: boolean };
-  message: string;
-}) {
-  const [nonce, setNonce] = useState(0);
+export function useActionToast(
+  state: ActionResult,
+  { saved, error }: { saved?: string | null; error?: boolean } = {},
+) {
+  const seen = useRef<ActionResult>(state);
   useEffect(() => {
-    if (state.saved) setNonce((n) => n + 1);
-  }, [state]);
-  return <Toast message={state.saved ? message : null} token={nonce} />;
+    if (seen.current === state) return;
+    seen.current = state;
+    // Error wins: an action reports ONE outcome, and a form announcing both would be
+    // saying two contradictory things in the same corner of the screen.
+    if (error && state?.error) pushToast(state.error, { variant: "error" });
+    else if (saved && state?.saved) pushToast(saved, { variant: "success" });
+  }, [state, saved, error]);
+}
+
+/**
+ * The same thing as an element, for a form that would rather say it in its JSX.
+ * Renders nothing; `useActionToast` is the implementation.
+ */
+export function ActionToast({
+  state,
+  saved,
+  error,
+}: {
+  state: ActionResult;
+  saved?: string | null;
+  error?: boolean;
+}) {
+  useActionToast(state, { saved, error });
+  return null;
 }
 
 /**

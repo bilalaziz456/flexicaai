@@ -4,7 +4,7 @@ import { useActionState, useCallback, useState } from "react";
 import type { ClinicHour } from "@/core/lib/clinic-hours";
 import { Button } from "@/core/ui/button";
 import { PublicContactFields } from "@/core/ui/public-contact-fields";
-import { SavedToast, Toast } from "@/core/ui/toast";
+import { ActionToast, Toast } from "@/core/ui/toast";
 import { setClinicPublicContact, type SettingsActionState } from "./actions";
 
 /**
@@ -49,7 +49,7 @@ export function PublicContactForm({
         ) : null}
         {state.error ? <span className="text-sm text-destructive">{state.error}</span> : null}
       </div>
-      <SavedToast state={state} message="Saved." />
+      <ActionToast state={state} saved="Saved." />
       <Toast message={state.error ?? null} variant="error" token={state.error ?? ""} />
     </form>
   );

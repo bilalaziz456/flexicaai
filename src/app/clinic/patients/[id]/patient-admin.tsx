@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState } from "react";
 import { Trash2 } from "lucide-react";
 import {
   deletePatient,
@@ -14,7 +14,7 @@ import { ConfirmDeleteDialog } from "@/core/ui/confirm-delete-dialog";
 import { Input } from "@/core/ui/input";
 import { PhoneInput } from "@/core/ui/phone-input";
 import { Label } from "@/core/ui/label";
-import { Toast } from "@/core/ui/toast";
+import { useActionToast } from "@/core/ui/toast";
 import { ageFromDob } from "@/core/lib/age";
 
 type PatientData = {
@@ -41,12 +41,7 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
   // Success redirects to the list (flash toast); a failed save pops an error toast.
   // The nonces let an identical message fire again on a repeated save, since
   // useActionState hands back an equal state object each time.
-  const [savedNonce, setSavedNonce] = useState(0);
-  const [errorNonce, setErrorNonce] = useState(0);
-  useEffect(() => {
-    if (state.saved) setSavedNonce((n) => n + 1);
-    if (state.error) setErrorNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { saved: "Patient updated.", error: true });
 
   return (
     <form action={formAction} className="space-y-4">
@@ -140,12 +135,6 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
           {pending ? "Saving…" : "Save changes"}
         </Button>
       </div>
-      <Toast
-        message={state.saved ? "Patient updated." : null}
-        variant="success"
-        token={savedNonce}
-      />
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
 }

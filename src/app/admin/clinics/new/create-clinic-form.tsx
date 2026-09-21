@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useCallback, useState } from "react";
+import { useActionState, useCallback, useState } from "react";
 import type { SpecialtyCatalogEntry } from "@/core/types/module";
 import type { TeamMemberOption } from "@/core/admin/assignment";
 import {
@@ -11,7 +11,7 @@ import {
 import { SpecialtyCheckboxes } from "@/app/admin/clinics/specialty-checkboxes";
 import { Button, buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
-import { Toast } from "@/core/ui/toast";
+import { useActionToast } from "@/core/ui/toast";
 import {
   Card,
   CardContent,
@@ -45,10 +45,7 @@ export function CreateClinicForm({
   const [hoursInvalid, setHoursInvalid] = useState(false);
   // Stable identity: the child reports validity from an effect.
   const onInvalidChange = useCallback((v: boolean) => setHoursInvalid(v), []);
-  const [errorNonce, setErrorNonce] = useState(0);
-  useEffect(() => {
-    if (state.error) setErrorNonce((n) => n + 1);
-  }, [state]);
+  useActionToast(state, { error: true });
 
   return (
     <form action={formAction} className="space-y-6">
@@ -199,8 +196,6 @@ export function CreateClinicForm({
           Cancel
         </Link>
       </div>
-
-      <Toast message={state.error ?? null} variant="error" token={errorNonce} />
     </form>
   );
 }

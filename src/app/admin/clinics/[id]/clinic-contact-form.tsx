@@ -6,7 +6,7 @@ import { SelectField } from "@/core/ui/select-field";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
-import { SavedToast } from "@/core/ui/toast";
+import { ActionToast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import { PROVINCES } from "@/core/clinics/provinces";
 import type { CityOption } from "@/core/clinics/cities";
@@ -81,7 +81,7 @@ export function ClinicContactForm({
 
   return (
     <form action={formAction} className="space-y-4">
-      <SavedToast state={state} message="Owner & contact saved." />
+      <ActionToast state={state} saved="Owner & contact saved." />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
