@@ -571,9 +571,30 @@ export async function PatientDetail({
                             </span>
                           ) : null}
                         </span>
-                        <Badge variant={note.imported ? "outline" : v.status === "approved" ? "default" : "secondary"}>
-                          {note.imported ? "Imported" : v.status === "approved" ? "Approved" : "Draft"}
-                        </Badge>
+                        {/* A badge marks the EXCEPTION, never the norm. This list is
+                            approved notes plus the viewer's own unsigned ones, so
+                            "Approved" printed on almost every row said nothing and
+                            cost the one thing a badge is for: a "Draft" two rows
+                            down stopped being visible, because the eye gives up on a
+                            column that always reads the same. Approved is now silent
+                            — the date and the clinician already say what the row is,
+                            and an adopted draft still names its signer beside them.
+                            `transcribing` and `failed` reach only their own author
+                            (ADR-020) and are named rather than lumped into "Draft":
+                            a run that died is not a note awaiting a signature. */}
+                        {note.imported ? (
+                          <Badge variant="outline">Imported</Badge>
+                        ) : v.status === "draft" ? (
+                          <Badge variant="secondary">Draft</Badge>
+                        ) : v.status === "transcribing" ? (
+                          <Badge variant="secondary">Writing the note…</Badge>
+                        ) : v.status === "failed" ? (
+                          // `warning`, not `destructive`: the scribe workspace calls
+                          // this same run retryable and words it the same way. A
+                          // record the reader can fix with one click should not be
+                          // the loudest thing on the page.
+                          <Badge variant="warning">Scribe failed</Badge>
+                        ) : null}
                       </div>
                       {note.imported && note.summary ? (
                         <p className="whitespace-pre-line">{note.summary}</p>
