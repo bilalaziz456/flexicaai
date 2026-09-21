@@ -400,6 +400,29 @@
   --nested-shadow: var(--shadow-xs);
 }
 
+/* The rung the ladder was missing. `.well` RECEDES from whatever is behind it;
+   `.raised` is its opposite — a box that comes back UP to card level because what is
+   behind it is already recessed.
+
+   Why it was needed: a well inside a well reads the same `--nested-surface` as its
+   parent and paints the identical colour, so the doctor's schedule panel and the
+   seven weekday rows on it were one flat plane scored with hairlines. `.well` cannot
+   fix that by publishing for its children, because a custom property set on an
+   element is visible to that element's own declarations (see `@utility well`) — the
+   publish would become its own background.
+
+   `.raised` can, and it is the same relationship a card has with the page: it paints
+   at card level and hands its children the recess to sink into. So a sunken panel
+   carrying raised boxes carrying wells keeps alternating, which is what makes each
+   edge readable. Reach for it ONLY on a recessed ground — on the page ground a plain
+   `.well` is already a card, and `.raised` there would say the same thing twice. */
+@utility raised {
+  background-color: var(--card);
+  box-shadow: var(--shadow-xs);
+  --nested-surface: var(--surface-sunken);
+  --nested-shadow: none;
+}
+
 @utility well {
   /* Read only — `.well` must NOT also publish a value for its own children here. A
      custom property set on an element is visible to that element's own declarations,
