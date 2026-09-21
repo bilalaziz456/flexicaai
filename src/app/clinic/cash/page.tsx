@@ -9,6 +9,7 @@ import {
   listCashCounts,
   listRecentTransfers,
 } from "@/core/finance/petty-cash";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/core/ui/card";
 import { TableCard } from "@/core/ui/table-card";
 import { EmptyState } from "@/core/ui/empty-state";
@@ -240,13 +241,8 @@ export default async function CashPage() {
               {transfers.map((t) => (
                 <tr key={t.id}>
                   <td className="px-3 py-2 whitespace-nowrap">{when(t.occurredAt)}</td>
-                  <td className="px-3 py-2">
-                    {t.kind === "bank_deposit"
-                      ? "Banked"
-                      : t.kind === "owner_draw"
-                        ? "Taken by owner"
-                        : "Float added"}
-                  </td>
+                  {/* The label is the database's, not this file's (ADR-027). */}
+                  <td className="px-3 py-2">{vocabularyLabel("cash_transfer_kinds", t.kind)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">
                     {t.kind === "float_topup" ? "+ " : "− "}
                     {rs(t.amount)}

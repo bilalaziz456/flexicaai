@@ -6,6 +6,7 @@ import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { SelectField } from "@/core/ui/select-field";
 import { useActionToast } from "@/core/ui/toast";
+import { useVocabularyOptions } from "@/core/ui/vocabulary-provider";
 import { submitCashCount, submitCashTransfer, type CashActionState } from "./cash-actions";
 
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
@@ -106,23 +107,29 @@ export function TransferForm() {
     {},
   );
   useActionToast(state, { saved: "Recorded.", error: true });
-  const [kind, setKind] = useState("bank_deposit");
+  // The LABELS COME FROM THE DATABASE (ADR-027), not from this component. They were
+  // written out here — "Banked the takings", "Taken by the owner" — which is a second
+  // copy of a vocabulary the database already owns, and it had already drifted from
+  // the rows it was meant to mirror. Renaming one is a row update, and this is how it
+  // reaches the screen. It also means a kind retired with `is_active = false` stops
+  // being offered without touching this file.
+  const kinds = useVocabularyOptions("cash_transfer_kinds");
+  const [kind, setKind] = useState(kinds[0]?.value ?? "bank_deposit");
 
   return (
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="kind" value={kind} />
       <div className="space-y-1.5">
-        <Label htmlFor="xfer-kind">What happened</Label>
+        {/* Not `htmlFor` — the trigger is a Base UI button with its own generated id,
+            so a label pointing at "xfer-kind" pointed at nothing and clicking it did
+            nothing. `ariaLabel` on the field is what a screen reader reads. */}
+        <p className="text-sm font-medium">What happened</p>
         <SelectField
           value={kind}
           onValueChange={setKind}
           ariaLabel="What happened"
           className="w-full"
-          options={[
-            { value: "bank_deposit", label: "Banked the takings" },
-            { value: "owner_draw", label: "Taken by the owner" },
-            { value: "float_topup", label: "Cash added to the float" },
-          ]}
+          options={kinds}
         />
       </div>
       <div className="space-y-1.5">
