@@ -226,7 +226,28 @@ export default async function StaffDetailPage({
                 {
                   label: "Appointments",
                   value: activity.appointments.toLocaleString("en-PK"),
-                  hint: `${activity.completed} completed · ${activity.cancelled} cancelled`,
+                  // EVERY bucket, or none. Naming two of the five read as a sum that
+                  // did not come out — 13 appointments, "5 completed · 4 cancelled",
+                  // and the missing four looked like an error rather than the
+                  // no-shows and the visits nobody had closed out. A breakdown under
+                  // a total is a promise that it reconciles, so the terms are the
+                  // outcomes plus the remainder, and only the zero ones drop out.
+                  //
+                  // The spaces are non-breaking ON PURPOSE. Four terms do not fit a
+                  // quarter-width tile, and the first wrap landed between "5" and
+                  // "cancelled" — a figure orphaned from its noun, which is worse
+                  // than the two-term line this replaces. Binding each term, and
+                  // binding the separator to the term before it, leaves the only
+                  // legal break points AFTER a "·".
+                  hint:
+                    [
+                      activity.completed ? `${activity.completed} completed` : null,
+                      activity.noShows ? `${activity.noShows} no-show` : null,
+                      activity.cancelled ? `${activity.cancelled} cancelled` : null,
+                      activity.stillOpen ? `${activity.stillOpen} still open` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "none booked",
                 },
                 {
                   label: "No-show rate",

@@ -33,6 +33,14 @@ export type DoctorActivity = {
   completed: number;
   cancelled: number;
   noShows: number;
+  /** Everything not in one of the three above — scheduled, confirmed, arrived or
+   *  in progress. Derived as the REMAINDER rather than summed from those four
+   *  statuses, so the parts always add up to `appointments` by construction: a
+   *  status added to the vocabulary later lands here instead of vanishing from a
+   *  breakdown that then no longer reconciles. Reading it as "upcoming" is only
+   *  half right — an appointment still `scheduled` three weeks back is one nobody
+   *  closed out, which is worth seeing too. */
+  stillOpen: number;
   /** Over EXPECTED visits (completed + no-show), not over everything booked — a
    *  cancellation a week ahead is not a no-show and must not dilute the rate. */
   noShowRate: number | null;
@@ -107,12 +115,14 @@ export async function getDoctorActivity(
   const cancelled = byStatus.get("cancelled") ?? 0;
   const expected = completed + noShows;
   const balance = balances[0];
+  const total = [...byStatus.values()].reduce((a, b) => a + b, 0);
 
   return {
-    appointments: [...byStatus.values()].reduce((a, b) => a + b, 0),
+    appointments: total,
     completed,
     cancelled,
     noShows,
+    stillOpen: total - completed - cancelled - noShows,
     noShowRate: expected > 0 ? noShows / expected : null,
     visits: Number(visitRow[0]?.n ?? 0),
     scribeRuns: Number(visitRow[0]?.scribe ?? 0),
