@@ -4,7 +4,7 @@ import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { SelectField } from "@/core/ui/select-field";
 import { ChevronsUpDown, Search, X } from "lucide-react";
-import { DatePicker } from "@/core/ui/date-picker";
+import { DatePicker, DATE_FIELD_W } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 
@@ -192,7 +192,7 @@ export function TrashFilters({
         <Label htmlFor="trash-from" className={labelCls}>
           From
         </Label>
-        <div className="w-40">
+        <div className={DATE_FIELD_W}>
           <DatePicker
             id="trash-from"
             ariaLabel="Deleted from date"
@@ -208,7 +208,7 @@ export function TrashFilters({
         <Label htmlFor="trash-to" className={labelCls}>
           To
         </Label>
-        <div className="w-40">
+        <div className={DATE_FIELD_W}>
           <DatePicker
             id="trash-to"
             ariaLabel="Deleted to date"

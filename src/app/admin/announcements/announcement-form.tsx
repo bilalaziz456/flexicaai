@@ -10,7 +10,7 @@ import { SelectField } from "@/core/ui/select-field";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
-import { DatePicker } from "@/core/ui/date-picker";
+import { DatePicker, DATE_FIELD_W } from "@/core/ui/date-picker";
 import { TimeSelect } from "@/core/ui/time-select";
 import { Label } from "@/core/ui/label";
 import { CLINIC_STAFF_ROLES } from "@/core/types/auth";
@@ -103,7 +103,7 @@ function WindowField({
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
-      <div className="w-44">
+      <div className={DATE_FIELD_W}>
         <DatePicker id={id} ariaLabel={label} value={date} onChange={onDate} />
       </div>
       {/* The time control appears only once there IS a date. A time without a date is
