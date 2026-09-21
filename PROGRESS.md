@@ -202,6 +202,19 @@ payments (Step 11), audit log.
 
 ---
 
+## Proposed, not built (discussion drafts)
+
+Design docs the owner has raised but nothing has been written for. **Listed here because
+a plan nobody links to gets forgotten** — `cash-position-plan.md` sat orphaned from
+2026-07-29 until it was found by accident while discussing its sibling.
+
+| Doc | Question it answers | Raised |
+|---|---|---|
+| `docs/cash-position-plan.md` | "How much money do we have?" — an opening balance plus the flows, because FlexicaAI tracks flows and has no stock. Recommends Phase 1 (one opening figure) only. | 2026-07-29 |
+| `docs/petty-cash-plan.md` | "Does the cash in the box match the system?" — a reconciliation over the three existing cash ledgers, not a new one. Shape decided: **one shared drawer per clinic, counted at shift handover.** | 2026-09-22 |
+
+---
+
 ## Deployment & scaling (DEFERRED — handle at server deploy, not now)
 
 Current settings are deliberate MVP/local defaults. Under load (~1000 concurrent
