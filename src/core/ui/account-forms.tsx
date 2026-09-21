@@ -117,7 +117,6 @@ export function AvatarForm({
       setShowAvatar(true);
       setBust(Date.now());
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.saved]);
 
   function resetCropper() {

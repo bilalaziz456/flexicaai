@@ -67,6 +67,18 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
+    // The codebase already writes a deliberately-unused parameter as `_name` — a form
+    // action that must accept `FormData` to be bound as one, but has no use for it.
+    // Without this the convention buys nothing and ESLint warns anyway, so the warning
+    // stops meaning "you forgot something" and starts being scrolled past.
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
+      ],
+    },
+  },
+  {
     files: ["src/app/**/*.ts", "src/app/**/*.tsx"],
     rules: {
       "@typescript-eslint/no-restricted-imports": [

@@ -240,8 +240,8 @@ export default async function OverviewPage({
             <CardTitle className="text-base">Expenses by category</CardTitle>
           </CardHeader>
           <CardContent>
-            /* Composition — these categories ARE the expense total. Same data, same
-               treatment as the P&L's version of this card. */
+            {/* Composition — these categories ARE the expense total. Same data, same
+                treatment as the P&L's version of this card. */}
             <DonutChart
               ariaLabel="Expenses by category"
               centerLabel="Expenses"

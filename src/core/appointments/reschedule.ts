@@ -3,7 +3,7 @@ import "server-only";
 import { and, asc, eq, gt, inArray } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, patients } from "@/core/db/schema";
+import { appointments } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import { billFromTotals, effectiveDiscountValue } from "@/core/appointments/fee";
