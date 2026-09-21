@@ -79,6 +79,21 @@ note above it; obvious logic gets none.
   reverts to how it first painted while React state and the hidden input keep the new
   value, and the form starts contradicting itself. Hidden inputs do NOT need this
   (React keeps `defaultValue` in step) and neither does a form that redirects on submit.
+- **A form announces its result with `useActionToast(state, { saved, error })`**
+  (`core/ui/toast.tsx`), and **what a submission DOES belongs inside the action** —
+  not in an effect watching `state.saved` for it to have happened. `useActionState`
+  hands back a new state object per submission carrying the same message, so
+  `{state.saved ? <Toast …/> : null}` fires once and is silent on every save after
+  it; twenty-one forms had each answered that with a nonce bumped from an effect,
+  which is a second render per submit and the whole of
+  `react-hooks/set-state-in-effect`. The hook keys on the state object's IDENTITY and
+  pushes to the toast store, which is an external store — exactly what an effect is
+  for — so there is no React state left to update. Each outcome is opted into,
+  because several forms print their error beside the field instead.
+  **Clearing the form, closing the dialog, refreshing a preview: all of it goes in
+  the action**, awaited after the server call. An effect on `state.saved` also
+  LATCHES — the flag stays true, so a second identical save changes nothing and the
+  dialog stays open.
 
 ## 6. Database access
 
@@ -182,6 +197,14 @@ note above it; obvious logic gets none.
   69 containers had been written that way. Controls are the exception and keep no
   fill — an outline button, a switch track, a checkbox square, a count chip and a
   dashed drop-slot are all *supposed* to be transparent.
+  **A box sitting ON a recessed panel takes `raised`, not `well`.** `well` recedes
+  from what is behind it, so a well inside a well reads the same `--nested-surface`
+  as its parent and paints the identical colour — two flat planes with a hairline
+  between them, which is the mistake the ladder exists to prevent (the doctor's
+  schedule panel and its seven weekday rows were exactly that). `raised` paints at
+  card level and publishes the recess for its own children, the same relationship a
+  card has with the page, so panel → rows → anything inside a row keeps alternating.
+  Only on a recessed ground: on the page ground a plain `well` is already a card.
 - **Every data table sits in a `TableCard`** (`core/ui/table-card.tsx`) — one surface,
   app-wide, at the owner's direction. It had previously been split: a table that WAS
   the page sat on the page ground, a table that was one section among several took a
