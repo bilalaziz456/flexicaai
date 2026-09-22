@@ -163,8 +163,27 @@ export default async function CashPage({
         description="One shared drawer, counted at handover. Buying something with cash is a cost — it shows in the P&L and comes out of this drawer. Banking the takings or topping the float up only moves money, so it changes the drawer and never the P&L."
       />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
-        <Card>
+      {/* THREE ACROSS, not a wide card beside a tall rail.
+          The two forms stacked in a 22rem rail came to 708px while the summary beside
+          them was 341px — a 794×367 hole in the widest column, and worst precisely when
+          the drawer is QUIET, because a quiet sum has the fewest lines in it. Measured,
+          not guessed: the rail is inherently taller than a summary and always will be.
+          Side by side the tallest card is 402px, so the worst remaining gap is ~120px
+          under the shorter form, which reads as three peers rather than as a void.
+          The history stays FULL WIDTH below and is why the fix is not "move the history
+          up here": its seven columns need 1128px, so a 794px column would make a
+          desktop table scroll sideways — worse than the gap it cured.
+          THREE ACROSS WAITS FOR `xl`, because at the `lg` breakpoint itself the content
+          area is ~700px and thirds come out at 217px — nothing clipped, but far too
+          narrow to type an amount into. Between lg and xl the summary spans the row and
+          the two forms pair up underneath, which keeps every card at a workable width
+          and still costs only the ~120px under the shorter form. */}
+      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3 lg:items-start">
+        <Card
+          className={
+            canCount ? "lg:col-span-2 xl:col-span-1" : "lg:col-span-2 xl:col-span-3"
+          }
+        >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Scale className="size-5 text-muted-foreground" aria-hidden="true" />
@@ -261,7 +280,7 @@ export default async function CashPage({
         </Card>
 
         {canCount ? (
-          <div className="space-y-6">
+          <>
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Count the drawer</CardTitle>
@@ -288,7 +307,7 @@ export default async function CashPage({
                 <TransferForm canSpend={can(user, "expenses", "create")} />
               </CardContent>
             </Card>
-          </div>
+          </>
         ) : null}
       </div>
 
