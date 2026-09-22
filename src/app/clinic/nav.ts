@@ -1,9 +1,10 @@
 import {
-  CalendarRange,
   Archive,
   BadgeCheck,
+  Banknote,
   BellRing,
   CalendarClock,
+  CalendarRange,
   CalendarX2,
   ClipboardList,
   Contact,
@@ -60,6 +61,9 @@ export const CLINIC_NAV: PanelNav = {
         // NOT feature-gated: shares accrue from consultation fees even without Sales.
         { href: "/clinic/shares", label: "Revenue shares", Icon: PieChart, resource: "shares" },
         { href: "/clinic/expenses", label: "Expenses", Icon: Receipt, resource: "expenses", feature: "finance" },
+        // Next to Expenses: both are money leaving the clinic, and the drawer reads
+        // the cash half of that ledger.
+        { href: "/clinic/cash", label: "Petty cash", Icon: Banknote, resource: "cash", feature: "finance" },
         { href: "/clinic/pl", label: "Profit & Loss", Icon: Wallet, resource: "finance", feature: "finance" },
         // The hub gates each card itself, so it needs no resource of its own.
         { href: "/clinic/reports", label: "Reports", Icon: FileSpreadsheet, feature: "sales" },

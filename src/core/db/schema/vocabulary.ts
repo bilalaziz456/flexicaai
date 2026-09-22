@@ -215,3 +215,5 @@ export const taxModes = pgTable("tax_modes", { ...vocabularyColumns() });
 export const recurrences = pgTable("recurrences", { ...vocabularyColumns() });
 /** `appointments.source`. */
 export const appointmentSources = pgTable("appointment_sources", { ...vocabularyColumns() });
+/** `cash_transfers.kind` — petty cash moving that is not a cost. */
+export const cashTransferKinds = pgTable("cash_transfer_kinds", { ...vocabularyColumns() });

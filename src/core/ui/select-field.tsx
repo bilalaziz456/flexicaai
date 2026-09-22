@@ -108,7 +108,7 @@ export function SelectField<T extends string>({
         <Select.Positioner side="bottom" align={align} sideOffset={4} className="z-[110]">
           <Select.Popup
             className={cn(
-              "z-[110] min-w-[var(--anchor-width)] rounded-xl border border-border/70 bg-elevated p-1 text-popover-foreground elev-3 outline-none",
+              "z-[110] min-w-[var(--anchor-width)] rounded-xl border border-border/70 bg-popover p-1 text-popover-foreground elev-3 outline-none",
               popupClassName,
             )}
           >

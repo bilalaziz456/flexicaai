@@ -101,6 +101,24 @@ export const DISCOUNT_BEARER_ROWS = [
   { id: 3, code: "split", label: "Split", sortOrder: 3 },
 ] as const satisfies readonly VocabularyRow[];
 
+/**
+ * `cash_transfers.kind` — money leaving or entering the petty-cash drawer that is NOT
+ * a cost. A bank deposit is not an expense: moving money between your own pockets
+ * buys nothing, and filing it as a cost would understate profit by the amount banked.
+ *
+ * A reference table rather than free text because a wrong value here produces a wrong
+ * FIGURE, silently — that is ADR-027's test. `direction` is carried by the CODE, the
+ * same way `patient_payments.kind` carries it while `amount` stays positive:
+ * `bank_deposit` and `owner_draw` take cash out, `float_topup` puts it in.
+ */
+export const CASH_TRANSFER_KIND_ROWS = [
+  { id: 1, code: "bank_deposit", label: "Banked", sortOrder: 1 },
+  { id: 2, code: "owner_draw", label: "Taken by owner", sortOrder: 2 },
+  // Renamed by migration 0111 — the constant moves with the row, or the start-up
+  // drift check reports a mismatch on every boot.
+  { id: 3, code: "float_topup", label: "Cash added", sortOrder: 3 },
+] as const satisfies readonly VocabularyRow[];
+
 /** Every vocabulary, keyed by table name — what the seed and the test both walk. */
 export const VOCABULARY_SEED: Record<string, readonly VocabularyRow[]> = {
   payment_kinds: PAYMENT_KIND_ROWS,
@@ -112,6 +130,7 @@ export const VOCABULARY_SEED: Record<string, readonly VocabularyRow[]> = {
   discount_statuses: DISCOUNT_STATUS_ROWS,
   discount_types: DISCOUNT_TYPE_ROWS,
   discount_bearers: DISCOUNT_BEARER_ROWS,
+  cash_transfer_kinds: CASH_TRANSFER_KIND_ROWS,
 };
 
 /** `code → id` for one vocabulary; the lookup the write paths use. */
@@ -226,6 +245,7 @@ export const approvalStatusId = (c: ApprovalStatusCode) => idOf(APPROVAL_STATUS_
 export const discountStatusId = (c: DiscountStatusCode) => idOf(DISCOUNT_STATUS_ROWS, c);
 export const discountTypeId = (c: DiscountTypeCode) => idOf(DISCOUNT_TYPE_ROWS, c);
 export const discountBearerId = (c: DiscountBearerCode) => idOf(DISCOUNT_BEARER_ROWS, c);
+export const cashTransferKindId = (c: CashTransferKindCode) => idOf(CASH_TRANSFER_KIND_ROWS, c);
 
 /**
  * id → code, for a row read back from the database. Resolved from the constants, not
@@ -506,6 +526,7 @@ export type AnnouncementLevelCode = (typeof ANNOUNCEMENT_LEVEL_ROWS)[number]["co
 export type AiProviderCode = (typeof AI_PROVIDER_ROWS)[number]["code"];
 export type TaxModeCode = (typeof TAX_MODE_ROWS)[number]["code"];
 export type RecurrenceCode = (typeof RECURRENCE_ROWS)[number]["code"];
+export type CashTransferKindCode = (typeof CASH_TRANSFER_KIND_ROWS)[number]["code"];
 export type AppointmentSourceCode = (typeof APPOINTMENT_SOURCE_ROWS)[number]["code"];
 
 export const clinicStatusId = (c: ClinicStatusCode) => idOf(CLINIC_STATUS_ROWS, c);
@@ -566,6 +587,7 @@ export const PAYMENT_KIND_CODES = codesOf(PAYMENT_KIND_ROWS);
 export const CLINIC_PAYMENT_KIND_CODES = codesOf(CLINIC_PAYMENT_KIND_ROWS);
 export const SETTLEMENT_KIND_CODES = codesOf(SETTLEMENT_KIND_ROWS);
 export const DISCOUNT_TYPE_CODES = codesOf(DISCOUNT_TYPE_ROWS);
+export const CASH_TRANSFER_KIND_CODES = codesOf(CASH_TRANSFER_KIND_ROWS);
 export const DISCOUNT_BEARER_CODES = codesOf(DISCOUNT_BEARER_ROWS);
 export const BILLING_CYCLE_CODES = codesOf(BILLING_CYCLE_ROWS);
 export const CLINIC_STATUS_CODES = codesOf(CLINIC_STATUS_ROWS);

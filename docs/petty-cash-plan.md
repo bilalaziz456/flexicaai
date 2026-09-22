@@ -1,9 +1,17 @@
 # Petty Cash — "does the money in the box match the system?"
 
-> **Status: DISCUSSION DRAFT.** Nothing built yet. Owner raised it 2026-09-22 and
-> chose the shape: **one shared drawer per clinic, counted at shift handover.**
+> **Status: BUILT 2026-09-23.** Owner raised it 2026-09-22 and chose the shape: **one
+> shared drawer per clinic, counted at shift handover.** Shipped as `/clinic/cash`,
+> `core/finance/petty-cash.ts`, migrations `0109`–`0113`, `scripts/test-petty-cash.ts`.
+>
+> **This file is now a plan that was FOLLOWED, not a live contract** — the code wins,
+> then `.claude/architecture.md` (ADR-034) and `.claude/database.md`. It is kept for the
+> reasoning: why a reconciliation rather than a second ledger, why the float carries
+> forward from the COUNT, and the open questions in §8 that are still open. Where the
+> build departed from the plan it is marked inline (see §5).
+>
 > Sibling of `docs/cash-position-plan.md` (money in the BANK); read that too — §7
-> explains how the two relate and why neither blocks the other.
+> explains how the two relate and why neither blocked the other.
 
 ---
 
@@ -107,6 +115,45 @@ Clinic-scoped, gated by the `finance` feature.
 **Not phase 1:** a variance TREND report across people and weeks. It is the part that
 reads as surveillance, and it should be decided deliberately rather than arrive as a
 side effect.
+
+### The history lists this page's own records only (owner's call, 2026-09-23)
+
+The drawer history briefly also listed the cash rows borrowed from the other ledgers —
+a cash payment, a refund, a cash expense, a doctor paid in notes — read-only, with a
+link to the screen that owned each. The argument for them was traceability: the working
+says Rs 2,500 left, and the history could say which 2,500.
+
+**Removed at the owner's direction.** A payment belongs to Payments and an expense to
+Expenses; reprinting them here made one page look like two, and the link went to the
+owning LIST rather than the entry, so "Open" promised more than it delivered.
+
+**What did NOT change is the figure**, and the distinction is the whole point. The
+patients' cash physically goes into this same drawer, so `getDrawerState` still counts
+every cash payment, refund, expense and payout — it computes its own sums and never
+read the list. Removing the rows from the sum as well would have shown a false
+shortfall at every handover.
+
+**One exception, and it proves the rule rather than bending it: a "Paid for something"
+typed at the drawer IS this page's own record**, so it is listed and editable here
+(added the same day). Nothing distinguished it from any other cash expense, so
+`expenses.from_drawer` (migration `0112`) says where a row was typed — and only that.
+The expense is otherwise completely ordinary: in the P&L, in Expenses, in every report,
+none of which know the column exists. An expense typed on the Expenses screen is still
+not listed here, in cash or not, today or not.
+
+The drawer's edit of one is narrow in three ways, all in the WHERE clause: only
+`from_drawer` rows, only amount and note (reusing `updateExpense` would blank the
+category and vendor this form never shows — a form may only write what it displays),
+and only your own unless you are the clinic admin. It needs the `expenses` grant on top
+of `cash`, because being able to record a shortfall is not authority to change a cost.
+
+So the working is now the only explanation of the figure for everything else, which
+raises what it owes: a
+named line per kind with its reasons underneath ("Paid out in cash − Rs 2,500 · gloves
+· courier"). That is the aggregate answer where the rows were the itemised one, and it
+is why `reasons` exists on `CashMovement`. If an aggregate line ever proves too coarse
+to settle a variance, the itemised answer belongs behind that LINE — expanding in
+place — not as rows in a history of records this page does not own.
 
 ## 6. Three hazards in the existing data
 

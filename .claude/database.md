@@ -96,6 +96,7 @@ is_active)`, company-global — no
 | `tax_modes` | itemized, total | `platform_cost_rates.tax_mode` |
 | `recurrences` | monthly, weekly | `expenses.recurrence`, `company_expenses.recurrence` |
 | `appointment_sources` | staff, whatsapp | `appointments.source` |
+| `cash_transfer_kinds` | bank_deposit ("Banked"), owner_draw ("Taken by owner"), float_topup ("Cash added") | `cash_transfers.kind` |
 
 **Three things to know before touching these.**
 
@@ -485,6 +486,64 @@ on the payments commit **SETS** (never adds) each affected patient's
 flat and derived dues paths can't stack. Indexes: (`clinic_id`,`type`,`txn_date`);
 `patient_id`; `doctor_id`; `import_batch_id`; pg_trgm on `patient_name`/`doctor_name`;
 (`clinic_id`,`reference`); partial trash index. (Migration `0074`.)
+
+### `cash_counts` + `cash_transfers` — the petty-cash drawer (petty-cash-plan.md)
+
+The shared front-desk drawer, reconciled at each handover. **These two tables are NOT a
+cash ledger and must never become one.** Every cash movement is already recorded — a
+cash patient payment, a cash refund, a cash expense, a cash doctor payout — so
+`core/finance/petty-cash.ts` READS those and stores only the two facts they cannot
+know: what was physically counted, and cash that left the drawer without being a cost.
+A second place to type "paid 500 for gloves" would make the day book, the P&L and the
+drawer disagree with nothing to arbitrate between them (ADR-015).
+
+**`cash_counts`** — one handover. `id`, `clinic_id` → clinics (`cascade`), `counted_at`,
+`counted_total` int (what was in the box), `expected_total` int **nullable**,
+`variance` int **nullable and SIGNED**, `note`, `counted_by` uuid (no FK) +
+`counted_by_name` snapshot, soft-delete, timestamps. Expected and variance are
+**snapshots** — back-dating a cash expense into a counted window must not rewrite a
+number somebody signed off — and are NULL on the FIRST count, which is the opening
+float: "I do not know what was in the box to begin with" is not "the box was empty",
+and printing 0 for it is a lie a reader cannot detect. `counted_total` IS editable and
+the variance is then re-derived from the FROZEN `expected_total`.
+
+**`cash_transfers`** — money out of the drawer that is not a cost. `id`, `clinic_id`
+(`cascade`), `kind` (→ `cash_transfer_kinds`), `amount` int (**always positive**; the
+direction comes from `kind`), `occurred_at`, `reference`, `note`, `created_by` +
+`created_by_name` snapshot, soft-delete, timestamps. Banking the takings and topping
+the drawer up move money between the clinic's own pockets, so they reach the drawer and
+never the P&L.
+
+**The formula lives in ONE place** (`getDrawerState`): `expected = the last count's
+COUNTED total + cash in − cash out ± transfers`. Carrying the previous EXPECTED total
+forward would let one bad Tuesday poison every figure after it; re-basing on what was
+actually counted absorbs a shortfall at the handover where it was seen and explained.
+
+**Every source is bounded by `created_at`, never `occurred_at`/`incurred_on`.** The day
+book asks "what happened on this DAY"; a drawer asks "what has happened since I last
+counted", and the honest test is whether the previous count could have SEEN the row.
+`incurred_on` is a DATE with no time in it, so using it put every same-day cash expense
+in BOTH windows — with two shifts on one day, the evening showed a shortfall equal to
+the morning's spending, every day. Caught by `scripts/test-petty-cash.ts` on its first
+run.
+
+**ACL: `cash`** (view/create, no delete — a count is an assertion about a moment, and
+the way to correct one is to count again). Gated by the `finance` feature. Clinic admin
+may modify any entry; everyone else only their own, enforced in the WHERE clause
+(`onlyOwnedBy`), while everyone with `cash:view` SEES every entry — a drawer is shared,
+and a history with rows missing cannot be reconciled against the box.
+
+### Where an expense was TYPED — `expenses.from_drawer`
+
+`expenses` gained `from_drawer` (bool, NOT NULL, default false) — recorded at the
+petty-cash drawer ("Paid for something") rather than on the Expenses screen. **It
+changes nothing about what the row means**: an ordinary cash expense, in the P&L, in
+Expenses, in every report, none of which know the column exists. It exists so the
+drawer history can list the page's OWN records: an expense typed at the drawer is one,
+an expense typed in Expenses is not, and nothing else distinguishes them (both cash,
+both can be uncategorised, both can carry only a note). `updateExpense` deliberately
+does NOT write it — where a row was first typed is a fact about the past, and editing
+it later must not rewrite that.
 
 ---
 
@@ -1051,6 +1110,26 @@ these for churn-risk + usage/cost anomaly flags.
   new defaults from code. Each statement is idempotent (`NOT (… = ANY(…))`), and a
   clinic whose capabilities are NULL or `'*'` is skipped because both already mean
   "everything allowed". `scripts/test-schedule-acl.ts` covers the code side.
+- Migrations **`0109`–`0113`** are **petty cash** (see §3 and `docs/petty-cash-plan.md`).
+  `0109` adds `cash_counts` + `cash_transfers` and the `cash_transfer_kinds` vocabulary
+  table — **with its seed INSERT hand-appended**, because drizzle-kit creates a
+  vocabulary TABLE and never its ROWS, and an empty lookup makes the first write fail on
+  the FK rather than at review time. `0110` is data-only and backfills the new **`cash`
+  ACL** onto both tiers (`billing:create → cash:view + cash:create` on `users.permissions`
+  and `clinics.capabilities`) — ADR-033's rule: a new resource is a silent revocation for
+  every user and clinic whose access was ever customised. `0111` is data-only and renames
+  the `float_topup` label to "Cash added" (owner's wording; a row update, because ADR-027
+  puts presentation in the database). `0112` adds `expenses.from_drawer`.
+  **`0113` is the one worth reading**: it backfills `from_drawer` for spends recorded at
+  the drawer before the column existed. `DEFAULT false` answers "not recorded here" for
+  every pre-existing row, so the entries somebody had typed at the drawer silently
+  stopped being that page's records — the owner noticed within the hour. **The evidence
+  is the audit log, not a heuristic**: nothing on an expense row tells the two apart, but
+  `submitCashSpend` writes a distinct summary the Expenses form does not, so the join
+  matches on that (same clinic, the amount rendered as the action rendered it, within
+  five seconds of the INSERT — the observed gap was 13ms). Idempotent. The lesson
+  generalises past the ACL: **any new field that gates VISIBILITY ships with its
+  backfill, or it hides existing data from exactly the people who created it.**
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).
