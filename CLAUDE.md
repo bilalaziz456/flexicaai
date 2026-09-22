@@ -446,6 +446,16 @@ are in `.env.example`.
   walking a clinic's billing history reads `core/admin/price-schedule.ts` instead, so a
   price rise can never re-price months already paid. Both the dues balance and the
   payment rating read the one schedule.
+- **Petty cash** (`cash_counts` + `cash_transfers`, `docs/petty-cash-plan.md`) — the
+  shared front-desk drawer, reconciled at each handover: "does the cash in the box match
+  the system?" **It is a RECONCILIATION over the existing cash ledgers, not a second
+  ledger** — `core/finance/petty-cash.ts` reads cash payments, refunds, expenses and
+  payouts and stores only what they cannot know (what was counted, and cash moved
+  without being a cost). One formula, one place. **ACL: `cash`** (view/create, no
+  delete) ∩ the `finance` feature; clinic admin may change any entry, everyone else only
+  their own, and everyone sees all. "Paid for something" writes a real EXPENSE
+  (`expenses.from_drawer` marks where it was typed) — a cash purchase is a cost and
+  belongs in the P&L, while banking or topping up only moves money between pockets.
 
 Still NOT to build without instruction (§11/§12 unchanged): derma, hair, mobile apps,
 advanced analytics.

@@ -1094,12 +1094,72 @@ alone and picks the new answer up from code, which is where the front desk loses
 editing; a clinic that disagrees grants `schedule:edit` to that user, which is what an
 ACL is for.
 
+**The rule generalised on 2026-09-23, and it cost a bug to learn.** `expenses.from_drawer`
+is not an ACL slug — it is a plain boolean deciding whether a row appears in the petty-cash
+history — and adding it with `DEFAULT false` hid every spend recorded at the drawer before
+the column existed. Identical shape: a new field, a default that means "no", and existing
+data silently gone for the people who created it. So the rule is not really about
+`PERM_RESOURCES`; it is that **any new field gating VISIBILITY ships with its backfill**.
+Migration `0113` did it from the AUDIT LOG rather than by guessing at the row (ADR-027's
+test applied to a backfill: a heuristic here would have flagged ordinary expenses).
+
 **Consequence:** any future `PERM_RESOURCES` entry ships with a backfill in the same
 commit, or it is a silent revocation for exactly the clinics that cared enough to
 configure their access. `scripts/test-schedule-acl.ts` pins the defaults and the
 independence of the two resources (verified to go red by handing the front desk
 capacity back), because the tempting future tidy-up is to fold `schedule` into `leave`
 again and nothing else would notice.
+
+**ADR-034 — A reconciliation surface READS the ledgers and stores only what they cannot
+know; it never becomes a second ledger** · *2026-09-23* · `Accepted`
+Petty cash (`core/finance/petty-cash.ts`, `docs/petty-cash-plan.md`) answers "does the
+cash in the box match the system?" over the cash rows that already exist — payments,
+refunds, expenses, payouts — and stores exactly two facts none of them carry: what was
+physically COUNTED (`cash_counts`) and cash that left the drawer without being a cost
+(`cash_transfers`).
+
+**Why not a petty-cash ledger, which is what the feature is usually built as.** A second
+place to type "paid 500 for gloves" makes the day book, the P&L and the drawer disagree
+with nothing to arbitrate between them — ADR-015's failure, in the surface where it is
+least detectable, because each screen looks internally consistent. The corollary is that
+"Paid for something" on the drawer page writes a real EXPENSE: recorded as a transfer it
+would leave the drawer correctly and understate costs by exactly that amount, every time,
+silently.
+
+**One formula, in one place:** `expected = the last count's COUNTED total + cash in −
+cash out ± transfers`. Carrying the previous EXPECTED total forward instead lets one bad
+Tuesday poison every figure after it; re-basing on what was actually counted absorbs a
+shortfall at the handover where it was seen and explained.
+
+**The bound is `created_at`, never `occurred_at`/`incurred_on`** — and this is the trap
+to carry forward, because the other reports are right to do the opposite. A day book asks
+"what happened on this DAY"; a drawer asks "what has happened since I last counted", and
+the honest test for that is whether the previous count could have SEEN the row.
+`incurred_on` is a DATE with no time in it, so it put every same-day cash expense in BOTH
+windows: with two shifts on one day the evening showed a shortfall equal to the morning's
+spending, daily. Found by `scripts/test-petty-cash.ts` on its first run, not by review.
+
+**Snapshots, per ADR-016's reasoning:** `expected_total` and `variance` are frozen at the
+count, so back-dating an expense into a counted window cannot rewrite a number somebody
+signed off. `counted_total` stays editable and re-derives the variance from the FROZEN
+expectation — correcting a miscount is not the same as re-opening the window.
+
+**What the page SHOWS was reversed mid-build, and the split is the point.** The history
+first listed the borrowed cash rows read-only, for traceability. The owner's call
+(2026-09-23) is that it lists only this page's own records — a payment belongs to Payments
+and an expense to Expenses, and reprinting them made one page look like two. **The FIGURE
+was deliberately left alone**: the patients' cash physically enters the same drawer, so a
+drawer that stopped counting it would show a false shortfall at every handover.
+`getDrawerState` computes its own sums and never read the list, which is what made the
+display decision separable from the money one. The working above the table — a named line
+per kind with its reasons — is now the aggregate explanation where the rows were the
+itemised one; if that ever proves too coarse, the detail belongs behind that LINE, not as
+rows of records this page does not own.
+
+**Consequence:** a future surface that reconciles rather than records follows this shape —
+read, derive, store only the irreducible fact. And anything it borrows for DISPLAY is
+separable from anything it counts in a FIGURE; keep them separable, because the owner will
+rightly ask for one without the other.
 
 ---
 
