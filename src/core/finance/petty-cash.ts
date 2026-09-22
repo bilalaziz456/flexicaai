@@ -54,6 +54,11 @@ export type CashMovement = {
   transfersIn: number;
   /** Rows with no tender recorded — not included in any figure above. */
   untendered: { expenses: number; payouts: number; payments: number };
+  /** WHY the money left, per line, so a total is answerable without opening another
+   *  screen. A sum tells you the drawer is 2,500 lighter; "gloves · courier · tea" is
+   *  what lets somebody say whether that is right. Empty strings are dropped rather
+   *  than shown as blanks — an unlabelled row is a gap in the record, not a reason. */
+  reasons: { spent: string[]; moved: string[] };
 };
 
 export type DrawerState = {
@@ -202,6 +207,7 @@ async function cashMovementSince(clinicId: string, from: Date | null): Promise<C
     );
 
   const untendered = await untenderedSince(clinicId, from);
+  const reasons = await reasonsSince(clinicId, from);
 
   return {
     collected: Number(pay?.collected ?? 0),
@@ -211,6 +217,51 @@ async function cashMovementSince(clinicId: string, from: Date | null): Promise<C
     transfersOut: Number(xfer?.out ?? 0),
     transfersIn: Number(xfer?.in ?? 0),
     untendered,
+    reasons,
+  };
+}
+
+/**
+ * The words attached to the cash that left: an expense's note or vendor, a transfer's
+ * reference or note. Capped, because this feeds a hint under a figure rather than a
+ * report — a drawer with forty entries needs the history table, not a longer hint.
+ */
+async function reasonsSince(clinicId: string, from: Date | null) {
+  const after = <T extends { getSQL: () => unknown }>(col: T) =>
+    from ? gt(col as never, from as never) : undefined;
+
+  const spentRows = await db
+    .select({ note: expenses.note, vendor: expenses.vendor })
+    .from(expenses)
+    .where(
+      byClinic(
+        expenses.clinicId,
+        clinicId,
+        and(notDeleted(expenses.deletedAt), eq(expenses.method, "cash"), after(expenses.createdAt)),
+      ),
+    )
+    .orderBy(desc(expenses.createdAt))
+    .limit(6);
+
+  const movedRows = await db
+    .select({ note: cashTransfers.note, reference: cashTransfers.reference })
+    .from(cashTransfers)
+    .where(
+      byClinic(
+        cashTransfers.clinicId,
+        clinicId,
+        and(notDeleted(cashTransfers.deletedAt), after(cashTransfers.createdAt)),
+      ),
+    )
+    .orderBy(desc(cashTransfers.createdAt))
+    .limit(6);
+
+  const clean = (xs: (string | null)[]) =>
+    xs.map((x) => (x ?? "").trim()).filter((x) => x.length > 0);
+
+  return {
+    spent: clean(spentRows.map((r) => r.note ?? r.vendor)),
+    moved: clean(movedRows.map((r) => r.reference ?? r.note)),
   };
 }
 
@@ -344,4 +395,87 @@ export async function listRecentTransfers(clinicId: string, limit = 20) {
     .where(byClinic(cashTransfers.clinicId, clinicId, notDeleted(cashTransfers.deletedAt)))
     .orderBy(desc(cashTransfers.occurredAt))
     .limit(limit);
+}
+
+/**
+ * Correcting an entry.
+ *
+ * A COUNT'S FIGURES ARE NOT EDITABLE — only its note. The counted total is a claim
+ * about a moment ("there was 11,500 in the box at 18:04"), and the expected total and
+ * variance beside it are snapshots of what the ledgers said AT THAT MOMENT. Letting
+ * someone retype the counted figure would silently invalidate both, and the way to
+ * correct a miscount is the thing the feature already offers: count again. The note
+ * is the part that is genuinely an afterthought — "found the missing slip" — so that
+ * is what can be added later.
+ *
+ * DELETING IS SOFT (ADR-006), and it matters more here than usual: a deleted count is
+ * a money record somebody signed, and a variance that can be made to disappear is a
+ * variance nobody has to answer for. It leaves the drawer's arithmetic — the next
+ * count re-bases on the newest surviving one — but it stays in the row for Trash and
+ * for anyone asking what happened.
+ */
+export async function updateCashCountNote(
+  clinicId: string,
+  id: string,
+  note: string | null,
+): Promise<boolean> {
+  const [row] = await db
+    .update(cashCounts)
+    .set({ note })
+    .where(byClinic(cashCounts.clinicId, clinicId, and(eq(cashCounts.id, id), notDeleted(cashCounts.deletedAt))))
+    .returning({ id: cashCounts.id });
+  return Boolean(row);
+}
+
+export async function softDeleteCashCount(
+  clinicId: string,
+  id: string,
+  by: { id: string },
+): Promise<boolean> {
+  const [row] = await db
+    .update(cashCounts)
+    .set({ deletedAt: new Date(), deletedBy: by.id })
+    .where(byClinic(cashCounts.clinicId, clinicId, and(eq(cashCounts.id, id), notDeleted(cashCounts.deletedAt))))
+    .returning({ id: cashCounts.id });
+  return Boolean(row);
+}
+
+/** A transfer is fully editable — it is a plain record of money moving, with no
+ *  snapshot hanging off it, so a typo is just a typo. */
+export async function updateCashTransfer(
+  clinicId: string,
+  id: string,
+  input: { kind: "bank_deposit" | "owner_draw" | "float_topup"; amount: number; reference: string | null; note: string | null },
+): Promise<boolean> {
+  const [row] = await db
+    .update(cashTransfers)
+    .set({ kind: input.kind, amount: input.amount, reference: input.reference, note: input.note })
+    .where(
+      byClinic(
+        cashTransfers.clinicId,
+        clinicId,
+        and(eq(cashTransfers.id, id), notDeleted(cashTransfers.deletedAt)),
+      ),
+    )
+    .returning({ id: cashTransfers.id });
+  return Boolean(row);
+}
+
+export async function softDeleteCashTransfer(
+  clinicId: string,
+  id: string,
+  by: { id: string },
+): Promise<boolean> {
+  const [row] = await db
+    .update(cashTransfers)
+    .set({ deletedAt: new Date(), deletedBy: by.id })
+    .where(
+      byClinic(
+        cashTransfers.clinicId,
+        clinicId,
+        and(eq(cashTransfers.id, id), notDeleted(cashTransfers.deletedAt)),
+      ),
+    )
+    .returning({ id: cashTransfers.id });
+  return Boolean(row);
 }

@@ -15,6 +15,7 @@ import { TableCard } from "@/core/ui/table-card";
 import { EmptyState } from "@/core/ui/empty-state";
 import { PageHeader } from "@/core/ui/page-header";
 import { CountForm, TransferForm } from "./cash-ui";
+import { CountRowActions, MoveRowActions } from "./history-actions";
 
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 const when = (d: Date) =>
@@ -77,6 +78,7 @@ export default async function CashPage() {
               : "text-warning-text",
       by: c.countedByName,
       note: c.note,
+      row: c,
     })),
     ...transfers.map((t) => ({
       id: t.id,
@@ -89,6 +91,7 @@ export default async function CashPage() {
       tone: "",
       by: t.createdByName,
       note: t.reference ?? t.note,
+      row: t,
     })),
   ].sort((a, b) => b.at.getTime() - a.at.getTime());
 
@@ -142,19 +145,34 @@ export default async function CashPage() {
                     modify, so it stays even at zero. */}
                 <dl className="divide-y divide-border/60 overflow-hidden rounded-lg border border-border/60">
                   {[
-                    { label: "Opened with", value: drawer.openingTotal, sign: "" },
-                    m.collected ? { label: "Cash taken", value: m.collected, sign: "+" } : null,
-                    m.transfersIn ? { label: "Float added", value: m.transfersIn, sign: "+" } : null,
-                    m.expenses ? { label: "Paid out in cash", value: m.expenses, sign: "−" } : null,
-                    m.payouts ? { label: "Paid to doctors", value: m.payouts, sign: "−" } : null,
-                    m.refunded ? { label: "Refunded", value: m.refunded, sign: "−" } : null,
-                    m.transfersOut ? { label: "Banked or taken", value: m.transfersOut, sign: "−" } : null,
+                    { label: "Opened with", value: drawer.openingTotal, sign: "", why: [] },
+                    m.collected ? { label: "Cash taken", value: m.collected, sign: "+", why: [] } : null,
+                    m.transfersIn ? { label: "Float added", value: m.transfersIn, sign: "+", why: [] } : null,
+                    m.expenses
+                      ? { label: "Paid out in cash", value: m.expenses, sign: "−", why: m.reasons.spent }
+                      : null,
+                    m.payouts ? { label: "Paid to doctors", value: m.payouts, sign: "−", why: [] } : null,
+                    m.refunded ? { label: "Refunded", value: m.refunded, sign: "−", why: [] } : null,
+                    m.transfersOut
+                      ? { label: "Banked or taken", value: m.transfersOut, sign: "−", why: m.reasons.moved }
+                      : null,
                   ]
                     .filter((k) => k !== null)
                     .map((k) => (
                       <div key={k.label} className="flex items-baseline justify-between gap-4 px-3 py-2">
-                        <dt className="text-sm text-muted-foreground">{k.label}</dt>
-                        <dd className="text-sm font-medium tabular-nums">
+                        <dt className="min-w-0 text-sm text-muted-foreground">
+                          {k.label}
+                          {/* WHY the money went, under the line it belongs to. A sum
+                              says the drawer is lighter; this is what lets somebody
+                              say whether that is right, without opening Expenses. */}
+                          {k.why.length > 0 ? (
+                            <span className="block truncate text-xs text-muted-foreground/80">
+                              {k.why.slice(0, 3).join(" · ")}
+                              {k.why.length > 3 ? ` · +${k.why.length - 3} more` : ""}
+                            </span>
+                          ) : null}
+                        </dt>
+                        <dd className="shrink-0 self-start text-sm font-medium tabular-nums">
                           {k.sign ? `${k.sign} ` : ""}
                           {rs(k.value)}
                         </dd>
@@ -206,7 +224,7 @@ export default async function CashPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <TransferForm />
+                <TransferForm canSpend={can(user, "expenses", "create")} />
               </CardContent>
             </Card>
           </div>
@@ -237,6 +255,7 @@ export default async function CashPage() {
                 <th className="px-3 py-2 text-right font-medium">Difference</th>
                 <th className="px-3 py-2 text-left font-medium">By</th>
                 <th className="px-3 py-2 text-left font-medium">Note</th>
+                {canCount ? <th className="px-3 py-2 text-right font-medium">Actions</th> : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
@@ -247,10 +266,24 @@ export default async function CashPage() {
                       action it is and given a tint — the moves between two counts
                       belong to the count above them. */}
                   <td className={`px-3 py-2 ${h.kind === "count" ? "font-medium" : ""}`}>{h.what}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{h.amount}</td>
-                  <td className={`px-3 py-2 text-right tabular-nums ${h.tone}`}>{h.difference}</td>
+                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{h.amount}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums whitespace-nowrap ${h.tone}`}>{h.difference}</td>
                   <td className="px-3 py-2">{h.by ?? "—"}</td>
                   <td className="px-3 py-2 text-muted-foreground">{h.note ?? "—"}</td>
+                  {canCount ? (
+                    <td className="px-3 py-2 text-right">
+                      {h.kind === "count" ? (
+                        <CountRowActions id={h.row.id} note={h.row.note} />
+                      ) : (
+                        <MoveRowActions
+                          id={h.row.id}
+                          kind={h.row.kind}
+                          amount={h.row.amount}
+                          reference={h.row.reference}
+                        />
+                      )}
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
