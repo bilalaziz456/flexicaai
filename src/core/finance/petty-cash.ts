@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, gt, gte, lt, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { cashTransferKindId, paymentKindId } from "@/core/db/vocabulary-seed";
@@ -10,6 +10,8 @@ import {
   doctorPayouts,
   expenses,
   patientPayments,
+  type CashCount,
+  type CashTransfer,
 } from "@/core/db/schema";
 
 /**
@@ -512,4 +514,73 @@ export async function softDeleteCashTransfer(
     )
     .returning({ id: cashTransfers.id });
   return Boolean(row);
+}
+
+export type DrawerEntry =
+  | { kind: "count"; at: Date; count: CashCount }
+  | { kind: "move"; at: Date; move: CashTransfer };
+
+/**
+ * The drawer history as ONE paged chronology across two tables.
+ *
+ * ADR-024's shape, for the same reason Trash uses it: each source is asked for at
+ * most `offset + limit` rows, the two are merged, and the page is cut from the
+ * result. A SQL UNION would page in one round trip, but it would mean expressing
+ * both row shapes — a count with its snapshotted expectation, a transfer with its
+ * kind and reference — as one projection, and keeping that in step with how each is
+ * rendered. The bound is what matters, and this gets it without the coupling.
+ *
+ * The merge therefore holds `2 × (offset + limit)` rows, not the tables. Deep paging
+ * grows with the offset, which is acceptable and would only be worth revisiting if
+ * somebody actually pages deep into a cash drawer.
+ */
+export async function listDrawerHistory(
+  clinicId: string,
+  opts: { from?: Date; to?: Date; offset?: number; limit?: number } = {},
+): Promise<{ rows: DrawerEntry[]; total: number }> {
+  const offset = opts.offset ?? 0;
+  const limit = opts.limit ?? 20;
+  const need = offset + limit;
+  const range = { from: opts.from, to: opts.to };
+
+  const inRange = <T extends { getSQL: () => unknown }>(col: T) =>
+    and(
+      opts.from ? gte(col as never, opts.from as never) : undefined,
+      opts.to ? lt(col as never, opts.to as never) : undefined,
+    );
+
+  const [counts, moves, countTotal, moveTotal] = await Promise.all([
+    listCashCounts(clinicId, { ...range, limit: need }),
+    listRecentTransfers(clinicId, { ...range, limit: need }),
+    db
+      .select({ n: count() })
+      .from(cashCounts)
+      .where(
+        byClinic(
+          cashCounts.clinicId,
+          clinicId,
+          and(notDeleted(cashCounts.deletedAt), inRange(cashCounts.countedAt)),
+        ),
+      ),
+    db
+      .select({ n: count() })
+      .from(cashTransfers)
+      .where(
+        byClinic(
+          cashTransfers.clinicId,
+          clinicId,
+          and(notDeleted(cashTransfers.deletedAt), inRange(cashTransfers.occurredAt)),
+        ),
+      ),
+  ]);
+
+  const merged: DrawerEntry[] = [
+    ...counts.map((c) => ({ kind: "count" as const, at: c.countedAt, count: c })),
+    ...moves.map((t) => ({ kind: "move" as const, at: t.occurredAt, move: t })),
+  ].sort((a, b) => b.at.getTime() - a.at.getTime());
+
+  return {
+    rows: merged.slice(offset, offset + limit),
+    total: Number(countTotal[0]?.n ?? 0) + Number(moveTotal[0]?.n ?? 0),
+  };
 }

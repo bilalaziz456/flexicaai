@@ -22,6 +22,7 @@ import { ALL_PERMISSIONS, ROLE_DEFAULTS } from "@/core/auth/permissions";
 import type { UserRole } from "@/core/types/auth";
 import {
   getDrawerState,
+  listDrawerHistory,
   recordCashCount,
   recordCashTransfer,
 } from "@/core/finance/petty-cash";
@@ -163,6 +164,38 @@ async function main() {
       .where(and(eq(cashCounts.clinicId, clinicId), eq(cashCounts.countedTotal, 4000)));
     check("the recorded variance is unchanged", stored.variance, -300);
     check("and so is the expectation it was measured against", stored.expected, 4300);
+
+    // The history spans TWO tables, so paging it is the ADR-024 shape: bound each
+    // source, merge, cut. The failure that shape exists to prevent is a page that
+    // silently drops or repeats rows at the boundary, which no single-table test
+    // would catch.
+    console.log("\nPaging the history across both tables:");
+    const all = await listDrawerHistory(clinicId, { limit: 100 });
+    check("every count and move is counted once", all.total, all.rows.length);
+    // Two counts (the opening float and the 4,000) and two moves (banked, topped up).
+    check("…and that is the four this test made", all.total, 4);
+
+    const seen: string[] = [];
+    for (let offset = 0; offset < all.total; offset += 2) {
+      const pageRows = await listDrawerHistory(clinicId, { offset, limit: 2 });
+      for (const r of pageRows.rows) seen.push(r.kind === "count" ? r.count.id : r.move.id);
+    }
+    const expectedIds = all.rows.map((r) => (r.kind === "count" ? r.count.id : r.move.id));
+    check("paging visits every row", seen.length, expectedIds.length);
+    check("…exactly once, in the same order", seen.join(","), expectedIds.join(","));
+    check("no row appears twice", new Set(seen).size, seen.length);
+
+    // Newest first, ACROSS the two sources — the whole point of merging them.
+    const times = all.rows.map((r) => r.at.getTime());
+    check(
+      "the merged order is newest first",
+      times.every((t, i) => i === 0 || times[i - 1] >= t),
+      true,
+    );
+
+    const past = await listDrawerHistory(clinicId, { offset: 999, limit: 2 });
+    check("a page past the end is empty, not wrapped", past.rows.length, 0);
+    check("…while the total still reports the truth", past.total, all.total);
   } finally {
     await db.delete(cashTransfers).where(eq(cashTransfers.clinicId, clinicId));
     await db.delete(cashCounts).where(eq(cashCounts.clinicId, clinicId));

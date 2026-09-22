@@ -14,6 +14,18 @@ const EXCLUDED_KEYS = new Set(["page", "created", "updated", "deleted"]);
  * flags). Renders nothing when there's nothing to show. `unit` labels the count
  * (e.g. "patient"). CORE, list-agnostic.
  */
+/**
+ * English plural for the unit label. The old rule was `unit + "s"`, which is right
+ * for "expense" and "clinic" and wrong for the ones ending in a consonant + y —
+ * `unit="entry"` printed "entrys", on the admin logs page as well as here.
+ */
+function plural(unit: string, total: number): string {
+  if (total === 1) return unit;
+  if (/[^aeiou]y$/i.test(unit)) return `${unit.slice(0, -1)}ies`;
+  if (/(s|x|z|ch|sh)$/i.test(unit)) return `${unit}es`;
+  return `${unit}s`;
+}
+
 export function Pagination({
   page,
   pageSize,
@@ -32,8 +44,13 @@ export function Pagination({
   if (total <= 0) return null;
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const from = (page - 1) * pageSize + 1;
-  const to = Math.min(page * pageSize, total);
+  // A page past the end reads "Showing 21–6 of 6" otherwise — an arithmetic artefact
+  // printed as if it were a fact. Anyone can type `?page=9`, and a list that shrinks
+  // (a filter narrowed, a row deleted) puts a reader there without them doing
+  // anything at all.
+  const beyondEnd = (page - 1) * pageSize >= total;
+  const from = beyondEnd ? 0 : (page - 1) * pageSize + 1;
+  const to = beyondEnd ? 0 : Math.min(page * pageSize, total);
 
   const href = (p: number) => {
     const sp = new URLSearchParams();
@@ -52,8 +69,7 @@ export function Pagination({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
       <span className="text-muted-foreground">
-        Showing {from}–{to} of {total} {unit}
-        {total === 1 ? "" : "s"}
+        {beyondEnd ? "Showing 0" : `Showing ${from}–${to}`} of {total} {plural(unit, total)}
       </span>
       <div className="flex items-center gap-2">
         {/* Rows-per-page — always available, even on a single page. */}

@@ -4,11 +4,9 @@ import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicHasFeature } from "@/core/lib/features";
-import {
-  getDrawerState,
-  listCashCounts,
-  listRecentTransfers,
-} from "@/core/finance/petty-cash";
+import { getDrawerState, listDrawerHistory } from "@/core/finance/petty-cash";
+import { Pagination } from "@/core/ui/pagination";
+import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/core/ui/card";
 import { TableCard } from "@/core/ui/table-card";
@@ -39,7 +37,7 @@ const when = (d: Date) =>
 export default async function CashPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ period?: string; from?: string; to?: string; page?: string; size?: string }>;
 }) {
   const user = await requireWorkspace("cash");
   const { clinicId } = user;
@@ -56,10 +54,17 @@ export default async function CashPage({
   const sp = await searchParams;
   const range = resolveSalesRange(sp.period ?? "quarter", sp.from, sp.to, clinic?.createdAt);
 
-  const [drawer, counts, transfers] = await Promise.all([
+  const page = parsePage(sp.page);
+  const pageSize = parsePageSize(sp.size);
+
+  const [drawer, historyPage] = await Promise.all([
     getDrawerState(clinicId),
-    listCashCounts(clinicId, { from: range.start, to: range.end }),
-    listRecentTransfers(clinicId, { from: range.start, to: range.end }),
+    listDrawerHistory(clinicId, {
+      from: range.start,
+      to: range.end,
+      offset: pageOffset(page, pageSize),
+      limit: pageSize,
+    }),
   ]);
 
   const m = drawer.movement;
@@ -69,45 +74,50 @@ export default async function CashPage({
   // good reasons — a count is a reconciliation, a move is money going somewhere — but
   // to a person reading the drawer they are the same question in time order: what
   // happened to this box, and when.
-  const history = [
-    ...counts.map((c) => ({
-      id: c.id,
-      kind: "count" as const,
-      at: c.countedAt,
-      what: "Counted",
-      amount: rs(c.countedTotal),
-      difference:
-        c.variance === null
-          ? "opening float"
-          : c.variance === 0
-            ? "balanced"
-            : `${c.variance > 0 ? "+" : "−"}${rs(Math.abs(c.variance))}`,
-      tone:
-        c.variance === null
-          ? "text-muted-foreground"
-          : c.variance === 0
-            ? "text-success-text"
-            : c.variance < 0
-              ? "text-destructive"
-              : "text-warning-text",
-      by: c.countedByName,
-      note: c.note,
-      row: c,
-    })),
-    ...transfers.map((t) => ({
-      id: t.id,
-      kind: "move" as const,
-      at: t.occurredAt,
-      // The label is the database's, not this file's (ADR-027).
-      what: vocabularyLabel("cash_transfer_kinds", t.kind),
-      amount: `${t.kind === "float_topup" ? "+ " : "− "}${rs(t.amount)}`,
-      difference: "",
-      tone: "",
-      by: t.createdByName,
-      note: t.reference ?? t.note,
-      row: t,
-    })),
-  ].sort((a, b) => b.at.getTime() - a.at.getTime());
+  // The merge, the sort and the page are done in core (ADR-024); this only decides
+  // how each row READS.
+  const history = historyPage.rows.map((e) =>
+    e.kind === "count"
+      ? {
+          id: e.count.id,
+          kind: "count" as const,
+          at: e.at,
+          what: "Counted",
+          amount: rs(e.count.countedTotal),
+          difference:
+            e.count.variance === null
+              ? "opening float"
+              : e.count.variance === 0
+                ? "balanced"
+                : `${e.count.variance > 0 ? "+" : "−"}${rs(Math.abs(e.count.variance))}`,
+          tone:
+            e.count.variance === null
+              ? "text-muted-foreground"
+              : e.count.variance === 0
+                ? "text-success-text"
+                : e.count.variance < 0
+                  ? "text-destructive"
+                  : "text-warning-text",
+          by: e.count.countedByName,
+          note: e.count.note,
+          count: e.count,
+          move: null,
+        }
+      : {
+          id: e.move.id,
+          kind: "move" as const,
+          at: e.at,
+          // The label is the database's, not this file's (ADR-027).
+          what: vocabularyLabel("cash_transfer_kinds", e.move.kind),
+          amount: `${e.move.kind === "float_topup" ? "+ " : "− "}${rs(e.move.amount)}`,
+          difference: "",
+          tone: "",
+          by: e.move.createdByName,
+          note: e.move.reference ?? e.move.note,
+          count: null,
+          move: e.move,
+        },
+  );
 
   return (
     <div className="space-y-6">
@@ -297,16 +307,16 @@ export default async function CashPage({
                   <td className="px-3 py-2 text-muted-foreground">{h.note ?? "—"}</td>
                   {canCount ? (
                     <td className="px-3 py-2 text-right">
-                      {h.kind === "count" ? (
-                        <CountRowActions id={h.row.id} note={h.row.note} />
-                      ) : (
+                      {h.count ? (
+                        <CountRowActions id={h.count.id} note={h.count.note} />
+                      ) : h.move ? (
                         <MoveRowActions
-                          id={h.row.id}
-                          kind={h.row.kind}
-                          amount={h.row.amount}
-                          reference={h.row.reference}
+                          id={h.move.id}
+                          kind={h.move.kind}
+                          amount={h.move.amount}
+                          reference={h.move.reference}
                         />
-                      )}
+                      ) : null}
                     </td>
                   ) : null}
                 </tr>
@@ -315,6 +325,15 @@ export default async function CashPage({
           </table>
         )}
         </TableCard>
+
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={historyPage.total}
+          basePath="/clinic/cash"
+          searchParams={{ period: range.period, from: sp.from, to: sp.to, size: sp.size }}
+          unit="entry"
+        />
       </div>
     </div>
   );
