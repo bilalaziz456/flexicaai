@@ -150,9 +150,14 @@ export default async function CashPage({
 
   return (
     <div className="space-y-6">
+      {/* The second sentence exists because the owner asked the question it answers:
+          why do expenses appear on a petty-cash page? Because petty cash is a PLACE,
+          not a kind of spending — buying gloves is a cost AND money out of the box,
+          one event that is true in two ways. The page was relying on somebody already
+          knowing that. */}
       <PageHeader
         title="Petty cash"
-        description="One shared drawer, counted at handover. Every figure below is read from the money already recorded — nothing here is a second ledger."
+        description="One shared drawer, counted at handover. Buying something with cash is a cost — it shows in the P&L and comes out of this drawer. Banking the takings or topping the float up only moves money, so it changes the drawer and never the P&L."
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
