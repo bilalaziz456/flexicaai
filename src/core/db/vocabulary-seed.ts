@@ -114,7 +114,9 @@ export const DISCOUNT_BEARER_ROWS = [
 export const CASH_TRANSFER_KIND_ROWS = [
   { id: 1, code: "bank_deposit", label: "Banked", sortOrder: 1 },
   { id: 2, code: "owner_draw", label: "Taken by owner", sortOrder: 2 },
-  { id: 3, code: "float_topup", label: "Float added", sortOrder: 3 },
+  // Renamed by migration 0111 — the constant moves with the row, or the start-up
+  // drift check reports a mismatch on every boot.
+  { id: 3, code: "float_topup", label: "Cash added", sortOrder: 3 },
 ] as const satisfies readonly VocabularyRow[];
 
 /** Every vocabulary, keyed by table name — what the seed and the test both walk. */

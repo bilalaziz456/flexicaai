@@ -778,6 +778,13 @@
       "when": 1790027944954,
       "tag": "0110_petty_cash_acl",
       "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1790107702448,
+      "tag": "0111_cash_added_label",
+      "breakpoints": true
     }
   ]
 }

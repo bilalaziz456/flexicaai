@@ -195,15 +195,24 @@ async function main() {
     console.log("\nPaging the history across both tables:");
     const all = await listDrawerHistory(clinicId, { limit: 100 });
     check("every count and move is counted once", all.total, all.rows.length);
-    // Two counts (the opening float and the 4,000) and two moves (banked, topped up).
-    check("…and that is the four this test made", all.total, 4);
+    // 2 counts + 2 moves + the CASH ledger rows. Exactly four of those: the 3,000
+    // taken, the 200 refunded, and the two cash expenses (500 and the late 900). The
+    // bank and cheque payments, the applied advance, the bank expense and the
+    // untendered one are all correctly absent — which is what the count pins.
+    const byKind = (k: string) => all.rows.filter((r) => r.kind === k).length;
+    check("both counts are there", byKind("count"), 2);
+    check("both moves are there", byKind("move"), 2);
+    // The point of including them: a cash expense recorded elsewhere — including one
+    // made by "Paid for something" — must be findable here, not only inside a total.
+    check("the cash ledger rows are there too", byKind("ledger") > 0, true);
+    check("…and nothing not-cash crept in", byKind("ledger"), 4);
 
     const seen: string[] = [];
     for (let offset = 0; offset < all.total; offset += 2) {
       const pageRows = await listDrawerHistory(clinicId, { offset, limit: 2 });
-      for (const r of pageRows.rows) seen.push(r.kind === "count" ? r.count.id : r.move.id);
+      for (const r of pageRows.rows) seen.push(r.kind === "count" ? r.count.id : r.kind === "move" ? r.move.id : r.ledger.id);
     }
-    const expectedIds = all.rows.map((r) => (r.kind === "count" ? r.count.id : r.move.id));
+    const expectedIds = all.rows.map((r) => (r.kind === "count" ? r.count.id : r.kind === "move" ? r.move.id : r.ledger.id));
     check("paging visits every row", seen.length, expectedIds.length);
     check("…exactly once, in the same order", seen.join(","), expectedIds.join(","));
     check("no row appears twice", new Set(seen).size, seen.length);

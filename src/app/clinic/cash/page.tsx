@@ -77,7 +77,24 @@ export default async function CashPage({
   // The merge, the sort and the page are done in core (ADR-024); this only decides
   // how each row READS.
   const history = historyPage.rows.map((e) =>
-    e.kind === "count"
+    e.kind === "ledger"
+      ? {
+          // Borrowed from another ledger, so it is shown and not offered for editing:
+          // a payment belongs to billing and an expense to Expenses, each with its own
+          // permissions and void rules.
+          id: e.ledger.id,
+          kind: "ledger" as const,
+          at: e.at,
+          what: e.ledger.label,
+          amount: `${e.ledger.delta >= 0 ? "+ " : "− "}${rs(Math.abs(e.ledger.delta))}`,
+          difference: "",
+          tone: "",
+          by: e.ledger.by,
+          note: e.ledger.detail,
+          count: null,
+          move: null,
+        }
+      : e.kind === "count"
       ? {
           id: e.count.id,
           kind: "count" as const,

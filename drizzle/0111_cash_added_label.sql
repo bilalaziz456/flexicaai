@@ -1,0 +1,11 @@
+-- "Float added" becomes "Cash added" (owner's wording, 2026-09-23).
+--
+-- A ROW UPDATE, not a code change: ADR-027 puts presentation in the database, so a
+-- label is renamed here and `vocabulary-cache` picks it up within its 60-second TTL
+-- with no deploy. The id is untouched — ids are never renumbered, and every
+-- `cash_transfers` row keeps pointing at the same meaning.
+--
+-- `vocabulary-seed.ts` moves with it. That constant is BOTH the seed for a fresh
+-- database and the list `loadVocabularies()` checks the live rows against, so leaving
+-- it behind would report drift on every start-up.
+UPDATE "cash_transfer_kinds" SET "label" = 'Cash added' WHERE "code" = 'float_topup';
