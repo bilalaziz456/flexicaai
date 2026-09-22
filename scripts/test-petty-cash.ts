@@ -234,24 +234,37 @@ async function main() {
     console.log("\nPaging the history across both tables:");
     const all = await listDrawerHistory(clinicId, { limit: 100 });
     check("every count and move is counted once", all.total, all.rows.length);
-    // 2 counts + 2 moves + the CASH ledger rows. Exactly four of those: the 3,000
-    // taken, the 200 refunded, and the two cash expenses (500 and the late 900). The
-    // bank and cheque payments, the applied advance, the bank expense and the
-    // untendered one are all correctly absent — which is what the count pins.
+    // 2 counts + 2 moves, and NOTHING ELSE. The clinic seeded above also has cash
+    // payments, a refund and two cash expenses; the history deliberately does not
+    // list them (owner's call, 2026-09-23 — a payment belongs to Payments and an
+    // expense to Expenses).
     const byKind = (k: string) => all.rows.filter((r) => r.kind === k).length;
     check("both counts are there", byKind("count"), 2);
     check("both moves are there", byKind("move"), 2);
-    // The point of including them: a cash expense recorded elsewhere — including one
-    // made by "Paid for something" — must be findable here, not only inside a total.
-    check("the cash ledger rows are there too", byKind("ledger") > 0, true);
-    check("…and nothing not-cash crept in", byKind("ledger"), 4);
+    check("…and nothing borrowed from another ledger", all.rows.length, 4);
+    // THE HALF THAT MATTERS MORE. Hiding those rows must not take them out of the
+    // FIGURE: the patients' cash is physically in the same box, so a drawer that
+    // stopped counting it would show a false shortfall at every handover. The list is
+    // presentation; `getDrawerState` reads the ledgers itself.
+    const stillCounted = await getDrawerState(clinicId);
+    check("the drawer still counts the cash it no longer lists", stillCounted.movement.expenses > 0, true);
+    // And it is really IN the figure, not merely in the movement object: strip the
+    // ledger terms out and `expected` moves. A drawer that listed nothing borrowed AND
+    // counted nothing borrowed would pass the assertion above and still be wrong.
+    const withoutBorrowed =
+      stillCounted.openingTotal + stillCounted.movement.transfersIn - stillCounted.movement.transfersOut;
+    check("…and the borrowed cash really is inside `expected`", stillCounted.expected !== withoutBorrowed, true);
+    // `collected` is 0 here, and that is the re-basing working rather than a gap: every
+    // cash taking seeded above predates the latest count, so it was absorbed into the
+    // counted total that this window opens from (see the module's formula comment).
+    check("cash taken before the last count is absorbed, not double-counted", stillCounted.movement.collected, 0);
 
     const seen: string[] = [];
     for (let offset = 0; offset < all.total; offset += 2) {
       const pageRows = await listDrawerHistory(clinicId, { offset, limit: 2 });
-      for (const r of pageRows.rows) seen.push(r.kind === "count" ? r.count.id : r.kind === "move" ? r.move.id : r.ledger.id);
+      for (const r of pageRows.rows) seen.push(r.kind === "count" ? r.count.id : r.move.id);
     }
-    const expectedIds = all.rows.map((r) => (r.kind === "count" ? r.count.id : r.kind === "move" ? r.move.id : r.ledger.id));
+    const expectedIds = all.rows.map((r) => (r.kind === "count" ? r.count.id : r.move.id));
     check("paging visits every row", seen.length, expectedIds.length);
     check("…exactly once, in the same order", seen.join(","), expectedIds.join(","));
     check("no row appears twice", new Set(seen).size, seen.length);

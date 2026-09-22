@@ -555,23 +555,25 @@ export async function softDeleteCashTransfer(
   return Boolean(row);
 }
 
-export type DrawerLedgerEntry = {
-  id: string;
-  at: Date;
-  /** Signed: what this did to the drawer. */
-  delta: number;
-  label: string;
-  detail: string | null;
-  by: string | null;
-  /** The screen that OWNS this row, so the drawer can point at it instead of
-   *  pretending to be the place it is edited. */
-  href: string;
-};
-
+/**
+ * THE HISTORY IS THIS PAGE'S OWN RECORD, AND ONLY THAT — counts and transfers.
+ *
+ * It briefly also listed the cash rows it BORROWS from the other ledgers (a cash
+ * payment, a refund, a cash expense, a doctor paid in notes), read-only, so that every
+ * term of the sum above could be traced to a row. The owner's call, 2026-09-23: a
+ * payment and an expense belong to Payments and Expenses, and reprinting them here
+ * made one page look like two.
+ *
+ * The figure is NOT affected. `getDrawerState` computes its own sums from those same
+ * ledgers and never read this list, so expected still reconciles against the real box
+ * — which it must, because the patients' cash physically goes into the same drawer.
+ * What explains the figure is the working on the page: a named line per kind with its
+ * reasons underneath ("Paid out in cash − Rs 2,500 · gloves · courier"), which is the
+ * aggregate answer rather than the itemised one.
+ */
 export type DrawerEntry =
   | { kind: "count"; at: Date; count: CashCount }
-  | { kind: "move"; at: Date; move: CashTransfer }
-  | { kind: "ledger"; at: Date; ledger: DrawerLedgerEntry };
+  | { kind: "move"; at: Date; move: CashTransfer };
 
 /**
  * The drawer history as ONE paged chronology across two tables.
@@ -602,10 +604,9 @@ export async function listDrawerHistory(
       opts.to ? lt(col as never, opts.to as never) : undefined,
     );
 
-  const [counts, moves, ledger, countTotal, moveTotal, ledgerTotal] = await Promise.all([
+  const [counts, moves, countTotal, moveTotal] = await Promise.all([
     listCashCounts(clinicId, { ...range, limit: need }),
     listRecentTransfers(clinicId, { ...range, limit: need }),
-    cashLedgerRows(clinicId, { ...range, limit: need }),
     db
       .select({ n: count() })
       .from(cashCounts)
@@ -626,186 +627,15 @@ export async function listDrawerHistory(
           and(notDeleted(cashTransfers.deletedAt), inRange(cashTransfers.occurredAt)),
         ),
       ),
-    countCashLedgerRows(clinicId, range),
   ]);
 
   const merged: DrawerEntry[] = [
     ...counts.map((c) => ({ kind: "count" as const, at: c.countedAt, count: c })),
     ...moves.map((t) => ({ kind: "move" as const, at: t.occurredAt, move: t })),
-    ...ledger.map((l) => ({ kind: "ledger" as const, at: l.at, ledger: l })),
   ].sort((a, b) => b.at.getTime() - a.at.getTime());
 
   return {
     rows: merged.slice(offset, offset + limit),
-    total: Number(countTotal[0]?.n ?? 0) + Number(moveTotal[0]?.n ?? 0) + ledgerTotal,
+    total: Number(countTotal[0]?.n ?? 0) + Number(moveTotal[0]?.n ?? 0),
   };
-}
-
-/**
- * The cash that moved through the drawer from the OTHER ledgers — a cash payment, a
- * refund, a cash expense, a doctor paid in notes.
- *
- * They belong in this history for one blunt reason: without them the page contradicts
- * itself. "Paid for something" on this very screen writes an expense (it is a cost,
- * not a transfer), and a reader who records one and then cannot find it below
- * reasonably concludes it was lost. The aggregate line says 2,350 left; the history
- * has to be able to say which 2,350.
- *
- * They are READ-ONLY here, and that is deliberate rather than unfinished. A payment is
- * owned by the billing screen and an expense by Expenses, each with its own
- * permissions, void rules and audit trail. Offering an Edit button on a borrowed row
- * would be a second way to change a record — the thing this whole feature is built to
- * avoid.
- */
-async function cashLedgerRows(
-  clinicId: string,
-  opts: { from?: Date; to?: Date; limit: number },
-): Promise<DrawerLedgerEntry[]> {
-  const window = <T extends { getSQL: () => unknown }>(col: T) =>
-    and(
-      opts.from ? gte(col as never, opts.from as never) : undefined,
-      opts.to ? lt(col as never, opts.to as never) : undefined,
-    );
-
-  const [pays, spends, payouts] = await Promise.all([
-    db
-      .select({
-        id: patientPayments.id,
-        at: patientPayments.createdAt,
-        amount: patientPayments.amount,
-        kind: patientPayments.kind,
-        note: patientPayments.note,
-        by: patientPayments.createdByName,
-      })
-      .from(patientPayments)
-      .where(
-        byClinic(
-          patientPayments.clinicId,
-          clinicId,
-          and(
-            notDeleted(patientPayments.deletedAt),
-            eq(patientPayments.method, "cash"),
-            window(patientPayments.createdAt),
-          ),
-        ),
-      )
-      .orderBy(desc(patientPayments.createdAt))
-      .limit(opts.limit),
-    db
-      .select({
-        id: expenses.id,
-        at: expenses.createdAt,
-        amount: expenses.amount,
-        note: expenses.note,
-        vendor: expenses.vendor,
-        by: expenses.createdByName,
-      })
-      .from(expenses)
-      .where(
-        byClinic(
-          expenses.clinicId,
-          clinicId,
-          and(notDeleted(expenses.deletedAt), eq(expenses.method, "cash"), window(expenses.createdAt)),
-        ),
-      )
-      .orderBy(desc(expenses.createdAt))
-      .limit(opts.limit),
-    db
-      .select({
-        id: doctorPayouts.id,
-        at: doctorPayouts.createdAt,
-        amount: doctorPayouts.amount,
-        doctor: doctorPayouts.doctorName,
-        by: doctorPayouts.createdByName,
-      })
-      .from(doctorPayouts)
-      .where(
-        byClinic(
-          doctorPayouts.clinicId,
-          clinicId,
-          and(eq(doctorPayouts.method, "cash"), window(doctorPayouts.createdAt)),
-        ),
-      )
-      .orderBy(desc(doctorPayouts.createdAt))
-      .limit(opts.limit),
-  ]);
-
-  return [
-    ...pays.map((r) => ({
-      id: r.id,
-      at: r.at,
-      delta: r.kind === "refund" ? -r.amount : r.amount,
-      label: r.kind === "refund" ? "Refunded" : "Cash taken",
-      detail: r.note,
-      by: r.by,
-      href: "/clinic/payments",
-    })),
-    ...spends.map((r) => ({
-      id: r.id,
-      at: r.at,
-      delta: -r.amount,
-      label: "Paid out",
-      detail: r.note ?? r.vendor,
-      by: r.by,
-      href: "/clinic/expenses",
-    })),
-    ...payouts.map((r) => ({
-      id: r.id,
-      at: r.at,
-      delta: -r.amount,
-      label: "Paid to doctor",
-      detail: r.doctor,
-      by: r.by,
-      href: "/clinic/shares",
-    })),
-  ];
-}
-
-async function countCashLedgerRows(
-  clinicId: string,
-  opts: { from?: Date; to?: Date },
-): Promise<number> {
-  const window = <T extends { getSQL: () => unknown }>(col: T) =>
-    and(
-      opts.from ? gte(col as never, opts.from as never) : undefined,
-      opts.to ? lt(col as never, opts.to as never) : undefined,
-    );
-
-  const [a, b, c] = await Promise.all([
-    db
-      .select({ n: count() })
-      .from(patientPayments)
-      .where(
-        byClinic(
-          patientPayments.clinicId,
-          clinicId,
-          and(
-            notDeleted(patientPayments.deletedAt),
-            eq(patientPayments.method, "cash"),
-            window(patientPayments.createdAt),
-          ),
-        ),
-      ),
-    db
-      .select({ n: count() })
-      .from(expenses)
-      .where(
-        byClinic(
-          expenses.clinicId,
-          clinicId,
-          and(notDeleted(expenses.deletedAt), eq(expenses.method, "cash"), window(expenses.createdAt)),
-        ),
-      ),
-    db
-      .select({ n: count() })
-      .from(doctorPayouts)
-      .where(
-        byClinic(
-          doctorPayouts.clinicId,
-          clinicId,
-          and(eq(doctorPayouts.method, "cash"), window(doctorPayouts.createdAt)),
-        ),
-      ),
-  ]);
-  return Number(a[0]?.n ?? 0) + Number(b[0]?.n ?? 0) + Number(c[0]?.n ?? 0);
 }

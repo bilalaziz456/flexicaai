@@ -108,6 +108,30 @@ Clinic-scoped, gated by the `finance` feature.
 reads as surveillance, and it should be decided deliberately rather than arrive as a
 side effect.
 
+### The history lists this page's own records only (owner's call, 2026-09-23)
+
+The drawer history briefly also listed the cash rows borrowed from the other ledgers —
+a cash payment, a refund, a cash expense, a doctor paid in notes — read-only, with a
+link to the screen that owned each. The argument for them was traceability: the working
+says Rs 2,500 left, and the history could say which 2,500.
+
+**Removed at the owner's direction.** A payment belongs to Payments and an expense to
+Expenses; reprinting them here made one page look like two, and the link went to the
+owning LIST rather than the entry, so "Open" promised more than it delivered.
+
+**What did NOT change is the figure**, and the distinction is the whole point. The
+patients' cash physically goes into this same drawer, so `getDrawerState` still counts
+every cash payment, refund, expense and payout — it computes its own sums and never
+read the list. Removing the rows from the sum as well would have shown a false
+shortfall at every handover.
+
+So the working is now the only explanation of the figure, which raises what it owes: a
+named line per kind with its reasons underneath ("Paid out in cash − Rs 2,500 · gloves
+· courier"). That is the aggregate answer where the rows were the itemised one, and it
+is why `reasons` exists on `CashMovement`. If an aggregate line ever proves too coarse
+to settle a variance, the itemised answer belongs behind that LINE — expanding in
+place — not as rows in a history of records this page does not own.
+
 ## 6. Three hazards in the existing data
 
 These are not hypotheticals; each would produce a wrong drawer figure.

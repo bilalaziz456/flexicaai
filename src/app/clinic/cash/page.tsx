@@ -17,9 +17,6 @@ import { resolveSalesRange } from "@/core/sales/report";
 import { CountForm, TransferForm } from "./cash-ui";
 import { CountRowActions, MoveRowActions } from "./history-actions";
 import { mayModifyEntry } from "./ownership";
-import Link from "next/link";
-import { buttonVariants } from "@/core/ui/button";
-import { cn } from "@/core/lib/utils";
 
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 const when = (d: Date) =>
@@ -81,28 +78,7 @@ export default async function CashPage({
   // The merge, the sort and the page are done in core (ADR-024); this only decides
   // how each row READS.
   const history = historyPage.rows.map((e) =>
-    e.kind === "ledger"
-      ? {
-          // Borrowed from another ledger, so it is shown and not offered for editing:
-          // a payment belongs to billing and an expense to Expenses, each with its own
-          // permissions and void rules.
-          id: e.ledger.id,
-          kind: "ledger" as const,
-          at: e.at,
-          what: e.ledger.label,
-          // Where the row actually lives, so a borrowed entry is a signpost rather
-          // than a dead end. The drawer reads these ledgers; it does not own them.
-          href: e.ledger.href,
-          amount: `${e.ledger.delta >= 0 ? "+ " : "− "}${rs(Math.abs(e.ledger.delta))}`,
-          difference: "",
-          tone: "",
-          by: e.ledger.by,
-          note: e.ledger.detail,
-          count: null,
-          move: null,
-          mine: false,
-        }
-      : e.kind === "count"
+    e.kind === "count"
       ? {
           id: e.count.id,
           kind: "count" as const,
@@ -150,11 +126,13 @@ export default async function CashPage({
 
   return (
     <div className="space-y-6">
-      {/* The second sentence exists because the owner asked the question it answers:
-          why do expenses appear on a petty-cash page? Because petty cash is a PLACE,
-          not a kind of spending — buying gloves is a cost AND money out of the box,
-          one event that is true in two ways. The page was relying on somebody already
-          knowing that. */}
+      {/* The second sentence survives the removal of the borrowed rows, and matters
+          MORE without them. "Paid for something" is still on this page and still
+          writes an expense, and the sum below still subtracts every cash expense
+          whether or not it was recorded here. So the relationship it names is the one
+          thing a reader has to hold: petty cash is a PLACE, not a kind of spending —
+          buying gloves is a cost AND money out of the box, one event true in two ways,
+          while banking only moves it between places. */}
       <PageHeader
         title="Petty cash"
         description="One shared drawer, counted at handover. Buying something with cash is a cost — it shows in the P&L and comes out of this drawer. Banking the takings or topping the float up only moves money, so it changes the drawer and never the P&L."
@@ -205,7 +183,7 @@ export default async function CashPage({
                   {[
                     { label: "Opened with", value: drawer.openingTotal, sign: "", why: [] },
                     m.collected ? { label: "Cash taken", value: m.collected, sign: "+", why: [] } : null,
-                    m.transfersIn ? { label: "Float added", value: m.transfersIn, sign: "+", why: [] } : null,
+                    m.transfersIn ? { label: "Cash added", value: m.transfersIn, sign: "+", why: [] } : null,
                     m.expenses
                       ? { label: "Paid out in cash", value: m.expenses, sign: "−", why: m.reasons.spent }
                       : null,
@@ -363,18 +341,6 @@ export default async function CashPage({
                           amount={h.move.amount}
                           reference={h.move.reference}
                         />
-                      ) : h.href ? (
-                        // Not editable HERE, on purpose: a payment is owned by billing
-                        // and an expense by Expenses, each with its own permissions,
-                        // void rules and audit trail. A second way to change the same
-                        // record is the thing this feature exists to avoid — so the row
-                        // points at the screen that does own it.
-                        <Link
-                          href={h.href}
-                          className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-                        >
-                          Open
-                        </Link>
                       ) : null}
                     </td>
                   ) : null}
