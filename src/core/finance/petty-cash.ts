@@ -434,30 +434,53 @@ export async function listRecentTransfers(
 }
 
 /**
- * Correcting an entry.
+ * Correcting a count.
  *
- * A COUNT'S FIGURES ARE NOT EDITABLE — only its note. The counted total is a claim
- * about a moment ("there was 11,500 in the box at 18:04"), and the expected total and
- * variance beside it are snapshots of what the ledgers said AT THAT MOMENT. Letting
- * someone retype the counted figure would silently invalidate both, and the way to
- * correct a miscount is the thing the feature already offers: count again. The note
- * is the part that is genuinely an afterthought — "found the missing slip" — so that
- * is what can be added later.
+ * THE COUNTED TOTAL IS EDITABLE; THE EXPECTED TOTAL IS NOT. That split is the whole
+ * of it, and an earlier version of this module got it wrong by refusing both.
+ *
+ * `expectedTotal` is a snapshot of what the ledgers said at the moment of counting.
+ * Nothing a person types afterwards can change what was true then, so it is never
+ * recomputed — that is what makes a signed-off variance survive a back-dated expense.
+ *
+ * `countedTotal` is just what somebody read off a pile of notes, and people mistype.
+ * The argument for refusing it was "count again", which sounded principled and is
+ * worse in practice: a fat-fingered 41,000 instead of 4,100 leaves a nonsense variance
+ * in the record for ever AND opens the next window from a wrong float, and counting
+ * again fixes neither. So it can be corrected, and the variance is RE-DERIVED from the
+ * untouched snapshot — never re-measured against today's ledgers.
+ *
+ * Editing it does move every later expected figure, because the float carries forward
+ * from what was counted. That is the point: if the true figure was 4,100, everything
+ * reckoned from 41,000 was wrong too.
  *
  * DELETING IS SOFT (ADR-006), and it matters more here than usual: a deleted count is
  * a money record somebody signed, and a variance that can be made to disappear is a
  * variance nobody has to answer for. It leaves the drawer's arithmetic — the next
- * count re-bases on the newest surviving one — but it stays in the row for Trash and
- * for anyone asking what happened.
+ * count re-bases on the newest surviving one — but stays in the row for Trash.
  */
-export async function updateCashCountNote(
+export async function updateCashCount(
   clinicId: string,
   id: string,
-  note: string | null,
+  input: { countedTotal?: number; note?: string | null },
 ): Promise<boolean> {
+  const [current] = await db
+    .select({ expected: cashCounts.expectedTotal, counted: cashCounts.countedTotal })
+    .from(cashCounts)
+    .where(byClinic(cashCounts.clinicId, clinicId, and(eq(cashCounts.id, id), notDeleted(cashCounts.deletedAt))));
+  if (!current) return false;
+
+  const countedTotal = input.countedTotal ?? current.counted;
   const [row] = await db
     .update(cashCounts)
-    .set({ note })
+    .set({
+      countedTotal,
+      // From the STORED expectation, not a fresh reading of the ledgers. An opening
+      // float has no expectation, so it keeps none — correcting its figure does not
+      // invent a reconciliation that never happened.
+      variance: current.expected === null ? null : countedTotal - current.expected,
+      ...(input.note !== undefined ? { note: input.note } : {}),
+    })
     .where(byClinic(cashCounts.clinicId, clinicId, and(eq(cashCounts.id, id), notDeleted(cashCounts.deletedAt))))
     .returning({ id: cashCounts.id });
   return Boolean(row);

@@ -272,6 +272,15 @@ export default async function CashPage({
           doctors={[]}
           showDoctor={false}
         />
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={historyPage.total}
+          basePath="/clinic/cash"
+          searchParams={{ period: range.period, from: sp.from, to: sp.to, size: sp.size }}
+          unit="entry"
+        />
+
         <TableCard title="Drawer history">
         {history.length === 0 ? (
           <EmptyState
@@ -308,7 +317,11 @@ export default async function CashPage({
                   {canCount ? (
                     <td className="px-3 py-2 text-right">
                       {h.count ? (
-                        <CountRowActions id={h.count.id} note={h.count.note} />
+                        <CountRowActions
+                          id={h.count.id}
+                          counted={h.count.countedTotal}
+                          note={h.count.note}
+                        />
                       ) : h.move ? (
                         <MoveRowActions
                           id={h.move.id}
@@ -325,15 +338,6 @@ export default async function CashPage({
           </table>
         )}
         </TableCard>
-
-        <Pagination
-          page={page}
-          pageSize={pageSize}
-          total={historyPage.total}
-          basePath="/clinic/cash"
-          searchParams={{ period: range.period, from: sp.from, to: sp.to, size: sp.size }}
-          unit="entry"
-        />
       </div>
     </div>
   );

@@ -14,7 +14,7 @@ import {
   recordCashTransfer,
   softDeleteCashCount,
   softDeleteCashTransfer,
-  updateCashCountNote,
+  updateCashCount,
   updateCashTransfer,
 } from "@/core/finance/petty-cash";
 import { CASH_TRANSFER_KIND_CODES } from "@/core/db/vocabulary-seed";
@@ -196,15 +196,41 @@ export async function submitCashSpend(
  * put it right — which is how a drawer ends up with a note in the margin instead of a
  * corrected record.
  */
-export async function editCashCountNote(
+const countEditSchema = z.object({
+  countedTotal: z.coerce.number().int().min(0, "A count cannot be negative.").max(100_000_000),
+  note: z.string().trim().max(500).optional(),
+});
+
+/**
+ * Correcting a count: the figure somebody read off the notes, and the note explaining
+ * it. The expected total is NOT touched — see `updateCashCount`, which re-derives the
+ * variance from that frozen snapshot rather than from today's ledgers.
+ *
+ * Audit-logged with both figures, because this rewrites a money record that was
+ * already signed: "corrected 41,000 → 4,100" is the line somebody needs later, and it
+ * is the kind of change that is invisible afterwards without it.
+ */
+export async function editCashCount(
   id: string,
-  note: string,
+  input: { countedTotal: number; note?: string },
 ): Promise<CashActionState> {
   const guard = await requireCash("create");
   if ("error" in guard) return guard;
-  const ok = await updateCashCountNote(guard.clinicId, id, note.trim().slice(0, 500) || null);
+
+  const parsed = countEditSchema.safeParse(input);
+  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
+
+  const ok = await updateCashCount(guard.clinicId, id, {
+    countedTotal: parsed.data.countedTotal,
+    note: parsed.data.note?.trim() || null,
+  });
   if (!ok) return { error: "That count no longer exists." };
-  await logActivity({ action: "update", entity: "settings", summary: "Edited a petty-cash count note" });
+
+  await logActivity({
+    action: "update",
+    entity: "settings",
+    summary: `Corrected a petty-cash count to Rs ${parsed.data.countedTotal}`,
+  });
   revalidatePath("/clinic/cash");
   return { saved: true };
 }

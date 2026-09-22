@@ -25,6 +25,7 @@ import {
   listDrawerHistory,
   recordCashCount,
   recordCashTransfer,
+  updateCashCount,
 } from "@/core/finance/petty-cash";
 
 let passed = 0;
@@ -164,6 +165,28 @@ async function main() {
       .where(and(eq(cashCounts.clinicId, clinicId), eq(cashCounts.countedTotal, 4000)));
     check("the recorded variance is unchanged", stored.variance, -300);
     check("and so is the expectation it was measured against", stored.expected, 4300);
+
+    console.log("\nCorrecting a miscount re-derives from the FROZEN expectation:");
+    const [toFix] = await db
+      .select({ id: cashCounts.id })
+      .from(cashCounts)
+      .where(and(eq(cashCounts.clinicId, clinicId), eq(cashCounts.countedTotal, 4000)));
+    // Somebody typed 4,000 and meant 4,250. The expectation at that moment was 4,300
+    // and nothing since can change what was true then.
+    await updateCashCount(clinicId, toFix.id, { countedTotal: 4250, note: "miscount, recounted" });
+    const [fixed] = await db
+      .select({
+        counted: cashCounts.countedTotal,
+        expected: cashCounts.expectedTotal,
+        variance: cashCounts.variance,
+      })
+      .from(cashCounts)
+      .where(eq(cashCounts.id, toFix.id));
+    check("the counted figure is corrected", fixed.counted, 4250);
+    check("the expectation is UNTOUCHED", fixed.expected, 4300);
+    check("…and the variance follows from it, not from today", fixed.variance, -50);
+    s = await getDrawerState(clinicId);
+    check("later windows open from the corrected figure", s.openingTotal, 4250);
 
     // The history spans TWO tables, so paging it is the ADR-024 shape: bound each
     // source, merge, cut. The failure that shape exists to prevent is a page that

@@ -9,7 +9,7 @@ import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { toast } from "@/core/ui/toast";
 import { useVocabularyOptions } from "@/core/ui/vocabulary-provider";
 import {
-  editCashCountNote,
+  editCashCount,
   editCashTransfer,
   removeCashCount,
   removeCashTransfer,
@@ -29,30 +29,51 @@ import {
  * somebody can make disappear is a variance nobody has to answer for, so the row
  * survives in Trash with who removed it.
  */
-export function CountRowActions({ id, note }: { id: string; note: string | null }) {
+export function CountRowActions({
+  id,
+  counted,
+  note,
+}: {
+  id: string;
+  counted: number;
+  note: string | null;
+}) {
   const [editing, setEditing] = useState(false);
+  const [amount, setAmount] = useState(String(counted));
   const [value, setValue] = useState(note ?? "");
   const [busy, start] = useTransition();
 
   if (editing) {
     return (
-      <div className="flex items-center gap-2">
-        <Input
-          aria-label="Count note"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          className="h-8 w-56"
-          placeholder="What explains it?"
-        />
+      <div className="flex flex-wrap items-end justify-end gap-2">
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Counted</Label>
+          <Input
+            aria-label="Counted total"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value.replace(/[^d]/g, ""))}
+            className="h-9 w-28"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Note</Label>
+          <Input
+            aria-label="Count note"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className="h-9 w-48"
+            placeholder="What explains it?"
+          />
+        </div>
         <Button
           size="sm"
           disabled={busy}
           onClick={() =>
             start(async () => {
-              const r = await editCashCountNote(id, value);
+              const r = await editCashCount(id, { countedTotal: Number(amount), note: value });
               if (r.error) toast.error(r.error);
               else {
-                toast.success("Note saved.");
+                toast.success("Count corrected.");
                 setEditing(false);
               }
             })
@@ -70,7 +91,7 @@ export function CountRowActions({ id, note }: { id: string; note: string | null 
   return (
     <div className="flex shrink-0 items-center justify-end gap-2">
       <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-        Edit note
+        Edit
       </Button>
       <ConfirmDialog
         triggerLabel="Delete"
