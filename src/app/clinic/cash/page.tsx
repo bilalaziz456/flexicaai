@@ -16,6 +16,10 @@ import { SalesFilters } from "@/core/ui/report-filters";
 import { resolveSalesRange } from "@/core/sales/report";
 import { CountForm, TransferForm } from "./cash-ui";
 import { CountRowActions, MoveRowActions } from "./history-actions";
+import { mayModifyEntry } from "./ownership";
+import Link from "next/link";
+import { buttonVariants } from "@/core/ui/button";
+import { cn } from "@/core/lib/utils";
 
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 const when = (d: Date) =>
@@ -86,6 +90,9 @@ export default async function CashPage({
           kind: "ledger" as const,
           at: e.at,
           what: e.ledger.label,
+          // Where the row actually lives, so a borrowed entry is a signpost rather
+          // than a dead end. The drawer reads these ledgers; it does not own them.
+          href: e.ledger.href,
           amount: `${e.ledger.delta >= 0 ? "+ " : "− "}${rs(Math.abs(e.ledger.delta))}`,
           difference: "",
           tone: "",
@@ -93,6 +100,7 @@ export default async function CashPage({
           note: e.ledger.detail,
           count: null,
           move: null,
+          mine: false,
         }
       : e.kind === "count"
       ? {
@@ -117,8 +125,10 @@ export default async function CashPage({
                   : "text-warning-text",
           by: e.count.countedByName,
           note: e.count.note,
+          href: null,
           count: e.count,
           move: null,
+          mine: mayModifyEntry(user, e.count.countedBy),
         }
       : {
           id: e.move.id,
@@ -131,8 +141,10 @@ export default async function CashPage({
           tone: "",
           by: e.move.createdByName,
           note: e.move.reference ?? e.move.note,
+          href: null,
           count: null,
           move: e.move,
+          mine: mayModifyEntry(user, e.move.createdBy),
         },
   );
 
@@ -333,19 +345,31 @@ export default async function CashPage({
                   <td className="px-3 py-2 text-muted-foreground">{h.note ?? "—"}</td>
                   {canCount ? (
                     <td className="px-3 py-2 text-right">
-                      {h.count ? (
+                      {h.count && h.mine ? (
                         <CountRowActions
                           id={h.count.id}
                           counted={h.count.countedTotal}
                           note={h.count.note}
                         />
-                      ) : h.move ? (
+                      ) : h.move && h.mine ? (
                         <MoveRowActions
                           id={h.move.id}
                           kind={h.move.kind}
                           amount={h.move.amount}
                           reference={h.move.reference}
                         />
+                      ) : h.href ? (
+                        // Not editable HERE, on purpose: a payment is owned by billing
+                        // and an expense by Expenses, each with its own permissions,
+                        // void rules and audit trail. A second way to change the same
+                        // record is the thing this feature exists to avoid — so the row
+                        // points at the screen that does own it.
+                        <Link
+                          href={h.href}
+                          className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+                        >
+                          Open
+                        </Link>
                       ) : null}
                     </td>
                   ) : null}

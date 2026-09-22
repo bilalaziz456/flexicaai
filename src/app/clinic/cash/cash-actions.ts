@@ -18,6 +18,7 @@ import {
   updateCashTransfer,
 } from "@/core/finance/petty-cash";
 import { CASH_TRANSFER_KIND_CODES } from "@/core/db/vocabulary-seed";
+import { NOT_YOURS } from "./ownership";
 import { createExpense } from "@/core/expenses";
 import { revalidateFinance } from "@/app/clinic/finance-revalidate";
 
@@ -223,8 +224,9 @@ export async function editCashCount(
   const ok = await updateCashCount(guard.clinicId, id, {
     countedTotal: parsed.data.countedTotal,
     note: parsed.data.note?.trim() || null,
+    onlyOwnedBy: guard.user.role === "clinic_admin" ? undefined : guard.user.id,
   });
-  if (!ok) return { error: "That count no longer exists." };
+  if (!ok) return { error: NOT_YOURS };
 
   await logActivity({
     action: "update",
@@ -238,8 +240,11 @@ export async function editCashCount(
 export async function removeCashCount(id: string): Promise<CashActionState> {
   const guard = await requireCash("create");
   if ("error" in guard) return guard;
-  const ok = await softDeleteCashCount(guard.clinicId, id, { id: guard.user.id });
-  if (!ok) return { error: "That count no longer exists." };
+  const ok = await softDeleteCashCount(guard.clinicId, id, {
+    id: guard.user.id,
+    onlyOwnedBy: guard.user.role === "clinic_admin" ? undefined : guard.user.id,
+  });
+  if (!ok) return { error: NOT_YOURS };
   await logActivity({ action: "delete", entity: "settings", summary: "Deleted a petty-cash count" });
   revalidatePath("/clinic/cash");
   return { saved: true };
@@ -264,8 +269,9 @@ export async function editCashTransfer(
     amount: parsed.data.amount,
     reference: parsed.data.reference ?? null,
     note: null,
+    onlyOwnedBy: guard.user.role === "clinic_admin" ? undefined : guard.user.id,
   });
-  if (!ok) return { error: "That entry no longer exists." };
+  if (!ok) return { error: NOT_YOURS };
   await logActivity({ action: "update", entity: "settings", summary: "Edited a petty-cash move" });
   revalidatePath("/clinic/cash");
   return { saved: true };
@@ -274,8 +280,11 @@ export async function editCashTransfer(
 export async function removeCashTransfer(id: string): Promise<CashActionState> {
   const guard = await requireCash("create");
   if ("error" in guard) return guard;
-  const ok = await softDeleteCashTransfer(guard.clinicId, id, { id: guard.user.id });
-  if (!ok) return { error: "That entry no longer exists." };
+  const ok = await softDeleteCashTransfer(guard.clinicId, id, {
+    id: guard.user.id,
+    onlyOwnedBy: guard.user.role === "clinic_admin" ? undefined : guard.user.id,
+  });
+  if (!ok) return { error: NOT_YOURS };
   await logActivity({ action: "delete", entity: "settings", summary: "Deleted a petty-cash move" });
   revalidatePath("/clinic/cash");
   return { saved: true };

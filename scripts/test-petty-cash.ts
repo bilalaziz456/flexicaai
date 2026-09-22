@@ -25,8 +25,11 @@ import {
   listDrawerHistory,
   recordCashCount,
   recordCashTransfer,
+  softDeleteCashCount,
   updateCashCount,
 } from "@/core/finance/petty-cash";
+import { mayModifyEntry } from "@/app/clinic/cash/ownership";
+import type { CurrentUser } from "@/core/types/auth";
 
 let passed = 0;
 let failed = 0;
@@ -181,12 +184,48 @@ async function main() {
         variance: cashCounts.variance,
       })
       .from(cashCounts)
-      .where(eq(cashCounts.id, toFix.id));
+      .where(and(eq(cashCounts.clinicId, clinicId), eq(cashCounts.id, toFix.id)));
     check("the counted figure is corrected", fixed.counted, 4250);
     check("the expectation is UNTOUCHED", fixed.expected, 4300);
     check("…and the variance follows from it, not from today", fixed.variance, -50);
     s = await getDrawerState(clinicId);
     check("later windows open from the corrected figure", s.openingTotal, 4250);
+
+    console.log("\nOnly your own entry — enforced in the WHERE clause, not the UI:");
+    const ASMA = "00000000-0000-0000-0000-0000000000aa";
+    const [mine] = await db
+      .select({ id: cashCounts.id })
+      .from(cashCounts)
+      .where(and(eq(cashCounts.clinicId, clinicId), eq(cashCounts.countedTotal, 4250)));
+
+    // The counts were recorded by BY, not by Asma, so hers is not this row.
+    const refused = await updateCashCount(clinicId, mine.id, {
+      countedTotal: 1,
+      onlyOwnedBy: ASMA,
+    });
+    check("a colleague's edit is refused", refused, false);
+    const [untouched] = await db
+      .select({ counted: cashCounts.countedTotal })
+      .from(cashCounts)
+      .where(and(eq(cashCounts.clinicId, clinicId), eq(cashCounts.id, mine.id)));
+    check("…and the figure is untouched", untouched.counted, 4250);
+
+    const allowed = await updateCashCount(clinicId, mine.id, {
+      countedTotal: 4250,
+      onlyOwnedBy: BY.id,
+    });
+    check("the person who recorded it may edit it", allowed, true);
+
+    const deleteRefused = await softDeleteCashCount(clinicId, mine.id, { id: ASMA, onlyOwnedBy: ASMA });
+    check("and deleting somebody else's is refused too", deleteRefused, false);
+
+    // The predicate the page and the actions share.
+    const asAdmin = { id: ASMA, role: "clinic_admin" } as unknown as CurrentUser;
+    const asDesk = { id: ASMA, role: "receptionist" } as unknown as CurrentUser;
+    check("a clinic admin may modify anybody's", mayModifyEntry(asAdmin, BY.id), true);
+    check("the front desk may not", mayModifyEntry(asDesk, BY.id), false);
+    check("…but may modify their own", mayModifyEntry(asDesk, ASMA), true);
+    check("an entry with no recorded owner is nobody's to edit", mayModifyEntry(asDesk, null), false);
 
     // The history spans TWO tables, so paging it is the ADR-024 shape: bound each
     // source, merge, cut. The failure that shape exists to prevent is a page that

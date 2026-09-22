@@ -462,12 +462,15 @@ export async function listRecentTransfers(
 export async function updateCashCount(
   clinicId: string,
   id: string,
-  input: { countedTotal?: number; note?: string | null },
+  input: { countedTotal?: number; note?: string | null; onlyOwnedBy?: string },
 ): Promise<boolean> {
+  const owned = input.onlyOwnedBy ? eq(cashCounts.countedBy, input.onlyOwnedBy) : undefined;
   const [current] = await db
     .select({ expected: cashCounts.expectedTotal, counted: cashCounts.countedTotal })
     .from(cashCounts)
-    .where(byClinic(cashCounts.clinicId, clinicId, and(eq(cashCounts.id, id), notDeleted(cashCounts.deletedAt))));
+    .where(
+      byClinic(cashCounts.clinicId, clinicId, and(eq(cashCounts.id, id), notDeleted(cashCounts.deletedAt), owned)),
+    );
   if (!current) return false;
 
   const countedTotal = input.countedTotal ?? current.counted;
@@ -481,7 +484,9 @@ export async function updateCashCount(
       variance: current.expected === null ? null : countedTotal - current.expected,
       ...(input.note !== undefined ? { note: input.note } : {}),
     })
-    .where(byClinic(cashCounts.clinicId, clinicId, and(eq(cashCounts.id, id), notDeleted(cashCounts.deletedAt))))
+    .where(
+      byClinic(cashCounts.clinicId, clinicId, and(eq(cashCounts.id, id), notDeleted(cashCounts.deletedAt), owned)),
+    )
     .returning({ id: cashCounts.id });
   return Boolean(row);
 }
@@ -489,12 +494,15 @@ export async function updateCashCount(
 export async function softDeleteCashCount(
   clinicId: string,
   id: string,
-  by: { id: string },
+  by: { id: string; onlyOwnedBy?: string },
 ): Promise<boolean> {
+  const owned = by.onlyOwnedBy ? eq(cashCounts.countedBy, by.onlyOwnedBy) : undefined;
   const [row] = await db
     .update(cashCounts)
     .set({ deletedAt: new Date(), deletedBy: by.id })
-    .where(byClinic(cashCounts.clinicId, clinicId, and(eq(cashCounts.id, id), notDeleted(cashCounts.deletedAt))))
+    .where(
+      byClinic(cashCounts.clinicId, clinicId, and(eq(cashCounts.id, id), notDeleted(cashCounts.deletedAt), owned)),
+    )
     .returning({ id: cashCounts.id });
   return Boolean(row);
 }
@@ -504,8 +512,15 @@ export async function softDeleteCashCount(
 export async function updateCashTransfer(
   clinicId: string,
   id: string,
-  input: { kind: "bank_deposit" | "owner_draw" | "float_topup"; amount: number; reference: string | null; note: string | null },
+  input: {
+    kind: "bank_deposit" | "owner_draw" | "float_topup";
+    amount: number;
+    reference: string | null;
+    note: string | null;
+    onlyOwnedBy?: string;
+  },
 ): Promise<boolean> {
+  const owned = input.onlyOwnedBy ? eq(cashTransfers.createdBy, input.onlyOwnedBy) : undefined;
   const [row] = await db
     .update(cashTransfers)
     .set({ kind: input.kind, amount: input.amount, reference: input.reference, note: input.note })
@@ -513,7 +528,7 @@ export async function updateCashTransfer(
       byClinic(
         cashTransfers.clinicId,
         clinicId,
-        and(eq(cashTransfers.id, id), notDeleted(cashTransfers.deletedAt)),
+        and(eq(cashTransfers.id, id), notDeleted(cashTransfers.deletedAt), owned),
       ),
     )
     .returning({ id: cashTransfers.id });
@@ -523,8 +538,9 @@ export async function updateCashTransfer(
 export async function softDeleteCashTransfer(
   clinicId: string,
   id: string,
-  by: { id: string },
+  by: { id: string; onlyOwnedBy?: string },
 ): Promise<boolean> {
+  const owned = by.onlyOwnedBy ? eq(cashTransfers.createdBy, by.onlyOwnedBy) : undefined;
   const [row] = await db
     .update(cashTransfers)
     .set({ deletedAt: new Date(), deletedBy: by.id })
@@ -532,7 +548,7 @@ export async function softDeleteCashTransfer(
       byClinic(
         cashTransfers.clinicId,
         clinicId,
-        and(eq(cashTransfers.id, id), notDeleted(cashTransfers.deletedAt)),
+        and(eq(cashTransfers.id, id), notDeleted(cashTransfers.deletedAt), owned),
       ),
     )
     .returning({ id: cashTransfers.id });
@@ -547,6 +563,9 @@ export type DrawerLedgerEntry = {
   label: string;
   detail: string | null;
   by: string | null;
+  /** The screen that OWNS this row, so the drawer can point at it instead of
+   *  pretending to be the place it is edited. */
+  href: string;
 };
 
 export type DrawerEntry =
@@ -719,6 +738,7 @@ async function cashLedgerRows(
       label: r.kind === "refund" ? "Refunded" : "Cash taken",
       detail: r.note,
       by: r.by,
+      href: "/clinic/payments",
     })),
     ...spends.map((r) => ({
       id: r.id,
@@ -727,6 +747,7 @@ async function cashLedgerRows(
       label: "Paid out",
       detail: r.note ?? r.vendor,
       by: r.by,
+      href: "/clinic/expenses",
     })),
     ...payouts.map((r) => ({
       id: r.id,
@@ -735,6 +756,7 @@ async function cashLedgerRows(
       label: "Paid to doctor",
       detail: r.doctor,
       by: r.by,
+      href: "/clinic/shares",
     })),
   ];
 }
