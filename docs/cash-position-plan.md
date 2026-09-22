@@ -4,10 +4,13 @@
 > proposed approach, and the open questions so we can decide scope before writing code.
 > Owner raised it while discussing clinic financial-data onboarding (2026-07-29).
 >
-> **Sibling: `docs/petty-cash-plan.md`** — "does the box match?", raised 2026-09-22.
-> Different question (a reconciliation, not a stock) and **neither blocks the other**:
-> petty cash seeds its own opening float from its first count, so it does not wait on
-> Phase 1 here. If both are built, the drawer becomes one account of Phase 2.
+> **Sibling: `docs/petty-cash-plan.md`** — "does the box match?", raised 2026-09-22 and
+> **BUILT 2026-09-23** (ADR-034). Different question (a reconciliation, not a stock) and
+> neither blocked the other: petty cash seeds its own opening float from its first count,
+> so it did not wait on Phase 1 here. **The drawer is now a real account waiting for a
+> Phase 2 that does not exist** — its counted total is the one true cash balance in the
+> system, so if this plan is ever built, read it rather than asking anyone to type the
+> figure a second time.
 
 ---
 

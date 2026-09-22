@@ -1,9 +1,17 @@
 # Petty Cash — "does the money in the box match the system?"
 
-> **Status: DISCUSSION DRAFT.** Nothing built yet. Owner raised it 2026-09-22 and
-> chose the shape: **one shared drawer per clinic, counted at shift handover.**
+> **Status: BUILT 2026-09-23.** Owner raised it 2026-09-22 and chose the shape: **one
+> shared drawer per clinic, counted at shift handover.** Shipped as `/clinic/cash`,
+> `core/finance/petty-cash.ts`, migrations `0109`–`0113`, `scripts/test-petty-cash.ts`.
+>
+> **This file is now a plan that was FOLLOWED, not a live contract** — the code wins,
+> then `.claude/architecture.md` (ADR-034) and `.claude/database.md`. It is kept for the
+> reasoning: why a reconciliation rather than a second ledger, why the float carries
+> forward from the COUNT, and the open questions in §8 that are still open. Where the
+> build departed from the plan it is marked inline (see §5).
+>
 > Sibling of `docs/cash-position-plan.md` (money in the BANK); read that too — §7
-> explains how the two relate and why neither blocks the other.
+> explains how the two relate and why neither blocked the other.
 
 ---
 
