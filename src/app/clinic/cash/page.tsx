@@ -50,6 +50,48 @@ export default async function CashPage() {
   const m = drawer.movement;
   const untendered = m.untendered.expenses + m.untendered.payouts + m.untendered.payments;
 
+  // Counts and moves as ONE chronology. They are different rows in the database for
+  // good reasons — a count is a reconciliation, a move is money going somewhere — but
+  // to a person reading the drawer they are the same question in time order: what
+  // happened to this box, and when.
+  const history = [
+    ...counts.map((c) => ({
+      id: c.id,
+      kind: "count" as const,
+      at: c.countedAt,
+      what: "Counted",
+      amount: rs(c.countedTotal),
+      difference:
+        c.variance === null
+          ? "opening float"
+          : c.variance === 0
+            ? "balanced"
+            : `${c.variance > 0 ? "+" : "−"}${rs(Math.abs(c.variance))}`,
+      tone:
+        c.variance === null
+          ? "text-muted-foreground"
+          : c.variance === 0
+            ? "text-success-text"
+            : c.variance < 0
+              ? "text-destructive"
+              : "text-warning-text",
+      by: c.countedByName,
+      note: c.note,
+    })),
+    ...transfers.map((t) => ({
+      id: t.id,
+      kind: "move" as const,
+      at: t.occurredAt,
+      // The label is the database's, not this file's (ADR-027).
+      what: vocabularyLabel("cash_transfer_kinds", t.kind),
+      amount: `${t.kind === "float_topup" ? "+ " : "− "}${rs(t.amount)}`,
+      difference: "",
+      tone: "",
+      by: t.createdByName,
+      note: t.reference ?? t.note,
+    })),
+  ].sort((a, b) => b.at.getTime() - a.at.getTime());
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -171,90 +213,50 @@ export default async function CashPage() {
         ) : null}
       </div>
 
-      <TableCard title={`${counts.length} ${counts.length === 1 ? "count" : "counts"}`}>
-        {counts.length === 0 ? (
+      {/* ONE history, in time order.
+          It was two tables — counts in one, transfers in the other — which split a
+          single story by row TYPE. They interleave in time (a float top-up, a draw,
+          then the count that closes the period), so the sequence, which is the only
+          thing that explains a figure, was the one thing you could not see. A cash
+          book is a chronology; this is that. */}
+      <TableCard title="Drawer history">
+        {history.length === 0 ? (
           <EmptyState
             compact
             icon={Scale}
-            title="No counts yet"
-            description="Each handover count is kept here with what it expected, what was found, and who counted."
+            title="Nothing recorded yet"
+            description="Counts and cash moves both land here, newest first, so the drawer reads as one story."
           />
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-3 py-2 text-left font-medium">Counted</th>
-                <th className="px-3 py-2 text-right font-medium">Expected</th>
-                <th className="px-3 py-2 text-right font-medium">Found</th>
-                <th className="px-3 py-2 text-right font-medium">Difference</th>
-                <th className="px-3 py-2 text-left font-medium">By</th>
-                <th className="px-3 py-2 text-left font-medium">Note</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/60">
-              {counts.map((c) => (
-                <tr key={c.id}>
-                  <td className="px-3 py-2 whitespace-nowrap">{when(c.countedAt)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                    {c.expectedTotal === null ? "—" : rs(c.expectedTotal)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{rs(c.countedTotal)}</td>
-                  <td
-                    className={`px-3 py-2 text-right tabular-nums ${
-                      c.variance === null
-                        ? "text-muted-foreground"
-                        : c.variance === 0
-                          ? "text-success-text"
-                          : c.variance < 0
-                            ? "text-destructive"
-                            : "text-warning-text"
-                    }`}
-                  >
-                    {c.variance === null
-                      ? "opening float"
-                      : c.variance === 0
-                        ? "balanced"
-                        : `${c.variance > 0 ? "+" : "−"}${rs(Math.abs(c.variance))}`}
-                  </td>
-                  <td className="px-3 py-2">{c.countedByName ?? "—"}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{c.note ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </TableCard>
-
-      {transfers.length > 0 ? (
-        <TableCard title="Recent cash moves">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="px-3 py-2 text-left font-medium">When</th>
                 <th className="px-3 py-2 text-left font-medium">What</th>
                 <th className="px-3 py-2 text-right font-medium">Amount</th>
-                <th className="px-3 py-2 text-left font-medium">Reference</th>
+                <th className="px-3 py-2 text-right font-medium">Difference</th>
                 <th className="px-3 py-2 text-left font-medium">By</th>
+                <th className="px-3 py-2 text-left font-medium">Note</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
-              {transfers.map((t) => (
-                <tr key={t.id}>
-                  <td className="px-3 py-2 whitespace-nowrap">{when(t.occurredAt)}</td>
-                  {/* The label is the database's, not this file's (ADR-027). */}
-                  <td className="px-3 py-2">{vocabularyLabel("cash_transfer_kinds", t.kind)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {t.kind === "float_topup" ? "+ " : "− "}
-                    {rs(t.amount)}
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">{t.reference ?? "—"}</td>
-                  <td className="px-3 py-2">{t.createdByName ?? "—"}</td>
+              {history.map((h) => (
+                <tr key={h.id} className={h.kind === "count" ? "bg-surface-sunken/60" : ""}>
+                  <td className="px-3 py-2 whitespace-nowrap">{when(h.at)}</td>
+                  {/* A count is the event that closes a period, so it is named as the
+                      action it is and given a tint — the moves between two counts
+                      belong to the count above them. */}
+                  <td className={`px-3 py-2 ${h.kind === "count" ? "font-medium" : ""}`}>{h.what}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{h.amount}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${h.tone}`}>{h.difference}</td>
+                  <td className="px-3 py-2">{h.by ?? "—"}</td>
+                  <td className="px-3 py-2 text-muted-foreground">{h.note ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </TableCard>
-      ) : null}
+        )}
+      </TableCard>
     </div>
   );
 }
