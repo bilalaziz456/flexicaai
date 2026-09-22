@@ -42,7 +42,7 @@ export function Tooltip({
         <TooltipPrimitive.Positioner side={side} sideOffset={6} className="z-[120]">
           <TooltipPrimitive.Popup
             className={cn(
-              "max-w-[16rem] rounded-lg border border-border/60 bg-elevated px-2.5 py-1.5 text-xs text-foreground elev-3",
+              "max-w-[16rem] rounded-lg border border-border/60 bg-popover px-2.5 py-1.5 text-xs text-popover-foreground elev-3",
               "origin-[var(--transform-origin)] transition-[opacity,transform] duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
               className,
             )}
