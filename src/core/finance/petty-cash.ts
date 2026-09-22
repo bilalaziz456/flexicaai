@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, gt, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { cashTransferKindId, paymentKindId } from "@/core/db/vocabulary-seed";
@@ -377,24 +377,58 @@ export async function recordCashTransfer(
   return { id: row.id };
 }
 
-/** The handover history, newest first. */
-export async function listCashCounts(clinicId: string, limit = 30) {
+/**
+ * The handover history, newest first, optionally bounded by a date range.
+ *
+ * The range filters the HISTORY ONLY. It must never reach `getDrawerState`: what
+ * should be in the drawer is a fact about right now, reckoned from the newest count
+ * whenever that was, and letting a filter move it would produce a figure that is
+ * confidently wrong — "expected Rs 4,300 in September" means nothing about the box on
+ * the desk.
+ */
+export async function listCashCounts(
+  clinicId: string,
+  opts: { from?: Date; to?: Date; limit?: number } = {},
+) {
   return db
     .select()
     .from(cashCounts)
-    .where(byClinic(cashCounts.clinicId, clinicId, notDeleted(cashCounts.deletedAt)))
+    .where(
+      byClinic(
+        cashCounts.clinicId,
+        clinicId,
+        and(
+          notDeleted(cashCounts.deletedAt),
+          opts.from ? gte(cashCounts.countedAt, opts.from) : undefined,
+          opts.to ? lt(cashCounts.countedAt, opts.to) : undefined,
+        ),
+      ),
+    )
     .orderBy(desc(cashCounts.countedAt))
-    .limit(limit);
+    .limit(opts.limit ?? 50);
 }
 
-/** Transfers since the last count, to list beside the drawer figure. */
-export async function listRecentTransfers(clinicId: string, limit = 20) {
+/** Cash moves, same range treatment as the counts they sit beside. */
+export async function listRecentTransfers(
+  clinicId: string,
+  opts: { from?: Date; to?: Date; limit?: number } = {},
+) {
   return db
     .select()
     .from(cashTransfers)
-    .where(byClinic(cashTransfers.clinicId, clinicId, notDeleted(cashTransfers.deletedAt)))
+    .where(
+      byClinic(
+        cashTransfers.clinicId,
+        clinicId,
+        and(
+          notDeleted(cashTransfers.deletedAt),
+          opts.from ? gte(cashTransfers.occurredAt, opts.from) : undefined,
+          opts.to ? lt(cashTransfers.occurredAt, opts.to) : undefined,
+        ),
+      ),
+    )
     .orderBy(desc(cashTransfers.occurredAt))
-    .limit(limit);
+    .limit(opts.limit ?? 50);
 }
 
 /**

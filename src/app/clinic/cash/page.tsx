@@ -14,6 +14,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/cor
 import { TableCard } from "@/core/ui/table-card";
 import { EmptyState } from "@/core/ui/empty-state";
 import { PageHeader } from "@/core/ui/page-header";
+import { SalesFilters } from "@/core/ui/report-filters";
+import { resolveSalesRange } from "@/core/sales/report";
 import { CountForm, TransferForm } from "./cash-ui";
 import { CountRowActions, MoveRowActions } from "./history-actions";
 
@@ -34,7 +36,11 @@ const when = (d: Date) =>
  * `core/finance/petty-cash.ts` and docs/petty-cash-plan.md). Gated by the `finance`
  * feature ∩ the `cash` permission.
  */
-export default async function CashPage() {
+export default async function CashPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
+}) {
   const user = await requireWorkspace("cash");
   const { clinicId } = user;
 
@@ -42,10 +48,18 @@ export default async function CashPage() {
   if (!clinicHasFeature(clinic?.featuresEnabled, "finance")) notFound();
 
   const canCount = can(user, "cash", "create");
+
+  // The range bounds the HISTORY ONLY — never `getDrawerState`. What should be in the
+  // drawer is a fact about right now, reckoned from the newest count whenever that
+  // was; filtering it would print a confident figure that answers no question anyone
+  // has ("expected Rs 4,300 in September" says nothing about the box on the desk).
+  const sp = await searchParams;
+  const range = resolveSalesRange(sp.period ?? "quarter", sp.from, sp.to, clinic?.createdAt);
+
   const [drawer, counts, transfers] = await Promise.all([
     getDrawerState(clinicId),
-    listCashCounts(clinicId),
-    listRecentTransfers(clinicId, 10),
+    listCashCounts(clinicId, { from: range.start, to: range.end }),
+    listRecentTransfers(clinicId, { from: range.start, to: range.end }),
   ]);
 
   const m = drawer.movement;
@@ -237,7 +251,18 @@ export default async function CashPage() {
           then the count that closes the period), so the sequence, which is the only
           thing that explains a figure, was the one thing you could not see. A cash
           book is a chronology; this is that. */}
-      <TableCard title="Drawer history">
+      {/* The filter sits WITH the history, not at the top of the page, so what it
+          bounds is unambiguous: the card above is "right now" and does not move. */}
+      <div className="space-y-3">
+        <SalesFilters
+          period={range.period}
+          from={range.from}
+          to={range.to}
+          doctorId=""
+          doctors={[]}
+          showDoctor={false}
+        />
+        <TableCard title="Drawer history">
         {history.length === 0 ? (
           <EmptyState
             compact
@@ -289,7 +314,8 @@ export default async function CashPage() {
             </tbody>
           </table>
         )}
-      </TableCard>
+        </TableCard>
+      </div>
     </div>
   );
 }

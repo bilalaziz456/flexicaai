@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
@@ -69,14 +68,14 @@ export function CountRowActions({ id, note }: { id: string; note: string | null 
   }
 
   return (
-    <div className="flex items-center justify-end gap-1">
-      <Button size="sm" variant="ghost" onClick={() => setEditing(true)} title="Edit the note">
-        <Pencil className="size-3.5" aria-hidden="true" /> Edit note
+    <div className="flex shrink-0 items-center justify-end gap-2">
+      <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+        Edit note
       </Button>
       <ConfirmDialog
         triggerLabel="Delete"
-        triggerIcon={<Trash2 className="size-3.5" aria-hidden="true" />}
         triggerVariant="ghost"
+        triggerClassName="text-destructive hover:text-destructive"
         title="Delete this count?"
         description="The drawer will re-base on the previous count instead, so every figure after it changes. The record stays in Trash."
         confirmLabel="Delete count"
@@ -153,14 +152,14 @@ export function MoveRowActions({
   }
 
   return (
-    <div className="flex items-center justify-end gap-1">
-      <Button size="sm" variant="ghost" onClick={() => setEditing(true)} title="Edit this entry">
-        <Pencil className="size-3.5" aria-hidden="true" /> Edit
+    <div className="flex shrink-0 items-center justify-end gap-2">
+      <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+        Edit
       </Button>
       <ConfirmDialog
         triggerLabel="Delete"
-        triggerIcon={<Trash2 className="size-3.5" aria-hidden="true" />}
         triggerVariant="ghost"
+        triggerClassName="text-destructive hover:text-destructive"
         title="Delete this entry?"
         description="The drawer figure will change by this amount. The record stays in Trash."
         confirmLabel="Delete entry"
