@@ -125,7 +125,22 @@ every cash payment, refund, expense and payout — it computes its own sums and 
 read the list. Removing the rows from the sum as well would have shown a false
 shortfall at every handover.
 
-So the working is now the only explanation of the figure, which raises what it owes: a
+**One exception, and it proves the rule rather than bending it: a "Paid for something"
+typed at the drawer IS this page's own record**, so it is listed and editable here
+(added the same day). Nothing distinguished it from any other cash expense, so
+`expenses.from_drawer` (migration `0112`) says where a row was typed — and only that.
+The expense is otherwise completely ordinary: in the P&L, in Expenses, in every report,
+none of which know the column exists. An expense typed on the Expenses screen is still
+not listed here, in cash or not, today or not.
+
+The drawer's edit of one is narrow in three ways, all in the WHERE clause: only
+`from_drawer` rows, only amount and note (reusing `updateExpense` would blank the
+category and vendor this form never shows — a form may only write what it displays),
+and only your own unless you are the clinic admin. It needs the `expenses` grant on top
+of `cash`, because being able to record a shortfall is not authority to change a cost.
+
+So the working is now the only explanation of the figure for everything else, which
+raises what it owes: a
 named line per kind with its reasons underneath ("Paid out in cash − Rs 2,500 · gloves
 · courier"). That is the aggregate answer where the rows were the itemised one, and it
 is why `reasons` exists on `CashMovement`. If an aggregate line ever proves too coarse

@@ -577,6 +577,14 @@ export const expenses = pgTable(
       () => recurrences.id,
     ),
     nextRunOn: date("next_run_on"),
+    // Recorded at the petty-cash drawer ("Paid for something") rather than on the
+    // Expenses screen. It changes NOTHING about what the row means — it is an
+    // ordinary cash expense, in the P&L like any other, and every expense report
+    // reads it without knowing this column exists. It exists so the drawer can list
+    // its OWN records: the drawer history shows what was recorded there, and an
+    // expense typed at the drawer is one of those while an expense typed in Expenses
+    // is not (owner's call, 2026-09-23). There is no other way to tell them apart.
+    fromDrawer: boolean("from_drawer").notNull().default(false),
     createdBy: uuid("created_by"),
     createdByName: text("created_by_name"),
     ...softDeleteColumns(),

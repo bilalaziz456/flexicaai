@@ -785,6 +785,13 @@
       "when": 1790107702448,
       "tag": "0111_cash_added_label",
       "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1790109881883,
+      "tag": "0112_expense_from_drawer",
+      "breakpoints": true
     }
   ]
 }

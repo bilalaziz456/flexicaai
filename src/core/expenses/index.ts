@@ -163,6 +163,11 @@ export type ExpenseInput = {
   note: string | null;
   recurring: boolean;
   recurrence?: RecurrenceCode | null; // 'monthly' | 'weekly' — only meaningful when recurring
+  /** Recorded at the petty-cash drawer rather than on this screen. Display only —
+   *  it changes nothing about the expense. Never set on the Expenses form, and
+   *  deliberately absent from `updateExpense`: where a row was first typed is a fact
+   *  about the past and editing it later must not rewrite that. */
+  fromDrawer?: boolean;
 };
 
 /**
@@ -196,6 +201,7 @@ export async function createExpense(
       recurring: input.recurring,
       recurrence: rec.recurrence,
       nextRunOn: rec.nextRunOn,
+      fromDrawer: input.fromDrawer ?? false,
       createdBy: actor.id,
       createdByName: actor.name,
     })

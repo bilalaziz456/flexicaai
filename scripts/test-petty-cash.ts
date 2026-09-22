@@ -26,7 +26,10 @@ import {
   recordCashCount,
   recordCashTransfer,
   softDeleteCashCount,
+  softDeleteDrawerSpend,
   updateCashCount,
+  updateDrawerSpend,
+  type DrawerEntry,
 } from "@/core/finance/petty-cash";
 import { mayModifyEntry } from "@/app/clinic/cash/ownership";
 import type { CurrentUser } from "@/core/types/auth";
@@ -41,6 +44,12 @@ function check(name: string, got: unknown, want: unknown) {
 }
 
 const BY = { id: "00000000-0000-0000-0000-000000000001", name: "Test Counter" };
+
+/** One id per history row, whatever kind it is — so the paging assertions below do not
+ *  have to know the union's shape. */
+function entryId(r: DrawerEntry): string {
+  return r.kind === "count" ? r.count.id : r.kind === "move" ? r.move.id : r.spend.id;
+}
 
 /** Local YYYY-MM-DD, matching what the app writes — `toISOString()` gives the UTC
  *  date, which is the PREVIOUS day here in PKT for most of the evening. */
@@ -242,6 +251,67 @@ async function main() {
     check("both counts are there", byKind("count"), 2);
     check("both moves are there", byKind("move"), 2);
     check("…and nothing borrowed from another ledger", all.rows.length, 4);
+
+    // A "Paid for something" typed HERE is this page's own record, so it is listed —
+    // while the cash expenses seeded above, which stand for ones typed in Expenses,
+    // are not. `from_drawer` is the only thing separating them, and getting it
+    // backwards would either hide the entry somebody just made or drag the whole
+    // expense ledger back onto the page.
+    console.log("\nA spend recorded AT the drawer is its own record:");
+    const [ownSpend] = await db
+      .insert(expenses)
+      .values({
+        clinicId,
+        amount: 250,
+        incurredOn: localDate(),
+        method: "cash",
+        note: "gloves",
+        fromDrawer: true,
+        createdBy: BY.id,
+        createdByName: BY.name,
+      })
+      .returning({ id: expenses.id });
+    const withSpend = await listDrawerHistory(clinicId, { limit: 100 });
+    const spendRows = withSpend.rows.filter((r) => r.kind === "spend");
+    check("it appears in the history", spendRows.length, 1);
+    check("…with its amount", spendRows[0]?.kind === "spend" ? spendRows[0].spend.amount : 0, 250);
+    check("…and what it was for", spendRows[0]?.kind === "spend" ? spendRows[0].spend.what : null, "gloves");
+    check("…and the total counts it", withSpend.total, all.total + 1);
+    // The other cash expenses in this clinic were NOT typed here and stay out.
+    check("an expense typed in Expenses is still not listed", withSpend.rows.length, 5);
+
+    console.log("\nThe drawer's edit is narrow, and it is narrow in the WHERE clause:");
+    const notMine = await updateDrawerSpend(clinicId, ownSpend.id, {
+      amount: 400,
+      what: "hijack",
+      onlyOwnedBy: "00000000-0000-0000-0000-0000000000ff",
+    });
+    check("somebody else's spend is refused", notMine, false);
+    check("the owner may correct it", await updateDrawerSpend(clinicId, ownSpend.id, { amount: 300, what: "gloves x2", onlyOwnedBy: BY.id }), true);
+    // The point of a narrow UPDATE: the fields Expenses owns and this form never shows
+    // must survive being edited from here.
+    const [after] = await db
+      .select({ amount: expenses.amount, note: expenses.note, method: expenses.method, incurredOn: expenses.incurredOn })
+      .from(expenses)
+      .where(and(eq(expenses.clinicId, clinicId), eq(expenses.id, ownSpend.id)));
+    check("the amount changed", after.amount, 300);
+    check("…and the method it was paid by did NOT get blanked", after.method, "cash");
+    check("…nor the date it was incurred", after.incurredOn, localDate());
+
+    // The same narrowing on delete: an ordinary expense is not this page's to remove.
+    const [foreign] = await db
+      .select({ id: expenses.id })
+      .from(expenses)
+      .where(and(eq(expenses.clinicId, clinicId), eq(expenses.fromDrawer, false), eq(expenses.amount, 500)));
+    check(
+      "an expense typed elsewhere cannot be deleted from here",
+      await softDeleteDrawerSpend(clinicId, foreign.id, BY.id),
+      false,
+    );
+    check("…but one typed here can", await softDeleteDrawerSpend(clinicId, ownSpend.id, BY.id, { onlyOwnedBy: BY.id }), true);
+    const afterDelete = await listDrawerHistory(clinicId, { limit: 100 });
+    check("and it leaves the history", afterDelete.rows.filter((r) => r.kind === "spend").length, 0);
+    check("…and the total with it", afterDelete.total, all.total);
     // THE HALF THAT MATTERS MORE. Hiding those rows must not take them out of the
     // FIGURE: the patients' cash is physically in the same box, so a drawer that
     // stopped counting it would show a false shortfall at every handover. The list is
@@ -262,9 +332,9 @@ async function main() {
     const seen: string[] = [];
     for (let offset = 0; offset < all.total; offset += 2) {
       const pageRows = await listDrawerHistory(clinicId, { offset, limit: 2 });
-      for (const r of pageRows.rows) seen.push(r.kind === "count" ? r.count.id : r.move.id);
+      for (const r of pageRows.rows) seen.push(entryId(r));
     }
-    const expectedIds = all.rows.map((r) => (r.kind === "count" ? r.count.id : r.move.id));
+    const expectedIds = all.rows.map((r) => (entryId(r)));
     check("paging visits every row", seen.length, expectedIds.length);
     check("…exactly once, in the same order", seen.join(","), expectedIds.join(","));
     check("no row appears twice", new Set(seen).size, seen.length);

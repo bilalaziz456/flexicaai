@@ -3,6 +3,10 @@ import "server-only";
 import { and, count, desc, eq, gt, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
+// A spend deleted from the drawer must land in Trash exactly as one deleted from the
+// Expenses screen does — same columns, same delete group — or the same record would
+// restore differently depending on which page removed it.
+import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import { cashTransferKindId, paymentKindId } from "@/core/db/vocabulary-seed";
 import {
   cashCounts,
@@ -571,9 +575,21 @@ export async function softDeleteCashTransfer(
  * reasons underneath ("Paid out in cash − Rs 2,500 · gloves · courier"), which is the
  * aggregate answer rather than the itemised one.
  */
+/** A "Paid for something" recorded AT the drawer. Stored as an ordinary expense —
+ *  this is the subset of `expenses` that was typed here. */
+export type DrawerSpend = {
+  id: string;
+  at: Date;
+  amount: number;
+  what: string | null;
+  by: string | null;
+  byId: string | null;
+};
+
 export type DrawerEntry =
   | { kind: "count"; at: Date; count: CashCount }
-  | { kind: "move"; at: Date; move: CashTransfer };
+  | { kind: "move"; at: Date; move: CashTransfer }
+  | { kind: "spend"; at: Date; spend: DrawerSpend };
 
 /**
  * The drawer history as ONE paged chronology across two tables.
@@ -604,9 +620,10 @@ export async function listDrawerHistory(
       opts.to ? lt(col as never, opts.to as never) : undefined,
     );
 
-  const [counts, moves, countTotal, moveTotal] = await Promise.all([
+  const [counts, moves, spends, countTotal, moveTotal, spendTotal] = await Promise.all([
     listCashCounts(clinicId, { ...range, limit: need }),
     listRecentTransfers(clinicId, { ...range, limit: need }),
+    listDrawerSpends(clinicId, { ...range, limit: need }),
     db
       .select({ n: count() })
       .from(cashCounts)
@@ -627,15 +644,147 @@ export async function listDrawerHistory(
           and(notDeleted(cashTransfers.deletedAt), inRange(cashTransfers.occurredAt)),
         ),
       ),
+    db
+      .select({ n: count() })
+      .from(expenses)
+      .where(
+        byClinic(
+          expenses.clinicId,
+          clinicId,
+          and(
+            notDeleted(expenses.deletedAt),
+            eq(expenses.fromDrawer, true),
+            inRange(expenses.createdAt),
+          ),
+        ),
+      ),
   ]);
 
   const merged: DrawerEntry[] = [
     ...counts.map((c) => ({ kind: "count" as const, at: c.countedAt, count: c })),
     ...moves.map((t) => ({ kind: "move" as const, at: t.occurredAt, move: t })),
+    ...spends.map((s) => ({ kind: "spend" as const, at: s.at, spend: s })),
   ].sort((a, b) => b.at.getTime() - a.at.getTime());
 
   return {
     rows: merged.slice(offset, offset + limit),
-    total: Number(countTotal[0]?.n ?? 0) + Number(moveTotal[0]?.n ?? 0),
+    total:
+      Number(countTotal[0]?.n ?? 0) + Number(moveTotal[0]?.n ?? 0) + Number(spendTotal[0]?.n ?? 0),
   };
+}
+
+/**
+ * The "Paid for something" entries recorded at this drawer.
+ *
+ * BOUNDED BY `created_at`, like everything else here and unlike the Expenses screen,
+ * which filters `incurred_on`. The drawer's question is always "when did the cash
+ * move", and `incurred_on` is a DATE with no time in it — the same trap recorded on
+ * `cashMovementSince`, which is worth restating because the two are easy to swap.
+ *
+ * `from_drawer` is what makes this the page's OWN record rather than a borrowed one:
+ * an expense typed on the Expenses screen is not listed here, even in cash, even
+ * today. It still moves the figure — `cashMovementSince` counts every cash expense —
+ * which is the split the whole page rests on.
+ */
+async function listDrawerSpends(
+  clinicId: string,
+  opts: { from?: Date; to?: Date; limit: number },
+): Promise<DrawerSpend[]> {
+  const rows = await db
+    .select({
+      id: expenses.id,
+      at: expenses.createdAt,
+      amount: expenses.amount,
+      what: expenses.note,
+      by: expenses.createdByName,
+      byId: expenses.createdBy,
+    })
+    .from(expenses)
+    .where(
+      byClinic(
+        expenses.clinicId,
+        clinicId,
+        and(
+          notDeleted(expenses.deletedAt),
+          eq(expenses.fromDrawer, true),
+          opts.from ? gte(expenses.createdAt, opts.from) : undefined,
+          opts.to ? lt(expenses.createdAt, opts.to) : undefined,
+        ),
+      ),
+    )
+    .orderBy(desc(expenses.createdAt))
+    .limit(opts.limit);
+  return rows;
+}
+
+/**
+ * Correcting or removing a spend recorded at the drawer.
+ *
+ * NARROW ON PURPOSE, in three ways, each of them in the WHERE clause rather than in
+ * the UI:
+ *
+ * 1. **Only `from_drawer` rows.** This page must not become a second way to edit an
+ *    arbitrary expense — Expenses owns those, with its own permissions and audit.
+ * 2. **Only amount and note.** `updateExpense` replaces every field, so reusing it
+ *    would blank the category, vendor and reference that the Expenses screen owns and
+ *    this form never shows. A form may only write what it displays.
+ * 3. **Only your own, unless you are the clinic admin** — the same predicate as a
+ *    count or a move (`onlyOwnedBy`).
+ *
+ * The caller checks the `expenses` permission on top of `cash`, because this IS an
+ * expense: being able to record a shortfall is not authority to change a cost.
+ */
+export async function updateDrawerSpend(
+  clinicId: string,
+  id: string,
+  input: { amount: number; what: string; onlyOwnedBy?: string },
+): Promise<boolean> {
+  const owned = input.onlyOwnedBy ? eq(expenses.createdBy, input.onlyOwnedBy) : undefined;
+  const [row] = await db
+    .update(expenses)
+    .set({
+      amount: Math.max(0, Math.round(input.amount)),
+      note: input.what.slice(0, 500) || null,
+      updatedAt: new Date(),
+    })
+    .where(
+      byClinic(
+        expenses.clinicId,
+        clinicId,
+        and(
+          eq(expenses.id, id),
+          eq(expenses.fromDrawer, true),
+          notDeleted(expenses.deletedAt),
+          owned,
+        ),
+      ),
+    )
+    .returning({ id: expenses.id });
+  return Boolean(row);
+}
+
+export async function softDeleteDrawerSpend(
+  clinicId: string,
+  id: string,
+  actorId: string,
+  opts: { onlyOwnedBy?: string } = {},
+): Promise<boolean> {
+  const owned = opts.onlyOwnedBy ? eq(expenses.createdBy, opts.onlyOwnedBy) : undefined;
+  const [row] = await db
+    .update(expenses)
+    .set(softDeleteValues(actorId, newDeleteGroup()))
+    .where(
+      byClinic(
+        expenses.clinicId,
+        clinicId,
+        and(
+          eq(expenses.id, id),
+          eq(expenses.fromDrawer, true),
+          notDeleted(expenses.deletedAt),
+          owned,
+        ),
+      ),
+    )
+    .returning({ id: expenses.id });
+  return Boolean(row);
 }

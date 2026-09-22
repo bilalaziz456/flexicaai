@@ -16,6 +16,8 @@ import {
   softDeleteCashTransfer,
   updateCashCount,
   updateCashTransfer,
+  updateDrawerSpend,
+  softDeleteDrawerSpend,
 } from "@/core/finance/petty-cash";
 import { CASH_TRANSFER_KIND_CODES } from "@/core/db/vocabulary-seed";
 import { NOT_YOURS } from "./ownership";
@@ -175,6 +177,9 @@ export async function submitCashSpend(
       vendor: null,
       reference: null,
       recurring: false,
+      // So the drawer can list it among its own records. It is still an ordinary
+      // cash expense everywhere else — this only says where it was typed.
+      fromDrawer: true,
     },
     { id: guard.user.id, name: guard.user.fullName ?? guard.user.username },
   );
@@ -287,5 +292,65 @@ export async function removeCashTransfer(id: string): Promise<CashActionState> {
   if (!ok) return { error: NOT_YOURS };
   await logActivity({ action: "delete", entity: "settings", summary: "Deleted a petty-cash move" });
   revalidatePath("/clinic/cash");
+  return { saved: true };
+}
+
+/**
+ * Correcting or removing a "Paid for something" from the drawer history.
+ *
+ * TWO PERMISSIONS, not one, exactly as recording it needs two. `cash:create` says you
+ * may work the drawer; the row is an EXPENSE, so changing or removing it also needs
+ * the `expenses` grant. A receptionist who may count the box is not thereby allowed
+ * to rewrite a cost, and `softDeleteDrawerSpend` refuses anything not typed here.
+ */
+export async function editCashSpend(
+  id: string,
+  input: { amount: number; what: string },
+): Promise<CashActionState> {
+  const guard = await requireCash("create");
+  if ("error" in guard) return guard;
+  if (!can(guard.user, "expenses", "create")) {
+    return { error: "You don't have permission to change an expense." };
+  }
+
+  const parsed = spendSchema.safeParse(input);
+  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
+
+  const ok = await updateDrawerSpend(guard.clinicId, id, {
+    amount: parsed.data.amount,
+    what: parsed.data.what,
+    onlyOwnedBy: guard.user.role === "clinic_admin" ? undefined : guard.user.id,
+  });
+  if (!ok) return { error: NOT_YOURS };
+
+  await logActivity({
+    action: "update",
+    entity: "settings",
+    summary: `Corrected a petty-cash spend to Rs ${parsed.data.amount}`,
+  });
+  revalidatePath("/clinic/cash");
+  // It is an expense, so every screen that totals expenses is now stale — the same
+  // sweep `submitCashSpend` does after writing one.
+  revalidateFinance();
+  return { saved: true };
+}
+
+export async function removeCashSpend(id: string): Promise<CashActionState> {
+  const guard = await requireCash("create");
+  if ("error" in guard) return guard;
+  if (!can(guard.user, "expenses", "delete")) {
+    return { error: "You don't have permission to delete an expense." };
+  }
+  const ok = await softDeleteDrawerSpend(guard.clinicId, id, guard.user.id, {
+    onlyOwnedBy: guard.user.role === "clinic_admin" ? undefined : guard.user.id,
+  });
+  if (!ok) return { error: NOT_YOURS };
+  await logActivity({
+    action: "delete",
+    entity: "settings",
+    summary: "Deleted a petty-cash spend",
+  });
+  revalidatePath("/clinic/cash");
+  revalidateFinance();
   return { saved: true };
 }

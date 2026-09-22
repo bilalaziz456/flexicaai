@@ -1,0 +1,1 @@
+ALTER TABLE "expenses" ADD COLUMN "from_drawer" boolean DEFAULT false NOT NULL;

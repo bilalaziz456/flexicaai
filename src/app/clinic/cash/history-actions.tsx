@@ -10,8 +10,10 @@ import { toast } from "@/core/ui/toast";
 import { useVocabularyOptions } from "@/core/ui/vocabulary-provider";
 import {
   editCashCount,
+  editCashSpend,
   editCashTransfer,
   removeCashCount,
+  removeCashSpend,
   removeCashTransfer,
 } from "./cash-actions";
 
@@ -187,6 +189,95 @@ export function MoveRowActions({
         confirmVariant="destructive"
         onConfirm={async () => {
           const r = await removeCashTransfer(id);
+          if (r.error) return { error: r.error };
+          toast.success("Deleted.");
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * A "Paid for something" recorded here.
+ *
+ * Amount and what-for are editable, and nothing else is: the category, vendor and
+ * reference belong to Expenses and this form never shows them, so it must not write
+ * them (`updateDrawerSpend` narrows the UPDATE to the same two fields, because a
+ * client is not where that rule can live).
+ */
+export function SpendRowActions({
+  id,
+  amount,
+  what,
+}: {
+  id: string;
+  amount: number;
+  what: string | null;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [amt, setAmt] = useState(String(amount));
+  const [text, setText] = useState(what ?? "");
+  const [busy, start] = useTransition();
+
+  if (editing) {
+    return (
+      <div className="flex flex-wrap items-end justify-end gap-2">
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Amount</Label>
+          <Input
+            aria-label="Spend amount"
+            value={amt}
+            onChange={(e) => setAmt(e.target.value.replace(/[^\d]/g, ""))}
+            className="h-9 w-24"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">What for</Label>
+          <Input
+            aria-label="What it was for"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            className="h-9 w-48"
+          />
+        </div>
+        <Button
+          size="sm"
+          disabled={busy}
+          onClick={() =>
+            start(async () => {
+              const r = await editCashSpend(id, { amount: Number(amt), what: text });
+              if (r.error) toast.error(r.error);
+              else {
+                toast.success("Saved.");
+                setEditing(false);
+              }
+            })
+          }
+        >
+          Save
+        </Button>
+        <Button size="sm" variant="ghost" disabled={busy} onClick={() => setEditing(false)}>
+          Cancel
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex shrink-0 items-center justify-end gap-2">
+      <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+        Edit
+      </Button>
+      <ConfirmDialog
+        triggerLabel="Delete"
+        triggerVariant="ghost"
+        triggerClassName="text-destructive hover:text-destructive"
+        title="Delete this spend?"
+        description="It is an expense, so it leaves the P&L as well as the drawer. The record stays in Trash."
+        confirmLabel="Delete spend"
+        confirmVariant="destructive"
+        onConfirm={async () => {
+          const r = await removeCashSpend(id);
           if (r.error) return { error: r.error };
           toast.success("Deleted.");
         }}

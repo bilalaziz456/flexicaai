@@ -15,7 +15,7 @@ import { PageHeader } from "@/core/ui/page-header";
 import { SalesFilters } from "@/core/ui/report-filters";
 import { resolveSalesRange } from "@/core/sales/report";
 import { CountForm, TransferForm } from "./cash-ui";
-import { CountRowActions, MoveRowActions } from "./history-actions";
+import { CountRowActions, MoveRowActions, SpendRowActions } from "./history-actions";
 import { mayModifyEntry } from "./ownership";
 
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
@@ -47,6 +47,9 @@ export default async function CashPage({
   if (!clinicHasFeature(clinic?.featuresEnabled, "finance")) notFound();
 
   const canCount = can(user, "cash", "create");
+  // A spend row is an EXPENSE, so editing or deleting one needs the expense grant on
+  // top of `cash` — the same pair recording it needs (`submitCashSpend`).
+  const canSpend = can(user, "expenses", "create") && can(user, "expenses", "delete");
 
   // The range bounds the HISTORY ONLY — never `getDrawerState`. What should be in the
   // drawer is a fact about right now, reckoned from the newest count whenever that
@@ -104,7 +107,28 @@ export default async function CashPage({
           href: null,
           count: e.count,
           move: null,
+          spend: null,
           mine: mayModifyEntry(user, e.count.countedBy),
+        }
+      : e.kind === "spend"
+      ? {
+          // Recorded HERE, so it is listed and editable here — but it is an expense,
+          // so the controls also need the expense grant. Counting the box is not
+          // authority to change a cost.
+          id: e.spend.id,
+          kind: "spend" as const,
+          at: e.at,
+          what: "Paid for something",
+          amount: `− ${rs(e.spend.amount)}`,
+          difference: "",
+          tone: "",
+          by: e.spend.by,
+          note: e.spend.what,
+          href: null,
+          count: null,
+          move: null,
+          spend: e.spend,
+          mine: mayModifyEntry(user, e.spend.byId) && canSpend,
         }
       : {
           id: e.move.id,
@@ -120,6 +144,7 @@ export default async function CashPage({
           href: null,
           count: null,
           move: e.move,
+          spend: null,
           mine: mayModifyEntry(user, e.move.createdBy),
         },
   );
@@ -340,6 +365,12 @@ export default async function CashPage({
                           kind={h.move.kind}
                           amount={h.move.amount}
                           reference={h.move.reference}
+                        />
+                      ) : h.spend && h.mine ? (
+                        <SpendRowActions
+                          id={h.spend.id}
+                          amount={h.spend.amount}
+                          what={h.spend.what}
                         />
                       ) : null}
                     </td>
