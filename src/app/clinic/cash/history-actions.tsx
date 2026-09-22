@@ -51,7 +51,7 @@ export function CountRowActions({
           <Input
             aria-label="Counted total"
             value={amount}
-            onChange={(e) => setAmount(e.target.value.replace(/[^d]/g, ""))}
+            onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))}
             className="h-9 w-28"
           />
         </div>
