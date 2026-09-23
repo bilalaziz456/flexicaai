@@ -283,7 +283,7 @@ export default async function CashPage({
           <>
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Count the drawer</CardTitle>
+                <CardTitle className="text-base">Cash in the drawer</CardTitle>
                 <CardDescription>
                   {drawer.expected === null
                     ? "The first count is the opening float."

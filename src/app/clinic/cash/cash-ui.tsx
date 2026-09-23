@@ -56,7 +56,7 @@ export function CountForm({ expected }: { expected: number | null }) {
     <form action={formAction} className="space-y-3">
       <div className="space-y-1.5">
         <Label htmlFor="countedTotal">
-          {expected === null ? "What is in the drawer now?" : "Counted total"}
+          {expected === null ? "What is in the drawer now?" : "Cash total"}
         </Label>
         <Input
           id="countedTotal"
@@ -102,7 +102,7 @@ export function CountForm({ expected }: { expected: number | null }) {
       </div>
 
       <Button type="submit" disabled={pending}>
-        {pending ? "Recording…" : expected === null ? "Record opening float" : "Record count"}
+        {pending ? "Recording…" : expected === null ? "Record opening float" : "Record cash"}
       </Button>
     </form>
   );
