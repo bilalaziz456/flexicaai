@@ -49,9 +49,9 @@ export function CountRowActions({
     return (
       <div className="flex flex-wrap items-end justify-end gap-2">
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Counted</Label>
+          <Label className="text-xs text-muted-foreground">Cash</Label>
           <Input
-            aria-label="Counted total"
+            aria-label="Cash total"
             value={amount}
             onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))}
             className="h-9 w-28"
