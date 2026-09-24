@@ -61,7 +61,7 @@ const FLAGS: {
   {
     Icon: Clock3,
     tone: "warn",
-    title: "Rs 1,76,500 owed by 9 patients",
+    title: "Rs 176,500 owed by 9 patients",
     body: "3 of them for more than 30 days.",
     action: "Open receivables",
   },
@@ -215,7 +215,7 @@ export function FinanceDashboard() {
             </div>
             <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-[var(--mk-line)] pt-4 text-left">
               {[
-                ["Average week", "Rs 3,22,700"],
+                ["Average week", "Rs 322,700"],
                 ["Best week", "Sep 15"],
                 ["Collection rate", "89%"],
               ].map(([k, v]) => (
@@ -282,7 +282,7 @@ export function FinanceDashboard() {
                   <span className="hidden justify-self-start rounded-full bg-foreground/[0.06] px-2 py-0.5 text-3xs font-semibold text-muted-foreground sm:block">
                     {p.method}
                   </span>
-                  <span className="text-sm font-semibold tabular-nums">Rs {p.amount.toLocaleString("en-IN")}</span>
+                  <span className="text-sm font-semibold tabular-nums">Rs {p.amount.toLocaleString("en-PK")}</span>
                 </li>
               ))}
             </ul>

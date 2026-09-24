@@ -38,7 +38,7 @@ function smoothPath(pts: [number, number][]) {
   return d;
 }
 
-const rupees = (n: number) => `Rs ${n.toLocaleString("en-IN")}`;
+const rupees = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 
 export function RevenueChart({ data }: { data: Point[] }) {
   const id = useId().replace(/:/g, "");

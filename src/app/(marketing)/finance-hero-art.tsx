@@ -89,7 +89,7 @@ export function FinanceHeroArt() {
               <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-warning motion-safe:animate-pulse" />
             </span>
             <span className="min-w-0">
-              <span className="block text-xs font-semibold">Rs 1,76,500 still owed</span>
+              <span className="block text-xs font-semibold">Rs 176,500 still owed</span>
               <span className="mt-0.5 block text-2xs leading-snug text-muted-foreground">9 patients · 3 for more than 30 days</span>
               <span className="mt-1.5 inline-flex items-center gap-1 text-2xs font-semibold text-primary-text">
                 Open receivables <ArrowUpRight className="size-3" />

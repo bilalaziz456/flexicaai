@@ -11,8 +11,11 @@ import { useEffect, useRef } from "react";
  * through React state — sixty re-renders a second to animate a label would cost more
  * than the effect is worth.
  *
- * Grouping is Pakistani (en-IN: 3,84,200), because these are rupee figures and that
- * is how the people reading them write rupees.
+ * Grouping is `en-PK` (384,200), matching the app. It was `en-IN`, which groups in
+ * lakhs (3,84,200) on the belief that rupee figures are written that way here — the
+ * owner's correction, 2026-09-24: they are not, and the marketing site was the only
+ * thing in the product doing it, so a visitor met one format on the site and another
+ * the moment they signed in.
  */
 export function CountUp({
   value,
@@ -35,7 +38,7 @@ export function CountUp({
     if (!el) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-    const format = (n: number) => `${prefix}${Math.round(n).toLocaleString("en-IN")}`;
+    const format = (n: number) => `${prefix}${Math.round(n).toLocaleString("en-PK")}`;
     let frame = 0;
     let timer = 0;
 
@@ -71,7 +74,7 @@ export function CountUp({
   return (
     <span ref={ref} className={`tabular-nums ${className ?? ""}`}>
       {prefix}
-      {value.toLocaleString("en-IN")}
+      {value.toLocaleString("en-PK")}
     </span>
   );
 }
