@@ -10,6 +10,7 @@
  */
 import { config } from "dotenv";
 import bcrypt from "bcryptjs";
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { users } from "../src/core/db/schema";
@@ -47,7 +48,8 @@ async function main() {
       fullName: "Super Admin",
       clinicId: null,
     })
-    .onConflictDoNothing({ target: users.username })
+    // users_username_unique is partial (WHERE deleted_at IS NULL); the arbiter must match it.
+    .onConflictDoNothing({ target: users.username, where: sql`${users.deletedAt} is null` })
     .returning({ id: users.id });
 
   if (inserted.length > 0) {
