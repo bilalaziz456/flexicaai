@@ -16,6 +16,8 @@ import {
 } from "@/core/ui/card";
 import { PaymentsFilters } from "./payments-filters";
 import { PaymentsTable } from "./payments-table";
+import { Pagination } from "@/core/ui/pagination";
+import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { StatCard } from "@/core/ui/charts/stat-card";
 
 const money = new Intl.NumberFormat("en-PK", {
@@ -41,6 +43,8 @@ export default async function PaymentsPage({
     method?: string;
     kind?: string;
     q?: string;
+    page?: string;
+    size?: string;
   }>;
 }) {
   const user = await requireWorkspace("billing");
@@ -55,6 +59,8 @@ export default async function PaymentsPage({
   const method = sp.method?.trim() || "";
   const kind = sp.kind?.trim() || "";
   const q = sp.q?.trim() || "";
+  const page = parsePage(sp.page);
+  const pageSize = parsePageSize(sp.size);
 
   const [ledger, doctors] = await Promise.all([
     getPaymentsLedger(clinicId, {
@@ -64,7 +70,8 @@ export default async function PaymentsPage({
       method: method || undefined,
       kind: kind || undefined,
       q: q || undefined,
-      limit: 500,
+      offset: pageOffset(page, pageSize),
+      limit: pageSize,
     }),
     getSalesDoctors(clinicId),
   ]);
@@ -116,6 +123,24 @@ export default async function PaymentsPage({
           <StatCard key={s.title} label={s.title} value={s.value} hint={s.note} />
         ))}
       </div>
+
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={ledger.total}
+        basePath="/clinic/payments"
+        searchParams={{
+          period: range.period,
+          from: sp.from,
+          to: sp.to,
+          doctorId,
+          method,
+          kind,
+          q,
+          size: sp.size,
+        }}
+        unit="payment"
+      />
 
       <Card>
         <CardHeader>

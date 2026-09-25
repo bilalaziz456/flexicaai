@@ -321,6 +321,26 @@ throw — use it in tests.
 - Authorization is decided in **one** predicate (ADR-013). If you are writing an
   access check outside `core/auth`, stop.
 
+### Searching and paging a list
+
+- **"Which patient is this?" is ONE predicate** (`core/patients/search-sql.ts`) — name,
+  phone, the clinic's imported `external_ref`, and the printable MRN. Receivables, the
+  payments ledger and the invoice register each had their own copy and had already
+  drifted, so the same search found a patient on one screen and missed them on another.
+  A screen's own DOCUMENT number (invoice #, RCP #) is ORed on by that screen; it is
+  not folded into the shared predicate.
+- **A condition set reused by two queries must only name tables BOTH join.** The
+  receivables search sat in conditions shared with the per-visit query, which joins
+  `users` but not `patients` — every matching search 500'd with `missing FROM-clause
+  entry for table "patients"`, and it hid because that query only runs once the page
+  has rows. If a filter belongs to one query, build it for that query.
+- **A paged list's summary is aggregated over the whole filtered set, never folded
+  from the rows.** `count`/`total` computed from a page describe the page, so the
+  header silently starts contradicting its own filter the moment paging is added
+  (ADR-024). And an aggregate over a money expression still needs every join that
+  expression reads — `appointmentNetSql` reads `users.consultation_fee`, so a summary
+  selecting no user column still joins `users` or fails at runtime.
+
 ### Sessions
 
 - **Two expiries, and they answer different questions.** `sessions.expires_at` is an

@@ -1,8 +1,9 @@
 import "server-only";
 
-import { and, desc, eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, lt, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
+import { patientSearchSql } from "@/core/patients/search-sql";
 import { appointments, clinics, patientPayments, patients, users } from "@/core/db/schema";
 import { displayStaffName } from "@/core/types/auth";
 import { formatReceiptNo } from "@/core/billing/invoice";
@@ -78,16 +79,14 @@ function conds(clinicId: string, f: PaymentLedgerFilters, px: SearchPrefixes, ex
   if (f.doctorId) parts.push(eq(appointments.doctorId, f.doctorId));
   if (f.q) {
     const like = `%${f.q}%`;
-    // Match the SQL date to formatMrn's server-local rendering (see invoice search).
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
     parts.push(
       or(
-        ilike(patients.fullName, like),
-        ilike(patients.phone, like),
-        // Payment # = the RCP receipt number on the payment's appointment.
+        // Who the patient is — name, phone, the clinic's own ref, MRN — shared with
+        // receivables and the invoice register, so one search cannot find a patient
+        // on one screen and miss them on another (`core/patients/search-sql.ts`).
+        patientSearchSql(f.q, px.mrnPrefix),
+        // What this SCREEN owns: the RCP receipt number on the payment's appointment.
         sql`(${px.receiptPrefix} || ${appointments.receiptYear}::text || '-' || lpad(${appointments.receiptNo}::text, 7, '0')) ilike ${like}`,
-        // MRN # of the patient.
-        sql`(${px.mrnPrefix} || to_char(${patients.createdAt} AT TIME ZONE ${tz}, 'YYYYMMDD') || lpad(${patients.mrn}::text, 7, '0')) ilike ${like}`,
       )!,
     );
   }
