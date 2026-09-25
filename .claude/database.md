@@ -1127,6 +1127,22 @@ these for churn-risk + usage/cost anomaly flags.
   new defaults from code. Each statement is idempotent (`NOT (… = ANY(…))`), and a
   clinic whose capabilities are NULL or `'*'` is skipped because both already mean
   "everything allowed". `scripts/test-schedule-acl.ts` covers the code side.
+- Migration **`0115`** backfills `patients.mrn` for every patient that had none — the
+  column was nullable only so it could be added and filled later, and the money screens
+  now search by MRN, so a patient without one is unfindable by the number on their card.
+  **Three rules, each about not breaking an identity.** An MRN already assigned is never
+  touched (it may be on a card in somebody's wallet — ADR-027's never-renumber rule,
+  applied to patients). Numbering continues from `GREATEST(max assigned, next_mrn - 1)`,
+  **not** from the highest MRN present: a clinic here had `next_mrn = 5` with no MRNs
+  assigned, meaning 1–4 had already been issued to patients since removed, and starting
+  at 1 would REUSE them — the one outcome worse than a gap. Order is registration order
+  (`created_at`, then `id`), so the first patient registered gets the lowest number.
+  **Soft-deleted patients are numbered too**, because `patients_clinic_mrn_idx` is
+  unique on (clinic_id, mrn) `WHERE mrn IS NOT NULL` and does not exclude deleted rows —
+  skipping them would let a restore collide with a number since given to somebody else.
+  A second statement moves every clinic's `next_mrn` past its highest MRN, for all
+  clinics rather than only backfilled ones: a counter behind its own patients is the
+  same bug whether the migration caused it or found it. Idempotent.
 - Migrations **`0109`–`0113`** are **petty cash** (see §3 and `docs/petty-cash-plan.md`).
   `0109` adds `cash_counts` + `cash_transfers` and the `cash_transfer_kinds` vocabulary
   table — **with its seed INSERT hand-appended**, because drizzle-kit creates a
