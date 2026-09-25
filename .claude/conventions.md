@@ -321,6 +321,25 @@ throw — use it in tests.
 - Authorization is decided in **one** predicate (ADR-013). If you are writing an
   access check outside `core/auth`, stop.
 
+### Sessions
+
+- **Two expiries, and they answer different questions.** `sessions.expires_at` is an
+  absolute seven-day ceiling that nothing relaxes; `last_seen_at` drives the optional
+  idle timeout (`company_settings.session_idle_minutes`, 0 = never, the default). Read
+  the window through `getSessionIdleMinutes()`, which is TTL-cached for 60s — it sits
+  on the authentication path, so a plain query would add a round trip to **every**
+  request in the product to answer "no timeout" almost every time.
+- **An idle session is DELETED, never just refused.** Refusing alone leaves a row that
+  becomes valid again when the window is lengthened or switched off, which resurrects
+  exactly the abandoned terminal the timeout exists to close.
+- **Both session writes go through `after()`.** The touch and the idle delete are work
+  the response does not depend on, so they belong off the render path (ADR-020's
+  mechanism, same reasoning).
+- **Ending sessions re-authenticates.** "Sign out other devices" asks for the password,
+  because otherwise whoever is sitting at an unattended terminal can lock the real
+  owner out of every other device from inside the session that should not be trusted.
+  It keeps the CURRENT session deliberately — the person is using it to do the thing.
+
 ## 12. Audit trail
 
 - **Every action touching patient data is logged** — plus logins and record views.

@@ -10,6 +10,9 @@ import {
   verifyTotp,
 } from "@/core/auth/totp";
 import { logActivity } from "@/core/audit/log";
+import { revalidatePath } from "next/cache";
+import { setSessionIdleMinutes } from "@/core/admin/company-settings";
+import { normalizeIdleMinutes, idleLabel } from "@/core/auth/session-idle";
 import {
   disableMyTotp,
   enableMyTotp,
@@ -135,3 +138,34 @@ export async function regenerateBackupCodes(
 // Re-exported so a future login/reauth path can consume a backup code without
 // re-importing the whole module surface. (Kept here to co-locate 2FA writes.)
 export { consumeBackupCode };
+
+/**
+ * The platform-wide idle-session window.
+ *
+ * SUPER-ADMIN ONLY, and company-wide rather than per clinic. It is a property of the
+ * deployment — one Postgres, one session table — and a clinic choosing its own would
+ * mean a super admin's session expiring differently depending on whose workspace they
+ * last opened, which is not a coherent rule.
+ *
+ * Audited: changing how long an abandoned terminal stays signed in is a security
+ * decision, and the trail should say who made it and to what.
+ */
+export async function saveSessionIdle(
+  _prev: { error?: string; saved?: boolean },
+  formData: FormData,
+): Promise<{ error?: string; saved?: boolean }> {
+  await requireRole("super_admin");
+
+  const raw = Number(formData.get("minutes"));
+  if (!Number.isFinite(raw) || raw < 0) return { error: "Choose a timeout." };
+  const minutes = normalizeIdleMinutes(raw);
+
+  await setSessionIdleMinutes(minutes);
+  await logActivity({
+    action: "update",
+    entity: "settings",
+    summary: `Set the idle session timeout to ${idleLabel(minutes)}`,
+  });
+  revalidatePath("/admin/security");
+  return { saved: true };
+}

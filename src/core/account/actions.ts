@@ -34,13 +34,20 @@ import {
   updateMyProfile as updateMyProfileRecord,
 } from "@/core/users/profile";
 import { logActivity } from "@/core/audit/log";
+import { revokeOtherSessions } from "@/core/auth/session";
 import { STAFF_PREFIXES } from "@/core/types/auth";
 import {
   saveUserFile,
   deleteFileByKey,
 } from "@/core/integrations/storage";
 
-export type AccountActionState = { error?: string; saved?: boolean };
+export type AccountActionState = {
+  error?: string;
+  saved?: boolean;
+  /** A success line the form shows verbatim, when "Saved." is too vague — the
+   *  sign-out action reports HOW MANY devices it ended. */
+  message?: string;
+};
 
 const profileSchema = z.object({
   fullName: z.string().trim().min(2, "Name is required.").max(120),
@@ -213,4 +220,51 @@ export async function removeMyAvatar(): Promise<void> {
   if (previousKey) await deleteFileByKey(previousKey);
   revalidatePath("/account");
   revalidatePath("/", "layout");
+}
+
+/**
+ * "Sign out on all other devices" — the lost-laptop button.
+ *
+ * RE-AUTHENTICATION IS REQUIRED, like a password change. Whoever is sitting at an
+ * unattended logged-in terminal can otherwise use this to lock the real owner out of
+ * every OTHER device they have, from inside the very session that should not be
+ * trusted. Asking for the password costs the legitimate user one field and takes that
+ * away entirely.
+ *
+ * Audited, because ending sessions is an access event and §12 wants those on the
+ * trail. The count goes in the summary; no device is named, since we do not keep
+ * anything that would identify one.
+ */
+export async function signOutOtherDevices(
+  _prev: AccountActionState,
+  formData: FormData,
+): Promise<AccountActionState> {
+  const user = await requireUser();
+  if (!canUseAccount(user, "edit")) return { error: "You don't have access to change account settings." };
+
+  const password = String(formData.get("password") ?? "");
+  if (!password) return { error: "Enter your password to confirm." };
+  if (!(await verifyCurrentUserPassword(password))) {
+    return { error: "That password is not correct." };
+  }
+
+  const ended = await revokeOtherSessions(user.id);
+
+  await logActivity({
+    action: "update",
+    entity: "session",
+    summary:
+      ended === 0
+        ? "Signed out other devices (none were signed in)"
+        : `Signed out ${ended} other ${ended === 1 ? "device" : "devices"}`,
+  });
+
+  revalidatePath("/account");
+  return {
+    saved: true,
+    message:
+      ended === 0
+        ? "You weren't signed in anywhere else."
+        : `Signed out of ${ended} other ${ended === 1 ? "device" : "devices"}.`,
+  };
 }

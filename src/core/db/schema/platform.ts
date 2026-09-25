@@ -397,6 +397,14 @@ export const companySettings = pgTable("company_settings", {
   // when it needs to be; it does nothing until someone sets a window. See
   // core/audit/retention.ts.
   activityLogRetentionDays: integer("activity_log_retention_days").notNull().default(0),
+  // Sign a session out after this many minutes with no request. **0 = never, and that
+  // is the default deliberately** — the same reasoning as the retention window above.
+  // An idle timeout trades security against interruption, and where that line falls
+  // depends on the room: a doctor's own laptop is not a reception counter three people
+  // share. That is the owner's call to make per deployment, not a constant to pick
+  // here. Distinct from the session's 7-day absolute expiry, which always applies.
+  // Enforced in core/auth/session.ts; floored at SESSION_IDLE_MIN_MINUTES when set.
+  sessionIdleMinutes: integer("session_idle_minutes").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

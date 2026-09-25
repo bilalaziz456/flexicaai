@@ -16,8 +16,10 @@ import {
   DiscountApprovalForm,
   ProfileForm,
   PasswordForm,
+  SessionsForm,
 } from "@/core/ui/account-forms";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
+import { countOtherSessions } from "@/core/auth/session";
 
 /** Account settings — any signed-in user manages their own profile, picture and
  * password. Standalone (not inside a panel); reached from the identity pill. */
@@ -25,7 +27,10 @@ export default async function AccountPage() {
   const current = await requireUser();
   // Account settings are ACL-gated for super-admins (Feature 9); clinic staff pass.
   if (!canUseAccount(current, "view")) redirect(ROLE_HOME_ROUTE[current.role]);
-  const u = await getMyProfile(current.id);
+  const [u, otherSessions] = await Promise.all([
+    getMyProfile(current.id),
+    countOtherSessions(current.id),
+  ]);
   if (!u) return null;
 
   return (
@@ -90,6 +95,22 @@ export default async function AccountPage() {
         </CardHeader>
         <CardContent>
           <PasswordForm />
+        </CardContent>
+      </Card>
+
+      {/* Below the password on purpose: somebody who has lost a device usually wants
+          both, and the order is change-then-revoke — a new password does not by
+          itself end a session that is already open. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Signed-in devices</CardTitle>
+          <CardDescription>
+            End every other session — for a lost phone or laptop, or a shared computer
+            you forgot to sign out of.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SessionsForm otherCount={otherSessions} />
         </CardContent>
       </Card>
     </div>
