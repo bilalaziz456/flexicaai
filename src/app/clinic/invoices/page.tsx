@@ -16,6 +16,8 @@ import {
 } from "@/core/ui/card";
 import { InvoiceFilters } from "./invoice-filters";
 import { InvoicesTable } from "./invoices-table";
+import { Pagination } from "@/core/ui/pagination";
+import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { StatCard } from "@/core/ui/charts/stat-card";
 
 const money = new Intl.NumberFormat("en-PK", {
@@ -33,7 +35,14 @@ const money = new Intl.NumberFormat("en-PK", {
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string; q?: string }>;
+  searchParams: Promise<{
+    period?: string;
+    from?: string;
+    to?: string;
+    q?: string;
+    page?: string;
+    size?: string;
+  }>;
 }) {
   const { clinicId } = await requireWorkspace("billing");
   const clinic = await getClinic(clinicId);
@@ -44,10 +53,15 @@ export default async function InvoicesPage({
   const range = hasRange ? resolveSalesRange(sp.period, sp.from, sp.to, clinic?.createdAt) : null;
   const q = sp.q?.trim() || "";
 
+  const page = parsePage(sp.page);
+  const pageSize = parsePageSize(sp.size);
+
   const list = await getInvoicesList(clinicId, {
     from: range?.start,
     toExclusive: range?.end,
     q: q || undefined,
+    offset: pageOffset(page, pageSize),
+    limit: pageSize,
   });
 
   const exportParams = new URLSearchParams({ type: "invoices" });
@@ -90,6 +104,17 @@ export default async function InvoicesPage({
           hint="Sum of these invoices"
         />
       </div>
+
+      {/* Above the table, matching the drawer history and Trash — the reader decides
+          which page to look at before reading rows, not after scrolling past them. */}
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={list.count}
+        basePath="/clinic/invoices"
+        searchParams={{ period: sp.period, from: sp.from, to: sp.to, q, size: sp.size }}
+        unit="invoice"
+      />
 
       <Card>
         <CardHeader>

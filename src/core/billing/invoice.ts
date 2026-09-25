@@ -1,10 +1,11 @@
 import "server-only";
 
-import { and, desc, eq, gte, ilike, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lt, or, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, clinics, invoices, patients, users } from "@/core/db/schema";
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
+import { patientSearchSql } from "@/core/patients/search-sql";
 import { procedureTotals } from "@/core/appointments/procedures";
 
 /**
@@ -83,8 +84,15 @@ export type InvoiceListRow = {
   appointmentId: string;
   amount: number; // derived bill (computeBill mirror), never stored
 };
+/** `rows` is ONE PAGE; `count` and `totalBilled` describe the whole filtered set. */
 export type InvoiceList = { rows: InvoiceListRow[]; count: number; totalBilled: number };
-export type InvoiceListFilters = { from?: Date; toExclusive?: Date; q?: string };
+export type InvoiceListFilters = {
+  from?: Date;
+  toExclusive?: Date;
+  q?: string;
+  limit?: number;
+  offset?: number;
+};
 
 /**
  * The invoice register — every live invoice, newest number first, with the derived
@@ -109,28 +117,48 @@ export async function getInvoicesList(
   if (filters.toExclusive) conds.push(lt(invoices.issuedAt, filters.toExclusive));
   if (filters.q) {
     const like = `%${filters.q}%`;
-    // Match SQL's date to what formatMrn produces (server-local time), else the
-    // YYYYMMDD part disagrees near midnight and a full-MRN search misses.
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
     conds.push(
       or(
-        ilike(patients.fullName, like),
-        ilike(patients.phone, like),
-        // "Patient number" = the clinic's old/imported patient ref (kept for the desk).
-        ilike(patients.externalRef, like),
-        // Invoice # — the full label (prefix + year + 7-digit) so "INV-2026-0000005",
-        // "2026-0000005" or a bare "5" all hit.
+        // Who the patient is — name, phone, the clinic's own ref, MRN — shared with
+        // receivables and the payments ledger, so one search behaves the same on all
+        // three screens (`core/patients/search-sql.ts`).
+        patientSearchSql(filters.q, mrnPrefix),
+        // What this SCREEN owns: the invoice number. The full label (prefix + year +
+        // 7-digit) so "INV-2026-0000005", "2026-0000005" or a bare "5" all hit.
         sql`(${prefix} || ${invoices.invoiceYear}::text || '-' || lpad(${invoices.invoiceNo}::text, 7, '0')) ilike ${like}`,
         sql`${invoices.invoiceNo}::text ilike ${like}`,
-        // MRN — the printable form (prefix + YYYYMMDD registration + 7-digit counter),
-        // matched against the raw query so a full "KL-…" or a partial digit run hits,
-        // and an invoice search (no "KL-") never false-matches it.
-        sql`(${mrnPrefix} || to_char(${patients.createdAt} AT TIME ZONE ${tz}, 'YYYYMMDD') || lpad(${patients.mrn}::text, 7, '0')) ilike ${like}`,
       )!,
     );
   }
 
   const pt = procedureTotals(clinicId);
+  const where = byClinic(invoices.clinicId, clinicId, and(...conds));
+
+  // THE SUMMARY IS AGGREGATED OVER THE WHOLE FILTERED SET, NOT OVER THE PAGE.
+  // `count` and `totalBilled` used to be `list.length` and a reduce over the rows,
+  // which was correct only while the list was unbounded. Paging the rows without
+  // moving these would have quietly turned "312 invoices · Rs 4.1m" into "20
+  // invoices · Rs 260,000" — a header that contradicts its own filter, and the exact
+  // failure ADR-024 names (a total that disagrees with the pages beneath it).
+  // Joined rather than correlated: this aggregates across every matching invoice,
+  // which is ADR-030's rule for which form to use.
+  const [summary] = await db
+    .select({
+      count: sql<number>`count(*)::int`,
+      totalBilled: sql<number>`coalesce(sum(${appointmentNetSql(pt)}), 0)::int`,
+    })
+    .from(invoices)
+    .innerJoin(appointments, eq(appointments.id, invoices.appointmentId))
+    .innerJoin(patients, eq(patients.id, invoices.patientId))
+    // `users` IS REQUIRED HERE, even though the summary selects no column from it:
+    // `appointmentNetSql` reads `users.consultation_fee`, so a summary that joins
+    // only what it visibly selects fails at RUNTIME with a missing-FROM error. The
+    // row query below must therefore carry the identical join set, or the two answer
+    // slightly different questions about the same filter.
+    .leftJoin(users, eq(users.id, appointments.doctorId))
+    .leftJoin(pt, eq(pt.appointmentId, appointments.id))
+    .where(where);
+
   const rows = await db
     .select({
       id: invoices.id,
@@ -142,8 +170,6 @@ export async function getInvoicesList(
       patientName: patients.fullName,
       patientPhone: patients.phone,
       appointmentId: appointments.id,
-      // Joined, not correlated: this list is not paginated, so the bill runs over
-      // every invoice the clinic has ever issued.
       amount: appointmentNetSql(pt),
     })
     .from(invoices)
@@ -151,8 +177,10 @@ export async function getInvoicesList(
     .innerJoin(patients, eq(patients.id, invoices.patientId))
     .leftJoin(users, eq(users.id, appointments.doctorId))
     .leftJoin(pt, eq(pt.appointmentId, appointments.id))
-    .where(byClinic(invoices.clinicId, clinicId, and(...conds)))
-    .orderBy(desc(invoices.invoiceNo));
+    .where(where)
+    .orderBy(desc(invoices.invoiceNo))
+    .limit(filters.limit ?? 100)
+    .offset(filters.offset ?? 0);
 
   const list = rows.map((r) => ({
     id: r.id,
@@ -168,8 +196,8 @@ export async function getInvoicesList(
   }));
   return {
     rows: list,
-    count: list.length,
-    totalBilled: list.reduce((s, r) => s + r.amount, 0),
+    count: Number(summary?.count ?? 0),
+    totalBilled: Number(summary?.totalBilled ?? 0),
   };
 }
 

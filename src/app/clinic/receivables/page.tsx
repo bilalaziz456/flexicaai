@@ -1,3 +1,4 @@
+
 import Link from "next/link";
 import { EmptyState } from "@/core/ui/empty-state";
 import { buttonVariants } from "@/core/ui/button";
@@ -19,6 +20,8 @@ import {
 } from "@/core/ui/card";
 import { ReceivablesFilters } from "./receivables-filters";
 import { StatCard } from "@/core/ui/charts/stat-card";
+import { Pagination } from "@/core/ui/pagination";
+import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -37,7 +40,15 @@ const dayFmt = (d: Date) =>
 export default async function ReceivablesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string; doctorId?: string; q?: string }>;
+  searchParams: Promise<{
+    period?: string;
+    from?: string;
+    to?: string;
+    doctorId?: string;
+    q?: string;
+    page?: string;
+    size?: string;
+  }>;
 }) {
   const user = await requireWorkspace("receivables");
   const { clinicId } = user;
@@ -50,6 +61,8 @@ export default async function ReceivablesPage({
   const range = hasRange ? resolveSalesRange(sp.period, sp.from, sp.to, clinic?.createdAt) : null;
   const doctorId = sp.doctorId?.trim() || "";
   const q = sp.q?.trim() || "";
+  const page = parsePage(sp.page);
+  const pageSize = parsePageSize(sp.size);
 
   const [report, doctors] = await Promise.all([
     getReceivablesReport(clinicId, {
@@ -57,7 +70,12 @@ export default async function ReceivablesPage({
       q: q || undefined,
       from: range?.start,
       toExclusive: range?.end,
-    }),
+    },
+    // The core has taken a `paging` argument since it was written; nothing ever
+    // passed one, so every load silently took the 500-row default (ADR-032's lesson:
+    // an optional parameter carrying a correctness property is a default that WILL
+    // be taken). `total` and `patientCount` still describe the whole set.
+    { offset: pageOffset(page, pageSize), limit: pageSize }),
     getSalesDoctors(clinicId),
   ]);
 
@@ -113,6 +131,17 @@ export default async function ReceivablesPage({
           hint="With an unpaid balance"
         />
       </div>
+
+      {/* `patientCount` is the whole filtered set, not this page — the core has always
+          returned both, which is what makes the pager's "of N" honest. */}
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={report.patientCount}
+        basePath="/clinic/receivables"
+        searchParams={{ period: sp.period, from: sp.from, to: sp.to, doctorId, q, size: sp.size }}
+        unit="patient"
+      />
 
       <Card>
         <CardHeader>

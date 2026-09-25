@@ -1,12 +1,14 @@
 import "server-only";
 
-import { and, desc, eq, gte, ilike, inArray, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
 import { procedureTotals } from "@/core/appointments/procedures";
 import { appointments, patientPayments, patients, users } from "@/core/db/schema";
 import { displayStaffName } from "@/core/types/auth";
+import { getClinic } from "@/core/clinics/get-clinic";
+import { patientSearchSql } from "@/core/patients/search-sql";
 
 /**
  * Net opening balance (imported pre-FlexicaAI dues) still owed for a clinic — the sum
@@ -97,11 +99,25 @@ export async function getReceivablesReport(
   // a single row could be filtered out.
   const pt = procedureTotals(clinicId);
   const net = appointmentNetSql(pt);
+  // Request-cached, so this costs nothing when the page has already read the clinic.
+  const clinic = await getClinic(clinicId);
+  const patientSearch = patientSearchSql(filters.q, clinic?.mrnPrefix ?? "");
+
+  // THE SEARCH IS KEPT OUT OF `conds`, and that is a fix rather than a style choice.
+  // These conditions are reused by the per-visit query below, which joins `users` and
+  // the procedure totals but NOT `patients` — so a `patients`-referencing search term
+  // in here makes Postgres throw "missing FROM-clause entry for table patients". That
+  // was live: searching receivables by name or phone 500'd for any term that matched
+  // somebody, because the failing query only runs once the page has patients in it.
+  //
+  // It is also redundant there. By that point the page's patients are already chosen;
+  // re-asking whether each one matches the search cannot change the answer. The date
+  // and doctor filters DO belong in both, because they select which VISITS to show.
   const conds = [eq(appointments.status, "completed"), sql`${net} > ${appointments.amountCollected}`];
   if (filters.doctorId) conds.push(eq(appointments.doctorId, filters.doctorId));
-  if (filters.q) conds.push(or(ilike(patients.fullName, `%${filters.q}%`), ilike(patients.phone, `%${filters.q}%`))!);
   if (filters.from) conds.push(gte(appointments.scheduledAt, filters.from));
   if (filters.toExclusive) conds.push(lt(appointments.scheduledAt, filters.toExclusive));
+  const groupedConds = patientSearch ? [...conds, patientSearch] : conds;
 
   // GROUPED BY PATIENT IN SQL (delta D-12). This used to select every unpaid completed
   // appointment in the range and fold them into patients in JavaScript — an unbounded
@@ -126,7 +142,7 @@ export async function getReceivablesReport(
     .innerJoin(patients, eq(patients.id, appointments.patientId))
     .leftJoin(users, eq(users.id, appointments.doctorId))
     .leftJoin(pt, eq(pt.appointmentId, appointments.id))
-    .where(byClinic(appointments.clinicId, clinicId, notDeleted(appointments.deletedAt), and(...conds)))
+    .where(byClinic(appointments.clinicId, clinicId, notDeleted(appointments.deletedAt), and(...groupedConds)))
     .groupBy(patients.id, patients.fullName, patients.phone);
 
   const map = new Map<string, ReceivablePatient>();
@@ -149,7 +165,11 @@ export async function getReceivablesReport(
   // tied to a visit/doctor/date, so only when the view is unfiltered by doctor/date.
   if (!filters.doctorId && !filters.from && !filters.toExclusive) {
     const openConds = [sql`${patients.openingBalance} > 0`];
-    if (filters.q) openConds.push(or(ilike(patients.fullName, `%${filters.q}%`), ilike(patients.phone, `%${filters.q}%`))!);
+    // THE SAME predicate as the main query, not a second copy of it. These two ran as
+    // separate `or(name, phone)` expressions and would have drifted the moment one
+    // gained MRN and the other did not — a patient findable in the balances half and
+    // invisible in the visits half of one list.
+    if (patientSearch) openConds.push(patientSearch);
     const openRows = await db
       .select({ id: patients.id, name: patients.fullName, phone: patients.phone, opening: patients.openingBalance })
       .from(patients)
