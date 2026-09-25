@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 import { db } from "@/core/db";
 import { companySettings } from "@/core/db/schema";
 import { RETENTION_DAYS_OPTIONS } from "@/core/audit/retention-options";
+import { normalizeIdleMinutes } from "@/core/auth/session-idle";
+import { report } from "@/core/observability";
 
 /**
  * Company-wide settings (Owner) — the singleton `company_settings` row. CORE, not a
@@ -91,3 +93,51 @@ export async function setActivityLogRetentionDays(days: number): Promise<void> {
   const d = (RETENTION_DAYS_OPTIONS as readonly number[]).includes(days) ? days : 0;
   await upsertSettings({ activityLogRetentionDays: d });
 }
+
+/**
+ * The idle-session window, in minutes (0 = never).
+ *
+ * CACHED WITH A SHORT TTL, because unlike every other setting here this one is read on
+ * the AUTHENTICATION path — once per request, for every request in the product. A
+ * straight query would add a round trip to every page load to answer "no timeout" the
+ * overwhelming majority of the time. The 60-second TTL is the same bargain
+ * `vocabulary-cache` makes: a change takes up to a minute to take hold, which is
+ * immaterial for a policy measured in tens of minutes, and it costs one query a minute
+ * per process instead of one per request.
+ *
+ * A failed refresh keeps the previous value rather than throwing — an unreachable
+ * settings row must not take the whole app down, and the stale value is the one that
+ * was correct a moment ago.
+ */
+let idleCache: { minutes: number; readAt: number } | null = null;
+const IDLE_TTL_MS = 60_000;
+
+export async function getSessionIdleMinutes(): Promise<number> {
+  const now = Date.now();
+  if (idleCache && now - idleCache.readAt < IDLE_TTL_MS) return idleCache.minutes;
+  try {
+    const [row] = await db
+      .select({ m: companySettings.sessionIdleMinutes })
+      .from(companySettings)
+      .limit(1);
+    idleCache = { minutes: normalizeIdleMinutes(row?.m ?? 0), readAt: now };
+  } catch (e) {
+    report(e, { op: "companySettings.getSessionIdleMinutes" });
+    // No previous value and the row is unreachable: fail OPEN (no timeout) rather
+    // than closed. Failing closed here would sign every user out of a working app
+    // because a settings read blipped, which is a worse outcome than a session
+    // living longer than intended for one minute.
+    idleCache = { minutes: idleCache?.minutes ?? 0, readAt: now };
+  }
+  return idleCache.minutes;
+}
+
+/** Saves the window and clears the cache so the change is visible immediately to the
+ *  process that made it (other processes pick it up within the TTL). */
+export async function setSessionIdleMinutes(minutes: number): Promise<void> {
+  const value = normalizeIdleMinutes(minutes);
+  await upsertSettings({ sessionIdleMinutes: value });
+  idleCache = { minutes: value, readAt: Date.now() };
+}
+
+export { SESSION_IDLE_OPTIONS, SESSION_IDLE_MIN_MINUTES, idleLabel } from "@/core/auth/session-idle";

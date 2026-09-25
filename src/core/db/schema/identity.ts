@@ -433,6 +433,15 @@ export const sessions = pgTable(
     // Super-admin support impersonation: when set, this session ACTS AS that clinic
     // (Feature 5). Never set for clinic staff. See docs/super-admin-plan.md §11.
     impersonatedClinicId: uuid("impersonated_clinic_id"),
+    // When this session last made a request — the basis of the IDLE timeout, which is
+    // a different question from `expires_at`. That column is an ABSOLUTE ceiling ("no
+    // session outlives seven days"); this one answers "has anybody been at this
+    // terminal recently", which is what matters for a shared reception machine left
+    // logged in overnight. Touched at most once a minute (see `core/auth/session.ts`),
+    // because a write on every request would cost more than the risk it covers.
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

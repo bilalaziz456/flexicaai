@@ -25,6 +25,7 @@ import { UserRound } from "lucide-react";
 import {
   updateMyProfile,
   changeMyPassword,
+  signOutOtherDevices,
   uploadMyAvatar,
   removeMyAvatar,
   updateMyDiscountApproval,
@@ -454,6 +455,61 @@ export function PasswordForm() {
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Change password"}
       </Button>
+    </form>
+  );
+}
+
+/**
+ * "Sign out on all other devices" — the lost-laptop control.
+ *
+ * It states the COUNT before asking, because the decision depends on it: "signed in on
+ * 3 other devices" when you expect one is itself the news, and "not signed in anywhere
+ * else" means there is nothing to do and the button says so rather than pretending to
+ * act. The password field is not ceremony — see `signOutOtherDevices` for why an
+ * unattended session must not be able to lock its owner out of every other one.
+ */
+export function SessionsForm({ otherCount }: { otherCount: number }) {
+  const [state, formAction, pending] = useActionState<AccountActionState, FormData>(
+    signOutOtherDevices,
+    {},
+  );
+  useActionToast(state, { saved: state.message ?? "Signed out other devices.", error: true });
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (state.saved) formRef.current?.reset();
+  }, [state.saved]);
+
+  if (otherCount === 0 && !state.saved) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        This is the only device you&rsquo;re signed in on. Nothing to sign out.
+      </p>
+    );
+  }
+
+  return (
+    <form ref={formRef} action={formAction} className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        {state.saved
+          ? "This device stays signed in."
+          : `You're signed in on ${otherCount} other ${otherCount === 1 ? "device" : "devices"}. Signing them out ends those sessions immediately; this one stays signed in.`}
+      </p>
+      {state.saved ? null : (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="signOutPassword">Confirm your password</Label>
+            <PasswordInput
+              id="signOutPassword"
+              name="password"
+              autoComplete="current-password"
+              required
+            />
+          </div>
+          <Button type="submit" variant="destructive" disabled={pending}>
+            {pending ? "Signing out…" : "Sign out other devices"}
+          </Button>
+        </>
+      )}
     </form>
   );
 }

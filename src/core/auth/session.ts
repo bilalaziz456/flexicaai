@@ -1,17 +1,22 @@
 import "server-only";
 
 import { cache } from "react";
+import { after } from "next/server";
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, ne, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { sessions, users, type User } from "@/core/db/schema";
 import { isProduction } from "@/core/lib/env";
+import { report } from "@/core/observability";
 import { SESSION_COOKIE_NAME } from "@/core/auth/constants";
+import { getSessionIdleMinutes } from "@/core/admin/company-settings";
 
 export { SESSION_COOKIE_NAME };
 const SESSION_TTL_DAYS = 7;
 const SESSION_TTL_MS = SESSION_TTL_DAYS * 24 * 60 * 60 * 1000;
+/** How stale `last_seen_at` may get before a request bothers to rewrite it. */
+const TOUCH_INTERVAL_MS = 60_000;
 
 /** We store only the hash of the token, so a DB leak can't be replayed. */
 function hashToken(token: string): string {
@@ -56,13 +61,18 @@ export const getSession = cache(
     const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
     if (!token) return null;
 
+    const tokenHash = hashToken(token);
     const [row] = await db
-      .select({ user: users, impersonatedClinicId: sessions.impersonatedClinicId })
+      .select({
+        user: users,
+        impersonatedClinicId: sessions.impersonatedClinicId,
+        lastSeenAt: sessions.lastSeenAt,
+      })
       .from(sessions)
       .innerJoin(users, eq(sessions.userId, users.id))
       .where(
         and(
-          eq(sessions.tokenHash, hashToken(token)),
+          eq(sessions.tokenHash, tokenHash),
           gt(sessions.expiresAt, new Date()),
         ),
       )
@@ -71,6 +81,44 @@ export const getSession = cache(
     // A suspended (inactive) OR soft-deleted (trashed) user has no valid session.
     // Their sessions are hard-revoked on suspend/delete; this is defense-in-depth.
     if (!row || !row.user.isActive || row.user.deletedAt) return null;
+
+    const idleMinutes = await getSessionIdleMinutes();
+    const idleMs = Date.now() - row.lastSeenAt.getTime();
+
+    if (idleMinutes > 0 && idleMs > idleMinutes * 60_000) {
+      // THE ROW IS DELETED, NOT MERELY REJECTED, and that is the security-relevant
+      // half. Returning null alone would leave a session that becomes VALID AGAIN the
+      // moment somebody lengthens the window or switches the timeout off — the
+      // abandoned terminal this feature exists for, resurrected by a settings change.
+      // Deleting makes idle expiry final, the way the absolute expiry is.
+      after(async () => {
+        try {
+          await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash));
+        } catch (e) {
+          report(e, { op: "session.idleExpire", ids: { userId: row.user.id } });
+        }
+      });
+      return null;
+    }
+
+    // Touch, but not on every request: one write per request would roughly double the
+    // cost of a cheap page to record something only ever compared against a window of
+    // tens of minutes. A minute of imprecision is invisible against that.
+    // It runs in `after()` so the write never sits on the render path (ADR-020's
+    // mechanism, used for the same reason: work the response does not depend on).
+    if (idleMinutes > 0 && idleMs > TOUCH_INTERVAL_MS) {
+      after(async () => {
+        try {
+          await db
+            .update(sessions)
+            .set({ lastSeenAt: new Date() })
+            .where(eq(sessions.tokenHash, tokenHash));
+        } catch (e) {
+          report(e, { op: "session.touch", ids: { userId: row.user.id } });
+        }
+      });
+    }
+
     return { user: row.user, impersonatedClinicId: row.impersonatedClinicId };
   },
 );
@@ -116,4 +164,51 @@ export async function destroySession(): Promise<void> {
     await db.delete(sessions).where(eq(sessions.tokenHash, hashToken(token)));
   }
   cookieStore.delete(SESSION_COOKIE_NAME);
+}
+
+/**
+ * Other sessions belonging to this user — everything signed in except the browser
+ * making this request. Drives the account page's "signed in on N other devices".
+ */
+export async function countOtherSessions(userId: string): Promise<number> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(sessions)
+    .where(
+      and(
+        eq(sessions.userId, userId),
+        gt(sessions.expiresAt, new Date()),
+        token ? ne(sessions.tokenHash, hashToken(token)) : undefined,
+      ),
+    );
+  return row?.n ?? 0;
+}
+
+/**
+ * Signs this user out everywhere EXCEPT here, and returns how many were ended.
+ *
+ * KEEPING THE CURRENT SESSION IS THE DESIGN, not a shortcut. The reason somebody
+ * reaches for this is a device they no longer control — a lost laptop, a shared
+ * terminal they walked away from. Signing them out of the browser they are urgently
+ * using to do it would mean logging back in under exactly the stress that makes
+ * people mistype, and it buys nothing: this session is the one they can see.
+ *
+ * Scoped by `user_id`, so it can never reach another account, and it takes the id
+ * from the caller's own session rather than from a form field.
+ */
+export async function revokeOtherSessions(userId: string): Promise<number> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const gone = await db
+    .delete(sessions)
+    .where(
+      and(
+        eq(sessions.userId, userId),
+        token ? ne(sessions.tokenHash, hashToken(token)) : undefined,
+      ),
+    )
+    .returning({ id: sessions.id });
+  return gone.length;
 }

@@ -167,8 +167,25 @@ Indexes: unique `username`, unique `email`, `clinic_id`.
 
 ### `sessions` — server-side sessions
 `id`, `user_id` → users (`on delete cascade`), `token_hash` (**unique**; SHA-256 of
-the opaque cookie token), `expires_at`, `created_at`. Validated per request in Node
-(not the Edge proxy). Indexes: unique `token_hash`, `user_id`, `expires_at`.
+the opaque cookie token), `expires_at`, `last_seen_at`, `created_at`. Validated per
+request in Node (not the Edge proxy). Indexes: unique `token_hash`, `user_id`,
+`expires_at`.
+
+**Two different expiries, and conflating them is the mistake to avoid.**
+`expires_at` is an ABSOLUTE ceiling — seven days from sign-in, always enforced, no
+setting relaxes it. `last_seen_at` drives the optional IDLE timeout
+(`company_settings.session_idle_minutes`, 0 = never and the default): has anybody
+actually been at this terminal recently? A shared reception counter left logged in
+overnight is the case it exists for, and a doctor's own laptop is not, which is why
+the window is the owner's to choose (ADR-023's reasoning, applied to sessions).
+
+`last_seen_at` is touched at most **once a minute** and from `after()`, so the write
+never sits on the render path — a write per request would roughly double the cost of
+a cheap page to record something only ever compared against tens of minutes. An idle
+session's row is **DELETED**, not merely refused: rejecting it alone would leave a
+session that becomes valid again the moment somebody lengthens the window or switches
+the timeout off, resurrecting the very terminal the feature exists to close.
+`scripts/test-session-security.ts`.
 
 ### `patients` — shared across specialties
 `id`, `clinic_id` → clinics (`cascade`), `full_name`, `phone` (WhatsApp number,
