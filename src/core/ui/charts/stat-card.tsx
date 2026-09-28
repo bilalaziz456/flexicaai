@@ -32,6 +32,7 @@ export function StatCard({
   higherIsBetter = true,
   comparisonLabel = "vs previous period",
   insight,
+  trendColor,
   tone = "default",
   variant = "card",
   action,
@@ -60,6 +61,10 @@ export function StatCard({
   higherIsBetter?: boolean | "neutral";
   comparisonLabel?: string;
   insight?: Insight | null;
+  /** Colour for the sparkline. Pass the colour this measure wears in the chart it
+   *  also appears in, so one quantity is one colour down the whole page. Defaults to
+   *  the neutral measure hue — never to a good/bad colour, see `sparkColor`. */
+  trendColor?: string;
   tone?: "default" | "good" | "bad";
   /**
    * `quiet` drops the card chrome — no border, no fill, no elevation — for a figure
@@ -82,23 +87,26 @@ export function StatCard({
   const hasSignal = Boolean(trend && trend.length > 1 && trend.some((v) => v !== 0));
 
   /**
-   * The DELTA decides the trace, and it outranks `tone`. Net profit is the case that
-   * proved it: the figure is positive so the card is toned "good" and the number is
-   * green — but profit had fallen 95%, so the badge beside it was red while the
-   * sparkline under it stayed green. `tone` is a fact about the LEVEL (we are in
-   * profit); the badge and the trace both describe the MOVEMENT, and they have to
-   * agree with each other or the card argues with itself.
+   * THE TRACE IS COLOURED BY WHICH MEASURE IT IS, NOT BY WHETHER THE NEWS IS GOOD.
+   *
+   * It used to take the delta's judgement — green for an improvement, red for a
+   * decline. That is internally consistent and it loses across a whole page, which is
+   * where the owner met it (2026-09-29): on the dashboard the SAME four quantities
+   * appear again in the money-flow chart below, coloured by their ROLE in the sum, so
+   * Collected was red on top and teal underneath, Expenses green on top and orange
+   * underneath. Every pair disagreed, which makes colour read as decoration.
+   *
+   * Worse in one specific case: red is also this app's loss colour, so a red trace
+   * under a healthy "Collected Rs 72,743" says "this money is bad" at a glance, when
+   * it only means collection is down on last month.
+   *
+   * Nothing is lost by moving it, because the good/bad judgement is already carried
+   * THREE ways in the delta badge — its colour, its arrow, and its `sr-only` text.
+   * The trace was a fourth copy, and the only one that could contradict a neighbour.
+   * A card that has a matching series elsewhere passes `trendColor` to match it;
+   * everything else takes the neutral measure hue, which cannot argue with anything.
    */
-  const sparkColor =
-    pct != null && scored
-      ? good
-        ? "var(--color-success)"
-        : "var(--color-destructive)"
-      : tone === "good" && pct == null
-        ? "var(--color-success)"
-        : tone === "bad" && pct == null
-          ? "var(--color-destructive)"
-          : "var(--color-chart-1)";
+  const sparkColor = trendColor ?? "var(--color-chart-1)";
 
   const Shell = variant === "quiet" ? QuietShell : Card;
 
@@ -165,11 +173,11 @@ export function StatCard({
           A flat NON-zero series is kept: that is a genuine finding. */}
       {hasSignal ? (
         <div className="mt-3 -mb-1">
-          {/* The trace takes the SAME judgement as the badge above it. Colouring it by
-              the series' own direction — the tempting default — put a red sparkline
-              under a green profit figure (the period ended lower than it started, but
-              the business was still in profit), and a green one under RISING expenses,
-              where up is the bad direction. A card must not argue with itself. */}
+          {/* Coloured by WHICH MEASURE this is (`sparkColor`), not by whether the news
+              is good — the badge above already says that three ways. Two colourings
+              were tried and both lost: the series' own direction put a red trace under
+              a still-profitable figure, and the delta's judgement made the same
+              quantity a different colour here and in the chart below it. */}
           {trendLabels && trendLabels.length === trend!.length ? (
             <InteractiveSparkline
               values={trend!}
