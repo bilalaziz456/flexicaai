@@ -123,6 +123,9 @@ export default async function CompanyExpensesPage({
           value={rs(rangeTotal)}
           trend={trend.map((b) => b.total)}
           higherIsBetter={false}
+          // "Expense trend" beside this card plots the same array; one measure, one
+          // colour, even when the two sit in different cards.
+          trendColor="var(--color-chart-5)"
         />
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2"><CardTitle className="text-base">Expense trend</CardTitle></CardHeader>
