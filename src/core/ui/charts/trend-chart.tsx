@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import {
   ChartEmpty,
+  ChartLegend,
   ChartTooltip,
   Grid,
   PAD,
@@ -153,23 +154,23 @@ export function TrendChart({
 
   return (
     <div ref={ref} className="relative w-full">
-      {overlay ? (
-        <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          {[
-            { label: valueLabel, c: color },
-            { label: overlay.label, c: overlayColor },
-          ].map((it) => (
-            <li key={it.label} className="flex items-center gap-1.5">
-              <span
-                className="inline-block size-2 rounded-full"
-                style={{ background: it.c }}
-                aria-hidden="true"
-              />
-              {it.label}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      {/* THE COMPARISON LINE USED TO HAVE NO KEY. This legend only appeared when an
+          `overlay` was set, so the common case — one series plus its dashed
+          previous-period line — drew two curves and explained neither. The reader was
+          left to infer which was "now" from which one ended at the figure above.
+          `ChartLegend` renders nothing below two entries, so a bare single-series
+          chart still shows no key rather than repeating its own heading. */}
+      <ChartLegend
+        className="mb-2 pt-0"
+        items={[
+          { label: valueLabel, color },
+          ...(overlay ? [{ label: overlay.label, color: overlayColor }] : []),
+          // Dashed and muted, exactly as the path is stroked below.
+          ...(hasComparison
+            ? [{ label: comparisonLabel, color: "var(--muted-foreground)", dash: true }]
+            : []),
+        ]}
+      />
       {width > 0 && (
         <svg
           width={width}

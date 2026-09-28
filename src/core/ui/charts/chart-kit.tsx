@@ -142,6 +142,60 @@ export function TooltipRow({
 }
 
 /**
+ * A chart's key: which colour means what.
+ *
+ * ONE LEGEND FOR EVERY CHART, for the reason `core/ui` holds one of each primitive —
+ * a swatch that is 10px on one chart and 8px on the next, or a row here and a column
+ * there, makes two charts on one page look like two products. `DonutChart` keeps its
+ * own richer legend on purpose (it carries each slice's share and value, which is the
+ * donut's whole point); this is the plain key every other chart needs.
+ *
+ * IT RENDERS NOTHING BELOW TWO ITEMS, and that is the design. A legend exists to tell
+ * encodings APART; with one series there is nothing to tell apart, so the legend can
+ * only repeat the card title back at the reader. That is the same rule the charts
+ * already follow for sparklines and deltas — show a thing when the thing exists
+ * (conventions §6). A single-series chart names its measure in its heading.
+ *
+ * The swatches are `aria-hidden`: colour is not available to a screen reader, so the
+ * LABELS are the content and the dots are decoration on top of them.
+ */
+export function ChartLegend({
+  items,
+  className,
+}: {
+  /** `dash` draws the swatch as a dashed rule instead of a dot — use it when the
+   *  series itself is dashed, so the key LOOKS like the thing it explains. A solid
+   *  dot standing for a dashed comparison line is a small lie the reader has to
+   *  discover by squinting at the chart. */
+  items: { label: string; color: string; dash?: boolean }[];
+  className?: string;
+}) {
+  if (items.length < 2) return null;
+  return (
+    <ul className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-1", className)}>
+      {items.map((it) => (
+        <li key={it.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          {it.dash ? (
+            <span
+              className="w-3.5 shrink-0 border-t-2 border-dashed"
+              style={{ borderColor: it.color }}
+              aria-hidden="true"
+            />
+          ) : (
+            <span
+              className="size-2.5 shrink-0 rounded-full"
+              style={{ background: it.color }}
+              aria-hidden="true"
+            />
+          )}
+          {it.label}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
  * Shown instead of an axis with nothing under it. A chart of no data is not a small
  * chart, it is a different thing to look at — and an empty plot reads as "broken"
  * where a sentence reads as "nothing happened yet".

@@ -52,6 +52,7 @@ export function ScatterPlot({
   breakEven = false,
   refLine,
   goodSide = "below",
+  weightLabel,
   emptyMessage = "Nothing to compare in this period yet.",
   ariaLabel,
 }: {
@@ -71,6 +72,9 @@ export function ScatterPlot({
    *  against cost that is "below": a clinic whose cost is small next to what it pays
    *  sits low on the y axis and therefore under the line. */
   goodSide?: "above" | "below";
+  /** Names what a dot's SIZE means, e.g. "No-shows". Without it the size key is
+   *  hidden, because a key that cannot say what it measures is decoration. */
+  weightLabel?: string;
   emptyMessage?: string;
   ariaLabel: string;
 }) {
@@ -116,8 +120,44 @@ export function ScatterPlot({
 
   return (
     <div ref={ref} className="relative w-full">
+      {/* THIS CHART KEEPS ITS OWN KEY ROW rather than using `ChartLegend`, because two
+          of its entries are not plain swatches: the axis orientation, and a reference
+          line that carries a VALUE. Mixing a second key row onto one chart would be
+          worse than the small inconsistency.
+          What was missing is below — the dot colour and the dot SIZE each encoded
+          something with nothing to decode it by. The colour entries are phrased by
+          POSITION ("below the clinic average"), which is a fact; the colour then
+          carries the judgement, which is what `goodSide` already decides. */}
       <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
         <span>↑ {yLabel}</span>
+        {[
+          { side: "below" as const, label: refLine ? `Below ${refLine.label}` : "Below break even" },
+          { side: "above" as const, label: refLine ? `Above ${refLine.label}` : "Above break even" },
+        ].map((e) => (
+          <span key={e.side} className="flex items-center gap-1.5">
+            <span
+              className="size-2 shrink-0 rounded-full"
+              style={{
+                background:
+                  e.side === goodSide ? "var(--color-chart-1)" : "var(--color-destructive)",
+              }}
+              aria-hidden="true"
+            />
+            {e.label}
+          </span>
+        ))}
+        {/* Dot AREA tracks the weight (see `radiusFor`), so a reader who does not know
+            that reads the biggest dot as merely the most extreme. Only shown when the
+            caller names what the weight is — an unnamed size key explains nothing. */}
+        {weightLabel && maxWeight > 0 ? (
+          <span className="flex items-center gap-1.5">
+            <span className="flex items-end gap-0.5" aria-hidden="true">
+              <span className="size-1.5 rounded-full bg-muted-foreground/70" />
+              <span className="size-2.5 rounded-full bg-muted-foreground/70" />
+            </span>
+            Dot size: {weightLabel}
+          </span>
+        ) : null}
         {refLine ? (
           <span className="flex items-center gap-1.5">
             <svg width="16" height="4" aria-hidden="true">
