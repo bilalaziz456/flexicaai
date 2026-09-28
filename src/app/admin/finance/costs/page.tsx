@@ -79,6 +79,8 @@ export default async function CostsPage({
           hint={rangeLabel}
           trend={cost.trend.map((b) => b.costPkr)}
           higherIsBetter={false}
+          // The chart below plots this EXACT array. Same numbers, so the same colour.
+          trendColor="var(--color-chart-4)"
         />
         <StatCard
           label="Scribe calls"
