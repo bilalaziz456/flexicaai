@@ -98,12 +98,18 @@ export default async function CompanyPnlPage({
           }
           trend={profitTrend}
           trendLabels={bucketLabels}
+          // Matches the profit-and-loss chart lower down, which draws this same
+          // series green above the zero line and red beneath it.
+          trendColor={
+            pnl.netProfit < 0 ? "var(--color-destructive)" : "var(--color-success)"
+          }
         />
         <StatCard
           label="Collected revenue"
           value={rs(pnl.revenue)}
           trend={revenueTrend}
           trendLabels={bucketLabels}
+          trendColor="var(--color-chart-1)"
         />
         {/* Serving cost and opex are not bucketed separately — `PnlBucket.cost`
             combines them — so neither card claims a shape it does not have. */}
