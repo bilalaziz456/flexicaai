@@ -87,14 +87,37 @@ const TONE = {
   good: { chip: "bg-success/12 text-success-text", dot: "var(--success)" },
 };
 
-/** A small trend line under a KPI, so the figure reads as a direction, not a snapshot. */
-function Spark({ points, tone }: { points: number[]; tone?: "warn" }) {
+/**
+ * Which measure a KPI shows, so its trace can be coloured by that and nothing else.
+ * `billed` deliberately takes the muted line the revenue chart uses for the same
+ * series, rather than a colour of its own.
+ */
+type KpiTone = "billed" | "warn" | "providers";
+
+const TONE_COLOUR: Record<KpiTone, string> = {
+  // Exactly what the revenue chart strokes its Billed line with (currentColor at
+  // 28%, keyed as foreground/30) — a border token would have been merely greyish.
+  billed: "color-mix(in oklab, var(--foreground) 30%, transparent)",
+  warn: "var(--warning)",
+  providers: "var(--brand-blue)",
+};
+
+/**
+ * A small trend line under a KPI.
+ *
+ * ONE MEASURE, ONE COLOUR, on this screen too. Teal belongs to COLLECTED — that is
+ * what the revenue chart directly below keys it as — so a teal trace under "Billed"
+ * said teal meant two different things eighteen pixels apart, while the chart drew
+ * Billed in grey. The same contradiction the product dashboard had, in the shop
+ * window. `tone` therefore names the MEASURE, never a judgement.
+ */
+function Spark({ points, tone }: { points: number[]; tone?: KpiTone }) {
   const max = Math.max(...points);
   const min = Math.min(...points);
   const path = points
     .map((p, i) => `${i === 0 ? "M" : "L"}${((i / (points.length - 1)) * 100).toFixed(1)},${(28 - ((p - min) / (max - min || 1)) * 24).toFixed(1)}`)
     .join(" ");
-  const stroke = tone === "warn" ? "var(--warning)" : "var(--brand-teal)";
+  const stroke = TONE_COLOUR[tone ?? "billed"];
   return (
     <svg viewBox="0 0 100 30" preserveAspectRatio="none" className="mt-auto h-8 w-full pt-3" fill="none">
       <path d={`${path} L100,30 L0,30 Z`} fill={stroke} fillOpacity="0.1" />
@@ -116,7 +139,7 @@ function Kpi({
   value: number;
   sub: string;
   Icon: ComponentType<{ className?: string }>;
-  tone?: "warn";
+  tone?: KpiTone;
   delay: number;
   trend: number[];
 }) {
@@ -189,7 +212,7 @@ export function FinanceDashboard() {
             <Kpi label="Billed" value={1605000} sub="From 412 completed visits" Icon={Receipt} delay={350} trend={[31, 30, 34, 33, 36, 35, 37, 37, 39, 40, 41]} />
             <Kpi label="Outstanding" value={176500} sub="Across 9 patients" Icon={Clock3} tone="warn" delay={450} trend={[44, 41, 43, 38, 36, 33, 34, 30, 29, 27, 25]} />
             <div className="col-span-2 lg:col-span-1">
-              <Kpi label="Owed to providers" value={214300} sub="Shares earned, not yet paid" Icon={Users} delay={550} trend={[18, 21, 19, 24, 22, 20, 23, 25, 22, 21, 21]} />
+              <Kpi label="Owed to providers" value={214300} sub="Shares earned, not yet paid" Icon={Users} tone="providers" delay={550} trend={[18, 21, 19, 24, 22, 20, 23, 25, 22, 21, 21]} />
             </div>
           </div>
         </div>
