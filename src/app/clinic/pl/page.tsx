@@ -90,6 +90,7 @@ export default async function ProfitLossPage({
       current: pl.revenue,
       previous: prev?.revenue,
       higherIsBetter: true,
+      tint: "var(--color-chart-1)",
     },
     {
       title: "Doctor shares",
@@ -103,6 +104,7 @@ export default async function ProfitLossPage({
       // for weeks while passing `true`, which painted a rising share bill GREEN beside a
       // rising expense line painted RED — the same direction, the same money out.)
       higherIsBetter: "neutral" as const,
+      tint: "var(--color-chart-2)",
     },
     {
       title: "Expenses",
@@ -112,6 +114,7 @@ export default async function ProfitLossPage({
       current: pl.expenses,
       previous: prev?.expenses,
       higherIsBetter: false,
+      tint: "var(--color-warning)",
     },
     {
       title: loss ? "Net loss" : "Net profit",
@@ -122,6 +125,9 @@ export default async function ProfitLossPage({
       previous: prev?.netProfit,
       higherIsBetter: true,
       tone: (loss ? "bad" : "good") as "bad" | "good",
+      // Matches the profit-and-loss chart below, which draws this same series green
+      // above the zero line and red under it.
+      tint: loss ? "var(--color-destructive)" : "var(--color-success)",
     },
   ];
 
@@ -169,6 +175,7 @@ export default async function ProfitLossPage({
             current={c.current}
             previous={c.previous}
             higherIsBetter={c.higherIsBetter}
+            trendColor={c.tint}
             tone={c.tone}
             comparisonLabel="vs previous period"
           />
