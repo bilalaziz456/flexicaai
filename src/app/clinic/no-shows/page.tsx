@@ -83,6 +83,7 @@ export default async function NoShowsPage({
               yLabel="No-show rate"
               height={240}
               goodSide="below"
+              weightLabel="No-shows"
               refLine={{ value: stats.rate * 100, label: "Clinic average" }}
               xFormat="count"
               yFormat="percent"

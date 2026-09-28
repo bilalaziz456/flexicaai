@@ -3,6 +3,7 @@
 import { useCallback, useId } from "react";
 import {
   ChartEmpty,
+  ChartLegend,
   ChartTooltip,
   Grid,
   PAD,
@@ -107,6 +108,20 @@ export function ProfitLossChart({
 
   return (
     <div ref={ref} className="relative w-full">
+      {/* The green-above / red-below-zero split was legible only on hover, where the
+          tooltip row flips to "Net loss". At rest the reader had two colours and no
+          key. The loss entry appears ONLY when the series actually goes negative —
+          keying a colour that is nowhere on the chart teaches the reader to distrust
+          the key — and with nothing to contrast, `ChartLegend` renders nothing. */}
+      <ChartLegend
+        className="mb-2 pt-0"
+        items={[
+          { label: valueLabel, color: "var(--color-success)" },
+          ...(points.some((p) => p.value < 0)
+            ? [{ label: "Net loss", color: "var(--color-destructive)" }]
+            : []),
+        ]}
+      />
       {width > 0 && (
         <svg
           width={width}

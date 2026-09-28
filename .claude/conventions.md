@@ -148,7 +148,24 @@ note above it; obvious logic gets none.
      dashboard, scoring the same figure the other way, called a FALLING share bill
      good. The same number was green on two screens for opposite reasons. Neutral
      still SHOWS the movement; it just does not applaud it.
-  3. **An insight must be legible in the chart it sits under** (`insights.ts`). Each
+  3. **If colour carries meaning, the chart carries a key.** One `ChartLegend`
+     (`chart-kit.tsx`) — a swatch per encoding, `dash: true` where the series itself is
+     dashed, because a solid dot standing for a dashed line is a small lie the reader
+     has to find by squinting. **It renders nothing below two entries**, which is the
+     same rule as the sparkline: a key with one entry can only repeat the card's own
+     heading. So a single-series chart is meant to have no legend, and that is not an
+     omission.
+     **A legend is redundant where every mark is already labelled** — `LollipopChart`
+     names each row, `WaterfallChart` prints the value on each bar, `StatCard` pairs
+     its delta colour with an arrow and `sr-only` text. Adding one there is noise.
+     Where it is NOT redundant, it is load-bearing: `DonutChart` and `SegmentedBar`
+     keep their own richer keys (they carry each slice's share and value), and
+     `ScatterPlot` keeps its own row because two of its entries are not plain swatches
+     — the axis orientation, and a reference line carrying a value.
+     The failure this exists to stop is a colour that means something only on HOVER:
+     the P&L's green-above/red-below-zero was explained solely by a tooltip label, and
+     a scatter's good/bad dot colour and its dot SIZE by nothing at all.
+  4. **An insight must be legible in the chart it sits under** (`insights.ts`). Each
      detector returns null unless the data supports the sentence, including a
      materiality floor — a −126 rupee month on a 40,000 axis is a true loss and an
      invisible one, and a line that appears to contradict its own chart costs more
