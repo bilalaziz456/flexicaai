@@ -135,13 +135,21 @@ note above it; obvious logic gets none.
      the balance formula from scratch (which would be a second copy of a money rule,
      ADR-015). `scripts/test-dashboard-trends.ts` asserts both relationships against
      every clinic in the database.
-  2. **Everything on a card agrees with everything else on it.** The sparkline takes
-     the delta's good/bad judgement, not its own direction: colouring by direction
-     put a red trace under a green profit figure and a green one under rising
-     expenses. **The delta outranks `tone`**, which was the same bug wearing a
-     different hat — `tone` is a fact about the LEVEL (net profit is positive, so the
-     figure is green), while the badge and the trace both describe the MOVEMENT, and
-     a card toned "good" drew a green sparkline under a red −95% badge.
+  2. **A colour means the same thing everywhere on the page, so a sparkline is
+     coloured by WHICH MEASURE it is — never by whether the news is good.** Two
+     judgement-based colourings were tried and both failed, each at a wider scale than
+     the last. The series' own direction put a red trace under a still-profitable
+     figure. Replacing that with the DELTA's judgement fixed the card and broke the
+     PAGE: the dashboard's four money KPIs reappear in the money-flow chart below,
+     coloured there by their role in the sum, so Collected was red on top and teal
+     underneath and Expenses green on top and orange underneath — all four pairs
+     disagreed. And red is also the loss colour, so a red trace under a healthy
+     "Collected Rs 72,743" reads as "this money is bad".
+     A card whose measure appears in a chart elsewhere passes `trendColor` to match
+     it; everything else takes the neutral measure hue. **Nothing is lost**, because
+     the good/bad judgement is already in the delta badge three times over — its
+     colour, its arrow and its `sr-only` text — and the trace was the only copy that
+     could contradict a neighbour.
      **A figure with no good direction says so** (`higherIsBetter="neutral"`): the
      doctor share bill rises WITH revenue, and scoring it left a rising share bill
      green beside a rising expense line red, both printed as money out — while the

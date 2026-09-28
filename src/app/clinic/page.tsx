@@ -278,10 +278,10 @@ export default async function ClinicDashboard() {
               new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 }).format(n);
             const loss = financeKpis.netProfit30d < 0;
             const kpis = [
-              { show: billingKpiOn || financeKpiOn, title: "Collected (30d)", value: fmt(financeKpis.collected30d), note: "Revenue received", href: financeKpiOn ? "/clinic/pl" : "/clinic/sales", tone: "default" as const, trend: financeKpis.collectedTrend, curr: financeKpis.collected30d, prev: financeKpis.collectedPrev30d, up: true },
-              { show: financeKpiOn, title: "Doctor shares (30d)", value: `− ${fmt(financeKpis.doctorShares30d)}`, note: "Earned on collection", href: "/clinic/pl", tone: "default" as const, trend: financeKpis.sharesTrend, curr: financeKpis.doctorShares30d, prev: financeKpis.doctorSharesPrev30d, up: "neutral" as const },
-              { show: financeKpiOn, title: "Expenses (30d)", value: `− ${fmt(financeKpis.expenses30d)}`, note: "Costs incurred", href: "/clinic/expenses", tone: "default" as const, trend: financeKpis.expenseTrend, curr: financeKpis.expenses30d, prev: financeKpis.expensesPrev30d, up: false },
-              { show: financeKpiOn, title: loss ? "Net loss (30d)" : "Net profit (30d)", value: fmt(Math.abs(financeKpis.netProfit30d)), note: "After shares + expenses", href: "/clinic/pl", tone: (loss ? "bad" : "good") as "bad" | "good", trend: financeKpis.profitTrend, curr: financeKpis.netProfit30d, prev: financeKpis.netProfitPrev30d, up: true },
+              { show: billingKpiOn || financeKpiOn, title: "Collected (30d)", value: fmt(financeKpis.collected30d), note: "Revenue received", href: financeKpiOn ? "/clinic/pl" : "/clinic/sales", tone: "default" as const, trend: financeKpis.collectedTrend, curr: financeKpis.collected30d, prev: financeKpis.collectedPrev30d, up: true, tint: "var(--color-chart-1)" },
+              { show: financeKpiOn, title: "Doctor shares (30d)", value: `− ${fmt(financeKpis.doctorShares30d)}`, note: "Earned on collection", href: "/clinic/pl", tone: "default" as const, trend: financeKpis.sharesTrend, curr: financeKpis.doctorShares30d, prev: financeKpis.doctorSharesPrev30d, up: "neutral" as const, tint: "var(--color-chart-2)" },
+              { show: financeKpiOn, title: "Expenses (30d)", value: `− ${fmt(financeKpis.expenses30d)}`, note: "Costs incurred", href: "/clinic/expenses", tone: "default" as const, trend: financeKpis.expenseTrend, curr: financeKpis.expenses30d, prev: financeKpis.expensesPrev30d, up: false, tint: "var(--color-warning)" },
+              { show: financeKpiOn, title: loss ? "Net loss (30d)" : "Net profit (30d)", value: fmt(Math.abs(financeKpis.netProfit30d)), note: "After shares + expenses", href: "/clinic/pl", tone: (loss ? "bad" : "good") as "bad" | "good", trend: financeKpis.profitTrend, curr: financeKpis.netProfit30d, prev: financeKpis.netProfitPrev30d, up: true, tint: loss ? "var(--color-destructive)" : "var(--color-success)" },
             ].filter((k) => k.show);
             return kpis.map((k) => (
               <Link key={k.title} href={k.href} className="h-full">
@@ -294,6 +294,8 @@ export default async function ClinicDashboard() {
                   current={k.curr}
                   previous={k.prev}
                   higherIsBetter={k.up}
+                  // The same hue this measure wears in the money-flow chart below.
+                  trendColor={k.tint}
                   tone={k.tone}
                   comparisonLabel="vs previous 30 days"
                 />
