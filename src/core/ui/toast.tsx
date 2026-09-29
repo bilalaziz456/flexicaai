@@ -54,8 +54,15 @@ function ToastCard({ item }: { item: ToastItem }) {
     // Tokens, not raw emerald/red. The badges and the status tones use --success /
     // --destructive, so a toast saying "saved" in a different green from the badge two
     // inches above it was the same state rendered as two different colours.
-    ? "border-destructive/25 bg-destructive/8 text-destructive-text"
-    : "border-success/25 bg-success/8 text-success-text";
+    // THE FILL IS COMPOSITED, NOT TRANSLUCENT. `bg-destructive/8` is a 92%
+    // see-through tint with no blur behind it, and a toast lands bottom-centre —
+    // which on nearly every screen here is directly over a table. The page read
+    // straight through it: "Taken by owner · − Rs 500 · Demo Admin" ran across the
+    // words "Enter an amount greater than zero." `color-mix` produces the SAME colour
+    // that 8% over the popover surface was meant to look like, as an opaque one, so
+    // nothing bleeds through and both themes still resolve from their own tokens.
+    ? "border-destructive/25 bg-[color-mix(in_oklab,var(--destructive)_8%,var(--popover))] text-destructive-text"
+    : "border-success/25 bg-[color-mix(in_oklab,var(--success)_8%,var(--popover))] text-success-text";
   const Icon = isError ? AlertCircle : CheckCircle2;
 
   return (
