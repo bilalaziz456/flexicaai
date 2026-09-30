@@ -256,6 +256,10 @@ export default async function ClinicDetailPage({
             clinicId={clinic.id}
             assignedTo={team.some((m) => m.id === clinic.assignedTo) ? clinic.assignedTo : null}
             team={team}
+            // Has the clinic been told about the assignment it currently has? That is
+            // exactly `assigned_at IS NULL` inverted, so the tick can show what is
+            // actually stored instead of resetting itself on every page load.
+            announced={clinic.assignedAt !== null}
           />
         </CardContent>
       </Card>

@@ -1209,6 +1209,16 @@ these for churn-risk + usage/cost anomaly flags.
   longer holds the account. The assign control saves on a BUTTON for this reason — it
   used to save the moment the dropdown moved, which cannot carry a modifier the user
   has not been shown yet.
+  **`assigned_at` is also what the admin CHECKBOX reads.** "Don't notify the clinic"
+  is seeded from `assigned_at IS NULL` rather than defaulting to unticked, because
+  local-only state reset on every page load: ticking it, saving, and coming back showed
+  it clear again, which reads as the setting having been thrown away. The column
+  already answers the question the box is asking — has this clinic been told about the
+  assignment it currently has — so there is no second flag to keep in step. The one
+  care needed is that picking a DIFFERENT manager resets the tick to "announce":
+  otherwise every clinic assigned before the column existed loads ticked, and the next
+  handover there would inherit "stay quiet" from a row that merely predates the
+  feature.
   **The fallback bottoms out at `BRAND_PHONE`/`BRAND_EMAIL` (`core/lib/brand.ts`), not
   at nothing.** `company_settings` WINS per field when the owner sets it, but a
   "default" that must be configured before it says anything is not a default — it is
