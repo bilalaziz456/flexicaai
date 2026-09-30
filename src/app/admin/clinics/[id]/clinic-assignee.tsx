@@ -36,7 +36,12 @@ export function ClinicAssignee({
     [team],
   );
 
-  const dirty = value !== saved;
+  const managerChanged = value !== saved;
+  // The TICK is a change in its own right, not just a modifier on a dropdown move.
+  // On an unchanged manager, saving with it set clears `assigned_at` — which stops a
+  // banner the clinic is being shown right now. Greying Save out for that left the
+  // only way to silence a live notice unreachable.
+  const dirty = managerChanged || !notify;
 
   const save = () => {
     start(async () => {
@@ -47,13 +52,17 @@ export function ClinicAssignee({
       }
       setSaved(value);
       // Says what actually happened on the clinic side, because that is the part the
-      // checkbox above just decided and the only part not visible from here.
+      // checkbox just decided and the only part not visible from this screen. Four
+      // outcomes, not two: saving an UNCHANGED manager with the tick set is how you
+      // stop a notice already on their screen, and "saved" alone would not say so.
       toast.success(
         !value
           ? "Account manager cleared."
-          : notify
-            ? "Account manager saved. The clinic has been told."
-            : "Account manager saved. The clinic was not notified.",
+          : !managerChanged
+            ? "Saved. The clinic will no longer see the change notice."
+            : notify
+              ? "Account manager saved. The clinic has been told."
+              : "Account manager saved. The clinic was not notified.",
       );
       // Back to the default for the NEXT change: skipping is the exception, and a
       // checkbox that stayed ticked would silently apply to a later handover that
@@ -95,6 +104,7 @@ export function ClinicAssignee({
             <p className="text-xs text-muted-foreground">
               For a temporary cover. Normally the clinic admin sees the new manager&apos;s
               name and number for 14 days; the settings page is updated either way.
+              {!managerChanged ? " Saving with this ticked stops a notice already showing." : ""}
             </p>
           </div>
         </div>

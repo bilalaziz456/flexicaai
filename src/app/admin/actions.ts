@@ -836,6 +836,14 @@ export async function setClinicAssigneeAction(
     name = m.fullName ?? m.username;
   }
 
+  // Read the CURRENT manager first, purely so the audit line can be true. Saving the
+  // same manager with `notify` false is a real and useful action — it clears
+  // `assigned_at`, which stops a notice the clinic is looking at right now — but
+  // logging that as "Assigned clinic to X" would record a reassignment that never
+  // happened. One extra read on an infrequent action, for a trail that does not lie.
+  const before = await getClinic(clinicId);
+  const unchanged = assigned !== null && before?.assignedTo === assigned;
+
   await updateClinicFields(clinicId, accountManagerFields(assigned, { notify }));
   await logActivity({
     action: "update",
@@ -844,9 +852,11 @@ export async function setClinicAssigneeAction(
     clinicId,
     // Whether the clinic was told is part of what happened, so the trail records it.
     // Otherwise a silent handover is indistinguishable from an announced one later.
-    summary: assigned
-      ? `Assigned clinic to ${name}${notify ? "" : " (clinic not notified)"}`
-      : "Cleared the clinic's account manager",
+    summary: !assigned
+      ? "Cleared the clinic's account manager"
+      : unchanged
+        ? `Stopped the account-manager notice for ${name}`
+        : `Assigned clinic to ${name}${notify ? "" : " (clinic not notified)"}`,
   });
   revalidatePath(`/admin/clinics/${clinicId}`);
   revalidatePath("/admin");
