@@ -7,6 +7,7 @@ import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { PasswordInput } from "@/core/ui/password-input";
+import { PhoneInput } from "@/core/ui/phone-input";
 import { Toast } from "@/core/ui/toast";
 
 
@@ -31,6 +32,16 @@ export function CreateSuperAdminForm() {
         <div className="space-y-2">
           <Label htmlFor="username">Username</Label>
           <Input id="username" name="username" autoCapitalize="none" spellCheck={false} required />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="phone">Contact number</Label>
+          {/* Keyed on `state.saved` so the field clears with the rest of the form: a
+              controlled input keeps its React value through a native form.reset(),
+              and remounting is what actually empties it. This matches the latching
+              reset the other fields already get rather than introducing a second
+              behaviour alongside it. */}
+          <PhoneInput key={String(state.saved)} id="phone" name="phone" required />
+          <p className="text-xs text-muted-foreground">Shown to the clinics they manage.</p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="password">Temporary password</Label>

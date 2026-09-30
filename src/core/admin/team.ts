@@ -5,6 +5,7 @@ import { db } from "@/core/db";
 import { clinics, sessions, users } from "@/core/db/schema";
 import { notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
+import { accountManagerFields } from "@/core/clinics/account-manager";
 
 /**
  * The COMPANY's own team — super admins, not clinic staff — CORE per ADR-014.
@@ -26,6 +27,10 @@ export async function listCompanyTeam(viewerIsOwner: boolean) {
       isActive: users.isActive,
       deactivatedAt: users.deactivatedAt,
       permissions: users.permissions,
+      // Listed so the roster shows at a glance who has no number yet. Those members
+      // predate the column and their clinics silently fall back to the company
+      // contact — a gap nobody would go looking for one record at a time.
+      phone: users.phone,
       role: users.role,
     })
     .from(users)
@@ -64,6 +69,9 @@ export async function createSuperAdmin(input: {
   username: string;
   passwordHash: string;
   fullName: string;
+  /** E.164. Required by the form — a manager with no number cannot be given to a
+   *  clinic as a contact, so an account created without one is half an account. */
+  phone: string;
   permissions: string[];
 }): Promise<void> {
   await db.insert(users).values({
@@ -106,7 +114,7 @@ export async function deactivateTeamMember(userId: string): Promise<void> {
     await tx.delete(sessions).where(eq(sessions.userId, userId));
     await tx
       .update(clinics)
-      .set({ assignedTo: null, updatedAt: new Date() })
+      .set(accountManagerFields(null))
       .where(eq(clinics.assignedTo, userId));
   });
 }
@@ -121,7 +129,7 @@ export async function reactivateTeamMember(userId: string): Promise<void> {
 
 export async function updateTeamMemberProfile(
   userId: string,
-  input: { fullName: string; username: string },
+  input: { fullName: string; username: string; phone: string },
 ): Promise<void> {
   await db
     .update(users)
@@ -176,7 +184,7 @@ export async function reassignClinics(
 ): Promise<number> {
   const rows = await db
     .update(clinics)
-    .set({ assignedTo: toUserId, updatedAt: new Date() })
+    .set(accountManagerFields(toUserId))
     .where(eq(clinics.assignedTo, fromUserId))
     .returning({ id: clinics.id });
   return rows.length;
@@ -200,7 +208,7 @@ export async function softDeleteTeamMember(userId: string, actorId: string): Pro
     await tx.delete(sessions).where(eq(sessions.userId, userId));
     await tx
       .update(clinics)
-      .set({ assignedTo: null, updatedAt: new Date() })
+      .set(accountManagerFields(null))
       .where(eq(clinics.assignedTo, userId));
   });
 }
@@ -215,6 +223,7 @@ export async function getTeamMember(userId: string) {
       isActive: users.isActive,
       deactivatedAt: users.deactivatedAt,
       permissions: users.permissions,
+      phone: users.phone,
       role: users.role,
       createdAt: users.createdAt,
     })

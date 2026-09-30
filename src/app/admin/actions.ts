@@ -22,6 +22,7 @@ import {
   updateClinicUserProfile,
 } from "@/core/admin/clinics";
 import { getClinic } from "@/core/clinics/get-clinic";
+import { accountManagerFields } from "@/core/clinics/account-manager";
 import { getMyTotpSecrets, setMyBackupCodes } from "@/core/users/profile";
 import { getTeamMember } from "@/core/admin/team";
 import { availableSpecialtyIds } from "@/config/modules";
@@ -827,7 +828,7 @@ export async function setClinicAssigneeAction(
     name = m.fullName ?? m.username;
   }
 
-  await updateClinicFields(clinicId, { assignedTo: assigned, updatedAt: new Date() });
+  await updateClinicFields(clinicId, accountManagerFields(assigned));
   await logActivity({
     action: "update",
     entity: "clinic",

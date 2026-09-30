@@ -17,16 +17,19 @@ import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { PasswordInput } from "@/core/ui/password-input";
+import { PhoneInput } from "@/core/ui/phone-input";
 import { Toast } from "@/core/ui/toast";
 
 export function ProfileForm({
   userId,
   fullName,
   username,
+  phone,
 }: {
   userId: string;
   fullName: string;
   username: string;
+  phone: string | null;
 }) {
   const [state, action, pending] = useActionState<TeamActionState, FormData>(
     editTeamMemberProfileAction.bind(null, userId),
@@ -45,6 +48,14 @@ export function ProfileForm({
         <div className="space-y-2">
           <Label htmlFor="username">Username</Label>
           <Input id="username" name="username" value={userVal} onChange={(e) => setUserVal(e.target.value)} autoCapitalize="none" spellCheck={false} required />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="phone">Contact number</Label>
+          <PhoneInput id="phone" name="phone" defaultValue={phone ?? ""} required />
+          <p className="text-xs text-muted-foreground">
+            Shown to the clinics they manage. Required — a manager with no number is
+            not offered to a clinic as a contact at all.
+          </p>
         </div>
       </div>
       {state.error ? <p className="text-sm text-destructive" role="alert">{state.error}</p> : null}

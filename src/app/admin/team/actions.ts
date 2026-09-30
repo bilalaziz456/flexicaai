@@ -28,8 +28,10 @@ import {
   suspendTeamMember,
   updateTeamMemberProfile,
 } from "@/core/admin/team";
+import { setCompanySupportContact } from "@/core/admin/company-settings";
 import { logActivity } from "@/core/audit/log";
 import { USERNAME_REGEX } from "@/core/types/auth";
+import { toE164 } from "@/core/lib/phone";
 import { report } from "@/core/observability";
 
 export type TeamActionState = { error?: string; saved?: boolean };
@@ -53,6 +55,28 @@ async function ownerGuard(actor: CurrentUser, targetUserId: string): Promise<str
   return null;
 }
 
+/**
+ * A team member's contact number — REQUIRED here even though the column is nullable.
+ *
+ * The column has to allow NULL because members created before this existed have no
+ * number, and `ADD COLUMN … NOT NULL` cannot be applied to a table with rows
+ * (ADR-027). The form is where the requirement actually belongs anyway: it is the only
+ * place a human can supply one, so every member created or edited from here leaves
+ * with a number on file.
+ *
+ * Normalised to E.164 via the shared `toE164`, so a manager's number and a patient's
+ * are stored the same way — `core/lib/phone.ts` exists because two formats in one
+ * database is how a number becomes unmatchable. The `valid` flag is the honest
+ * reject: "03451" normalises to something shaped like a number and is not one.
+ */
+const phoneField = z
+  .string()
+  .trim()
+  .min(1, "A contact number is required — the clinics you manage are shown it.")
+  .transform((raw) => toE164(raw))
+  .refine((r) => r.valid && r.phone, { message: "That does not look like a phone number." })
+  .transform((r) => r.phone as string);
+
 const createSchema = z.object({
   fullName: z.string().trim().min(2, "Name is required.").max(120),
   username: z
@@ -62,6 +86,7 @@ const createSchema = z.object({
     .max(32)
     .transform((s) => s.toLowerCase())
     .refine((s) => USERNAME_REGEX.test(s), { message: "Invalid username." }),
+  phone: phoneField,
   password: z.string().min(8, "Password must be at least 8 characters."),
   subRole: z.enum(["super_admin", "support", "sales", "billing"]),
 });
@@ -75,6 +100,7 @@ export async function createSuperAdminAction(
   const parsed = createSchema.safeParse({
     fullName: formData.get("fullName"),
     username: formData.get("username"),
+    phone: formData.get("phone"),
     password: formData.get("password"),
     subRole: formData.get("subRole") ?? "support",
   });
@@ -91,6 +117,7 @@ export async function createSuperAdminAction(
       username: parsed.data.username,
       passwordHash,
       fullName: parsed.data.fullName,
+      phone: parsed.data.phone,
       permissions: permsForSubRole(parsed.data.subRole),
     });
   } catch (e) {
@@ -162,6 +189,9 @@ const profileSchema = z.object({
     .max(32)
     .transform((s) => s.toLowerCase())
     .refine((s) => USERNAME_REGEX.test(s), { message: "Invalid username." }),
+  // Required on EDIT as well as create — that is what fills in the members who
+  // predate the column, one save at a time, rather than leaving the gap forever.
+  phone: phoneField,
 });
 
 /** Edits a team member's name + login username (owner-only). */
@@ -176,6 +206,7 @@ export async function editTeamMemberProfileAction(
   const parsed = profileSchema.safeParse({
     fullName: formData.get("fullName"),
     username: formData.get("username"),
+    phone: formData.get("phone"),
   });
   if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
 
@@ -183,6 +214,7 @@ export async function editTeamMemberProfileAction(
     await updateTeamMemberProfile(userId, {
       fullName: parsed.data.fullName,
       username: parsed.data.username,
+      phone: parsed.data.phone,
     });
   } catch (e) {
     report(e, { op: "admin.team.updateMember", severity: "warn", ids: { userId } });
@@ -310,6 +342,54 @@ export async function deleteSuperAdminAction(
     entity: "staff",
     entityId: userId,
     summary: "Deleted a super-admin",
+  });
+  revalidatePath("/admin/team");
+  return { saved: true };
+}
+
+/**
+ * The COMPANY's own contact details — what a clinic with no account manager is told
+ * to ring.
+ *
+ * It lives on the Team screen rather than under Security or Account because it is the
+ * DEFAULT account contact: the same question the roster above it answers, for the
+ * clinics that have nobody on it yet. Gated on `team:edit` for that reason too.
+ *
+ * Both fields are optional. An empty one stores NULL, and the clinic-side card then
+ * says the contact has not been set rather than printing a blank — the owner is
+ * allowed to have filled in only one of the two.
+ */
+const supportSchema = z.object({
+  phone: z
+    .string()
+    .trim()
+    .transform((raw) => (raw ? toE164(raw) : { phone: null, valid: true }))
+    .refine((r) => r.valid, { message: "That does not look like a phone number." })
+    .transform((r) => r.phone),
+  email: z
+    .string()
+    .trim()
+    .refine((s) => !s || z.string().email().safeParse(s).success, { message: "Invalid email address." })
+    .transform((s) => s || null),
+});
+
+export async function setCompanySupportContactAction(
+  _prev: TeamActionState,
+  formData: FormData,
+): Promise<TeamActionState> {
+  await requireAdminCapability("team:edit");
+  const parsed = supportSchema.safeParse({
+    phone: formData.get("supportPhone") ?? "",
+    email: formData.get("supportEmail") ?? "",
+  });
+  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
+
+  await setCompanySupportContact({ phone: parsed.data.phone, email: parsed.data.email });
+  await logActivity({
+    action: "update",
+    entity: "settings",
+    clinicId: null,
+    summary: "Updated the company contact shown to unassigned clinics",
   });
   revalidatePath("/admin/team");
   return { saved: true };

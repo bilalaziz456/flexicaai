@@ -83,7 +83,12 @@ export default async function TeamMemberPage({
         </CardHeader>
         <CardContent>
           {canEdit ? (
-            <ProfileForm userId={member.id} fullName={member.fullName ?? ""} username={member.username} />
+            <ProfileForm
+              userId={member.id}
+              fullName={member.fullName ?? ""}
+              username={member.username}
+              phone={member.phone}
+            />
           ) : (
             <dl className="grid gap-3 sm:grid-cols-2 text-sm">
               <div><dt className="text-muted-foreground">Full name</dt><dd className="font-medium">{member.fullName ?? "—"}</dd></div>

@@ -1,6 +1,7 @@
 import { getMyProfile } from "@/core/users/profile";
 import { requireWorkspace } from "@/core/auth/user";
 import { getClinic } from "@/core/clinics/get-clinic";
+import { getAccountManagerContact } from "@/core/clinics/account-manager";
 import {
   Card,
   CardContent,
@@ -40,6 +41,9 @@ export default async function ClinicSettingsPage() {
   // depends on the clinic's own printer).
   const clinic =
     current.role === "clinic_admin" && current.clinicId ? await getClinic(current.clinicId) : null;
+  // Same gate as the clinic-wide sections below: who the clinic's commercial contact
+  // is belongs with billing and printing, not on a receptionist's own account page.
+  const contact = clinic ? await getAccountManagerContact(clinic.id) : null;
 
   return (
     <div className="space-y-6">
@@ -86,6 +90,44 @@ export default async function ClinicSettingsPage() {
           <PasswordForm />
         </CardContent>
       </Card>
+
+      {/* Who looks after this account on our side. The PERMANENT answer — the notice
+          in the workspace announces a change and then expires, this stays. Without it
+          a clinic that needed help three months after the change has nowhere to look. */}
+      {contact ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Account manager</CardTitle>
+            <CardDescription>
+              {contact.kind === "manager"
+                ? "Your contact at FlexicaAI for anything about your account."
+                : "No account manager is assigned to your clinic yet — reach us here."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {contact.name ? <p className="font-medium">{contact.name}</p> : null}
+            {contact.phone ? (
+              <p>
+                <a className="tabular-nums underline underline-offset-4" href={`tel:${contact.phone}`}>
+                  {contact.phone}
+                </a>
+              </p>
+            ) : null}
+            {contact.email ? (
+              <p>
+                <a className="underline underline-offset-4" href={`mailto:${contact.email}`}>
+                  {contact.email}
+                </a>
+              </p>
+            ) : null}
+            {!contact.phone && !contact.email ? (
+              <p className="text-sm text-muted-foreground">
+                No contact details have been set yet.
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {clinic ? (
         <Card>

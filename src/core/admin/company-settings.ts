@@ -141,3 +141,32 @@ export async function setSessionIdleMinutes(minutes: number): Promise<void> {
 }
 
 export { SESSION_IDLE_OPTIONS, SESSION_IDLE_MIN_MINUTES, idleLabel } from "@/core/auth/session-idle";
+
+/**
+ * FlexicaAI's OWN contact details — the fallback a clinic is shown when it has no
+ * account manager, or its manager has no number on file.
+ *
+ * Both are nullable and stay that way: an unset number must read as "not configured"
+ * rather than as an empty string somebody could mistake for a real answer, and the
+ * clinic-side card checks for exactly that.
+ */
+export type CompanySupportContact = { phone: string | null; email: string | null };
+
+export async function getCompanySupportContact(): Promise<CompanySupportContact> {
+  const [row] = await db
+    .select({ phone: companySettings.supportPhone, email: companySettings.supportEmail })
+    .from(companySettings)
+    .limit(1);
+  return { phone: row?.phone ?? null, email: row?.email ?? null };
+}
+
+/**
+ * Saves the company contact. An empty field stores NULL rather than "" — the readers
+ * test for a value, and a blank string is a value that renders as nothing.
+ */
+export async function setCompanySupportContact(input: CompanySupportContact): Promise<void> {
+  await upsertSettings({
+    supportPhone: input.phone?.trim() || null,
+    supportEmail: input.email?.trim() || null,
+  });
+}
