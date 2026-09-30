@@ -1198,6 +1198,16 @@ these for churn-risk + usage/cost anomaly flags.
   EVENT that did not occur.** So `assigned_to SET` + `assigned_at NULL` is a legitimate
   third state meaning "assigned before the column existed" — the contact still
   resolves for those clinics, only the 14-day notice stays quiet.
+  **The fallback bottoms out at `BRAND_PHONE`/`BRAND_EMAIL` (`core/lib/brand.ts`), not
+  at nothing.** `company_settings` WINS per field when the owner sets it, but a
+  "default" that must be configured before it says anything is not a default — it is
+  an empty card on the screen of a clinic that wanted a phone number, which is exactly
+  what shipped first and was caught in review. `BRAND_PHONE` is the right floor rather
+  than a new constant because it is already printed on every invoice, receipt and
+  statement the clinic hands out, so the card repeats a number they have in their hands
+  instead of introducing a second company number. (`BRAND_EMAIL` was added there for
+  this: core may not import `app/(marketing)/contact-details.ts` — ADR-029 — so the two
+  have to be kept in step by hand.)
   **`users.phone` is nullable but required at the form.** `ADD COLUMN … NOT NULL` fails
   on a table with rows (ADR-027) and no phone number can honestly be defaulted, so zod
   requires it on create AND edit — which fills the existing members in one save at a

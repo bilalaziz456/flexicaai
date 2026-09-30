@@ -19,5 +19,16 @@ export const BRAND_WEBSITE =
 export const BRAND_PHONE =
   process.env.NEXT_PUBLIC_BRAND_PHONE?.trim() || "03010186111";
 
+/**
+ * The company's contact email. NOT part of the printed credit above — it is the
+ * fallback shown to a clinic that has no account manager, beside `BRAND_PHONE`.
+ *
+ * It lives here rather than in `app/(marketing)/contact-details.ts` because core may
+ * not import a route group (ADR-029), and this is read from `core/clinics`. Keep the
+ * two in step if either changes.
+ */
+export const BRAND_EMAIL =
+  process.env.NEXT_PUBLIC_BRAND_EMAIL?.trim() || "flexicaai@gmail.com";
+
 /** The one-line credit rendered at the bottom of exported / printed documents. */
 export const BRAND_POWERED_BY = `Powered by ${BRAND_WEBSITE} | ${BRAND_PHONE}`;
