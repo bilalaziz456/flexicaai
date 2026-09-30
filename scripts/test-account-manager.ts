@@ -39,6 +39,7 @@ import {
   softDeleteTeamMember,
   suspendTeamMember,
 } from "@/core/admin/team";
+import { BRAND_EMAIL, BRAND_PHONE } from "@/core/lib/brand";
 
 let passed = 0;
 let failed = 0;
@@ -158,7 +159,31 @@ async function main() {
     check("…their number", good.phone, "+923010000001");
     check("…and their email", good.email, "ayesha@example.test");
 
+    console.log("\nThe fallback always answers");
+    // The state the owner is actually in on day one: nobody has filled the company
+    // contact in yet. An empty card is not an acceptable answer to "who do I call",
+    // so the brand details are the floor beneath the setting.
+    await db
+      .update(companySettings)
+      .set({ supportPhone: null, supportEmail: null })
+      .where(eq(companySettings.id, settingsBefore.id));
+    await db.update(clinics).set(accountManagerFields(null)).where(eq(clinics.id, clinic.id));
+    const unset = await getAccountManagerContact(clinic.id);
+    check("an unset company contact still gives the brand number", unset.phone, BRAND_PHONE);
+    check("…and the brand email", unset.email, BRAND_EMAIL);
+    check("…so the card is never empty", Boolean(unset.phone && unset.email), true);
+
+    // The owner's setting still WINS over the floor, per field.
+    await db
+      .update(companySettings)
+      .set({ supportPhone: "+923009999999", supportEmail: null })
+      .where(eq(companySettings.id, settingsBefore.id));
+    const partial = await getAccountManagerContact(clinic.id);
+    check("a configured number overrides the brand default", partial.phone, "+923009999999");
+    check("…while the unset email still falls back", partial.email, BRAND_EMAIL);
+
     console.log("\nUnassignment says nothing");
+    await db.update(clinics).set(accountManagerFields(withPhone.id)).where(eq(clinics.id, clinic.id));
     await deactivateTeamMember(withPhone.id);
     const [afterDeactivate] = await db
       .select({ to: clinics.assignedTo, at: clinics.assignedAt })

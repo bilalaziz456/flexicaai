@@ -7,6 +7,7 @@ import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { PhoneInput } from "@/core/ui/phone-input";
 import { useActionToast } from "@/core/ui/toast";
+import { BRAND_EMAIL, BRAND_PHONE } from "@/core/lib/brand";
 
 /**
  * The company's own contact details — the fallback a clinic sees when it has no
@@ -34,7 +35,7 @@ export function SupportContactForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="supportPhone">Phone</Label>
-          <PhoneInput id="supportPhone" name="supportPhone" defaultValue={phone ?? ""} />
+          <PhoneInput id="supportPhone" name="supportPhone" defaultValue={phone ?? ""} placeholder={BRAND_PHONE} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="supportEmail">Email</Label>
@@ -45,6 +46,7 @@ export function SupportContactForm({
             autoCapitalize="none"
             spellCheck={false}
             defaultValue={email ?? ""}
+            placeholder={BRAND_EMAIL}
           />
         </div>
       </div>
@@ -53,6 +55,12 @@ export function SupportContactForm({
           {state.error}
         </p>
       ) : null}
+      {/* Blank is a legitimate state, so say what blank actually does rather than
+          letting it read as "clinics see nothing". */}
+      <p className="text-xs text-muted-foreground">
+        Leave either blank to use the company defaults — {BRAND_PHONE} and {BRAND_EMAIL},
+        the same details printed on every invoice and receipt.
+      </p>
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Save contact"}
       </Button>

@@ -459,9 +459,10 @@ are in `.env.example`.
 
 - **Account manager contact** (`core/clinics/account-manager.ts`, migration `0116`) —
   the clinic is shown who looks after its account and how to reach them
-  (`/clinic/settings`), falling back to the company's own number
-  (`company_settings.support_phone`) when it has no manager, when the manager has no
-  number, or when they can no longer sign in. A clinic admin is also told ONCE, for 14
+  (`/clinic/settings`), falling back to the company's own contact
+  (`company_settings.support_phone`, and beneath that `BRAND_PHONE`/`BRAND_EMAIL` so it
+  is never empty) when it has no manager, when the manager has no number, or when they
+  can no longer sign in. A clinic admin is also told ONCE, for 14
   days, when the manager changes — a DERIVED notice in the workspace, not an
   announcement row, so nobody has to write it and it cannot be left active. Team
   members carry a `phone` (E.164, required at the form). `assigned_to` and

@@ -120,11 +120,6 @@ export default async function ClinicSettingsPage() {
                 </a>
               </p>
             ) : null}
-            {!contact.phone && !contact.email ? (
-              <p className="text-sm text-muted-foreground">
-                No contact details have been set yet.
-              </p>
-            ) : null}
           </CardContent>
         </Card>
       ) : null}

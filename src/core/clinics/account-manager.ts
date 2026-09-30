@@ -7,6 +7,7 @@ import { notDeleted } from "@/core/db/tenant";
 import { unscoped } from "@/core/db/tenant-guard";
 import { displayStaffName } from "@/core/types/auth";
 import { getCompanySupportContact } from "@/core/admin/company-settings";
+import { BRAND_EMAIL, BRAND_PHONE } from "@/core/lib/brand";
 
 /**
  * The clinic's account manager, as the CLINIC sees it — who looks after this account
@@ -62,6 +63,11 @@ export type AccountManagerContact = {
   kind: "manager" | "support";
   /** The manager's display name. NULL for the company fallback. */
   name: string | null;
+  /**
+   * Never null in practice: a `manager` is only returned when they HAVE a number, and
+   * the `support` fallback bottoms out at `BRAND_PHONE`. Typed nullable anyway so a
+   * caller cannot come to depend on that through the type alone.
+   */
   phone: string | null;
   email: string | null;
   /**
@@ -122,8 +128,23 @@ export async function getAccountManagerContact(clinicId: string): Promise<Accoun
     };
   }
 
+  // The company's OWN details are the floor, so this question always has an answer.
+  // A "default" that has to be configured before it says anything is not a default —
+  // it is an empty card on the screen of a clinic that wanted a phone number.
+  //
+  // `BRAND_PHONE` is the right floor rather than a new constant: it is already the
+  // number printed on every invoice, receipt and statement this clinic hands out, so
+  // showing it here repeats what they have in their hands instead of introducing a
+  // second company number. `company_settings` still WINS when the owner sets it —
+  // this is the fallback under the override, not a replacement for it.
   const support = await getCompanySupportContact();
-  return { kind: "support", name: null, phone: support.phone, email: support.email, assignedAt: null };
+  return {
+    kind: "support",
+    name: null,
+    phone: support.phone ?? BRAND_PHONE,
+    email: support.email ?? BRAND_EMAIL,
+    assignedAt: null,
+  };
 }
 
 /**
