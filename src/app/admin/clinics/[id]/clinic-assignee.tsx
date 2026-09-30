@@ -7,6 +7,7 @@ import { Button } from "@/core/ui/button";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Label } from "@/core/ui/label";
 import { SearchableSelect } from "@/core/ui/searchable-select";
+import { toast } from "@/core/ui/toast";
 
 /**
  * Assigns a clinic to a team member (account manager).
@@ -29,8 +30,6 @@ export function ClinicAssignee({
   const [value, setValue] = useState(assignedTo ?? "");
   const [notify, setNotify] = useState(true);
   const [pending, start] = useTransition();
-  const [msg, setMsg] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const options = useMemo(
     () => [{ value: "", label: "Unassigned" }, ...team.map((m) => ({ value: m.id, label: m.name }))],
@@ -41,15 +40,21 @@ export function ClinicAssignee({
 
   const save = () => {
     start(async () => {
-      setMsg(null);
-      setError(null);
       const res = await setClinicAssigneeAction(clinicId, value || null, notify);
       if (res.error) {
-        setError(res.error);
+        toast.error(res.error);
         return;
       }
       setSaved(value);
-      setMsg(value && notify ? "Saved. The clinic has been told." : "Saved.");
+      // Says what actually happened on the clinic side, because that is the part the
+      // checkbox above just decided and the only part not visible from here.
+      toast.success(
+        !value
+          ? "Account manager cleared."
+          : notify
+            ? "Account manager saved. The clinic has been told."
+            : "Account manager saved. The clinic was not notified.",
+      );
       // Back to the default for the NEXT change: skipping is the exception, and a
       // checkbox that stayed ticked would silently apply to a later handover that
       // nobody meant to hide.
@@ -64,23 +69,13 @@ export function ClinicAssignee({
           ariaLabel="Account manager"
           value={value}
           options={options}
-          onChange={(next) => {
-            setValue(next);
-            setMsg(null);
-            setError(null);
-          }}
+          onChange={setValue}
           placeholder="Unassigned"
           className="w-56"
         />
         <Button type="button" size="sm" onClick={save} disabled={!dirty || pending}>
           {pending ? "Saving…" : "Save"}
         </Button>
-        {msg ? <span className="text-sm text-success-text">{msg}</span> : null}
-        {error ? (
-          <span className="text-sm text-destructive" role="alert">
-            {error}
-          </span>
-        ) : null}
       </div>
 
       {/* Only shown when there is somebody to announce. Clearing the manager never

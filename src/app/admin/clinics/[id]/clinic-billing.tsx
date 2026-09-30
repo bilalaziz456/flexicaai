@@ -18,7 +18,7 @@ import { DatePicker } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
 import { Switch } from "@/core/ui/switch";
 import { Label } from "@/core/ui/label";
-import { ActionToast } from "@/core/ui/toast";
+import { ActionToast, toast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 
@@ -129,18 +129,29 @@ export function ClinicBilling({
   }
 
   // Clinic-facing payment-due notice toggle (optimistic; reverts on error).
+  //
+  // A switch that writes to the server needs to SAY it wrote. Optimistic movement is
+  // the thing being toggled, not confirmation of anything — the knob slides whether or
+  // not the request lands, so without a toast "on" and "failed to turn on" look
+  // identical until the next page load.
   const [noticeOn, setNoticeOn] = useState(paymentNoticeEnabled);
   const [togglingNotice, startNotice] = useTransition();
-  const [noticeErr, setNoticeErr] = useState<string | null>(null);
   const toggleNotice = (next: boolean) => {
     setNoticeOn(next);
-    setNoticeErr(null);
     startNotice(async () => {
       const r = await setPaymentNoticeEnabledAction(clinicId, next);
       if (r.error) {
         setNoticeOn(!next);
-        setNoticeErr(r.error);
+        toast.error(r.error);
+        return;
       }
+      // Naming the resulting state, not just "Saved" — the person is looking at a
+      // knob that already moved, so the useful confirmation is which way it landed.
+      toast.success(
+        next
+          ? "Payment notice turned on. Clinic staff will see it while payment is due."
+          : "Payment notice turned off. Clinic staff will no longer be reminded.",
+      );
     });
   };
   // "Payment coming up" reminder window (days before the paid-through date). Saves on
@@ -149,7 +160,6 @@ export function ClinicBilling({
   const [savedReminder, setSavedReminder] = useState(paymentReminderDays);
   const [savingReminder, startReminder] = useTransition();
   const [reminderErr, setReminderErr] = useState<string | null>(null);
-  const [reminderOk, setReminderOk] = useState(false);
   const saveReminder = () => {
     const n = Math.trunc(Number(reminderVal));
     if (!Number.isFinite(n) || n < 0 || n > 90) {
@@ -166,8 +176,14 @@ export function ClinicBilling({
         setReminderVal(String(savedReminder));
       } else {
         setSavedReminder(n);
-        setReminderOk(true);
-        setTimeout(() => setReminderOk(false), 2000);
+        // Was a boolean flipped back by a setTimeout — a private, untracked timer
+        // re-rendering the card to un-say something. The toast store is the shared
+        // version of that and already handles the dismissal.
+        toast.success(
+          n === 0
+            ? "Pre-due heads-up turned off for this clinic."
+            : `Reminder set to ${n} day${n === 1 ? "" : "s"} before the payment is due.`,
+        );
       }
     });
   };
@@ -237,7 +253,6 @@ export function ClinicBilling({
               Turn it off to stop reminding (e.g. a clinic on a payment plan). This does not affect
               the dues dashboard or the hard past-due lock.
             </p>
-            {noticeErr ? <p className="mt-1 text-xs text-destructive" role="alert">{noticeErr}</p> : null}
           </div>
           {/* Was a hand-rolled copy of the Switch primitive's markup, at its own size
               and with its own focus ring — the exact duplication core/ui exists to
@@ -285,8 +300,6 @@ export function ClinicBilling({
             <span className="text-sm text-muted-foreground">days</span>
             {savingReminder ? (
               <span className="text-xs text-muted-foreground">Saving…</span>
-            ) : reminderOk ? (
-              <span className="text-xs text-success-text">Saved</span>
             ) : null}
           </div>
         </div>
