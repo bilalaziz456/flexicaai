@@ -105,11 +105,17 @@ export type AccountManagerContact = {
  * Resolves the contact a clinic should be shown.
  *
  * ONE rule, and it is the reason this is a function rather than two fields on the
- * page: show the manager only when there is a manager AND a number to reach them on;
+ * page: show the manager only when there is a manager AND a way to reach them;
  * otherwise show the company. A name printed above a blank line is worse than the
  * generic number, because it looks like an answer and is not one — and until every
  * pre-existing team member has been given a number, that is a state the data can
  * really be in.
+ *
+ * "A way to reach them" is a phone OR an email, not a phone alone. Gating on the
+ * phone by itself made a manager with an email address vanish from the clinic's
+ * screen entirely, which is a strange way to treat somebody who is perfectly
+ * contactable. The admin side is told when an assignment has neither
+ * (`managerContactGap`), because otherwise the assignment is silently inert.
  *
  * A SUSPENDED or DEACTIVATED manager also falls back. Someone who cannot sign in is
  * not going to answer on behalf of the company, and a clinic that rings them and gets
@@ -142,11 +148,11 @@ export async function getAccountManagerContact(clinicId: string): Promise<Accoun
   );
 
   const name = row ? displayStaffName(row.prefix, row.fullName, row.username ?? "") : "";
-  if (row?.phone && row.isActive && name) {
+  if (row && row.isActive && name && (row.phone || row.email)) {
     return {
       kind: "manager",
       name,
-      phone: row.phone,
+      phone: row.phone ?? null,
       email: row.email ?? null,
       assignedAt: row.assignedAt ?? null,
     };

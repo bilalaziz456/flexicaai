@@ -101,7 +101,10 @@ export default async function ClinicSettingsPage() {
             <CardDescription>
               {contact.kind === "manager"
                 ? "Your contact at FlexicaAI for anything about your account."
-                : "No account manager is assigned to your clinic yet — reach us here."}
+                : // Deliberately NOT "no account manager is assigned": one may well be,
+                  // and simply have no contact details on file yet. The clinic cannot
+                  // act on that distinction and should not be shown our internal gap.
+                  "For anything about your account, reach us here."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-1">

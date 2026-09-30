@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
+import { AlertTriangle } from "lucide-react";
 import { setClinicAssigneeAction } from "@/app/admin/actions";
 import type { TeamMemberOption } from "@/core/admin/assignment";
 import { Button } from "@/core/ui/button";
@@ -37,6 +39,12 @@ export function ClinicAssignee({
   );
 
   const managerChanged = value !== saved;
+  const selected = team.find((m) => m.id === value) ?? null;
+  // An assignment to somebody with no phone and no email does NOTHING the clinic can
+  // see: `getAccountManagerContact` falls back to the company contact, so the settings
+  // card shows that instead and the notice never fires. Silent inertness is the worst
+  // kind of bug to leave in, so the screen that causes it is the screen that says so.
+  const unreachable = Boolean(value && selected && !selected.reachable);
   // The TICK is a change in its own right, not just a modifier on a dropdown move.
   // On an unchanged manager, saving with it set clears `assigned_at` — which stops a
   // banner the clinic is being shown right now. Greying Save out for that left the
@@ -87,9 +95,24 @@ export function ClinicAssignee({
         </Button>
       </div>
 
+      {/* The assignment saves, and then does nothing anybody can see. Worth a warning
+          rather than a silent fallback, and it names the fix and links to it. */}
+      {unreachable ? (
+        <p className="flex flex-wrap items-center gap-1 rounded-md border border-warning/35 bg-warning/12 px-3 py-2 text-xs text-warning-text">
+          <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
+          <span>
+            {selected?.name} has no phone number or email, so the clinic is shown the
+            company contact instead and gets no notice.
+          </span>
+          <Link href={`/admin/team/${value}`} className="font-semibold underline underline-offset-2">
+            Add their details
+          </Link>
+        </p>
+      ) : null}
+
       {/* Only shown when there is somebody to announce. Clearing the manager never
           notifies — a clinic told it now has nobody can do nothing with that. */}
-      {value ? (
+      {value && !unreachable ? (
         <div className="flex items-start gap-2">
           <Checkbox
             id="skip-manager-notice"
