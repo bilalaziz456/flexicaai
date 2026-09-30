@@ -11,6 +11,29 @@ import { Label } from "@/core/ui/label";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 import { toast } from "@/core/ui/toast";
 
+/** What a save actually did, from the clinic's point of view. */
+function outcomeMessage({
+  cleared,
+  managerChanged,
+  notify,
+}: {
+  cleared: boolean;
+  managerChanged: boolean;
+  notify: boolean;
+}): string {
+  if (cleared) return "Account manager cleared.";
+  if (managerChanged) {
+    return notify
+      ? "Account manager saved. The clinic has been told."
+      : "Account manager saved. The clinic was not notified.";
+  }
+  // Same manager, so the only thing that moved is whether they are being told about
+  // it — in both directions, since the tick can be taken off again.
+  return notify
+    ? "Saved. The clinic has been told who their account manager is."
+    : "Saved. The clinic will no longer see the change notice.";
+}
+
 /**
  * Assigns a clinic to a team member (account manager).
  *
@@ -31,6 +54,10 @@ export function ClinicAssignee({
   const [saved, setSaved] = useState(assignedTo ?? "");
   const [value, setValue] = useState(assignedTo ?? "");
   const [notify, setNotify] = useState(true);
+  // What the LAST save applied, so "is there anything to do?" compares the tick
+  // against what was actually written rather than against a constant. Starts true
+  // because a freshly loaded page has no pending change either way.
+  const [savedNotify, setSavedNotify] = useState(true);
   const [pending, start] = useTransition();
 
   const options = useMemo(
@@ -49,7 +76,11 @@ export function ClinicAssignee({
   // On an unchanged manager, saving with it set clears `assigned_at` — which stops a
   // banner the clinic is being shown right now. Greying Save out for that left the
   // only way to silence a live notice unreachable.
-  const dirty = managerChanged || !notify;
+  //
+  // Compared against the LAST SAVED value, not against true, which is what lets the
+  // box stay ticked after a save: it shows what is in force, and un-ticking it becomes
+  // a real second action ("tell them after all") rather than a no-op.
+  const dirty = managerChanged || notify !== savedNotify;
 
   const save = () => {
     start(async () => {
@@ -59,23 +90,17 @@ export function ClinicAssignee({
         return;
       }
       setSaved(value);
-      // Says what actually happened on the clinic side, because that is the part the
-      // checkbox just decided and the only part not visible from this screen. Four
-      // outcomes, not two: saving an UNCHANGED manager with the tick set is how you
-      // stop a notice already on their screen, and "saved" alone would not say so.
-      toast.success(
-        !value
-          ? "Account manager cleared."
-          : !managerChanged
-            ? "Saved. The clinic will no longer see the change notice."
-            : notify
-              ? "Account manager saved. The clinic has been told."
-              : "Account manager saved. The clinic was not notified.",
-      );
-      // Back to the default for the NEXT change: skipping is the exception, and a
-      // checkbox that stayed ticked would silently apply to a later handover that
-      // nobody meant to hide.
-      setNotify(true);
+      // The tick KEEPS its state and the baseline moves to meet it. Resetting it to
+      // unticked here is what made the control look broken: you ticked it, it saved,
+      // and the box you were looking at silently went back — so the only evidence it
+      // had ever worked was a toast that had already faded. Leaving it set also stops
+      // the UI contradicting what was just written.
+      setSavedNotify(notify);
+      // Says what actually happened on the CLINIC side, which is the part this screen
+      // cannot show and the part the tick just decided. Written out rather than
+      // nested, because there are five outcomes and a stack of ternaries that deep
+      // is how one of them quietly ends up wrong.
+      toast.success(outcomeMessage({ cleared: !value, managerChanged, notify }));
     });
   };
 
