@@ -46,18 +46,24 @@ export function ClinicAssignee({
   clinicId,
   assignedTo,
   team,
+  announced,
 }: {
   clinicId: string;
   assignedTo: string | null;
   team: TeamMemberOption[];
+  /** Has the clinic been told about the assignment it currently has? */
+  announced: boolean;
 }) {
   const [saved, setSaved] = useState(assignedTo ?? "");
   const [value, setValue] = useState(assignedTo ?? "");
-  const [notify, setNotify] = useState(true);
-  // What the LAST save applied, so "is there anything to do?" compares the tick
-  // against what was actually written rather than against a constant. Starts true
-  // because a freshly loaded page has no pending change either way.
-  const [savedNotify, setSavedNotify] = useState(true);
+  // Seeded from the DATABASE, not from a constant. The tick used to be local-only
+  // state that reset on every page load, so ticking it, saving, and coming back
+  // showed it clear again — the setting looked like it had been thrown away when it
+  // was the screen that had forgotten, not the database.
+  const [notify, setNotify] = useState(announced);
+  // What the last save applied, so "is there anything to do?" compares the tick
+  // against what is actually stored rather than against a constant.
+  const [savedNotify, setSavedNotify] = useState(announced);
   const [pending, start] = useTransition();
 
   const options = useMemo(
@@ -111,7 +117,15 @@ export function ClinicAssignee({
           ariaLabel="Account manager"
           value={value}
           options={options}
-          onChange={setValue}
+          onChange={(next) => {
+            setValue(next);
+            // A NEW handover announces by default, whatever the current assignment's
+            // state was. Without this, every clinic assigned before `assigned_at`
+            // existed loads with the tick set — so picking a new manager there would
+            // inherit "stay quiet" from a row that simply predates the column, and
+            // silently skip the one notice that actually mattered.
+            setNotify(next === saved ? savedNotify : true);
+          }}
           placeholder="Unassigned"
           className="w-56"
         />
@@ -156,7 +170,11 @@ export function ClinicAssignee({
             <p className="text-xs text-muted-foreground">
               For a temporary cover. Normally the clinic admin sees the new manager&apos;s
               name and number for 14 days; the settings page is updated either way.
-              {!managerChanged ? " Saving with this ticked stops a notice already showing." : ""}
+              {managerChanged
+                ? ""
+                : notify
+                  ? " Tick and save to stop a notice already showing."
+                  : " This clinic has not been told. Untick and save to tell them now."}
             </p>
           </div>
         </div>
