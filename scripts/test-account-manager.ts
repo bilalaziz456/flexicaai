@@ -159,6 +159,45 @@ async function main() {
     check("…their number", good.phone, "+923010000001");
     check("…and their email", good.email, "ayesha@example.test");
 
+    console.log("\nA silent handover");
+    // A temporary cover: assign, but do not announce it. No column of its own — this
+    // is the same "assigned, not announced" state a pre-existing assignment is in.
+    await db
+      .update(clinics)
+      .set(accountManagerFields(successor.id, { notify: false }))
+      .where(eq(clinics.id, clinic.id));
+    const [silent] = await db
+      .select({ to: clinics.assignedTo, at: clinics.assignedAt })
+      .from(clinics)
+      .where(eq(clinics.id, clinic.id));
+    check("a silent assignment still assigns", silent.to, successor.id);
+    check("…but writes no date, so no notice fires", silent.at, null);
+    check("…and nothing reads as recent", isRecentAssignment(silent.at), false);
+    // The contact must still RESOLVE — only the announcement was skipped. Getting this
+    // wrong would leave the clinic with a manager it cannot see on its settings page.
+    await db.update(users).set({ isActive: true }).where(eq(users.id, successor.id));
+    const silentContact = await getAccountManagerContact(clinic.id);
+    check("…while the settings card still shows them", silentContact.kind, "manager");
+    check("…by name", silentContact.name, "Sana Mirza");
+
+    // A silent change over a LIVE notice must stop it: that banner names somebody who
+    // no longer holds the account.
+    await db.update(clinics).set(accountManagerFields(withPhone.id)).where(eq(clinics.id, clinic.id));
+    check("…(a loud assignment first sets a date)", isRecentAssignment((await db.select({ at: clinics.assignedAt }).from(clinics).where(eq(clinics.id, clinic.id)))[0].at), true);
+    await db
+      .update(clinics)
+      .set(accountManagerFields(successor.id, { notify: false }))
+      .where(eq(clinics.id, clinic.id));
+    const [afterSilentOverLoud] = await db
+      .select({ at: clinics.assignedAt })
+      .from(clinics)
+      .where(eq(clinics.id, clinic.id));
+    check("a silent change clears a notice naming the old manager", afterSilentOverLoud.at, null);
+
+    // The default is the SAFE one: omitting the option announces.
+    check("omitting the option still announces", Boolean(accountManagerFields(successor.id).assignedAt), true);
+    check("notify:true on an unassignment is still silent", accountManagerFields(null, { notify: true }).assignedAt, null);
+
     console.log("\nThe fallback always answers");
     // The state the owner is actually in on day one: nobody has filled the company
     // contact in yet. An empty card is not an acceptable answer to "who do I call",

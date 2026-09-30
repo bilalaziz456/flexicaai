@@ -464,7 +464,9 @@ are in `.env.example`.
   is never empty) when it has no manager, when the manager has no number, or when they
   can no longer sign in. A clinic admin is also told ONCE, for 14
   days, when the manager changes — a DERIVED notice in the workspace, not an
-  announcement row, so nobody has to write it and it cannot be left active. Team
+  announcement row, so nobody has to write it and it cannot be left active. A
+  "Don't notify the clinic" tick on the assign control skips that announcement for a
+  temporary cover, by simply not writing `assigned_at`. Team
   members carry a `phone` (E.164, required at the form). `assigned_to` and
   `assigned_at` are written only as a pair by `accountManagerFields()`; clearing the
   manager clears the date, which is what keeps an UNASSIGNED clinic silent rather than
