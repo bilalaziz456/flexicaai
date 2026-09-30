@@ -149,8 +149,19 @@ async function main() {
 
     await db.update(clinics).set(accountManagerFields(noPhone.id)).where(eq(clinics.id, clinic.id));
     const noPhoneContact = await getAccountManagerContact(clinic.id);
-    check("a manager with no number falls back too", noPhoneContact.kind, "support");
+    check("a manager with NO phone and NO email falls back", noPhoneContact.kind, "support");
     check("…and offers no name", noPhoneContact.name, null);
+
+    // Email-only is still REACHABLE. Gating on the phone alone made a contactable
+    // colleague vanish from the clinic's screen, which is not what "no way to reach
+    // them" means.
+    await db.update(users).set({ email: "imran@example.test" }).where(eq(users.id, noPhone.id));
+    const emailOnly = await getAccountManagerContact(clinic.id);
+    check("a manager with only an email IS offered", emailOnly.kind, "manager");
+    check("…by name", emailOnly.name, "Imran Sethi");
+    check("…with no phone rather than a borrowed one", emailOnly.phone, null);
+    check("…and their email", emailOnly.email, "imran@example.test");
+    await db.update(users).set({ email: null }).where(eq(users.id, noPhone.id));
 
     await db.update(clinics).set(accountManagerFields(withPhone.id)).where(eq(clinics.id, clinic.id));
     const good = await getAccountManagerContact(clinic.id);
