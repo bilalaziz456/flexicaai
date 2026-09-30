@@ -154,7 +154,10 @@ null`), `username` (**unique**, lowercased), `email` (**unique when present**),
 `password_hash` (bcrypt), `role` (→ `user_roles`), `prefix` (name title — Dr/Mr/Miss…, shown
 as "Dr. Bilal Aziz"), `full_name`, `avatar_key` (profile-picture storage key, served
 self-only via `GET /api/me/avatar`), `is_active` (default true),
-`must_change_password` (default false), `theme` (→ `theme_preferences`). **Doctor-only fields:**
+`must_change_password` (default false), `theme` (→ `theme_preferences`), `phone`
+(**contact number, E.164** — used for TEAM MEMBERS: a clinic is shown its account
+manager's name and number, so a manager without one is never offered as a contact.
+Nullable at the column but REQUIRED at the form; see migration `0116`). **Doctor-only fields:**
 `availability` jsonb `DayAvailability[]` (per-weekday working windows — a weekday
 may appear multiple times for split shifts, e.g. Mon 09:00–12:00 AND 16:00–19:00), 
 `flexible_hours` bool (default false; true = bookable any time, hours not enforced —
@@ -579,7 +582,10 @@ paid-through date to show a "payment coming up" heads-up, default 5], lifecycle 
 `trial_start_at` / `trial_ends_at` / `activated_at` [= subscription/active start] +
 `status`, invoice counter `next_invoice_no`/`invoice_prefix`/`invoice_paper`
 [the size a print screen OPENS at] + `invoice_papers_enabled` [which sizes it OFFERS]),
-**account-manager** `assigned_to` → users (self-ref FK), a
+**account-manager** `assigned_to` → users (self-ref FK) + `assigned_at` (when the
+CURRENT assignment began — written ONLY through `accountManagerFields()`, which nulls
+it whenever `assigned_to` is null; drives the clinic-side "your account manager is
+now X" notice, and is deliberately NOT `updated_at`, which any clinic edit bumps), a
 **payment-commitment** follow-up (`payment_commitment_at`/`_note`), a **health
 follow-up / snooze** for churn/usage-flag alerts (`health_followup_at`/`_note` — a
 future date parks the clinic under "Following up" on the Owner Overview instead of
@@ -660,6 +666,9 @@ unique `invoice_no`; `clinic_id`; `issued_at`; partial trash index.
 
 ### `company_settings` — singleton company config · NO clinic_id
 `id`, `next_invoice_no` + `invoice_prefix` (the `clinic_invoices` counter),
+`support_phone` + `support_email` (the COMPANY's own contact, shown to a clinic with
+no account manager — or whose manager has no number; data rather than a constant so
+the number changes without a deploy),
 `churn_inactive_days` (Overview churn threshold default, 21), `thin_margin_pct` (50) +
 `spike_multiple` (3) + `spike_floor_pkr` (200) (the Overview anomaly-flag rules),
 timestamps. One row, seeded lazily. `core/admin/company-settings.ts`. The Owner
@@ -1163,6 +1172,38 @@ these for churn-risk + usage/cost anomaly flags.
   five seconds of the INSERT — the observed gap was 13ms). Idempotent. The lesson
   generalises past the ACL: **any new field that gates VISIBILITY ships with its
   backfill, or it hides existing data from exactly the people who created it.**
+- Migration **`0116`** adds the **account-manager contact** — `users.phone`,
+  `clinics.assigned_at`, and `company_settings.support_phone`/`support_email`. A clinic
+  can now see who looks after it and how to reach them (`/clinic/settings`), and is told
+  once when that changes; `core/clinics/account-manager.ts` owns both answers.
+  **`assigned_to` and `assigned_at` are written as a PAIR** by `accountManagerFields()`,
+  the `paymentKindFields()` shape from ADR-027 applied to a different couple. Five call
+  sites change a clinic's manager — the assign action, clinic creation, the bulk
+  `reassignClinics`, and the two that clear it when a member is deactivated or deleted —
+  and the one that matters most is the BULK move, which runs when a manager leaves the
+  company. A date maintained only by the edit form would leave exactly that case silent
+  while looking perfectly healthy (ADR-032). `scripts/test-account-manager.ts` asserts it
+  from the bulk path specifically, verified to go red by reverting that one write.
+  **NULL in, NULL out:** clearing the manager clears the date, so "say nothing when a
+  clinic is left unassigned" holds by construction rather than by a check in the view.
+  Being told you no longer have an account manager is alarming, un-actionable, and
+  usually internal churn.
+  **`assigned_at` is DELIBERATELY NOT BACKFILLED, and that is the opposite call from
+  `0113` for a reason worth keeping straight.** ADR-033's rule is that a new field
+  gating VISIBILITY ships with its backfill — `from_drawer` hid records somebody had
+  already created, so a default of "no" erased real history. This field dates an EVENT
+  instead. Inventing a value would not restore anything; it would announce a change
+  that never happened, to every clinic in the product at once. The test is what the
+  field describes: **backfill a field that hides existing DATA, never one that dates an
+  EVENT that did not occur.** So `assigned_to SET` + `assigned_at NULL` is a legitimate
+  third state meaning "assigned before the column existed" — the contact still
+  resolves for those clinics, only the 14-day notice stays quiet.
+  **`users.phone` is nullable but required at the form.** `ADD COLUMN … NOT NULL` fails
+  on a table with rows (ADR-027) and no phone number can honestly be defaulted, so zod
+  requires it on create AND edit — which fills the existing members in one save at a
+  time — while `getAccountManagerContact` falls back to the company number for whoever
+  has not been edited yet. It never shows a name above a blank line, and it falls back
+  for a SUSPENDED or deleted manager too: somebody who cannot sign in will not answer.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

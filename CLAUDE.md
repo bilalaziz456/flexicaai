@@ -457,6 +457,18 @@ are in `.env.example`.
   (`expenses.from_drawer` marks where it was typed) — a cash purchase is a cost and
   belongs in the P&L, while banking or topping up only moves money between pockets.
 
+- **Account manager contact** (`core/clinics/account-manager.ts`, migration `0116`) —
+  the clinic is shown who looks after its account and how to reach them
+  (`/clinic/settings`), falling back to the company's own number
+  (`company_settings.support_phone`) when it has no manager, when the manager has no
+  number, or when they can no longer sign in. A clinic admin is also told ONCE, for 14
+  days, when the manager changes — a DERIVED notice in the workspace, not an
+  announcement row, so nobody has to write it and it cannot be left active. Team
+  members carry a `phone` (E.164, required at the form). `assigned_to` and
+  `assigned_at` are written only as a pair by `accountManagerFields()`; clearing the
+  manager clears the date, which is what keeps an UNASSIGNED clinic silent rather than
+  told it has nobody.
+
 Still NOT to build without instruction (§11/§12 unchanged): derma, hair, mobile apps,
 advanced analytics.
 

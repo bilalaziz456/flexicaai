@@ -1103,6 +1103,17 @@ data silently gone for the people who created it. So the rule is not really abou
 Migration `0113` did it from the AUDIT LOG rather than by guessing at the row (ADR-027's
 test applied to a backfill: a heuristic here would have flagged ordinary expenses).
 
+**And the rule has a SECOND half, learned from the case that looks identical and is
+not** (`clinics.assigned_at`, migration `0116`, 2026-10-01). That column also gates
+visibility — it dates the clinic-side "your account manager is now X" notice — and it
+is deliberately left NULL for every clinic that already has a manager. Backfilling it
+would not restore anything: unlike `from_drawer`, there is no existing record being
+hidden, so inventing a date would ANNOUNCE A CHANGE THAT NEVER HAPPENED, to every
+clinic in the product at once. The test is what the field describes, not whether it
+gates visibility: **backfill a field that hides existing DATA; never invent one that
+dates an EVENT that did not occur.** Reach for the wrong half and you either erase
+somebody's history or fabricate somebody else's.
+
 **Consequence:** any future `PERM_RESOURCES` entry ships with a backfill in the same
 commit, or it is a silent revocation for exactly the clinics that cared enough to
 configure their access. `scripts/test-schedule-acl.ts` pins the defaults and the

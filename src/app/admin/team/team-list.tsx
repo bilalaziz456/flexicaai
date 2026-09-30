@@ -19,6 +19,7 @@ export type TeamMember = {
   fullName: string | null;
   state: AdminAccountState;
   subRole: AdminSubRole | "custom";
+  phone: string | null;
   isSelf: boolean;
 };
 
@@ -88,6 +89,15 @@ export function TeamList({ members }: { members: TeamMember[] }) {
                 {m.state !== "active" ? (
                   <span className="text-xs text-warning-text capitalize">{m.state}</span>
                 ) : null}
+                {/* Flagged rather than merely absent: a manager with no number is
+                    silently replaced by the company contact on every clinic they
+                    look after, which is not a gap anyone would find by opening
+                    records one at a time. */}
+                {m.phone ? (
+                  <span className="text-sm tabular-nums text-muted-foreground">{m.phone}</span>
+                ) : (
+                  <span className="text-xs text-warning-text">No contact number</span>
+                )}
               </div>
               <Link
                 href={`/admin/team/${m.id}`}

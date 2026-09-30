@@ -283,6 +283,22 @@ export const clinics = pgTable(
     // side. NULL = unassigned. Drives "my clinics" + who to update on dues/follow-ups.
     // `AnyPgColumn` return type breaks the clinics⇄users circular type reference.
     assignedTo: uuid("assigned_to").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+    // When the CURRENT account-manager assignment began — what the clinic-side
+    // "your account manager is now X" notice is dated from.
+    //
+    // It cannot be `updated_at`: any clinic edit bumps that, so saving the grace days
+    // would re-announce a manager who had not changed.
+    //
+    // Written ONLY through `accountManagerFields()`, which sets it to NULL whenever
+    // `assigned_to` is NULL. That pairing is what makes "say nothing when a clinic is
+    // left unassigned" true by construction rather than by a check in the view — and
+    // being told "you no longer have an account manager" is alarming, un-actionable,
+    // and usually internal churn the clinic should never see.
+    //
+    // NULL with `assigned_to` SET is a legitimate third state: an assignment made
+    // before this column existed. The notice needs a real date, so those stay quiet,
+    // which is why migration 0116 deliberately backfills nothing.
+    assignedAt: timestamp("assigned_at", { withTimezone: true }),
     notes: text("notes"), // internal CRM notes
     ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -325,6 +341,21 @@ export const users = pgTable(
     username: text("username").notNull(),
     // Optional contact email (for future notifications / password reset).
     email: text("email"),
+    // Contact number. Used for TEAM MEMBERS (super-admins): a clinic is shown its
+    // account manager's name and number so it has somebody to call, so a manager
+    // without one cannot be offered as a contact at all.
+    //
+    // Stored E.164 via `core/lib/phone.ts#toE164`, the same canonical form as
+    // `patients.phone` — two phone formats in one database is how a number becomes
+    // unmatchable, which that module exists to record.
+    //
+    // NULLABLE at the column but REQUIRED at the form. Existing members predate it,
+    // and `ADD COLUMN … NOT NULL` with no default fails on a table with rows
+    // (ADR-027); a default would be worse, since there is no plausible phone number
+    // to invent. Zod requires it on create and edit, so every new or touched member
+    // has one, and `getAccountManagerContact` falls back to the company number for
+    // whoever has not been edited yet — the clinic never sees a name above a blank.
+    phone: text("phone"),
     passwordHash: text("password_hash").notNull(),
     role: vocabularyRef<UserRoleCode>(USER_ROLE_ROWS, "role")
       .notNull()

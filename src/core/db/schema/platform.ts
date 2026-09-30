@@ -405,6 +405,14 @@ export const companySettings = pgTable("company_settings", {
   // here. Distinct from the session's 7-day absolute expiry, which always applies.
   // Enforced in core/auth/session.ts; floored at SESSION_IDLE_MIN_MINUTES when set.
   sessionIdleMinutes: integer("session_idle_minutes").notNull().default(0),
+  // FlexicaAI's own contact details, shown to a clinic that has no account manager —
+  // or whose manager has no number on file. Without it, "who do I call?" has no answer
+  // at all for an unassigned clinic, which is the common case early on.
+  //
+  // Data rather than a constant for the same reason as everything else on this row:
+  // the company's number should change with a row update, not a deploy.
+  supportPhone: text("support_phone"),
+  supportEmail: text("support_email"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

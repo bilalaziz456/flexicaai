@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
-import { Megaphone, ShieldAlert } from "lucide-react";
+import { Megaphone, ShieldAlert, UserRound } from "lucide-react";
 import { PaymentNoticePill } from "@/core/ui/payment-notice-pill";
 import { requireWorkspace } from "@/core/auth/user";
 import { endImpersonation } from "@/core/auth/actions";
 import { getClinic } from "@/core/clinics/get-clinic";
+import { getAccountManagerContact, isRecentAssignment } from "@/core/clinics/account-manager";
 import { getClinicBalanceSummary } from "@/core/admin/billing";
 import { listActiveForClinic } from "@/core/admin/announcements";
 import { getThemeCookie } from "@/core/theme/server";
@@ -94,6 +95,47 @@ export default async function ClinicLayout({
     const bal = await getClinicBalanceSummary(clinic);
     if (bal.billingStatus === "due" || bal.billingStatus === "overdue") {
       paymentPill = <PaymentNoticePill status={bal.billingStatus} />;
+    }
+  }
+
+  // "Your account manager is now X" — a DERIVED notice, not an announcement row.
+  //
+  // Nobody has to write it, it cannot be left active by mistake, and it expires on its
+  // own after ACCOUNT_MANAGER_NOTICE_DAYS; the settings card is the permanent answer
+  // once it goes. Clinic admin only, matching where that card lives — the front desk
+  // does not deal with the account.
+  //
+  // The window is tested against the clinic row the layout ALREADY has, so the usual
+  // answer ("nothing changed") costs no query at all; the contact is only fetched
+  // inside the window. Suppressed during impersonation, where the "you" on screen is
+  // a support agent rather than the clinic.
+  //
+  // An unassignment cannot reach here: clearing the manager clears `assigned_at` too
+  // (accountManagerFields), so there is no date to be recent. Telling a clinic it now
+  // has nobody is alarming and un-actionable.
+  if (
+    !user.impersonation &&
+    user.role === "clinic_admin" &&
+    clinic &&
+    isRecentAssignment(clinic.assignedAt)
+  ) {
+    const contact = await getAccountManagerContact(clinic.id);
+    // Only when we have a NAME and a NUMBER. A manager with no number resolves to the
+    // company fallback, and announcing "your account manager is now [support]" would
+    // be worse than saying nothing — the settings card still shows them who to ring.
+    if (contact.kind === "manager") {
+      notices.push(
+        <div
+          key="account-manager"
+          className="flex items-start gap-2 border-b border-info/35 bg-info/12 px-4 py-2 text-sm text-info-text"
+        >
+          <UserRound className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <span>
+            <span className="font-semibold">Your account manager is now {contact.name}</span>
+            {contact.phone ? <> — {contact.phone}</> : null}
+          </span>
+        </div>,
+      );
     }
   }
 

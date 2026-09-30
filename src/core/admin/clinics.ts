@@ -18,6 +18,7 @@ import {
 } from "@/core/db/schema";
 import { notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
+import { accountManagerFields } from "@/core/clinics/account-manager";
 import { unscoped } from "@/core/db/tenant-guard";
 import type { ClinicHour } from "@/core/lib/clinic-hours";
 
@@ -96,7 +97,11 @@ export async function createClinicWithAdmin(input: {
         .values({
           name: input.clinicName,
           modulesEnabled: input.modulesEnabled,
-          assignedTo: input.assignedTo,
+          // Through the paired helper like every other assignment write, so a clinic
+          // created WITH a manager carries the date too. That is what puts the contact
+          // notice in front of them during onboarding — the fortnight they are most
+          // likely to need somebody to call and least likely to know who.
+          ...accountManagerFields(input.assignedTo),
           publicAddress: input.publicAddress ?? null,
           openingHours: input.openingHours ?? null,
         })
