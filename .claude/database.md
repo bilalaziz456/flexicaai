@@ -1198,6 +1198,17 @@ these for churn-risk + usage/cost anomaly flags.
   EVENT that did not occur.** So `assigned_to SET` + `assigned_at NULL` is a legitimate
   third state meaning "assigned before the column existed" — the contact still
   resolves for those clinics, only the 14-day notice stays quiet.
+  **Skipping the announcement needed NO new column.** `accountManagerFields(id, { notify:
+  false })` simply leaves `assigned_at` unset, which is the state a pre-existing
+  assignment is already in — assigned, not announced. The super admin ticks "Don't
+  notify the clinic" for a temporary cover (a colleague covering leave); a clinic told
+  twice in a week that it has a new account manager reads that as instability on our
+  side. The default is `true` and that is deliberate against ADR-032: here the default
+  is the SAFE one, so a caller that forgets the argument announces rather than silences.
+  A silent change also CLEARS a live notice, because that banner names a manager who no
+  longer holds the account. The assign control saves on a BUTTON for this reason — it
+  used to save the moment the dropdown moved, which cannot carry a modifier the user
+  has not been shown yet.
   **The fallback bottoms out at `BRAND_PHONE`/`BRAND_EMAIL` (`core/lib/brand.ts`), not
   at nothing.** `company_settings` WINS per field when the owner sets it, but a
   "default" that must be configured before it says anything is not a default — it is

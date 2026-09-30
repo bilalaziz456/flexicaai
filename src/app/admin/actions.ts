@@ -812,10 +812,18 @@ export async function recordClinicPaymentAction(
   return { saved: true };
 }
 
-/** Assigns (or clears) a clinic's account manager — a team member (super-admin). */
+/**
+ * Assigns (or clears) a clinic's account manager — a team member (super-admin).
+ *
+ * `notify` false assigns WITHOUT telling the clinic, for a temporary cover while a
+ * colleague is away. It defaults to true so a caller that omits it announces the
+ * change, which is what everybody expects; forgetting the argument cannot produce
+ * silence. Clearing the manager never notifies either way.
+ */
 export async function setClinicAssigneeAction(
   clinicId: string,
   assigneeId: string | null,
+  notify = true,
 ): Promise<AdminActionState> {
   await requireAdminCapability("clinics:edit");
 
@@ -828,13 +836,17 @@ export async function setClinicAssigneeAction(
     name = m.fullName ?? m.username;
   }
 
-  await updateClinicFields(clinicId, accountManagerFields(assigned));
+  await updateClinicFields(clinicId, accountManagerFields(assigned, { notify }));
   await logActivity({
     action: "update",
     entity: "clinic",
     entityId: clinicId,
     clinicId,
-    summary: `Assigned clinic to ${name}`,
+    // Whether the clinic was told is part of what happened, so the trail records it.
+    // Otherwise a silent handover is indistinguishable from an announced one later.
+    summary: assigned
+      ? `Assigned clinic to ${name}${notify ? "" : " (clinic not notified)"}`
+      : "Cleared the clinic's account manager",
   });
   revalidatePath(`/admin/clinics/${clinicId}`);
   revalidatePath("/admin");

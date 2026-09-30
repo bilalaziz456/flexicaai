@@ -47,14 +47,38 @@ export const ACCOUNT_MANAGER_NOTICE_DAYS = 14;
  * condition in the view that somebody could later simplify away. A clinic being told
  * it no longer has an account manager is alarming, un-actionable, and usually internal
  * churn it should never have seen.
+ *
+ * **`notify: false` assigns WITHOUT announcing it**, for a temporary cover — somebody
+ * holding the account while a colleague is on leave. A clinic told twice in a week
+ * that it has a new account manager reads that as instability on our side, which is
+ * the opposite of what the notice is for.
+ *
+ * It needs no column of its own: "assigned, not announced" is already exactly what a
+ * pre-existing assignment looks like (`assigned_to` set, `assigned_at` NULL), so a
+ * silent change simply leaves the date unset. The contact still resolves — only the
+ * announcement is skipped, which is the whole of what was asked for.
+ *
+ * The default is `true`, and unlike ADR-032's warning that is deliberate: the default
+ * here is the SAFE one. A caller that forgets the argument announces the change, which
+ * is the behaviour everybody expects; forgetting cannot produce silence.
  */
-export function accountManagerFields(userId: string | null): {
+export function accountManagerFields(
+  userId: string | null,
+  { notify = true }: { notify?: boolean } = {},
+): {
   assignedTo: string | null;
   assignedAt: Date | null;
   updatedAt: Date;
 } {
   const now = new Date();
-  return { assignedTo: userId, assignedAt: userId ? now : null, updatedAt: now };
+  return {
+    assignedTo: userId,
+    // Clearing the date on a silent change is right as well as convenient: if the
+    // clinic was still being shown "your account manager is now A", that banner names
+    // somebody who no longer holds the account and has to stop either way.
+    assignedAt: userId && notify ? now : null,
+    updatedAt: now,
+  };
 }
 
 /** Who the clinic should contact, and whether that is a person or the company. */
