@@ -275,6 +275,182 @@ aside.sn{display:none}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{transition-duration:.01ms!important;transition-delay:0s!important;animation-duration:.01ms!important;animation-iteration-count:1!important;animation-delay:0s!important}
 }
+
+/* ---------- refined visual system ---------- */
+.slide{isolation:isolate}
+.slide::after{content:"";position:absolute;inset:28px;border:1px solid rgba(142,166,191,.08);border-radius:26px;pointer-events:none;z-index:5}
+.slide:not(.cover):not(:last-child) .eyebrow{display:inline-flex;align-items:center;gap:12px}
+.slide:not(.cover):not(:last-child) .eyebrow::before{content:"";width:24px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--teal),var(--blue));box-shadow:0 0 14px rgba(15,180,187,.5)}
+.h-xl,.h-l,.h-m{ text-shadow:0 12px 44px rgba(3,12,29,.3)}
+.grad{text-shadow:none;filter:drop-shadow(0 4px 18px rgba(15,180,187,.16))}
+.caption{letter-spacing:.14em}
+.window,.inv{border-radius:24px;box-shadow:0 34px 90px -34px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.13),0 1px 0 rgba(255,255,255,.3) inset}
+.chrome{background:linear-gradient(180deg,#edf2f5,#e7edf1)}
+.kpi{background:linear-gradient(145deg,#fff,#f8fbfc);transition:transform .35s var(--ease),box-shadow .35s var(--ease)}
+.kpi:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(11,26,46,.08)}
+.split-card,.pl,.out{box-shadow:0 24px 54px -26px rgba(0,0,0,.72),inset 0 1px rgba(255,255,255,.06)}
+.split-card{border-color:rgba(142,166,191,.32);background:linear-gradient(145deg,rgba(7,23,51,.94),rgba(8,41,87,.72))}
+.flag{box-shadow:0 10px 26px rgba(0,0,0,.12);border:1px solid rgba(255,255,255,.08)}
+.chip{background:rgba(7,23,51,.36);transition:transform .25s var(--ease),border-color .25s,color .25s}
+.chip:hover{transform:translateY(-2px);border-color:rgba(111,230,234,.65)}
+.principles div{position:relative;padding-top:18px}
+.principles div::before{content:"";position:absolute;top:0;left:32px;width:34px;height:2px;background:var(--teal);opacity:.8}
+.principles div:first-child::before{left:0}
+.foot{letter-spacing:.16em;color:rgba(142,166,191,.76)}
+.hud{opacity:.82;background:rgba(7,23,51,.88);box-shadow:0 12px 38px rgba(0,0,0,.3),inset 0 1px rgba(255,255,255,.07)}
+.hud button{transition:background .2s,color .2s,transform .2s}
+.hud button:active{transform:scale(.94)}
+.notes{box-shadow:0 24px 70px rgba(0,0,0,.4)}
+.slide.cover::after,.slide:last-child::after{border-color:rgba(111,230,234,.13);border-radius:34px}
+.cover .logo{filter:drop-shadow(0 18px 34px rgba(15,180,187,.18))}
+@media (max-width:900px){.slide::after{inset:18px;border-radius:18px}}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DESIGN SYSTEM v2 — a layer ON TOP of the base above, never a replacement.
+   Added rather than rewritten so the deck engine (slide transitions, reveal
+   steps, notes, count-up) keeps working exactly as it did.
+
+   The brief asked for "premium AI SaaS". The judgement applied throughout:
+   intelligence is communicated by RESTRAINT and precision, not by glow. Every
+   accent below is earned by hierarchy — nothing decorates.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  /* Spacing — one 4px-derived rhythm, so nothing is an arbitrary margin. */
+  --s1:6px; --s2:10px; --s3:16px; --s4:24px; --s5:34px; --s6:48px; --s7:68px; --s8:96px;
+  /* Radius — three steps. A chip, a card, a window. */
+  --r-s:10px; --r-m:16px; --r-l:24px;
+  /* Layered surfaces. Dark mode done properly: not black + white, but three
+     planes that differ by luminance AND by the hairline that separates them. */
+  --surf-1:rgba(9,26,54,.55);
+  --surf-2:rgba(12,32,64,.72);
+  --surf-3:rgba(16,40,78,.86);
+  --hair:rgba(142,166,191,.14);
+  --hair-hi:rgba(111,230,234,.26);
+  /* Elevation — soft, wide, low-opacity. One light source, from above. */
+  --e1:0 1px 2px rgba(0,0,0,.28), 0 8px 24px -12px rgba(0,0,0,.5);
+  --e2:0 2px 4px rgba(0,0,0,.3), 0 18px 48px -18px rgba(0,0,0,.62);
+  --e3:0 4px 8px rgba(0,0,0,.32), 0 40px 90px -28px rgba(0,0,0,.72);
+  /* Motion — one easing family. Fast, decisive, never bouncy. */
+  --dur-1:.16s; --dur-2:.28s; --dur-3:.5s;
+  --out:cubic-bezier(.2,.8,.2,1);
+}
+
+/* ── Typography ────────────────────────────────────────────────────────────
+   Figures are TABULAR everywhere. A metric that shifts width as it counts up
+   reads as unstable, and this deck animates its numbers. */
+.kpi b,.split-card b,.num b,.stat,.ir .mono,.inv-h .mono,.qrow .t,.metric{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.h-xl,.h-l{letter-spacing:-.052em}
+.h-m{letter-spacing:-.038em}
+.lede{color:#a9bed4}
+.eyebrow{font-size:16px;letter-spacing:.24em}
+
+/* ── Surfaces ──────────────────────────────────────────────────────────────
+   The dark-glass card. Two backgrounds: a soft top-light gradient for the
+   plane, and the surface tint beneath it, so a card reads as lit rather than
+   merely filled. */
+.split-card{
+  background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,0) 42%),var(--surf-2);
+  border:1px solid var(--hair);
+  border-radius:var(--r-l);
+  box-shadow:var(--e2);
+  backdrop-filter:blur(14px) saturate(120%);
+  transition:transform var(--dur-2) var(--out),box-shadow var(--dur-2) var(--out),border-color var(--dur-2) var(--out);
+}
+.is-active .split-card:hover{transform:translateY(-3px);box-shadow:var(--e3);border-color:var(--hair-hi)}
+.split-card small{letter-spacing:.16em;color:#93aac4}
+.split-card b{letter-spacing:-.03em}
+
+/* The product window. A real application screenshot deserves a real device
+   edge: a hairline, a wide soft shadow, and nothing else. */
+.window{border-radius:var(--r-l);box-shadow:var(--e3),0 0 0 1px rgba(255,255,255,.09)}
+.chrome{background:linear-gradient(180deg,#eef3f6,#e6edf2);border-bottom:1px solid #dfe7ed}
+
+/* Chips — the smallest surface. Used for feature lists and contact points. */
+.chip{
+  border-radius:99px;border:1px solid var(--hair);
+  background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,0)),var(--surf-1);
+  transition:border-color var(--dur-1) var(--out),background var(--dur-1) var(--out),transform var(--dur-1) var(--out);
+}
+.is-active .chip:hover{border-color:var(--hair-hi);transform:translateY(-1px)}
+
+/* ── AI visual language ────────────────────────────────────────────────────
+   DELIBERATELY SCARCE. It appears on exactly the two slides where the product
+   genuinely does the work — drafting a note, and raising a recall — because a
+   badge on a screen that does no such thing is a lie the audience can check.
+   No brains, no circuits, no robots. A quiet live dot and a single sweep. */
+.ai-chip{
+  display:inline-flex;align-items:center;gap:9px;
+  font-family:var(--mono);font-size:14px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--teal-hi);
+  background:linear-gradient(180deg,rgba(15,180,187,.14),rgba(15,180,187,.06));
+  border:1px solid rgba(111,230,234,.3);
+  border-radius:99px;padding:7px 16px 7px 12px;
+}
+.ai-chip::before{
+  content:"";width:7px;height:7px;border-radius:50%;background:var(--teal-hi);
+  box-shadow:0 0 0 0 rgba(111,230,234,.55);
+  animation:aipulse 2.6s var(--out) infinite;
+}
+@keyframes aipulse{
+  0%{box-shadow:0 0 0 0 rgba(111,230,234,.5)}
+  70%{box-shadow:0 0 0 9px rgba(111,230,234,0)}
+  100%{box-shadow:0 0 0 0 rgba(111,230,234,0)}
+}
+/* One sweep across the drafting panel — a single pass, not a loop, so it reads
+   as "this happened once" rather than as an idle decoration. */
+.ai-scan{position:relative;overflow:hidden}
+.ai-scan::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(105deg,transparent 42%,rgba(111,230,234,.16) 50%,transparent 58%);
+  transform:translateX(-120%);
+}
+.is-active .ai-scan.on::after{animation:aisweep 1.5s var(--out) .25s 1 forwards}
+@keyframes aisweep{to{transform:translateX(120%)}}
+
+/* ── Metrics & data visualisation ──────────────────────────────────────────
+   Hierarchy between a primary metric and its neighbours, which the brief asks
+   for and the old KPI row lacked: every card looked identical, so nothing led. */
+.kpi{border:1px solid var(--pline);border-radius:var(--r-m);transition:border-color var(--dur-2) var(--out),box-shadow var(--dur-2) var(--out)}
+.kpi.lead{border-color:rgba(15,180,187,.5);box-shadow:0 0 0 1px rgba(15,180,187,.12),0 10px 30px -14px rgba(15,180,187,.4)}
+.kpi.lead b{color:#08787d}
+.trend{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.04em;margin-left:8px;vertical-align:2px}
+.trend.up{color:#1b7d47}.trend.down{color:#b3261e}
+/* A sparkline only where a series genuinely exists behind the figure. */
+.spark{display:block;margin-top:6px;height:22px;width:100%;overflow:visible}
+.spark path{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;opacity:.75}
+/* Ageing bar under the receivables list — the shape of the debt, not decoration. */
+.age{display:flex;gap:3px;height:6px;margin-top:14px}
+.age i{flex:1;border-radius:99px;background:rgba(15,180,187,.25)}
+.age i.hot{background:var(--amber)}
+.age i.warm{background:rgba(242,169,59,.5)}
+
+/* ── Controls: focus, hover, keyboard ──────────────────────────────────────
+   The deck is driven from a keyboard on a stage. A visible focus ring is not
+   an accessibility checkbox here, it is how the presenter finds the control. */
+.hud{border:1px solid var(--hair);border-radius:99px}
+.hud button:focus-visible{outline:2px solid var(--teal-hi);outline-offset:3px;border-radius:99px}
+.hud button:hover{color:var(--teal-hi)}
+
+/* ── Reduced motion ────────────────────────────────────────────────────────
+   The base sheet already stills the slide transitions. These are the pieces
+   added above, which would otherwise keep moving after the rest went quiet. */
+@media (prefers-reduced-motion:reduce){
+  .ai-chip::before{animation:none}
+  .is-active .ai-scan.on::after{animation:none;opacity:0}
+  .split-card,.chip,.kpi{transition:none}
+  .is-active .split-card:hover,.is-active .chip:hover{transform:none}
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────────
+   The stage scales as one unit, so the deck never reflows — which is right for
+   a presentation. What DOES need help is the portrait phone, where the scaled
+   stage becomes unreadably small. The existing .rotate notice is upgraded from
+   a bare line into a proper, legible state. */
+.rotate{
+  background:var(--surf-3);border:1px solid var(--hair);border-radius:var(--r-m);
+  box-shadow:var(--e3);padding:var(--s4) var(--s5);max-width:min(84vw,420px);
+  font-size:17px;line-height:1.5;color:var(--mist);text-align:center;
+}
 </style>
 
 <div class="viewport" id="vp">
@@ -334,9 +510,15 @@ aside.sn{display:none}
       <div class="main">
         <div class="main-h r" style="--d:350"><strong>Today</strong><span>Your clinic · one shared workspace</span></div>
         <div class="kpis r" style="--d:450">
-          <div class="kpi"><small>Appointments</small><b data-count="18">18</b></div>
+          <!-- The money card LEADS. Four identical tiles made the reader hunt for
+               the one figure an owner opens the page to see. Trend and sparkline
+               appear only here and on appointments, because those are the two with
+               a series behind them — a flat line drawn to tidy a grid is a lie. -->
+          <div class="kpi lead" style="color:#08787d"><small>Collected today</small><b>Rs <span data-count="64500">64,500</span><span class="trend up">▲ 12%</span></b>
+            <svg class="spark" viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden="true"><path d="M0,17 L14,14 L28,15 L42,9 L56,11 L70,6 L84,7 L100,2"/></svg>
+          </div>
+          <div class="kpi"><small>Appointments</small><b data-count="18">18</b><span class="trend up">▲ 3</span></div>
           <div class="kpi"><small>In waiting room</small><b data-count="3">3</b></div>
-          <div class="kpi"><small>Collected</small><b>Rs <span data-count="64500">64,500</span></b></div>
           <div class="kpi"><small>Recalls due</small><b data-count="5">5</b></div>
         </div>
         <div class="q">
@@ -396,7 +578,7 @@ aside.sn{display:none}
 <!-- ============ 05 THE NOTE ============ -->
 <section class="slide" data-glow="62,40,0,70" data-label="The clinical note" data-steps="2">
   <div class="abs" style="left:112px;top:130px;width:600px">
-    <div class="eyebrow r">The consultation</div>
+    <div class="ai-chip r" style="--d:0">AI drafts &middot; you sign</div>
     <h2 class="h-m r" style="--d:100;margin-top:26px;font-size:54px">You talk.<br>It writes.<br><span class="grad">You decide.</span></h2>
     <p class="body r" style="--d:220;margin-top:28px">Record the consultation as you would speak it. A structured note comes back in your clinic's format — and it is a <strong style="color:var(--mist)">draft</strong> until you have read it and signed it.</p>
     <div class="steps r" style="--d:320">
@@ -407,7 +589,8 @@ aside.sn{display:none}
   </div>
   <div class="abs" style="left:760px;top:120px;width:728px">
     <div class="bigwave f" data-step="0" id="bigwave" style="height:120px"></div>
-    <div class="window f" data-step="1" style="--d:100;margin-top:34px;height:520px;position:relative">
+    <!-- The ONE place a sweep is honest: this panel is the thing the model wrote. -->
+    <div class="window f ai-scan" data-step="1" style="--d:100;margin-top:34px;height:520px;position:relative">
       <div class="chrome"><i></i><i></i><i></i><span>Visit note · draft</span></div>
       <div class="stamp draft">DRAFT</div>
       <div class="stamp ok">APPROVED</div>
@@ -497,7 +680,7 @@ aside.sn{display:none}
 <!-- ============ 08 THE MONEY YOU CANNOT SEE ============ -->
 <section class="slide" data-glow="66,34,12,84" data-label="Recovered revenue" data-steps="2">
   <div class="abs" style="left:112px;top:130px;width:620px">
-    <div class="eyebrow r">The quiet loss</div>
+    <div class="ai-chip r" style="--d:0">Recalls raised automatically</div>
     <h2 class="h-m r" style="--d:100;margin-top:24px">The patients who <span class="grad">meant to come back.</span></h2>
     <p class="body r" style="--d:200;margin-top:26px">Every approved note can set the next visit. When it falls due the patient hears from you — without anyone remembering to look.</p>
     <div class="flag f" data-step="1" style="--d:0;background:rgba(242,169,59,.10);margin-top:34px">
@@ -516,6 +699,9 @@ aside.sn{display:none}
         <div class="ir"><span>Sadia Iqbal <small style="color:var(--ink-3)">· 21 days</small></span><span class="mono">Rs 18,200</span></div>
         <div class="ir"><span>Usman Tariq <small style="color:var(--ink-3)">· 12 days</small></span><span class="mono">Rs 9,800</span></div>
         <div class="ir tot"><span>9 patients</span><span class="mono">Rs 176,500</span></div>
+        <!-- The SHAPE of the debt: each bar a patient, oldest at the left. It says
+             in one glance what the list says in five rows — the money is aged. -->
+        <div class="age" aria-hidden="true"><i class="hot"></i><i class="hot"></i><i class="warm"></i><i class="warm"></i><i></i><i></i><i></i><i></i><i></i></div>
       </div>
     </div>
     <p class="body r" style="--d:500;margin-top:26px">Two lists nobody keeps by hand: who owes you money, and who is overdue a visit. Both are worth real money, and both are invisible in a paper register.</p>
