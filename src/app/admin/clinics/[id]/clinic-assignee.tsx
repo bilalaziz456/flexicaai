@@ -96,9 +96,13 @@ export function ClinicAssignee({
             checked={!notify}
             onCheckedChange={(checked) => setNotify(!checked)}
             disabled={pending}
+            className="mt-0.5"
           />
           <div className="space-y-0.5">
-            <Label htmlFor="skip-manager-notice" className="font-normal">
+            {/* htmlFor, not containment: the `id` lands on Base UI's hidden input, so
+                this activates the control — while the hint paragraph below stays
+                outside the label, where selecting it does not toggle the box. */}
+            <Label htmlFor="skip-manager-notice" className="cursor-pointer font-normal">
               Don&apos;t notify the clinic
             </Label>
             <p className="text-xs text-muted-foreground">
