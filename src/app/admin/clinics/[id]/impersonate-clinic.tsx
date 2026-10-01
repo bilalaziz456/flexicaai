@@ -44,7 +44,10 @@ export function ImpersonateClinic({ clinicId }: { clinicId: string }) {
         Confirm your identity to continue.
       </p>
       <div className="space-y-2">
-        <Label htmlFor="imp-password">Your password</Label>
+        {/* "Your password" alone reads as the CLINIC's password on a page titled with
+            the clinic's name — which is the one thing it is not. Naming the account
+            costs nothing and removes the only plausible misreading. */}
+        <Label htmlFor="imp-password">Your own admin password</Label>
         <PasswordInput
           id="imp-password"
           value={password}
@@ -70,6 +73,12 @@ export function ImpersonateClinic({ clinicId }: { clinicId: string }) {
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}
+          {error === "Incorrect password." ? (
+            // The likeliest cause by far, and the message alone does not rule it out.
+            <span className="mt-0.5 block text-xs">
+              This is the password you sign in to FlexicaAI with — not the clinic&apos;s.
+            </span>
+          ) : null}
         </p>
       ) : null}
       <div className="flex gap-2">
