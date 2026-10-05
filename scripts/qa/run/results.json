@@ -193,5 +193,45 @@
     "id": "TC-SUPER-023",
     "status": "Pass",
     "note": "Rs 15,000 covers 3 months at a flat Rs 5,000 and 3 on the re-priced clinic — the early months are charged at what they actually cost, not at today's figure"
+  },
+  {
+    "id": "TC-BILL-011",
+    "status": "Pass",
+    "note": "before any collection the visit has NO receipt number; after Rs 1,000 was collected it has one (RCP-2026-0000001) — the receipt is proof of payment, so it cannot predate one"
+  },
+  {
+    "id": "TC-BILL-010",
+    "status": "Pass",
+    "note": "receipt number 2 allocated on the first payment and UNCHANGED after a second (2); both payments (2) are listed against the one receipt — a visit has one receipt, not one per payment"
+  },
+  {
+    "id": "TC-BILL-012",
+    "status": "Pass",
+    "note": "a paid visit had NO invoice until one was requested, then got INV-2026-0000001. The receipt number appears automatically on payment; the invoice number only when someone asks — which is why \"where is the invoice number\" is usually \"nobody pressed the button\""
+  },
+  {
+    "id": "TC-BILL-027",
+    "status": "Pass",
+    "note": "the same visit carries receipt #4 and invoice #2 from two SEPARATE counters — a bill is what is owed, a receipt is proof of payment, and they must never share a sequence"
+  },
+  {
+    "id": "TC-APPT-019",
+    "status": "Pass",
+    "note": "a Rs 1,000 discount on a Rs 3,000 visit is HELD: status \"pending\", 1 approval row(s), and the bill still reads Rs 3,000 — the full amount. This is the workflow working, not a calculation error"
+  },
+  {
+    "id": "TC-E2E-006",
+    "status": "Pass",
+    "note": "bill before approval Rs 3,000, after approval Rs 2,000 — the discount applies the moment it is approved, and only then"
+  },
+  {
+    "id": "TC-APPT-025",
+    "status": "Pass",
+    "note": "a REJECTED discount leaves the bill at Rs 3,000 — the patient is charged in full, which is the only safe reading of a refusal"
+  },
+  {
+    "id": "TC-APPT-026",
+    "status": "Pass",
+    "note": "with approval switched off the discount applies immediately: status \"none\", no approval rows created, bill Rs 2,000 — behaviour is unchanged for a clinic that never turned the workflow on"
   }
 ]

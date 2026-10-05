@@ -214,5 +214,23 @@
     "pre": "Two clinics with appointments. An appointment ID from Clinic B.",
     "steps": "1. Sign in as a Clinic A user.\n2. Navigate directly to the appointment detail URL using the Clinic B appointment ID.\n3. Record what is shown.\n4. Confirm no patient name, doctor name or financial figure from Clinic B appears.",
     "expected": "The appointment is not found and no Clinic B information is rendered anywhere on the page, including in the page title."
+  },
+  {
+    "id": "TC-APPT-025",
+    "role": "Clinic Admin",
+    "module": "Appointments — Discounts",
+    "name": "A rejected discount leaves the patient charged in full",
+    "pre": "A clinic configured to require discount approval, and an appointment carrying a discount awaiting a decision.",
+    "steps": "1. Confirm the appointment's discount is pending and the bill shows the full amount.\n2. Open \"Discount approvals\" as a user who may decide.\n3. REJECT the discount, adding a reason.\n4. Return to the appointment and read the bill.\n5. Confirm the discount is still not applied.\n6. Open the Discounts report and confirm the rejection is visible there.",
+    "expected": "After rejection the bill remains at the full amount — the patient is charged in full. A rejected discount must never quietly apply; charging less than the clinic authorised is the failure this workflow exists to prevent."
+  },
+  {
+    "id": "TC-APPT-026",
+    "role": "Receptionist",
+    "module": "Appointments — Discounts",
+    "name": "With approval switched off a discount applies immediately",
+    "pre": "A clinic whose discount-approval requirement is OFF, and whose doctors do not individually require approval.",
+    "steps": "1. Confirm the clinic does not require discount approval.\n2. Book an appointment with a doctor who has a consultation fee.\n3. Apply a flat discount.\n4. Save and open the bill.\n5. Confirm the discount has already been deducted.\n6. Open \"Discount approvals\" and confirm nothing is waiting there for this appointment.",
+    "expected": "The discount applies at once with no approval step and nothing appears in the approvals queue. A clinic that never turned the workflow on must behave exactly as it did before the feature existed — the gate must not become a tax on everyone."
   }
 ]

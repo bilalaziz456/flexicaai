@@ -232,5 +232,14 @@
     "pre": "A clinic with the sales feature and a procedure priced at 1000.",
     "steps": "1. Book an appointment with NO consultation fee charged.\n2. Add the procedure priced at 1000, quantity 1.\n3. Apply a per-line discount of 200 to that procedure.\n4. Apply an appointment-level discount of 10 percent.\n5. Read the net from the running total and from the saved bill.\n6. Compare it against the two possible orders: 720 if the line discount applies first, 700 if the appointment discount were applied to the gross.",
     "expected": "The net is 720. The line is discounted first to 800, that becomes the subtotal, and the 10 percent appointment discount applies to the SUBTOTAL — never to the gross. A net of 700 would mean the order is reversed, which would understate every bill carrying both kinds of discount."
+  },
+  {
+    "id": "TC-BILL-027",
+    "role": "Receptionist",
+    "module": "Billing — Numbering",
+    "name": "Receipt and invoice numbers come from separate counters",
+    "pre": "A completed appointment with a billable total. Clinic has the sales feature.",
+    "steps": "1. Open the appointment and collect a payment.\n2. Note the receipt number that appears automatically.\n3. Click the control that issues an invoice number.\n4. Note the invoice number.\n5. Compare the two numbers and their prefixes.\n6. Repeat on a second appointment and confirm each series advances independently of the other.",
+    "expected": "The visit carries a receipt number and an invoice number drawn from two SEPARATE sequences with different prefixes. They must never share a counter: a bill is what is owed and a receipt is proof of payment, and an auditor reading either series needs it to be complete on its own."
   }
 ]
