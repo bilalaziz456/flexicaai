@@ -1,0 +1,137 @@
+[
+  {
+    "id": "TC-CRON-001",
+    "role": "API",
+    "module": "Scheduled jobs — Authentication",
+    "name": "Every cron endpoint rejects a request with no secret",
+    "pre": "CRON_SECRET is configured — it is set in this environment. An API client.",
+    "steps": "1. Call GET /api/cron/recalls with no Authorization header, no x-cron-token header and no token query parameter.\n2. Record the status code and body.\n3. Repeat for /api/cron/reminders, /api/cron/reconcile, /api/cron/expenses, /api/cron/company-expenses, /api/cron/log-retention, /api/cron/billing and /api/cron/scribe-recover.\n4. Confirm none of them performed any work by checking the data they would have changed.",
+    "expected": "Every endpoint returns HTTP 401 with the body error \"Unauthorized.\" and does no work. These are publicly reachable URLs, so an unauthenticated caller must never be able to trigger a job."
+  },
+  {
+    "id": "TC-CRON-002",
+    "role": "API",
+    "module": "Scheduled jobs — Authentication",
+    "name": "A wrong secret is rejected and the three accepted forms all work",
+    "pre": "The configured CRON_SECRET value.",
+    "steps": "1. Call /api/cron/recalls with a deliberately wrong secret as a Bearer token. Record the status.\n2. Call it with the secret one character short. Record the status.\n3. Call it with the CORRECT secret as an Authorization Bearer header. Record the status.\n4. Call it with the correct secret in an x-cron-token header.\n5. Call it with the correct secret as a token query parameter.\n6. Confirm all three correct forms are accepted.",
+    "expected": "Any wrong value returns HTTP 401. The correct secret is accepted in all three forms: a Bearer header, an x-cron-token header, or a token query parameter. The comparison is constant-time, so response timing must not vary noticeably between a wrong secret and a correct one."
+  },
+  {
+    "id": "TC-CRON-003",
+    "role": "API",
+    "module": "Scheduled jobs — Recalls",
+    "name": "The recalls job sends reminders for due recalls only",
+    "pre": "At least one recall due today or earlier, and one due well in the future.",
+    "steps": "1. Note the status of both recalls before running.\n2. Call GET /api/cron/recalls with the correct secret.\n3. Record the status code and the response body.\n4. Open \"Recalls\" and inspect both records.\n5. Open \"WhatsApp\" and look for an outbound message for the due patient.\n6. Confirm the future recall is untouched.",
+    "expected": "Only the due recall is actioned and its status advances. The future recall is left alone. An outbound message is recorded for the due patient even though it cannot be delivered without provider credentials."
+  },
+  {
+    "id": "TC-CRON-004",
+    "role": "API",
+    "module": "Scheduled jobs — Idempotency",
+    "name": "Running a job twice does not duplicate its effect",
+    "pre": "The configured secret. A due recall and an appointment due a reminder.",
+    "steps": "1. Call /api/cron/recalls with the correct secret and note what changed.\n2. Immediately call it a SECOND time.\n3. Compare the data after the second run with the first.\n4. Confirm no recall was advanced twice and no duplicate message was recorded.\n5. Repeat the same two-run test for /api/cron/reminders.\n6. Repeat for /api/cron/reconcile.",
+    "expected": "A second run is a no-op. Cron jobs can legitimately be invoked twice — by an overlapping schedule or a manual run — so a patient must never receive the same reminder twice and no ledger figure may be doubled."
+  },
+  {
+    "id": "TC-CRON-005",
+    "role": "API",
+    "module": "Scheduled jobs — Reminders",
+    "name": "The reminder job messages tomorrow's appointments once",
+    "pre": "An appointment scheduled for tomorrow, and one for next week.",
+    "steps": "1. Call GET /api/cron/reminders with the correct secret.\n2. Open \"WhatsApp\" and look for an outbound reminder for tomorrow's patient.\n3. Confirm no reminder was recorded for next week's appointment.\n4. Call the job again.\n5. Confirm tomorrow's patient did NOT receive a second reminder.\n6. Open the appointment and confirm it is marked as reminded.",
+    "expected": "Only appointments due tomorrow are reminded, exactly once. The appointment records that a reminder was sent, which is what stops a second run repeating it."
+  },
+  {
+    "id": "TC-CRON-006",
+    "role": "API",
+    "module": "Scheduled jobs — Reconciliation",
+    "name": "The nightly reconciliation repairs a drifted sales ledger",
+    "pre": "A completed appointment whose derived sale record has been deliberately removed or altered directly in the database.",
+    "steps": "1. Complete an appointment and confirm the sale appears in the Sales report.\n2. Directly in the database, delete or alter that derived sale row to simulate a failed write.\n3. Confirm the Sales report now disagrees with the appointment.\n4. Call GET /api/cron/reconcile with the correct secret.\n5. Re-check the Sales report and the doctor's revenue share.\n6. Run the job again and confirm nothing changes a second time.",
+    "expected": "The reconciliation re-derives the missing or wrong figures through the normal write path and the reports agree with the appointments again. This job is load-bearing: the payment path deliberately records money first and derives the ledger afterwards, on the basis that drift is repaired nightly. Skipping it leaves a failed ledger write wrong forever."
+  },
+  {
+    "id": "TC-CRON-007",
+    "role": "API",
+    "module": "Scheduled jobs — Recurring expenses",
+    "name": "Recurring expenses are cloned when due",
+    "pre": "A clinic expense marked recurring with a next-run date of today or earlier.",
+    "steps": "1. Open \"Expenses\" and note the recurring template and its next-run date.\n2. Call GET /api/cron/expenses with the correct secret.\n3. Return to Expenses and confirm a new expense was created for this period.\n4. Confirm the template's next-run date has advanced.\n5. Call the job again immediately.\n6. Confirm a second copy was NOT created.\n7. Repeat the whole test against /api/cron/company-expenses for the company-side ledger.",
+    "expected": "A due recurring expense is cloned once and its next-run date advances, so a second run creates nothing. A duplicated expense would corrupt the profit and loss, so this idempotency matters."
+  },
+  {
+    "id": "TC-CRON-008",
+    "role": "API",
+    "module": "Scheduled jobs — Scribe recovery",
+    "name": "The scribe recovery sweep fails stalled runs without re-running them",
+    "pre": "A scribe run that has been in the processing state for more than 15 minutes. The configured secret.",
+    "steps": "1. Create or identify a run stuck in processing for over 15 minutes.\n2. Call GET /api/cron/scribe-recover with the correct secret.\n3. Record the response.\n4. Open \"Voice scribe\" as the owning clinician.\n5. Confirm the run now shows as failed with a message explaining the transcription stopped unexpectedly.\n6. Confirm the recording is still present and \"Try again\" is offered.\n7. Confirm the job did NOT automatically retry the transcription itself.",
+    "expected": "The stalled run is moved to failed with its recording kept, and a human must press \"Try again\". The job deliberately does not re-run the provider — spending money on a paid API unasked, in a loop, would be a worse failure than a note waiting for a click."
+  },
+  {
+    "id": "TC-CRON-009",
+    "role": "API",
+    "module": "Scheduled jobs — Scribe recovery",
+    "name": "A run that never started is still caught by the sweep",
+    "pre": "A scribe run created but whose background job never began, so it has no start time. May require simulating the condition directly in the database.",
+    "steps": "1. Create a visit in the processing state with no transcription start time recorded, dated more than 15 minutes ago.\n2. Call /api/cron/scribe-recover with the correct secret.\n3. Confirm the run is moved to failed.\n4. Confirm it was not skipped.",
+    "expected": "A run whose background work never fired is still caught. This is the exact case the sweep exists for, and a naive comparison against the start time alone would miss it forever — confirm it is not skipped."
+  },
+  {
+    "id": "TC-CRON-010",
+    "role": "API",
+    "module": "Scheduled jobs — Log retention",
+    "name": "Log retention deletes nothing while the window is zero",
+    "pre": "Activity-log entries exist. The company retention setting is at its default of zero.",
+    "steps": "1. Confirm the company activity-log retention is set to zero, meaning keep everything.\n2. Note the oldest activity-log entry.\n3. Call GET /api/cron/log-retention with the correct secret.\n4. Confirm the oldest entry still exists.\n5. Set the retention window to a value such as 90 days.\n6. Run the job again.\n7. Confirm entries older than the window are removed and newer ones are not.\n8. Restore the setting to zero.",
+    "expected": "With the window at zero the job deliberately deletes nothing — how long an access log over patient data survives is a regulatory decision, not an engineering default. With a window set, only entries older than it are pruned. This is the only hard delete in the audit path, so test it carefully."
+  },
+  {
+    "id": "TC-CRON-011",
+    "role": "API",
+    "module": "Scheduled jobs — Billing sweep",
+    "name": "The billing sweep moves overdue clinics and surfaces upcoming dues",
+    "pre": "Super Admin access. A clinic whose paid-through date has passed beyond its grace period, and one approaching its due date.",
+    "steps": "1. Note the status of both clinics in the admin panel.\n2. Call GET /api/cron/billing with the correct secret.\n3. Re-check both clinics' statuses.\n4. Open the dues dashboard and confirm the overdue clinic is listed.\n5. Confirm the upcoming clinic appears under payments coming up rather than as overdue.\n6. Sign in as a user of the overdue clinic and confirm what they see.\n7. Run the job again and confirm nothing changes.",
+    "expected": "An overdue clinic is moved to the past-due state and appears on the dues dashboard; a clinic merely approaching its date is flagged as upcoming, not overdue. The clinic's own staff see the payment notice only if that notice is enabled for them. A second run changes nothing."
+  },
+  {
+    "id": "TC-CRON-012",
+    "role": "API",
+    "module": "Scheduled jobs — Isolation",
+    "name": "Jobs process every clinic and keep their data separate",
+    "pre": "Two clinics each with due recalls and recurring expenses.",
+    "steps": "1. Create a due recall and a due recurring expense in Clinic A.\n2. Create the same in Clinic B.\n3. Run the recalls job and the expenses job with the correct secret.\n4. Sign in to each clinic and confirm its own recall advanced and its own expense was created.\n5. Confirm Clinic A received nothing belonging to Clinic B.\n6. Confirm no expense was written to the wrong clinic.",
+    "expected": "Cron jobs run across every clinic, which is correct, but each clinic's records stay separate. An expense or a recall landing in the wrong clinic is a serious isolation defect."
+  },
+  {
+    "id": "TC-CRON-013",
+    "role": "API",
+    "module": "Scheduled jobs — Failure handling",
+    "name": "A failing job reports an error rather than appearing to succeed",
+    "pre": "Ability to induce a failure, for example by making the database briefly unreachable during a run.",
+    "steps": "1. Induce a condition that will make a job fail.\n2. Call one of the cron endpoints with the correct secret.\n3. Record the status code and the response body.\n4. Inspect the server output for a reported error.\n5. Confirm the job did not leave data half-changed.",
+    "expected": "A failed job returns HTTP 500 with a plain error body and the failure is reported in the server logs. A cron failure has no user-visible surface at all, so that report is the only alarm — a job that fails silently while returning success is the worst possible outcome and must be raised."
+  },
+  {
+    "id": "TC-CRON-014",
+    "role": "Super Admin",
+    "module": "Scheduled jobs — Installation",
+    "name": "Confirm whether the jobs are actually scheduled on the server",
+    "pre": "Access to the server where the application is deployed.",
+    "steps": "1. On the server, check whether the cron entries for this application are installed.\n2. If an installer script is provided, run its check mode and record the output.\n3. Confirm the cron user exists and can read the file holding the secret.\n4. Compare the installed job list against the eight cron endpoints.\n5. Confirm each job has run recently by looking for its completion entries in the logs.",
+    "expected": "Every job the clinic depends on is installed and running. CRITICAL: a job that is never invoked raises no error at all, so an uninstalled crontab looks exactly like a healthy one from inside the application. Recalls, reminders and the nightly reconciliation all fail silently if missing. In this environment the jobs are NOT installed — the endpoints must be called manually to test them."
+  },
+  {
+    "id": "TC-CRON-015",
+    "role": "API",
+    "module": "Scheduled jobs — Security",
+    "name": "Cron endpoints are not reachable with an ordinary user session",
+    "pre": "A signed-in clinic user session cookie.",
+    "steps": "1. Using an ordinary clinic user's session cookie but NO cron secret, call GET /api/cron/reconcile.\n2. Record the status and body.\n3. Repeat with a Clinic Admin session cookie.\n4. Repeat with a Super Admin session cookie.\n5. Confirm no job ran in any case.",
+    "expected": "A user session is not a substitute for the cron secret — all three are refused with HTTP 401. Being signed in, even as a super admin, must not allow a user to trigger a billing sweep or a reconciliation from the browser."
+  }
+]

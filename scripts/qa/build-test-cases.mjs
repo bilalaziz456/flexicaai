@@ -33,7 +33,10 @@ const data = {
   roleCoverage: read("role-coverage.json"),
   featureCoverage: read("feature-coverage.json"),
 };
-const outPath = resolve(root, "docs", "qa", "Clinic_Management_Complete_QA_Test_Cases.xlsx");
+// An explicit path lets you build a copy while the real one is open in Excel.
+const outPath = process.argv[2]
+  ? resolve(process.cwd(), process.argv[2])
+  : resolve(root, "docs", "qa", "Clinic_Management_Complete_QA_Test_Cases.xlsx");
 
 const INK = "FF15242B";
 const HEAD_BG = "FF0B7F86";
@@ -207,7 +210,18 @@ for (const line of data.readme) {
 }
 
 mkdirSync(dirname(outPath), { recursive: true });
-await wb.xlsx.writeFile(outPath);
+try {
+  await wb.xlsx.writeFile(outPath);
+} catch (e) {
+  // Excel holds an exclusive lock on an open workbook, and the raw EBUSY stack
+  // tells you nothing about why. This is the single most likely failure when
+  // regenerating, so name the cause.
+  if (e?.code === "EBUSY" || e?.code === "EPERM") {
+    console.error(`\nThe workbook is open in Excel and cannot be overwritten:\n  ${outPath}\n\nClose it and run this again.\n`);
+    process.exit(1);
+  }
+  throw e;
+}
 console.log(`wrote ${outPath}`);
 console.log(`  ${data.cases.length} test cases`);
 console.log(`  ${new Set(data.cases.map((c) => c.module)).size} modules, ${new Set(data.cases.map((c) => c.role)).size} roles`);

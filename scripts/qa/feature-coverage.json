@@ -1,34 +1,226 @@
 [
-  { "module": "Authentication", "feature": "Login, lockout, sessions, logout", "state": "Implemented", "ids": "TC-AUTH-001..009, 025..031", "notes": "Lockout is 5 failures per username / 50 per IP in 15 minutes, held in memory — a server restart clears it. The block is checked BEFORE the password, so a correct password still fails while locked." },
-  { "module": "Authentication", "feature": "Two-factor authentication", "state": "Implemented — super admin only", "ids": "TC-AUTH-010..013", "notes": "Enrolment exists ONLY in the admin panel. No clinic role can enable it. SUSPECTED DEFECT: backup codes are 11 characters but the code field caps at 6, so the documented recovery path cannot be used." },
-  { "module": "Authentication", "feature": "Forgot / reset password", "state": "Implemented — email not delivered", "ids": "TC-AUTH-014..021", "notes": "Tokens are created correctly, last 60 minutes and are single-use. SMTP is NOT configured in this environment, so no email is sent — read the token from the database to test the reset screen." },
-  { "module": "Authentication", "feature": "Change password", "state": "Implemented — two separate flows", "ids": "TC-AUTH-022..024", "notes": "The forced first-login screen does NOT ask for the old password; the Settings card does. Wording differs between them. Only rule is a minimum of 8 characters — no complexity requirement exists." },
-  { "module": "Authentication", "feature": "Idle session timeout", "state": "Implemented — off by default", "ids": "TC-AUTH-027", "notes": "Set company-wide by the super admin. Off by default. Takes up to a minute to apply and the observed cut-off can run past the nominal window. The session row is deleted, so disabling the timeout cannot revive it." },
-  { "module": "Authorisation", "feature": "Role-based access, two-tier permissions", "state": "Implemented", "ids": "TC-RBAC-001..022", "notes": "Effective access = clinic capability INTERSECT user permission, with feature gating as a separate third check. Note the opposite senses of empty: clinic capabilities NULL means all allowed; a user's empty permission array means nothing allowed." },
-  { "module": "Authorisation", "feature": "Permission-denied feedback", "state": "Implemented — silent", "ids": "TC-RBAC-004, 005", "notes": "A denied page visit is a silent redirect to /clinic — no 403 page, no message. Testers routinely report this as 'the link does nothing'. Worth raising as a usability gap, not a security one." },
-  { "module": "Patients", "feature": "Create, edit, search, delete, restore, export", "state": "Implemented", "ids": "TC-PAT-001..020", "notes": "Single full-name field — there is NO first/last name split. AGE is entered, not date of birth. MRN is assigned automatically and never typed. Name and phone are the only required fields." },
-  { "module": "Patients", "feature": "Duplicate detection", "state": "NOT IMPLEMENTED", "ids": "TC-PAT-009", "notes": "Two patients may share a phone number with no warning — deliberate, since families share a number. Confirm with the product owner whether a soft duplicate warning is wanted." },
-  { "module": "Appointments", "feature": "Book, edit, reschedule, cancel, status flow, queue", "state": "Implemented", "ids": "TC-APPT-001..024", "notes": "Status advance labels are Arrived, then Call in, then Complete. Completion is what turns the bill into revenue. Queue numbers are stable across cancellations." },
-  { "module": "Appointments", "feature": "Availability enforcement", "state": "Implemented", "ids": "TC-APPT-005..008", "notes": "Leave, working hours and the daily cap are all enforced server-side. 'Custom time' relaxes the WORKING HOURS rule only — it overrides neither leave nor the cap." },
-  { "module": "Appointments", "feature": "Discounts and approval workflow", "state": "Implemented", "ids": "TC-APPT-018..020, TC-E2E-006", "notes": "A pending discount is treated as ZERO on the bill until approved. This is the workflow working — do not raise it as a calculation error. Percentages are capped at 100." },
-  { "module": "AI Scribe", "feature": "Audio recording via microphone", "state": "Implemented", "ids": "TC-AI-007..009", "notes": "Stopping the recording AUTO-SUBMITS. There is no pause, no cancel, no re-record, no timer and no playback before submitting." },
-  { "module": "AI Scribe", "feature": "Audio file upload", "state": "NOT IMPLEMENTED", "ids": "TC-AI-026", "notes": "Microphone only — there is no file picker and no accept list anywhere in the UI. The API would accept a posted file, so upload cases must be driven through an API client, not the interface." },
-  { "module": "AI Scribe", "feature": "Transcription to a structured clinical note", "state": "BLOCKED — needs OPENAI_API_KEY", "ids": "TC-AI-029..036", "notes": "Needs TWO vendors: OpenAI Whisper to transcribe and Anthropic Claude to structure. The Anthropic key is set; the OpenAI key is NOT, so every run currently fails at the Whisper step. Add OPENAI_API_KEY and re-run the amber rows." },
-  { "module": "AI Scribe", "feature": "Failure handling and retry", "state": "Implemented — testable now", "ids": "TC-AI-014..018, TC-E2E-004", "notes": "A failed run keeps its recording and offers 'Try again', which reuses the stored audio. The stall sweep fails runs stuck over 15 minutes but deliberately does not re-run them." },
-  { "module": "AI Scribe", "feature": "Transcript editing", "state": "NOT IMPLEMENTED", "ids": "TC-AI-030", "notes": "The raw transcript is read-only and visible in exactly one place — a collapsed section on the review screen, and never again after approval. Only the structured NOTE is editable." },
-  { "module": "AI Scribe", "feature": "Transcript versioning, speaker labels, timestamps, export, re-transcribe", "state": "NOT IMPLEMENTED", "ids": "—", "notes": "None of these exist. There is no version history, no diarisation, no timings, no transcript download, and no way to re-transcribe a run that already succeeded. Do not write cases for them." },
-  { "module": "AI Scribe", "feature": "Audio playback or download", "state": "NOT IMPLEMENTED", "ids": "TC-AI-027", "notes": "NO role can retrieve the recording through the application — no player and no route exist. Audio also survives discarding the run. Worth confirming both as intended with the product owner." },
-  { "module": "AI Scribe", "feature": "Draft ownership and handover", "state": "Implemented", "ids": "TC-AI-037..041", "notes": "Drafts are author-only, enforced in the query and not just the UI. The one exception covers a draft whose author can no longer sign in, shown in a separate 'Left by a former colleague' card. Reactivating the author returns the draft to them." },
-  { "module": "Billing", "feature": "Collect, partial, overpayment, void, refund", "state": "Implemented", "ids": "TC-BILL-001..009", "notes": "There is NO date field on the payment form — payments are stamped at the moment of entry and cannot be back-dated. Overpayment becomes patient credit rather than being refused." },
-  { "module": "Billing", "feature": "Invoice and receipt numbering", "state": "Implemented", "ids": "TC-BILL-010..013", "notes": "The receipt number is allocated automatically on the first payment; the invoice number only when explicitly requested. Both reset each January and a voided invoice keeps its number." },
-  { "module": "Billing", "feature": "Petty cash drawer", "state": "Implemented", "ids": "TC-BILL-019..021", "notes": "A reconciliation over existing cash records, not a second ledger. 'Paid for something' writes a REAL expense that hits the P&L; banking or topping up only moves money between pockets and must not." },
-  { "module": "Reports", "feature": "Sales, Profit & Loss, Receivables, Discounts, Day book", "state": "Implemented — feature gated", "ids": "TC-BILL-014..016, 022", "notes": "Sales screens need the 'sales' feature; Expenses, Petty cash and P&L need 'finance'. A user may hold the permission and still not see the page. Record each screen's DEFAULT period — missing data is usually a default window." },
-  { "module": "Super Admin", "feature": "Clinics, team, subscriptions, announcements, impersonation, trash, import", "state": "Implemented", "ids": "TC-SUPER-001..015", "notes": "A separate company panel. Sub-roles hold different capability sets — test a scoped one such as Support, not only the owner. The permanent purge here is the ONLY true deletion in the product." },
-  { "module": "Super Admin", "feature": "Price history", "state": "Implemented", "ids": "TC-SUPER-011", "notes": "HIGH VALUE TEST. Raising a clinic's price must not re-price months already paid. If a price rise turns a good payer into an apparent debtor, that is a serious billing defect." },
-  { "module": "Staff", "feature": "Create, edit, suspend, deactivate, delete, password reset, permission grid", "state": "Implemented", "ids": "TC-SUPER-016..018, TC-RBAC-012..014, 020", "notes": "Editing a clinic admin's permission grid has no effect — they hold everything by short-circuit. The clinic can never be left with no active admin." },
-  { "module": "WhatsApp", "feature": "Outbound confirmations, reminders, recalls, inbound self-service", "state": "Implemented — provider not configured", "ids": "—", "notes": "NOT TESTABLE END TO END without provider credentials. Messages are recorded before sending, so the queue can be inspected, but nothing is delivered. Confirm the environment before writing delivery cases." },
-  { "module": "Scheduled jobs", "feature": "Recalls, reminders, reconciliation, scribe recovery, retention", "state": "Implemented — not installed", "ids": "TC-AI-017", "notes": "The cron jobs are NOT installed in this environment. A job that is never invoked raises no error, so these fail silently. To test the scribe stall sweep, call its endpoint manually with the configured secret." },
-  { "module": "Trash", "feature": "Soft delete and restore", "state": "Implemented", "ids": "TC-CLIN-013, TC-E2E-008", "notes": "Nothing in the clinic panel is ever hard-deleted. Restoring a parent brings back the children its deletion hid, as one batch." },
-  { "module": "UI", "feature": "Loading, empty, error states, toasts, dark mode", "state": "Implemented", "ids": "TC-LIST-004..011", "notes": "Confirm a repeated identical save still announces itself — a confirmation that appears only on the first save is a known class of bug in this codebase." },
-  { "module": "UI", "feature": "Not-found status inside panels", "state": "Implemented — returns 200", "ids": "TC-LIST-014", "notes": "An unknown URL inside /clinic or /admin renders a not-found page but returns HTTP 200, as a deliberate consequence of the security-policy design. Do not raise the status code." }
+  {
+    "module": "Authentication",
+    "feature": "Login, lockout, sessions, logout",
+    "state": "Implemented",
+    "ids": "TC-AUTH-001..009, 025..031",
+    "notes": "Lockout is 5 failures per username / 50 per IP in 15 minutes, held in memory — a server restart clears it. The block is checked BEFORE the password, so a correct password still fails while locked."
+  },
+  {
+    "module": "Authentication",
+    "feature": "Two-factor authentication",
+    "state": "Implemented — super admin only",
+    "ids": "TC-AUTH-010..013",
+    "notes": "Enrolment exists ONLY in the admin panel. No clinic role can enable it. SUSPECTED DEFECT: backup codes are 11 characters but the code field caps at 6, so the documented recovery path cannot be used."
+  },
+  {
+    "module": "Authentication",
+    "feature": "Forgot / reset password",
+    "state": "Implemented — email not delivered",
+    "ids": "TC-AUTH-014..021",
+    "notes": "Tokens are created correctly, last 60 minutes and are single-use. SMTP is NOT configured in this environment, so no email is sent — read the token from the database to test the reset screen."
+  },
+  {
+    "module": "Authentication",
+    "feature": "Change password",
+    "state": "Implemented — two separate flows",
+    "ids": "TC-AUTH-022..024",
+    "notes": "The forced first-login screen does NOT ask for the old password; the Settings card does. Wording differs between them. Only rule is a minimum of 8 characters — no complexity requirement exists."
+  },
+  {
+    "module": "Authentication",
+    "feature": "Idle session timeout",
+    "state": "Implemented — off by default",
+    "ids": "TC-AUTH-027",
+    "notes": "Set company-wide by the super admin. Off by default. Takes up to a minute to apply and the observed cut-off can run past the nominal window. The session row is deleted, so disabling the timeout cannot revive it."
+  },
+  {
+    "module": "Authorisation",
+    "feature": "Role-based access, two-tier permissions",
+    "state": "Implemented",
+    "ids": "TC-RBAC-001..022",
+    "notes": "Effective access = clinic capability INTERSECT user permission, with feature gating as a separate third check. Note the opposite senses of empty: clinic capabilities NULL means all allowed; a user's empty permission array means nothing allowed."
+  },
+  {
+    "module": "Authorisation",
+    "feature": "Permission-denied feedback",
+    "state": "Implemented — silent",
+    "ids": "TC-RBAC-004, 005",
+    "notes": "A denied page visit is a silent redirect to /clinic — no 403 page, no message. Testers routinely report this as 'the link does nothing'. Worth raising as a usability gap, not a security one."
+  },
+  {
+    "module": "Patients",
+    "feature": "Create, edit, search, delete, restore, export",
+    "state": "Implemented",
+    "ids": "TC-PAT-001..020",
+    "notes": "Single full-name field — there is NO first/last name split. AGE is entered, not date of birth. MRN is assigned automatically and never typed. Name and phone are the only required fields."
+  },
+  {
+    "module": "Patients",
+    "feature": "Duplicate detection",
+    "state": "NOT IMPLEMENTED",
+    "ids": "TC-PAT-009",
+    "notes": "Two patients may share a phone number with no warning — deliberate, since families share a number. Confirm with the product owner whether a soft duplicate warning is wanted."
+  },
+  {
+    "module": "Appointments",
+    "feature": "Book, edit, reschedule, cancel, status flow, queue",
+    "state": "Implemented",
+    "ids": "TC-APPT-001..024",
+    "notes": "Status advance labels are Arrived, then Call in, then Complete. Completion is what turns the bill into revenue. Queue numbers are stable across cancellations."
+  },
+  {
+    "module": "Appointments",
+    "feature": "Availability enforcement",
+    "state": "Implemented",
+    "ids": "TC-APPT-005..008",
+    "notes": "Leave, working hours and the daily cap are all enforced server-side. 'Custom time' relaxes the WORKING HOURS rule only — it overrides neither leave nor the cap."
+  },
+  {
+    "module": "Appointments",
+    "feature": "Discounts and approval workflow",
+    "state": "Implemented",
+    "ids": "TC-APPT-018..020, TC-E2E-006",
+    "notes": "A pending discount is treated as ZERO on the bill until approved. This is the workflow working — do not raise it as a calculation error. Percentages are capped at 100."
+  },
+  {
+    "module": "AI Scribe",
+    "feature": "Audio recording via microphone",
+    "state": "Implemented",
+    "ids": "TC-AI-007..009",
+    "notes": "Stopping the recording AUTO-SUBMITS. There is no pause, no cancel, no re-record, no timer and no playback before submitting."
+  },
+  {
+    "module": "AI Scribe",
+    "feature": "Audio file upload",
+    "state": "NOT IMPLEMENTED",
+    "ids": "TC-AI-026",
+    "notes": "Microphone only — there is no file picker and no accept list anywhere in the UI. The API would accept a posted file, so upload cases must be driven through an API client, not the interface."
+  },
+  {
+    "module": "AI Scribe",
+    "feature": "Transcription to a structured clinical note",
+    "state": "BLOCKED — needs OPENAI_API_KEY",
+    "ids": "TC-AI-029..036",
+    "notes": "Needs TWO vendors: OpenAI Whisper to transcribe and Anthropic Claude to structure. The Anthropic key is set; the OpenAI key is NOT, so every run currently fails at the Whisper step. Add OPENAI_API_KEY and re-run the amber rows."
+  },
+  {
+    "module": "AI Scribe",
+    "feature": "Failure handling and retry",
+    "state": "Implemented — testable now",
+    "ids": "TC-AI-014..018, TC-E2E-004",
+    "notes": "A failed run keeps its recording and offers 'Try again', which reuses the stored audio. The stall sweep fails runs stuck over 15 minutes but deliberately does not re-run them."
+  },
+  {
+    "module": "AI Scribe",
+    "feature": "Transcript editing",
+    "state": "NOT IMPLEMENTED",
+    "ids": "TC-AI-030",
+    "notes": "The raw transcript is read-only and visible in exactly one place — a collapsed section on the review screen, and never again after approval. Only the structured NOTE is editable."
+  },
+  {
+    "module": "AI Scribe",
+    "feature": "Transcript versioning, speaker labels, timestamps, export, re-transcribe",
+    "state": "NOT IMPLEMENTED",
+    "ids": "—",
+    "notes": "None of these exist. There is no version history, no diarisation, no timings, no transcript download, and no way to re-transcribe a run that already succeeded. Do not write cases for them."
+  },
+  {
+    "module": "AI Scribe",
+    "feature": "Audio playback or download",
+    "state": "NOT IMPLEMENTED",
+    "ids": "TC-AI-027",
+    "notes": "NO role can retrieve the recording through the application — no player and no route exist. Audio also survives discarding the run. Worth confirming both as intended with the product owner."
+  },
+  {
+    "module": "AI Scribe",
+    "feature": "Draft ownership and handover",
+    "state": "Implemented",
+    "ids": "TC-AI-037..041",
+    "notes": "Drafts are author-only, enforced in the query and not just the UI. The one exception covers a draft whose author can no longer sign in, shown in a separate 'Left by a former colleague' card. Reactivating the author returns the draft to them."
+  },
+  {
+    "module": "Billing",
+    "feature": "Collect, partial, overpayment, void, refund",
+    "state": "Implemented",
+    "ids": "TC-BILL-001..009",
+    "notes": "There is NO date field on the payment form — payments are stamped at the moment of entry and cannot be back-dated. Overpayment becomes patient credit rather than being refused."
+  },
+  {
+    "module": "Billing",
+    "feature": "Invoice and receipt numbering",
+    "state": "Implemented",
+    "ids": "TC-BILL-010..013",
+    "notes": "The receipt number is allocated automatically on the first payment; the invoice number only when explicitly requested. Both reset each January and a voided invoice keeps its number."
+  },
+  {
+    "module": "Billing",
+    "feature": "Petty cash drawer",
+    "state": "Implemented",
+    "ids": "TC-BILL-019..021",
+    "notes": "A reconciliation over existing cash records, not a second ledger. 'Paid for something' writes a REAL expense that hits the P&L; banking or topping up only moves money between pockets and must not."
+  },
+  {
+    "module": "Reports",
+    "feature": "Sales, Profit & Loss, Receivables, Discounts, Day book",
+    "state": "Implemented — feature gated",
+    "ids": "TC-BILL-014..016, 022",
+    "notes": "Sales screens need the 'sales' feature; Expenses, Petty cash and P&L need 'finance'. A user may hold the permission and still not see the page. Record each screen's DEFAULT period — missing data is usually a default window."
+  },
+  {
+    "module": "Super Admin",
+    "feature": "Clinics, team, subscriptions, announcements, impersonation, trash, import",
+    "state": "Implemented",
+    "ids": "TC-SUPER-001..015",
+    "notes": "A separate company panel. Sub-roles hold different capability sets — test a scoped one such as Support, not only the owner. The permanent purge here is the ONLY true deletion in the product."
+  },
+  {
+    "module": "Super Admin",
+    "feature": "Price history",
+    "state": "Implemented",
+    "ids": "TC-SUPER-011",
+    "notes": "HIGH VALUE TEST. Raising a clinic's price must not re-price months already paid. If a price rise turns a good payer into an apparent debtor, that is a serious billing defect."
+  },
+  {
+    "module": "Staff",
+    "feature": "Create, edit, suspend, deactivate, delete, password reset, permission grid",
+    "state": "Implemented",
+    "ids": "TC-SUPER-016..018, TC-RBAC-012..014, 020",
+    "notes": "Editing a clinic admin's permission grid has no effect — they hold everything by short-circuit. The clinic can never be left with no active admin."
+  },
+  {
+    "module": "WhatsApp",
+    "feature": "Outbound confirmations, reminders, recalls, inbound self-service",
+    "state": "Implemented — inbound testable, outbound not",
+    "ids": "TC-WA-001..017",
+    "notes": "WHATSAPP_WEBHOOK_TOKEN IS set, so the inbound webhook, patient self-service (reschedule, cancel, self-booking), idempotency and attribution are all testable now. Outbound DELIVERY is not — no AiSensy or Cloud API credentials. Messages are still recorded before sending, so the log and the triggers can be verified. The Meta verification and signature cases need WHATSAPP_VERIFY_TOKEN and WHATSAPP_APP_SECRET and are marked blocked."
+  },
+  {
+    "module": "Scheduled jobs",
+    "feature": "Recalls, reminders, reconciliation, scribe recovery, retention",
+    "state": "Implemented — endpoints testable, not scheduled",
+    "ids": "TC-CRON-001..015",
+    "notes": "CRON_SECRET IS set, so every job can be invoked manually and fully tested: auth, idempotency, and each job effect. What is NOT done is INSTALLING the schedule on the server (TC-CRON-014). A job that is never invoked raises no error, so an uninstalled crontab is indistinguishable from a healthy one from inside the app — recalls, reminders and the nightly reconciliation all fail silently. Reconcile matters most: the payment path records money first and derives the ledger after, on the basis that drift is repaired nightly."
+  },
+  {
+    "module": "Trash",
+    "feature": "Soft delete and restore",
+    "state": "Implemented",
+    "ids": "TC-CLIN-013, TC-E2E-008",
+    "notes": "Nothing in the clinic panel is ever hard-deleted. Restoring a parent brings back the children its deletion hid, as one batch."
+  },
+  {
+    "module": "UI",
+    "feature": "Loading, empty, error states, toasts, dark mode",
+    "state": "Implemented",
+    "ids": "TC-LIST-004..011",
+    "notes": "Confirm a repeated identical save still announces itself — a confirmation that appears only on the first save is a known class of bug in this codebase."
+  },
+  {
+    "module": "UI",
+    "feature": "Not-found status inside panels",
+    "state": "Implemented — returns 200",
+    "ids": "TC-LIST-014",
+    "notes": "An unknown URL inside /clinic or /admin renders a not-found page but returns HTTP 200, as a deliberate consequence of the security-policy design. Do not raise the status code."
+  }
 ]

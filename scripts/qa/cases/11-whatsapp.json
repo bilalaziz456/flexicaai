@@ -1,0 +1,155 @@
+[
+  {
+    "id": "TC-WA-001",
+    "role": "Receptionist",
+    "module": "WhatsApp — Message log",
+    "name": "The WhatsApp screen lists messages and is reachable by the right roles",
+    "pre": "Receptionist on default permissions. At least one message record exists.",
+    "steps": "1. Sign in as the Receptionist.\n2. Confirm \"WhatsApp\" is present in the sidebar and open it.\n3. Confirm messages are listed with their direction, phone number, status and time.\n4. Sign in as the Clinic Admin and confirm the same screen is reachable.\n5. Sign in as the Manager and confirm the same.\n6. Sign in as the Doctor and confirm \"WhatsApp\" is ABSENT from the sidebar.\n7. As the Doctor, attempt /clinic/whatsapp directly.",
+    "expected": "Receptionist, Manager and Clinic Admin all reach the screen. The Doctor holds no WhatsApp permission by default, so the item is hidden and the direct URL redirects to /clinic."
+  },
+  {
+    "id": "TC-WA-002",
+    "role": "Receptionist",
+    "module": "WhatsApp — Outbound logging",
+    "name": "An outbound message is recorded even when the provider is unconfigured",
+    "pre": "No AiSensy or Cloud API credentials are configured — the current state of this environment.",
+    "steps": "1. Perform an action that sends a patient message, for example booking an appointment for a patient with a phone number.\n2. Open \"WhatsApp\".\n3. Look for a record of the outbound message for that patient.\n4. Note its status and any error recorded against it.\n5. Confirm the booking itself completed successfully.",
+    "expected": "The message is RECORDED before any send is attempted, so it appears in the log with a status indicating it was not delivered. Critically, the failure to send must NOT break the booking — the appointment saves regardless. This is the designed behaviour when no provider is configured."
+  },
+  {
+    "id": "TC-WA-003",
+    "role": "Receptionist",
+    "module": "WhatsApp — Outbound triggers",
+    "name": "Confirm which actions generate an outbound message",
+    "pre": "A patient with a valid phone number.",
+    "steps": "1. Book an appointment for the patient and check the WhatsApp log for a booking confirmation.\n2. Cancel that appointment and check for a cancellation message.\n3. Issue an invoice and use the send-on-WhatsApp control; check the log.\n4. Approve a clinical note that schedules a recall, then run the recall job, and check the log.\n5. For each, record the template or campaign name shown against the message.",
+    "expected": "Each action produces exactly one outbound record with an identifiable template. Record which triggers fire and which do not — a missing booking confirmation is a defect even though delivery itself cannot be tested here."
+  },
+  {
+    "id": "TC-WA-004",
+    "role": "Receptionist",
+    "module": "WhatsApp — Outbound",
+    "name": "A patient with no phone number does not break the action",
+    "pre": "A patient record whose phone number has been cleared, if the form allows it, or a patient created before the phone became mandatory.",
+    "steps": "1. Attempt to book an appointment for a patient with no usable phone number.\n2. Confirm the booking completes.\n3. Open the WhatsApp log and check whether a record was created.\n4. Confirm no error page or crash occurred.",
+    "expected": "The booking succeeds and the missing number does not raise an error to the user. Either no message record is created or one is created and marked as not sendable — record which, and confirm the clinical action was never blocked by the messaging layer."
+  },
+  {
+    "id": "TC-WA-005",
+    "role": "API",
+    "module": "WhatsApp — Inbound webhook auth",
+    "name": "Inbound webhook rejects a request with no token",
+    "pre": "WHATSAPP_WEBHOOK_TOKEN is configured — it is set in this environment. An API client.",
+    "steps": "1. POST a minimal JSON body to /api/whatsapp/webhook with NO token in the query string and no token header.\n2. Record the status code and body.\n3. Repeat with a deliberately wrong token value.\n4. Record the status code and body.\n5. Confirm no message row was created for either attempt.",
+    "expected": "Both requests return HTTP 401 with the body error \"Unauthorized.\" Nothing is stored. An unsigned payload that could drive patient self-service booking must never be accepted."
+  },
+  {
+    "id": "TC-WA-006",
+    "role": "API",
+    "module": "WhatsApp — Inbound webhook",
+    "name": "A valid inbound message is stored and attributed to the patient",
+    "pre": "The configured webhook token. A patient whose stored phone number you know.",
+    "steps": "1. POST a valid inbound-message payload to /api/whatsapp/webhook with the correct token in the query string, using that patient's phone number as the sender.\n2. Record the status code.\n3. Open \"WhatsApp\" in the clinic workspace.\n4. Confirm the inbound message appears with its text and the sender's number.\n5. Confirm it is attributed to the correct patient.\n6. Repeat with a phone number belonging to nobody.",
+    "expected": "A valid payload is accepted and stored. A message from a known number is linked to that patient; a message from an unknown number is still stored but left unattributed rather than discarded. Nothing is lost."
+  },
+  {
+    "id": "TC-WA-007",
+    "role": "API",
+    "module": "WhatsApp — Inbound idempotency",
+    "name": "A redelivered inbound message is not stored or acted on twice",
+    "pre": "The configured webhook token. A valid inbound payload carrying a provider message ID.",
+    "steps": "1. POST the inbound payload once with the correct token and confirm it is stored.\n2. POST the IDENTICAL payload again, with the same provider message ID.\n3. Record the status code of the second call.\n4. Open the WhatsApp log and count how many times the message appears.\n5. If the message text would trigger a booking or reschedule, confirm only ONE appointment action occurred.",
+    "expected": "The message appears exactly once and any self-service action it triggers happens exactly once. Provider redelivery is normal, so a duplicate must not double-book a patient or duplicate the log entry."
+  },
+  {
+    "id": "TC-WA-008",
+    "role": "API",
+    "module": "WhatsApp — Inbound",
+    "name": "A malformed inbound payload does not crash the endpoint",
+    "pre": "The configured webhook token.",
+    "steps": "1. POST invalid JSON to /api/whatsapp/webhook with the correct token.\n2. Record the status and body.\n3. POST valid JSON of an entirely unexpected shape.\n4. Record the status and body.\n5. POST an empty body.\n6. Confirm the application is still responsive afterwards and no error page was produced.",
+    "expected": "Malformed and unexpected payloads are handled without throwing. The endpoint answers rather than erroring, nothing nonsensical is stored, and the application remains healthy. Provider webhooks are untrusted input and must never be able to break the app."
+  },
+  {
+    "id": "TC-WA-009",
+    "role": "API",
+    "module": "WhatsApp — Meta Cloud verification",
+    "name": "Meta webhook verification handshake",
+    "pre": "[BLOCKED: needs WHATSAPP_VERIFY_TOKEN] The Cloud API verify token must be configured; it is not set in this environment.",
+    "steps": "1. Call GET /api/whatsapp/cloud with hub.mode=subscribe, the correct hub.verify_token and a hub.challenge value.\n2. Confirm the response body is exactly the challenge string with status 200.\n3. Repeat with an incorrect verify token.\n4. Record the status and body.\n5. Repeat with no parameters at all.",
+    "expected": "With the correct token the raw challenge string is echoed back with HTTP 200, which is what Meta requires to complete subscription. A wrong or missing token returns HTTP 403 and no challenge. This cannot be exercised until the verify token is configured."
+  },
+  {
+    "id": "TC-WA-010",
+    "role": "API",
+    "module": "WhatsApp — Meta Cloud signature",
+    "name": "Cloud webhook rejects an unsigned payload in production",
+    "pre": "[BLOCKED: needs WHATSAPP_APP_SECRET] The Cloud API app secret must be configured; it is not set in this environment.",
+    "steps": "1. POST a valid Cloud API payload to /api/whatsapp/cloud with NO signature header.\n2. Record the status.\n3. POST the same payload with a deliberately incorrect signature header.\n4. Record the status.\n5. POST with a correctly computed signature and confirm acceptance.\n6. Confirm nothing was stored for the two rejected attempts.",
+    "expected": "An unsigned or wrongly signed payload is refused when the app secret is configured, and only a correctly signed payload is processed. Note the endpoint deliberately answers HTTP 200 on an accepted POST so Meta does not retry a payload already stored."
+  },
+  {
+    "id": "TC-WA-011",
+    "role": "Receptionist",
+    "module": "WhatsApp — Patient self-service",
+    "name": "A patient reply can reschedule their appointment",
+    "pre": "The configured webhook token. A patient with a future appointment and a doctor with availability.",
+    "steps": "1. Note the patient's existing appointment date and time.\n2. POST an inbound message from that patient's number asking to move the appointment to a specific future day.\n3. Open \"Appointments\" and inspect that appointment.\n4. Open \"WhatsApp\" and read the inbound message and any reply recorded.\n5. Repeat asking for a day the doctor is on leave.\n6. Confirm the appointment was not moved in that case.",
+    "expected": "A valid reschedule request moves the appointment and records a reply. A request for an unavailable day is refused by exactly the same availability rules as a staff booking, leaving the original appointment untouched. The patient is never silently ignored."
+  },
+  {
+    "id": "TC-WA-012",
+    "role": "Receptionist",
+    "module": "WhatsApp — Patient self-service",
+    "name": "A patient cancellation respects the cancellation cut-off",
+    "pre": "The configured webhook token. A clinic with a cancellation cut-off configured. One appointment far in the future and one within the cut-off window.",
+    "steps": "1. POST an inbound cancellation request from the patient for the appointment that is FAR in the future.\n2. Confirm the appointment is cancelled.\n3. POST a cancellation request for the appointment INSIDE the cut-off window.\n4. Confirm the appointment is NOT cancelled automatically.\n5. Open WhatsApp and confirm the request is visible to the front desk.",
+    "expected": "A cancellation with enough notice is actioned. One inside the cut-off is not cancelled automatically — it is left for the front desk, because cancelling twenty minutes beforehand is a conversation rather than a rule. The request is still visible to staff either way."
+  },
+  {
+    "id": "TC-WA-013",
+    "role": "Receptionist",
+    "module": "WhatsApp — Patient self-service",
+    "name": "A patient self-booking stays a request until staff confirm",
+    "pre": "The configured webhook token. A patient with no upcoming appointment.",
+    "steps": "1. POST an inbound booking request from that patient's number for an available slot.\n2. Open \"Appointments\" and locate the new appointment.\n3. Note its status and whether it is marked as patient-booked.\n4. Confirm it is visibly distinguishable from a staff booking.\n5. Confirm the appointment it created respects doctor availability.",
+    "expected": "A patient self-booking is created but marked as coming from WhatsApp and remains a request until staff confirm it. It cannot bypass the doctor's availability, leave or daily cap."
+  },
+  {
+    "id": "TC-WA-014",
+    "role": "Clinic Admin",
+    "module": "WhatsApp — Audit",
+    "name": "Patient self-service actions are audited as the patient",
+    "pre": "The clinic has activity-log access granted. A self-service reschedule or cancellation has occurred.",
+    "steps": "1. Trigger a patient self-service action through the inbound webhook.\n2. Sign in as the Clinic Admin and open \"Activity log\".\n3. Locate the entry for that action.\n4. Confirm the actor is shown as the patient rather than as a staff member.\n5. Confirm the patient's NAME is not used as the actor name.",
+    "expected": "The action is recorded with the patient as the actor, not attributed to a staff account. The patient is identified by reference rather than by name in the actor field, which is the correct handling for patient data in an audit trail."
+  },
+  {
+    "id": "TC-WA-015",
+    "role": "Super Admin",
+    "module": "WhatsApp — Per-clinic sender",
+    "name": "Each clinic can be given its own sending number",
+    "pre": "Super Admin access to a clinic's patient-facing settings. Two clinics.",
+    "steps": "1. Open Clinic A in the admin panel and set its WhatsApp sender number and display name.\n2. Save.\n3. Attempt to set the SAME sender number on Clinic B.\n4. Record whether this is refused.\n5. Confirm Clinic A's outbound messages are recorded against its own sender.",
+    "expected": "A clinic can be given its own sending number, and the same number cannot be assigned to two clinics — the number is the routing key for inbound messages, so a duplicate would make inbound delivery ambiguous. A clinic with no number configured falls back to the platform sender or sends nothing."
+  },
+  {
+    "id": "TC-WA-016",
+    "role": "Super Admin",
+    "module": "WhatsApp — AI assistant feature",
+    "name": "The WhatsApp AI assistant is off unless explicitly enabled",
+    "pre": "A test clinic. Super Admin access to the feature toggles.",
+    "steps": "1. Open the clinic's features and confirm the WhatsApp AI assistant is OFF by default.\n2. Read the description shown to the super admin and note that it is marked as billable.\n3. Enable it and save.\n4. POST an inbound free-form message that the plain parser would not understand.\n5. Open the WhatsApp log and inspect whether an intent was recorded.\n6. Disable the feature again and repeat.",
+    "expected": "The assistant is opt-in and is clearly marked as costing money per message, unlike every other feature. With it off, an unparseable message is simply left for staff. With it on, the message is interpreted and an intent recorded. Confirm no AI call is made while the feature is off."
+  },
+  {
+    "id": "TC-WA-017",
+    "role": "Receptionist",
+    "module": "WhatsApp — Isolation",
+    "name": "A clinic cannot see another clinic's messages",
+    "pre": "Two clinics, each with WhatsApp message records.",
+    "steps": "1. Sign in as a Clinic A user and open \"WhatsApp\".\n2. Record the messages listed.\n3. Sign in as a Clinic B user and open the same screen.\n4. Confirm the two lists are entirely distinct.\n5. Confirm no phone number or message body from the other clinic appears in either list.",
+    "expected": "Each clinic sees only its own inbound and outbound messages. Patient phone numbers and message bodies are confidential, so any cross-clinic visibility is a serious isolation defect."
+  }
+]
