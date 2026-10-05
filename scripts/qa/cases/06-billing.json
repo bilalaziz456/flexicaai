@@ -1,0 +1,218 @@
+[
+  {
+    "id": "TC-BILL-001",
+    "role": "Receptionist",
+    "module": "Billing — Collect payment",
+    "name": "Collect a full payment on a completed visit",
+    "pre": "A completed appointment with an outstanding balance. Clinic has the sales feature. Receptionist holds billing collect permission.",
+    "steps": "1. Open the completed appointment's detail page.\n2. Scroll to the \"Payment\" card.\n3. Confirm the amount field is pre-filled with the full outstanding balance.\n4. Leave \"Method\" on its default of Cash.\n5. Click \"Collect payment\".\n6. Record the confirmation message.\n7. Re-read the bill, collected and outstanding figures.\n8. Confirm a \"Print receipt\" control has now appeared.",
+    "expected": "The payment is recorded, a confirmation appears, the outstanding figure drops to zero and the card reports the visit as fully paid. The receipt option becomes available only now that money has been collected."
+  },
+  {
+    "id": "TC-BILL-002",
+    "role": "Receptionist",
+    "module": "Billing — Collect payment",
+    "name": "Collect a partial payment",
+    "pre": "A completed appointment with a balance of at least 1000.",
+    "steps": "1. Open the Payment card.\n2. Overwrite the pre-filled amount with a smaller figure, for example half the balance.\n3. Choose a method of Bank transfer.\n4. Enter a reference.\n5. Click \"Collect payment\".\n6. Re-read the three money figures.\n7. Open the payment history on the same card.",
+    "expected": "The partial amount is recorded, collected increases by that amount and outstanding reduces by the same. The visit is not marked fully paid. The payment appears in the history with its method and reference."
+  },
+  {
+    "id": "TC-BILL-003",
+    "role": "Receptionist",
+    "module": "Billing — Validation",
+    "name": "Zero, negative and non-numeric amounts are refused",
+    "pre": "A completed appointment with a balance.",
+    "steps": "1. In the Payment card enter 0 as the amount and attempt to submit. Record the message.\n2. Enter a negative amount and attempt to submit. Record the message.\n3. Enter letters instead of digits and observe whether the field accepts them.\n4. Clear the field entirely and attempt to submit.\n5. Confirm after each attempt that no payment was recorded.",
+    "expected": "Zero and negative amounts are refused with a message requiring an amount greater than zero. Non-numeric input is rejected by the field. An empty amount cannot be submitted. The payment history is unchanged throughout."
+  },
+  {
+    "id": "TC-BILL-004",
+    "role": "Receptionist",
+    "module": "Billing — Overpayment",
+    "name": "Paying more than the balance creates patient credit",
+    "pre": "A completed appointment with a known outstanding balance.",
+    "steps": "1. Enter an amount larger than the outstanding balance.\n2. Click \"Collect payment\".\n3. Read the confirmation carefully for any mention of credit.\n4. Re-read the Payment card.\n5. Open the patient's record and look for a credit figure.\n6. Create a second appointment for the same patient and complete it.\n7. Look for a control offering to apply the credit.",
+    "expected": "The overpayment is accepted. The amount above the balance is held as patient credit rather than being lost, and the card states the patient has credit available. On a later visit a control is offered to apply that credit to the new bill."
+  },
+  {
+    "id": "TC-BILL-005",
+    "role": "Receptionist",
+    "module": "Billing — Pre-completion",
+    "name": "Collecting before completion is recorded as a deposit",
+    "pre": "An appointment that is NOT yet completed and has a billable total.",
+    "steps": "1. Open the appointment before completing it.\n2. Read the labels on the three money figures and the warning text.\n3. Collect a partial payment.\n4. Confirm it is accepted.\n5. Open the Sales report and confirm the visit does NOT yet contribute revenue.\n6. Mark the appointment Completed.\n7. Re-read the labels and re-check the Sales report.",
+    "expected": "Payment is allowed before completion and the figures are labelled as an estimate and a deposit, with an explanatory warning. The money does not count as revenue until the visit is completed, at which point the labels change and the sale appears in the report."
+  },
+  {
+    "id": "TC-BILL-006",
+    "role": "Receptionist",
+    "module": "Billing — No date field",
+    "name": "Confirm a payment cannot be back-dated",
+    "pre": "A completed appointment with a balance.",
+    "steps": "1. Inspect every field on the collect form.\n2. Confirm there is no date or time input.\n3. Record a payment.\n4. Open the Payments ledger and read the date recorded against it.",
+    "expected": "There is deliberately NO date field — the payment is stamped at the moment it is recorded. Confirm this with the product owner if the clinic needs to enter yesterday's cash. Record as current behaviour, not a defect."
+  },
+  {
+    "id": "TC-BILL-007",
+    "role": "Clinic Admin",
+    "module": "Billing — Void",
+    "name": "Void a payment entered in error",
+    "pre": "A recorded payment. Clinic Admin with billing delete permission.",
+    "steps": "1. Open the appointment and find the payment in the history list.\n2. Click the Void control on that row.\n3. Confirm any dialog.\n4. Re-read the collected and outstanding figures.\n5. Open the Payments ledger and check how the voided payment appears.\n6. Open Trash and confirm the record is recoverable.",
+    "expected": "The payment is voided, collected drops by that amount and outstanding rises correspondingly. The entry is soft-deleted rather than erased, so it remains auditable and recoverable. The ledger reflects the reversal."
+  },
+  {
+    "id": "TC-BILL-008",
+    "role": "Clinic Admin",
+    "module": "Billing — Refund",
+    "name": "Refund money back to the patient",
+    "pre": "A visit with money already collected. A user holding refund permission.",
+    "steps": "1. Open the Payment card and click the refund control.\n2. Confirm the form states how much was collected and caps the refund at that figure.\n3. Attempt to refund more than was collected and record the result.\n4. Enter a valid refund amount, choose a method and add a reason.\n5. Confirm the refund.\n6. Re-read the money figures and the history.\n7. Open the Payments ledger and confirm the refund appears correctly signed.",
+    "expected": "A refund cannot exceed what was collected. A valid refund is recorded, reduces the collected figure, appears distinctly in the history and the ledger, and is clearly distinguishable from a void."
+  },
+  {
+    "id": "TC-BILL-009",
+    "role": "Receptionist",
+    "module": "Billing — Permissions",
+    "name": "Receptionist is offered no void or refund control",
+    "pre": "A visit with a recorded payment. Receptionist on default permissions.",
+    "steps": "1. Sign in as the Receptionist and open the appointment.\n2. Confirm the collect form IS available.\n3. Inspect the payment history row for a Void control.\n4. Look anywhere on the card for a refund control.\n5. Sign in as the Clinic Admin on the same appointment and confirm both exist.",
+    "expected": "The Receptionist can collect but cannot void or refund — neither control is rendered for them. Both are available to the Clinic Admin. This separation is deliberate: the front desk takes money, a manager reverses it."
+  },
+  {
+    "id": "TC-BILL-010",
+    "role": "Receptionist",
+    "module": "Billing — Receipt",
+    "name": "Print a receipt after collecting",
+    "pre": "A visit with at least one recorded payment.",
+    "steps": "1. Open the appointment and click \"Print receipt\".\n2. Confirm the document heading identifies it as a payment receipt.\n3. Confirm a receipt number is shown.\n4. Confirm the charge lines, the payments received, and the gross, discount, net, received and due figures all appear.\n5. Change the \"Format\" between Thermal, A5 and A4 and observe the layout change.\n6. Click the print control and choose Save as PDF.\n7. Open the saved PDF and confirm it is complete and legible.",
+    "expected": "The receipt shows an automatically allocated receipt number, the charges, every payment received and the totals. All three paper sizes render sensibly and the print action produces a complete, legible PDF."
+  },
+  {
+    "id": "TC-BILL-011",
+    "role": "Receptionist",
+    "module": "Billing — Receipt",
+    "name": "No receipt option before any money is collected",
+    "pre": "A completed appointment with a balance and NO payments recorded.",
+    "steps": "1. Open the appointment.\n2. Look for a print receipt control.\n3. Attempt the receipt URL for that appointment directly.\n4. Collect a payment.\n5. Confirm the control now appears.",
+    "expected": "The receipt option is absent until money has been collected, since a receipt is proof of payment. Confirm the direct URL does not produce a receipt for an unpaid visit."
+  },
+  {
+    "id": "TC-BILL-012",
+    "role": "Receptionist",
+    "module": "Billing — Invoice",
+    "name": "Issue and print a numbered invoice",
+    "pre": "A completed appointment with a billable total. User holds billing create permission.",
+    "steps": "1. Open the appointment's Payment card.\n2. Locate the control that issues an invoice number and click it.\n3. Record the confirmation and the invoice number shown.\n4. Confirm the control is replaced by the invoice number as text.\n5. Click the control to print the bill.\n6. Confirm the document is headed as an invoice and shows line items, subtotal, discount, total, paid and outstanding.\n7. Open the Invoices register and locate the invoice.",
+    "expected": "An invoice number is allocated only when requested, shown on the card afterwards, and the printable invoice lists the line items and totals. The invoice appears in the register. A receipt number, by contrast, is allocated automatically on first payment."
+  },
+  {
+    "id": "TC-BILL-013",
+    "role": "Receptionist",
+    "module": "Billing — Invoice",
+    "name": "Invoice numbers are unique and sequential",
+    "pre": "Ability to issue invoices on several appointments.",
+    "steps": "1. Issue invoices on three different appointments in succession.\n2. Record each number.\n3. Confirm they are sequential and share the clinic's prefix and the year.\n4. Void one invoice if the option exists.\n5. Issue a fourth invoice and record its number.",
+    "expected": "Numbers are unique and sequential within the year. Voiding an invoice does NOT release its number for reuse — the next invoice continues the sequence, which is correct for an auditable document series."
+  },
+  {
+    "id": "TC-BILL-014",
+    "role": "Receptionist",
+    "module": "Billing — Payments ledger",
+    "name": "Payments ledger is read-only and reconciles with the appointments",
+    "pre": "Several payments and at least one refund recorded.",
+    "steps": "1. Open \"Payments\" from the sidebar.\n2. Note the default period shown.\n3. Read the summary figures for money in, refunds and net.\n4. Confirm the net equals money in minus refunds.\n5. Look for any control to add or edit a payment from this screen.\n6. Click through to an appointment from a row if possible.",
+    "expected": "The ledger lists every payment, advance and refund with its method and date. The summary figures reconcile. The screen is read-only — payments are recorded and reversed on the appointment, not here."
+  },
+  {
+    "id": "TC-BILL-015",
+    "role": "Receptionist",
+    "module": "Billing — Payments ledger",
+    "name": "Search and filter the payments ledger",
+    "pre": "Payments exist across several patients, methods and dates.",
+    "steps": "1. Open Payments.\n2. Search by a patient's name and confirm only their payments remain.\n3. Clear and search by an MRN.\n4. Clear and search by a receipt number.\n5. Apply a method filter such as Cash.\n6. Apply a date range that excludes everything and confirm the empty state.\n7. Clear all filters and confirm the full list returns.\n8. Export the filtered view to CSV and confirm it matches the screen.",
+    "expected": "Search matches patient name, MRN and receipt number. Filters combine correctly and the summary figures recalculate with the filter. An empty result shows a clear empty state rather than an error. The CSV reflects the filters applied."
+  },
+  {
+    "id": "TC-BILL-016",
+    "role": "Receptionist",
+    "module": "Billing — Receivables",
+    "name": "Receivables lists patients who owe money",
+    "pre": "At least two patients with outstanding balances on completed visits, and one fully paid patient.",
+    "steps": "1. Open \"Receivables\".\n2. Confirm the patients with balances are listed and the fully paid patient is not.\n3. Note the default period.\n4. Search for a patient by MRN.\n5. Open one row to see the underlying visits.\n6. Collect the full balance for one patient.\n7. Return to Receivables and confirm they have dropped off.",
+    "expected": "Only patients with a genuine outstanding balance appear, grouped by patient. Searching by MRN finds them. Once the balance is cleared the patient no longer appears, and the totals adjust accordingly."
+  },
+  {
+    "id": "TC-BILL-017",
+    "role": "Clinic Admin",
+    "module": "Billing — Procedures",
+    "name": "Create, edit and deactivate a priced procedure",
+    "pre": "Clinic has the sales feature. Clinic Admin with procedure permissions.",
+    "steps": "1. Open \"Procedures\".\n2. Create a procedure with a name and a price.\n3. Confirm it appears in the list.\n4. Book an appointment and confirm the new procedure is offered as a chip.\n5. Return to Procedures and change the price.\n6. Open the earlier appointment and confirm its line price did NOT change.\n7. Deactivate the procedure.\n8. Start a new booking and confirm it is no longer offered.",
+    "expected": "Procedures can be created, edited and deactivated. Critically, changing a price does NOT rewrite appointments already billed — past visits keep the price they were charged. A deactivated procedure disappears from booking but remains on historical records."
+  },
+  {
+    "id": "TC-BILL-018",
+    "role": "Clinic Admin",
+    "module": "Billing — Procedures",
+    "name": "Procedure price validation",
+    "pre": "Clinic Admin on the Procedures screen.",
+    "steps": "1. Attempt to create a procedure with no name. Record the result.\n2. Attempt one with a negative price.\n3. Attempt one with a price of zero and record whether it is allowed.\n4. Attempt a non-numeric price.\n5. Create a valid procedure to confirm the form still works.",
+    "expected": "A name is required and negative prices are refused. Record whether a zero price is permitted and confirm with the product owner whether a free procedure is legitimate. Invalid input never creates a record."
+  },
+  {
+    "id": "TC-BILL-019",
+    "role": "Clinic Admin",
+    "module": "Billing — Petty cash",
+    "name": "Count the drawer and record a variance",
+    "pre": "Clinic has the finance feature. Some cash payments and cash expenses recorded since the last count.",
+    "steps": "1. Open \"Petty cash\".\n2. Read the expected drawer total and how it was derived.\n3. Enter a counted total that deliberately differs from the expected figure.\n4. Save the count.\n5. Read the recorded variance.\n6. Record a second count later and confirm the expected figure now re-bases on the last counted total rather than compounding the earlier difference.",
+    "expected": "The expected total is derived from cash movements since the last count. A difference is recorded as a signed variance. The next count starts from what was actually counted, so one bad day does not poison every figure afterwards."
+  },
+  {
+    "id": "TC-BILL-020",
+    "role": "Clinic Admin",
+    "module": "Billing — Petty cash",
+    "name": "Paying for something from the drawer creates a real expense",
+    "pre": "Petty cash screen available.",
+    "steps": "1. Use the option to record paying for something out of the drawer, entering an amount and a note.\n2. Save.\n3. Confirm it appears in the drawer history.\n4. Open \"Expenses\" and look for the same entry.\n5. Open the Profit and Loss report and confirm the amount is treated as a cost.",
+    "expected": "A cash purchase made at the drawer is written as a genuine expense — it appears in Expenses and reduces profit, as well as reducing the drawer. Banking cash or topping the drawer up, by contrast, only moves money between pockets and must NOT appear as a cost."
+  },
+  {
+    "id": "TC-BILL-021",
+    "role": "Receptionist",
+    "module": "Billing — Petty cash",
+    "name": "Drawer entries can be seen by all but edited only by their owner",
+    "pre": "Entries recorded by two different users. A Receptionist and a Clinic Admin.",
+    "steps": "1. Sign in as the Receptionist and open Petty cash.\n2. Confirm entries made by other staff are visible.\n3. Attempt to modify an entry made by someone else.\n4. Modify your own entry and confirm it succeeds.\n5. Sign in as the Clinic Admin and attempt to modify another user's entry.",
+    "expected": "Everyone with access sees every entry — a shared drawer cannot be reconciled with rows missing. A normal user may only change their own entries, while the Clinic Admin may change any."
+  },
+  {
+    "id": "TC-BILL-022",
+    "role": "Clinic Admin",
+    "module": "Billing — Reports",
+    "name": "Profit and Loss reconciles with the underlying ledgers",
+    "pre": "Clinic has the finance feature, with recorded revenue, expenses and doctor shares in a known period.",
+    "steps": "1. Open \"Profit & Loss\".\n2. Note the default period and change it to a period with known data.\n3. Record the collected revenue, costs and net profit.\n4. Open the Sales report for the same period and compare the revenue.\n5. Open Expenses for the same period and compare the total.\n6. Change the period and confirm every figure updates consistently.",
+    "expected": "The profit and loss figures reconcile with the Sales and Expenses screens for the same period. Changing the period updates all figures together. Any discrepancy between screens for the same period is a defect worth raising."
+  },
+  {
+    "id": "TC-BILL-023",
+    "role": "Doctor",
+    "module": "Billing — Permissions",
+    "name": "Doctor cannot reach the money screens",
+    "pre": "Doctor on default permissions. Clinic has sales and finance enabled.",
+    "steps": "1. Sign in as the Doctor.\n2. Confirm Payments, Invoices, Receivables, Sales, Discounts and Expenses are absent from the sidebar.\n3. Attempt /clinic/payments, /clinic/invoices and /clinic/pl directly.\n4. Open an appointment and check whether the Payment card is shown.\n5. Confirm Revenue shares IS available and shows only their own earnings.",
+    "expected": "The Doctor cannot reach the clinic money screens and the direct URLs redirect away. They may see their own revenue share figures, which is deliberate, but no clinic-wide financial data."
+  },
+  {
+    "id": "TC-BILL-024",
+    "role": "Clinic Admin",
+    "module": "Billing — Isolation",
+    "name": "Financial exports contain only this clinic's data",
+    "pre": "Two clinics each with payments and expenses.",
+    "steps": "1. Sign in as a Clinic A admin.\n2. Export the finance data to CSV.\n3. Open the file and inspect every row.\n4. Confirm no Clinic B patient, amount or reference appears.\n5. Compare the totals with the on-screen figures for the same period.",
+    "expected": "The export contains only Clinic A data and the totals match the screen. A single Clinic B row appearing in the export is a serious tenant-isolation defect and must be raised immediately."
+  }
+]

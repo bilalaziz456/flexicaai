@@ -1,0 +1,182 @@
+[
+  {
+    "id": "TC-PAT-001",
+    "role": "Receptionist",
+    "module": "Patients — Create",
+    "name": "Create a patient with all fields completed",
+    "pre": "Receptionist signed in with patient create permission.",
+    "steps": "1. Open \"Patients\" from the sidebar.\n2. Click \"Add patient\".\n3. Confirm the card is titled \"New patient\".\n4. Enter a full name of at least two characters in \"Full name\".\n5. Enter a valid number in \"WhatsApp / phone\", for example 03450186120.\n6. Enter a valid address in \"Email\".\n7. Enter a whole number in \"Age\", for example 34.\n8. Choose a value in \"Gender\".\n9. Enter text in \"Address\".\n10. Enter text in \"Reference\".\n11. Tick the data-consent checkbox.\n12. Click \"Add patient\".\n13. When the list reloads, search for the patient by name and open their record.\n14. Verify every entered value is displayed correctly.",
+    "expected": "The patient is created, a confirmation appears, and the user is returned to the patient list with the new patient at the top. All entered values appear correctly on the patient record, and an MRN has been assigned automatically."
+  },
+  {
+    "id": "TC-PAT-002",
+    "role": "Receptionist",
+    "module": "Patients — Create",
+    "name": "Create a patient with only the mandatory fields",
+    "pre": "Receptionist signed in.",
+    "steps": "1. Open Patients and click \"Add patient\".\n2. Enter only a \"Full name\" and a \"WhatsApp / phone\".\n3. Leave Email, Age, Gender, Address, Reference and the consent box untouched.\n4. Click \"Add patient\".\n5. Open the new patient's record.",
+    "expected": "The patient is created successfully. Only the name and phone are required. Optional fields are blank on the record and can be filled in later; the missing consent does not block creation."
+  },
+  {
+    "id": "TC-PAT-003",
+    "role": "Receptionist",
+    "module": "Patients — Validation",
+    "name": "Name is required",
+    "pre": "Receptionist on the Add patient form.",
+    "steps": "1. Leave \"Full name\" empty.\n2. Enter a valid phone number.\n3. Attempt to submit.\n4. Record how the form responds.\n5. Enter a single character in the name and attempt to submit again.",
+    "expected": "Submission is blocked. A name of fewer than two characters is refused with a message stating the patient name is required. No patient record is created in either case."
+  },
+  {
+    "id": "TC-PAT-004",
+    "role": "Receptionist",
+    "module": "Patients — Validation",
+    "name": "Phone number is required and must be plausible",
+    "pre": "Receptionist on the Add patient form.",
+    "steps": "1. Enter a valid \"Full name\".\n2. Leave \"WhatsApp / phone\" empty and attempt to submit. Record the result.\n3. Enter a clearly invalid number such as 123 and attempt to submit. Record the message.\n4. Enter a valid number and submit.",
+    "expected": "An empty phone is refused with a message stating a phone number is required. An implausible number is refused with a message saying it does not look like a valid phone number. Only a plausible number is accepted. Note the form deliberately requires a phone because WhatsApp is the patient communication channel."
+  },
+  {
+    "id": "TC-PAT-005",
+    "role": "Receptionist",
+    "module": "Patients — Validation",
+    "name": "Phone formats are normalised consistently",
+    "pre": "Receptionist on the Add patient form.",
+    "steps": "1. Create a patient entering the phone as 03450186120.\n2. Note the stored value shown on the record.\n3. Create a second patient entering the same number as +92 345-018 6120.\n4. Note the stored value.\n5. Create a third entering 00923450186120.\n6. Compare all three stored values.",
+    "expected": "All three are stored in the same canonical international format. Spaces and dashes are stripped as you type. The three should be indistinguishable once saved, so a patient saved in local format is still matched by inbound WhatsApp."
+  },
+  {
+    "id": "TC-PAT-006",
+    "role": "Receptionist",
+    "module": "Patients — Validation",
+    "name": "Age boundaries and invalid ages",
+    "pre": "Receptionist on the Add patient form.",
+    "steps": "1. Create a patient with Age 0 and confirm the record.\n2. Create a patient with Age 150 and confirm the record.\n3. Attempt a patient with Age 151 and record the behaviour.\n4. Attempt a patient with a negative age.\n5. Attempt a patient with a decimal age such as 34.5.\n6. Open each created record and read the age shown.",
+    "expected": "Ages of 0 and 150 are accepted. Values outside 0-150, negatives and non-integers are either blocked by the field or silently discarded, leaving the age blank rather than storing a wrong value — confirm which, and that no nonsensical age is ever displayed."
+  },
+  {
+    "id": "TC-PAT-007",
+    "role": "Receptionist",
+    "module": "Patients — Validation",
+    "name": "Age is stored as a birth year, not as a fixed number",
+    "pre": "A patient created with a known age.",
+    "steps": "1. Create a patient with Age 30.\n2. Open their record and confirm 30 is shown.\n3. Note that the application stores an approximate date of birth derived from the age.\n4. Confirm there is no date-of-birth input anywhere on the form.",
+    "expected": "The form asks for AGE only; there is deliberately no date-of-birth field. The age shown on the record is recalculated from the stored birth date, so it will not go stale over time. Do not raise the missing date-of-birth field as a defect."
+  },
+  {
+    "id": "TC-PAT-008",
+    "role": "Receptionist",
+    "module": "Patients — MRN",
+    "name": "MRN is assigned automatically and is unique",
+    "pre": "Receptionist able to create patients.",
+    "steps": "1. Confirm there is no MRN field on the Add patient form.\n2. Create three patients in succession.\n3. Open each record and write down its MRN.\n4. Compare the three MRNs.\n5. Search the patient list using one of the MRNs.",
+    "expected": "Each patient receives a distinct MRN automatically on save. The numbers are not reused. Searching by a full MRN finds exactly that patient."
+  },
+  {
+    "id": "TC-PAT-009",
+    "role": "Receptionist",
+    "module": "Patients — Duplicates",
+    "name": "Two patients may share a phone number",
+    "pre": "An existing patient with a known phone number.",
+    "steps": "1. Create a new patient with a DIFFERENT name but the SAME phone number as an existing patient.\n2. Record whether the save is allowed.\n3. Search by that phone number.",
+    "expected": "The save is allowed — family members legitimately share one household number — and the search returns both patients. Confirm with the product owner whether a soft duplicate warning is wanted; absence of one is not currently a defect."
+  },
+  {
+    "id": "TC-PAT-010",
+    "role": "Receptionist",
+    "module": "Patients — Search",
+    "name": "Search by name, phone and MRN",
+    "pre": "At least five patients exist with varied names and numbers.",
+    "steps": "1. Open Patients.\n2. Type the first three letters of a patient's name into the search box and observe the results.\n3. Clear it and type a partial phone number.\n4. Clear it and type a full MRN.\n5. Clear it and type the name in a different case, for example all lowercase.\n6. Clear the search entirely.",
+    "expected": "Partial name and partial phone both return matching patients. A full MRN finds the exact patient. Search is case-insensitive. Clearing it restores the full list."
+  },
+  {
+    "id": "TC-PAT-011",
+    "role": "Receptionist",
+    "module": "Patients — Search",
+    "name": "Search with no matches shows an empty state, not an error",
+    "pre": "Receptionist on the patient list.",
+    "steps": "1. Type a string that cannot match anything, for example zzzqqq999.\n2. Observe the list area.\n3. Confirm no error dialog or blank screen appears.\n4. Clear the search.",
+    "expected": "A clear empty state is shown explaining there are no matching patients. The page does not error, and clearing the search restores the list."
+  },
+  {
+    "id": "TC-PAT-012",
+    "role": "Receptionist",
+    "module": "Patients — Edit",
+    "name": "Edit a patient and confirm the change persists",
+    "pre": "An existing patient.",
+    "steps": "1. Open the patient's record.\n2. Change the address and the reference.\n3. Save.\n4. Confirm a success message appears and you remain on the patient page.\n5. Reload the page.\n6. Sign out, sign back in and reopen the patient.",
+    "expected": "The changes are saved and shown immediately, and they persist across a reload and across a new session. Editing does not redirect away from the patient page."
+  },
+  {
+    "id": "TC-PAT-013",
+    "role": "Receptionist",
+    "module": "Patients — Edit",
+    "name": "Editing applies the same validation as creating",
+    "pre": "An existing patient.",
+    "steps": "1. Open the patient's record and clear the full name. Attempt to save. Record the result.\n2. Restore the name, then clear the phone number. Attempt to save. Record the result.\n3. Enter an implausible phone number and attempt to save.\n4. Restore valid values and save.",
+    "expected": "The edit form enforces the same rules as creation — the name and phone cannot be removed and an implausible number is refused. The original values remain intact after each failed attempt."
+  },
+  {
+    "id": "TC-PAT-014",
+    "role": "Clinic Admin",
+    "module": "Patients — Delete and restore",
+    "name": "Deleting a patient moves them to Trash and they can be restored",
+    "pre": "A patient with no critical dependencies. Clinic Admin with delete and trash permissions.",
+    "steps": "1. Open the patient and delete them, confirming any dialog.\n2. Search the patient list for that patient.\n3. Open \"Trash\" from the sidebar.\n4. Locate the deleted patient.\n5. Restore them.\n6. Return to the patient list and search again.\n7. Open the restored record and verify the details are intact.",
+    "expected": "The patient disappears from the normal list but appears in Trash — nothing is hard-deleted. Restoring returns them to the list with all details intact. Any child records hidden by the deletion are restored with them as one batch."
+  },
+  {
+    "id": "TC-PAT-015",
+    "role": "Doctor",
+    "module": "Patients — Permissions",
+    "name": "Doctor can view patients but cannot create or edit them",
+    "pre": "Doctor on default permissions. Existing patients.",
+    "steps": "1. Sign in as the Doctor and open Patients.\n2. Confirm the list is visible and searchable.\n3. Look for an \"Add patient\" button.\n4. Open a patient record and look for editable fields or a save control.\n5. Attempt /clinic/patients/new directly.",
+    "expected": "The Doctor can read the patient list and open records, but is offered no create or edit controls, and the direct create URL redirects to /clinic. A doctor's default permission on patients is view only."
+  },
+  {
+    "id": "TC-PAT-016",
+    "role": "Receptionist",
+    "module": "Patients — Attachments",
+    "name": "Photo attachments are withheld without photo consent",
+    "pre": "A patient WITHOUT photo consent recorded, holding at least one photo attachment. A user with attachment view permission.",
+    "steps": "1. Open the patient's record as a user who may view attachments.\n2. Locate the attachments area.\n3. Attempt to open a photo attachment.\n4. Note the outcome.\n5. Record photo consent for the patient.\n6. Attempt to open the same attachment again.",
+    "expected": "Without photo consent the photo is withheld by the server, not merely hidden in the UI. Once consent is recorded the attachment opens. If a photo can be retrieved without consent, raise it as a compliance defect."
+  },
+  {
+    "id": "TC-PAT-017",
+    "role": "Receptionist",
+    "module": "Patients — Export",
+    "name": "Export the patient list to CSV",
+    "pre": "Several patients exist. Receptionist with patient view permission.",
+    "steps": "1. Open Patients.\n2. Click the CSV export control.\n3. Open the downloaded file.\n4. Compare the row count with the patient list.\n5. Confirm the columns are readable and the MRN and phone are present.\n6. Confirm no other clinic's patients appear.",
+    "expected": "A CSV downloads containing this clinic's patients only. The data matches what is shown on screen, and no cross-clinic records are included."
+  },
+  {
+    "id": "TC-PAT-018",
+    "role": "Receptionist",
+    "module": "Patients — Edge cases",
+    "name": "Very long and special-character values",
+    "pre": "Receptionist on the Add patient form.",
+    "steps": "1. Create a patient whose name is 200 characters long. Record whether it is accepted or trimmed.\n2. Create a patient whose name contains apostrophes and accents, for example O'Brien and Zoë.\n3. Create a patient whose address field contains a line of punctuation.\n4. Open each record and inspect how the values are displayed.\n5. Search for the apostrophe name.",
+    "expected": "Long values are either accepted cleanly or rejected with a clear message — never truncated silently in a way that corrupts the record. Apostrophes and accented characters display correctly and remain searchable, with no broken rendering or script execution anywhere."
+  },
+  {
+    "id": "TC-PAT-019",
+    "role": "Receptionist",
+    "module": "Patients — Isolation",
+    "name": "A patient from another clinic cannot be opened by ID",
+    "pre": "Two clinics each with patients. You know a patient ID from Clinic B.",
+    "steps": "1. Sign in as a Clinic A user.\n2. Navigate directly to the patient detail URL using the Clinic B patient ID.\n3. Record what is displayed.\n4. Confirm no name, phone or clinical information from Clinic B appears.",
+    "expected": "The record is not found and no Clinic B data is rendered. The response must not confirm that the patient exists elsewhere."
+  },
+  {
+    "id": "TC-PAT-020",
+    "role": "Receptionist",
+    "module": "Patients — Workflow",
+    "name": "New patient is immediately bookable",
+    "pre": "Receptionist with patient and appointment create permissions. A doctor with availability.",
+    "steps": "1. Create a new patient.\n2. From the patient's row in the list, click \"Book\".\n3. Confirm the booking form opens with that patient already selected.\n4. Complete the booking with a doctor, date and available time.\n5. Save.\n6. Open the patient's record and confirm the appointment is listed.",
+    "expected": "A patient created a moment earlier can be booked without any delay or re-indexing. The Book action carries the patient through, and the saved appointment appears on their record."
+  }
+]

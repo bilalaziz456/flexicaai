@@ -1,0 +1,218 @@
+[
+  {
+    "id": "TC-APPT-001",
+    "role": "Receptionist",
+    "module": "Appointments — Create",
+    "name": "Book an appointment with a doctor and an available time",
+    "pre": "A patient exists. A doctor with configured working hours and a consultation fee.",
+    "steps": "1. Open \"Appointments\" and click \"New appointment\".\n2. In the \"Patient\" search box type part of the patient's name and select them from the results.\n3. Choose the doctor in \"Doctor (optional)\".\n4. Set \"Date\" to a working day for that doctor.\n5. Wait for the time options to load and choose one from \"Available times\".\n6. Leave \"Duration (minutes)\" at its default.\n7. Enter a short \"Reason (optional)\", for example Cleaning.\n8. Click \"Schedule appointment\".\n9. Record where you land.",
+    "expected": "The appointment is saved and you are taken straight to its detail page with a confirmation. This is deliberate so the front desk can collect payment and print without navigating. The appointment appears in the Appointments list for that date."
+  },
+  {
+    "id": "TC-APPT-002",
+    "role": "Receptionist",
+    "module": "Appointments — Create",
+    "name": "Book without choosing a doctor",
+    "pre": "A patient exists.",
+    "steps": "1. Start a new appointment and select a patient.\n2. Leave \"Doctor (optional)\" on \"Any doctor\".\n3. Observe the time field.\n4. Set a date and pick a time.\n5. Save.\n6. Open the appointment and inspect the bill area.",
+    "expected": "The booking succeeds with no doctor assigned, and the time field is a free picker rather than a list of available slots. With no doctor there is no consultation fee on the bill — only procedures, if any, are charged."
+  },
+  {
+    "id": "TC-APPT-003",
+    "role": "Receptionist",
+    "module": "Appointments — Validation",
+    "name": "Saving without a patient is refused",
+    "pre": "Receptionist on the new appointment form.",
+    "steps": "1. Do NOT select a patient.\n2. Set a date and a time so the submit button becomes active.\n3. Click \"Schedule appointment\".\n4. Record the message.",
+    "expected": "The save is refused with a message telling you to choose a patient. Note the submit button does NOT itself check for a patient, so the error comes from the server — confirm no appointment was created."
+  },
+  {
+    "id": "TC-APPT-004",
+    "role": "Receptionist",
+    "module": "Appointments — Validation",
+    "name": "Submit stays disabled until a date and time are chosen",
+    "pre": "Receptionist on the new appointment form.",
+    "steps": "1. Select a patient only.\n2. Observe the \"Schedule appointment\" button.\n3. Set a date but no usable time.\n4. Observe the button again.\n5. Set a valid time.",
+    "expected": "The button is disabled until both a date and a usable time are resolved, then becomes active. A booking without a time cannot be submitted at all."
+  },
+  {
+    "id": "TC-APPT-005",
+    "role": "Receptionist",
+    "module": "Appointments — Availability",
+    "name": "Booking on a doctor's leave day is refused",
+    "pre": "A doctor with a leave record covering a known date.",
+    "steps": "1. Start a new appointment and select a patient.\n2. Choose the doctor who is on leave.\n3. Set the date to a day inside their leave range.\n4. Observe the message shown in the time area.\n5. If a time can still be set, attempt to save and record the server message.\n6. Tick \"Custom time (outside visiting hours)\" if offered and attempt to save again.",
+    "expected": "The form states the doctor is on leave that day and suggests another date. If a save is attempted it is refused with a message naming the doctor and the leave. Crucially, ticking \"Custom time\" does NOT override leave — the refusal stands."
+  },
+  {
+    "id": "TC-APPT-006",
+    "role": "Receptionist",
+    "module": "Appointments — Availability",
+    "name": "Booking outside working hours is refused unless Custom time is used",
+    "pre": "A doctor with defined working hours, for example 09:00 to 13:00, and not on leave.",
+    "steps": "1. Start a booking and choose that doctor and a working day.\n2. Confirm \"Available times\" lists only their configured windows.\n3. Tick \"Custom time (outside visiting hours)\".\n4. Confirm the field changes to a free time picker.\n5. Set a time clearly outside their hours, for example 18:00, and save.\n6. Open the saved appointment and confirm the time.\n7. Repeat without ticking Custom time and attempt to save an out-of-hours time, recording the refusal message.",
+    "expected": "Without Custom time the booking is refused with a message naming the doctor's actual hours for that day. With Custom time ticked the out-of-hours booking saves successfully and is recorded as a deliberate exception."
+  },
+  {
+    "id": "TC-APPT-007",
+    "role": "Receptionist",
+    "module": "Appointments — Availability",
+    "name": "Daily appointment cap is enforced and Custom time does not bypass it",
+    "pre": "A doctor with a daily appointment limit set to a small number, for example 2.",
+    "steps": "1. Book appointments for that doctor on one day up to the cap.\n2. Observe the remaining-capacity hint on the form.\n3. Attempt to book one more on the same day.\n4. Record the refusal message.\n5. Tick \"Custom time\" and attempt again.\n6. Book the same patient with that doctor on a different day to confirm the cap is per day.",
+    "expected": "Once the cap is reached further bookings are refused with a message stating the doctor is fully booked that day and showing the count. \"Custom time\" does NOT bypass the cap. The next day books normally."
+  },
+  {
+    "id": "TC-APPT-008",
+    "role": "Receptionist",
+    "module": "Appointments — Availability",
+    "name": "Custom time ticked unnecessarily is handled sensibly",
+    "pre": "A doctor with working hours.",
+    "steps": "1. Start a booking with that doctor on a working day.\n2. Tick \"Custom time (outside visiting hours)\".\n3. Choose a time that is actually INSIDE their working hours.\n4. Read any message shown.\n5. Save and open the appointment.",
+    "expected": "The form explains that the chosen time is already within the doctor's hours so no exception is needed, and the appointment is saved as a normal booking rather than being flagged as an out-of-hours exception."
+  },
+  {
+    "id": "TC-APPT-009",
+    "role": "Receptionist",
+    "module": "Appointments — Validation",
+    "name": "Duration boundaries",
+    "pre": "Receptionist on the new appointment form with a patient and date set.",
+    "steps": "1. Set \"Duration (minutes)\" to 5 and save. Confirm acceptance.\n2. Create another and set the duration to 480. Confirm acceptance.\n3. Attempt a duration of 4 and then 481, recording the behaviour each time.\n4. Attempt to clear the field entirely and save.",
+    "expected": "5 and 480 are accepted as the minimum and maximum. Values outside that range are clamped or refused rather than stored. The field cannot be left empty — it defaults to 30."
+  },
+  {
+    "id": "TC-APPT-010",
+    "role": "Receptionist",
+    "module": "Appointments — Dates",
+    "name": "Booking a past date",
+    "pre": "Receptionist on the new appointment form.",
+    "steps": "1. Select a patient and a doctor.\n2. Set the date to yesterday.\n3. Attempt to choose a time and save.\n4. Record whether the save succeeds.\n5. If it succeeds, open the Appointments list for yesterday and confirm the record is visible.",
+    "expected": "Record the actual behaviour precisely. Back-dated entry may be legitimate for recording a walk-in that was not entered at the time. Confirm with the product owner whether past dates should be blocked; if they are allowed, confirm the appointment is visible and billable."
+  },
+  {
+    "id": "TC-APPT-011",
+    "role": "Receptionist",
+    "module": "Appointments — Status",
+    "name": "Walk the appointment through its status flow",
+    "pre": "A scheduled appointment exists. User has appointment edit permission.",
+    "steps": "1. Open the appointment's detail page and find the \"Status\" card.\n2. Note the current status.\n3. Click the advance button labelled \"Arrived\".\n4. Confirm the status updates and a check-in time is recorded.\n5. Click the next advance button, labelled \"Call in\".\n6. Click the next, labelled \"Complete\".\n7. Confirm no further advance button is offered.\n8. Reload the page and confirm the status persisted.",
+    "expected": "The status advances Scheduled to Arrived to In progress to Completed, with the button label changing at each step. Completed is terminal and offers no further advance. The arrival time is stamped when the patient is marked Arrived."
+  },
+  {
+    "id": "TC-APPT-012",
+    "role": "Receptionist",
+    "module": "Appointments — Status",
+    "name": "Set any status directly, including moving backwards",
+    "pre": "An appointment in progress.",
+    "steps": "1. Open the appointment's Status card.\n2. Use the status dropdown rather than the advance button.\n3. Set the status back to Scheduled.\n4. Confirm the arrival time is cleared.\n5. Set the status to No-show.\n6. Open the No-shows screen and confirm the appointment is listed.\n7. Set it to Cancelled and confirm the patient is notified if WhatsApp is configured.",
+    "expected": "Any status can be set directly, including moving backwards. Reverting to Scheduled clears the arrival stamp. A no-show appears on the No-shows screen. Cancelling triggers a patient notification where messaging is configured."
+  },
+  {
+    "id": "TC-APPT-013",
+    "role": "Receptionist",
+    "module": "Appointments — Status",
+    "name": "Completing an appointment turns the bill into revenue",
+    "pre": "An appointment with a consultation fee and at least one procedure, not yet completed.",
+    "steps": "1. Open the appointment before completing it.\n2. Read the labels on the three money figures in the Payment card.\n3. Note the warning text shown.\n4. Mark the appointment Completed.\n5. Re-read the three labels.\n6. Open the Sales report and confirm the visit now contributes.",
+    "expected": "Before completion the figures read as an estimate and a deposit, with a warning that nothing counts as revenue until the visit is completed. After completion the labels change to the final bill, collected and outstanding, and the sale appears in the Sales report."
+  },
+  {
+    "id": "TC-APPT-014",
+    "role": "Receptionist",
+    "module": "Appointments — Edit",
+    "name": "Edit an appointment and confirm it stays on the form",
+    "pre": "An existing appointment.",
+    "steps": "1. Open the appointment and find the Edit card.\n2. Change the reason and the duration.\n3. Save.\n4. Confirm a success message and that you remain on the page.\n5. Reload and confirm the changes persisted.\n6. Confirm the patient cannot be changed on an existing appointment.",
+    "expected": "Edits save with a confirmation and without redirecting. Changes persist. The patient is fixed once the appointment exists and cannot be swapped."
+  },
+  {
+    "id": "TC-APPT-015",
+    "role": "Receptionist",
+    "module": "Appointments — Reschedule",
+    "name": "Reschedule to a new date and time",
+    "pre": "An existing appointment and a doctor with availability on another day.",
+    "steps": "1. Open the appointment and change the date to another day.\n2. Choose a valid available time.\n3. Save.\n4. Open the Appointments list for the original date and confirm it is gone.\n5. Open the list for the new date and confirm it is there.\n6. Confirm the same availability rules apply — attempt to reschedule onto a leave day and confirm refusal.",
+    "expected": "The appointment moves to the new slot and disappears from the old date. The same leave, working-hours and cap rules apply to a reschedule as to a new booking."
+  },
+  {
+    "id": "TC-APPT-016",
+    "role": "Receptionist",
+    "module": "Appointments — Procedures",
+    "name": "Add priced procedures to an appointment",
+    "pre": "The clinic has the sales feature enabled and at least two priced procedures.",
+    "steps": "1. Start or edit an appointment and select a doctor.\n2. Under \"Procedures (optional)\" click a procedure chip to add it.\n3. Use the increase control to set a quantity of 2.\n4. Add a second procedure.\n5. Watch the running total line update.\n6. Save and open the appointment's bill.",
+    "expected": "Each selected procedure is added with its price, the quantity stepper adjusts the line total, and the running total shows the fee plus procedures minus any discount. The saved bill matches the figure shown on the form."
+  },
+  {
+    "id": "TC-APPT-017",
+    "role": "Receptionist",
+    "module": "Appointments — Billing rules",
+    "name": "Unticking the consultation fee removes it from the bill",
+    "pre": "An appointment with a doctor who has a consultation fee, plus one procedure.",
+    "steps": "1. On the booking form confirm \"Charge this consultation fee\" is ticked by default.\n2. Note the running total.\n3. Untick it.\n4. Confirm the running total drops by exactly the consultation fee.\n5. Save and open the bill.",
+    "expected": "Unticking removes the consultation fee from the total, leaving only the procedures. The saved bill matches. This is the correct handling for a patient attending only for a procedure."
+  },
+  {
+    "id": "TC-APPT-018",
+    "role": "Receptionist",
+    "module": "Appointments — Discounts",
+    "name": "Apply an amount discount and a percent discount",
+    "pre": "An appointment with a billable total.",
+    "steps": "1. Under \"Discount (optional)\" choose \"Amount (Rs)\" and enter 500.\n2. Confirm the running total reduces by 500.\n3. Switch the type to \"Percent (%)\" and enter 20.\n4. Confirm the total reduces by twenty percent of the subtotal.\n5. Attempt to enter a percent greater than 100 and record what happens.\n6. Attempt a negative value and record what happens.\n7. Save with a valid discount and verify the bill.",
+    "expected": "Both discount types reduce the total correctly, with the appointment discount applying to the subtotal. A percentage above 100 is capped rather than accepted, and negative values are refused. The saved bill matches the preview."
+  },
+  {
+    "id": "TC-APPT-019",
+    "role": "Receptionist",
+    "module": "Appointments — Discounts",
+    "name": "A discount needing approval is held at zero",
+    "pre": "A clinic or doctor configured to require discount approval.",
+    "steps": "1. Create an appointment with a discount for a doctor who requires approval.\n2. Save it.\n3. Open the bill and note whether the discount has been applied.\n4. Open \"Discount approvals\" as a user who may approve.\n5. Approve the discount.\n6. Return to the appointment and re-read the bill.",
+    "expected": "While pending, the discount is treated as zero and the bill shows the full amount — this is the approval workflow working and must NOT be raised as a calculation error. Once approved the discount applies and the bill reduces accordingly."
+  },
+  {
+    "id": "TC-APPT-020",
+    "role": "Receptionist",
+    "module": "Appointments — Discounts",
+    "name": "Record who bears the discount",
+    "pre": "An appointment with a discount and an assigned doctor who has a revenue share.",
+    "steps": "1. Enter a discount on the booking form.\n2. Confirm a \"Discount borne by\" choice appears with Clinic, Doctor and Split.\n3. Select Doctor and save.\n4. Open Revenue shares and inspect that doctor's balance.\n5. Repeat with Split, entering the doctor's share of the discount.",
+    "expected": "The bearer is recorded with the appointment. Choosing Doctor reduces the doctor's share by the discount; choosing Split divides it according to the entered value. The clinic's and doctor's figures must always reconcile to the same total discount."
+  },
+  {
+    "id": "TC-APPT-021",
+    "role": "Doctor",
+    "module": "Appointments — Permissions",
+    "name": "Doctor can view appointments but cannot create or edit them",
+    "pre": "Doctor on default permissions. Existing appointments.",
+    "steps": "1. Sign in as the Doctor and open Appointments.\n2. Confirm the list and calendar are visible.\n3. Look for a \"New appointment\" button.\n4. Open an appointment and look for Edit controls and the Status card.\n5. Attempt /clinic/appointments/new directly.",
+    "expected": "The Doctor can read appointments but holds view-only permission by default, so no create or edit controls are offered and the direct create URL redirects to /clinic. Confirm whether the Status card is available to them and report the result."
+  },
+  {
+    "id": "TC-APPT-022",
+    "role": "Receptionist",
+    "module": "Appointments — Queue",
+    "name": "Queue number is assigned and stable",
+    "pre": "A doctor with several appointments booked on one day.",
+    "steps": "1. Book three appointments for the same doctor on the same day.\n2. Note the queue number shown for each.\n3. Cancel the second appointment.\n4. Re-check the queue numbers of the first and third.\n5. Book a fourth and note its number.",
+    "expected": "Queue numbers are assigned in booking order within the doctor's session for that day. Cancelling one does not renumber the others — a patient's token stays stable once issued."
+  },
+  {
+    "id": "TC-APPT-023",
+    "role": "Receptionist",
+    "module": "Appointments — Export",
+    "name": "Export appointments to CSV",
+    "pre": "Several appointments exist across different dates.",
+    "steps": "1. Open Appointments and apply a date filter.\n2. Trigger the CSV export.\n3. Open the downloaded file.\n4. Compare the rows with what the filtered screen showed.\n5. Confirm no other clinic's appointments are present.",
+    "expected": "The export reflects the filter applied on screen and contains only this clinic's appointments. Column headings are readable and dates are unambiguous."
+  },
+  {
+    "id": "TC-APPT-024",
+    "role": "Receptionist",
+    "module": "Appointments — Isolation",
+    "name": "An appointment from another clinic cannot be opened",
+    "pre": "Two clinics with appointments. An appointment ID from Clinic B.",
+    "steps": "1. Sign in as a Clinic A user.\n2. Navigate directly to the appointment detail URL using the Clinic B appointment ID.\n3. Record what is shown.\n4. Confirm no patient name, doctor name or financial figure from Clinic B appears.",
+    "expected": "The appointment is not found and no Clinic B information is rendered anywhere on the page, including in the page title."
+  }
+]

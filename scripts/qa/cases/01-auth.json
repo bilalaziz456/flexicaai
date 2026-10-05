@@ -1,0 +1,281 @@
+[
+  {
+    "id": "TC-AUTH-001",
+    "role": "All roles",
+    "module": "Authentication — Login",
+    "name": "Sign in with valid credentials for each role",
+    "pre": "Active accounts exist for clinic_admin, manager, doctor, receptionist and super_admin. None has must-change-password set.",
+    "steps": "1. Open /login.\n2. Confirm the card title reads \"Sign in\" and the description \"Access your FlexicaAI workspace.\"\n3. Enter a valid Username and Password for the Clinic Admin.\n4. Click \"Sign in\" and observe the button changes to \"Signing in…\".\n5. Record the landing URL.\n6. Sign out and repeat steps 3-5 for the Manager, Doctor, Receptionist and Super Admin.",
+    "expected": "Each account signs in successfully. The four clinic roles land on /clinic. The Super Admin lands on /admin/overview. No error is shown for any of them."
+  },
+  {
+    "id": "TC-AUTH-002",
+    "role": "All roles",
+    "module": "Authentication — Login",
+    "name": "Unknown username is rejected without revealing it does not exist",
+    "pre": "A username that definitely does not exist.",
+    "steps": "1. Open /login.\n2. Enter a username that does not exist and any password.\n3. Click \"Sign in\".\n4. Record the exact error text.",
+    "expected": "The error reads exactly \"Incorrect username or password.\" The message must NOT reveal whether the username exists — the same text is returned for a wrong password, so an attacker cannot enumerate accounts."
+  },
+  {
+    "id": "TC-AUTH-003",
+    "role": "All roles",
+    "module": "Authentication — Login",
+    "name": "Correct username with wrong password",
+    "pre": "A known active account.",
+    "steps": "1. Enter the correct username and a deliberately wrong password.\n2. Click \"Sign in\".\n3. Record the exact error text and compare it with TC-AUTH-002.",
+    "expected": "The error is identical to the unknown-username case: \"Incorrect username or password.\" If the two messages differ in any way, raise it as a security defect (account enumeration)."
+  },
+  {
+    "id": "TC-AUTH-004",
+    "role": "All roles",
+    "module": "Authentication — Login",
+    "name": "Empty username and empty password",
+    "pre": "None.",
+    "steps": "1. Open /login and leave both fields empty.\n2. Attempt to submit.\n3. Note any browser-level required-field blocking.\n4. If submission reaches the server, record the error.\n5. Repeat with only the username filled, then only the password filled.",
+    "expected": "Submission is prevented or rejected. Server-side messages are \"Enter your username.\" and \"Enter your password.\"; when both are blank they are joined into a single message. No login occurs, and these do not count toward the lockout counter."
+  },
+  {
+    "id": "TC-AUTH-005",
+    "role": "All roles",
+    "module": "Authentication — Login",
+    "name": "Suspended account cannot sign in",
+    "pre": "An account that has been suspended by an admin. You know its correct password.",
+    "steps": "1. Enter the suspended account's correct username and password.\n2. Click \"Sign in\".\n3. Record the exact error text.\n4. Confirm no session is created and no panel is reachable.",
+    "expected": "The error reads \"Your account has been suspended. Please contact your administrator.\" This appears only after the password is verified, so it does not leak which accounts exist. A deactivated account shows the same message."
+  },
+  {
+    "id": "TC-AUTH-006",
+    "role": "All roles",
+    "module": "Authentication — Login",
+    "name": "Soft-deleted user is indistinguishable from an unknown one",
+    "pre": "A staff account that has been deleted (moved to Trash). You know its old password.",
+    "steps": "1. Attempt to sign in with the deleted account's username and correct password.\n2. Record the exact error.",
+    "expected": "The error is \"Incorrect username or password.\" — deliberately the same as an unknown username. The deleted account cannot sign in."
+  },
+  {
+    "id": "TC-AUTH-007",
+    "role": "All roles",
+    "module": "Authentication — Lockout",
+    "name": "Five failed attempts lock the username for fifteen minutes",
+    "pre": "A known active account. Note the limiter is held in memory, so restarting the server clears it.",
+    "steps": "1. Attempt to sign in with the correct username and a wrong password five times in a row.\n2. On the sixth attempt, enter the CORRECT password.\n3. Record the exact message.\n4. Note the stated wait time.\n5. Wait out the window (or restart the server) and sign in again with the correct password.",
+    "expected": "After five failures the sixth attempt is refused with \"Too many attempts. Please try again in N minutes.\" — even though the password is correct, because the lock is checked BEFORE the password. After the window passes, or after a server restart, sign-in succeeds."
+  },
+  {
+    "id": "TC-AUTH-008",
+    "role": "All roles",
+    "module": "Authentication — Lockout",
+    "name": "A successful login clears the username lockout counter",
+    "pre": "A known active account.",
+    "steps": "1. Fail the login three times with a wrong password.\n2. Sign in successfully with the correct password.\n3. Sign out.\n4. Fail the login three more times.\n5. Attempt a fourth failure and confirm you are not yet locked.",
+    "expected": "The successful sign-in resets the per-username counter, so the user gets a fresh allowance. Note that the separate per-IP counter is NOT reset by a successful login."
+  },
+  {
+    "id": "TC-AUTH-009",
+    "role": "All roles",
+    "module": "Authentication — Lockout",
+    "name": "Validation errors and suspended accounts do not consume attempts",
+    "pre": "A suspended account whose password you know.",
+    "steps": "1. Submit the login form with empty fields five times.\n2. Submit the suspended account's correct credentials five times.\n3. Now attempt a normal wrong-password login on a DIFFERENT valid account from the same browser.\n4. Observe whether you are locked out.",
+    "expected": "Blank-field validation errors and the suspended-account message do not count as failed attempts for that username. Only genuine credential failures and failed 2FA codes count."
+  },
+  {
+    "id": "TC-AUTH-010",
+    "role": "Super Admin",
+    "module": "Authentication — Two-factor",
+    "name": "Enable two-factor authentication",
+    "pre": "Super Admin account. An authenticator app is available.",
+    "steps": "1. Log in as the Super Admin and open \"Security\" in the admin panel.\n2. Confirm the heading reads \"Account security\".\n3. Click \"Enable two-factor\".\n4. Scan the QR code or enter the secret into the authenticator app.\n5. Enter the current 6-digit code and click \"Verify & turn on\".\n6. Record and safely store the backup codes shown.\n7. Sign out and sign in again.",
+    "expected": "Two-factor is enabled and backup codes are displayed once. On the next sign-in, after the username and password the form switches to \"Two-factor authentication\" and asks for the \"Authentication code\" before granting access."
+  },
+  {
+    "id": "TC-AUTH-011",
+    "role": "Super Admin",
+    "module": "Authentication — Two-factor",
+    "name": "Wrong authenticator code is rejected and throttled",
+    "pre": "A Super Admin account with two-factor enabled.",
+    "steps": "1. Sign in with the correct username and password.\n2. At the code prompt, enter an incorrect 6-digit code.\n3. Record the exact error.\n4. Repeat until the lockout threshold is reached.\n5. Record the message at that point.",
+    "expected": "Each wrong code gives \"Invalid authentication code.\" and the user remains on the code step. Failed codes count toward the brute-force lockout, so repeated guessing eventually produces the \"Too many attempts\" message."
+  },
+  {
+    "id": "TC-AUTH-012",
+    "role": "Super Admin",
+    "module": "Authentication — Two-factor",
+    "name": "Backup code cannot be typed into the code field",
+    "pre": "A Super Admin with two-factor enabled and a stored backup code in the format xxxxx-xxxxx.",
+    "steps": "1. Sign in with username and password to reach the code step.\n2. Read the helper text, which invites you to use a backup code.\n3. Attempt to type the full backup code, including the dash, into the \"Authentication code\" field.\n4. Count how many characters the field accepts.\n5. Attempt to submit whatever was accepted.",
+    "expected": "DEFECT EXPECTED: the field is limited to 6 characters while a backup code is 11 characters including the dash, so the full code cannot be entered and the documented recovery path is unusable. Raise this as a defect with the exact character limit observed."
+  },
+  {
+    "id": "TC-AUTH-013",
+    "role": "Clinic Admin",
+    "module": "Authentication — Two-factor",
+    "name": "Clinic roles have no way to enable two-factor",
+    "pre": "Clinic Admin, Manager, Doctor and Receptionist accounts.",
+    "steps": "1. Log in as each clinic role in turn.\n2. Open Settings and the account area.\n3. Search every screen for a two-factor or authenticator option.",
+    "expected": "No clinic role can enrol in two-factor — the only enrolment screen is in the super-admin panel. Record this as confirmed current behaviour and confirm with the product owner whether clinic staff should have it."
+  },
+  {
+    "id": "TC-AUTH-014",
+    "role": "All roles",
+    "module": "Authentication — Forgot password",
+    "name": "Request a reset link for a valid account",
+    "pre": "An active account that has an email address recorded.",
+    "steps": "1. On /login click \"Forgot password?\".\n2. Confirm the title reads \"Reset your password\".\n3. Enter the account's username in \"Username or email\".\n4. Click \"Send reset link\".\n5. Record the exact message shown.",
+    "expected": "The page reports: \"If an account with that username or email exists, we've emailed a password-reset link. Check your inbox.\" A reset token is created. NOTE: with SMTP unconfigured in this environment no email is actually delivered — to continue testing, read the token from the database."
+  },
+  {
+    "id": "TC-AUTH-015",
+    "role": "All roles",
+    "module": "Authentication — Forgot password",
+    "name": "Unknown identifier gives the same response as a real one",
+    "pre": "A username that does not exist.",
+    "steps": "1. Open /forgot-password.\n2. Enter a username that does not exist.\n3. Click \"Send reset link\".\n4. Compare the message word for word with TC-AUTH-014.",
+    "expected": "The message is identical to the valid-account case. The form must never reveal whether an account exists. The same response is also given for inactive accounts, accounts without an email, and throttled requests."
+  },
+  {
+    "id": "TC-AUTH-016",
+    "role": "All roles",
+    "module": "Authentication — Forgot password",
+    "name": "Empty identifier is rejected",
+    "pre": "None.",
+    "steps": "1. Open /forgot-password.\n2. Leave the field empty and submit.\n3. Record the message.",
+    "expected": "The error \"Enter your username or email.\" is shown and no token is created."
+  },
+  {
+    "id": "TC-AUTH-017",
+    "role": "All roles",
+    "module": "Authentication — Reset password",
+    "name": "Reset the password using a valid token",
+    "pre": "A valid, unused, unexpired reset token for a known account.",
+    "steps": "1. Open /reset-password?token=<the valid token>.\n2. Confirm the title reads \"Set a new password\".\n3. Enter a new password of at least 8 characters in \"New password\".\n4. Enter the same value in \"Confirm password\".\n5. Click \"Set new password\".\n6. Observe the redirect and the message on the login page.\n7. Sign in with the NEW password.\n8. Attempt to sign in with the OLD password.",
+    "expected": "The password is changed and the user is returned to /login showing \"Your password has been reset. Sign in with your new password.\" The new password works; the old one does not. All of that user's existing sessions are also ended."
+  },
+  {
+    "id": "TC-AUTH-018",
+    "role": "All roles",
+    "module": "Authentication — Reset password",
+    "name": "Reset token is single-use",
+    "pre": "A reset token that has already been used successfully.",
+    "steps": "1. Open /reset-password with the already-used token.\n2. Record the card title and message.\n3. Confirm no password fields are offered.",
+    "expected": "The page shows \"Reset link invalid\" with the description \"This password-reset link is invalid or has expired.\" and a link to request a new one. The password cannot be changed a second time with the same token."
+  },
+  {
+    "id": "TC-AUTH-019",
+    "role": "All roles",
+    "module": "Authentication — Reset password",
+    "name": "Requesting a second link invalidates the first",
+    "pre": "An active account with an email on file. Database access to read tokens.",
+    "steps": "1. Request a reset link and capture token A.\n2. Without using it, request a second reset link and capture token B.\n3. Open /reset-password with token B and set a new password successfully.\n4. Now open /reset-password with token A.",
+    "expected": "Token A is rejected as invalid or expired. Using any reset token invalidates every other outstanding token for that user."
+  },
+  {
+    "id": "TC-AUTH-020",
+    "role": "All roles",
+    "module": "Authentication — Reset password",
+    "name": "Expired, tampered and missing tokens are refused",
+    "pre": "A token older than 60 minutes, plus the ability to edit the URL.",
+    "steps": "1. Open /reset-password with a token older than 60 minutes.\n2. Open /reset-password with a token whose characters you have altered.\n3. Open /reset-password with no token parameter at all.\n4. Record the outcome of each.",
+    "expected": "All three show \"Reset link invalid\" with no password fields. No password is changed in any case."
+  },
+  {
+    "id": "TC-AUTH-021",
+    "role": "All roles",
+    "module": "Authentication — Reset password",
+    "name": "New password validation on the reset form",
+    "pre": "A valid unused reset token.",
+    "steps": "1. Open the reset page with the valid token.\n2. Enter a 7-character password in both fields and submit. Record the message.\n3. Enter an 8-character password and a different confirmation. Record the message.\n4. Leave both fields blank and submit. Record the message.\n5. Finally enter a valid matching password of 8 or more characters and submit.",
+    "expected": "Short passwords are refused with \"Password must be at least 8 characters.\" Mismatches are refused with \"Passwords do not match.\" When both problems exist the messages are combined. Only a valid matching password succeeds. Note the only rule is a minimum of 8 characters — no uppercase, digit or symbol is required."
+  },
+  {
+    "id": "TC-AUTH-022",
+    "role": "All roles",
+    "module": "Authentication — First login",
+    "name": "A newly created staff member is forced to change the password",
+    "pre": "A Clinic Admin has just created a staff account with a temporary password.",
+    "steps": "1. Sign in as the new staff member with the temporary password.\n2. Record where you land.\n3. Confirm the description explains the password is temporary.\n4. Attempt to navigate to /clinic directly without setting a password.\n5. Set a new password of at least 8 characters, confirm it and save.\n6. Record where you land afterwards.",
+    "expected": "The user is sent to the change-password screen and cannot reach the workspace until a new password is set. After saving they land on their role's home page. Note this screen does NOT ask for the old password, by design, because the temporary one was issued by an admin."
+  },
+  {
+    "id": "TC-AUTH-023",
+    "role": "All roles",
+    "module": "Authentication — Change password",
+    "name": "Change your own password from the account card",
+    "pre": "Any signed-in account whose current password you know.",
+    "steps": "1. Sign in and open Settings.\n2. Locate the \"Password\" card described as \"Change your login password.\"\n3. Enter the correct value in \"Current password\".\n4. Enter a new password of at least 8 characters and confirm it.\n5. Click \"Change password\".\n6. Record the success message.\n7. Sign out and sign in with the new password.\n8. Attempt the old password.",
+    "expected": "The password changes and a \"Password changed.\" confirmation appears. The new password works and the old one does not. Note: other devices are NOT signed out by this action."
+  },
+  {
+    "id": "TC-AUTH-024",
+    "role": "All roles",
+    "module": "Authentication — Change password",
+    "name": "Change password validation and wrong current password",
+    "pre": "Any signed-in account.",
+    "steps": "1. Open the Password card in Settings.\n2. Leave \"Current password\" blank, fill the others validly and submit. Record the message.\n3. Enter an incorrect current password with a valid new password and submit. Record the message.\n4. Enter the correct current password but a 7-character new password. Record the message.\n5. Enter the correct current password but mismatched new and confirm values. Record the message.\n6. Verify after all of these that the password is unchanged by signing out and in with the original.",
+    "expected": "Blank current password gives \"Enter your current password.\"; a wrong one gives \"Your current password is incorrect.\"; a short new password gives \"New password must be at least 8 characters.\"; a mismatch gives \"Passwords don't match.\" In every failing case the password is left unchanged."
+  },
+  {
+    "id": "TC-AUTH-025",
+    "role": "All roles",
+    "module": "Authentication — Sessions",
+    "name": "Sign out ends the session and protected pages become unreachable",
+    "pre": "A signed-in account.",
+    "steps": "1. Sign in and open any workspace page.\n2. Click \"Sign out\".\n3. Record where you land.\n4. Press the browser Back button.\n5. Type a protected URL such as /clinic/patients directly into the address bar.",
+    "expected": "The user is returned to /login. Going back or entering a protected URL does not restore access — the request is redirected to /login because the session row was deleted, not merely hidden."
+  },
+  {
+    "id": "TC-AUTH-026",
+    "role": "All roles",
+    "module": "Authentication — Sessions",
+    "name": "Sign out other devices requires the password and keeps the current session",
+    "pre": "The same account signed in on at least two different browsers.",
+    "steps": "1. Sign in as the same user in browser A and browser B.\n2. In browser A open Settings and find the \"Signed-in devices\" card.\n3. Confirm it reports how many other devices are signed in.\n4. Submit the form with a WRONG password. Record the message.\n5. Submit with the correct password.\n6. Record the confirmation.\n7. In browser B, reload any protected page.\n8. In browser A, reload any protected page.",
+    "expected": "A wrong password is refused with \"That password is not correct.\" With the correct password the other sessions end immediately: browser B is signed out, while browser A stays signed in. Requiring the password is deliberate so an unattended session cannot lock the real owner out everywhere."
+  },
+  {
+    "id": "TC-AUTH-027",
+    "role": "Super Admin",
+    "module": "Authentication — Sessions",
+    "name": "Idle timeout signs an untouched browser out",
+    "pre": "Super Admin access to set the company idle timeout. A second account to observe with.",
+    "steps": "1. As the Super Admin open \"Security\" and set the \"Idle session timeout\" to 15 minutes.\n2. Wait at least one minute for the setting to take effect.\n3. In another browser, sign in as a clinic user and then leave the browser completely untouched.\n4. After more than 15 minutes, click any navigation link.\n5. Record what happens.\n6. Return to the Security screen and set the timeout back to Never.",
+    "expected": "The idle session is ended and the user lands on the login page. There is deliberately no warning or explanatory message. Note the observed cut-off can run a minute or two past the nominal window because of internal caching, and that the session row is deleted, so turning the timeout off afterwards does not revive it."
+  },
+  {
+    "id": "TC-AUTH-028",
+    "role": "All roles",
+    "module": "Authentication — Sessions",
+    "name": "Suspending a user ends their active session immediately",
+    "pre": "A Doctor signed in on browser B. A Clinic Admin on browser A.",
+    "steps": "1. Confirm the Doctor is working normally in browser B.\n2. In browser A, as the Clinic Admin, open Staff and suspend that Doctor.\n3. In browser B, click any link or reload.\n4. Attempt to sign in again as the Doctor.",
+    "expected": "The Doctor's existing session is revoked at once, not at next expiry, and they are returned to the login page. Signing in again is refused with the suspended-account message."
+  },
+  {
+    "id": "TC-AUTH-029",
+    "role": "All roles",
+    "module": "Authentication — Route protection",
+    "name": "Anonymous access to protected pages is redirected to login",
+    "pre": "No active session; clear cookies first.",
+    "steps": "1. Clear cookies or use a private window.\n2. Enter /clinic/patients in the address bar.\n3. Record where you land.\n4. Repeat with /clinic/payments, /clinic/staff, /admin and /admin/team.\n5. Confirm no data from any of these pages is visible at any point.",
+    "expected": "Every protected URL redirects to the login page and no page content is rendered. No patient, financial or staff data appears, even briefly."
+  },
+  {
+    "id": "TC-AUTH-030",
+    "role": "All roles",
+    "module": "Authentication — Route protection",
+    "name": "Deep link is not restored after signing in",
+    "pre": "No active session.",
+    "steps": "1. While signed out, enter /clinic/payments in the address bar.\n2. Observe the redirect to the login page.\n3. Sign in with valid clinic credentials.\n4. Record the page you land on.",
+    "expected": "After signing in the user lands on their role's home page (/clinic), NOT on the originally requested /clinic/payments. Record this as current behaviour; it is a usability gap worth raising rather than a security defect."
+  },
+  {
+    "id": "TC-AUTH-031",
+    "role": "Clinic Admin",
+    "module": "Authentication — Clinic status",
+    "name": "Staff of a paused clinic are blocked after signing in",
+    "pre": "A test clinic that the Super Admin can suspend, with at least one staff account.",
+    "steps": "1. As the Super Admin, suspend the test clinic.\n2. In another browser, sign in as a staff member of that clinic with correct credentials.\n3. Record whether the login itself succeeds.\n4. Record the page you land on and the message shown.\n5. Attempt to open /clinic/patients directly.\n6. As the Super Admin, reactivate the clinic and reload.",
+    "expected": "The login itself SUCCEEDS — clinic status is not checked at the login screen — and the user is then redirected to a paused page explaining that access is suspended. No clinic data is reachable. Once the clinic is reactivated, normal access resumes."
+  }
+]

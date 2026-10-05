@@ -1,0 +1,200 @@
+[
+  {
+    "id": "TC-RBAC-001",
+    "role": "Doctor",
+    "module": "RBAC — Navigation",
+    "name": "Doctor sees only the navigation their permissions allow",
+    "pre": "Doctor on default permissions. Clinic has both the sales and finance features enabled.",
+    "steps": "1. Sign in as the Doctor.\n2. Write down every item visible in the sidebar, including inside collapsed groups.\n3. Compare against the expected list.",
+    "expected": "The Doctor sees Dashboard, Appointments, Patients, Voice scribe, Revenue shares, Reports, Doctor schedule, No-shows, Recalls, Settings, Trash and Discount approvals. They must NOT see Staff, Expenses, Profit & Loss, Payments, Invoices, Receivables, Discounts, Sales, Procedures, WhatsApp, History or Activity log."
+  },
+  {
+    "id": "TC-RBAC-002",
+    "role": "Receptionist",
+    "module": "RBAC — Navigation",
+    "name": "Receptionist sees front-desk navigation only",
+    "pre": "Receptionist on default permissions. Clinic has sales and finance enabled.",
+    "steps": "1. Sign in as the Receptionist.\n2. Write down every visible sidebar item.\n3. Confirm Voice scribe is absent.\n4. Confirm Staff is absent.",
+    "expected": "The Receptionist sees Dashboard, Appointments, Patients, Payments, Invoices, Receivables, Petty cash, History, Reports, Procedures, Doctor schedule, No-shows, WhatsApp, Recalls, Settings and Trash. They must NOT see Voice scribe, Staff, Sales, Discounts, Revenue shares, Expenses, Profit & Loss, Discount approvals or Activity log."
+  },
+  {
+    "id": "TC-RBAC-003",
+    "role": "Manager",
+    "module": "RBAC — Navigation",
+    "name": "Manager navigation excludes staff and clinic-admin-only areas",
+    "pre": "Manager on default permissions.",
+    "steps": "1. Sign in as the Manager.\n2. Write down every visible sidebar item.\n3. Confirm Staff, Expenses, Profit & Loss and Revenue shares are absent.",
+    "expected": "The Manager sees the operational and reporting items including Sales, Payments, Invoices, Receivables, Discounts, Petty cash, Procedures and WhatsApp, but NOT Staff, Expenses, Profit & Loss, Revenue shares, Discount approvals or Activity log."
+  },
+  {
+    "id": "TC-RBAC-004",
+    "role": "Doctor",
+    "module": "RBAC — Direct URL",
+    "name": "Doctor is bounced from staff management by direct URL",
+    "pre": "Doctor signed in. The clinic has staff records.",
+    "steps": "1. Sign in as the Doctor.\n2. Confirm \"Staff\" is not in the sidebar.\n3. Type /clinic/staff directly into the address bar and press Enter.\n4. Record where you land and any message shown.\n5. Try /clinic/staff/new.\n6. Confirm no staff names, usernames or permissions were visible at any point.",
+    "expected": "Both URLs redirect to /clinic. Note there is deliberately NO error message or 403 page — the click simply appears to do nothing. No staff data is exposed. Record the silent redirect as current behaviour."
+  },
+  {
+    "id": "TC-RBAC-005",
+    "role": "Receptionist",
+    "module": "RBAC — Direct URL",
+    "name": "Receptionist cannot reach clinic-admin-only screens by URL",
+    "pre": "Receptionist signed in.",
+    "steps": "1. Sign in as the Receptionist.\n2. Enter each of these in the address bar in turn: /clinic/staff, /clinic/expenses, /clinic/pl, /clinic/scribe, /clinic/logs.\n3. Record where each lands.\n4. Confirm no content from any of those pages is rendered.",
+    "expected": "Every one redirects to /clinic without revealing content. No expense figures, profit-and-loss data, clinical drafts, staff records or activity-log entries are exposed."
+  },
+  {
+    "id": "TC-RBAC-006",
+    "role": "Manager",
+    "module": "RBAC — Direct URL",
+    "name": "Manager cannot reach staff, expenses or profit and loss",
+    "pre": "Manager signed in.",
+    "steps": "1. Sign in as the Manager.\n2. Enter /clinic/staff, /clinic/expenses and /clinic/pl in turn.\n3. Record where each lands.\n4. Confirm no data is rendered on any of them.",
+    "expected": "All three redirect to /clinic. A Manager holds no staff, expenses or finance permission by default, and the redirect proves the restriction is enforced on the page and not only in the menu."
+  },
+  {
+    "id": "TC-RBAC-007",
+    "role": "Clinic Admin",
+    "module": "RBAC — Panel boundary",
+    "name": "Clinic Admin cannot reach the company admin panel",
+    "pre": "Clinic Admin signed in.",
+    "steps": "1. Sign in as the Clinic Admin.\n2. Enter /admin in the address bar.\n3. Record where you land.\n4. Repeat with /admin/team, /admin/overview, /admin/finance and /admin/clinics/new.\n5. Confirm no other clinic's name or any company financial figure is visible.",
+    "expected": "Every /admin URL redirects the Clinic Admin back to /clinic. The company panel belongs to the software vendor; no clinic user of any role may reach it, and no cross-clinic data is exposed."
+  },
+  {
+    "id": "TC-RBAC-008",
+    "role": "Super Admin",
+    "module": "RBAC — Panel boundary",
+    "name": "Super Admin visiting the clinic workspace is returned to the admin panel",
+    "pre": "Super Admin signed in, not impersonating.",
+    "steps": "1. Sign in as the Super Admin.\n2. Enter /clinic in the address bar.\n3. Record where you land.\n4. Repeat with /clinic/patients.",
+    "expected": "The Super Admin is redirected to /admin/overview. A super admin has no clinic of their own, so the clinic workspace is not a place they can be. The supported way in is read-only impersonation."
+  },
+  {
+    "id": "TC-RBAC-009",
+    "role": "API",
+    "module": "RBAC — API enforcement",
+    "name": "API rejects a caller lacking the required permission",
+    "pre": "A valid session cookie for a Doctor (no billing permission). An API client.",
+    "steps": "1. Using the Doctor's session cookie, call GET /api/finance/export.\n2. Record the status code and body.\n3. Call GET /api/staff/export with the same cookie.\n4. Record the status code and body.\n5. Confirm neither response contains any data rows.",
+    "expected": "Both return HTTP 403 with the body error \"Not permitted.\" No financial or staff data is returned. This proves the restriction holds at the API layer and not only by hiding navigation."
+  },
+  {
+    "id": "TC-RBAC-010",
+    "role": "API",
+    "module": "RBAC — API enforcement",
+    "name": "API rejects an unauthenticated caller",
+    "pre": "No session cookie.",
+    "steps": "1. Call GET /api/patients/export with no cookie.\n2. Record the status and body.\n3. Repeat for /api/appointments/export and /api/finance/export.",
+    "expected": "Each returns HTTP 401 with the body error \"Not signed in.\" No data is returned for any of them."
+  },
+  {
+    "id": "TC-RBAC-011",
+    "role": "API",
+    "module": "RBAC — Data isolation",
+    "name": "A user cannot read another clinic's data through the API",
+    "pre": "Two clinics with data. A session for a user in Clinic A. A record ID belonging to Clinic B.",
+    "steps": "1. Using the Clinic A session, call an API route that takes a record ID, supplying a Clinic B ID — for example /api/prescriptions/<Clinic B visit id>.\n2. Record the status and body.\n3. Repeat with a Clinic B attachment ID on /api/clinical/attachment/<id>.\n4. Confirm no Clinic B content is returned in any form.",
+    "expected": "Each request is refused as not found or not permitted, and never returns Clinic B content. The response must not reveal that the record exists in another clinic."
+  },
+  {
+    "id": "TC-RBAC-012",
+    "role": "Clinic Admin",
+    "module": "RBAC — Per-user permissions",
+    "name": "Removing a permission hides the feature for that user only",
+    "pre": "Clinic Admin access to the staff permission grid. A Receptionist account.",
+    "steps": "1. Sign in as the Clinic Admin and open Staff, then the Receptionist's record.\n2. In the permission grid, remove the Payments (billing) view permission.\n3. Save.\n4. Sign in as that Receptionist.\n5. Confirm Payments is gone from the sidebar.\n6. Attempt /clinic/payments directly.\n7. Sign in as a DIFFERENT receptionist, if one exists, and confirm they still have it.\n8. Restore the permission afterwards.",
+    "expected": "The change affects only the edited user: Payments disappears from their navigation and the direct URL redirects to /clinic. Other users are unaffected."
+  },
+  {
+    "id": "TC-RBAC-013",
+    "role": "Clinic Admin",
+    "module": "RBAC — Per-user permissions",
+    "name": "An empty permission set is not the same as the default set",
+    "pre": "Clinic Admin access to the permission grid. A test staff account that can be safely restricted.",
+    "steps": "1. Open the test user's permission grid and note which boxes are ticked by default.\n2. Untick every box and save.\n3. Sign in as that user.\n4. Record which sidebar items remain.\n5. Attempt to open /clinic/patients and /clinic/appointments directly.\n6. Restore the user's permissions afterwards.",
+    "expected": "A user with an explicitly empty permission set holds NOTHING — they are not silently returned to their role defaults. They can sign in and reach the dashboard and Settings, but patient and appointment pages redirect away. This is the single easiest permission behaviour to mis-test, so confirm it deliberately."
+  },
+  {
+    "id": "TC-RBAC-014",
+    "role": "Clinic Admin",
+    "module": "RBAC — Per-user permissions",
+    "name": "Editing a Clinic Admin's permission grid has no effect",
+    "pre": "Two Clinic Admin accounts exist.",
+    "steps": "1. Sign in as Clinic Admin A and open Clinic Admin B's staff record.\n2. Untick several permissions in the grid and save.\n3. Sign in as Clinic Admin B.\n4. Check whether the corresponding navigation items are still present.",
+    "expected": "Clinic Admin B retains full access regardless of the grid, because the clinic-admin role holds everything by a deliberate short-circuit. Record this as expected behaviour, and raise the misleading UI — the grid appears editable but changes nothing — as a usability finding."
+  },
+  {
+    "id": "TC-RBAC-015",
+    "role": "Super Admin",
+    "module": "RBAC — Clinic capabilities",
+    "name": "Withdrawing a clinic capability disables it for every user in that clinic",
+    "pre": "Super Admin access to the clinic capability editor. A test clinic with several users.",
+    "steps": "1. As the Super Admin open the test clinic and find the capabilities editor.\n2. Remove the appointment create capability for the clinic.\n3. Save.\n4. Sign in as the clinic's Receptionist, who normally creates appointments.\n5. Attempt to create a new appointment.\n6. Sign in as the Clinic Admin and attempt the same.\n7. Restore the capability afterwards.",
+    "expected": "Neither user can create an appointment, including the Clinic Admin, because effective access is the clinic's capability intersected with the user's permission. A capability withdrawn by the vendor cannot be granted back by any clinic user."
+  },
+  {
+    "id": "TC-RBAC-016",
+    "role": "Super Admin",
+    "module": "RBAC — Feature gating",
+    "name": "Disabling the sales feature removes the money screens entirely",
+    "pre": "Super Admin access. A test clinic with the sales feature currently enabled and some payment history.",
+    "steps": "1. Sign in as a user of the test clinic and note that Payments, Invoices, Receivables and Procedures are present.\n2. As the Super Admin, disable the sales feature for that clinic.\n3. Return to the clinic user and reload.\n4. Record which sidebar items disappeared.\n5. Attempt /clinic/payments and /clinic/invoices directly.\n6. Open an appointment and look for the Payment card.\n7. Re-enable the feature afterwards and confirm everything returns.",
+    "expected": "Sales, Payments, Invoices, Receivables, Discounts, Procedures, Reports and History all disappear, the direct URLs do not render, and the Payment card is absent from the appointment page. Existing payment data is not destroyed — it reappears when the feature is re-enabled. Feature gating is separate from permissions: a user may hold the permission and still not see the page."
+  },
+  {
+    "id": "TC-RBAC-017",
+    "role": "Receptionist",
+    "module": "RBAC — Clinical confidentiality",
+    "name": "Receptionist cannot see clinical note content anywhere",
+    "pre": "A patient with at least one approved clinical note and one prescription.",
+    "steps": "1. Sign in as the Receptionist.\n2. Open the patient's detail page.\n3. Inspect the timeline, every card and every expandable section for clinical note text.\n4. Open the appointment linked to that visit and inspect it.\n5. Check whether a prescription can still be reprinted.",
+    "expected": "No clinical note body is visible to the Receptionist on any screen. They may still reprint the prescription, which deliberately contains the drug lines only and not the clinical note. Any exposure of note content is a confidentiality defect and must be raised immediately."
+  },
+  {
+    "id": "TC-RBAC-018",
+    "role": "Receptionist",
+    "module": "RBAC — Money boundaries",
+    "name": "Receptionist can collect but cannot void or refund",
+    "pre": "A completed appointment with an outstanding balance, and one with a recorded payment. Receptionist on default permissions.",
+    "steps": "1. Sign in as the Receptionist and open an appointment with a balance.\n2. Confirm the collect form is available and record a payment successfully.\n3. Look at the payment history row for a Void control.\n4. Look for a Refund control.\n5. Sign in as the Clinic Admin and confirm both controls ARE available to them.",
+    "expected": "The Receptionist can collect payments but is offered neither Void nor Refund — the front desk takes money while reversing it needs a manager or admin. Both controls are present for the Clinic Admin."
+  },
+  {
+    "id": "TC-RBAC-019",
+    "role": "Doctor",
+    "module": "RBAC — Self-scoping",
+    "name": "Doctor sees only their own earnings and their own leave",
+    "pre": "Two doctors with recorded revenue shares and leave records.",
+    "steps": "1. Sign in as Doctor A.\n2. Open Revenue shares and record which doctors are listed.\n3. Open Doctor schedule and record whose rows are visible.\n4. Attempt to create leave for Doctor B.\n5. Sign in as Doctor B and confirm the mirrored result.",
+    "expected": "Doctor A sees only their own earnings figures, and leave actions are limited to their own record. A doctor must never see another doctor's share balance or be able to declare a colleague absent."
+  },
+  {
+    "id": "TC-RBAC-020",
+    "role": "Clinic Admin",
+    "module": "RBAC — Last admin rule",
+    "name": "The clinic cannot be left without an active admin",
+    "pre": "A test clinic with exactly ONE active clinic admin.",
+    "steps": "1. Sign in as the only Clinic Admin.\n2. Open Staff and locate your own record.\n3. Attempt to delete it. Record the message.\n4. Attempt to suspend it. Record the message.\n5. Create a second Clinic Admin.\n6. Attempt the deletion again.",
+    "expected": "While only one active admin exists, both deletion and suspension are refused with a message explaining that it would lock the clinic out of staff and settings. Once a second admin exists the action is permitted. Confirm the refusal is enforced server-side, not only by hiding the button."
+  },
+  {
+    "id": "TC-RBAC-021",
+    "role": "Super Admin",
+    "module": "RBAC — Impersonation",
+    "name": "Impersonation requires a step-up and is read-only",
+    "pre": "A Super Admin holding the impersonate capability, and a clinic with data.",
+    "steps": "1. Sign in as the Super Admin and open a clinic.\n2. Click \"Open workspace (view as clinic)\".\n3. Enter an incorrect password and record the message.\n4. Enter your own correct admin password and continue.\n5. Confirm the read-only banner appears at the top of the clinic workspace.\n6. Attempt to create a patient, book an appointment and collect a payment.\n7. Click Exit and confirm you return to the clinic's admin page.\n8. Open the clinic's activity log and look for the impersonation entries.",
+    "expected": "A wrong password is refused. The field wants the ADMIN'S OWN password, not the clinic's. Once inside, a persistent banner shows the session is read-only and no mutation is possible. Both the start and the end are recorded in the clinic's own activity log against the real admin's name."
+  },
+  {
+    "id": "TC-RBAC-022",
+    "role": "Super Admin",
+    "module": "RBAC — Impersonation",
+    "name": "A suspended clinic can still be viewed by support",
+    "pre": "A clinic that is currently suspended.",
+    "steps": "1. Confirm the clinic's own staff are blocked and see the paused page.\n2. As the Super Admin, start impersonation on that same clinic.\n3. Record whether the workspace opens.",
+    "expected": "Support CAN open a suspended clinic read-only, while its own staff cannot. This is deliberate — support usually needs to look at a clinic precisely because it is suspended. Do not raise it as a defect."
+  }
+]

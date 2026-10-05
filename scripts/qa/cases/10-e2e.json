@@ -1,0 +1,92 @@
+[
+  {
+    "id": "TC-E2E-001",
+    "role": "Clinic Admin",
+    "module": "End-to-end — Onboarding",
+    "name": "Admin creates staff, staff signs in, permissions apply correctly",
+    "pre": "A clinic with an active Clinic Admin.",
+    "steps": "1. Sign in as the Clinic Admin.\n2. Open Staff and create a Receptionist with a temporary password.\n3. Create a Doctor, setting working hours, a daily cap and a consultation fee.\n4. Sign out.\n5. Sign in as the Receptionist with the temporary password.\n6. Confirm the forced password change and set a new password.\n7. Confirm the sidebar shows front-desk items and NOT Voice scribe or Staff.\n8. Sign out and repeat for the Doctor.\n9. Confirm the Doctor sees Voice scribe but no Payments or Staff.\n10. As the Doctor, attempt /clinic/staff directly and confirm the redirect.",
+    "expected": "Both accounts are created, forced to set their own password, and land in the workspace with exactly the navigation their role allows. Restricted areas are unreachable both in the menu and by direct URL."
+  },
+  {
+    "id": "TC-E2E-002",
+    "role": "Receptionist",
+    "module": "End-to-end — Counter to cash",
+    "name": "New patient through to printed receipt",
+    "pre": "Clinic has the sales feature. A doctor with hours and a fee. At least one priced procedure.",
+    "steps": "1. Sign in as the Receptionist.\n2. Open Patients and click \"Add patient\".\n3. Enter a full name and WhatsApp number and save.\n4. From the patient's row click \"Book\".\n5. Select the doctor, set today's date and choose an available time.\n6. Add one procedure and set its quantity to 1.\n7. Note the running total.\n8. Click \"Schedule appointment\".\n9. On the appointment page, advance the status to Arrived, then Call in, then Complete.\n10. In the Payment card confirm the bill matches the running total from step 7.\n11. Collect the full amount in cash.\n12. Click \"Print receipt\", choose A4 and print to PDF.\n13. Open the PDF and confirm the patient, the charges and the amount received.\n14. Open the Payments ledger and confirm the payment is listed.\n15. Open Receivables and confirm the patient does NOT appear.",
+    "expected": "The whole path works without leaving the workspace: the patient is registered, booked, seen, billed, paid and receipted. The figure on the booking form, the figure on the bill and the figure on the receipt all agree. The ledger records the payment and the patient owes nothing."
+  },
+  {
+    "id": "TC-E2E-003",
+    "role": "Doctor",
+    "module": "End-to-end — Clinical",
+    "name": "Doctor records a visit and the note reaches the patient record",
+    "pre": "[BLOCKED: needs OPENAI_API_KEY] A booked appointment for today and a doctor who can record.",
+    "steps": "1. Sign in as the Doctor.\n2. Open \"Voice scribe\".\n3. Select the patient.\n4. Record a clinical dictation including a complaint, an examination finding, a treatment and a follow-up interval.\n5. Click \"Stop & generate\" and wait for the draft.\n6. Expand the \"Transcript\" section and confirm the spoken words are present.\n7. Review the structured note and correct one field.\n8. Click \"Approve & save\".\n9. Open the patient's record and confirm the note is on the timeline.\n10. Open Recalls and confirm a follow-up was created matching the stated interval.\n11. Sign out, sign back in and re-open the patient to confirm persistence.",
+    "expected": "The dictation becomes a structured draft, the doctor's correction is what gets saved, the note appears on the patient's timeline attributed correctly, and a recall is scheduled from the stated follow-up. Everything persists across sessions."
+  },
+  {
+    "id": "TC-E2E-004",
+    "role": "Doctor",
+    "module": "End-to-end — Clinical",
+    "name": "Scribe failure path leaves the clinician with a recoverable recording",
+    "pre": "OPENAI_API_KEY is not configured — the current state of the system.",
+    "steps": "1. Sign in as the Doctor and open \"Voice scribe\".\n2. Select a patient and record a short dictation.\n3. Click \"Stop & generate\".\n4. Wait for the failure.\n5. Record the exact message shown.\n6. Confirm the run appears under \"Recordings being written up\" with \"Try again\".\n7. Open the patient's timeline and confirm the failed badge.\n8. Click \"Try again\" and confirm the recording is reused rather than re-requested.\n9. Confirm nothing has been written to the patient's clinical record.",
+    "expected": "The recording is never lost even though transcription cannot complete. The clinician is told the AI service is not configured, the run is listed with a retry, and no partial or empty note is written to the patient's record. This is the correct behaviour for the current configuration."
+  },
+  {
+    "id": "TC-E2E-005",
+    "role": "Receptionist",
+    "module": "End-to-end — Scheduling",
+    "name": "Doctor schedule drives what the front desk can book",
+    "pre": "A doctor with no hours configured yet.",
+    "steps": "1. As the Clinic Admin set the doctor's working hours to a single window on one weekday and a daily cap of 2.\n2. Sign in as the Receptionist.\n3. Book an appointment for that doctor on that weekday and confirm only times inside the window are offered.\n4. Book a second appointment and confirm it succeeds.\n5. Attempt a third and confirm the cap refusal.\n6. As the Clinic Admin set leave for that doctor on the same date.\n7. As the Receptionist confirm the two existing appointments were cancelled and no new booking is possible.\n8. Remove the leave and confirm booking is possible again.",
+    "expected": "What the front desk can book follows directly from what the admin configured. Hours limit the offered times, the cap limits the count, and leave cancels and blocks. Removing the leave restores bookability."
+  },
+  {
+    "id": "TC-E2E-006",
+    "role": "Clinic Admin",
+    "module": "End-to-end — Money",
+    "name": "Discount approval changes the bill, the share and the reports",
+    "pre": "A clinic configured to require discount approval. A doctor with a revenue share.",
+    "steps": "1. As the Receptionist book an appointment with that doctor, add a procedure and apply a discount borne by the doctor.\n2. Save and complete the appointment.\n3. Open the bill and confirm the discount is NOT yet applied.\n4. Sign in as a user who may approve and open \"Discount approvals\".\n5. Approve the discount.\n6. Return to the appointment and confirm the bill has reduced.\n7. Open Revenue shares and confirm the doctor's share reflects bearing the discount.\n8. Open the Discounts report and confirm the discount is listed.\n9. Open Profit and Loss and confirm the figures remain internally consistent.",
+    "expected": "A pending discount is treated as zero until approved, then applies everywhere at once — the bill, the doctor's share, the discounts report and the profit and loss all move together and reconcile."
+  },
+  {
+    "id": "TC-E2E-007",
+    "role": "Super Admin",
+    "module": "End-to-end — Tenancy",
+    "name": "A new clinic is fully isolated from an existing one",
+    "pre": "Super Admin access and one existing clinic with data.",
+    "steps": "1. Create a second clinic with its own admin.\n2. Sign in as the new clinic's admin.\n3. Confirm the patient, appointment and payment lists are all empty.\n4. Create a patient in the new clinic.\n5. Sign in as the original clinic's admin and confirm the new patient is NOT visible.\n6. Attempt to open the new clinic's patient by its ID from the original clinic's session.\n7. Export patients from each clinic and compare the files.\n8. Confirm neither export contains the other clinic's records.",
+    "expected": "The new clinic starts genuinely empty and the two clinics cannot see each other's records through the UI, by direct ID, or in exports. Any leakage is a critical tenant-isolation defect."
+  },
+  {
+    "id": "TC-E2E-008",
+    "role": "Clinic Admin",
+    "module": "End-to-end — Recovery",
+    "name": "Deleted records can be recovered across the product",
+    "pre": "Trash permission and disposable test records.",
+    "steps": "1. Create a test patient, book an appointment for them and record a payment.\n2. Delete the appointment and confirm it leaves the list.\n3. Open Trash, locate it and restore it.\n4. Confirm the appointment and its payment are both intact.\n5. Delete the patient and confirm their appointments are hidden with them.\n6. Restore the patient from Trash.\n7. Confirm the patient and the previously hidden appointments all return together.",
+    "expected": "Deletion is always recoverable within the retention window. Restoring a parent brings back the children that its deletion hid, as a single batch, with the financial records intact."
+  },
+  {
+    "id": "TC-E2E-009",
+    "role": "Super Admin",
+    "module": "End-to-end — Subscription",
+    "name": "Subscription lifecycle from trial to paid to suspended",
+    "pre": "A disposable test clinic.",
+    "steps": "1. Create a test clinic and confirm its initial status.\n2. Set a monthly price and a billing cycle.\n3. Record a subscription payment and confirm the paid-through date moves forward.\n4. Issue a subscription invoice and print it.\n5. Suspend the clinic and confirm its staff are locked out.\n6. Reactivate it and confirm access returns and no data was lost.\n7. Confirm the clinic's position on the dues dashboard matches its billing card throughout.",
+    "expected": "Status, payments and the paid-through date move together and the dues dashboard always agrees with the clinic's own billing card. Suspending and reactivating changes access only, never data."
+  },
+  {
+    "id": "TC-E2E-010",
+    "role": "Receptionist",
+    "module": "End-to-end — Partial payment",
+    "name": "Partial payment, outstanding balance and later settlement",
+    "pre": "Clinic has the sales feature. A patient and a doctor with a fee.",
+    "steps": "1. Book and complete an appointment with a known total.\n2. Collect half the amount in cash.\n3. Confirm the outstanding figure equals the remainder.\n4. Open Receivables and confirm the patient is listed with that balance.\n5. Print a receipt and confirm it shows the amount received and the amount due.\n6. Return later and collect the remaining balance by bank transfer with a reference.\n7. Confirm the visit is now fully paid.\n8. Confirm the patient has dropped off Receivables.\n9. Print the receipt again and confirm both payments are listed.",
+    "expected": "A partial payment leaves a correct outstanding balance that is visible on Receivables and on the receipt. Settling the remainder clears the balance, removes the patient from Receivables, and the final receipt lists both payments with their methods."
+  }
+]

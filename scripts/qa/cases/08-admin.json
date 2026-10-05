@@ -1,0 +1,182 @@
+[
+  {
+    "id": "TC-SUPER-001",
+    "role": "Super Admin",
+    "module": "Admin — Clinics",
+    "name": "Create a clinic together with its first admin",
+    "pre": "Super Admin holding the clinic create capability.",
+    "steps": "1. Sign in to the admin panel and open \"Clinics\".\n2. Start the create-clinic flow.\n3. Enter the clinic name.\n4. Select the specialty module or modules.\n5. Enter the first clinic admin's full name, username and temporary password.\n6. Save.\n7. Confirm the clinic appears in the list.\n8. Sign out and sign in as the new clinic admin with the temporary password.",
+    "expected": "The clinic and its first admin are created together — a clinic with no way to sign in would be unreachable. The new admin is forced to set their own password on first sign-in, then lands in the clinic workspace."
+  },
+  {
+    "id": "TC-SUPER-002",
+    "role": "Super Admin",
+    "module": "Admin — Clinics",
+    "name": "Clinic creation validation",
+    "pre": "Super Admin on the create-clinic form.",
+    "steps": "1. Submit with the clinic name empty and record the result.\n2. Submit with an admin username shorter than three characters.\n3. Submit with a username containing spaces or capital letters.\n4. Submit reusing a username that already exists anywhere in the system.\n5. Submit with a password shorter than eight characters.\n6. Finally submit a fully valid form.",
+    "expected": "Each invalid field is refused with a specific message and no clinic is created. Usernames are restricted to lowercase letters, digits and a small set of punctuation, must be unique system-wide, and the password minimum is eight characters."
+  },
+  {
+    "id": "TC-SUPER-003",
+    "role": "Super Admin",
+    "module": "Admin — Clinic access",
+    "name": "Pausing a clinic locks out all its staff immediately",
+    "pre": "A test clinic with at least one signed-in staff member.",
+    "steps": "1. Confirm a clinic user is working normally in another browser.\n2. As the Super Admin open the clinic and use the pause or suspend control.\n3. Confirm any dialog.\n4. In the other browser, click any link.\n5. Record where the staff member lands and the message shown.\n6. Attempt to sign in as that staff member afresh.\n7. Reactivate the clinic and confirm access returns.",
+    "expected": "Pausing takes effect immediately rather than at next sign-in. Staff are redirected to a paused page explaining access is suspended, and a fresh sign-in also lands there. Reactivating restores normal access with no data loss."
+  },
+  {
+    "id": "TC-SUPER-004",
+    "role": "Super Admin",
+    "module": "Admin — Features",
+    "name": "Enable and disable clinic features",
+    "pre": "A test clinic.",
+    "steps": "1. Open the clinic's plan and features card.\n2. Enable the sales feature and save.\n3. Sign in as a clinic user and confirm Payments, Invoices and Procedures appear.\n4. Return and enable the finance feature.\n5. Confirm Expenses, Petty cash and Profit and Loss appear for the clinic admin.\n6. Disable both and confirm all of those disappear.\n7. Re-enable and confirm no data was lost.",
+    "expected": "Features switch the corresponding screens on and off for the whole clinic. Disabling hides the screens but does not destroy data — re-enabling restores the existing records. Features are separate from permissions."
+  },
+  {
+    "id": "TC-SUPER-005",
+    "role": "Super Admin",
+    "module": "Admin — Capabilities",
+    "name": "Restricting a clinic capability overrides every user permission",
+    "pre": "A test clinic with an active clinic admin.",
+    "steps": "1. Open the clinic's capabilities editor.\n2. Restrict the capability set so that patient creation is excluded.\n3. Save.\n4. Sign in as that clinic's admin, who normally holds every permission.\n5. Attempt to create a patient.\n6. Restore the capabilities afterwards and confirm the ability returns.",
+    "expected": "Even the clinic admin cannot create a patient while the capability is withdrawn, because effective access is the clinic capability intersected with the user permission. The vendor's restriction cannot be overridden from inside the clinic."
+  },
+  {
+    "id": "TC-SUPER-006",
+    "role": "Super Admin",
+    "module": "Admin — Team",
+    "name": "Create a team member with a sub-role",
+    "pre": "Super Admin holding the team create capability.",
+    "steps": "1. Open \"Team\".\n2. Create a new member with a full name, username, contact number, temporary password and a sub-role such as Support.\n3. Save.\n4. Confirm the member appears in the roster with the sub-role shown.\n5. Sign in as that member.\n6. Record which admin navigation items they can see.\n7. Attempt a capability outside their sub-role, for example issuing a subscription invoice as Support.",
+    "expected": "The member is created with the capabilities of their sub-role and nothing more. Navigation reflects those capabilities and actions outside them are refused. A contact number is required so clinics can be given a person to call."
+  },
+  {
+    "id": "TC-SUPER-007",
+    "role": "Super Admin",
+    "module": "Admin — Team",
+    "name": "Suspend, deactivate and delete behave differently",
+    "pre": "A test team member who manages at least one clinic.",
+    "steps": "1. Note which clinics the member is the account manager for.\n2. Suspend them. Confirm they cannot sign in and check whether their clinics remain assigned.\n3. Reactivate them and confirm the assignments.\n4. Deactivate them. Check the clinic assignments again.\n5. Delete them and confirm they are removed from the roster.\n6. Check what happened to their clinic assignments after deletion.",
+    "expected": "Suspension blocks sign-in but keeps their clinic assignments. Deactivation blocks sign-in and unassigns their clinics so no clinic appears covered when it is not. Deletion removes them and unassigns their clinics. Each state is distinct and must be reported accurately."
+  },
+  {
+    "id": "TC-SUPER-008",
+    "role": "Super Admin",
+    "module": "Admin — Team",
+    "name": "The owner account is protected from other admins",
+    "pre": "An owner account and a separate non-owner super admin.",
+    "steps": "1. Sign in as the non-owner super admin.\n2. Open \"Team\" and look for the owner account in the roster.\n3. If visible, attempt to edit, suspend or delete it.\n4. Record the message.\n5. Sign in as the owner and confirm the owner can manage their own account.",
+    "expected": "A non-owner cannot see or manage the owner account — attempts are refused with a message stating only the owner can manage the owner. This prevents an admin from locking the founder out."
+  },
+  {
+    "id": "TC-SUPER-009",
+    "role": "Super Admin",
+    "module": "Admin — Team",
+    "name": "Reassign all clinics from one team member to another",
+    "pre": "A team member managing at least two clinics, and a second active member.",
+    "steps": "1. Open the first member's record.\n2. Use the reassign-clinics action and choose the second member.\n3. Confirm how many clinics moved.\n4. Open two of those clinics and confirm the new account manager.\n5. Sign in as a clinic admin at one of them and check the account manager shown in Settings.",
+    "expected": "Every clinic moves to the new manager in one action and the clinic-facing contact updates accordingly. This is the path used when someone leaves, so no clinic may be left pointing at a departed colleague."
+  },
+  {
+    "id": "TC-SUPER-010",
+    "role": "Super Admin",
+    "module": "Admin — Billing",
+    "name": "Record a subscription payment and see the balance change",
+    "pre": "A clinic with a monthly price set and an outstanding balance.",
+    "steps": "1. Open the clinic's billing card and note the balance, paid-through date and status.\n2. Record a payment with an amount, method and date.\n3. Confirm the balance and paid-through date update.\n4. Record a refund and confirm the balance moves the other way.\n5. Record a credit and confirm it adjusts the balance without counting as cash collected.\n6. Open the dues dashboard and confirm the clinic's position matches.",
+    "expected": "Payments, refunds and credits each affect the balance correctly and differently — a credit is a goodwill adjustment, not cash received. The dues dashboard and the clinic's own card agree."
+  },
+  {
+    "id": "TC-SUPER-011",
+    "role": "Super Admin",
+    "module": "Admin — Billing",
+    "name": "Raising a clinic's price does not re-price months already paid",
+    "pre": "A clinic with several months of payment history at a known price.",
+    "steps": "1. Note the clinic's current price and its payment history and rating.\n2. Raise the monthly price substantially and save.\n3. Re-open the clinic's billing card and the payment scorecard.\n4. Compare the balance and the rating with what you recorded.\n5. Confirm the new price applies only to months falling due after the change.",
+    "expected": "The historical months remain priced at what the clinic was actually charged, so a price rise must NOT turn a good payer into an apparent debtor. If past months are re-priced, or the rating collapses, raise it immediately as a serious billing defect."
+  },
+  {
+    "id": "TC-SUPER-012",
+    "role": "Super Admin",
+    "module": "Admin — Announcements",
+    "name": "Post an announcement to selected clinics and audiences",
+    "pre": "Super Admin with the announcements capability. At least two clinics.",
+    "steps": "1. Open \"Announcements\" and create a new one.\n2. Enter a title and body, choose a level, and target two specific clinics.\n3. Restrict the audience to clinic admins only.\n4. Set an active window and save.\n5. Sign in as a clinic admin at a targeted clinic and confirm the notice is visible.\n6. Sign in as a receptionist at the same clinic and confirm it is NOT shown.\n7. Sign in at a non-targeted clinic and confirm nothing is shown.\n8. Deactivate the announcement and confirm it disappears everywhere.",
+    "expected": "The announcement reaches only the targeted clinics and only the chosen roles. The post is managed as one item even though it targets several clinics, so deactivating it is a single action."
+  },
+  {
+    "id": "TC-SUPER-013",
+    "role": "Super Admin",
+    "module": "Admin — Trash and purge",
+    "name": "Admin trash shows every clinic and supports a legal purge",
+    "pre": "Deleted records exist in at least two clinics. Super Admin with the required capability.",
+    "steps": "1. Open \"Trash\" in the admin panel.\n2. Confirm deleted items from more than one clinic are listed.\n3. Filter by clinic and by type.\n4. Restore one item and confirm it returns to its clinic.\n5. Locate the permanent purge action for a disposable test record.\n6. Confirm the step-up or confirmation required.\n7. Complete the purge on the test record only.\n8. Confirm it can no longer be restored.",
+    "expected": "Admin trash spans clinics with no retention window. Restore returns items to their own clinic. Purge is the only true deletion in the product, requires an explicit confirmation, and is irreversible — exercise it only on a disposable record."
+  },
+  {
+    "id": "TC-SUPER-014",
+    "role": "Super Admin",
+    "module": "Admin — Import",
+    "name": "Import historical data with a dry run before committing",
+    "pre": "A clinic and a prepared import file.",
+    "steps": "1. Open the clinic and start the data importer.\n2. Upload the file and map the columns.\n3. Run the dry-run preview.\n4. Review the reported row counts and any warnings or reconciliation totals.\n5. Deliberately introduce an error in the file and re-run the preview to confirm it is reported.\n6. Commit a clean import.\n7. Confirm the records appear in the clinic.\n8. Undo the import batch.\n9. Confirm the records are removed.",
+    "expected": "The preview reports what would be imported without writing anything, and flags problems before commitment. A committed batch can be undone as a unit, leaving the clinic as it was."
+  },
+  {
+    "id": "TC-SUPER-015",
+    "role": "Super Admin",
+    "module": "Admin — Permissions",
+    "name": "A scoped admin sees only the clinics assigned to them",
+    "pre": "A team member whose visibility is scoped to assigned clinics, managing some but not all clinics.",
+    "steps": "1. Sign in as the scoped team member.\n2. Open \"Clinics\" and list which clinics are visible.\n3. Compare with the full clinic list seen by the owner.\n4. Attempt to open an unassigned clinic directly by URL.\n5. Attempt an action on it.",
+    "expected": "Only assigned clinics are listed, and an unassigned clinic cannot be opened or acted upon by URL. Scoped visibility must hold at the page and action level, not merely in the list."
+  },
+  {
+    "id": "TC-SUPER-016",
+    "role": "Clinic Admin",
+    "module": "Staff — Create",
+    "name": "Create staff in each clinic role and confirm their access",
+    "pre": "Clinic Admin with staff permissions.",
+    "steps": "1. Open \"Staff\" and create a Receptionist with a name, username and temporary password.\n2. Create a Doctor, additionally setting working hours, a daily cap and a consultation fee.\n3. Create a Manager.\n4. Sign in as each new account with its temporary password.\n5. Confirm each is forced to set a new password.\n6. Confirm each lands in the clinic workspace with the navigation appropriate to their role.",
+    "expected": "Each role is created successfully and forced to change the temporary password on first sign-in. The navigation each sees matches their role defaults, confirming permissions are applied at creation."
+  },
+  {
+    "id": "TC-SUPER-017",
+    "role": "Clinic Admin",
+    "module": "Staff — Validation",
+    "name": "Staff creation validation and duplicate usernames",
+    "pre": "Clinic Admin on the staff creation form. An existing username is known.",
+    "steps": "1. Submit with the name empty and record the message.\n2. Submit with a two-character username and record the message.\n3. Submit with a username containing capitals or spaces and record the message.\n4. Submit reusing an existing username and record the message.\n5. Submit with a seven-character password and record the message.\n6. Submit a valid record to confirm the form still works.",
+    "expected": "Each rule produces its own clear message — the name is required, the username must be at least three characters, may use only lowercase letters, digits and a small set of punctuation, must be unique, and the password must be at least eight characters. No partial record is created by a failed attempt."
+  },
+  {
+    "id": "TC-SUPER-018",
+    "role": "Clinic Admin",
+    "module": "Staff — Password reset",
+    "name": "Resetting a staff password ends their sessions",
+    "pre": "A staff member currently signed in on another browser.",
+    "steps": "1. Confirm the staff member is working in browser B.\n2. As the Clinic Admin, open their record and reset their password to a new temporary one.\n3. In browser B, click any link.\n4. Sign in as that staff member with the new temporary password.\n5. Confirm the forced password change.",
+    "expected": "The reset ends every existing session for that user immediately, so a reset cannot leave an old session alive. The new temporary password works once and forces the user to set their own."
+  },
+  {
+    "id": "TC-SUPER-019",
+    "role": "Clinic Admin",
+    "module": "Settings — Clinic",
+    "name": "Clinic settings cards save and take effect",
+    "pre": "Clinic Admin signed in.",
+    "steps": "1. Open \"Settings\".\n2. Update your own profile name and save; confirm the header updates.\n3. Upload a profile picture and confirm it appears.\n4. Update the clinic's public address and opening hours and save.\n5. Change the offered print paper sizes and the default, then save.\n6. Open any printable invoice and confirm only the enabled sizes are offered and the default opens first.\n7. Confirm the Account manager card shows a name and number, or the company contact.",
+    "expected": "Each card saves independently with a confirmation. The printing choice takes effect on the print screens immediately. The account manager card always shows a contact — either the assigned manager or the company fallback."
+  },
+  {
+    "id": "TC-SUPER-020",
+    "role": "Receptionist",
+    "module": "Settings — Permissions",
+    "name": "Every role reaches Settings but only admins see clinic-wide cards",
+    "pre": "Accounts for all four clinic roles.",
+    "steps": "1. Sign in as the Receptionist and open \"Settings\".\n2. List the cards visible.\n3. Repeat as the Doctor and the Manager.\n4. Repeat as the Clinic Admin and compare.",
+    "expected": "Every clinic role reaches Settings, because it holds their own profile and password. Only the Clinic Admin additionally sees the clinic-wide cards such as clinic details, printing and the account manager. The personal cards are identical for everyone."
+  }
+]

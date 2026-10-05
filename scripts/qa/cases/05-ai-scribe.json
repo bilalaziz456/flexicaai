@@ -1,0 +1,398 @@
+[
+  {
+    "id": "TC-AI-001",
+    "role": "Doctor",
+    "module": "AI Scribe — Access",
+    "name": "Voice scribe is reachable and shows the recorder",
+    "pre": "Doctor account is active. Clinic has the dental module enabled.",
+    "steps": "1. Log in as the Doctor.\n2. In the left sidebar, locate and click \"Voice scribe\".\n3. Confirm the page heading reads \"Voice scribe\".\n4. Confirm the subtitle reads \"Record a visit, review the AI draft, then approve to save.\"\n5. Confirm a card titled \"New note\" is shown with the description \"Choose a patient, then record the visit.\"\n6. Confirm a patient search box is present with the placeholder \"Search patients by name or phone…\".",
+    "expected": "The page loads at /clinic/scribe. The \"New note\" card, the patient search box and the recording control are all visible. No error is shown."
+  },
+  {
+    "id": "TC-AI-002",
+    "role": "Receptionist",
+    "module": "AI Scribe — Access",
+    "name": "Receptionist cannot reach the Voice scribe at all",
+    "pre": "Receptionist account on default permissions (no clinical slug).",
+    "steps": "1. Log in as the Receptionist.\n2. Inspect every item in the left sidebar.\n3. Confirm there is no \"Voice scribe\" item.\n4. Type /clinic/scribe directly into the address bar and press Enter.\n5. Observe where the browser lands.",
+    "expected": "\"Voice scribe\" is absent from the navigation, and the direct URL does not open the scribe. The user is redirected to /clinic. No part of the recorder or any draft is rendered."
+  },
+  {
+    "id": "TC-AI-003",
+    "role": "Manager",
+    "module": "AI Scribe — Access",
+    "name": "Manager can open the scribe page but cannot record",
+    "pre": "Manager account on default permissions (clinical: view only).",
+    "steps": "1. Log in as the Manager.\n2. Confirm \"Voice scribe\" IS visible in the sidebar.\n3. Click it.\n4. Read the card shown on the page.\n5. Confirm no patient picker and no recording button are offered.",
+    "expected": "The page opens, but instead of the recorder it shows the message \"You don't have permission to create clinical notes. Ask your clinic admin if this is a mistake.\" No recording is possible."
+  },
+  {
+    "id": "TC-AI-004",
+    "role": "Clinic Admin",
+    "module": "AI Scribe — Access",
+    "name": "Clinic Admin can record (this is intentional, not a defect)",
+    "pre": "Clinic Admin account on default permissions.",
+    "steps": "1. Log in as the Clinic Admin.\n2. Open \"Voice scribe\".\n3. Confirm the patient picker and the recording button are both available.",
+    "expected": "The Clinic Admin sees the full recorder. This is deliberate — in this market the clinic owner is usually the practising dentist, so recording is gated on the clinical:create PERMISSION and not on the doctor role. Do not raise this as a defect."
+  },
+  {
+    "id": "TC-AI-005",
+    "role": "Doctor",
+    "module": "AI Scribe — Patient selection",
+    "name": "Select a patient before recording",
+    "pre": "At least two patients exist with distinguishable names.",
+    "steps": "1. Log in as the Doctor and open \"Voice scribe\".\n2. Type the first three letters of a patient's name into the search box.\n3. Review the result rows.\n4. Click the intended patient.\n5. Confirm the card description changes to name that patient.\n6. Confirm a \"Change\" control is now offered.",
+    "expected": "Matching patients are listed, the chosen patient is attached to the pending recording, the card confirms the patient by name, and \"Change\" is available to pick a different one."
+  },
+  {
+    "id": "TC-AI-006",
+    "role": "Doctor",
+    "module": "AI Scribe — Patient selection",
+    "name": "Patient search with no matches",
+    "pre": "Doctor is on the Voice scribe page.",
+    "steps": "1. Type a string into the patient search box that cannot match any patient, for example \"zzzzqqq\".\n2. Observe the result area.",
+    "expected": "The result list shows \"No patients found.\" No recording control becomes active, and no error dialog appears."
+  },
+  {
+    "id": "TC-AI-007",
+    "role": "Doctor",
+    "module": "AI Scribe — Recording",
+    "name": "Start and stop a recording",
+    "pre": "A working microphone is attached and browser mic permission can be granted.",
+    "steps": "1. Open \"Voice scribe\" and select a patient.\n2. Click \"Start recording\".\n3. Grant microphone access if the browser prompts.\n4. Speak a short clinical sentence for about ten seconds.\n5. Observe the button label while recording.\n6. Click \"Stop & generate\".\n7. Observe what happens immediately after stopping.",
+    "expected": "Recording starts after permission is granted; while recording the button reads \"Stop & generate\". On stop the audio is submitted automatically and the UI shows a spinner with \"Transcribing and drafting the note…\". The run is created and the audio is stored."
+  },
+  {
+    "id": "TC-AI-008",
+    "role": "Doctor",
+    "module": "AI Scribe — Recording",
+    "name": "Microphone permission denied is handled",
+    "pre": "Browser is set to block microphone access for the site.",
+    "steps": "1. Open \"Voice scribe\" and select a patient.\n2. Click \"Start recording\".\n3. Deny the microphone prompt, or ensure the site is already blocked.\n4. Observe the message shown.",
+    "expected": "The message \"Microphone access was denied or is unavailable.\" is displayed. The page does not crash, no visit record is created, and the Doctor can retry after granting permission."
+  },
+  {
+    "id": "TC-AI-009",
+    "role": "Doctor",
+    "module": "AI Scribe — Recording",
+    "name": "Confirm there is no pause, cancel, re-record or playback",
+    "pre": "Doctor is on the Voice scribe page with a patient selected.",
+    "steps": "1. Click \"Start recording\".\n2. While recording, look for any pause control.\n3. Look for any cancel or discard control that would abandon the recording without submitting.\n4. Look for an elapsed-time counter or level meter.\n5. Click \"Stop & generate\".\n6. Look for any audio player or \"play back before submitting\" control.",
+    "expected": "By design there is NO pause, NO cancel, NO re-record, NO timer and NO playback. Stopping submits the audio immediately. Record this as confirmation of current behaviour, not as a defect — but raise it with the product owner if clinicians expect to review before submitting."
+  },
+  {
+    "id": "TC-AI-010",
+    "role": "Doctor",
+    "module": "AI Scribe — Processing",
+    "name": "Run appears in the in-progress card and self-refreshes",
+    "pre": "A recording has just been submitted.",
+    "steps": "1. Submit a recording as in TC-AI-007.\n2. Scroll to the card titled \"Recordings being written up\".\n3. Confirm the description reads \"Your recording is saved as soon as you stop. Writing the note happens in the background, so you can close this page and come back.\"\n4. Confirm the row for the new run shows \"Writing the note…\" with a spinner.\n5. Leave the page open and wait without manually refreshing.",
+    "expected": "The run is listed while its status is transcribing, and the card refreshes itself roughly every five seconds until the run leaves that state. No manual refresh is required."
+  },
+  {
+    "id": "TC-AI-011",
+    "role": "Doctor",
+    "module": "AI Scribe — Processing",
+    "name": "Navigating away during processing does not lose the recording",
+    "pre": "A recording is in progress (status transcribing).",
+    "steps": "1. Submit a recording.\n2. While the spinner is showing, navigate to \"Patients\".\n3. Navigate back to \"Voice scribe\".\n4. Inspect the \"Recordings being written up\" card.\n5. Open the patient's detail page and inspect their timeline.",
+    "expected": "The run survives navigation and is still listed on return. The patient timeline shows the badge \"Writing the note…\" for that visit. No data is lost and no duplicate run is created."
+  },
+  {
+    "id": "TC-AI-012",
+    "role": "Doctor",
+    "module": "AI Scribe — Processing",
+    "name": "Logging out and back in during processing",
+    "pre": "A recording is in progress.",
+    "steps": "1. Submit a recording.\n2. Immediately log out.\n3. Log back in as the same Doctor.\n4. Open \"Voice scribe\".\n5. Inspect the \"Recordings being written up\" card.",
+    "expected": "The run is still present and shows its current state. Processing happens server-side and is not tied to the browser session, so logging out does not cancel it or lose the recording."
+  },
+  {
+    "id": "TC-AI-013",
+    "role": "Doctor",
+    "module": "AI Scribe — Processing",
+    "name": "In-tab polling gives up gracefully after six minutes",
+    "pre": "A run that remains in transcribing for longer than six minutes. May require the AI provider to be slow or unreachable.",
+    "steps": "1. Submit a recording.\n2. Leave the recording tab open and untouched.\n3. Wait more than six minutes without navigating.\n4. Read the message that replaces the spinner.",
+    "expected": "The tab stops polling and displays: \"The note is still being written. Your recording is saved — it will appear in “Pending approval” when it is ready.\" The run itself is not cancelled and no error is raised."
+  },
+  {
+    "id": "TC-AI-014",
+    "role": "Doctor",
+    "module": "AI Scribe — Failure path",
+    "name": "Run fails because the transcription service is not configured",
+    "pre": "OPENAI_API_KEY is NOT set in the environment. This is the current state of the system.",
+    "steps": "1. Log in as the Doctor and open \"Voice scribe\".\n2. Select a patient and record about ten seconds of speech.\n3. Click \"Stop & generate\".\n4. Wait for the spinner to resolve (a few seconds).\n5. Read the error shown in the recording area.\n6. Inspect the \"Recordings being written up\" card.\n7. Open the patient's detail page and inspect the timeline badge.",
+    "expected": "The upload itself succeeds and the visit is created, then the run fails. The Doctor sees \"The AI service is not configured yet.\" in the recording area and as the row subtext in the runs card, with \"Try again\" and a bin icon beside it. The patient timeline shows the badge \"Scribe failed\". The recording is retained."
+  },
+  {
+    "id": "TC-AI-015",
+    "role": "Doctor",
+    "module": "AI Scribe — Failure path",
+    "name": "Try again reuses the stored audio and does not require re-dictating",
+    "pre": "A run exists in the failed state.",
+    "steps": "1. Open \"Voice scribe\" and locate the failed run.\n2. Click \"Try again\" on that row.\n3. Observe the row state immediately afterwards.\n4. Confirm you were not asked to record again.\n5. Wait for the retry to resolve.",
+    "expected": "The run returns to the processing state and is re-submitted using the audio already on the server — the Doctor is never asked to repeat the dictation. While OPENAI_API_KEY is absent the retry will fail again with the same message, which is correct behaviour for that configuration."
+  },
+  {
+    "id": "TC-AI-016",
+    "role": "Doctor",
+    "module": "AI Scribe — Failure path",
+    "name": "Discard a failed recording from the runs card",
+    "pre": "A run exists in the failed state.",
+    "steps": "1. Locate the failed run in \"Recordings being written up\".\n2. Note that the discard control is an unlabelled bin icon beside \"Try again\".\n3. Click the bin icon.\n4. Observe whether any confirmation is requested.\n5. Confirm the run disappears from the card.\n6. Log in as a user with Trash access and open \"Trash\".",
+    "expected": "The run is discarded and removed from the card. There is NO confirmation dialog — raise this as a usability finding, since the control is an unlabelled icon next to a destructive action. The visit is soft-deleted and should be visible in Trash, not permanently destroyed."
+  },
+  {
+    "id": "TC-AI-017",
+    "role": "Doctor",
+    "module": "AI Scribe — Failure path",
+    "name": "A run stuck in processing is failed by the recovery sweep",
+    "pre": "The scribe-recover cron is installed and CRON_SECRET is configured. A run has been in processing for more than 15 minutes.",
+    "steps": "1. Create a run that stalls in the processing state, or leave one for more than 15 minutes.\n2. Wait for the recovery job to run (scheduled every 10 minutes), or trigger GET /api/cron/scribe-recover with the correct CRON_SECRET.\n3. Reload \"Voice scribe\".\n4. Read the run's status and message.",
+    "expected": "The stalled run is moved to failed with the message \"The transcription stopped unexpectedly. Your recording was kept.\" The job does NOT automatically re-run the transcription — a human must press \"Try again\". The recording is retained."
+  },
+  {
+    "id": "TC-AI-018",
+    "role": "Doctor",
+    "module": "AI Scribe — Failure path",
+    "name": "A processing run cannot be discarded",
+    "pre": "A run is currently in the processing state.",
+    "steps": "1. While a run shows \"Writing the note…\", attempt to discard it using the bin icon if one is offered.\n2. Observe the result.",
+    "expected": "A run that is still processing cannot be discarded — only draft and failed runs can. The run remains and continues. No error page is shown."
+  },
+  {
+    "id": "TC-AI-019",
+    "role": "API",
+    "module": "AI Scribe — API contract",
+    "name": "POST /api/ai/scribe returns 202 and does not transcribe synchronously",
+    "pre": "A valid authenticated session cookie for a user holding clinical:create. A small valid audio file. API client such as curl or Postman.",
+    "steps": "1. Build a multipart/form-data POST to /api/ai/scribe with fields: audio (a small audio file) and patientId (a patient in the caller's clinic).\n2. Send the request with the authenticated session cookie.\n3. Record the HTTP status code.\n4. Record the response body.\n5. Note how long the request took.",
+    "expected": "HTTP 202 is returned almost immediately with a body containing visitId and status \"transcribing\". The AI has NOT run at this point — the request returns before any transcription begins."
+  },
+  {
+    "id": "TC-AI-020",
+    "role": "API",
+    "module": "AI Scribe — API contract",
+    "name": "Unauthenticated request is rejected",
+    "pre": "No session cookie.",
+    "steps": "1. Send the same multipart POST to /api/ai/scribe with no session cookie.\n2. Record the status code and body.",
+    "expected": "HTTP 401 with the body error \"Not signed in.\" No visit record is created and no audio is stored."
+  },
+  {
+    "id": "TC-AI-021",
+    "role": "API",
+    "module": "AI Scribe — API contract",
+    "name": "Caller without clinical:create is rejected",
+    "pre": "A valid session cookie for a Receptionist (no clinical permission).",
+    "steps": "1. Send the multipart POST to /api/ai/scribe using the Receptionist's session cookie.\n2. Record the status code and body.\n3. Verify in the database or UI that no visit was created.",
+    "expected": "HTTP 403 with the body error \"Not permitted.\" No visit is created and no audio is written to storage. This proves the restriction is enforced server-side and not only by hiding the nav item."
+  },
+  {
+    "id": "TC-AI-022",
+    "role": "API",
+    "module": "AI Scribe — API contract",
+    "name": "Missing required form fields",
+    "pre": "Valid session cookie with clinical:create.",
+    "steps": "1. Send a POST to /api/ai/scribe with an audio file but no patientId.\n2. Record the status and body.\n3. Repeat with patientId but no audio file.\n4. Record the status and body.",
+    "expected": "Both requests return HTTP 400 with the body error \"audio file and patientId are required.\" No visit is created in either case."
+  },
+  {
+    "id": "TC-AI-023",
+    "role": "API",
+    "module": "AI Scribe — Data isolation",
+    "name": "Cannot create a scribe run against another clinic's patient",
+    "pre": "Two clinics exist. You know a patient ID belonging to Clinic B. You have a session for a clinician in Clinic A.",
+    "steps": "1. Using the Clinic A session cookie, POST to /api/ai/scribe with audio and the patientId of a Clinic B patient.\n2. Record the status and body.\n3. Verify no visit was created for the Clinic B patient.\n4. Verify no audio file was stored under Clinic A for that patient.",
+    "expected": "HTTP 404 with the body error \"Patient not found.\" The patient's existence in another clinic is not revealed, nothing is written, and tenant isolation holds."
+  },
+  {
+    "id": "TC-AI-024",
+    "role": "API",
+    "module": "AI Scribe — Limits",
+    "name": "Audio larger than 25 MB is rejected",
+    "pre": "An audio file larger than 26,214,400 bytes. Valid session with clinical:create.",
+    "steps": "1. POST the oversized file to /api/ai/scribe with a valid patientId.\n2. Record the status code and body.\n3. Verify no visit was created.\n4. Repeat the request without a content-length header if your tool allows it, to exercise the second size check.",
+    "expected": "HTTP 413 with the body error \"Audio is too large (max 25 MB).\" No visit is created and no file is stored. Both the header check and the post-parse check return the same message."
+  },
+  {
+    "id": "TC-AI-025",
+    "role": "API",
+    "module": "AI Scribe — Limits",
+    "name": "Rate limit after 20 runs in 10 minutes",
+    "pre": "Valid session with clinical:create. A small audio file. Note the limiter is per user and held in memory, so restarting the server resets it.",
+    "steps": "1. Send 20 successful POST requests to /api/ai/scribe in quick succession with the same user.\n2. Confirm each returns 202.\n3. Send a 21st request.\n4. Record the status code, the response body and the retry-after response header.\n5. Wait for the stated period and send one more request.",
+    "expected": "The 21st request returns HTTP 429 with a body error of the form \"Too many requests. Please try again in N minute(s).\" and a retry-after header in seconds. After the window passes, requests succeed again. Being blocked does not extend the block."
+  },
+  {
+    "id": "TC-AI-026",
+    "role": "API",
+    "module": "AI Scribe — Limits",
+    "name": "Zero-byte and corrupt audio are accepted then fail in the job",
+    "pre": "A zero-byte file and a deliberately corrupted audio file. Valid session with clinical:create.",
+    "steps": "1. POST the zero-byte file as audio with a valid patientId.\n2. Record the status code.\n3. Open Voice scribe as that clinician and watch the run.\n4. Repeat with the corrupted file.\n5. Record the message shown to the clinician for each.",
+    "expected": "Both requests return HTTP 202 — there is no content validation at upload time. Each run then moves to failed. Check the failure text carefully: if a raw provider error string is shown to the clinician rather than a clean message, raise it as a defect."
+  },
+  {
+    "id": "TC-AI-027",
+    "role": "Doctor",
+    "module": "AI Scribe — Audio handling",
+    "name": "Confirm audio cannot be played back or downloaded by anyone",
+    "pre": "At least one completed or failed run exists with stored audio.",
+    "steps": "1. As the Doctor who recorded it, open Voice scribe and the patient's record and look for any audio player or download link.\n2. Repeat as Clinic Admin.\n3. Repeat as Manager.\n4. Confirm no export or download of the recording is offered anywhere in the application.",
+    "expected": "No role can play back or download the recording through the application — no audio player and no audio route exist. The file remains on the server's disk. Record this as confirmed current behaviour and confirm with the product owner that it is intended."
+  },
+  {
+    "id": "TC-AI-028",
+    "role": "Doctor",
+    "module": "AI Scribe — Audio handling",
+    "name": "Discarding a run does not delete the stored recording",
+    "pre": "A failed or draft run exists. You have access to the server storage directory or to the database.",
+    "steps": "1. Note the visit and its audio key.\n2. Discard the run from the UI.\n3. Confirm the visit is soft-deleted and appears in Trash.\n4. Inspect the storage directory for the audio file.",
+    "expected": "The visit is soft-deleted but the audio file remains on disk. Confirm with the product owner whether orphaned audio should be cleaned up; raise as a data-retention finding if not."
+  },
+  {
+    "id": "TC-AI-029",
+    "role": "Doctor",
+    "module": "AI Scribe — Transcription",
+    "name": "[BLOCKED] Successful transcription produces a draft note",
+    "pre": "[BLOCKED: needs OPENAI_API_KEY] Both OPENAI_API_KEY and ANTHROPIC_API_KEY must be set and valid.",
+    "steps": "1. Log in as the Doctor and open \"Voice scribe\".\n2. Select a patient.\n3. Click \"Start recording\" and dictate a clear clinical sentence, for example: \"Patient reports pain on the lower right for four days, worse on cold. Tender to percussion, no swelling. Start treatment today, review in one week.\"\n4. Click \"Stop & generate\".\n5. Wait for processing to finish.\n6. Observe the screen that replaces the spinner.",
+    "expected": "The run moves from processing to draft and the review screen appears, titled \"Review draft: <patient name>\" with the description \"AI-generated draft. Edit anything, then approve to save. Nothing is saved to the record until you approve.\" A structured note is shown. Nothing has yet been written to the patient's record."
+  },
+  {
+    "id": "TC-AI-030",
+    "role": "Doctor",
+    "module": "AI Scribe — Transcription",
+    "name": "[BLOCKED] Raw transcript is viewable but not editable",
+    "pre": "[BLOCKED: needs OPENAI_API_KEY] A draft is open on the review screen.",
+    "steps": "1. On the review screen, locate the collapsed section labelled \"Transcript\".\n2. Expand it.\n3. Confirm the spoken words appear as text.\n4. Attempt to click into the transcript text and type.\n5. Look for any save or edit control for the transcript itself.",
+    "expected": "The transcript is displayed read-only and reflects what was dictated. It CANNOT be edited — there is deliberately no transcript editor anywhere in the product. Only the structured note is editable."
+  },
+  {
+    "id": "TC-AI-031",
+    "role": "Doctor",
+    "module": "AI Scribe — Transcription",
+    "name": "[BLOCKED] Transcript and note belong to the correct patient",
+    "pre": "[BLOCKED: needs OPENAI_API_KEY] Two patients exist with clearly different names.",
+    "steps": "1. Record a note for Patient A, dictating a detail unique to A.\n2. Wait for the draft and confirm the review screen names Patient A.\n3. Approve the draft.\n4. Record a second note for Patient B with a different unique detail.\n5. Approve it.\n6. Open Patient A's timeline and read the note.\n7. Open Patient B's timeline and read the note.",
+    "expected": "Each note contains only the content dictated for that patient and appears only on that patient's timeline. No content is cross-contaminated between patients."
+  },
+  {
+    "id": "TC-AI-032",
+    "role": "Doctor",
+    "module": "AI Scribe — Note editing",
+    "name": "[BLOCKED] Edit the structured note before approving",
+    "pre": "[BLOCKED: needs OPENAI_API_KEY] A draft is open on the review screen.",
+    "steps": "1. Locate the structured fields such as chief complaint, diagnosis, treatment performed and treatment plan.\n2. Change the text in one field.\n3. Where a list is shown, use the add control to add an item and the remove control to delete one.\n4. Note that a field the AI omitted entirely has no row to edit.\n5. Click \"Approve & save\".\n6. Reopen the patient's timeline and read the saved note.",
+    "expected": "Edits are accepted and the APPROVED note contains the Doctor's edited text, not the original AI text. Note for QA: fields absent from the AI output cannot be added from this editor — confirm with the product owner whether that is acceptable."
+  },
+  {
+    "id": "TC-AI-033",
+    "role": "Doctor",
+    "module": "AI Scribe — Note editing",
+    "name": "[BLOCKED] Drug and allergy warnings are shown on the draft",
+    "pre": "[BLOCKED: needs OPENAI_API_KEY] A patient with a recorded allergy. A dictation that prescribes a drug matching that allergy, and a drug outside the formulary.",
+    "steps": "1. Record a note for the patient that prescribes a drug they are allergic to, and another drug that is not in the dental formulary.\n2. Wait for the draft.\n3. Read the warning blocks displayed above the note editor.",
+    "expected": "An allergy conflict warning is shown prominently listing the drug and the matching allergy, and a separate warning lists drugs not found in the formulary. The warnings do not block approval — they are advisory and the clinician decides."
+  },
+  {
+    "id": "TC-AI-034",
+    "role": "Doctor",
+    "module": "AI Scribe — Approval",
+    "name": "[BLOCKED] Approving writes the note to the patient record",
+    "pre": "[BLOCKED: needs OPENAI_API_KEY] A draft is open.",
+    "steps": "1. On the review screen click \"Approve & save\".\n2. Observe the button label while saving.\n3. Wait for the screen to clear.\n4. Open the patient's detail page.\n5. Locate the visit in the timeline and open the note.\n6. Log out, log back in, and reopen the same patient.",
+    "expected": "The visit moves to approved, the note appears on the patient's timeline, and the record persists across logout and login. The draft is removed from \"Pending approval\". The record keeps both the dictating clinician and the approving clinician."
+  },
+  {
+    "id": "TC-AI-035",
+    "role": "Doctor",
+    "module": "AI Scribe — Approval",
+    "name": "[BLOCKED] A recall is scheduled from the note's next visit",
+    "pre": "[BLOCKED: needs OPENAI_API_KEY] A dictation that states a follow-up, for example \"review in one week\".",
+    "steps": "1. Record a note that clearly states a follow-up interval.\n2. Confirm the draft contains a next-visit reason and a number of days.\n3. Click \"Approve & save\".\n4. Open \"Recalls\" in the sidebar.\n5. Locate the patient.",
+    "expected": "A recall is created for that patient with the stated reason and a due date matching the interval. A note with no follow-up, or a follow-up of zero days, creates no recall."
+  },
+  {
+    "id": "TC-AI-036",
+    "role": "Doctor",
+    "module": "AI Scribe — Approval",
+    "name": "[BLOCKED] Discarding a draft does not write to the record",
+    "pre": "[BLOCKED: needs OPENAI_API_KEY] A draft is open on the review screen.",
+    "steps": "1. On the review screen click \"Discard\".\n2. Observe whether a confirmation is requested.\n3. Open the patient's detail page and inspect the timeline.\n4. Open \"Trash\".",
+    "expected": "The draft is discarded without being written to the patient's clinical record. Note that NO confirmation dialog is shown before discarding — raise this as a usability risk. The discarded visit is soft-deleted and recoverable from Trash."
+  },
+  {
+    "id": "TC-AI-037",
+    "role": "Doctor",
+    "module": "AI Scribe — Ownership",
+    "name": "A second doctor cannot see or open another doctor's draft",
+    "pre": "Two active Doctor accounts. Doctor A has at least one unapproved draft or in-flight run.",
+    "steps": "1. Log in as Doctor A and create a run. Note the patient.\n2. Log out and log in as Doctor B.\n3. Open \"Voice scribe\".\n4. Inspect \"Pending approval\" and \"Recordings being written up\".\n5. Open the same patient's detail page and inspect the timeline.",
+    "expected": "Doctor B sees none of Doctor A's drafts or runs in either card, and the patient timeline shows Doctor B only approved notes plus Doctor B's own drafts. A draft belongs to whoever dictated it."
+  },
+  {
+    "id": "TC-AI-038",
+    "role": "Doctor",
+    "module": "AI Scribe — Ownership",
+    "name": "Forcing another doctor's draft ID is refused server-side",
+    "pre": "Doctor A has a draft whose visit ID you know. A session for Doctor B.",
+    "steps": "1. As Doctor B, attempt to open Doctor A's draft by its ID through the application.\n2. Attempt to approve it.\n3. Attempt to discard it.\n4. After each attempt, log back in as Doctor A and confirm the draft is untouched.",
+    "expected": "Every attempt is refused with a message such as \"Draft not found, or it belongs to another clinician.\" The restriction is enforced in the database query, not merely by hiding the UI. Doctor A's draft remains unchanged and unapproved."
+  },
+  {
+    "id": "TC-AI-039",
+    "role": "Clinic Admin",
+    "module": "AI Scribe — Handover",
+    "name": "A stranded draft becomes reviewable after its author is deactivated",
+    "pre": "Doctor A has an unapproved draft. A Clinic Admin account. Permission to suspend or delete a staff member.",
+    "steps": "1. As Doctor A, create a draft and leave it unapproved.\n2. Log in as the Clinic Admin and open \"Voice scribe\". Confirm the draft is NOT listed.\n3. Open Staff and suspend or delete Doctor A.\n4. Return to \"Voice scribe\" as the Clinic Admin.\n5. Locate the card titled \"Left by a former colleague\".\n6. Click \"Review\" on the stranded draft and read the explanatory text.\n7. Approve it.\n8. Open the patient's record and check the attribution.",
+    "expected": "While Doctor A can still log in, nobody else can reach the draft. Once Doctor A can no longer sign in, the draft appears in a clearly separated \"Left by a former colleague\" card and can be reviewed and approved. The record keeps Doctor A as the clinician who saw the patient and the approver as who signed it."
+  },
+  {
+    "id": "TC-AI-040",
+    "role": "Clinic Admin",
+    "module": "AI Scribe — Handover",
+    "name": "Reactivating the author returns the draft to them",
+    "pre": "A draft is currently stranded because its author is suspended.",
+    "steps": "1. Confirm the stranded draft is visible to the Clinic Admin in \"Left by a former colleague\".\n2. Open Staff and reactivate the suspended Doctor.\n3. Return to \"Voice scribe\" as the Clinic Admin and refresh.\n4. Log in as the reactivated Doctor and open \"Voice scribe\".",
+    "expected": "The draft disappears from the Clinic Admin's handover card and is returned to its author under \"Pending approval\". Suspension is reversible and the author-only rule resumes immediately."
+  },
+  {
+    "id": "TC-AI-041",
+    "role": "Manager",
+    "module": "AI Scribe — Ownership",
+    "name": "Manager can read approved notes but cannot approve drafts",
+    "pre": "At least one approved note and one draft exist.",
+    "steps": "1. Log in as the Manager.\n2. Open a patient with an approved note and read the timeline.\n3. Confirm the approved note content is visible.\n4. Open \"Voice scribe\".\n5. Confirm no drafts are listed and no approve control is offered.",
+    "expected": "The Manager can read approved clinical notes (clinical view permission) but cannot open, edit or approve any draft, and cannot record. No draft content is exposed to them."
+  },
+  {
+    "id": "TC-AI-042",
+    "role": "Receptionist",
+    "module": "AI Scribe — Ownership",
+    "name": "Receptionist cannot read clinical notes or transcripts",
+    "pre": "A patient has at least one approved clinical note.",
+    "steps": "1. Log in as the Receptionist.\n2. Open that patient's detail page.\n3. Inspect the timeline and every visible card for clinical note content.\n4. Confirm no transcript text is shown anywhere.\n5. Attempt to open /clinic/scribe directly.",
+    "expected": "No clinical note body and no transcript text is exposed to the Receptionist on any screen, and the scribe page is not reachable. If the Receptionist can see note content anywhere, raise it immediately as a confidentiality defect."
+  },
+  {
+    "id": "TC-AI-043",
+    "role": "Super Admin",
+    "module": "AI Scribe — Isolation",
+    "name": "Impersonating a clinic cannot record or approve",
+    "pre": "A Super Admin with the impersonate capability. A clinic with clinical data.",
+    "steps": "1. Log in to the admin panel as the Super Admin.\n2. Open a clinic and start \"Open workspace (view as clinic)\", confirming the step-up password prompt.\n3. Once in the clinic workspace, open \"Voice scribe\" if it is visible.\n4. Attempt to record.\n5. Attempt to approve any draft.\n6. Exit impersonation.",
+    "expected": "The impersonation banner is shown and the session is read-only — capabilities are reduced to view-only, so recording and approving are impossible. The impersonation start and end are both written to the clinic's own activity log against the real admin's name."
+  },
+  {
+    "id": "TC-AI-044",
+    "role": "Doctor",
+    "module": "AI Scribe — Feature gate",
+    "name": "A clinic with no module configured for the scribe is refused cleanly",
+    "pre": "A clinic whose enabled modules do not provide a scribe prompt, or whose module list is empty.",
+    "steps": "1. Ask the Super Admin to disable all specialty modules for a test clinic.\n2. Log in as a clinician in that clinic.\n3. Open \"Voice scribe\", select a patient and attempt to record.\n4. Observe the outcome.",
+    "expected": "The request is refused with a clear message stating the clinic has no module with a scribe configured. The application does not crash and no partial visit is left behind."
+  }
+]

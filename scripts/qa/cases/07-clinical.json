@@ -1,0 +1,128 @@
+[
+  {
+    "id": "TC-CLIN-001",
+    "role": "Clinic Admin",
+    "module": "Scheduling — Doctor hours",
+    "name": "Configure a doctor's working hours and daily cap",
+    "pre": "Clinic Admin access. A doctor account.",
+    "steps": "1. Open \"Staff\" and then the doctor's record.\n2. Set working hours for at least two weekdays, for example 09:00 to 13:00.\n3. Add a second window on one of those days, for example 17:00 to 20:00, to represent a split shift.\n4. Set a daily appointment limit.\n5. Set a consultation fee.\n6. Save.\n7. Open \"Doctor schedule\" and confirm the week grid reflects what you set.\n8. Start a booking for that doctor on one of those days and confirm the offered times match both windows.",
+    "expected": "Both windows are stored for the same weekday and appear on the schedule grid. The booking form offers times from both windows only. The cap and fee are saved and take effect on the next booking."
+  },
+  {
+    "id": "TC-CLIN-002",
+    "role": "Receptionist",
+    "module": "Scheduling — Doctor schedule",
+    "name": "Front desk can read the rota but not reshape capacity",
+    "pre": "Receptionist on default permissions. A doctor with configured hours.",
+    "steps": "1. Sign in as the Receptionist and open \"Doctor schedule\".\n2. Confirm every doctor's working week is visible.\n3. Look for a control to change a doctor's working hours or consultation fee.\n4. Attempt to open a doctor's staff record directly by URL.",
+    "expected": "The Receptionist can see the rota, which they need in order to book against it, but the full schedule editor — hours, flexible hours and fee — lives on the staff record and stays restricted. Seeing a rota and reshaping a doctor's capacity are deliberately different authorities."
+  },
+  {
+    "id": "TC-CLIN-003",
+    "role": "Doctor",
+    "module": "Scheduling — Doctor schedule",
+    "name": "A doctor sees only their own row",
+    "pre": "At least two doctors with configured hours.",
+    "steps": "1. Sign in as Doctor A.\n2. Open \"Doctor schedule\".\n3. Record whose rows are visible.\n4. Sign in as Doctor B and repeat.",
+    "expected": "Each doctor sees their own schedule. Confirm precisely what is visible and report it — a clinician reaching their own rota is the intent of giving them this screen."
+  },
+  {
+    "id": "TC-CLIN-004",
+    "role": "Receptionist",
+    "module": "Scheduling — Leave",
+    "name": "Setting leave cancels existing appointments in the range",
+    "pre": "A doctor with at least two appointments booked on a future date.",
+    "steps": "1. Note the appointments booked for that doctor on the chosen date.\n2. Open the leave feature and create leave covering that date.\n3. Save.\n4. Return to Appointments for that date and inspect those appointments.\n5. Attempt to book a new appointment for that doctor on the same date.\n6. Check whether the affected patients were notified.",
+    "expected": "Existing appointments in the leave range are cancelled, and new bookings on those days are refused. Confirm patients receive a cancellation message where messaging is configured — the clinic must not be left with silently cancelled patients."
+  },
+  {
+    "id": "TC-CLIN-005",
+    "role": "Doctor",
+    "module": "Scheduling — Leave",
+    "name": "A doctor may manage only their own leave",
+    "pre": "Two doctors.",
+    "steps": "1. Sign in as Doctor A.\n2. Create leave for yourself and confirm it saves.\n3. Attempt to create, edit or delete leave for Doctor B.\n4. Record whether any control is offered and whether a direct attempt is refused.",
+    "expected": "Doctor A can manage their own leave but cannot declare a colleague absent. Confirm the restriction holds server-side and not only by hiding the control."
+  },
+  {
+    "id": "TC-CLIN-006",
+    "role": "Doctor",
+    "module": "Clinical — Notes",
+    "name": "Approved notes appear on the patient timeline and persist",
+    "pre": "A patient with at least one approved clinical note.",
+    "steps": "1. Sign in as the Doctor and open the patient's record.\n2. Locate the visit in the timeline and open the note.\n3. Confirm the clinical content is readable.\n4. Confirm the record shows who saw the patient and who approved the note.\n5. Sign out, sign back in and reopen the patient.",
+    "expected": "The approved note is attached to the correct visit, readable, and persists across sessions. Where the dictating clinician and the approving clinician differ, both names are recorded."
+  },
+  {
+    "id": "TC-CLIN-007",
+    "role": "Doctor",
+    "module": "Clinical — Prescriptions",
+    "name": "Generate and print a prescription",
+    "pre": "A patient with an approved visit containing prescribed drugs.",
+    "steps": "1. Open the approved visit.\n2. Generate or open the prescription.\n3. Confirm the drug lines, dosage and duration appear.\n4. Confirm the clinic and prescriber details are present.\n5. Print or save it as a PDF and confirm it is legible.\n6. Confirm the prescription contains the drug lines only and not the full clinical note.",
+    "expected": "A readable prescription is produced containing the drug lines, the patient and the prescriber. It deliberately excludes the clinical note body, which is why a receptionist may reprint it without seeing confidential content."
+  },
+  {
+    "id": "TC-CLIN-008",
+    "role": "Doctor",
+    "module": "Clinical — Prescriptions",
+    "name": "A shared prescription link expires and cannot be guessed",
+    "pre": "A prescription that can be shared by link.",
+    "steps": "1. Generate a shareable prescription link.\n2. Open it in a private window with no session and confirm it renders.\n3. Alter one character of the token in the URL and reload.\n4. Record what is returned.\n5. If an expiry is configured, wait past it or adjust the clock and retry.",
+    "expected": "A valid signed link opens without a login, which is intended so a patient can receive it. A tampered token returns an ordinary not-found rather than an error revealing anything, and an expired link no longer renders. No patient data leaks from an invalid token."
+  },
+  {
+    "id": "TC-CLIN-009",
+    "role": "Doctor",
+    "module": "Clinical — Treatment plans",
+    "name": "Create a treatment plan and schedule an item onto a visit",
+    "pre": "A patient and a doctor with treatment-plan permissions. The clinic has priced procedures.",
+    "steps": "1. Open the patient and create a treatment plan with at least two items.\n2. Save and confirm the plan status.\n3. Start a new appointment for that patient.\n4. Locate the section offering unscheduled plan items.\n5. Tick one item and complete the booking.\n6. Open the saved appointment and confirm the item is billed like a procedure.\n7. Return to the treatment plan and confirm the item is no longer unscheduled.",
+    "expected": "Plan items can be scheduled onto an appointment and bill in the same way as procedures. The plan reflects that the item has been scheduled, so it is not offered twice."
+  },
+  {
+    "id": "TC-CLIN-010",
+    "role": "Doctor",
+    "module": "Clinical — Recalls",
+    "name": "Recalls list patients due a follow-up",
+    "pre": "At least one recall exists, created from an approved note or manually.",
+    "steps": "1. Open \"Recalls\".\n2. Confirm the due patients are listed with their reason and due date.\n3. Note the statuses available.\n4. Book an appointment for a listed patient.\n5. Return to Recalls and confirm the status reflects that a booking was made.",
+    "expected": "Recalls shows patients due a follow-up with the reason and date. Booking the patient advances the recall so the clinic is not chasing someone who has already been seen."
+  },
+  {
+    "id": "TC-CLIN-011",
+    "role": "Receptionist",
+    "module": "Clinical — Attachments",
+    "name": "Upload and retrieve a clinical attachment",
+    "pre": "A patient record. A user holding attachment permissions.",
+    "steps": "1. Open the patient and find the attachments area.\n2. Upload a small valid document.\n3. Confirm it appears in the list with its kind.\n4. Open it and confirm it downloads or renders.\n5. Attempt to upload an oversized file and record the message.\n6. Attempt to upload a file of an unexpected type and record the result.",
+    "expected": "A valid attachment uploads, is listed and can be retrieved. Oversized files are refused with a clear message. Confirm which file types are accepted and that a rejected upload leaves no partial record behind."
+  },
+  {
+    "id": "TC-CLIN-012",
+    "role": "Receptionist",
+    "module": "Clinical — Attachments",
+    "name": "An attachment from another clinic cannot be fetched",
+    "pre": "Two clinics with attachments. An attachment ID from Clinic B.",
+    "steps": "1. Sign in as a Clinic A user.\n2. Request the attachment route directly using the Clinic B attachment ID.\n3. Record the status code and body.\n4. Confirm no file content is returned.",
+    "expected": "The request is refused and no file is served. Serving another clinic's clinical attachment would be a serious confidentiality defect."
+  },
+  {
+    "id": "TC-CLIN-013",
+    "role": "Clinic Admin",
+    "module": "Clinical — Trash",
+    "name": "Deleted clinical records are recoverable within the retention window",
+    "pre": "A discarded draft or deleted clinical record. Trash permission.",
+    "steps": "1. Delete or discard a clinical record.\n2. Open \"Trash\".\n3. Confirm the item is listed with who deleted it and when.\n4. Use the search and type filters to find it.\n5. Restore it.\n6. Confirm it reappears in its original place with its content intact.",
+    "expected": "Nothing is hard-deleted. The item is listed in Trash with its deleter and timestamp, can be filtered and searched, and restores intact along with any child records hidden by the same deletion."
+  },
+  {
+    "id": "TC-CLIN-014",
+    "role": "Clinic Admin",
+    "module": "Clinical — Activity log",
+    "name": "Record views and changes are audited",
+    "pre": "The super admin has granted this clinic activity-log access. A Clinic Admin.",
+    "steps": "1. As a Doctor, open a patient record.\n2. As the Clinic Admin, open \"Activity log\".\n3. Note the default period.\n4. Find the entry recording that the patient record was viewed, with the actor's name.\n5. Filter by employee and by date range.\n6. Confirm the clinic admin sees only the categories the super admin granted.",
+    "expected": "Opening a patient record is audited with the actor and timestamp. Filters work. The clinic sees only the action categories granted to it — if no access was granted the Activity log item does not appear at all."
+  }
+]

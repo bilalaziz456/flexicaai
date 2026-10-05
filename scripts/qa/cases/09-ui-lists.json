@@ -1,0 +1,128 @@
+[
+  {
+    "id": "TC-LIST-001",
+    "role": "Receptionist",
+    "module": "Lists — Pagination",
+    "name": "Page through a long list and confirm totals stay consistent",
+    "pre": "A list with more records than fit on one page, for example Payments or Patients.",
+    "steps": "1. Open the list and note the total count shown in the header.\n2. Record the records on page one.\n3. Move to page two and confirm the records differ from page one.\n4. Return to page one and confirm the same records as before.\n5. Jump to the last page and confirm the count of remaining rows is plausible.\n6. Confirm the header total did not change while paging.",
+    "expected": "Paging shows distinct records with no duplicates and no omissions. The header total describes the whole filtered set, not the current page, and does not change as you page."
+  },
+  {
+    "id": "TC-LIST-002",
+    "role": "Receptionist",
+    "module": "Lists — Filters",
+    "name": "Filters and the header total agree",
+    "pre": "A list with a date filter and other filters, such as Payments.",
+    "steps": "1. Open the list and note the default period and the total.\n2. Apply a narrower date range.\n3. Confirm the rows and the header total both reduce.\n4. Add a second filter, such as a method.\n5. Confirm both filters apply together rather than replacing each other.\n6. Page to the second page with the filters active and confirm the filter is still applied.\n7. Clear all filters and confirm the original list returns.",
+    "expected": "Filters combine, the header total reflects the filtered set rather than the page, and the filter persists while paging. A total that describes the page rather than the filtered set is a defect."
+  },
+  {
+    "id": "TC-LIST-003",
+    "role": "Receptionist",
+    "module": "Lists — Default periods",
+    "name": "Record the default period on each money list",
+    "pre": "Clinic has the sales feature and historical data spanning several months.",
+    "steps": "1. Open Payments and record the default period shown before touching any filter.\n2. Repeat for Invoices.\n3. Repeat for Receivables.\n4. Repeat for Sales and Profit and Loss.\n5. For each, confirm older records really do exist outside the default window by widening the range.",
+    "expected": "Each screen opens on a sensible default period, and widening the range reveals older data. Document the default for each screen — a tester reporting missing data is usually looking at a default window, not a defect."
+  },
+  {
+    "id": "TC-LIST-004",
+    "role": "Receptionist",
+    "module": "Lists — Empty states",
+    "name": "Empty results explain themselves",
+    "pre": "Any filterable list.",
+    "steps": "1. Open each major list: Patients, Appointments, Payments, Invoices, Receivables, Recalls, Trash.\n2. On each, apply a filter that can match nothing.\n3. Record the message shown in the empty area.\n4. Confirm no raw error, blank panel or spinner-forever occurs.\n5. Clear the filter and confirm the list returns.",
+    "expected": "Each list shows a clear empty state saying what is missing rather than an empty box or an error. Clearing the filter restores the list every time."
+  },
+  {
+    "id": "TC-LIST-005",
+    "role": "Receptionist",
+    "module": "Lists — Sorting",
+    "name": "Sortable columns sort in both directions",
+    "pre": "A table that offers sortable column headers.",
+    "steps": "1. Open a list with sortable headers.\n2. Click a column header and confirm the order changes.\n3. Click the same header again and confirm the order reverses.\n4. Confirm the sort indicator reflects the current direction.\n5. Page to the second page and confirm the sort is still applied.\n6. Apply a filter and confirm the sort survives.",
+    "expected": "Sorting works in both directions, is indicated clearly, and persists across paging and filtering. Sorting must apply to the whole filtered set, not only to the visible page."
+  },
+  {
+    "id": "TC-LIST-006",
+    "role": "Receptionist",
+    "module": "UI — Loading states",
+    "name": "Slow pages show a loading state rather than a blank screen",
+    "pre": "Browser developer tools able to throttle the network.",
+    "steps": "1. Open developer tools and throttle the connection to a slow profile.\n2. Navigate to the Dashboard, then Payments, then a patient record.\n3. Observe what is displayed while each page loads.\n4. Confirm no page shows a permanently blank area or a spinner that never resolves.\n5. Restore normal speed.",
+    "expected": "Each page shows a skeleton or loading indicator while data is fetched, then resolves to content. No page remains blank indefinitely or leaves a spinner running after the data has arrived."
+  },
+  {
+    "id": "TC-LIST-007",
+    "role": "Receptionist",
+    "module": "UI — Error states",
+    "name": "A failed page shows an error state with a way back",
+    "pre": "Ability to interrupt the connection, or a known failing condition.",
+    "steps": "1. Open a data-heavy page.\n2. Disconnect the network and force a reload.\n3. Record what is displayed.\n4. Confirm a way to retry or navigate back is offered.\n5. Reconnect and retry.",
+    "expected": "A readable error state is shown with a route back, not a raw stack trace or a white screen. No internal file paths, SQL or stack frames are exposed to the user. Reconnecting and retrying recovers the page."
+  },
+  {
+    "id": "TC-LIST-008",
+    "role": "Receptionist",
+    "module": "UI — Confirmation dialogs",
+    "name": "Destructive actions ask before acting",
+    "pre": "Records that can be safely deleted.",
+    "steps": "1. Attempt to delete a patient and record whether a confirmation appears.\n2. Cancel the dialog and confirm nothing was deleted.\n3. Repeat for deleting an appointment, voiding a payment and deleting a staff member.\n4. Note any destructive action that proceeds with NO confirmation.\n5. For each confirmation, confirm the wording names what will happen.",
+    "expected": "Destructive actions prompt before acting and cancelling leaves the record untouched. Record every destructive action that does NOT prompt — the discard control in the scribe runs card is one known example — and raise them as usability risks."
+  },
+  {
+    "id": "TC-LIST-009",
+    "role": "Receptionist",
+    "module": "UI — Toasts",
+    "name": "Success and failure are both announced",
+    "pre": "Any form.",
+    "steps": "1. Save a form successfully and confirm a success message appears.\n2. Save the same form again with the same values and confirm a message appears the second time too.\n3. Submit a form with invalid data and confirm an error is shown.\n4. Confirm the error names the problem rather than saying only that something failed.\n5. Confirm the message disappears on its own or can be dismissed.",
+    "expected": "Every save reports its outcome, including on a repeated identical save — a confirmation that only appears the first time is a defect. Errors name the specific problem. Messages do not stack up indefinitely."
+  },
+  {
+    "id": "TC-LIST-010",
+    "role": "Receptionist",
+    "module": "UI — Navigation",
+    "name": "Sidebar, breadcrumbs and back links behave",
+    "pre": "Signed in to the clinic workspace.",
+    "steps": "1. Click through every sidebar item available to your role and confirm each loads its intended page.\n2. Confirm the active item is highlighted.\n3. Open a detail page such as a patient and use the back link.\n4. Confirm it returns to the list rather than the dashboard.\n5. Collapse and expand a navigation group and confirm the state behaves sensibly.\n6. Narrow the browser to a phone width and confirm the navigation is still reachable.",
+    "expected": "Every navigation item loads the right page and the current page is indicated. Back links return to the originating list. At phone width the navigation collapses into a reachable menu rather than disappearing."
+  },
+  {
+    "id": "TC-LIST-011",
+    "role": "Receptionist",
+    "module": "UI — Theme",
+    "name": "Dark and light themes are both legible",
+    "pre": "A theme toggle is available.",
+    "steps": "1. Switch the theme to dark.\n2. Visit the Dashboard, a patient record, an appointment with a bill, and a report with charts.\n3. Look specifically for text that becomes unreadable, invisible borders, or charts whose colours vanish.\n4. Open a dialog and a dropdown in dark mode and confirm they are readable.\n5. Trigger a toast in dark mode.\n6. Switch back to light and confirm the same screens.\n7. Reload and confirm the chosen theme persists.",
+    "expected": "Both themes are fully legible, including dialogs, dropdowns, toasts and charts. The chosen theme persists across a reload. Any element readable in one theme and not the other is a defect."
+  },
+  {
+    "id": "TC-LIST-012",
+    "role": "Receptionist",
+    "module": "UI — Forms",
+    "name": "Form state survives a failed submission",
+    "pre": "Any multi-field form, such as the appointment booking form.",
+    "steps": "1. Fill in several fields on the form.\n2. Deliberately leave one required field invalid.\n3. Submit.\n4. Confirm the error is shown.\n5. Check whether the values you entered are still present.\n6. Correct the invalid field and submit again.",
+    "expected": "A failed submission keeps everything already entered — the user must never have to retype a long form because one field was wrong. Correcting the field and resubmitting then succeeds."
+  },
+  {
+    "id": "TC-LIST-013",
+    "role": "Receptionist",
+    "module": "UI — Input hygiene",
+    "name": "Special characters and scripts are handled safely",
+    "pre": "Any text field that is later displayed, such as a patient name or an appointment reason.",
+    "steps": "1. Enter a value containing angle brackets and a script tag into a name or reason field.\n2. Save.\n3. Open every screen that displays that value, including lists, detail pages and a printed document.\n4. Confirm the text is displayed literally and no script executes.\n5. Export the list containing it to CSV and open the file.\n6. Confirm a value beginning with an equals sign is not executed as a spreadsheet formula.",
+    "expected": "Markup is displayed as text and never executed anywhere, including in print views. Values that look like spreadsheet formulas do not execute when the CSV is opened. Any execution is a serious security defect."
+  },
+  {
+    "id": "TC-LIST-014",
+    "role": "All roles",
+    "module": "UI — Unknown routes",
+    "name": "An unknown URL inside the workspace shows a not-found page",
+    "pre": "Signed in to any panel.",
+    "steps": "1. Enter a nonsense path under the workspace, for example /clinic/does-not-exist.\n2. Record what is displayed.\n3. Note the HTTP status returned, using developer tools.\n4. Confirm a route back is offered.\n5. Repeat under /admin as a super admin.",
+    "expected": "A not-found page is shown with a way back. NOTE: the HTTP status is deliberately 200 rather than 404 inside the panels, as a consequence of the security policy design. Do not raise the status code as a defect."
+  }
+]
