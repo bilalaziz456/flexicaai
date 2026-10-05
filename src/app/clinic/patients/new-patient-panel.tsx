@@ -23,7 +23,11 @@ export function NewPatientPanel({ backHref }: { backHref: string }) {
       <Card>
         <CardHeader>
           <CardTitle>New patient</CardTitle>
-          <CardDescription>Only the name is required.</CardDescription>
+          {/* Was "Only the name is required." — stale since the phone became
+              mandatory. The form rejects a patient without one (WhatsApp is the whole
+              patient channel), so the copy was telling people the opposite of what the
+              validation does. */}
+          <CardDescription>Name and WhatsApp number are required.</CardDescription>
         </CardHeader>
         <CardContent>
           <AddPatientForm />
