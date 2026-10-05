@@ -1,0 +1,35 @@
+
+=== Authentication ===
+  PASS  TC-AUTH-001    all four clinic roles land on /clinic (admin->/clinic, manager->/clinic, doctor->/clinic, receptionist->/clinic)
+  PASS  TC-AUTH-002    unknown username stays on /login, error="Incorrect username or password."
+  PASS  TC-AUTH-003    wrong password gives the SAME message as unknown user: "Incorrect username or password."
+  PASS  TC-AUTH-004    empty fields blocked by required validation, still on /login
+  PASS  TC-AUTH-005    suspended account refused AFTER password check: "Your account has been suspended. Please contact your administrator."
+  PASS  TC-AUTH-007    correct password still refused while locked: "Too many attempts. Please try again in 15 minutes."
+  PASS  TC-AUTH-029    anonymous hits redirect to /login (/login, /login, /login)
+  PASS  TC-AUTH-030    deep link is NOT restored — landed on /clinic rather than /clinic/payments (documented behaviour)
+  PASS  TC-AUTH-025    sign out left /clinic -> /login; protected page after sign-out -> /login
+
+=== Navigation visibility ===
+  PASS  TC-RBAC-001    doctor nav = Dashboard|Appointments|Patients|Voice scribe|Revenue shares|Reports|Discount approvals|Doctor schedule|No-shows|Recalls|Settings|Trash|QDQA Doctor|QD|QDqarunt0yh clinic|Patients1Registered
+  PASS  TC-RBAC-002    receptionist nav = Dashboard|Appointments|Patients|Payments|Invoices|Receivables|Petty cash|Reports|History|Procedures|Doctor schedule|No-shows|WhatsApp|Recalls|Settings|Trash|QRQA Receptionist|QR|QRqarunt0yh clinic|Day book|Patients1Registered
+  PASS  TC-RBAC-003    manager nav = Dashboard|Appointments|Patients|Voice scribe|Sales|Payments|Invoices|Receivables|Discounts|Petty cash|Reports|History|Procedures|Doctor schedule|No-shows|WhatsApp|Recalls|Settings|Trash|QMQA Manager|QM|QMqarunt0yh clinic|Day book|Patients1Registered
+
+=== Direct-URL route protection ===
+  PASS  TC-RBAC-004    doctor -> /clinic/staff = /clinic, /clinic/staff/new = /clinic
+  PASS  TC-RBAC-005    /clinic/staff->/clinic, /clinic/expenses->/clinic, /clinic/pl->/clinic, /clinic/scribe->/clinic, /clinic/logs->/clinic
+  PASS  TC-RBAC-006    /clinic/staff->/clinic, /clinic/expenses->/clinic, /clinic/pl->/clinic
+  PASS  TC-RBAC-007    clinic admin bounced from the company panel: /admin->/clinic, /admin/team->/clinic, /admin/overview->/clinic
+  PASS  TC-AI-002      receptionist -> /clinic/scribe = /clinic (scribe unreachable)
+  PASS  TC-AI-003      manager opens the page, sees the no-permission card, and no Start recording button is rendered
+
+=== API authorisation and isolation ===
+  PASS  TC-RBAC-010    anonymous API: patients=401 basic, finance=401 basic
+  PASS  TC-RBAC-009    doctor API: finance=403 basic, staff=403 basic, body=Forbidden
+  PASS  TC-PAT-019     own patient page=/clinic/patients/b4080348-1c3f-400e-9060-a066f6cab133; other clinic's patient page=/clinic/patients/50a36617-af68-4ac2-a98c-3993db6972b1; name leaked=false
+  PASS  TC-PAT-017     export contains own patient=true, contains other clinic's patient=false
+
+=== Unknown routes ===
+  PASS  TC-LIST-014    unknown /clinic path returns HTTP 200 (200 is the documented, deliberate behaviour)
+
+23/23 passed. Written to scripts/qa/run/results.json
