@@ -214,5 +214,23 @@
     "pre": "Two clinics each with payments and expenses.",
     "steps": "1. Sign in as a Clinic A admin.\n2. Export the finance data to CSV.\n3. Open the file and inspect every row.\n4. Confirm no Clinic B patient, amount or reference appears.\n5. Compare the totals with the on-screen figures for the same period.",
     "expected": "The export contains only Clinic A data and the totals match the screen. A single Clinic B row appearing in the export is a serious tenant-isolation defect and must be raised immediately."
+  },
+  {
+    "id": "TC-BILL-025",
+    "role": "All roles",
+    "module": "Billing — Bill arithmetic",
+    "name": "Gross minus discount always equals net, and net never leaves its bounds",
+    "pre": "A clinic with the sales feature, a doctor with a consultation fee, and at least one priced procedure.",
+    "steps": "1. Book an appointment and note the consultation fee shown.\n2. Add a procedure with a quantity greater than one.\n3. Apply a per-line discount to that procedure.\n4. Apply an appointment-level discount as a flat amount.\n5. Record the gross, the total discount and the net from the bill.\n6. Confirm gross minus discount equals net exactly.\n7. Repeat with the appointment discount as a percentage.\n8. Repeat with a 100 percent discount and confirm the net is zero, never negative.\n9. Repeat with no discount at all and confirm gross equals net.",
+    "expected": "For every combination the printed gross minus the printed discount equals the printed net to the rupee, the net is never below zero, and the net never exceeds the gross. A bill that fails this is showing the patient one number and the report another."
+  },
+  {
+    "id": "TC-BILL-026",
+    "role": "All roles",
+    "module": "Billing — Bill arithmetic",
+    "name": "A per-line discount applies before the appointment discount",
+    "pre": "A clinic with the sales feature and a procedure priced at 1000.",
+    "steps": "1. Book an appointment with NO consultation fee charged.\n2. Add the procedure priced at 1000, quantity 1.\n3. Apply a per-line discount of 200 to that procedure.\n4. Apply an appointment-level discount of 10 percent.\n5. Read the net from the running total and from the saved bill.\n6. Compare it against the two possible orders: 720 if the line discount applies first, 700 if the appointment discount were applied to the gross.",
+    "expected": "The net is 720. The line is discounted first to 800, that becomes the subtotal, and the 10 percent appointment discount applies to the SUBTOTAL — never to the gross. A net of 700 would mean the order is reversed, which would understate every bill carrying both kinds of discount."
   }
 ]

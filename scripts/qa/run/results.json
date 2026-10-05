@@ -113,5 +113,85 @@
     "id": "TC-LIST-014",
     "status": "Pass",
     "note": "unknown /clinic path returns HTTP 200 (200 is the documented, deliberate behaviour)"
+  },
+  {
+    "id": "TC-APPT-016",
+    "status": "Pass",
+    "note": "fee 3000 + (2000x2) + (1500x1) -> procedures Rs 5,500, net Rs 8,500 (expected Rs 5,500 / Rs 8,500)"
+  },
+  {
+    "id": "TC-APPT-017",
+    "status": "Pass",
+    "note": "with fee Rs 5,000, without Rs 2,000 — difference Rs 3,000 equals the consultation fee exactly"
+  },
+  {
+    "id": "TC-APPT-018",
+    "status": "Pass",
+    "note": "amount 500 -> Rs 4,500; percent 20 of subtotal 5000 -> discount Rs 1,000, net Rs 4,000; percent 150 clamped to 100 giving net Rs 0; negative rejected: \"Discount can't be negative.\""
+  },
+  {
+    "id": "TC-BILL-025",
+    "status": "Pass",
+    "note": "across 48 fee/line/discount combinations, gross minus discount equals net every time and net never goes below zero or above gross"
+  },
+  {
+    "id": "TC-BILL-026",
+    "status": "Pass",
+    "note": "line 1000 less 200 = Rs 800, then 10% of the SUBTOTAL = Rs 80, net Rs 720 (Rs 720 proves the line discount applies first; Rs 700 would mean the order is wrong)"
+  },
+  {
+    "id": "TC-BILL-002",
+    "status": "Pass",
+    "note": "partial Rs 1,000 then Rs 2,000 recorded as 2 rows totalling Rs 3,000 against a Rs 3,000 bill"
+  },
+  {
+    "id": "TC-BILL-001",
+    "status": "Pass",
+    "note": "the visit reaches fully paid once collections equal the bill (Rs 3,000 of Rs 3,000)"
+  },
+  {
+    "id": "TC-BILL-003",
+    "status": "Pass",
+    "note": "zero -> \"Enter an amount greater than zero.\", negative -> refused, NaN -> refused; none created a payment row"
+  },
+  {
+    "id": "TC-BILL-004",
+    "status": "Pass",
+    "note": "paid Rs 2,500 against a Rs 2,000 bill — patient credit is now Rs 500, so the excess is retained rather than discarded"
+  },
+  {
+    "id": "TC-BILL-007",
+    "status": "Pass",
+    "note": "payment voided; the row is SOFT-deleted (recoverable from Trash) rather than erased, so the audit trail survives"
+  },
+  {
+    "id": "TC-BILL-008",
+    "status": "Pass",
+    "note": "refund of Rs 5,000 against Rs 2,000 collected refused (\"Can't refund more than collected (Rs 2000).\"); a Rs 500 refund succeeded"
+  },
+  {
+    "id": "TC-BILL-013",
+    "status": "Pass",
+    "note": "three invoices issued -> numbers 1, 2, 3 (unique: true, sequential: true)"
+  },
+  {
+    "id": "TC-SUPER-011",
+    "status": "Pass",
+    "note": "a month four months ago is still priced at Rs 5,000 after a rise to Rs 8,000 — history is NOT re-priced (the clinic whose price never moved reads Rs 5,000 for the same month)"
+  },
+  {
+    "id": "TC-SUPER-021",
+    "status": "Pass",
+    "note": "six months accrue to Rs 30,000 whether the unchanged price is recorded or absent (Rs 30,000) — recording a price that never moved is a no-op, which is the safety property the whole feature rests on"
+  },
+  {
+    "id": "TC-SUPER-022",
+    "status": "Pass",
+    "note": "the re-priced clinic accrues Rs 33,000 over six months — five at Rs 5,000 plus one at Rs 8,000 (Rs 33,000 expected); the rise applies only from its own date forward"
+  },
+  {
+    "id": "TC-SUPER-023",
+    "status": "Pass",
+    "note": "Rs 15,000 covers 3 months at a flat Rs 5,000 and 3 on the re-priced clinic — the early months are charged at what they actually cost, not at today's figure"
   }
 ]

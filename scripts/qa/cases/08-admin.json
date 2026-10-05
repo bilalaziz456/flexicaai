@@ -178,5 +178,32 @@
     "pre": "Accounts for all four clinic roles.",
     "steps": "1. Sign in as the Receptionist and open \"Settings\".\n2. List the cards visible.\n3. Repeat as the Doctor and the Manager.\n4. Repeat as the Clinic Admin and compare.",
     "expected": "Every clinic role reaches Settings, because it holds their own profile and password. Only the Clinic Admin additionally sees the clinic-wide cards such as clinic details, printing and the account manager. The personal cards are identical for everyone."
+  },
+  {
+    "id": "TC-SUPER-021",
+    "role": "Super Admin",
+    "module": "Admin — Price history",
+    "name": "Recording a price that never changes alters nothing",
+    "pre": "Two clinics on the same monthly price and the same billing start. One has its price recorded explicitly; the other has never been re-priced.",
+    "steps": "1. Note the monthly price and billing start date for both clinics.\n2. Open each clinic's billing card and record the accrued total, the balance and the paid-through date.\n3. Open the payment scorecard for each and record the rating and the month-by-month history.\n4. Compare the two clinics field by field.",
+    "expected": "The two clinics agree on every figure. Recording a price that never moved is a no-op. This is the safety property the whole price-history feature rests on: it had to be provably invisible to every clinic it does not concern before it could be trusted on the few it does."
+  },
+  {
+    "id": "TC-SUPER-022",
+    "role": "Super Admin",
+    "module": "Admin — Price history",
+    "name": "A price rise applies only from its own date forward",
+    "pre": "A clinic billed for six months, priced at 5000 for the first five and raised to 8000 for the most recent.",
+    "steps": "1. Note the clinic's billing start date and its original monthly price.\n2. Raise the monthly price and save, so the change is recorded from today.\n3. Open the clinic's billing card and read the total accrued across all six months.\n4. Calculate the expected figure by hand: five months at the old price plus one at the new.\n5. Compare the two.\n6. Open the month-by-month history and confirm each month shows the price in force at the time.",
+    "expected": "The accrued total equals five months at the old price plus one at the new, not six at the new price. Each month in the history is charged at the price that was in force on its own due date."
+  },
+  {
+    "id": "TC-SUPER-023",
+    "role": "Super Admin",
+    "module": "Admin — Price history",
+    "name": "Months covered are walked, not divided",
+    "pre": "A clinic whose price changed partway through its billing history, with a known total paid.",
+    "steps": "1. Note the clinic's price history and the total amount it has paid.\n2. Open the billing card and read how many months are recorded as covered.\n3. Work the figure out by hand by walking the months in order, deducting each month's own price from the amount paid until the money runs out.\n4. Compare with a naive calculation of total paid divided by the CURRENT price.\n5. Confirm the application agrees with the walk and not with the division.\n6. Record a partial payment that does not complete a month and confirm that month is simply not counted.",
+    "expected": "The months covered match the walk, where each month is deducted at the price it actually cost. A figure matching total divided by today's price would mean the early months were re-priced. A partial payment leaves its month uncounted rather than partially counted."
   }
 ]
