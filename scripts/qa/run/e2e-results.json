@@ -1,0 +1,97 @@
+[
+  {
+    "id": "TC-APPT-023",
+    "status": "Pass",
+    "note": "Automated (e2e): appointments CSV → text/csv + footer + header; appointments CSV is clinic-scoped (A's patient, not B's) (11 lines for from=2026-09-06&to=2026-11-05); the date filter reaches the export (empty range → no rows) (status=200)"
+  },
+  {
+    "id": "TC-APPT-024",
+    "status": "Pass",
+    "note": "Automated (e2e): another clinic's appointment cannot be opened by id (status=200 title=FlexicaAI)"
+  },
+  {
+    "id": "TC-AUTH-028",
+    "status": "Pass",
+    "note": "Automated (e2e): suspended user's session is rejected → redirect"
+  },
+  {
+    "id": "TC-CLIN-008",
+    "status": "Pass",
+    "note": "Automated (e2e): valid signed link → 200 PDF; tampered token → 404; expired token → 404"
+  },
+  {
+    "id": "TC-CRON-001",
+    "status": "Pass",
+    "note": "Automated (e2e): every cron endpoint without a secret → 401 (8 endpoints)"
+  },
+  {
+    "id": "TC-CRON-015",
+    "status": "Pass",
+    "note": "Automated (e2e): a user session is not a cron credential → 401 (receptionist=401, clinic admin=401, super admin=401)"
+  },
+  {
+    "id": "TC-PAT-017",
+    "status": "Pass",
+    "note": "Automated (e2e): patients CSV → text/csv + footer + header; patients CSV is clinic-scoped (has A patient, not B)"
+  },
+  {
+    "id": "TC-PAT-019",
+    "status": "Pass",
+    "note": "Automated (e2e): another clinic's patient cannot be opened by id (status=200)"
+  },
+  {
+    "id": "TC-RBAC-007",
+    "status": "Pass",
+    "note": "Automated (e2e): clinic admin reaches no /admin URL and sees no cross-clinic data (5 URLs); …and neither does a doctor"
+  },
+  {
+    "id": "TC-RBAC-008",
+    "status": "Pass",
+    "note": "Automated (e2e): super admin at /clinic is returned to the admin panel (status=307 → /admin/overview)"
+  },
+  {
+    "id": "TC-RBAC-010",
+    "status": "Pass",
+    "note": "Automated (e2e): unauthenticated API callers get 401 \"Not signed in.\" (/api/patients/export=401+msg, /api/appointments/export=401+msg, /api/finance/export=401+msg)"
+  },
+  {
+    "id": "TC-RBAC-022",
+    "status": "Pass",
+    "note": "Automated (e2e): support can still open a suspended clinic (status=200)"
+  },
+  {
+    "id": "TC-SUPER-003",
+    "status": "Pass",
+    "note": "Automated (e2e): SUSPENDED clinic bounces its staff out of the workspace (status=307); …and no patient data renders on the way out (status=307); reactivating restores the workspace with its data (status=200)"
+  },
+  {
+    "id": "TC-WA-001",
+    "status": "Pass",
+    "note": "Automated (e2e): receptionist GET /clinic/whatsapp → 200 + inbound msg; manager and clinic admin reach the same screen (manager=200 admin=200); doctor holds no WhatsApp permission — no messages, item hidden (status=200 workspace=true)"
+  },
+  {
+    "id": "TC-WA-005",
+    "status": "Pass",
+    "note": "Automated (e2e): webhook with no token and with a wrong token → 401 \"Unauthorized.\" (none=401 wrong=401); …and neither attempt stored anything (rows=0)"
+  },
+  {
+    "id": "TC-WA-006",
+    "status": "Pass",
+    "note": "Automated (e2e): webhook inbound (valid token) → 200 + logged & patient-matched; an UNKNOWN number is stored but left unattributed (status=200 stored=true patient=null)"
+  },
+  {
+    "id": "TC-WA-007",
+    "status": "Pass",
+    "note": "Automated (e2e): webhook replay is idempotent → still one row (rows=1); a redelivered 'book …' books the patient exactly once (first=200 replay=200 appointments on 2026-10-17=1)"
+  },
+  {
+    "id": "TC-WA-011",
+    "status": "Pass",
+    "note": "Automated (e2e): webhook reschedule reply moves the appointment (rescheduled=true hour=14)"
+  },
+  {
+    "id": "TC-WA-013",
+    "status": "Pass",
+    "note": "Automated (e2e): webhook 'book …' creates a new appointment (booked=true); …marked source=whatsapp, so staff can tell it apart (source=2); …and stays 'scheduled' rather than arriving confirmed (status=1)"
+  }
+]

@@ -20,6 +20,29 @@
  * checks. Override the target with BASE_URL (default http://localhost:3000).
  *
  * Exit code is non-zero if any check fails, so this doubles as a CI smoke test.
+ *
+ * ── Reporting ────────────────────────────────────────────────────────────────
+ * Every run writes two files (scripts/qa/run/e2e-report.mjs):
+ *
+ *   scripts/qa/run/e2e-report.html   — the whole run, grouped by section
+ *   scripts/qa/run/e2e-results.json  — just the assertions that carry a manual
+ *                                      TEST CASE ID, for the QA workbook
+ *
+ * An assertion earns a workbook row by naming the case id first:
+ *
+ *   record("TC-WA-006 webhook inbound → 200 + logged & patient-matched", …)
+ *
+ * A case may have several assertions (`TC-WA-006`, `TC-WA-006b`, …) and passes only
+ * if ALL of them did. `node scripts/qa/run/apply-results.mjs` writes them in.
+ *
+ * ── The rule the tagging has to obey ─────────────────────────────────────────
+ * A case id goes on an assertion only when the assertion proves what the CASE
+ * claims — not what is convenient to check. Four tags were removed for failing
+ * that: a prescription PDF is not the attachment route; a 200 with the right
+ * content-type does not prove the document's contents; "every cron endpoint" means
+ * all eight; and a scoped LIST says nothing about a detail route that trusts its own
+ * id. Where only part of a case is observable here, `record.skip` says so and the
+ * workbook cell stays blank for a human.
  */
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -28,6 +51,7 @@ import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
 import bcrypt from "bcryptjs";
 import pg from "pg";
+import { writeReports } from "./qa/run/e2e-report.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 config({ path: path.join(ROOT, ".env.local"), quiet: true });
@@ -66,10 +90,49 @@ async function mintSession(userId) {
 
 // ---- tiny assert framework ----
 const results = [];
+
+/**
+ * An assertion. When the NAME begins with a manual test-case id ("TC-WA-005 …") the
+ * id is lifted out and the result is written onto that row of the QA workbook by
+ * `scripts/qa/run/apply-results.mjs`.
+ *
+ * Tagging by name rather than by a new argument is deliberate: there are eighty-odd
+ * existing call sites, and a signature change would have meant touching every one of
+ * them to credit a handful. An untagged assertion stays exactly as it was.
+ */
+const TC_ID = /^(TC-[A-Z]+-\d+[a-z]?)\s+/;
+
+/**
+ * The section an assertion belongs to. Set by `section()`, which also prints the
+ * banner the console output has always had — so the grouping in the HTML report and
+ * the grouping a human reads in the terminal can never disagree.
+ */
+let currentSection = "general";
+function section(title) {
+  currentSection = title;
+  console.log(`\n== ${title} ==`);
+}
+
 function record(name, pass, detail) {
-  results.push({ name, pass, detail });
+  const m = TC_ID.exec(name);
+  results.push({ name, pass, detail, tc: m ? m[1] : null, section: currentSection });
   console.log(`  [${pass ? "PASS" : "FAIL"}] ${name}${detail ? "  — " + detail : ""}`);
 }
+
+/**
+ * A check this environment cannot make — a missing secret, or a property that only
+ * holds on a production build.
+ *
+ * It exists because the alternative in use was `record(name, true, "skipped (…)")`,
+ * which counts a check nobody made as a pass. That is tolerable in a console summary
+ * and intolerable once the result reaches a spreadsheet: the row would read Pass
+ * while the behaviour went unexercised. A skip is reported, never counted, and
+ * carries NO case id into the workbook, so the cell stays blank for a human.
+ */
+record.skip = (name, why) => {
+  results.push({ name, pass: true, skipped: true, detail: why, tc: null, section: currentSection });
+  console.log(`  [SKIP] ${name}  — ${why}`);
+};
 async function req(pathname, { cookie, method = "GET", body, headers = {} } = {}) {
   const h = { ...headers };
   if (cookie) h.Cookie = `klenic_session=${cookie}`;
@@ -87,10 +150,21 @@ async function req(pathname, { cookie, method = "GET", body, headers = {} } = {}
 const is3xx = (s) => s >= 300 && s < 400;
 const snip = (t) => (t || "").slice(0, 160).replace(/\s+/g, " ");
 
+/**
+ * Did this response actually render the clinic workspace for a signed-in user?
+ *
+ * The positive half that every "…and nothing leaked" assertion needs beside it. A
+ * blank page leaks nothing; so does a redirect to /login, which means the session was
+ * dropped — a different and worse outcome that a content-absence check reads as a
+ * clean pass. `/clinic/patients` is in every clinic role's nav, so its presence says
+ * the shell rendered AND the session survived.
+ */
+const isClinicShell = (r) => r.status === 200 && r.text.includes('href="/clinic/patients"');
+
 const ids = {};
 
 async function seed() {
-  console.log("\n== SEED ==");
+  section("SEED");
   const hash = await bcrypt.hash("not-used-over-http", 10);
   const q = (t, v) => pool.query(t, v).then((r) => r.rows[0]);
   const uniq = Date.now();
@@ -110,7 +184,10 @@ async function seed() {
   const recepA = await mkUser(cA.id, `e2e_recepA_${uniq}`, 5 /* receptionist */);
   const adminB = await mkUser(cB.id, `e2e_adminB_${uniq}`, 2 /* clinic_admin */);
   const suspU = await mkUser(cA.id, `e2e_susp_${uniq}`, 5 /* receptionist */);
-  ids.users = [sadmin, adminA, docA, recepA, adminB, suspU].map((u) => u.id);
+  // A manager, for the cases whose expected result names all four clinic roles.
+  // Without one, "reachable by the right roles" could only ever be half-checked.
+  const mgrA = await mkUser(cA.id, `e2e_mgrA_${uniq}`, 3 /* manager */);
+  ids.users = [sadmin, adminA, docA, recepA, adminB, suspU, mgrA].map((u) => u.id);
   ids.suspUserId = suspU.id;
   ids.docAId = docA.id;
   // docA has no working hours; make it flexible so any future slot books
@@ -123,7 +200,13 @@ async function seed() {
   const patA1 = await q("insert into patients (clinic_id, full_name, phone) values ($1,'Ayesha Recovered','+923009990001') returning id", [cA.id]);
   const patA2 = await q("insert into patients (clinic_id, full_name, phone) values ($1,'Bilal NoPhone', null) returning id", [cA.id]);
   const patB1 = await q("insert into patients (clinic_id, full_name, phone) values ($1,'ClinicB Patient','+923009990009') returning id", [cB.id]);
-  ids.patients = [patA1.id, patA2.id, patB1.id];
+  // A patient reserved for the REMINDER cron, and the reservation is the point.
+  // The WhatsApp self-service tests act on "the next upcoming appointment" for
+  // +923009990001, so an appointment seeded for patA1 is silently rescheduled out
+  // from under the reminder job — which is how a seeded tomorrow's appointment came
+  // to produce `processed=0` and look like a broken cron.
+  const patA3 = await q("insert into patients (clinic_id, full_name, phone) values ($1,'Reminder Target','+923009990003') returning id", [cA.id]);
+  ids.patients = [patA1.id, patA2.id, patB1.id, patA3.id];
 
   // "Revenue Recovered" scenario: patA1 got a 'sent' recall 10d ago AND a completed appt 2d ago → 1 recovered × 4000.
   await q("insert into appointments (clinic_id, patient_id, doctor_id, scheduled_at, status) values ($1,$2,$3, now()-interval '2 days',5)", [cA.id, patA1.id, docA.id]);
@@ -131,6 +214,27 @@ async function seed() {
   await q("insert into recalls (clinic_id, patient_id, reason, due_at, status, sent_at) values ($1,$2,'6-month cleaning', now()-interval '12 days',3, now()-interval '10 days')", [cA.id, patA1.id]);
   // A due 'pending' recall whose patient has NO phone → cron should skip it.
   await q("insert into recalls (clinic_id, patient_id, reason, due_at, status) values ($1,$2,'checkup', now()-interval '1 day',1)", [cA.id, patA2.id]);
+  // The recall cron's actual subject: one DUE recall for a patient who HAS a phone,
+  // and one that is NOT yet due. The pair is what makes "due recalls only" testable —
+  // a job that actioned everything, or nothing, satisfies a single-row check either way.
+  ids.recallDue = (await q(
+    "insert into recalls (clinic_id, patient_id, reason, due_at, status) values ($1,$2,'E2E due recall', now()-interval '2 days',1) returning id",
+    [cA.id, patA1.id],
+  )).id;
+  ids.recallFuture = (await q(
+    "insert into recalls (clinic_id, patient_id, reason, due_at, status) values ($1,$2,'E2E future recall', now()+interval '60 days',1) returning id",
+    [cA.id, patA1.id],
+  )).id;
+  // Likewise for the reminder cron: one appointment TOMORROW and one next week, both
+  // for a patient with a phone, so "tomorrow's only" has something to exclude.
+  ids.apptTomorrow = (await q(
+    "insert into appointments (clinic_id, patient_id, doctor_id, scheduled_at, status) values ($1,$2,$3, now()+interval '1 day',1) returning id",
+    [cA.id, patA3.id, docA.id],
+  )).id;
+  ids.apptNextWeek = (await q(
+    "insert into appointments (clinic_id, patient_id, doctor_id, scheduled_at, status) values ($1,$2,$3, now()+interval '8 days',1) returning id",
+    [cA.id, patA3.id, docA.id],
+  )).id;
 
   const note = {
     diagnosis: "Dental caries, tooth 26",
@@ -183,14 +287,34 @@ async function seed() {
     recepA: await mintSession(recepA.id),
     adminB: await mintSession(adminB.id),
     susp: await mintSession(suspU.id),
+    mgrA: await mintSession(mgrA.id),
   };
   console.log(`  clinics A=${cA.id} B=${cB.id}; 6 users; 3 patients; approved visit=${visit.id}`);
 }
 
+/**
+ * Is the SERVER a dev build? Asked of the server, not of this process.
+ *
+ * `process.env.NODE_ENV` here describes the harness, which is a different process and
+ * may well be pointed at a production build on another port — so reading it would be
+ * answering a question about the wrong thing. The CSP is the server's own statement:
+ * `'unsafe-eval'` is added only in dev (HMR / React Refresh) and excluded in
+ * production so a real eval is refused there (src/proxy.ts#scriptSrc).
+ *
+ * Two assertions genuinely only hold on a production build, and asserting them in dev
+ * is how `npm run test:e2e` came to exit 1 on every ordinary dev run.
+ */
+async function detectServerMode() {
+  const csp = (await req("/login")).headers.get("content-security-policy") || "";
+  return { dev: csp.includes("'unsafe-eval'"), csp };
+}
+
 async function run() {
   const S = ids.sessions;
+  const mode = await detectServerMode();
+  console.log(`  server looks like a ${mode.dev ? "DEV" : "PRODUCTION"} build (from its CSP)`);
 
-  console.log("\n== AUTH & PANEL RENDERING ==");
+  section("AUTH & PANEL RENDERING");
   record("GET /login (no cookie) → 200", (await req("/login")).status === 200);
   record("GET /admin (no cookie) → redirect", is3xx((await req("/admin")).status));
   {
@@ -201,7 +325,16 @@ async function run() {
     const r = await req(`/admin/clinics/${ids.clinics[0]}`, { cookie: S.sadmin });
     record("super_admin GET /admin/clinics/[A] → 200 + Features toggle", r.status === 200 && r.text.includes("Revenue dashboard"), r.status === 200 ? "" : `status=${r.status} ${snip(r.text)}`);
   }
-  record("super_admin GET /clinic → redirect (role isolation)", is3xx((await req("/clinic", { cookie: S.sadmin })).status));
+  {
+    // The DESTINATION is the case, not merely that something redirected: a super
+    // admin has no clinic of their own, so /clinic has to send them to the company
+    // panel. A bare is3xx check passes equally well on a redirect to /login, which
+    // would mean the session had been dropped.
+    const r = await req("/clinic", { cookie: S.sadmin });
+    const to = r.headers.get("location") || "";
+    record("TC-RBAC-008 super admin at /clinic is returned to the admin panel",
+      is3xx(r.status) && to.includes("/admin"), `status=${r.status} → ${to || "(no Location)"}`);
+  }
 
   {
     const r = await req("/clinic", { cookie: S.adminA });
@@ -241,7 +374,12 @@ async function run() {
   {
     // Tenant isolation: clinic A admin must not see clinic B's patient data.
     const r = await req(`/clinic/patients/${ids.patients[2]}`, { cookie: S.adminA });
-    record("patient detail tenant-scoped (no clinic-B leak)", !r.text.includes("ClinicB Patient"));
+    record("TC-PAT-019 another clinic's patient cannot be opened by id",
+      !r.text.includes("ClinicB Patient") &&
+      // The positive half, same reasoning as TC-APPT-024: an absence proves nothing
+      // on a page that failed to render or signed the user out.
+      (is3xx(r.status) || isClinicShell(r)),
+      `status=${r.status}`);
   }
   record("clinic_admin GET /clinic/recalls → 200", (await req("/clinic/recalls", { cookie: S.adminA })).status === 200);
   {
@@ -269,15 +407,48 @@ async function run() {
   {
     // Tenant scoping: clinic B (no appointments) must not see clinic A's patient.
     const r = await req("/clinic/appointments", { cookie: S.adminB });
-    record("clinic appointments tenant-scoped (clinic B empty)", r.status === 200 && !r.text.includes("Ayesha Recovered"));
+    record("clinic appointments list is tenant-scoped (clinic B empty)", r.status === 200 && !r.text.includes("Ayesha Recovered"));
+    // TC-APPT-024 is about opening one appointment BY ID, which is a different
+    // question from whether the list is filtered — a list scoped correctly says
+    // nothing about a detail route that trusts its own id parameter. The case also
+    // names the page TITLE, which is rendered from the appointment and is the part a
+    // body-only check would miss.
+    const one = await req(`/clinic/appointments/${ids.apptA}`, { cookie: S.adminB });
+    const title = (one.text.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] ?? "";
+    record("TC-APPT-024 another clinic's appointment cannot be opened by id",
+      !one.text.includes("Ayesha Recovered") && !title.includes("Ayesha") &&
+      // Positive half: clinic B's own session is still alive and its workspace still
+      // renders. Without it, a 500 or a sign-out would read as perfect isolation.
+      (is3xx(one.status) || isClinicShell(one)),
+      `status=${one.status} title=${snip(title)}`);
   }
-  record("clinic_admin GET /admin → redirect (isolation)", is3xx((await req("/admin", { cookie: S.adminA })).status));
+  {
+    // "EVERY /admin URL", not just the panel root: the redirect lives in the admin
+    // layout, and a page that reads the session itself before the layout runs would
+    // slip through a check on /admin alone.
+    const urls = ["/admin", "/admin/team", "/admin/overview", "/admin/clinics", "/admin/trash"];
+    const bad = [];
+    for (const u of urls) {
+      const r = await req(u, { cookie: S.adminA });
+      // A panel `redirect()` can arrive inside a 200 once the layout has begun
+      // streaming (ADR-026), so the content is the honest test, with the status as
+      // supporting detail.
+      const leaked = r.text.includes("E2E Clinic B") || r.text.includes("Clinics</h1>");
+      // And the POSITIVE half, without which this whole loop is satisfiable by a
+      // blank page or a dropped session: a 200 has to be the clinic workspace the
+      // admin was sent back to, which means its own nav is there.
+      const landedInClinic = is3xx(r.status) || isClinicShell(r);
+      if (leaked || !landedInClinic) bad.push(`${u}=${r.status}${leaked ? " LEAK" : " not-the-clinic-shell"}`);
+    }
+    record("TC-RBAC-007 clinic admin reaches no /admin URL and sees no cross-clinic data",
+      bad.length === 0, bad.length ? bad.join(", ") : `${urls.length} URLs`);
+    record("TC-RBAC-007b …and neither does a doctor", is3xx((await req("/admin", { cookie: S.docA })).status));
+  }
 
   // Unified workspace: all clinic staff work from /clinic; the old /doctor and
   // /reception panels fold in (redirect).
   record("doctor GET /clinic → 200 (unified workspace)", (await req("/clinic", { cookie: S.docA })).status === 200);
   record("doctor GET /doctor → redirect (folded into /clinic)", is3xx((await req("/doctor", { cookie: S.docA })).status));
-  record("doctor GET /admin → redirect (isolation)", is3xx((await req("/admin", { cookie: S.docA })).status));
 
   record("receptionist GET /clinic → 200 (unified workspace)", (await req("/clinic", { cookie: S.recepA })).status === 200);
   record("receptionist GET /reception → redirect (folded)", is3xx((await req("/reception", { cookie: S.recepA })).status));
@@ -308,50 +479,120 @@ async function run() {
     );
   }
   {
+    // All four clinic roles, because the case is about WHO reaches the screen, and
+    // checking only the receptionist leaves both halves of that unproven: a screen
+    // open to everybody and a screen open to nobody else both pass.
     const r = await req("/clinic/whatsapp", { cookie: S.recepA });
-    record("receptionist GET /clinic/whatsapp → 200 + inbound msg", r.status === 200 && r.text.includes("I need an appointment"));
+    record("TC-WA-001 receptionist GET /clinic/whatsapp → 200 + inbound msg", r.status === 200 && r.text.includes("I need an appointment"));
+    const mgr = await req("/clinic/whatsapp", { cookie: S.mgrA });
+    const adm = await req("/clinic/whatsapp", { cookie: S.adminA });
+    record("TC-WA-001b manager and clinic admin reach the same screen",
+      mgr.status === 200 && mgr.text.includes("I need an appointment") &&
+      adm.status === 200 && adm.text.includes("I need an appointment"),
+      `manager=${mgr.status} admin=${adm.status}`);
+    const doc = await req("/clinic/whatsapp", { cookie: S.docA });
+    const docHome = await req("/clinic", { cookie: S.docA });
+    // Assert on the inbound MESSAGE's absence, not on a status: a panel `redirect()`
+    // arrives inside a 200 because the layout has begun streaming (ADR-026). The
+    // workspace check is the positive half — a doctor whose session had died would
+    // also see no messages and no nav item.
+    record("TC-WA-001c doctor holds no WhatsApp permission — no messages, item hidden",
+      !doc.text.includes("I need an appointment") &&
+      !docHome.text.includes('href="/clinic/whatsapp"') &&
+      isClinicShell(docHome),
+      `status=${doc.status} workspace=${isClinicShell(docHome)}`);
   }
 
-  console.log("\n== SUSPENSION ENFORCEMENT ==");
+  section("SUSPENSION ENFORCEMENT");
   await pool.query("update users set is_active=false where id=$1", [ids.suspUserId]);
-  record("suspended user's session is rejected → redirect", is3xx((await req("/clinic", { cookie: S.susp })).status));
+  record("TC-AUTH-028 suspended user's session is rejected → redirect", is3xx((await req("/clinic", { cookie: S.susp })).status));
   await pool.query("update users set is_active=true where id=$1", [ids.suspUserId]);
 
-  console.log("\n== PRESCRIPTION PDF + TENANT ISOLATION ==");
+  section("PRESCRIPTION PDF + TENANT ISOLATION");
   {
     const r = await req(`/api/prescriptions/${ids.visit}`, { cookie: S.adminA });
+    // NOT tagged TC-CLIN-007. That case is about what the prescription CONTAINS —
+    // the drug lines, the prescriber, and the clinical note deliberately left out —
+    // and a PDF's text lives in a compressed stream, so none of it is observable
+    // from the response bytes. Content-type is a real property and a much smaller
+    // one; claiming the case on it would be claiming the confidentiality half.
     record("own-clinic prescription PDF → 200 application/pdf", r.status === 200 && r.ct.includes("pdf"), r.status === 200 ? "" : `status=${r.status} ${snip(r.text)}`);
   }
+  // Likewise not TC-CLIN-012: that case is the ATTACHMENT route (x-rays, photos), a
+  // different surface. A prescription is generated from the visit; an attachment is
+  // a stored file. Proving one says nothing about the other.
   record("cross-tenant prescription (clinic B admin) → 404", (await req(`/api/prescriptions/${ids.visit}`, { cookie: S.adminB })).status === 404);
   record("prescription without session → 401", (await req(`/api/prescriptions/${ids.visit}`)).status === 401);
+  {
+    // TC-RBAC-010 names three routes and the exact body. The body matters: a 401
+    // from the proxy's cookie gate and a 401 from `apiRequireWorkspace` are
+    // different code paths, and only the second one is the chokepoint ADR-013 built.
+    const routes = ["/api/patients/export", "/api/appointments/export", "/api/finance/export?type=pl"];
+    const seen = [];
+    for (const route of routes) {
+      const u = await req(route);
+      seen.push(`${route.split("?")[0]}=${u.status}${u.text.includes("Not signed in.") ? "+msg" : ""}`);
+      if (u.status !== 401 || !u.text.includes("Not signed in.")) seen.push("MISMATCH");
+    }
+    record("TC-RBAC-010 unauthenticated API callers get 401 \"Not signed in.\"",
+      !seen.includes("MISMATCH"), seen.filter((s) => s !== "MISMATCH").join(", "));
+  }
 
-  console.log("\n== SIGNED PUBLIC LINK (/p/rx) ==");
+  section("SIGNED PUBLIC LINK (/p/rx)");
   if (!SECRET_LINK) {
     record("signed public link checks", true, "skipped (LINK_SIGNING_SECRET unset)");
   } else {
     {
       const r = await req(`/p/rx/${signToken(ids.visit, Date.now() + 3600e3)}`);
-      record("valid signed link → 200 PDF", r.status === 200 && r.ct.includes("pdf"), r.status === 200 ? "" : `status=${r.status} ${snip(r.text)}`);
+      record("TC-CLIN-008 valid signed link → 200 PDF", r.status === 200 && r.ct.includes("pdf"), r.status === 200 ? "" : `status=${r.status} ${snip(r.text)}`);
     }
     {
       const tampered = signToken(ids.visit, Date.now() + 3600e3).slice(0, -3) + "AAA";
-      record("tampered token → 404", (await req(`/p/rx/${tampered}`)).status === 404);
+      record("TC-CLIN-008b tampered token → 404", (await req(`/p/rx/${tampered}`)).status === 404);
     }
-    record("expired token → 404", (await req(`/p/rx/${signToken(ids.visit, Date.now() - 1000)}`)).status === 404);
+    record("TC-CLIN-008c expired token → 404", (await req(`/p/rx/${signToken(ids.visit, Date.now() - 1000)}`)).status === 404);
   }
 
-  console.log("\n== WHATSAPP WEBHOOK ==");
+  section("WHATSAPP WEBHOOK");
   if (!WH_TOKEN) {
     record("webhook checks", true, "skipped (WHATSAPP_WEBHOOK_TOKEN unset)");
   } else {
     const json = { "content-type": "application/json" };
-    record("webhook no token → 401", (await req("/api/whatsapp/webhook", { method: "POST", body: "{}", headers: json })).status === 401);
-    record("webhook wrong token → 401", (await req("/api/whatsapp/webhook?token=WRONG", { method: "POST", body: "{}", headers: json })).status === 401);
+    {
+      // Status, body AND the absence of a stored row. "Nothing is stored" is the half
+      // that matters: a 401 returned after the insert would look identical from
+      // outside and would still have logged an attacker's payload against a patient.
+      const probe = "E2E unauthorized probe";
+      const payload = JSON.stringify({ mobile: "+923009990001", text: probe });
+      const none = await req("/api/whatsapp/webhook", { method: "POST", body: payload, headers: json });
+      const wrong = await req("/api/whatsapp/webhook?token=WRONG", { method: "POST", body: payload, headers: json });
+      const stored = (await pool.query("select count(*)::int c from whatsapp_messages where body=$1", [probe])).rows[0].c;
+      record("TC-WA-005 webhook with no token and with a wrong token → 401 \"Unauthorized.\"",
+        none.status === 401 && wrong.status === 401 &&
+        none.text.includes("Unauthorized") && wrong.text.includes("Unauthorized"),
+        `none=${none.status} wrong=${wrong.status}`);
+      record("TC-WA-005b …and neither attempt stored anything", stored === 0, `rows=${stored}`);
+    }
     {
       const body = JSON.stringify({ mobile: "+923009990001", text: "E2E inbound probe message" });
       const r = await req(`/api/whatsapp/webhook?token=${WH_TOKEN}`, { method: "POST", body, headers: json });
       const row = (await pool.query("select m.patient_id, wd.code as direction from whatsapp_messages m join whatsapp_directions wd on wd.id = m.direction where m.body=$1 order by m.created_at desc limit 1", ["E2E inbound probe message"])).rows[0];
-      record("webhook inbound (valid token) → 200 + logged & patient-matched", r.status === 200 && row && row.direction === "inbound" && row.patient_id === ids.patients[0]);
+      record("TC-WA-006 webhook inbound (valid token) → 200 + logged & patient-matched", r.status === 200 && row && row.direction === "inbound" && row.patient_id === ids.patients[0]);
+      {
+        // The other half of the case, and the one a tenant-matching bug would hide:
+        // a message from a number nobody recognises must still be STORED, merely
+        // unattributed. Discarding it loses a real patient's first contact.
+        const probe = "E2E unknown-number probe";
+        const unknown = JSON.stringify({ mobile: "+923001112233", text: probe });
+        const ur = await req(`/api/whatsapp/webhook?token=${WH_TOKEN}`, { method: "POST", body: unknown, headers: json });
+        const urow = (await pool.query("select patient_id from whatsapp_messages where body=$1 order by created_at desc limit 1", [probe])).rows[0];
+        record("TC-WA-006b an UNKNOWN number is stored but left unattributed",
+          ur.status === 200 && Boolean(urow) && urow.patient_id === null,
+          `status=${ur.status} stored=${Boolean(urow)} patient=${urow?.patient_id ?? "null"}`);
+        // It is not ours to clean up via the clinic cascade: an unmatched inbound row
+        // may carry a NULL clinic_id, which no clinic delete would reach.
+        await pool.query("delete from whatsapp_messages where body=$1", [probe]);
+      }
       // Both providers now share ONE pipeline (D-10), so the idempotency the Cloud
       // route proves must hold here too — this is the assertion that the AiSensy
       // adapter is genuinely feeding it and not a leftover copy.
@@ -360,7 +601,7 @@ async function run() {
       const first = await req(`/api/whatsapp/webhook?token=${WH_TOKEN}`, { method: "POST", body: dupBody, headers: json });
       const again = await req(`/api/whatsapp/webhook?token=${WH_TOKEN}`, { method: "POST", body: dupBody, headers: json });
       const n = (await pool.query("select count(*)::int c from whatsapp_messages where external_id=$1 and direction=1 /* inbound */", [mid])).rows[0].c;
-      record("webhook replay is idempotent → still one row", first.status === 200 && again.status === 200 && n === 1, `rows=${n}`);
+      record("TC-WA-007 webhook replay is idempotent → still one row", first.status === 200 && again.status === 200 && n === 1, `rows=${n}`);
     }
     {
       const body = JSON.stringify({ messageId: "E2E-EXT-1", status: "read" });
@@ -379,7 +620,7 @@ async function run() {
       try { j = JSON.parse(r.text); } catch { /* ignore */ }
       const moved = (await pool.query("select scheduled_at from appointments where clinic_id=$1 and patient_id=$2 and status=1 /* scheduled */ order by scheduled_at desc limit 1", [ids.clinics[0], ids.patients[0]])).rows[0];
       const hour = moved ? new Date(moved.scheduled_at).getHours() : null;
-      record("webhook reschedule reply moves the appointment", r.status === 200 && j.rescheduled === true && hour === 14, `rescheduled=${j.rescheduled} hour=${hour}`);
+      record("TC-WA-011 webhook reschedule reply moves the appointment", r.status === 200 && j.rescheduled === true && hour === 14, `rescheduled=${j.rescheduled} hour=${hour}`);
     }
     {
       // Patient self-booking via WhatsApp (docA is the clinic's only doctor, no
@@ -390,18 +631,74 @@ async function run() {
       const r = await req(`/api/whatsapp/webhook?token=${WH_TOKEN}`, { method: "POST", body, headers: json });
       let j = {};
       try { j = JSON.parse(r.text); } catch { /* ignore */ }
-      const rows = (await pool.query("select scheduled_at from appointments where clinic_id=$1 and patient_id=$2 and status=1 /* scheduled */", [ids.clinics[0], ids.patients[0]])).rows;
-      const has3pm = rows.some((row) => new Date(row.scheduled_at).getHours() === 15);
-      record("webhook 'book …' creates a new appointment", r.status === 200 && j.booked === true && has3pm, `booked=${j.booked}`);
+      const rows = (await pool.query(
+        "select scheduled_at, source, status from appointments where clinic_id=$1 and patient_id=$2 and status=1 /* scheduled */",
+        [ids.clinics[0], ids.patients[0]],
+      )).rows;
+      const booked = rows.find((row) => new Date(row.scheduled_at).getHours() === 15);
+      record("TC-WA-013 webhook 'book …' creates a new appointment", r.status === 200 && j.booked === true && Boolean(booked), `booked=${j.booked}`);
+      // The case is not "an appointment appeared" — it is that the appointment is
+      // MARKED as the patient's own and stays a REQUEST. Both are the whole point:
+      // a self-booking indistinguishable from a staff one would be confirmed by
+      // nobody and treated as confirmed by everybody.
+      record("TC-WA-013b …marked source=whatsapp, so staff can tell it apart",
+        booked?.source === 2 /* whatsapp */, `source=${booked?.source}`);
+      record("TC-WA-013c …and stays 'scheduled' rather than arriving confirmed",
+        booked?.status === 1 /* scheduled */, `status=${booked?.status}`);
+    }
+    {
+      // TC-WA-007's OTHER half, and the one the log-row check cannot reach: a
+      // redelivered message must not repeat the self-service action it triggers. A
+      // duplicated log line is untidy; a double-booked patient is a wasted slot and
+      // a phone call.
+      //
+      // Deliberately a DIFFERENT patient from every test above. The self-service
+      // handlers act on "this number's next upcoming appointment", so running this
+      // on patA1 had the reschedule test move the very appointment being counted —
+      // which read as a failing idempotency guard and was really two tests sharing a
+      // patient. +923009990003 is touched by nothing else.
+      const d = new Date(Date.now() + 11 * 864e5);
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const bid = `e2e-replay-book-${Date.now()}`;
+      const bookBody = JSON.stringify({ mobile: "+923009990003", text: `book ${iso} 3pm`, messageId: bid });
+      const b1 = await req(`/api/whatsapp/webhook?token=${WH_TOKEN}`, { method: "POST", body: bookBody, headers: json });
+      const b2 = await req(`/api/whatsapp/webhook?token=${WH_TOKEN}`, { method: "POST", body: bookBody, headers: json });
+      const made = (await pool.query(
+        "select count(*)::int c from appointments where clinic_id=$1 and patient_id=$2 and scheduled_at::date = $3::date",
+        [ids.clinics[0], ids.patients[3], iso],
+      )).rows[0].c;
+      // Assert the booking HAPPENED as well as happening once: `made === 1` is also
+      // what a webhook that silently booked nothing at all would produce if the
+      // first call had failed and the second been deduped.
+      record("TC-WA-007b a redelivered 'book …' books the patient exactly once",
+        made === 1, `first=${b1.status} replay=${b2.status} appointments on ${iso}=${made}`);
     }
   }
 
-  console.log("\n== WHATSAPP CLOUD WEBHOOK (per-clinic routing) ==");
+  section("WHATSAPP CLOUD WEBHOOK (per-clinic routing)");
   {
     const hdr = { "content-type": "application/json" };
     // GET verification with a wrong/absent token → 403.
     const g = await req("/api/whatsapp/cloud?hub.mode=subscribe&hub.verify_token=nope&hub.challenge=xyz");
-    record("cloud webhook GET verify (bad token) → 403", g.status === 403);
+    const VERIFY = process.env.WHATSAPP_VERIFY_TOKEN;
+    if (VERIFY) {
+      // The handshake Meta actually performs: the CORRECT token must echo the raw
+      // challenge back with 200. The 403 alone is only half the case — an endpoint
+      // that refuses everything would satisfy it and Meta could never subscribe.
+      const ok = await req(`/api/whatsapp/cloud?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(VERIFY)}&hub.challenge=E2ECHALLENGE`);
+      record("TC-WA-009 cloud webhook verify handshake: correct token echoes the challenge",
+        ok.status === 200 && ok.text.trim() === "E2ECHALLENGE", `status=${ok.status} body=${snip(ok.text)}`);
+      record("TC-WA-009b …and a wrong token returns 403 with no challenge",
+        g.status === 403 && !g.text.includes("xyz"), `status=${g.status}`);
+    } else {
+      // The bad-token half still runs and still has to hold — it just cannot carry
+      // the case id on its own, because the handshake it is half of is unproven.
+      record("cloud webhook GET verify (bad token) → 403", g.status === 403);
+      record.skip(
+        "TC-WA-009 cloud webhook verify handshake (correct token echoes the challenge)",
+        "WHATSAPP_VERIFY_TOKEN is unset, so the positive handshake cannot be exercised and the 403 alone would not prove the case",
+      );
+    }
 
     // POST inbound routed by the RECEIVING number → clinic A + patient matched within it.
     const inId = `wamid.E2E_IN_${Date.now()}`;
@@ -423,12 +720,32 @@ async function run() {
     try { j = JSON.parse(r.text); } catch { /* ignore */ }
 
     if (!WA_APP_SECRET) {
-      // Fail-closed check. `npm start` runs NODE_ENV=production, so an unsigned
-      // payload must be rejected rather than silently trusted. Set
-      // WHATSAPP_APP_SECRET in .env.local to exercise the delivery path too.
-      record("cloud webhook rejects UNSIGNED payload in production → 401", r.status === 401, `status=${r.status} (set WHATSAPP_APP_SECRET to test delivery)`);
+      // Signature verification itself is never REACHED without the secret, so
+      // TC-WA-010 is unproven either way — said once here rather than in each
+      // branch below, so a dev run cannot quietly leave the case unmentioned.
+      record.skip(
+        "TC-WA-010 cloud webhook refuses a wrongly-signed payload",
+        "WHATSAPP_APP_SECRET is unset, so signature verification is never reached",
+      );
+    }
+
+    if (!WA_APP_SECRET && mode.dev) {
+      // Fail-closed is a PRODUCTION property: with no app secret configured, dev
+      // deliberately accepts the payload so the webhook is testable at all, and
+      // only a production build refuses it. Asserting the 401 here was asserting
+      // something the code is correct not to do, so every dev run of this harness
+      // reported a failure and exited 1.
+      record.skip(
+        "cloud webhook fail-closed (unsigned payload refused)",
+        "the server is a DEV build, which accepts an unsigned payload by design — run against `npm start` to assert the 401, or set WHATSAPP_APP_SECRET to exercise delivery",
+      );
+    } else if (!WA_APP_SECRET) {
+      // Production with no app secret: an unsigned payload must be refused rather
+      // than silently trusted. Deliberately NOT tagged TC-WA-010 — that case is
+      // about rejection WHEN THE SECRET IS CONFIGURED, which is the branch below.
+      record("cloud webhook rejects an UNSIGNED payload in production → 401", r.status === 401, `status=${r.status} (set WHATSAPP_APP_SECRET to test delivery)`);
     } else {
-      record("cloud webhook POST inbound (signed) → 200 {inbound:1}", r.status === 200 && j && j.inbound === 1, `status=${r.status}`);
+      record("TC-WA-010 cloud webhook accepts a CORRECTLY signed payload → 200 {inbound:1}", r.status === 200 && j && j.inbound === 1, `status=${r.status}`);
       const row = (await pool.query("select clinic_id, patient_id from whatsapp_messages where external_id=$1", [inId])).rows[0];
       record("cloud inbound routed by number → clinic A + matched patient", Boolean(row) && row.clinic_id === ids.clinics[0] && row.patient_id === ids.patients[0]);
 
@@ -440,29 +757,119 @@ async function run() {
 
       // A forged payload must never be accepted when the secret IS configured.
       const bad = await req("/api/whatsapp/cloud", { method: "POST", body, headers: { ...hdr, "x-hub-signature-256": "sha256=" + "0".repeat(64) } });
-      record("cloud webhook rejects a BAD signature → 401", bad.status === 401, `status=${bad.status}`);
+      record("TC-WA-010b …and refuses a BAD signature → 401", bad.status === 401, `status=${bad.status}`);
     }
   }
 
-  console.log("\n== RECALL ENGINE (cron) ==");
+  section("RECALL ENGINE (cron)");
   if (!CRON) {
     record("cron checks", true, "skipped (CRON_SECRET unset)");
   } else {
-    record("cron without secret → 401", (await req("/api/cron/recalls")).status === 401);
+    // ---- Every job route, not just the two with assertions below -------------
+    // These are publicly reachable URLs. The case says EVERY endpoint, and checking
+    // one of eight would have proved only that one of them was wired up: a new job
+    // added without the guard is exactly the regression worth catching, and it is
+    // invisible if the list is hardcoded to the jobs that already work.
+    const CRON_JOBS = [
+      "recalls", "reminders", "reconcile", "expenses",
+      "company-expenses", "log-retention", "billing", "scribe-recover",
+    ].map((j) => `/api/cron/${j}`);
+    {
+      const refused = [];
+      for (const route of CRON_JOBS) {
+        const s = (await req(route)).status;
+        if (s !== 401) refused.push(`${route}=${s}`);
+      }
+      record("TC-CRON-001 every cron endpoint without a secret → 401",
+        refused.length === 0, refused.length ? `NOT 401: ${refused.join(", ")}` : `${CRON_JOBS.length} endpoints`);
+    }
+
     const r = await req(`/api/cron/recalls?token=${CRON}`);
     let j = {};
     try { j = JSON.parse(r.text); } catch { /* ignore */ }
-    record("cron authorized → 200 {ok,processed,...}", r.status === 200 && j.ok === true && typeof j.processed === "number", `processed=${j.processed} sent=${j.sent} skipped=${j.skipped}`);
+    record("recall cron authorized → 200 {ok,processed,...}", r.status === 200 && j.ok === true && typeof j.processed === "number", `processed=${j.processed} sent=${j.sent} skipped=${j.skipped}`);
     record("due recall for no-phone patient was skipped", (j.skipped ?? 0) >= 1);
+    {
+      // "Due recalls only" is the actual claim, and it needs the NEGATIVE half: a job
+      // that actioned every recall, and one that actioned none, both satisfy a check
+      // on the due row alone.
+      const after = (await pool.query(
+        "select id, status from recalls where id = ANY($1)",
+        [[ids.recallDue, ids.recallFuture]],
+      )).rows;
+      const due = after.find((x) => x.id === ids.recallDue);
+      const future = after.find((x) => x.id === ids.recallFuture);
+      const outbound = (await pool.query(
+        "select count(*)::int c from whatsapp_messages where clinic_id=$1 and direction=2 /* outbound */ and template_name is not null and created_at > now() - interval '2 minutes'",
+        [ids.clinics[0]],
+      )).rows[0].c;
+      record("recall cron recorded an outbound message for the DUE recall", outbound >= 1, `outbound rows=${outbound}`);
+      record("recall cron left the NOT-yet-due recall alone", future?.status === 1 /* pending */, `future status=${future?.status}`);
+      // The status only advances on a SUCCESSFUL send (core/recall/index.ts), so with
+      // no provider credentials it correctly stays pending — which is why the case
+      // cannot be closed here rather than a sign the job is wrong.
+      record.skip(
+        "TC-CRON-003 the recalls job sends reminders for due recalls only",
+        `the due recall is actioned and an outbound row written, but its status only advances on a successful SEND, and WhatsApp is unconfigured (it is still ${due?.status === 1 ? "pending" : "status " + due?.status})`,
+      );
+    }
 
-    record("reminder cron without secret → 401", (await req("/api/cron/reminders")).status === 401);
     const rr = await req(`/api/cron/reminders?token=${CRON}`);
     let jr = {};
     try { jr = JSON.parse(rr.text); } catch { /* ignore */ }
     record("reminder cron authorized → 200 {ok,processed}", rr.status === 200 && jr.ok === true && typeof jr.processed === "number", `processed=${jr.processed} sent=${jr.sent}`);
+    {
+      // The window half of the case: tomorrow's appointment is picked up, next week's
+      // is not. Asserted on the ROWS the job considered, not on its count, because a
+      // count cannot distinguish "the right one" from "one of them".
+      const reminded = (await pool.query(
+        "select count(*)::int c from whatsapp_messages where clinic_id=$1 and direction=2 and body like 'Reminder: your appointment%' and created_at > now() - interval '2 minutes'",
+        [ids.clinics[0]],
+      )).rows[0].c;
+      record("reminder cron messaged TOMORROW's appointment", reminded >= 1, `reminder rows=${reminded}`);
+      const nextWeek = (await pool.query("select reminder_sent_at from appointments where id=$1", [ids.apptNextWeek])).rows[0];
+      record("reminder cron left next week's appointment unreminded", nextWeek?.reminder_sent_at === null, `reminder_sent_at=${nextWeek?.reminder_sent_at}`);
+      // "Exactly once" rests on reminder_sent_at, which is deliberately only stamped
+      // when the send SUCCEEDS so a failed run retries (core/notifications/appointment.ts).
+      // Unconfigured, nothing is stamped and a second run would legitimately try again,
+      // so the once-only property is not observable here.
+      record.skip(
+        "TC-CRON-005 the reminder job messages tomorrow's appointments once",
+        "the right appointment is picked up, but `reminder_sent_at` is only stamped on a successful send and WhatsApp is unconfigured, so the once-only half cannot be observed",
+      );
+    }
+
+    // ---- The cron credential is the ONLY key to these routes ----------------
+    // A signed-in user must not be able to kick off a reconciliation from a browser.
+    // These routes are reachable without a session by design, so a session being
+    // IGNORED is the property — not a side effect of them being protected at all.
+    {
+      const seats = [["receptionist", S.recepA], ["clinic admin", S.adminA], ["super admin", S.sadmin]];
+      const codes = [];
+      for (const [, cookie] of seats) codes.push((await req("/api/cron/reconcile", { cookie })).status);
+      record("TC-CRON-015 a user session is not a cron credential → 401",
+        codes.every((c) => c === 401),
+        seats.map(([who], i) => `${who}=${codes[i]}`).join(", "));
+    }
+
+    // The three accepted transports, each proven to work, plus a wrong value
+    // refused. Deliberately NOT tagged with a case id: TC-CRON-002 also claims
+    // the comparison is constant-time, and response latency over HTTP is far too
+    // noisy to assert that — a green tick here would be claiming a property
+    // nothing measured. The code path is `secretEquals` in core/security/cron.ts.
+    {
+      const bearer = await req("/api/cron/recalls", { headers: { Authorization: `Bearer ${CRON}` } });
+      const header = await req("/api/cron/recalls", { headers: { "x-cron-token": CRON } });
+      const query = await req(`/api/cron/recalls?token=${encodeURIComponent(CRON)}`);
+      record("cron secret accepted as Bearer, x-cron-token and ?token= alike",
+        [bearer, header, query].every((r) => r.status === 200),
+        `bearer=${bearer.status} header=${header.status} query=${query.status}`);
+      const wrong = await req(`/api/cron/recalls?token=${encodeURIComponent(CRON)}x`);
+      record("a cron secret with one extra character is refused → 401", wrong.status === 401, `status=${wrong.status}`);
+    }
   }
 
-  console.log("\n== VOICE SCRIBE (auth + tenant + unconfigured) ==");
+  section("VOICE SCRIBE (auth + tenant + unconfigured)");
   const mkForm = (patientId) => {
     const fd = new FormData();
     fd.append("patientId", patientId);
@@ -517,7 +924,7 @@ async function run() {
     record("clinic admin (owner-dentist) scribe is NOT blocked", owner.status !== 401 && owner.status !== 403, `status=${owner.status}`);
   }
 
-  console.log("\n== API AUTH CHOKEPOINT (paused clinic can't reach data routes) ==");
+  section("API AUTH CHOKEPOINT (paused clinic can't reach data routes)");
   {
     // Regression guard: Route Handlers used to run their own `getCurrentUser() +
     // can()` check and skip the clinic-usable gate that every PAGE enforces, so a
@@ -534,12 +941,40 @@ async function run() {
     const pausedScribe = await req("/api/ai/scribe", { cookie: S.adminA, method: "POST", body: mkForm(ids.patients[0]) });
     record("SUSPENDED clinic can't reach the PAID AI scribe → 403", pausedScribe.status === 403, `status=${pausedScribe.status}`);
 
+    // The PAGE side of the same lock. A pause has to take hold on an ALREADY-OPEN
+    // session rather than at the next sign-in, so the existing cookie is used
+    // deliberately — minting a fresh one would test a different thing.
+    {
+      const page = await req("/clinic", { cookie: S.adminA });
+      const bounced = is3xx(page.status) || !page.text.includes("Ayesha Recovered");
+      record("TC-SUPER-003 SUSPENDED clinic bounces its staff out of the workspace",
+        bounced, `status=${page.status}`);
+      const patients = await req("/clinic/patients", { cookie: S.adminA });
+      record("TC-SUPER-003b …and no patient data renders on the way out",
+        !patients.text.includes("Ayesha Recovered"), `status=${patients.status}`);
+    }
+
+    // Support must still be able to look at a suspended clinic — that is usually
+    // exactly why they are looking. Deliberate, and not a defect.
+    {
+      const r = await req(`/admin/clinics/${ids.clinics[0]}`, { cookie: S.sadmin });
+      record("TC-RBAC-022 support can still open a suspended clinic",
+        r.status === 200 && r.text.includes("E2E Clinic A"), `status=${r.status}`);
+    }
+
     await pool.query("update clinics set status=2 /* active */ where id=$1", [ids.clinics[0]]);
     const after = await req("/api/patients/export", { cookie: S.adminA });
     record("restoring the clinic restores API access → 200", after.status === 200, `status=${after.status}`);
+    {
+      // Reactivating must restore the PAGES too, with the data intact — a lock that
+      // does not lift is a worse bug than one that never engaged.
+      const page = await req("/clinic/patients", { cookie: S.adminA });
+      record("TC-SUPER-003c reactivating restores the workspace with its data",
+        page.status === 200 && page.text.includes("Ayesha Recovered"), `status=${page.status}`);
+    }
   }
 
-  console.log("\n== LOGIN CREDENTIAL PATH (bcrypt round-trip) ==");
+  section("LOGIN CREDENTIAL PATH (bcrypt round-trip)");
   {
     const admin = (await pool.query("select password_hash from users where username=$1", [process.env.SEED_ADMIN_USERNAME || "admin"])).rows[0];
     if (admin && process.env.SEED_ADMIN_PASSWORD) {
@@ -550,7 +985,7 @@ async function run() {
     }
   }
 
-  console.log("\n== SOFT DELETE / TRASH ==");
+  section("SOFT DELETE / TRASH");
   {
     const cA = ids.clinics[0];
     const adminAId = ids.users[1];
@@ -589,7 +1024,7 @@ async function run() {
     }
   }
 
-  console.log("\n== LIVE QUEUE (doctor: Arrived → Call in → Complete) ==");
+  section("LIVE QUEUE (doctor: Arrived → Call in → Complete)");
   {
     // Reception checks the patient in; the doctor's queue should offer "Call in".
     await pool.query("update appointments set status=3 /* arrived */, arrived_at=now() where id=$1", [ids.queueAppt]);
@@ -619,7 +1054,7 @@ async function run() {
     }
   }
 
-  console.log("\n== CSV EXPORTS (auth + text/csv + BOM + brand footer) ==");
+  section("CSV EXPORTS (auth + text/csv + BOM + brand footer)");
   {
     // Mirrors the default in core/lib/brand.ts rather than hardcoding a brand string.
     // This assertion was left reading "www.klenic.com" after the rebrand, so it had
@@ -634,16 +1069,38 @@ async function run() {
     // Exports that need no billing feature (patients / staff / appointments).
     {
       const r = await req("/api/patients/export", { cookie: S.adminA });
-      record("patients CSV → text/csv + footer + header", okCsv(r, "MRN,Name,Phone"), okCsv(r, "MRN,Name,Phone") ? "" : `status=${r.status} ct=${r.ct}`);
-      record("patients CSV is clinic-scoped (has A patient, not B)", r.text.includes("Ayesha Recovered") && !r.text.includes("ClinicB Patient"));
+      record("TC-PAT-017 patients CSV → text/csv + footer + header", okCsv(r, "MRN,Name,Phone"), okCsv(r, "MRN,Name,Phone") ? "" : `status=${r.status} ct=${r.ct}`);
+      record("TC-PAT-017b patients CSV is clinic-scoped (has A patient, not B)", r.text.includes("Ayesha Recovered") && !r.text.includes("ClinicB Patient"));
     }
     {
       const r = await req("/api/staff/export", { cookie: S.adminA });
       record("staff CSV → text/csv + footer + header", okCsv(r, "Name,Username,Role"), okCsv(r, "Name,Username,Role") ? "" : `status=${r.status} ct=${r.ct}`);
     }
     {
-      const r = await req("/api/appointments/export?period=year", { cookie: S.adminA });
-      record("appointments CSV → text/csv + footer + header", okCsv(r, "Date,Token,Patient"), okCsv(r, "Date,Token,Patient") ? "" : `status=${r.status} ct=${r.ct}`);
+      // `?period=year` was doing NOTHING. The appointments export reads from/to
+      // (parseListFilters), and with neither it defaults to TODAY — so this export
+      // was being asserted over an almost empty range, and the header check below
+      // passes on a CSV with no rows at all. Give it a window that actually
+      // contains the seeded appointments, then assert a row is IN it.
+      const ymd = (offsetDays) => {
+        const d = new Date();
+        d.setDate(d.getDate() + offsetDays);
+        return d.toLocaleDateString("en-CA"); // YYYY-MM-DD, local
+      };
+      const range = `from=${ymd(-30)}&to=${ymd(30)}`;
+      const r = await req(`/api/appointments/export?${range}`, { cookie: S.adminA });
+      record("TC-APPT-023 appointments CSV → text/csv + footer + header", okCsv(r, "Date,Token,Patient"), okCsv(r, "Date,Token,Patient") ? "" : `status=${r.status} ct=${r.ct}`);
+      // The scoping half, and the half that proves the export produced DATA. Without
+      // it the export could be answering for every clinic, or for none, and the
+      // header check above would still be perfectly green.
+      record("TC-APPT-023b appointments CSV is clinic-scoped (A's patient, not B's)",
+        r.text.includes("Ayesha Recovered") && !r.text.includes("ClinicB Patient"),
+        `${r.text.trim().split("\n").length} lines for ${range}`);
+      // The on-screen filter must reach the download: a date range outside every
+      // appointment returns the header and nothing else.
+      const empty = await req(`/api/appointments/export?from=${ymd(-400)}&to=${ymd(-370)}`, { cookie: S.adminA });
+      record("TC-APPT-023c the date filter reaches the export (empty range → no rows)",
+        empty.status === 200 && !empty.text.includes("Ayesha Recovered"), `status=${empty.status}`);
     }
 
     // Raw-byte BOM check (fetch's text() decode strips a leading BOM, so read bytes).
@@ -742,7 +1199,7 @@ async function run() {
     // If Next ever stops noncing, or a panel response starts coming from the
     // prerender cache, the panel's scripts are refused and the workspace goes blank
     // — silently, because the app itself raises no error.
-    console.log("\n== CSP ==");
+    section("CSP");
     {
       const csp = (r) => r.headers.get("content-security-policy") || "";
       const reportOnly = (r) => r.headers.get("content-security-policy-report-only") || "";
@@ -796,7 +1253,7 @@ async function run() {
 }
 
 async function cleanup() {
-  console.log("\n== CLEANUP ==");
+  section("CLEANUP");
   // Explicit dependency order — a clinic delete only sets users.clinic_id NULL, so delete users too.
   if (ids.users?.length) await pool.query("delete from sessions where user_id = ANY($1)", [ids.users]);
   if (ids.clinics?.length) {
@@ -821,6 +1278,8 @@ async function cleanup() {
 
 (async () => {
   console.log(`FlexicaAI e2e → ${BASE}`);
+  const startedAt = new Date().toISOString();
+  const t0 = Date.now();
   try {
     await seed();
     await run();
@@ -831,12 +1290,41 @@ async function cleanup() {
     try { await cleanup(); } catch (e) { console.error("cleanup error:", e.message); }
     await pool.end();
   }
-  const passed = results.filter((r) => r.pass).length;
-  const failed = results.length - passed;
-  console.log(`\n================ SUMMARY: ${passed}/${results.length} passed, ${failed} failed ================`);
+  // A skip is neither a pass nor a failure, and the denominator is the checks that
+  // were actually MADE — "121/123 passed" with two of them skipped reads as a
+  // weaker run than it was, and as a stronger one than a run with two real passes.
+  const skipped = results.filter((r) => r.skipped).length;
+  const attempted = results.length - skipped;
+  const passed = results.filter((r) => r.pass && !r.skipped).length;
+  const failed = attempted - passed;
+  console.log(
+    `\n================ SUMMARY: ${passed}/${attempted} passed, ${failed} failed` +
+      (skipped ? `, ${skipped} skipped` : "") +
+      " ================",
+  );
   if (failed) {
     console.log("FAILURES:");
     for (const r of results.filter((r) => !r.pass)) console.log("  - " + r.name + (r.detail ? "  (" + r.detail + ")" : ""));
   }
+
+  // The reports are written whether the run passed or failed — a failing run is
+  // precisely when somebody wants to read one. Reporting must never change the exit
+  // code either, so it is wrapped: a disk error here is not a test failure, and
+  // swallowing it silently would be the one thing worse than printing it.
+  try {
+    const { jsonPath, htmlPath, cases } = writeReports(results, {
+      base: BASE,
+      startedAt,
+      ms: Date.now() - t0,
+    });
+    const casesPassed = cases.filter((c) => c.status === "Pass").length;
+    console.log("");
+    console.log(`report  ${htmlPath}`);
+    console.log(`results ${jsonPath}  (${cases.length} workbook cases: ${casesPassed} Pass, ${cases.length - casesPassed} Fail)`);
+    console.log("        apply them with: node scripts/qa/run/apply-results.mjs");
+  } catch (e) {
+    console.error("could not write the reports:", e.message);
+  }
+
   process.exit(failed ? 1 : 0);
 })();
