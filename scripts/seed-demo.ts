@@ -329,7 +329,7 @@ async function main() {
       const n = chance(0.55) ? int(1, 3) : 0;
       const chosen = new Set<number>();
       for (let k = 0; k < n; k++) {
-        let idx = int(0, procs.length - 1);
+        const idx = int(0, procs.length - 1);
         if (chosen.has(idx)) continue;
         chosen.add(idx);
         const p = procs[idx];
