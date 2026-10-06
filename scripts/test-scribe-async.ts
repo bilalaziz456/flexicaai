@@ -61,13 +61,20 @@ let doctorId = "";
 let otherDoctorId = "";
 let patientId = "";
 
-const statusOf = async (id: string) => {
-  const [r] = await db
-    .select({ s: visits.status, e: visits.transcribeError, at: visits.transcribeStartedAt })
-    .from(visits)
-    .where(eq(visits.id, id));
-  return r;
-};
+// Reads the run's state by id alone, the way the recovery cron and the client
+// poller see it — so it is deliberately cross-tenant and says so. Without
+// `unscoped` the tenant guard flagged it on every call (13 reports per run), and a
+// known recurring violation is exactly what trains people to stop reading the
+// guard's output (ADR-018). The guard is the backstop for a FORGOTTEN byClinic();
+// it has to stay silent on the ones that are deliberate.
+const statusOf = async (id: string) =>
+  unscoped("test: reads one scribe run by id, as the recovery sweep does", async () => {
+    const [r] = await db
+      .select({ s: visits.status, e: visits.transcribeError, at: visits.transcribeStartedAt })
+      .from(visits)
+      .where(eq(visits.id, id));
+    return r;
+  });
 
 /** A visit as the ROUTE creates it: audio stored, note not yet written. */
 async function newRun(audioKey: string | null = `${TAG}/audio.webm`): Promise<string> {
@@ -169,17 +176,23 @@ async function main() {
   console.log("\nA run the process died in the middle of is recovered:");
   {
     const stalled = await newRun();
-    await db
-      .update(visits)
-      .set({ transcribeStartedAt: new Date(Date.now() - (SCRIBE_STALL_MINUTES + 5) * 60_000) })
-      .where(eq(visits.id, stalled));
+    // Ageing a row by id is the test rig reaching past the application, not a query
+    // that forgot its clinic — say so, so the guard stays quiet (ADR-018).
+    await unscoped("test: ages one run past the stall cutoff", () =>
+      db
+        .update(visits)
+        .set({ transcribeStartedAt: new Date(Date.now() - (SCRIBE_STALL_MINUTES + 5) * 60_000) })
+        .where(eq(visits.id, stalled)),
+    );
 
     // The one a naive sweep misses: `after()` never ran, so start time is NULL.
     const neverStarted = await newRun();
-    await db
-      .update(visits)
-      .set({ createdAt: new Date(Date.now() - (SCRIBE_STALL_MINUTES + 5) * 60_000) })
-      .where(eq(visits.id, neverStarted));
+    await unscoped("test: ages a never-claimed run past the stall cutoff", () =>
+      db
+        .update(visits)
+        .set({ createdAt: new Date(Date.now() - (SCRIBE_STALL_MINUTES + 5) * 60_000) })
+        .where(eq(visits.id, neverStarted)),
+    );
 
     const fresh = await newRun(); // started just now — must be left alone
 
@@ -203,7 +216,9 @@ async function main() {
     check("the claim is released so a job can take it", s?.at, null);
     check("and the old error is cleared", s?.e, null);
 
-    const [audio] = await db.select({ k: visits.audioKey }).from(visits).where(eq(visits.id, id));
+    const [audio] = await unscoped("test: reads one run's stored audio key by id", () =>
+      db.select({ k: visits.audioKey }).from(visits).where(eq(visits.id, id)),
+    );
     check("the recording is still there — no re-dictation", Boolean(audio?.k), true);
 
     // Not from `transcribing`: that would disturb a run that is still going.

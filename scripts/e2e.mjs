@@ -100,7 +100,7 @@ const results = [];
  * existing call sites, and a signature change would have meant touching every one of
  * them to credit a handful. An untagged assertion stays exactly as it was.
  */
-const TC_ID = /^(TC-[A-Z]+-\d+[a-z]?)\s+/;
+const TC_ID = /^(TC-[A-Z0-9]+-\d+[a-z]?)\s+/;
 
 /**
  * The section an assertion belongs to. Set by `section()`, which also prints the
@@ -536,6 +536,52 @@ async function run() {
     }
     record("TC-RBAC-010 unauthenticated API callers get 401 \"Not signed in.\"",
       !seen.includes("MISMATCH"), seen.filter((s) => s !== "MISMATCH").join(", "));
+  }
+  {
+    // A SIGNED-IN caller who lacks the grant is a different refusal from an anonymous
+    // one — 403 rather than 401 — and conflating them would hide a route that
+    // authenticates but never authorizes. The doctor is the right seat: a real
+    // session, and neither grant.
+    //
+    // The assertion is on the STATUS and on no data coming back, not on the body
+    // string, and that is a correction to the case rather than a softening of it.
+    // TC-RBAC-009 says both answer "Not permitted.", which is what the shared
+    // chokepoint (`apiRequireWorkspace`) sends. `/api/finance/export` gates per
+    // REPORT TYPE — each one needs its own feature ∩ permission pair, which one call
+    // cannot express — so it refuses in the route with a bare "Forbidden". Thirteen
+    // such responses exist across four route files. Whether the API should speak one
+    // denial vocabulary is a product decision; asserting a message the code does not
+    // send would just make this suite red about somebody else's open question.
+    const denied = [];
+    for (const route of ["/api/finance/export?type=pl", "/api/staff/export"]) {
+      const r = await req(route, { cookie: S.docA });
+      denied.push(`${route.split("?")[0]}=${r.status} "${snip(r.text).slice(0, 20)}"`);
+      if (r.status !== 403) denied.push("MISMATCH");
+      // "No data rows" is the half a status check misses: a 403 that still streamed
+      // the CSV would read as perfectly secure from the status line alone.
+      if (r.text.includes("Powered by")) denied.push("LEAKED-CSV");
+    }
+    record("TC-RBAC-009 a signed-in caller without the grant is refused 403 with no data",
+      !denied.includes("MISMATCH") && !denied.includes("LEAKED-CSV"),
+      denied.filter((d) => !d.startsWith("MIS") && !d.startsWith("LEAK")).join(", "));
+  }
+  {
+    // An unmatched URL inside a panel. The STATUS is deliberately 200, not 404 —
+    // the workspace layout has begun streaming before notFound() throws, which is
+    // the documented consequence of giving panels a server-rendered catch-all so
+    // their scripts can be nonced (ADR-026). Asserting 404 here would fail against
+    // correct code, so the assertion is on what the user actually gets: the
+    // not-found page, and a route back off it.
+    for (const [who, cookie, path] of [
+      ["clinic", S.adminA, "/clinic/no-such-page-at-all"],
+      ["admin", S.sadmin, "/admin/no-such-page-at-all"],
+    ]) {
+      const r = await req(path, { cookie });
+      const shown = r.text.includes("We cannot find that page");
+      const wayBack = r.text.includes('href="/"') || r.text.includes('href="/clinic"') || r.text.includes('href="/admin"');
+      record(`TC-LIST-014${who === "admin" ? "b" : ""} an unknown ${who} URL shows a not-found page with a way back`,
+        shown && wayBack, `status=${r.status} notFound=${shown} link=${wayBack}`);
+    }
   }
 
   section("SIGNED PUBLIC LINK (/p/rx)");

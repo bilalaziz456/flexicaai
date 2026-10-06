@@ -54,7 +54,7 @@ export function caseResults(results) {
     .map(([id, rs]) => {
       const failed = rs.filter((r) => !r.pass);
       const describe = (r) => {
-        const text = r.name.replace(/^TC-[A-Z]+-\d+[a-z]?\s+/, "");
+        const text = r.name.replace(/^TC-[A-Z0-9]+-\d+[a-z]?\s+/, "");
         return r.detail ? `${text} (${r.detail})` : text;
       };
       return {
@@ -87,7 +87,7 @@ function html({ results, cases, base, startedAt, ms }) {
         <tr class="${verdict(r)}">
           <td class="verdict"><span class="pill">${verdict(r)}</span></td>
           <td class="case">${r.tc && !r.skipped ? `<code>${esc(baseCase(r.tc))}</code>` : ""}</td>
-          <td class="what">${esc(r.name.replace(/^TC-[A-Z]+-\d+[a-z]?\s+/, ""))}
+          <td class="what">${esc(r.name.replace(/^TC-[A-Z0-9]+-\d+[a-z]?\s+/, ""))}
             ${r.detail ? `<span class="detail">${esc(r.detail)}</span>` : ""}</td>
         </tr>`;
 

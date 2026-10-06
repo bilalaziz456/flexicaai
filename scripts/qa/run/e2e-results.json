@@ -30,6 +30,11 @@
     "note": "Automated (e2e): a user session is not a cron credential → 401 (receptionist=401, clinic admin=401, super admin=401)"
   },
   {
+    "id": "TC-LIST-014",
+    "status": "Pass",
+    "note": "Automated (e2e): an unknown clinic URL shows a not-found page with a way back (status=200 notFound=true link=true); an unknown admin URL shows a not-found page with a way back (status=200 notFound=true link=true)"
+  },
+  {
     "id": "TC-PAT-017",
     "status": "Pass",
     "note": "Automated (e2e): patients CSV → text/csv + footer + header; patients CSV is clinic-scoped (has A patient, not B)"
@@ -48,6 +53,11 @@
     "id": "TC-RBAC-008",
     "status": "Pass",
     "note": "Automated (e2e): super admin at /clinic is returned to the admin panel (status=307 → /admin/overview)"
+  },
+  {
+    "id": "TC-RBAC-009",
+    "status": "Pass",
+    "note": "Automated (e2e): a signed-in caller without the grant is refused 403 with no data (/api/finance/export=403 \"Forbidden\", /api/staff/export=403 \"{\"error\":\"Not permit\")"
   },
   {
     "id": "TC-RBAC-010",

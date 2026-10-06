@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FlexicaAI e2e run — 2026-10-06 18:27</title>
+<title>FlexicaAI e2e run — 2026-10-06 18:41</title>
 <style>
   :root {
     --ground: #f6f6f4; --card: #ffffff; --ink: #16181c; --muted: #6a7078;
@@ -77,18 +77,18 @@
   <header>
     <h1>FlexicaAI end-to-end run</h1>
     <p class="sub">
-      2026-10-06 18:27:06 ·
+      2026-10-06 18:41:16 ·
       <code>http://localhost:3000</code> ·
-      55.0s
+      57.1s
     </p>
   </header>
 
   <div class="kpis">
-    <div class="kpi"><b>134</b><span>checks made</span></div>
-    <div class="kpi is-pass"><b>134</b><span>passed</span></div>
+    <div class="kpi"><b>137</b><span>checks made</span></div>
+    <div class="kpi is-pass"><b>137</b><span>passed</span></div>
     <div class="kpi "><b>0</b><span>failed</span></div>
     <div class="kpi is-skip"><b>5</b><span>skipped</span></div>
-    <div class="kpi"><b>19/19</b><span>workbook cases</span></div>
+    <div class="kpi"><b>21/21</b><span>workbook cases</span></div>
   </div>
 
   <p class="note">
@@ -331,7 +331,7 @@
       </section>
       <section class="block">
         <h2>PRESCRIPTION PDF + TENANT ISOLATION
-          <span class="count">4/4</span>
+          <span class="count">7/7</span>
         </h2>
         <table>
           <tbody>
@@ -358,6 +358,24 @@
           <td class="case"><code>TC-RBAC-010</code></td>
           <td class="what">unauthenticated API callers get 401 &quot;Not signed in.&quot;
             <span class="detail">/api/patients/export=401+msg, /api/appointments/export=401+msg, /api/finance/export=401+msg</span></td>
+        </tr>
+        <tr class="pass">
+          <td class="verdict"><span class="pill">pass</span></td>
+          <td class="case"><code>TC-RBAC-009</code></td>
+          <td class="what">a signed-in caller without the grant is refused 403 with no data
+            <span class="detail">/api/finance/export=403 &quot;Forbidden&quot;, /api/staff/export=403 &quot;{&quot;error&quot;:&quot;Not permit&quot;</span></td>
+        </tr>
+        <tr class="pass">
+          <td class="verdict"><span class="pill">pass</span></td>
+          <td class="case"><code>TC-LIST-014</code></td>
+          <td class="what">an unknown clinic URL shows a not-found page with a way back
+            <span class="detail">status=200 notFound=true link=true</span></td>
+        </tr>
+        <tr class="pass">
+          <td class="verdict"><span class="pill">pass</span></td>
+          <td class="case"><code>TC-LIST-014</code></td>
+          <td class="what">an unknown admin URL shows a not-found page with a way back
+            <span class="detail">status=200 notFound=true link=true</span></td>
         </tr></tbody>
         </table>
       </section>
@@ -601,7 +619,7 @@
           <td class="verdict"><span class="pill">pass</span></td>
           <td class="case"></td>
           <td class="what">…and it returns the visit it created
-            <span class="detail">visitId=366469c5-6120-44b4-866d-9240b89a12e6</span></td>
+            <span class="detail">visitId=9116e858-d842-440a-998d-fce15386d702</span></td>
         </tr>
         <tr class="pass">
           <td class="verdict"><span class="pill">pass</span></td>
@@ -619,7 +637,7 @@
           <td class="verdict"><span class="pill">pass</span></td>
           <td class="case"></td>
           <td class="what">and the recording was kept, so it can be retried
-            <span class="detail">key=a767e5b4-8e3a-41f2-92b5-5e869c37019a/audio/1efd5670-6ffa-4533-a2af-5481856e542e.webm</span></td>
+            <span class="detail">key=f5de341c-631a-4c87-811a-f9737458b372/audio/f18631d1-4429-43cc-925f-afd29572595e.webm</span></td>
         </tr>
         <tr class="pass">
           <td class="verdict"><span class="pill">pass</span></td>
@@ -991,7 +1009,7 @@
           <td class="verdict"><span class="pill">pass</span></td>
           <td class="case"></td>
           <td class="what">panel script-src is strict: nonce + strict-dynamic
-            <span class="detail">script-src 'self' 'nonce-ii+mGvHqZX6QLIPww5RIhw==' 'sha256-vorOLIDEV/TJJ3pUhiIxfOtUmWNbYWOX3GCFmCAPWIk=' 'strict-dynamic' 'unsafe-eval'</span></td>
+            <span class="detail">script-src 'self' 'nonce-SADK1fgDGv8gLISnjBmhzQ==' 'sha256-vorOLIDEV/TJJ3pUhiIxfOtUmWNbYWOX3GCFmCAPWIk=' 'strict-dynamic' 'unsafe-eval'</span></td>
         </tr>
         <tr class="pass">
           <td class="verdict"><span class="pill">pass</span></td>
