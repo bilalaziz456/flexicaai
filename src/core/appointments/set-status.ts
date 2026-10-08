@@ -100,3 +100,38 @@ export async function applyAppointmentStatus(
   });
   return true;
 }
+
+/**
+ * Taking money for a visit confirms it — but only ever FORWARD: a `scheduled`
+ * appointment becomes `confirmed`, and every other status is left alone.
+ *
+ * WHY NOT ALWAYS SET IT. Money is usually taken at the desk after the visit, when the
+ * appointment is already arrived, in progress or completed. Setting any of those to
+ * `confirmed` would move it BACKWARDS: an arrived patient would drop out of the
+ * doctor's queue, and a completed visit would void its sale — the payment just taken
+ * would vanish from the P&L at the moment it was collected. Cancelled and no-show are
+ * left alone too: a late payment is not a decision to reinstate the visit.
+ *
+ * Goes through `applyAppointmentStatus`, so the WhatsApp confirmation for a patient's
+ * self-booking, the audit row and the ledger hooks behave exactly as a manual confirm.
+ * Returns true when it confirmed.
+ */
+export async function confirmAppointmentOnPayment(
+  clinicId: string,
+  appointmentId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ status: appointments.status })
+    .from(appointments)
+    .where(
+      byClinic(
+        appointments.clinicId,
+        clinicId,
+        notDeleted(appointments.deletedAt),
+        eq(appointments.id, appointmentId),
+      ),
+    )
+    .limit(1);
+  if (row?.status !== "scheduled") return false;
+  return applyAppointmentStatus(clinicId, appointmentId, "confirmed");
+}

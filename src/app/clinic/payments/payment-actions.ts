@@ -2,6 +2,8 @@
 
 import { getAppointmentPatientId } from "@/core/appointments/manage";
 import { getPaymentKind } from "@/core/billing/payments";
+import { confirmAppointmentOnPayment } from "@/core/appointments/set-status";
+import { report } from "@/core/observability";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -23,7 +25,12 @@ import { revalidateFinance } from "@/app/clinic/finance-revalidate";
 import { logActivity } from "@/core/audit/log";
 import { PAYMENT_METHODS } from "@/core/finance/payment-methods";
 
-export type BillingActionState = { error?: string; saved?: boolean };
+export type BillingActionState = {
+  error?: string;
+  saved?: boolean;
+  /** Collecting also moved the appointment from scheduled to confirmed. */
+  confirmed?: boolean;
+};
 
 /**
  * Billing is front-desk work: receptionist / manager / clinic admin, gated per
@@ -105,8 +112,17 @@ export async function collectPayment(
     entityId: appointmentId,
     summary: `Collected Rs ${res.paid + res.credited}${res.credited ? ` (Rs ${res.credited} to credit)` : ""}`,
   });
+
+  // The money is taken whatever happens here: confirming is a consequence of the
+  // payment, so a failure is reported and the payment still stands.
+  let confirmed = false;
+  try {
+    confirmed = await confirmAppointmentOnPayment(clinicId, appointmentId);
+  } catch (e) {
+    report(e, { op: "billing.collect.confirm", clinicId, ids: { appointmentId } });
+  }
   revalidateAppt(appointmentId, patientId);
-  return { saved: true };
+  return { saved: true, confirmed };
 }
 
 /** Record a payment against a patient's imported OPENING balance (not a visit). */

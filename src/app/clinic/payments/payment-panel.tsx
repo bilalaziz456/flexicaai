@@ -2,6 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Printer, Undo2 } from "lucide-react";
 import {
   collectPayment,
@@ -14,7 +15,7 @@ import {
 } from "@/app/clinic/payments/payment-actions";
 import { SelectField } from "@/core/ui/select-field";
 import { Button, buttonVariants } from "@/core/ui/button";
-import { Toast, useActionToast } from "@/core/ui/toast";
+import { Toast, toast, useActionToast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import { MessageCircle } from "lucide-react";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
@@ -90,11 +91,29 @@ export function PaymentPanel({
   const kindLabels = useVocabulary("payment_kinds");
   // Methods come from the database (ADR-027): active only, in its own order.
   const methodOptions = useTenderOptions();
+  const router = useRouter();
+  // Two submit buttons share this form; the one that says `then=print` goes on to
+  // the bill once the money is recorded. That happens HERE, in the action, so it
+  // follows the save rather than an effect watching for it (conventions §5) — and
+  // only on success, so a rejected amount never sends anyone to print a bill.
   const [state, formAction, pending] = useActionState<BillingActionState, FormData>(
-    collectPayment.bind(null, appointmentId),
+    async (prev, fd) => {
+      const res = await collectPayment(appointmentId, prev, fd);
+      if (res.saved && fd.get("then") === "print" && invoiceHref) {
+        // Toasted here rather than via `useActionToast`, whose component is about to
+        // unmount; the toast host lives in the root layout, so it survives the move.
+        toast.success(res.confirmed ? "Payment received · appointment confirmed." : "Payment received.");
+        router.push(invoiceHref);
+        return {};
+      }
+      return res;
+    },
     {},
   );
-  useActionToast(state, { saved: "Payment recorded.", error: true });
+  useActionToast(state, {
+    saved: state.confirmed ? "Payment received · appointment confirmed." : "Payment received.",
+    error: true,
+  });
   const [amount, setAmount] = useState(String(outstanding || ""));
 
   // Refund form (collapsed by default; only offered when there's money to give back).
@@ -217,9 +236,20 @@ export function PaymentPanel({
           </div>
           <input type="text" name="note" aria-label="Note for this payment" placeholder="Note (optional)" className={inputCls} />
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="submit" size="sm" disabled={pending}>
+            <Button type="submit" size="sm" variant="outline" disabled={pending}>
               {pending ? "Saving…" : "Collect payment"}
             </Button>
+            {invoiceHref ? (
+              <Button
+                type="submit"
+                name="then"
+                value="print"
+                size="sm"
+                disabled={pending}
+              >
+                <Printer className="size-3.5" aria-hidden="true" /> Collect &amp; print bill
+              </Button>
+            ) : null}
             {credit > 0 ? (
               <Button type="button" size="sm" variant="outline" disabled={busy} onClick={applyCredit}>
                 Apply {money.format(Math.min(credit, outstanding))} credit
@@ -357,6 +387,13 @@ export function PaymentPanel({
                   {e.reference ? ` · ${e.reference}` : ""}
                   {e.createdByName ? ` · ${e.createdByName}` : ""}
                 </span>
+                {/* The refund form asks for a REASON and every form asks for a note;
+                    both are stored here, so they have to be shown here. */}
+                {e.note ? (
+                  <span className="block text-xs text-muted-foreground">
+                    {e.kind === "refund" ? "Reason" : "Note"}: {e.note}
+                  </span>
+                ) : null}
               </div>
               {(e.kind === "refund" ? canVoidRefundEntry : canVoidPayment) ? (
                 <Button

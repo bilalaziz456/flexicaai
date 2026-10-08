@@ -19,6 +19,8 @@ type Row = {
   doctorName: string | null;
   kind: string;
   method: string | null;
+  /** Free text from the form — for a refund, its reason. */
+  note: string | null;
   createdByName: string | null;
   amount: number;
   appointmentId: string | null;
@@ -46,7 +48,23 @@ export function PaymentsTable({ rows, empty }: { rows: Row[]; empty: string }) {
       ),
     },
     { id: "doctor", header: "Doctor", sortValue: (r) => r.doctorName ?? "", cell: (r) => r.doctorName ?? "—" },
-    { id: "type", header: "Type", sortValue: (r) => r.kind, cell: (r) => labelFrom(kindLabels, r.kind) },
+    {
+      id: "type",
+      header: "Type",
+      sortValue: (r) => r.kind,
+      // The note rides under the type rather than taking a column: it is what explains
+      // a refund ("overcharged", "procedure not done"), and the table is wide already.
+      cell: (r) => (
+        <div className="max-w-56">
+          {labelFrom(kindLabels, r.kind)}
+          {r.note ? (
+            <span className="block truncate text-xs text-muted-foreground" title={r.note}>
+              {r.note}
+            </span>
+          ) : null}
+        </div>
+      ),
+    },
     { id: "method", header: "Method", sortValue: (r) => r.method ?? "", cell: (r) => labelFrom(methods, r.method) },
     { id: "by", header: "By", cell: (r) => <span className="text-muted-foreground">{r.createdByName ?? "—"}</span> },
     {
