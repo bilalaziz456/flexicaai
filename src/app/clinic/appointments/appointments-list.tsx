@@ -368,6 +368,7 @@ export async function AppointmentsList({
           nextHref={stepMonth(1)}
           todayHref={calendarHref({ from: today, to: today, month: toYm(new Date()) })}
           dayHref={(date) => calendarHref({ from: date, to: date, month: toYm(month.start) })}
+          bookHref={canCreate ? (date) => `${newHref}?date=${date}` : undefined}
           selectedFrom={fromStr}
           selectedTo={toStr}
         />

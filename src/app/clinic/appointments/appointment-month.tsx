@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronDown, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, MessageCircle, Plus } from "lucide-react";
 import type { CalendarDay } from "@/core/appointments/calendar";
 import { WEEKDAYS } from "@/core/lib/availability";
 import { cn } from "@/core/lib/utils";
@@ -64,6 +64,7 @@ export function AppointmentMonth({
   nextHref,
   todayHref,
   dayHref,
+  bookHref,
   selectedFrom,
   selectedTo,
 }: {
@@ -79,6 +80,9 @@ export function AppointmentMonth({
   todayHref: string;
   /** Builds the "filter the table to this date" link. */
   dayHref: (date: string) => string;
+  /** Builds "book on this date" for the + on each cell; omitted = the user cannot
+   *  create appointments, and no + is drawn. */
+  bookHref?: (date: string) => string;
   /** The table's current range, highlighted in the grid. */
   selectedFrom: string;
   selectedTo: string;
@@ -165,7 +169,11 @@ export function AppointmentMonth({
           const column = cell % 7;
           const bottomRow = Math.floor(cell / 7) >= rows - 2;
           return (
-            <div key={d.date} className="group relative">
+            // Each cell is its OWN stacking context (z-0), and the one being hovered
+            // or focused is lifted above its neighbours. Without that, every cell's
+            // children shared one context, so the + buttons of the cells AFTER this
+            // one painted straight through its open hover card.
+            <div key={d.date} className="group relative z-0 hover:z-20 focus-within:z-20">
               <Link
                 href={dayHref(d.date)}
                 scroll={false}
@@ -180,7 +188,9 @@ export function AppointmentMonth({
                   selected && "bg-accent ring-1 ring-primary/40",
                 )}
               >
-                <div className="flex items-start justify-between gap-1 leading-none">
+                {/* The WhatsApp badge sits beside the date rather than in the
+                    right-hand corner, which belongs to "Add appointment". */}
+                <div className="flex items-center gap-1 leading-none">
                   <span
                     className={cn(
                       "text-sm tabular-nums",
@@ -190,7 +200,12 @@ export function AppointmentMonth({
                     {Number(d.date.slice(8))}
                   </span>
                   {d.pendingWhatsapp > 0 ? (
-                    <span className="inline-flex items-center gap-0.5 rounded-md bg-warning/10 px-1 text-[0.65rem] font-medium text-warning-text">
+                    <span
+                      title={`${d.pendingWhatsapp} WhatsApp request${d.pendingWhatsapp === 1 ? "" : "s"} to confirm`}
+                      className={cn(
+                        "inline-flex items-center gap-0.5 rounded-md bg-warning/10 px-1 text-[0.65rem] font-medium text-warning-text",
+                      )}
+                    >
                       <MessageCircle className="size-3" aria-hidden="true" />
                       {d.pendingWhatsapp}
                     </span>
@@ -211,6 +226,33 @@ export function AppointmentMonth({
                   {visiting.length > 0 ? `${visiting.length} dr` : "no dr"}
                 </div>
               </Link>
+
+              {/* Book on this day. A SIBLING of the cell link, not inside it — an
+                  anchor inside an anchor is invalid HTML and browsers split it — and
+                  positioned over the cell's top-right corner.
+                  On a desktop it APPEARS ON HOVER (or keyboard focus): written into all
+                  thirty-one cells at once it was the loudest thing in the grid, louder
+                  than the appointments it sits beside. A touch screen has no hover, so
+                  there it is always shown (`pointer-coarse`). Placed at the cell's own
+                  padding and the date's line height, so it sits on the date's line. */}
+              {bookHref ? (
+                <Link
+                  href={bookHref(d.date)}
+                  aria-label={`New appointment on ${longDate(d.date)}`}
+                  className={cn(
+                    "absolute right-1 top-0.5 z-10 inline-flex h-[1.375rem] min-w-[1.375rem] items-center justify-center rounded-md px-1 text-[0.7rem] font-medium leading-none outline-none transition",
+                    "bg-primary/10 text-primary-text hover:bg-primary hover:text-primary-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                    // Desktop: hidden until this cell is hovered or focused.
+                    "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100",
+                    "pointer-coarse:opacity-100",
+                  )}
+                >
+                  {/* Words where the cell can hold them; a phone's cell is ~45px wide,
+                      so it keeps the + there (the aria-label carries the meaning). */}
+                  <Plus className="size-3.5 xl:hidden" aria-hidden="true" />
+                  <span className="hidden xl:inline">Add appointment</span>
+                </Link>
+              ) : null}
 
               {/* Hover/focus card. `pointer-events-none` so it never eats the
                   click on the cell underneath. */}
