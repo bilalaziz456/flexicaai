@@ -2,16 +2,27 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, X } from "lucide-react";
+import { Search, UserPlus, X } from "lucide-react";
 import { globalSearch, type SearchHit } from "@/core/search/actions";
+import { phoneSearchDigits } from "@/core/lib/phone";
 import { cn } from "@/core/lib/utils";
 
 /** A nav destination the search can jump to (already permission-filtered). */
 export type SearchNavItem = { href: string; label: string; group?: string };
 
-type Row =
-  | { type: "nav"; href: string; label: string; detail: string }
-  | { type: "hit"; href: string; label: string; detail: string; badge: string };
+/**
+ * Words that say "I want to make one", not which page. Stripped before matching, so
+ * "create sale" still finds the Sales page — a plain substring test never could.
+ */
+const CREATE_WORDS = new Set(["create", "new", "add", "make", "book", "record", "register"]);
+
+/**
+ * A result is a row of explicit ACTIONS, not one implied click: a patient can be
+ * opened or booked, and which one the desk wants is not ours to guess. The first
+ * action is the primary one.
+ */
+type RowAction = { label: string; href: string };
+type Row = { key: string; label: string; detail: string; badge: string; actions: RowAction[] };
 
 /**
  * Top-bar search across the clinic: patients (name / phone / MRN), document
@@ -29,6 +40,8 @@ export function GlobalSearch({
   /** Only the clinic workspace has invoice/receipt pages; elsewhere the
    *  appointment is the closest reachable thing. */
   documentPages = false,
+  newPatientHref,
+  newAppointmentHref,
   className,
 }: {
   navItems: SearchNavItem[];
@@ -37,6 +50,10 @@ export function GlobalSearch({
   /** e.g. "/clinic/appointments" */
   appointmentBase: string;
   documentPages?: boolean;
+  /** e.g. "/clinic/patients/new" — offered when no patient matches. */
+  newPatientHref?: string;
+  /** e.g. "/clinic/appointments/new" — "Book appointment" on a patient hit. */
+  newAppointmentHref?: string;
   className?: string;
 }) {
   const router = useRouter();
@@ -44,10 +61,12 @@ export function GlobalSearch({
   // The results are stored WITH the term that produced them, so "is this stale?"
   // is a comparison rather than a second piece of state to keep in step — and the
   // effect never has to setState synchronously to clear them.
-  const [result, setResult] = useState<{ q: string; rows: SearchHit[] }>({
-    q: "",
-    rows: [],
-  });
+  const [result, setResult] = useState<{
+    q: string;
+    rows: SearchHit[];
+    canCreatePatient: boolean;
+    canBookAppointment: boolean;
+  }>({ q: "", rows: [], canCreatePatient: false, canBookAppointment: false });
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -59,8 +78,8 @@ export function GlobalSearch({
     if (term.length < 2) return;
     let cancelled = false;
     const timer = setTimeout(async () => {
-      const rows = await globalSearch(term);
-      if (!cancelled) setResult({ q: term, rows });
+      const { hits, canCreatePatient, canBookAppointment } = await globalSearch(term);
+      if (!cancelled) setResult({ q: term, rows: hits, canCreatePatient, canBookAppointment });
     }, 250);
     return () => {
       cancelled = true;
@@ -108,40 +127,65 @@ export function GlobalSearch({
   const loading = term.length >= 2 && !fresh;
 
   const q = term.toLowerCase();
+  const pageWords = q.split(/\s+/).filter((w) => w && !CREATE_WORDS.has(w));
   const navRows: Row[] =
     q.length < 2
       ? []
       : navItems
-          .filter((n) => n.label.toLowerCase().includes(q))
+          .filter((n) => {
+            const label = n.label.toLowerCase();
+            // Each remaining word must appear — "sale" is in "sales", "patient" in
+            // "patients", so singular and plural both land.
+            return pageWords.length > 0 && pageWords.every((w) => label.includes(w));
+          })
           .slice(0, 5)
+          // A page is somewhere to go, nothing more: one action.
           .map((n) => ({
-            type: "nav" as const,
-            href: n.href,
+            key: `nav-${n.href}`,
             label: n.label,
             detail: n.group ?? "",
+            badge: "Page",
+            actions: [{ label: "Open page", href: n.href }],
           }));
 
-  const hitRows: Row[] = hits.map((h) =>
-    h.kind === "patient"
-      ? {
-          type: "hit" as const,
-          href: `${patientBase}/${h.id}`,
-          label: h.label,
-          detail: h.detail,
-          badge: "Patient",
-        }
-      : {
-          type: "hit" as const,
-          href: documentPages
-            ? `${appointmentBase}/${h.appointmentId}/${h.kind}`
-            : `${appointmentBase}/${h.appointmentId}`,
-          label: h.label,
-          detail: h.detail,
-          badge: h.kind === "invoice" ? "Invoice" : "Receipt",
-        },
-  );
+  const hitRows: Row[] = hits.map((h) => {
+    if (h.kind === "patient") {
+      const actions: RowAction[] = [{ label: "View patient", href: `${patientBase}/${h.id}` }];
+      if (result.canBookAppointment && newAppointmentHref) {
+        actions.unshift({
+          label: "Book appointment",
+          href: `${newAppointmentHref}?patientId=${h.id}`,
+        });
+      }
+      return { key: `patient-${h.id}`, label: h.label, detail: h.detail, badge: "Patient", actions };
+    }
+    const href = documentPages
+      ? `${appointmentBase}/${h.appointmentId}/${h.kind}`
+      : `${appointmentBase}/${h.appointmentId}`;
+    return {
+      key: `${h.kind}-${h.appointmentId}-${h.label}`,
+      label: h.label,
+      detail: h.detail,
+      badge: h.kind === "invoice" ? "Invoice" : "Payment",
+      actions: [{ label: h.kind === "invoice" ? "View invoice" : "View payment", href }],
+    };
+  });
 
   const rows = [...hitRows, ...navRows];
+
+  // NOTHING matched — no patient, document or page: offer to register a patient,
+  // carrying what was typed so the desk does not type it twice (a phone-shaped term
+  // fills the phone, anything else the name). Any result at all means the term was
+  // something else — "145" is an invoice, "ex" is Expenses — not a new patient.
+  // `then=book` sends the new patient straight on to booking.
+  const offerCreate =
+    fresh && rows.length === 0 && result.canCreatePatient && Boolean(newPatientHref);
+  const createHref = offerCreate
+    ? `${newPatientHref}?${new URLSearchParams({
+        then: "book",
+        [phoneSearchDigits(term) ? "phone" : "name"]: term,
+      })}`
+    : "";
   const go = (href: string) => {
     setOpen(false);
     setQuery("");
@@ -194,26 +238,53 @@ export function GlobalSearch({
           ) : (
             <ul className="max-h-80 overflow-y-auto py-1">
               {rows.map((r) => (
-                <li key={`${r.type}-${r.href}-${r.label}`}>
-                  <button
-                    type="button"
-                    onClick={() => go(r.href)}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
-                  >
-                    <span className="min-w-0 flex-1 truncate font-medium">{r.label}</span>
-                    {r.detail ? (
-                      <span className="max-w-[45%] truncate text-xs text-muted-foreground">
-                        {r.detail}
+                <li
+                  key={r.key}
+                  className="flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-accent/50"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate font-medium">{r.label}</span>
+                      <span className="shrink-0 rounded-md border border-input px-1.5 py-0.5 text-[0.65rem] text-muted-foreground">
+                        {r.badge}
                       </span>
+                    </div>
+                    {r.detail ? (
+                      <p className="truncate text-xs text-muted-foreground">{r.detail}</p>
                     ) : null}
-                    <span className="shrink-0 rounded-md border border-input px-1.5 py-0.5 text-[0.65rem] text-muted-foreground">
-                      {r.type === "nav" ? "Page" : r.badge}
-                    </span>
-                  </button>
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    {r.actions.map((a, i) => (
+                      <button
+                        key={a.label}
+                        type="button"
+                        onClick={() => go(a.href)}
+                        aria-label={`${a.label}: ${r.label}`}
+                        className={cn(
+                          "rounded-md px-2 py-1 text-xs font-medium transition-colors",
+                          i === 0 && r.actions.length > 1
+                            ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                            : "border border-input hover:bg-accent",
+                        )}
+                      >
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
                 </li>
               ))}
             </ul>
           )}
+          {offerCreate ? (
+            <button
+              type="button"
+              onClick={() => go(createHref)}
+              className="flex w-full items-center gap-2 border-t px-3 py-2 text-left text-sm font-medium text-primary transition-colors hover:bg-accent"
+            >
+              <UserPlus className="size-4 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 truncate">Create patient “{term}”</span>
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

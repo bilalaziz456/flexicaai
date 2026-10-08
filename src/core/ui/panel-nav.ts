@@ -43,6 +43,12 @@ export type PanelSearch = {
   patientBase: string;
   appointmentBase: string;
   documentPages: boolean;
+  /** Offered when a search finds no patient; the box appends the typed term and a
+   *  `then=book` flag. Omitted = no create action in this panel. */
+  newPatientHref?: string;
+  /** "Book appointment" on a patient hit; the box appends `?patientId=`. Omitted =
+   *  no booking action in this panel. */
+  newAppointmentHref?: string;
 };
 
 export type PanelNav = {

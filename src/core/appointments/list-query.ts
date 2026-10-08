@@ -10,6 +10,7 @@ import {
   appointmentProceduresNetSql,
 } from "@/core/appointments/procedures";
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
+import { patientPhoneMatchSql } from "@/core/patients/search-sql";
 import type { StatusFilter, VisitTypeFilter } from "./list-filters";
 import { appointmentStatusId } from "@/core/db/vocabulary-seed";
 
@@ -54,7 +55,7 @@ export function buildAppointmentConds(f: AppointmentFilterInput): SQL[] {
 
   if (f.q) {
     conds.push(
-      or(ilike(patients.fullName, `%${f.q}%`), ilike(patients.phone, `%${f.q}%`))!,
+      or(ilike(patients.fullName, `%${f.q}%`), patientPhoneMatchSql(f.q))!,
     );
   }
   if (f.status) conds.push(eq(appointments.status, f.status));

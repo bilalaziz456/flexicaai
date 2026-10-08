@@ -6,11 +6,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/ui/card";
-import { AddPatientForm } from "./add-patient-form";
+import { AddPatientForm, type AddPatientDefaults } from "./add-patient-form";
 
 /** Shared "add patient" panel. The caller gates on `patients:create`; `backHref`
  *  is where the ← link + post-save land (the panel-specific patients list). */
-export function NewPatientPanel({ backHref }: { backHref: string }) {
+export function NewPatientPanel({
+  backHref,
+  defaults,
+  thenBook = false,
+}: {
+  backHref: string;
+  defaults?: AddPatientDefaults;
+  /** On save, continue to "New appointment" with this patient selected. */
+  thenBook?: boolean;
+}) {
   return (
     <div className="space-y-6">
       <div>
@@ -30,7 +39,7 @@ export function NewPatientPanel({ backHref }: { backHref: string }) {
           <CardDescription>Name and WhatsApp number are required.</CardDescription>
         </CardHeader>
         <CardContent>
-          <AddPatientForm />
+          <AddPatientForm defaults={defaults} thenBook={thenBook} />
         </CardContent>
       </Card>
     </div>

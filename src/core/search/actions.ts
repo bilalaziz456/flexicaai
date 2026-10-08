@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { formatInvoiceNo, formatReceiptNo } from "@/core/billing/invoice";
 import { formatMrn, mrnDigits, mrnMatchesSql } from "@/core/patients/mrn";
+import { patientPhoneMatchSql } from "@/core/patients/search-sql";
 
 /**
  * Global search — the top-bar box, reachable from every panel.
@@ -57,12 +58,21 @@ function parseDocNumber(q: string): { year: number | null; no: number } | null {
   return null;
 }
 
-export async function globalSearch(query: string): Promise<SearchHit[]> {
+export type SearchResult = {
+  hits: SearchHit[];
+  /** Whether the box may offer "Create patient" when nothing matches. Decided here,
+   *  beside the other permission checks, so the client never guesses at the ACL. */
+  canCreatePatient: boolean;
+  /** Whether a patient hit may offer "Book appointment". */
+  canBookAppointment: boolean;
+};
+
+export async function globalSearch(query: string): Promise<SearchResult> {
   const user = await getCurrentUser();
   const q = query.trim();
   // Two characters is the floor: one letter matches most of the patient list and
   // makes every keystroke a table scan for nothing.
-  if (!user?.clinicId || q.length < 2) return [];
+  if (!user?.clinicId || q.length < 2) return { hits: [], canCreatePatient: false, canBookAppointment: false };
   const clinicId = user.clinicId;
 
   const [clinic] = await db
@@ -136,14 +146,18 @@ export async function globalSearch(query: string): Promise<SearchHit[]> {
       detail: r.patientName,
     });
   }
-  return hits;
+  return {
+    hits,
+    canCreatePatient: can(user, "patients", "create"),
+    canBookAppointment: can(user, "appointments", "create"),
+  };
 }
 
 /** Name, phone, or MRN — the same three the patients list matches. */
 function searchPatients(clinicId: string, q: string) {
   const conds = [
     ilike(patients.fullName, `%${q}%`),
-    ilike(patients.phone, `%${q}%`),
+    patientPhoneMatchSql(q),
   ];
   const digits = mrnDigits(q);
   // Same predicate the patients list uses, so a term that finds a patient there

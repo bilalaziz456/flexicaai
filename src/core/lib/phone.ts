@@ -59,6 +59,26 @@ export function phoneDigits(raw: string, defaultCc: string = DEFAULT_COUNTRY_COD
 }
 
 /**
+ * The digits to SEARCH stored phones by, or null when the term is not phone-shaped.
+ *
+ * Stored numbers are E.164, but the desk types what is on the patient's card —
+ * "0345 0186120" — and a plain substring match of that against "+923450186120"
+ * finds nothing. Dropping the trunk "0" (or the "00" international prefix) leaves the
+ * national number, which IS a substring of the E.164 form whatever the country code,
+ * so this needs no clinic country and works for a partial number too.
+ */
+export function phoneSearchDigits(term: string): string | null {
+  const t = term.trim();
+  if (!/^\+?[\d\s\-().]+$/.test(t)) return null;
+  let digits = t.replace(/\D/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  else if (digits.startsWith("0")) digits = digits.slice(1);
+  // Below this the raw substring match already does the job, and a 1–3 digit run
+  // would match most of the list.
+  return digits.length >= 4 ? digits : null;
+}
+
+/**
  * Keep a field to what can legally be typed into a phone number: digits, and a `+`
  * only in first position.
  *

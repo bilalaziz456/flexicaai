@@ -188,15 +188,28 @@ export function ActionToast({
  * Compat flash — captures a server-passed success message (from a `?created=1` style
  * redirect), strips the query param via the History API (NOT `router.replace`, which
  * would remount and cut the toast short), and enqueues it once.
+ *
+ * `params` strips only those keys, for a page whose other params still mean
+ * something — `?patientId=` on New appointment must survive a refresh. Omitted =
+ * the whole query string goes, as before.
  */
-export function FlashToast({ message }: { message: string | null }) {
+export function FlashToast({
+  message,
+  params,
+}: {
+  message: string | null;
+  params?: string[];
+}) {
   const done = useRef(false); // one-shot: guards the StrictMode double-invoke
   useEffect(() => {
     if (!message || done.current) return;
     done.current = true;
     pushToast(message, { variant: "success" });
     const url = new URL(window.location.href);
-    if (url.search) window.history.replaceState(window.history.state, "", url.pathname);
-  }, [message]);
+    if (!url.search) return;
+    if (params) for (const p of params) url.searchParams.delete(p);
+    else url.search = "";
+    window.history.replaceState(window.history.state, "", url.pathname + url.search);
+  }, [message, params]);
   return null;
 }

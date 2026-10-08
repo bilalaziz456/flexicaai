@@ -10,25 +10,40 @@ import { PhoneInput } from "@/core/ui/phone-input";
 import { Label } from "@/core/ui/label";
 import { useActionToast } from "@/core/ui/toast";
 
-export function AddPatientForm() {
+export type AddPatientDefaults = { fullName?: string; phone?: string };
+
+export function AddPatientForm({
+  defaults,
+  thenBook = false,
+}: {
+  defaults?: AddPatientDefaults;
+  thenBook?: boolean;
+}) {
   const [state, formAction, pending] = useActionState<
     ClinicActionState,
     FormData
   >(createPatient, {});
-  // Success redirects to the list (with a flash toast); a failed add pops an
-  // error toast here, re-triggered per attempt.
+  // Success redirects — to the list, or on to booking when `thenBook` — with a flash
+  // toast there; a failed add pops an error toast here, re-triggered per attempt.
   useActionToast(state, { error: true });
 
   return (
     <form action={formAction} className="space-y-4">
+      {thenBook ? <input type="hidden" name="then" value="book" /> : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>
-          <Input id="fullName" name="fullName" required />
+          <Input id="fullName" name="fullName" required defaultValue={defaults?.fullName} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="phone">WhatsApp / phone</Label>
-          <PhoneInput id="phone" name="phone" required placeholder="03450186120" />
+          <PhoneInput
+            id="phone"
+            name="phone"
+            required
+            placeholder="03450186120"
+            defaultValue={defaults?.phone}
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>

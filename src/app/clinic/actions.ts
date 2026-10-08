@@ -590,7 +590,7 @@ export async function createPatient(
   _prevState: ClinicActionState,
   formData: FormData,
 ): Promise<ClinicActionState> {
-  const { clinicId, home } = await requirePatientAccess("create");
+  const { user, clinicId, home } = await requirePatientAccess("create");
 
   const parsed = createPatientSchema.safeParse({
     fullName: formData.get("fullName"),
@@ -621,6 +621,12 @@ export async function createPatient(
     summary: `Registered patient ${parsed.data.fullName}`,
   });
   revalidatePath(home);
+  // Registered from "Create patient" in the search box: the desk is mid-booking, so
+  // carry on to the appointment form with this patient chosen. Only if they may
+  // book — otherwise that page would bounce them, and the list is the better landing.
+  if (formData.get("then") === "book" && can(user, "appointments", "create")) {
+    redirect(`/clinic/appointments/new?patientId=${createdPatient.id}&patientCreated=1`);
+  }
   redirect(`${home}?created=1`);
 }
 

@@ -354,6 +354,12 @@ throw — use it in tests.
   drifted, so the same search found a patient on one screen and missed them on another.
   A screen's own DOCUMENT number (invoice #, RCP #) is ORed on by that screen; it is
   not folded into the shared predicate.
+- **A phone is matched through `patientPhoneMatchSql`, never a bare `ilike(phone)`.**
+  Phones are stored E.164 ("+923450186120") and the desk types the card ("0345…"), so a
+  plain substring search found nobody. The helper also matches the term's NATIONAL
+  digits (trunk `0` / `00` dropped — `core/lib/phone.ts#phoneSearchDigits`), which are a
+  substring of the E.164 form whatever the country code. Seven searches had their own
+  `ilike(phone)` and every one of them had the bug.
 - **A condition set reused by two queries must only name tables BOTH join.** The
   receivables search sat in conditions shared with the per-visit query, which joins
   `users` but not `patients` — every matching search 500'd with `missing FROM-clause

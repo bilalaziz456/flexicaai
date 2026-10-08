@@ -2,6 +2,20 @@ import "server-only";
 
 import { ilike, or, sql, type SQL } from "drizzle-orm";
 import { patients } from "@/core/db/schema";
+import { phoneSearchDigits } from "@/core/lib/phone";
+
+/**
+ * Does this patient's phone match the term? The raw substring, OR — when the term is
+ * phone-shaped — its national digits, so "03450186120" finds a patient stored as
+ * "+923450186120" (`phoneSearchDigits` says why). Every patient search uses this; a
+ * screen with its own `ilike(phone)` finds a number the others miss.
+ */
+export function patientPhoneMatchSql(term: string): SQL {
+  const t = term.trim();
+  const digits = phoneSearchDigits(t);
+  const raw = ilike(patients.phone, `%${t}%`);
+  return digits ? or(raw, ilike(patients.phone, `%${digits}%`))! : raw;
+}
 
 /**
  * "Which patient is this?" as ONE predicate, for every list that lets the front desk
@@ -40,7 +54,7 @@ export function patientSearchSql(q: string | undefined, mrnPrefix: string): SQL 
 
   return or(
     ilike(patients.fullName, like),
-    ilike(patients.phone, like),
+    patientPhoneMatchSql(term),
     // The clinic's OWN patient number from whatever system it came off — the desk
     // often still quotes this, and it is the one identifier a patient may have
     // written down from before FlexicaAI existed.

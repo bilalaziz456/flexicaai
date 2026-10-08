@@ -5,6 +5,7 @@ import { db } from "@/core/db";
 import { patients } from "@/core/db/schema";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { mrnDigits, mrnMatchesSql } from "@/core/patients/mrn";
+import { patientPhoneMatchSql } from "@/core/patients/search-sql";
 
 /**
  * The clinic's patient list — CORE per ADR-014, shared by the list page and the CSV
@@ -21,7 +22,7 @@ export function patientSearchWhere(clinicId: string, q = ""): SQL | undefined {
   const query = q.trim();
   let search;
   if (query) {
-    const conds = [ilike(patients.fullName, `%${query}%`), ilike(patients.phone, `%${query}%`)];
+    const conds = [ilike(patients.fullName, `%${query}%`), patientPhoneMatchSql(query)];
     // Match the MRN's digits (registration date + padded counter) so "42", "0000042"
     // or a pasted "KL-202607270000042" all resolve to the same patient.
     const digits = mrnDigits(query);
@@ -143,7 +144,7 @@ export async function getPatientHeader(clinicId: string, patientId: string) {
 export async function searchPatientsForPicker(clinicId: string, q: string, limit = 20) {
   const query = q.trim();
   const search = query
-    ? or(ilike(patients.fullName, `%${query}%`), ilike(patients.phone, `%${query}%`))
+    ? or(ilike(patients.fullName, `%${query}%`), patientPhoneMatchSql(query))
     : undefined;
   return db
     .select(PATIENT_PICKER_COLUMNS)

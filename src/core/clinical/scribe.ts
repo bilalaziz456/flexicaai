@@ -6,6 +6,7 @@ import { appointments, patients, visits } from "@/core/db/schema";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import { draftAccessCondition } from "@/core/clinical/drafts";
+import { patientPhoneMatchSql } from "@/core/patients/search-sql";
 
 /**
  * Every query the voice scribe makes — CORE per ADR-014.
@@ -35,7 +36,7 @@ export async function listScribePatients(clinicId: string, limit = 20) {
 export async function searchScribePatients(clinicId: string, q: string, limit = 20) {
   const query = q.trim();
   const search = query
-    ? or(ilike(patients.fullName, `%${query}%`), ilike(patients.phone, `%${query}%`))
+    ? or(ilike(patients.fullName, `%${query}%`), patientPhoneMatchSql(query))
     : undefined;
   return db
     .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })

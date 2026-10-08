@@ -177,6 +177,8 @@ export function PanelShell({
       patientBase={search.patientBase}
       appointmentBase={search.appointmentBase}
       documentPages={search.documentPages}
+      newPatientHref={search.newPatientHref}
+      newAppointmentHref={search.newAppointmentHref}
     />
   ) : null;
 
