@@ -38,6 +38,10 @@ export async function sendEmail(args: {
   subject: string;
   html: string;
   text: string;
+  /** Where a reply should go when that is not the From address — e.g. the visitor
+   *  behind a contact-form enquiry. Never put a stranger's address in From: it fails
+   *  SPF/DMARC and the message lands in spam. */
+  replyTo?: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const t = getTransport();
   if (!t) {
@@ -52,7 +56,7 @@ export async function sendEmail(args: {
     return { ok: false, error: "Email is not configured." };
   }
   try {
-    await t.sendMail({ from: from(), to: args.to, subject: args.subject, text: args.text, html: args.html });
+    await t.sendMail({ from: from(), to: args.to, subject: args.subject, text: args.text, html: args.html, replyTo: args.replyTo });
     return { ok: true };
   } catch (e) {
     // Password-reset mail rides this path: a silent failure looks to the user like

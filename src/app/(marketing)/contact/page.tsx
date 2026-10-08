@@ -18,6 +18,7 @@ import { ContactHeroArt } from "../contact-hero-art";
 import { WhatsAppIcon } from "../whatsapp-icon";
 import { Magnetic } from "../magnetic";
 import { WhatsAppCta } from "../whatsapp-cta";
+import { ContactForm } from "./contact-form";
 import {
   SALES_EMAIL,
   SALES_EMAIL_URL,
@@ -34,10 +35,12 @@ import { ORGANIZATION, ORIGIN, ORG_ID } from "../structured-data";
  * Story: the first conversation (hero) → the three real channels → what happens after
  * you reach out → what is worth having to hand → existing customers.
  *
- * No enquiry form on purpose. There is no public signup and no leads table, so a form
- * would either need a new schema and mail pipeline, or would silently go nowhere —
- * and a contact form that drops messages is worse than no form. WhatsApp and email
- * are real channels that already work, and WhatsApp is what this market answers on.
+ * The enquiry form sits BESIDE the channels, not instead of them. It delivers by email
+ * only (there is no leads table), so when the mail can't go out it says so and sends
+ * the visitor to WhatsApp — a contact form that drops messages while thanking people
+ * is worse than no form. Spam is handled without a third-party script (a honeypot, a
+ * fill-time check and a per-IP limit), because a CAPTCHA would mean widening the
+ * public pages' CSP and sending every visitor to Google (ADR-026).
  *
  * Nothing here promises a response time, publishes office hours or gives an address.
  * We have none of those agreed, and a page whose whole purpose is to start an honest
@@ -85,7 +88,7 @@ const NEXT_STEPS: PipelineStep[] = [
   {
     Icon: MessageSquare,
     title: "You message us",
-    body: "On WhatsApp, by email or by phone — a line is enough, and voice notes are fine.",
+    body: "On WhatsApp, by email, by phone or with the form — a line is enough, and voice notes are fine.",
   },
   {
     Icon: Stethoscope,
@@ -224,7 +227,7 @@ export default function ContactPage() {
       <CapabilityHero
         eyebrow="Contact"
         lines={["Tell us how", "your practice", "actually runs."]}
-        lede="No form to fill in and nothing to install. Message us on WhatsApp, send an email, or call, and we will set up a walkthrough around how your clinic really works."
+        lede="Nothing to install. Message us on WhatsApp, send an email, call, or leave us a note below, and we will set up a walkthrough around how your clinic really works."
         secondary={{ href: "#ways-to-reach-us", label: "Ways to reach us" }}
         art={<ContactHeroArt />}
       />
@@ -275,7 +278,23 @@ export default function ContactPage() {
         </div>
       </section>
 
-      <section className="py-24 sm:py-32">
+      <section id="send-a-message" aria-label="Contact form" className="scroll-mt-24 py-24 sm:py-32">
+        <div className="mx-auto grid w-full max-w-6xl gap-14 px-4 sm:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-20">
+          <div className="lg:sticky lg:top-28 lg:self-start">
+            <SectionHeading
+              align="left"
+              eyebrow="Send a message"
+              title="Rather write it down?"
+              lede="Leave your details and a few lines about your practice. It reaches the same team as the email address above, and we reply by email."
+            />
+          </div>
+          <div className="reveal-up mk-card p-6 sm:p-8">
+            <ContactForm />
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-[var(--mk-line)] bg-muted/40 py-24 sm:py-32">
         <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
           <SectionHeading
             eyebrow="What happens next"
@@ -288,7 +307,7 @@ export default function ContactPage() {
         </div>
       </section>
 
-      <section className="border-y border-[var(--mk-line)] bg-muted/40 py-24 sm:py-32">
+      <section className="py-24 sm:py-32">
         <div className="mx-auto grid w-full max-w-6xl gap-14 px-4 sm:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-20">
           <div className="lg:sticky lg:top-28 lg:self-start">
             <SectionHeading

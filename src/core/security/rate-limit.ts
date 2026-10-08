@@ -98,6 +98,13 @@ export const resetByIdentifier = new Limiter(3, 15 * MIN);
 /** Password-reset requests per IP — generous (shared NAT) but caps a spray. */
 export const resetByIp = new Limiter(20, 15 * MIN);
 
+/**
+ * Website contact-form sends per IP. The form is public and every accepted send is an
+ * email into our inbox, so this caps what one source can push through. Generous enough
+ * for a clinic behind one NAT where two people enquire on the same afternoon.
+ */
+export const contactByIp = new Limiter(5, 60 * MIN);
+
 // ---- Generic route throttle ------------------------------------------------
 
 /** AI scribe per user — bounds PAID Whisper+Claude spend if a recorder loops. */
@@ -161,6 +168,6 @@ export function retryAfterLabel(ms: number): string {
 }
 
 // Periodic cleanup — unref'd so it never keeps the process alive.
-const ALL = [loginByUser, loginByIp, resetByIdentifier, resetByIp, aiScribeByUser];
+const ALL = [loginByUser, loginByIp, resetByIdentifier, resetByIp, aiScribeByUser, contactByIp];
 const timer = setInterval(() => ALL.forEach((l) => l.prune()), 10 * MIN);
 if (typeof timer === "object" && "unref" in timer) timer.unref();
