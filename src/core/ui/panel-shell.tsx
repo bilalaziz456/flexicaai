@@ -271,6 +271,10 @@ export function PanelShell({
         key={item.href}
         href={item.href}
         onClick={onClick}
+        // Marks a SECTION link for the in-app tabs (app-tabs.tsx): a click switches to
+        // the tab already holding this section, or opens one. "exact" for an item that
+        // owns only its own path (the dashboard), so it never claims every page.
+        data-app-tab-section={item.exact ? "exact" : "prefix"}
         aria-current={active ? "page" : undefined}
         className={cn(
           "group/nav relative flex items-center gap-2.5 rounded-lg py-2 pr-3 pl-3.5 text-sm transition-[background-color,color,box-shadow] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
@@ -422,6 +426,9 @@ export function PanelShell({
               storageKey={tabs.storageKey}
               homeHref={tabs.homeHref}
               currentTitle={currentLabel ?? identityLabel}
+              sections={visibleNodes
+                .flatMap((n): NavItem[] => (isGroup(n) ? n.items : [n]))
+                .map((i) => ({ path: i.href, exact: Boolean(i.exact) }))}
             />
           </Suspense>
         ) : null}

@@ -30,6 +30,59 @@ const listeners = new Set<() => void>();
 /** Titles pages have given themselves (`<TabTitle>`), keyed by PATHNAME. */
 const pageTitles = new Map<string, string>();
 
+/**
+ * ONE TAB PER SECTION (owner's rule). The panel's sidebar sections — each a path, and
+ * whether it owns only that path (`exact`, the dashboard) or every page beneath it.
+ * Whatever route reaches a section (sidebar, a link inside a page, Ctrl-click), it
+ * lands in that section's tab; a page in no section is free to sit in any tab.
+ */
+type Section = { path: string; exact: boolean };
+let sections: Section[] = [];
+
+/** The section a path belongs to — the LONGEST match, so a nested section wins. */
+function sectionOf(path: string): string | null {
+  let best: Section | null = null;
+  for (const sec of sections) {
+    const hit = path === sec.path || (!sec.exact && path.startsWith(`${sec.path}/`));
+    if (hit && (!best || sec.path.length > best.path.length)) best = sec;
+  }
+  return best?.path ?? null;
+}
+
+/** Merges tabs that share a section, keeping the first (and the active one's place). */
+function dedupe(st: TabsState): TabsState {
+  const seen = new Map<string, string>(); // section → kept tab id
+  const tabs: AppTab[] = [];
+  let activeId = st.activeId;
+  for (const t of st.tabs) {
+    const sec = sectionOf(pathOf(t.href));
+    const keptId = sec ? seen.get(sec) : undefined;
+    if (keptId) {
+      // A duplicate. If it was the active one, the kept tab takes its page and focus.
+      if (t.id === st.activeId) {
+        const i = tabs.findIndex((x) => x.id === keptId);
+        tabs[i] = { ...tabs[i], href: t.href, title: t.title };
+        activeId = keptId;
+      }
+      continue;
+    }
+    if (sec) seen.set(sec, t.id);
+    tabs.push(t);
+  }
+  return tabs.length === st.tabs.length ? st : { tabs, activeId };
+}
+
+/** Tells the store the panel's sections. Merges any duplicates already open — tabs
+ *  saved before this rule existed included two "Patients". */
+export function setAppTabSections(next: Section[]) {
+  const sig = JSON.stringify(next);
+  if (sig === JSON.stringify(sections)) return;
+  sections = next;
+  if (!key) return;
+  const merged = dedupe(state);
+  if (merged !== state) set(merged);
+}
+
 const pathOf = (href: string) => href.split("?")[0];
 const newId = () => Math.random().toString(36).slice(2, 10);
 
@@ -84,7 +137,7 @@ export const getAppTabsServer = () => EMPTY;
 export function initAppTabs(storageKey: string) {
   if (key === storageKey) return;
   key = storageKey;
-  state = load(storageKey);
+  state = dedupe(load(storageKey));
   emit();
 }
 
@@ -102,6 +155,19 @@ export function syncActiveTab(href: string, fallbackTitle: string) {
     return;
   }
   if (active.href === href && active.title === title) return;
+  // Arrived in a section ANOTHER tab already holds: that tab takes the page and the
+  // focus, and this one keeps what it was showing — so a section never has two tabs.
+  const sec = sectionOf(pathOf(href));
+  const owner = sec
+    ? state.tabs.find((t) => t.id !== active.id && sectionOf(pathOf(t.href)) === sec)
+    : undefined;
+  if (owner) {
+    set({
+      tabs: state.tabs.map((t) => (t.id === owner.id ? { ...t, href, title } : t)),
+      activeId: owner.id,
+    });
+    return;
+  }
   set({
     ...state,
     tabs: state.tabs.map((t) => (t.id === active.id ? { ...t, href, title } : t)),
@@ -111,11 +177,31 @@ export function syncActiveTab(href: string, fallbackTitle: string) {
 /** Opens `href` in a NEW tab and makes it active. False when tabs are off or full. */
 export function openAppTab(href: string): "opened" | "full" | "off" {
   if (!key) return "off";
+  // A section that already has a tab is not opened twice: its tab is focused, and the
+  // caller's navigation lands the page there (syncActiveTab).
+  const sec = sectionOf(pathOf(href));
+  const owner = sec ? state.tabs.find((t) => sectionOf(pathOf(t.href)) === sec) : undefined;
+  if (owner) {
+    if (state.activeId !== owner.id) set({ ...state, activeId: owner.id });
+    return "opened";
+  }
   if (state.tabs.length >= MAX_APP_TABS) return "full";
   const tab = { id: newId(), href, title: pageTitles.get(pathOf(href)) ?? "…" };
   set({ tabs: [...state.tabs, tab], activeId: tab.id });
   return "opened";
 }
+
+/** The tab holding the section at `sectionPath` — its own path, or (unless `exact`)
+ *  any page beneath it ("/clinic/payments/123" belongs to "/clinic/payments"). */
+export function findSectionTab(sectionPath: string, exact: boolean): AppTab | undefined {
+  return state.tabs.find((t) => {
+    const p = pathOf(t.href);
+    return p === sectionPath || (!exact && p.startsWith(`${sectionPath}/`));
+  });
+}
+
+export const getActiveAppTabId = () => state.activeId;
+export const appTabsEnabled = () => key !== null;
 
 /** Makes a tab active; returns where to navigate. */
 export function activateAppTab(id: string): string | null {
