@@ -1,4 +1,5 @@
 import { listClinicDoctors } from "@/core/appointments/doctors";
+import { TabTitle } from "@/core/ui/app-tabs";
 import { getAppointmentDetail } from "@/core/appointments/list-query";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { describeOfferDiscount, offerLabel } from "@/core/appointments/procedure-offer";
@@ -156,6 +157,7 @@ export async function AppointmentDetail({
 
   return (
     <div className="space-y-6">
+      <TabTitle title={`Appt · ${appt.patientName}`} />
       <ViewLogger
         entity="appointment"
         entityId={appt.id}

@@ -182,6 +182,9 @@ export default async function ClinicLayout({
       }}
       gates={{ logs: logsEnabled, approvals: approvalsEnabled }}
       accessibleResources={navResources}
+      // In-app tabs (owner's call: clinic workspace only). Keyed per user, so two
+      // people sharing the front-desk computer keep their own.
+      tabs={{ storageKey: `klenic:tabs:${user.id}`, homeHref: "/clinic" }}
       bottomPill={paymentPill}
     >
       {children}

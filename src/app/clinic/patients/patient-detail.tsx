@@ -5,6 +5,7 @@ import {
   listPatientVisits,
 } from "@/core/patients/manage";
 import Link from "next/link";
+import { TabTitle } from "@/core/ui/app-tabs";
 import { notFound } from "next/navigation";
 import { CalendarDays, CalendarPlus, ClipboardList, Pill, Printer } from "lucide-react";
 import { getClinic } from "@/core/clinics/get-clinic";
@@ -298,6 +299,7 @@ export async function PatientDetail({
 
   return (
     <div className="space-y-6">
+      <TabTitle title={patient.fullName} />
       <ViewLogger
         entity="patient"
         entityId={patient.id}

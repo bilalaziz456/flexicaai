@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/core/ui/nav-groups-store";
 import { ConnectionStatus } from "@/core/ui/connection-status";
 import { GlobalSearch, type SearchNavItem } from "@/core/ui/global-search";
+import { AppTabs } from "@/core/ui/app-tabs";
 // Only the icons the CHROME itself draws. Every route icon moved out with the nav
 // (ADR-019) — this list shrinking from 33 to 5 is the clearest measure of how much
 // application knowledge was living in shared UI.
@@ -114,6 +115,10 @@ export type PanelShellProps = {
   adminCapabilities?: readonly string[];
   /** A full-width bar rendered above the content (e.g. the impersonation banner). */
   banner?: React.ReactNode;
+  /** In-app tabs above the top bar (core/ui/app-tabs.tsx). `storageKey` keeps each
+   *  user's tabs apart; `homeHref` is where "+" opens and the panel's own path prefix.
+   *  Omitted = no tab bar (the super-admin panel). */
+  tabs?: { storageKey: string; homeHref: string };
   /** Optional floating pill stacked ABOVE the connectivity indicator, bottom-centre
    *  (e.g. the clinic payment-due notice). Shares one stack so the two never clash. */
   bottomPill?: React.ReactNode;
@@ -134,6 +139,7 @@ export function PanelShell({
   accessibleResources,
   adminCapabilities,
   banner,
+  tabs,
   bottomPill,
   children,
 }: PanelShellProps) {
@@ -408,6 +414,17 @@ export function PanelShell({
           keeps it legible where backdrop-filter is unsupported. */}
       <div className="sticky top-0 z-40 bg-background/85 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70 print:hidden">
         {banner}
+        {/* In-app tabs sit ABOVE the top bar. Suspense because the strip reads the
+            query string (useSearchParams), which must not block the shell. */}
+        {tabs ? (
+          <Suspense fallback={<div className="h-9 border-b border-border/70" />}>
+            <AppTabs
+              storageKey={tabs.storageKey}
+              homeHref={tabs.homeHref}
+              currentTitle={currentLabel ?? identityLabel}
+            />
+          </Suspense>
+        ) : null}
         {/* ---- Desktop top bar (clinic name left; theme + profile top-right) ---- */}
         <header className="hidden items-center justify-between gap-4 border-b border-border/70 px-6 py-2.5 md:flex">
         {/* Where you are, then whose data you are looking at. The clinic name alone

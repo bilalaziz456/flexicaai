@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useOpenInAppTab } from "@/core/ui/app-tabs";
 import { cn } from "@/core/lib/utils";
 
 /**
@@ -23,6 +24,7 @@ export function RowLink({
   as?: "tr" | "li";
 }) {
   const router = useRouter();
+  const openInAppTab = useOpenInAppTab();
 
   const isInteractive = (target: EventTarget | null) =>
     target instanceof Element &&
@@ -35,6 +37,9 @@ export function RowLink({
     <Tag
       onClick={(e: React.MouseEvent) => {
         if (isInteractive(e.target)) return;
+        // Ctrl/⌘-click a row opens it in a new in-app tab, like a link would. Falls
+        // back to an ordinary navigation in a panel without tabs.
+        if ((e.ctrlKey || e.metaKey) && openInAppTab(href)) return;
         router.push(href);
       }}
       onKeyDown={(e: React.KeyboardEvent) => {
