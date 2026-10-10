@@ -31,6 +31,52 @@ export type ParsedWhen = {
   explicitYear: boolean;
 };
 
+/**
+ * A calendar date written out in the text — ISO, DD/MM[/YYYY], "12 Jul [2027]" or
+ * "Jul 12[, 2027]" — or null when there is none.
+ *
+ * Now that this runs BEFORE the relative words, it must not mistake a TIME for a
+ * date: the numeric and "Jul 12" forms refuse a match followed by am/pm or a colon,
+ * so "tomorrow 3-4pm" stays tomorrow rather than becoming 3 April, and "may 3:30"
+ * in a sentence is not read as the 3rd of May.
+ */
+function parseWrittenDate(
+  t: string,
+  now: Date,
+): { date: NonNullable<ParsedWhen["date"]>; explicitYear: boolean } | null {
+  let m: RegExpMatchArray | null;
+  if ((m = t.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/))) {
+    return { date: { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) }, explicitYear: true };
+  }
+  if ((m = t.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b(?!\s*(?:am|pm|:))/))) {
+    // DD/MM or DD/MM/YYYY (day-first, common locally)
+    let y = m[3] ? Number(m[3]) : now.getFullYear();
+    if (y < 100) y += 2000;
+    return { date: { y, m: Number(m[2]), d: Number(m[1]) }, explicitYear: Boolean(m[3]) };
+  }
+  if ((m = t.match(/\b(\d{1,2})\s+([a-z]{3,9})(?:,?\s+(20\d{2}))?\b/)) && MONTHS[m[2]] !== undefined) {
+    // "12 Jul", "12 Jul 2027". The year is OPTIONAL and bounded to 20xx on purpose:
+    // an unbounded \d{4} would read "12 jul 1500" — someone writing 24-hour time
+    // without a colon — as the year 1500, and `explicitYear` would then suppress the
+    // next-year correction that normally rescues such a message.
+    return {
+      date: { y: m[3] ? Number(m[3]) : now.getFullYear(), m: MONTHS[m[2]] + 1, d: Number(m[1]) },
+      explicitYear: Boolean(m[3]),
+    };
+  }
+  if (
+    (m = t.match(/\b([a-z]{3,9})\s+(\d{1,2})(?:,?\s+(20\d{2}))?\b(?!\s*(?:am|pm|:))/)) &&
+    MONTHS[m[1]] !== undefined
+  ) {
+    // "Jul 12", "Jul 12 2027", "Jul 12, 2027".
+    return {
+      date: { y: m[3] ? Number(m[3]) : now.getFullYear(), m: MONTHS[m[1]] + 1, d: Number(m[2]) },
+      explicitYear: Boolean(m[3]),
+    };
+  }
+  return null;
+}
+
 export function parseWhen(text: string, now: Date = new Date()): ParsedWhen {
   const t = text.toLowerCase();
 
@@ -46,46 +92,35 @@ export function parseWhen(text: string, now: Date = new Date()): ParsedWhen {
   }
 
   // ---- date ----
-  let date: ParsedWhen["date"] = null;
-  let explicitYear = false;
+  // A WRITTEN calendar date wins over a relative word. "Sat 10 Oct" sent on Saturday
+  // the 10th used to book Saturday the 17th: the weekday branch ran first and always
+  // means "the next one, never today", so the date the patient actually typed was
+  // never read. When the two disagree, the date is the more specific statement — the
+  // weekday is usually just the patient describing it. Relative words ("tomorrow",
+  // "monday") apply only when no date is written at all.
+  const written = parseWrittenDate(t, now);
+  let date: ParsedWhen["date"] = written?.date ?? null;
+  const explicitYear = written?.explicitYear ?? false;
 
-  if (/\btomorrow\b/.test(t)) {
-    const d = new Date(now);
-    d.setDate(d.getDate() + 1);
-    date = { y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate() };
-  } else if (/\btoday\b/.test(t)) {
-    date = { y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate() };
-  } else if ((m = t.match(DAY_RE)) && DAYS[m[2]] !== undefined) {
-    // Weekday name (optionally "next"/"this") → the next upcoming occurrence of
-    // that weekday, never today. We resolve "next"/"this"/bare the same way (the
-    // soonest future occurrence); the confirmation shows the exact date.
-    const today = new Date(now);
-    today.setHours(0, 0, 0, 0);
-    let delta = (DAYS[m[2]] - today.getDay() + 7) % 7;
-    if (delta === 0) delta = 7;
-    const d = new Date(today);
-    d.setDate(d.getDate() + delta);
-    date = { y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate() };
-  } else if ((m = t.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/))) {
-    date = { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
-    explicitYear = true;
-  } else if ((m = t.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/))) {
-    // DD/MM or DD/MM/YYYY (day-first, common locally)
-    let y = m[3] ? Number(m[3]) : now.getFullYear();
-    if (y < 100) y += 2000;
-    date = { y, m: Number(m[2]), d: Number(m[1]) };
-    explicitYear = Boolean(m[3]);
-  } else if ((m = t.match(/\b(\d{1,2})\s+([a-z]{3,9})(?:,?\s+(20\d{2}))?\b/)) && MONTHS[m[2]] !== undefined) {
-    // "12 Jul", "12 Jul 2027". The year is OPTIONAL and bounded to 20xx on purpose:
-    // an unbounded \d{4} would read "12 jul 1500" — someone writing 24-hour time
-    // without a colon — as the year 1500, and `explicitYear` would then suppress the
-    // next-year correction that normally rescues such a message.
-    date = { y: m[3] ? Number(m[3]) : now.getFullYear(), m: MONTHS[m[2]] + 1, d: Number(m[1]) };
-    explicitYear = Boolean(m[3]);
-  } else if ((m = t.match(/\b([a-z]{3,9})\s+(\d{1,2})(?:,?\s+(20\d{2}))?\b/)) && MONTHS[m[1]] !== undefined) {
-    // "Jul 12", "Jul 12 2027", "Jul 12, 2027".
-    date = { y: m[3] ? Number(m[3]) : now.getFullYear(), m: MONTHS[m[1]] + 1, d: Number(m[2]) };
-    explicitYear = Boolean(m[3]);
+  if (!date) {
+    if (/\btomorrow\b/.test(t)) {
+      const d = new Date(now);
+      d.setDate(d.getDate() + 1);
+      date = { y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate() };
+    } else if (/\btoday\b/.test(t)) {
+      date = { y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate() };
+    } else if ((m = t.match(DAY_RE)) && DAYS[m[2]] !== undefined) {
+      // Weekday name (optionally "next"/"this") → the next upcoming occurrence of
+      // that weekday, never today. We resolve "next"/"this"/bare the same way (the
+      // soonest future occurrence); the confirmation shows the exact date.
+      const today = new Date(now);
+      today.setHours(0, 0, 0, 0);
+      let delta = (DAYS[m[2]] - today.getDay() + 7) % 7;
+      if (delta === 0) delta = 7;
+      const d = new Date(today);
+      d.setDate(d.getDate() + delta);
+      date = { y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate() };
+    }
   }
 
   // Basic sanity: reject impossible day/month.

@@ -137,5 +137,26 @@ console.log("\nThe new year group is bounded to 20xx, and here is why:");
   check("…and explicitYear stays false, so the correction can still fire", p.explicitYear, false);
 }
 
+console.log("\nA written date wins over a weekday or relative word:");
+{
+  // NOW is Friday 4 Sep. The bug: "Fri 4 Sep" sent on Friday the 4th read the weekday
+  // first, which always means "the NEXT one", and booked Friday the 11th.
+  check('"Fri 4 Sep 3pm" sent on Fri 4 Sep is the 4th, not the 11th', parseWhen("book Fri 4 Sep 3pm", NOW).date, { y: 2026, m: 9, d: 4 });
+  check('"Sat 10 Oct 15:00" is the 10th', parseWhen("book another with Dr Faisal Sat 10 Oct 15:00", NOW).date, { y: 2026, m: 10, d: 10 });
+  check('a weekday that DISAGREES with the date: the date wins', parseWhen("monday 10 Sep 3pm", NOW).date, { y: 2026, m: 9, d: 10 });
+  check('"tomorrow 12/09" — the written date wins', parseWhen("tomorrow 12/09 3pm", NOW).date, { y: 2026, m: 9, d: 12 });
+  check("a bare weekday still means the next one", parseWhen("monday 3pm", NOW).date, { y: 2026, m: 9, d: 7 });
+  check('"Fri 3pm" on a Friday is still NEXT Friday', parseWhen("fri 3pm", NOW).date, { y: 2026, m: 9, d: 11 });
+}
+
+console.log("\nA time is not mistaken for a date, now that dates are read first:");
+{
+  check('"tomorrow 3-4pm" stays tomorrow, not 3 April', parseWhen("tomorrow 3-4pm", NOW).date, { y: 2026, m: 9, d: 5 });
+  check('"tomorrow 3-4 pm" too', parseWhen("tomorrow 3-4 pm", NOW).date, { y: 2026, m: 9, d: 5 });
+  check('"may 3:30 tomorrow" is tomorrow, not 3 May', parseWhen("may 3:30 tomorrow work", NOW).date, { y: 2026, m: 9, d: 5 });
+  check('"Jul 12 3pm" is still 12 July', parseWhen("Jul 12 3pm", NOW).date, { y: 2026, m: 7, d: 12 });
+  check('"12/07 3pm" is still 12 July', parseWhen("12/07 3pm", NOW).date, { y: 2026, m: 7, d: 12 });
+}
+
 console.log(failures === 0 ? "\nALL PASSED" : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

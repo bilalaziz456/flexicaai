@@ -7,6 +7,7 @@ import { appointments, clinics, users } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import { checkDoctorSlot } from "@/core/appointments/availability";
+import { findSameDayAppointments } from "@/core/appointments/same-day";
 import { withQueueNumber } from "@/core/appointments/queue";
 import { parseWhen } from "@/core/appointments/parse-when";
 import { report } from "@/core/observability";
@@ -197,6 +198,35 @@ export async function handleBookingReply(args: {
         "That time is in the past. Please reply with a future date & time.",
       );
       return { handled: true, booked: false };
+    }
+
+    // Same day as one of the patient's live appointments: ask before taking a second
+    // request, as the front-desk form does. A patient cannot click a dialog, so the
+    // confirmation is a WORD — resending with "another" books it. Stateless on
+    // purpose: nothing has to remember that the question was asked, and the word is
+    // one `isBookingIntent` already recognises. Most of what this catches is the same
+    // message sent twice; a genuine second visit costs the patient one more message.
+    if (!/\banother\b/i.test(text)) {
+      const sameDay = await findSameDayAppointments(clinicId, patientId, when);
+      if (sameDay.length > 0) {
+        const existing = sameDay
+          .map(
+            (a) =>
+              `${a.scheduledAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}${a.doctorName ? ` with ${a.doctorName}` : ""}`,
+          )
+          .join(", ");
+        const day = when.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" });
+        // The example is the bare date and time — what `parseWhen` reads most simply.
+        const exampleDay = when.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+        const exampleTime = when.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+        await reply(
+          clinicId,
+          patientId,
+          phone,
+          `You already have an appointment on ${day} at ${existing}. To book another one that day as well, send your message again with the word "another", e.g. "book another with ${doctor.name} ${exampleDay} ${exampleTime}".`,
+        );
+        return { handled: true, booked: false };
+      }
     }
 
     // Enforce the doctor's visiting hours / leave / daily cap.
