@@ -7,6 +7,7 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointmentProcedures, appointments, users } from "@/core/db/schema";
 import {
   computeBill,
+  computeProcedureLine,
   effectiveDiscountValue,
   normalizeDiscountType,
   type DiscountType,
@@ -40,10 +41,17 @@ export type AppointmentShareContext = {
   consultation: { doctorId: string; fee: number; pct: number } | null;
   /** Procedure lines. `lineRef` (the appointment_procedures row id) + `label` (name
    *  snapshot) identify a line for a per-line waive. */
+  /** `gross` is the line's SHARE BASE: its price after its clinic offer (see below). */
   lines: { doctorId: string | null; gross: number; pct: number; lineRef: string; label: string }[];
+  /** Consultation + every line's share base — the bill AFTER clinic offers and BEFORE
+   *  the patient discount. So `grossTotal − netEffective` is the patient discount. */
   grossTotal: number;
   /** Net with the discount the staff entered (ignores approval status). */
   netRequested: number;
+  /** The PATIENT discount alone, in PKR as entered (ignores approval status): the
+   *  appointment-level discount on the subtotal. Excludes line discounts, which are
+   *  clinic offers and never need approval. */
+  patientDiscount: number;
   /** Net gated by approval status (pending/rejected → discount treated as 0). */
   netEffective: number;
   /** Doctors who earn a positive share here (before any discount). */
@@ -74,6 +82,7 @@ export async function getAppointmentShareContext(
     lines: [],
     grossTotal: 0,
     netRequested: 0,
+    patientDiscount: 0,
     netEffective: 0,
     earnerDoctorIds: [],
   };
@@ -158,11 +167,26 @@ export async function getAppointmentShareContext(
         }
       : null;
 
+  // A line's SHARE BASE is its price AFTER its own discount — the clinic offer it was
+  // booked with (owner's call, 2026-10-11): an offer is shared in proportion, as if
+  // the clinic had simply lowered the price, so a 10% share of a Rs 1,000 procedure
+  // under a 10% offer is Rs 90. Only the PATIENT discount (on the appointment) is
+  // then left for "Discount borne by" to place — before this, that setting decided
+  // who paid for the clinic's offer too, so the same visit could earn the doctor
+  // Rs 100, Rs 90 or nothing depending on a field about something else. Every share
+  // figure is derived from these lines (sale shares, settlements, per-line waives),
+  // so this one change moves them all together.
   const lines = procRows.map((r) => {
     const rate = r.doctorId ? rates.get(r.doctorId) : undefined;
+    const line = computeProcedureLine({
+      unitPrice: r.unitPrice,
+      quantity: r.quantity,
+      discountType: normalizeDiscountType(r.discountType),
+      discountValue: r.discountValue,
+    });
     return {
       doctorId: r.doctorId,
-      gross: Math.max(0, r.unitPrice * r.quantity),
+      gross: Math.max(0, line.net),
       pct: rate ? resolveProcedureRate(rate, r.procedureId) : 0,
       lineRef: r.id,
       label: r.name,
@@ -177,7 +201,8 @@ export async function getAppointmentShareContext(
     discountType: normalizeDiscountType(r.discountType),
     discountValue: r.discountValue,
   }));
-  const netRequested = computeBill(consultFee, lineInputs, discountType, appt.discountValue).net;
+  const requested = computeBill(consultFee, lineInputs, discountType, appt.discountValue);
+  const netRequested = requested.net;
   const netEffective = computeBill(
     consultFee,
     lineInputs,
@@ -212,6 +237,7 @@ export async function getAppointmentShareContext(
     lines,
     grossTotal,
     netRequested,
+    patientDiscount: requested.appointmentDiscount,
     netEffective,
     earnerDoctorIds,
   };

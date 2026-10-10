@@ -74,6 +74,21 @@ export const procedures = pgTable(
     module: text("module"),
     // Inactive procedures are hidden from booking but kept for history.
     isActive: boolean("is_active").notNull().default(true),
+    // CLINIC OFFER — a discount the clinic gives EVERY patient on this procedure
+    // (core/appointments/procedure-offer.ts). Applied by the server at booking as the
+    // line's discount and snapshotted there, so changing or ending an offer never
+    // re-prices a visit already booked. Distinct from a patient discount (on the
+    // appointment), which may need approval; an offer never does — it is the clinic's
+    // own decision, made once, here. `offer_value` 0 = no offer.
+    offerType: vocabularyRef<DiscountTypeCode>(DISCOUNT_TYPE_ROWS, "offer_type_id")
+      .notNull()
+      .default("amount")
+      .references(() => discountTypes.id),
+    offerValue: integer("offer_value").notNull().default(0),
+    // The visit dates the offer covers, inclusive. NULL start = from now on; NULL
+    // end = "No end date" — runs until someone removes it.
+    offerStartsOn: date("offer_starts_on"),
+    offerEndsOn: date("offer_ends_on"),
     // The import batch this row came from (NULL = added in-app) — for undo. See patients.
     importBatchId: uuid("import_batch_id"),
     ...softDeleteColumns(),
@@ -92,6 +107,13 @@ export const procedures = pgTable(
     index("procedures_deleted_idx")
       .on(t.clinicId, t.deletedAt)
       .where(sql`${t.deletedAt} is not null`),
+    // Same bound as every other percent discount (ADR-021): over 100 is a typo, and
+    // the line it is copied onto refuses it anyway (appt_procedures_percent_discount_max).
+    check(
+      "procedures_percent_offer_max",
+      sql`${t.offerType} <> ${sql.raw(String(discountTypeId("percent")))} or ${t.offerValue} between 0 and 100`,
+    ),
+    check("procedures_offer_dates_order", sql`${t.offerEndsOn} is null or ${t.offerStartsOn} is null or ${t.offerEndsOn} >= ${t.offerStartsOn}`),
   ],
 );
 

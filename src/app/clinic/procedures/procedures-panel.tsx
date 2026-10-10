@@ -1,6 +1,7 @@
 import { Download, LockKeyhole } from "lucide-react";
 import { procedureTemplatesFor } from "@/config/modules";
 import { listProcedureCatalog } from "@/core/appointments/procedures";
+import { localDateStr } from "@/core/appointments/availability";
 import { getCurrentUser } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { buttonVariants } from "@/core/ui/button";
@@ -66,6 +67,7 @@ export async function ProceduresPanel({
         ) : null}
       </div>
       <ProceduresManager
+        today={localDateStr(new Date())}
         procedures={list}
         templatesAvailable={templatesAvailable}
         perms={{ create: perms.create, edit: perms.edit, delete: perms.delete }}

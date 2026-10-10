@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { getAppointmentForDocument } from "@/core/billing/invoice";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
@@ -80,7 +81,20 @@ export default async function ReceiptPage({
   // One numbered charge per row: consultation first, then each procedure (gross).
   const lines = [
     ...(bill.consultation > 0 ? [{ name: "Consultation", qty: 1, amount: bill.consultation }] : []),
-    ...items.map((it) => ({ name: it.name, qty: it.quantity, amount: it.unitPrice * it.quantity })),
+    ...items.map((it, idx) => ({
+      name: it.name,
+      qty: it.quantity,
+      amount: it.unitPrice * it.quantity,
+      // The clinic offer the line was booked with — printed under it (see invoice).
+      offer:
+        (bill.lines[idx]?.discount ?? 0) > 0
+          ? {
+              amount: bill.lines[idx].discount,
+              // The patient's wording: "10% discount" (see the invoice).
+              label: it.discountType === "percent" ? `${it.discountValue}% discount` : "Discount",
+            }
+          : null,
+    })),
   ];
 
   const doctor =
@@ -152,12 +166,23 @@ export default async function ReceiptPage({
           <tbody>
             {lines.length > 0 ? (
               lines.map((l, idx) => (
-                <tr key={idx}>
-                  <td className="py-1 pr-2 tabular-nums opacity-70">{idx + 1}</td>
-                  <td className="py-1">{l.name}</td>
-                  <td className="py-1 text-right tabular-nums">{l.qty}</td>
-                  <td className="py-1 text-right tabular-nums">{formatPkr(l.amount)}</td>
-                </tr>
+                <Fragment key={idx}>
+                  <tr>
+                    <td className="py-1 pr-2 tabular-nums opacity-70">{idx + 1}</td>
+                    <td className="py-1">{l.name}</td>
+                    <td className="py-1 text-right tabular-nums">{l.qty}</td>
+                    <td className="py-1 text-right tabular-nums">{formatPkr(l.amount)}</td>
+                  </tr>
+                  {"offer" in l && l.offer ? (
+                    <tr>
+                      <td />
+                      <td className="pb-1 pl-3 text-[0.9em] opacity-80" colSpan={2}>
+                        {l.offer.label}
+                      </td>
+                      <td className="pb-1 text-right text-[0.9em] tabular-nums">−{formatPkr(l.offer.amount)}</td>
+                    </tr>
+                  ) : null}
+                </Fragment>
               ))
             ) : (
               <tr>

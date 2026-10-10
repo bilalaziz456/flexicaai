@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { getAppointmentForDocument } from "@/core/billing/invoice";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
@@ -136,15 +137,33 @@ export default async function InvoicePage({
                 <td className="py-1 text-right tabular-nums">{formatPkr(bill.consultation)}</td>
               </tr>
             ) : null}
-            {items.map((it, idx) => (
-              <tr key={idx}>
-                <td className="py-1">{it.name}</td>
-                <td className="py-1 text-right">{it.quantity}</td>
-                <td className="py-1 text-right tabular-nums">
-                  {formatPkr(it.unitPrice * it.quantity)}
-                </td>
-              </tr>
-            ))}
+            {items.map((it, idx) => {
+              // A line's discount is the clinic offer it was booked with. Printed
+              // under its procedure so the patient sees the full price and what came
+              // off it — and so the printed lines still add up to the total.
+              const off = bill.lines[idx]?.discount ?? 0;
+              return (
+                <Fragment key={idx}>
+                  <tr>
+                    <td className="py-1">{it.name}</td>
+                    <td className="py-1 text-right">{it.quantity}</td>
+                    <td className="py-1 text-right tabular-nums">
+                      {formatPkr(it.unitPrice * it.quantity)}
+                    </td>
+                  </tr>
+                  {off > 0 ? (
+                    <tr>
+                      <td className="pb-1 pl-3 text-[0.9em] opacity-80" colSpan={2}>
+                        {/* The patient's wording (owner's call): "10% discount", not
+                            "Clinic offer" — what it is called internally is ours. */}
+                        {it.discountType === "percent" ? `${it.discountValue}% discount` : "Discount"}
+                      </td>
+                      <td className="pb-1 text-right text-[0.9em] tabular-nums">−{formatPkr(off)}</td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
 

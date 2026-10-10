@@ -36,7 +36,10 @@ export async function syncDiscountApprovals(
 ): Promise<DiscountStatus> {
   const ctx = await getAppointmentShareContext(clinicId, appointmentId);
 
-  const discount = Math.max(0, ctx.grossTotal - ctx.netRequested);
+  // Only the PATIENT discount is approved. A procedure line's discount is a clinic
+  // offer — the clinic's own standing decision — so it never asks; counting it here
+  // (gross − net, as this once did) would send every offer-priced visit for approval.
+  const discount = Math.max(0, ctx.patientDiscount);
   // No discount → nothing to approve.
   if (!ctx.found || discount <= 0) {
     return clearApprovals(clinicId, appointmentId);

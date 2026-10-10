@@ -12,9 +12,31 @@ import {
 } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
 import { clampDiscountValue, type DiscountType } from "@/core/appointments/fee";
+import { offerForVisit, type ProcedureOffer } from "@/core/appointments/procedure-offer";
 import { discountTypeId, type DiscountTypeCode } from "@/core/db/vocabulary-seed";
 
-export type BookingProcedure = { id: string; name: string; price: number };
+export type BookingProcedure = { id: string; name: string; price: number; offer: ProcedureOffer };
+
+/** The offer columns, as one `ProcedureOffer` — selected by every reader of an offer. */
+const offerColumns = {
+  offerType: procedures.offerType,
+  offerValue: procedures.offerValue,
+  offerStartsOn: procedures.offerStartsOn,
+  offerEndsOn: procedures.offerEndsOn,
+};
+function toOffer(r: {
+  offerType: string;
+  offerValue: number;
+  offerStartsOn: string | null;
+  offerEndsOn: string | null;
+}): ProcedureOffer {
+  return {
+    type: r.offerType === "percent" ? "percent" : "amount",
+    value: r.offerValue,
+    startsOn: r.offerStartsOn,
+    endsOn: r.offerEndsOn,
+  };
+}
 
 /**
  * One procedure line on an appointment — quantity (≥ 1) + its own discount, plus
@@ -180,8 +202,8 @@ export async function getBookingProcedures(
     .limit(1);
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales")) return [];
 
-  return db
-    .select({ id: procedures.id, name: procedures.name, price: procedures.price })
+  const rows = await db
+    .select({ id: procedures.id, name: procedures.name, price: procedures.price, ...offerColumns })
     .from(procedures)
     .where(
       byClinic(
@@ -192,6 +214,81 @@ export async function getBookingProcedures(
       ),
     )
     .orderBy(asc(procedures.name));
+  return rows.map((r) => ({ id: r.id, name: r.name, price: r.price, offer: toOffer(r) }));
+}
+
+/**
+ * Sets each selection's line discount from the clinic's offers — the ONLY way a
+ * procedure line gets a discount at booking. Whatever the browser sent is discarded:
+ * a line discount needs no approval, so letting the form choose one would be a way
+ * round the approval a patient discount requires.
+ *
+ * `visitDate` ("YYYY-MM-DD") decides which offers apply. `keep` carries the lines an
+ * EDIT already had: those keep the discount they were booked with, so changing or
+ * ending an offer never re-prices a visit already booked — the snapshot rule every
+ * other line field follows. A procedure ADDED during the edit takes today's offer.
+ */
+export async function applyClinicOffers(
+  clinicId: string,
+  selections: ProcedureSelection[],
+  visitDate: string,
+  keep?: Map<string, { discountType: DiscountType; discountValue: number }>,
+): Promise<ProcedureSelection[]> {
+  const ids = [...new Set(selections.map((s) => s.procedureId).filter(Boolean))];
+  if (ids.length === 0) return selections;
+  const rows = await db
+    .select({ id: procedures.id, ...offerColumns })
+    .from(procedures)
+    .where(
+      byClinic(procedures.clinicId, clinicId, notDeleted(procedures.deletedAt), inArray(procedures.id, ids)),
+    );
+  const offers = new Map(rows.map((r) => [r.id, toOffer(r)]));
+  return selections.map((s) => {
+    const kept = keep?.get(s.procedureId);
+    if (kept) return { ...s, discountType: kept.discountType, discountValue: kept.discountValue };
+    const offer = offers.get(s.procedureId);
+    const applied = offer ? offerForVisit(offer, visitDate) : null;
+    return {
+      ...s,
+      discountType: applied?.type ?? "amount",
+      discountValue: applied?.value ?? 0,
+    };
+  });
+}
+
+/**
+ * Sets (or, with `offer` null, removes) the clinic offer on the given procedures —
+ * one or many, so "apply to all" is one statement. Clinic-scoped; ids that are not
+ * this clinic's are ignored. Returns how many procedures changed. Never touches an
+ * appointment: offers reach a bill only at booking (`applyClinicOffers`).
+ */
+export async function setProcedureOffer(
+  clinicId: string,
+  procedureIds: string[],
+  offer: ProcedureOffer | null,
+): Promise<number> {
+  if (procedureIds.length === 0) return 0;
+  const values = offer
+    ? {
+        offerType: offer.type,
+        offerValue: clampDiscountValue(offer.type, offer.value),
+        offerStartsOn: offer.startsOn,
+        offerEndsOn: offer.endsOn,
+      }
+    : { offerType: "amount" as const, offerValue: 0, offerStartsOn: null, offerEndsOn: null };
+  const updated = await db
+    .update(procedures)
+    .set({ ...values, updatedAt: new Date() })
+    .where(
+      byClinic(
+        procedures.clinicId,
+        clinicId,
+        notDeleted(procedures.deletedAt),
+        inArray(procedures.id, procedureIds),
+      ),
+    )
+    .returning({ id: procedures.id });
+  return updated.length;
 }
 
 /**
@@ -335,10 +432,17 @@ export async function listProcedureCatalog(clinicId: string) {
       name: procedures.name,
       price: procedures.price,
       isActive: procedures.isActive,
+      ...offerColumns,
     })
     .from(procedures)
     .where(byClinic(procedures.clinicId, clinicId, notDeleted(procedures.deletedAt)))
-    .orderBy(desc(procedures.createdAt));
+    .orderBy(desc(procedures.createdAt))
+    .then((rows) =>
+      rows.map(({ offerType, offerValue, offerStartsOn, offerEndsOn, ...p }) => ({
+        ...p,
+        offer: toOffer({ offerType, offerValue, offerStartsOn, offerEndsOn }),
+      })),
+    );
 }
 
 /** Adds one priced procedure to the clinic's catalog. Returns its id. */

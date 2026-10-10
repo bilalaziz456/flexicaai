@@ -1,6 +1,7 @@
 import { listClinicDoctors } from "@/core/appointments/doctors";
 import { getAppointmentDetail } from "@/core/appointments/list-query";
 import { getClinic } from "@/core/clinics/get-clinic";
+import { describeOfferDiscount, offerLabel } from "@/core/appointments/procedure-offer";
 import { Breadcrumbs } from "@/core/ui/breadcrumbs";
 import { notFound } from "next/navigation";
 import { clinicHasFeature } from "@/core/lib/features";
@@ -229,10 +230,11 @@ export async function AppointmentDetail({
                       {i.quantity > 1 ? (
                         <span> × {i.quantity} @ {formatPkr(i.unitPrice)}</span>
                       ) : null}
+                      {/* A line's discount is the clinic offer it was booked with. */}
                       {l.discount > 0 ? (
-                        <span className="text-destructive">
-                          {" "}· −{formatPkr(l.discount)}
-                          {i.discountType === "percent" ? ` (${i.discountValue}%)` : ""}
+                        <span className="text-primary-text">
+                          {" "}· {offerLabel(clinicRow?.name)} −{formatPkr(l.discount)}
+                          {i.discountType === "percent" ? ` (${describeOfferDiscount(i.discountType, i.discountValue)})` : ""}
                         </span>
                       ) : null}
                     </dt>
@@ -353,6 +355,7 @@ export async function AppointmentDetail({
           </CardHeader>
           <CardContent>
             <NewAppointmentForm
+              clinicName={clinicRow?.name}
               doctors={doctors}
               initialPatients={[]}
               procedures={bookingProcedures}

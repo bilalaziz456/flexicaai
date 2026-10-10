@@ -1,6 +1,7 @@
 import { apiRequireWorkspace } from "@/core/auth/user";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { listProcedureCatalog } from "@/core/appointments/procedures";
+import { describeOffer } from "@/core/appointments/procedure-offer";
 import { clinicHasFeature } from "@/core/lib/features";
 import { toCsv } from "@/core/lib/csv";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
@@ -26,8 +27,13 @@ export async function GET() {
   const rows = await listProcedureCatalog(clinicId);
 
   const csv = toCsv(
-    ["Procedure", "Price (PKR)", "Status"],
-    rows.map((p) => [p.name, p.price, p.isActive ? "Active" : "Inactive"]),
+    ["Procedure", "Price (PKR)", "Status", "Clinic offer"],
+    rows.map((p) => [
+      p.name,
+      p.price,
+      p.isActive ? "Active" : "Inactive",
+      p.offer.value > 0 ? describeOffer(p.offer) : "",
+    ]),
   );
 
   const body = "﻿" + csv + `\r\n\r\n${BRAND_POWERED_BY}\r\n`;

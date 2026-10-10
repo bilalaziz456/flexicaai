@@ -74,6 +74,7 @@ export async function NewAppointmentPanel({
         </CardHeader>
         <CardContent>
           <NewAppointmentForm
+            clinicName={clinic?.name}
             initialPatients={recentPatients}
             doctors={doctors}
             procedures={bookingProcedures}

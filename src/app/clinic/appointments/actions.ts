@@ -42,6 +42,8 @@ import {
 } from "@/core/appointments/availability";
 import { queueSessionKey, sameDoctorDay, withQueueNumber } from "@/core/appointments/queue";
 import {
+  applyClinicOffers,
+  getAppointmentProcedureItems,
   saveAppointmentProcedures,
   type ProcedureSelection,
 } from "@/core/appointments/procedures";
@@ -241,7 +243,13 @@ export async function createAppointment(
   let queueAvailability: DayAvailability[] = [];
   let queueFlexible = false;
   // A visit carrying procedures may also use the doctor's procedure windows.
-  const procedureSelections = parseProcedureSelections(formData);
+  // Clinic offers become each line's discount HERE, on the server (applyClinicOffers
+  // says why the form never chooses one).
+  const procedureSelections = await applyClinicOffers(
+    clinicId,
+    parseProcedureSelections(formData),
+    localDateStr(when),
+  );
   if (parsed.data.doctorId) {
     // Single source of truth for leave / working hours / daily cap.
     const check = await checkDoctorSlot(clinicId, parsed.data.doctorId, when, {
@@ -408,7 +416,19 @@ export async function updateAppointment(
   let queueFlexible = false;
   // The selection being SAVED decides which windows are acceptable — dropping the
   // last procedure narrows the visit back to consultation hours.
-  const procedureSelections = parseProcedureSelections(formData);
+  // Lines the visit already had keep the discount they were booked with; a procedure
+  // added now takes the clinic offer running on the visit date.
+  const bookedLines = await getAppointmentProcedureItems(clinicId, appointmentId);
+  const procedureSelections = await applyClinicOffers(
+    clinicId,
+    parseProcedureSelections(formData),
+    localDateStr(when),
+    new Map(
+      bookedLines
+        .filter((l): l is typeof l & { procedureId: string } => Boolean(l.procedureId))
+        .map((l) => [l.procedureId, { discountType: l.discountType, discountValue: l.discountValue }]),
+    ),
+  );
   // Unticking this on an edit re-imposes the doctor's hours, so a visit moved back
   // into normal time stops being an exception. Same normalisation as create: the
   // flag survives only if the chosen time actually needs it.

@@ -25,9 +25,16 @@ import { syncChecked } from "@/core/ui/checkbox-sync";
 import {
   MAX_DISCOUNT_PERCENT,
   computeBill,
+  computeFee,
   formatPkr,
   type DiscountType,
 } from "@/core/appointments/fee";
+import {
+  describeOfferDiscount,
+  offerForVisit,
+  offerLabel,
+  type ProcedureOffer,
+} from "@/core/appointments/procedure-offer";
 
 type Patient = { id: string; fullName: string; phone: string | null; mrn?: string | null };
 type Doctor = {
@@ -37,7 +44,7 @@ type Doctor = {
   flexibleHours: boolean;
   consultationFee: number;
 };
-type ProcedureOption = { id: string; name: string; price: number };
+type ProcedureOption = { id: string; name: string; price: number; offer?: ProcedureOffer };
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const timeToMin = (s: string) => {
@@ -64,6 +71,7 @@ export function NewAppointmentForm({
   initialPatients,
   doctors,
   procedures = [],
+  clinicName,
   appointmentId,
   fixedPatient,
   preselectedPatient,
@@ -76,6 +84,8 @@ export function NewAppointmentForm({
   doctors: Doctor[];
   /** The clinic's active procedures (empty unless the `sales` feature is on). */
   procedures?: ProcedureOption[];
+  /** Names the offer on a procedure line ("Clinic002 offer · 10% discount"). */
+  clinicName?: string | null;
   /** Unscheduled treatment-plan items for the (preselected) patient — booking-from-plan. */
   planItems?: { id: string; name: string; tooth: string | null; unitPrice: number; quantity: number; planTitle: string }[];
   appointmentId?: string;
@@ -152,8 +162,8 @@ export function NewAppointmentForm({
     initial?.chargeConsultation ?? true,
   );
   const [customTime, setCustomTime] = useState(initial?.customTime ?? false);
-  // Selected procedures → { quantity (≥1) }. There is NO per-procedure discount —
-  // the only discount is the appointment-level one below. Missing key = unselected.
+  // Selected procedures → { quantity (≥1) }. Missing key = unselected. A line's
+  // discount is not chosen here — it is the clinic offer (see `lineDiscount`).
   type ProcState = { quantity: number };
   const [procSel, setProcSel] = useState<Map<string, ProcState>>(() => {
     const m = new Map<string, ProcState>();
@@ -182,25 +192,43 @@ export function NewAppointmentForm({
       next.set(id, { quantity: Math.min(99, q) });
       return next;
     });
-  // A procedure line's total is simply its price × quantity (no per-line discount).
+  // A line's discount is never typed here: it is the CLINIC OFFER, which the server
+  // applies (`applyClinicOffers`). This preview follows the same rule so the total on
+  // screen is the total saved — on an edit, a line the visit already had keeps the
+  // discount it was booked with; anything else takes the offer running on the visit
+  // date picked above.
+  const bookedLineDiscount = new Map(
+    (initial?.procedures ?? []).map((it) => [
+      it.procedureId,
+      { type: it.discountType ?? ("amount" as DiscountType), value: it.discountValue ?? 0 },
+    ]),
+  );
+  const lineDiscount = (p: ProcedureOption): { type: DiscountType; value: number } | null => {
+    const booked = bookedLineDiscount.get(p.id);
+    if (booked) return booked.value > 0 ? booked : null;
+    return p.offer && date ? offerForVisit(p.offer, date) : null;
+  };
   const procLine = (p: ProcedureOption) => {
     const s = procSel.get(p.id);
     if (!s) return null;
-    return { gross: p.price * s.quantity, net: p.price * s.quantity };
+    const gross = p.price * s.quantity;
+    const d = lineDiscount(p);
+    const off = d ? computeFee(gross, d.type, d.value).discount : 0;
+    return { gross, net: gross - off, offer: d && off > 0 ? d : null };
   };
-  // The selected lines, in the shape the shared bill takes. This form has no
-  // per-line discount (see the hidden field below), so each line's gross IS its net
-  // — but going through `computeBill` rather than a local sum means the preview uses
-  // the same formula as the invoice it will become, and gains line discounts for
-  // free if this form ever offers them.
+  // The selected lines, in the shape the shared bill takes — through `computeBill`,
+  // so the preview uses the same formula as the invoice it will become.
   const billLines = procedures
     .filter((p) => procSel.has(p.id))
-    .map((p) => ({
-      unitPrice: p.price,
-      quantity: procSel.get(p.id)!.quantity,
-      discountType: "amount" as DiscountType,
-      discountValue: 0,
-    }));
+    .map((p) => {
+      const d = lineDiscount(p);
+      return {
+        unitPrice: p.price,
+        quantity: procSel.get(p.id)!.quantity,
+        discountType: d?.type ?? ("amount" as DiscountType),
+        discountValue: d?.value ?? 0,
+      };
+    });
   // Seeded by the server when editing, so the picker is constrained on the first
   // paint. It used to be null with an effect that fetched the same thing on mount:
   // a round trip after hydration, and a moment where the form offered times the
@@ -652,8 +680,9 @@ export function NewAppointmentForm({
               })}
             </div>
 
-            {/* Per-procedure quantity + the line total (no per-line discount — the
-                discount is applied once to the whole appointment below). */}
+            {/* Per-procedure quantity + the line total. A line's only discount is the
+                clinic offer (shown under its name); the patient's own discount is the
+                one below, on the whole bill. */}
             {procSel.size > 0 ? (
               <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
                 {procedures
@@ -672,6 +701,11 @@ export function NewAppointmentForm({
                             {" "}
                             · {formatPkr(p.price)}
                           </span>
+                          {line.offer ? (
+                            <span className="block text-xs font-normal text-primary-text">
+                              {offerLabel(clinicName)} · {describeOfferDiscount(line.offer.type, line.offer.value)}
+                            </span>
+                          ) : null}
                         </span>
                         <div className="flex flex-wrap items-center gap-3">
                           {/* quantity */}
@@ -696,8 +730,13 @@ export function NewAppointmentForm({
                               <Plus className="size-3.5" aria-hidden="true" />
                             </button>
                           </div>
-                          <span className="w-24 text-right font-medium tabular-nums">
-                            {formatPkr(line.net)}
+                          <span className="w-24 text-right tabular-nums">
+                            {line.offer ? (
+                              <span className="block text-xs text-muted-foreground line-through">
+                                {formatPkr(line.gross)}
+                              </span>
+                            ) : null}
+                            <span className="font-medium">{formatPkr(line.net)}</span>
                           </span>
                         </div>
                       </li>
@@ -706,8 +745,9 @@ export function NewAppointmentForm({
               </ul>
             ) : null}
 
-            {/* One hidden field per procedure: "<id>:<qty>". No per-line discount;
-                the performing doctor is the appointment's doctor (set server-side). */}
+            {/* One hidden field per procedure: "<id>:<qty>". No discount is sent — the
+                server applies the clinic offer itself; the performing doctor is the
+                appointment's doctor (set server-side). */}
             {[...procSel.entries()].map(([id, s]) => (
               <input
                 key={id}
@@ -766,12 +806,15 @@ export function NewAppointmentForm({
               const parts: string[] = [];
               if (bill.consultation > 0) parts.push(`${formatPkr(bill.consultation)} fee`);
               if (bill.proceduresNet > 0) parts.push(`${formatPkr(bill.proceduresNet)} procedures`);
+              // Procedures are shown AFTER their clinic offers, so the sum on the left is
+              // the SUBTOTAL and only the patient discount comes off it. Subtracting
+              // `bill.discount` here (offers included) took each offer off twice.
               const lhs =
-                parts.length > 1 ? `${parts.join(" + ")} = ${formatPkr(bill.gross)}` : parts[0];
+                parts.length > 1 ? `${parts.join(" + ")} = ${formatPkr(bill.subtotal)}` : parts[0];
               return (
                 <p className="text-sm text-muted-foreground">
                   {lhs}
-                  {bill.discount > 0 ? ` − ${formatPkr(bill.discount)} discount` : ""} ={" "}
+                  {bill.appointmentDiscount > 0 ? ` − ${formatPkr(bill.appointmentDiscount)} discount` : ""} ={" "}
                   <span className="font-medium text-foreground">{formatPkr(bill.net)}</span>
                 </p>
               );
@@ -834,9 +877,9 @@ export function NewAppointmentForm({
                 (() => {
                   const doctorBorne =
                     splitType === "amount"
-                      ? Math.min(splitNumber, bill.discount)
-                      : Math.round((bill.discount * splitNumber) / 100);
-                  const clinicBorne = Math.max(0, bill.discount - doctorBorne);
+                      ? Math.min(splitNumber, bill.appointmentDiscount)
+                      : Math.round((bill.appointmentDiscount * splitNumber) / 100);
+                  const clinicBorne = Math.max(0, bill.appointmentDiscount - doctorBorne);
                   return (
                     <div className="space-y-1.5 rounded-lg border border-dashed well p-2.5">
                       <Label className="text-xs text-muted-foreground">Doctor bears</Label>
@@ -855,7 +898,7 @@ export function NewAppointmentForm({
                           type="number"
                           inputMode="numeric"
                           min={0}
-                          max={splitType === "percent" ? MAX_DISCOUNT_PERCENT : bill.discount || undefined}
+                          max={splitType === "percent" ? MAX_DISCOUNT_PERCENT : bill.appointmentDiscount || undefined}
                           step={splitType === "percent" ? 5 : 50}
                           value={splitValue}
                           onChange={(e) => {
@@ -871,9 +914,9 @@ export function NewAppointmentForm({
                           aria-label="Doctor's share of the discount"
                         />
                       </div>
-                      {bill.discount > 0 ? (
+                      {bill.appointmentDiscount > 0 ? (
                         <p className="text-xs text-muted-foreground">
-                          Of the {formatPkr(bill.discount)} discount: clinic bears{" "}
+                          Of the {formatPkr(bill.appointmentDiscount)} discount: clinic bears{" "}
                           <span className="font-medium text-foreground">{formatPkr(clinicBorne)}</span>, doctor bears{" "}
                           <span className="font-medium text-foreground">{formatPkr(doctorBorne)}</span>.
                         </p>

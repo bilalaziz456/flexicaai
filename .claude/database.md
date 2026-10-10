@@ -310,6 +310,26 @@ defaults (`ModuleDefinition.procedureTemplates`, imported via
 (`app/reception/procedure-actions.ts`), audit-logged, gated by the `sales`
 feature (`core/lib/features.ts`). Indexes: `clinic_id`; (`clinic_id`,`is_active`).
 
+**Clinic offers** (migration `0117`): `offer_type_id` (→ `discount_types`, default
+amount), `offer_value` int (0 = no offer; CHECK ≤ 100 when percent),
+`offer_starts_on` / `offer_ends_on` date (inclusive VISIT dates; the form REQUIRES a start date —
+the column stays nullable only for the "from now" rule in code; NULL end = "No end
+date"; CHECK end ≥ start). A discount the clinic gives EVERY patient
+on that procedure — rules in `core/appointments/procedure-offer.ts` (pure, shared by the
+booking form's preview and the server). **It is applied only by the server**, at
+booking, as the line's `appointment_procedures.discount_*` (`applyClinicOffers`), which
+DISCARDS any line discount the browser sends; an edit keeps each existing line's
+discount, so changing or ending an offer never re-prices a visit already booked.
+**An offer never needs approval; a patient discount still does** — approval measures
+`share-context#patientDiscount` (the appointment-level discount alone), not gross − net,
+which would count offers. So since `0117` a line discount on a booked visit IS a clinic
+offer, and the invoice, receipt and appointment page print it as one. **Doctor shares
+take an offer in proportion** (owner's call, 2026-10-11): a line's share base is its
+price AFTER its offer (`share-context.ts`), so a 10% share of a Rs 1,000 procedure under
+a 10% offer is Rs 90 and the clinic keeps Rs 810. `discount_borne_by` then places only
+the PATIENT discount — it used to place the offer too, so the same visit could earn the
+doctor Rs 100, Rs 90 or nothing depending on that field.
+
 ### `appointment_procedures` — appointment line items (Sales feature, phase 2)
 `id`, `clinic_id` → clinics (`cascade`), `appointment_id` → appointments
 (`cascade`), `procedure_id` → procedures (`set null`), `name` + `unit_price`
