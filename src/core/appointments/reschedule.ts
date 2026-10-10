@@ -15,6 +15,8 @@ import {
 import { checkDoctorSlot } from "@/core/appointments/availability";
 import { queueSessionKey, sameDoctorDay, withQueueNumber } from "@/core/appointments/queue";
 import { parseWhen } from "@/core/appointments/parse-when";
+import { describeSameDay, findSameDayAppointments } from "@/core/appointments/same-day";
+import { localDateStr } from "@/core/appointments/availability";
 import type { DayAvailability } from "@/core/lib/availability";
 import { report } from "@/core/observability";
 import { logPatientAction } from "@/core/audit/log";
@@ -158,6 +160,28 @@ export async function handleRescheduleReply(args: {
         "That time is in the past. Please reply with a future date & time.",
       );
       return { handled: true, rescheduled: false };
+    }
+
+    // Moving onto a day the patient already holds ANOTHER live appointment on: ask
+    // first, as the desk's edit form does — and, like it, only when the DAY changes,
+    // with the visit being moved never counted against itself. The confirmation is a
+    // word, as with WhatsApp booking; "anyway" rather than booking's "another",
+    // because nothing new is being added. Stateless: resending with it moves the visit.
+    const dayChanges = localDateStr(appt.scheduledAt) !== localDateStr(when);
+    if (dayChanges && !/\banyway\b/i.test(text)) {
+      const sameDay = await findSameDayAppointments(clinicId, patientId, when, appt.id);
+      if (sameDay.length > 0) {
+        const day = when.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" });
+        const exampleDay = when.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+        const exampleTime = when.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+        await reply(
+          clinicId,
+          patientId,
+          phone,
+          `You already have another appointment on ${day} at ${describeSameDay(sameDay)}. To move this one to that day anyway, send your message again with the word "anyway", e.g. "reschedule ${exampleDay} ${exampleTime} anyway".`,
+        );
+        return { handled: true, rescheduled: false };
+      }
     }
 
     // Validate against the doctor's leave / hours / daily cap (excludes itself).

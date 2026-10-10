@@ -62,3 +62,14 @@ export async function findSameDayAppointments(
         : null,
   }));
 }
+
+/** "10:00 with Dr. Faisal Karim, 16:30" — the existing visits, as a WhatsApp reply
+ *  quotes them. One wording for booking and reschedule, so the two never drift. */
+export function describeSameDay(list: SameDayAppointment[]): string {
+  return list
+    .map(
+      (a) =>
+        `${a.scheduledAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}${a.doctorName ? ` with ${a.doctorName}` : ""}`,
+    )
+    .join(", ");
+}

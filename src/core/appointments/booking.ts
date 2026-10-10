@@ -7,7 +7,7 @@ import { appointments, clinics, users } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import { checkDoctorSlot } from "@/core/appointments/availability";
-import { findSameDayAppointments } from "@/core/appointments/same-day";
+import { describeSameDay, findSameDayAppointments } from "@/core/appointments/same-day";
 import { withQueueNumber } from "@/core/appointments/queue";
 import { parseWhen } from "@/core/appointments/parse-when";
 import { report } from "@/core/observability";
@@ -209,12 +209,7 @@ export async function handleBookingReply(args: {
     if (!/\banother\b/i.test(text)) {
       const sameDay = await findSameDayAppointments(clinicId, patientId, when);
       if (sameDay.length > 0) {
-        const existing = sameDay
-          .map(
-            (a) =>
-              `${a.scheduledAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}${a.doctorName ? ` with ${a.doctorName}` : ""}`,
-          )
-          .join(", ");
+        const existing = describeSameDay(sameDay);
         const day = when.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" });
         // The example is the bare date and time — what `parseWhen` reads most simply.
         const exampleDay = when.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
