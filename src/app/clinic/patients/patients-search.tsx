@@ -5,27 +5,39 @@ import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { Input } from "@/core/ui/input";
 
-/** Live, URL-driven search over the clinic's patients (name, phone or MRN). */
+/**
+ * Live, URL-driven search over the clinic's patients (name, phone or MRN).
+ *
+ * The URL is updated from the TYPING, debounced — never from an effect watching the
+ * value. The effect version also re-ran whenever `router` changed identity, which it
+ * does during a navigation, and 300 ms later it replaced the URL with
+ * "/clinic/patients": anything navigating AWAY programmatically (switching an in-app
+ * tab, say) was dragged straight back to this page. Reacting to the keystroke cannot
+ * fire on its own.
+ */
 export function PatientsSearch({ initial }: { initial: string }) {
   const router = useRouter();
   const [value, setValue] = useState(initial);
-  const firstRender = useRef(true);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (firstRender.current) {
-      firstRender.current = false;
-      return;
-    }
-    const timeout = setTimeout(() => {
-      const params = new URLSearchParams();
-      if (value.trim()) params.set("q", value.trim());
-      const qs = params.toString();
-      router.replace(qs ? `/clinic/patients?${qs}` : "/clinic/patients", {
+  // A pending search must not fire after the page has gone.
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+
+  function onType(next: string) {
+    setValue(next);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      const q = next.trim();
+      router.replace(q ? `/clinic/patients?q=${encodeURIComponent(q)}` : "/clinic/patients", {
         scroll: false,
       });
     }, 300);
-    return () => clearTimeout(timeout);
-  }, [value, router]);
+  }
 
   return (
     <div className="relative w-full max-w-xs">
@@ -34,7 +46,7 @@ export function PatientsSearch({ initial }: { initial: string }) {
         className="pl-8"
         placeholder="Search name, phone or MRN…"
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => onType(e.target.value)}
         aria-label="Search patients"
       />
     </div>
