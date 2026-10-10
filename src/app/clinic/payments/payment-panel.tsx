@@ -15,6 +15,7 @@ import {
 } from "@/app/clinic/payments/payment-actions";
 import { SelectField } from "@/core/ui/select-field";
 import { Button, buttonVariants } from "@/core/ui/button";
+import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { Toast, toast, useActionToast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import { MessageCircle } from "lucide-react";
@@ -146,11 +147,12 @@ export function PaymentPanel({
       flash(r.error ?? "Applied credit.", Boolean(r.error));
     });
   };
-  const doVoid = (paymentId: string, isRefund: boolean) =>
-    startTransition(async () => {
-      const r = await voidAppointmentPayment(appointmentId, paymentId);
-      flash(r.error ?? (isRefund ? "Refund cancelled." : "Payment cancelled."), Boolean(r.error));
-    });
+  // Runs from the confirm dialog: an error keeps the dialog open and is shown there.
+  const doVoid = async (paymentId: string, isRefund: boolean) => {
+    const r = await voidAppointmentPayment(appointmentId, paymentId);
+    if (r.error) return { error: r.error };
+    flash(isRefund ? "Refund cancelled." : "Payment cancelled.");
+  };
   const doInvoice = () =>
     startTransition(async () => {
       const r = await issueAppointmentInvoice(appointmentId);
@@ -396,25 +398,31 @@ export function PaymentPanel({
                 ) : null}
               </div>
               {(e.kind === "refund" ? canVoidRefundEntry : canVoidPayment) ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="shrink-0 text-destructive hover:text-destructive"
-                  disabled={busy}
-                  onClick={() => doVoid(e.id, e.kind === "refund")}
-                  // Plain words, owner's call: "Void" read as jargon. This REMOVES an
-                  // entry recorded by mistake — no money moves — which is not a refund
-                  // (money handed back), so the tooltip says which one it is.
+                // Plain words, owner's call: "Void" read as jargon. This REMOVES an
+                // entry recorded by mistake — no money moves — which is not a refund
+                // (money handed back), so the dialog says which one it is. Confirmed
+                // first: one stray click used to take a real payment off the bill.
+                <ConfirmDialog
+                  triggerLabel={e.kind === "refund" ? "Cancel refund" : "Cancel payment"}
+                  triggerIcon={<Undo2 aria-hidden="true" />}
+                  triggerVariant="ghost"
+                  triggerClassName="shrink-0 text-destructive hover:text-destructive"
+                  triggerDisabled={busy}
                   title={
                     e.kind === "refund"
-                      ? "Remove this refund entry (it was recorded by mistake)"
-                      : "Remove this payment (it was recorded by mistake). To give money back, use Refund."
+                      ? `Cancel this refund of ${money.format(e.amount)}?`
+                      : `Cancel this payment of ${money.format(e.amount)}?`
                   }
-                >
-                  <Undo2 aria-hidden="true" />
-                  {e.kind === "refund" ? "Cancel refund" : "Cancel payment"}
-                </Button>
+                  description={
+                    e.kind === "refund"
+                      ? "Use this only if the refund was recorded by mistake. It is removed from the bill, so the money counts as collected again."
+                      : "Use this only if the payment was recorded by mistake. It is removed from the bill and the amount becomes outstanding again. To give money back to the patient, use Refund instead."
+                  }
+                  confirmLabel={e.kind === "refund" ? "Cancel refund" : "Cancel payment"}
+                  confirmVariant="destructive"
+                  cancelLabel={e.kind === "refund" ? "Keep refund" : "Keep payment"}
+                  onConfirm={() => doVoid(e.id, e.kind === "refund")}
+                />
               ) : null}
             </li>
           ))}

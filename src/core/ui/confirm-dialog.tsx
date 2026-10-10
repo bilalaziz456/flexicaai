@@ -28,6 +28,7 @@ export function ConfirmDialog({
   description,
   confirmLabel = "Confirm",
   confirmVariant = "default",
+  cancelLabel = "Cancel",
   onConfirm,
 }: {
   triggerLabel: string;
@@ -39,6 +40,9 @@ export function ConfirmDialog({
   description: string;
   confirmLabel?: string;
   confirmVariant?: ButtonVariant;
+  /** The dismiss button. Rename it when the action itself is a "Cancel …" —
+   *  "Cancel" beside "Cancel payment" makes the reader guess which one is safe. */
+  cancelLabel?: string;
   /** Runs the action. Return an error to keep the dialog open and show it. */
   onConfirm: () => Promise<{ error?: string } | void>;
 }) {
@@ -98,7 +102,7 @@ export function ConfirmDialog({
         footer={
           <>
             <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)} disabled={pending}>
-              Cancel
+              {cancelLabel}
             </Button>
             <Button type="button" variant={confirmVariant} onClick={confirm} disabled={pending}>
               {pending ? "Working…" : confirmLabel}
