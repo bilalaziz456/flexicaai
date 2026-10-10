@@ -49,6 +49,16 @@ export function ClinicLogAccess({ clinicId, logAccess }: { clinicId: string; log
         ) : null}
       </p>
 
+      <label className="flex min-h-6 w-fit items-center gap-2 text-sm font-medium">
+        <Checkbox
+          checked={granted.size > 0 && LOG_ACTIONS.every((a) => granted.has(a.id))}
+          indeterminate={granted.size > 0 && !LOG_ACTIONS.every((a) => granted.has(a.id))}
+          onCheckedChange={(on) => setGranted(on ? new Set(LOG_ACTIONS.map((a) => a.id)) : new Set())}
+          aria-label="Select all log categories"
+        />
+        Select all
+      </label>
+
       <div className="grid gap-2 sm:grid-cols-2">
         {LOG_ACTIONS.map((a) => (
           <label

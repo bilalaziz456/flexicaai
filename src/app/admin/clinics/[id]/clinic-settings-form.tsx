@@ -107,11 +107,22 @@ export function ClinicSettingsForm({
       </section>
 
       <section className="space-y-2 border-t pt-4">
-        <div>
-          <p className="text-sm font-medium">Features</p>
-          <p className="text-xs text-muted-foreground">
-            Optional platform features shown in the clinic admin&apos;s panel.
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p className="text-sm font-medium">Features</p>
+            <p className="text-xs text-muted-foreground">
+              Optional platform features shown in the clinic admin&apos;s panel.
+            </p>
+          </div>
+          <label className="flex min-h-6 items-center gap-2 text-sm font-medium">
+            <Checkbox
+              checked={features.length > 0 && features.every((f) => feats.has(f.id))}
+              indeterminate={features.some((f) => feats.has(f.id)) && !features.every((f) => feats.has(f.id))}
+              onCheckedChange={(on) => setFeats(on ? new Set(features.map((f) => f.id)) : new Set())}
+              aria-label="Select all features"
+            />
+            Select all
+          </label>
         </div>
         {features.map((f) => (
           <label
