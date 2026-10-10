@@ -25,6 +25,8 @@ export async function findAppointmentForEdit(clinicId: string, appointmentId: st
       id: appointments.id,
       queueSession: appointments.queueSession,
       status: appointments.status,
+      patientId: appointments.patientId,
+      scheduledAt: appointments.scheduledAt,
     })
     .from(appointments)
     .where(

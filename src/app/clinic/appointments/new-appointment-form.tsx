@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useRef, useState } from "react";
 import { Check, Minus, Plus, Search } from "lucide-react";
 import { cn } from "@/core/lib/utils";
 import {
@@ -14,6 +14,7 @@ import {
 import { SelectField } from "@/core/ui/select-field";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
+import { Dialog } from "@/core/ui/dialog";
 import { DatePicker } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
@@ -218,6 +219,20 @@ export function NewAppointmentForm({
   // error message on a second attempt.
   useActionToast(state, { saved: "Changes saved.", error: true });
 
+  // Same-day duplicate: the action answered with a question instead of saving.
+  // Open for THAT answer only — keyed on the state object's identity, so closing it
+  // stays closed until the next submit asks again, with no effect to sync it.
+  const formRef = useRef<HTMLFormElement>(null);
+  const [dismissedDuplicate, setDismissedDuplicate] = useState<ReceptionActionState | null>(null);
+  const duplicateOpen = Boolean(state.duplicate) && dismissedDuplicate !== state;
+  function bookAnyway() {
+    if (!formRef.current) return;
+    const fd = new FormData(formRef.current);
+    fd.set("confirmDuplicate", "1");
+    setDismissedDuplicate(state);
+    startTransition(() => formAction(fd));
+  }
+
   async function runSearch(q: string) {
     setQuery(q);
     setResults(await searchClinicPatients(q));
@@ -309,7 +324,7 @@ export function NewAppointmentForm({
     !onLeaveBlock && date && effectiveTime ? `${date}T${effectiveTime}` : "";
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form ref={formRef} action={formAction} className="space-y-4">
       <input
         type="hidden"
         name="patientId"
@@ -898,6 +913,29 @@ export function NewAppointmentForm({
               : "Schedule appointment"}
         </Button>
       </div>
+
+      <Dialog
+        open={duplicateOpen}
+        onOpenChange={(next) => {
+          if (!next) setDismissedDuplicate(state);
+        }}
+        title="This patient already has an appointment that day"
+        description={
+          state.duplicate
+            ? `${state.duplicate.date}: ${state.duplicate.existing.join(", ")}. ${isEdit ? "Move this one to that day anyway?" : "Book another one anyway?"}`
+            : undefined
+        }
+        footer={
+          <>
+            <Button type="button" variant="ghost" onClick={() => setDismissedDuplicate(state)}>
+              {isEdit ? "Don't move" : "Don't book"}
+            </Button>
+            <Button type="button" onClick={bookAnyway} disabled={pending}>
+              {isEdit ? "Move anyway" : "Book another"}
+            </Button>
+          </>
+        }
+      />
 
       {/* Failed create/edit → error toast (re-triggered per attempt via nonce). */}
       {/* Edit success → stay on the edit form, show a saved toast (re-triggered per

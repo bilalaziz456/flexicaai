@@ -59,9 +59,16 @@ import {
 import { logActivity } from "@/core/audit/log";
 import { APPOINTMENT_STATUSES, type AppointmentStatus } from "@/core/appointments/status";
 import { applyAppointmentStatus } from "@/core/appointments/set-status";
+import { findSameDayAppointments } from "@/core/appointments/same-day";
 import { DISCOUNT_BEARER_CODES , DISCOUNT_TYPE_CODES } from "@/core/db/vocabulary-seed";
 
-export type ReceptionActionState = { error?: string; saved?: boolean };
+export type ReceptionActionState = {
+  error?: string;
+  saved?: boolean;
+  /** Set instead of saving when the patient already has a live appointment that
+   *  day: the form asks, and resubmits with `confirmDuplicate=1` if the user agrees. */
+  duplicate?: { date: string; existing: string[] };
+};
 
 /**
  * Appointment management is shared by the receptionist AND the clinic admin, so
@@ -156,6 +163,24 @@ function withApptDoctor(
   return selections.map((s) => ({ ...s, doctorId }));
 }
 
+/** The "already booked that day" question for the form, or null when there is none. */
+async function sameDayWarning(
+  clinicId: string,
+  patientId: string,
+  when: Date,
+  excludeAppointmentId?: string,
+): Promise<ReceptionActionState["duplicate"] | null> {
+  const sameDay = await findSameDayAppointments(clinicId, patientId, when, excludeAppointmentId);
+  if (sameDay.length === 0) return null;
+  return {
+    date: when.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }),
+    existing: sameDay.map(
+      (a) =>
+        `${a.scheduledAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}${a.doctorName ? ` with ${a.doctorName}` : ""}`,
+    ),
+  };
+}
+
 /** Schedules an appointment in the receptionist's clinic. */
 export async function createAppointment(
   _prev: ReceptionActionState,
@@ -203,6 +228,14 @@ export async function createAppointment(
   // Tenant guards: patient (and doctor, if set) must belong to this clinic.
   const patient = await findClinicPatient(clinicId, parsed.data.patientId);
   if (!patient) return { error: "Patient not found." };
+
+  // Same patient, same day: ask before booking a second visit (findSameDayAppointments
+  // says why this warns rather than refuses). Checked before the slot check so the
+  // question comes first; a confirmed resubmit skips it.
+  if (formData.get("confirmDuplicate") !== "1") {
+    const duplicate = await sameDayWarning(clinicId, parsed.data.patientId, when);
+    if (duplicate) return { duplicate };
+  }
 
   // Queue context comes from the slot check so we don't re-query the schedule.
   let queueAvailability: DayAvailability[] = [];
@@ -359,6 +392,17 @@ export async function updateAppointment(
 
   const appt = await findAppointmentForEdit(clinicId, appointmentId);
   if (!appt) return { error: "Appointment not found." };
+
+  // Moving the visit onto a day the patient is already booked: same question as
+  // booking. Only when the DAY changes — a pair that already exists would otherwise
+  // re-ask on every save of an unrelated field (a reason, a discount), which teaches
+  // people to click through it.
+  const sameDayAsBefore =
+    localDateStr(appt.scheduledAt) === localDateStr(when);
+  if (!sameDayAsBefore && formData.get("confirmDuplicate") !== "1") {
+    const duplicate = await sameDayWarning(clinicId, appt.patientId, when, appointmentId);
+    if (duplicate) return { duplicate };
+  }
 
   let queueAvailability: DayAvailability[] = [];
   let queueFlexible = false;
