@@ -1,5 +1,6 @@
 "use client";
 
+import { PrintFileName } from "@/core/ui/print-file-name";
 import { useState } from "react";
 import { Printer } from "lucide-react";
 import { Button } from "@/core/ui/button";
@@ -24,6 +25,7 @@ export function InvoicePrintFrame({
   defaultFormat = "a4",
   allowed,
   logo = null,
+  fileName,
   children,
 }: {
   defaultFormat?: string;
@@ -36,6 +38,8 @@ export function InvoicePrintFrame({
   allowed?: readonly string[];
   /** Clinic logo as a `data:` URI (server-inlined). Printed in B&W at the top; null = none. */
   logo?: string | null;
+  /** What a saved PDF is called, before the date and time ("Invoice INV-…"). */
+  fileName?: string;
   children: React.ReactNode;
 }) {
   const all = Object.keys(FORMATS) as Fmt[];
@@ -60,6 +64,7 @@ export function InvoicePrintFrame({
 
   return (
     <div>
+      {fileName ? <PrintFileName name={fileName} /> : null}
       <style dangerouslySetInnerHTML={{ __html: css }} />
       <div className="no-print mb-4 flex flex-wrap items-center gap-2">
         {offered.length > 1 ? (

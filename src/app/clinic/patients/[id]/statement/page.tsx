@@ -1,4 +1,5 @@
 import { getPatientHeader } from "@/core/patients/list";
+import { PrintFileName } from "@/core/ui/print-file-name";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
 import { requireWorkspace } from "@/core/auth/user";
@@ -48,6 +49,7 @@ export default async function PatientStatementPage({
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
+      <PrintFileName name="Statement" />
       <div className="no-print">
         <BackLink href={`/clinic/patients/${patient.id}`}>
           Back to patient

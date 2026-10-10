@@ -37,7 +37,7 @@ export default async function ClinicInvoicePrintPage({ params }: { params: Promi
         </BackLink>
       </div>
 
-      <InvoicePrintFrame defaultFormat="a4">
+      <InvoicePrintFrame defaultFormat="a4" fileName={`Subscription invoice ${inv.label}`}>
         {/* Header — issuer */}
         <div className="flex items-start justify-between gap-3 border-b border-black/20 pb-2">
           <div>

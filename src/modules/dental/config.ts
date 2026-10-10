@@ -52,6 +52,7 @@ export const dentalModule: ModuleDefinition = {
   // The structured clinical record: the FDI odontogram. Core renders these by the
   // contract (never knowing it's a tooth chart) — the deferred `components` slot.
   clinicalRecord: {
+    chartName: "Odontogram",
     VisitEditor: DentalVisitEditor,
     PatientChart: DentalPatientChart,
     seedFromNote,

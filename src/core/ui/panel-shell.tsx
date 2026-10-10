@@ -1,5 +1,6 @@
 "use client";
 
+import { PrintFileName } from "@/core/ui/print-file-name";
 import { Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -567,6 +568,9 @@ export function PanelShell({
         className="mx-auto w-full max-w-[80rem] px-4 pt-7 outline-none sm:px-6 lg:px-8 print:max-w-none print:!p-0"
         style={{ paddingBottom: pillPad || 32 }}
       >
+        {/* A page printed with Ctrl+P is saved under its section's name, not
+            "FlexicaAI"; a print page names itself more precisely (priority 1). */}
+        <PrintFileName name={currentLabel ?? identityLabel} priority={0} />
         {children}
       </main>
       {/* Bottom-centre pill stack: connectivity sits at the very bottom, any

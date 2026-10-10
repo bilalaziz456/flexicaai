@@ -80,6 +80,7 @@ export default async function InvoicePage({
       </div>
 
       <InvoicePrintFrame
+        fileName={invoice ? `Invoice ${invoice.label}` : "Bill"}
         defaultFormat={clinic?.invoicePaper ?? "a4"}
         allowed={clinic?.invoicePapersEnabled}
         logo={logo}

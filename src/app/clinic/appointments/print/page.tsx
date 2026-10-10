@@ -1,4 +1,5 @@
 import { requireWorkspace } from "@/core/auth/user";
+import { PrintFileName } from "@/core/ui/print-file-name";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicHasFeature } from "@/core/lib/features";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
@@ -116,6 +117,7 @@ export default async function PrintAppointmentsPage({
 
   return (
     <div className="mx-auto max-w-[210mm] space-y-4 bg-card p-6 text-sm text-foreground print:p-0">
+      <PrintFileName name="Appointments" />
       <style dangerouslySetInnerHTML={{ __html: PRINT_CSS }} />
       <AutoPrint />
 

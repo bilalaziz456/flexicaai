@@ -1,4 +1,5 @@
 import { getClinic } from "@/core/clinics/get-clinic";
+import { PrintFileName } from "@/core/ui/print-file-name";
 import { notFound } from "next/navigation";
 
 import { requireWorkspace } from "@/core/auth/user";
@@ -64,6 +65,7 @@ export default async function DayBookPage({
 
   return (
     <div className="space-y-6">
+      <PrintFileName name={`Day book ${date}`} />
       <style dangerouslySetInnerHTML={{ __html: PRINT_CSS }} />
 
       <div className="flex flex-wrap items-end justify-between gap-3">

@@ -1,5 +1,6 @@
 "use client";
 
+import { PrintFileName } from "@/core/ui/print-file-name";
 import { useState, useTransition } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { BarChart3, Printer, X } from "lucide-react";
@@ -145,6 +146,8 @@ export function ClinicAnalyticsDialog({ clinicId }: { clinicId: string }) {
               Clinic analytics
             </Dialog.Title>
             <div className="flex items-center gap-2">
+              {/* Mounted only while the dialog is open, so it names THIS print. */}
+              <PrintFileName name="Clinic analytics" />
               <Button variant="outline" size="sm" onClick={() => window.print()} disabled={!data}>
                 <Printer className="size-4" /> Print
               </Button>

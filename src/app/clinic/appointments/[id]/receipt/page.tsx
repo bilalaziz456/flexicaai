@@ -113,6 +113,7 @@ export default async function ReceiptPage({
       </div>
 
       <InvoicePrintFrame
+        fileName={rcpLabel ? `Receipt ${rcpLabel}` : "Receipt"}
         defaultFormat={clinic?.invoicePaper ?? "a4"}
         allowed={clinic?.invoicePapersEnabled}
         logo={logo}

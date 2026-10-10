@@ -1,4 +1,5 @@
 import { listClinicDoctors } from "@/core/appointments/doctors";
+import { PrintFileName } from "@/core/ui/print-file-name";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/core/auth/user";
@@ -64,6 +65,7 @@ export default async function ShareStatementPage({
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
+      <PrintFileName name="Revenue share statement" />
       <style dangerouslySetInnerHTML={{ __html: PRINT_CSS }} />
 
       <div className="no-print flex items-center justify-between">

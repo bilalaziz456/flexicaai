@@ -44,13 +44,14 @@ export async function ClinicalChartPrint({
       </div>
 
       <InvoicePrintFrame
+        fileName={clinicalRecord.chartName ?? "Clinical chart"}
         defaultFormat={clinic?.invoicePaper ?? "a4"}
         allowed={clinic?.invoicePapersEnabled}
       >
         <div className="flex items-start justify-between gap-3 border-b border-black/20 pb-2">
           <div>
             <div className="text-base font-bold">{clinic?.name ?? "Clinic"}</div>
-            <div className="text-[0.9em] opacity-70">Clinical chart</div>
+            <div className="text-[0.9em] opacity-70">{clinicalRecord.chartName ?? "Clinical chart"}</div>
           </div>
           <div className="text-right text-[0.9em]">{today}</div>
         </div>

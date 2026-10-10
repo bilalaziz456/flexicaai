@@ -1,4 +1,5 @@
 import { ArrowRight, ListChecks, Stethoscope } from "lucide-react";
+import { PrintFileName } from "@/core/ui/print-file-name";
 import Link from "next/link";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
@@ -75,6 +76,7 @@ export default async function OverviewPage({
 
   return (
     <div className="space-y-6">
+      <PrintFileName name="Reports overview" />
       <style dangerouslySetInnerHTML={{ __html: PRINT_CSS }} />
 
       <div className="flex flex-wrap items-start justify-between gap-3">

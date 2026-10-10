@@ -205,6 +205,9 @@ export interface ModuleLab {
  * are module-defined (hence `unknown`), tightened alongside the tooth chart in Phase 1.
  */
 export interface ModuleClinicalRecord {
+  /** What this specialty calls its chart — the printed heading and the saved PDF's
+   *  name ("Odontogram" for dental). Core never names a specialty's chart itself. */
+  chartName?: string;
   VisitEditor: ComponentType<ClinicalVisitEditorProps>;
   PatientChart: ComponentType<PatientChartProps>;
   /** Map a scribe draft note into the editor's initial value (a pre-filled chart). */
