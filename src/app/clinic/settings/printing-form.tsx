@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState } from "react";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
@@ -58,7 +59,7 @@ export function PrintingForm({ paper, enabled }: { paper: string; enabled: strin
     on.some((v) => !known(enabled).includes(v));
 
   return (
-    <form action={action} className="space-y-4">
+    <ActionForm action={action} state={state} className="space-y-4">
       {on.map((v) => (
         <input key={v} type="hidden" name="papers" value={v} />
       ))}
@@ -136,6 +137,6 @@ export function PrintingForm({ paper, enabled }: { paper: string; enabled: strin
         variant={state.error ? "error" : "success"}
         token={state.saved ? 1 : 0}
       />
-    </form>
+    </ActionForm>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState } from "react";
 import { Ban, KeyRound, Pencil, RotateCcw } from "lucide-react";
 import {
@@ -87,8 +88,8 @@ export function StaffActions({
       </div>
 
       {editOpen ? (
-        <form
-          action={editFormAction}
+        <ActionForm
+          action={editFormAction} state={editState}
           className="flex flex-col items-end gap-2 rounded-md border well p-3 sm:flex-row sm:items-end"
         >
           <div className="w-full space-y-1 sm:w-auto">
@@ -122,12 +123,12 @@ export function StaffActions({
           <Button type="submit" size="sm" disabled={editing}>
             {editing ? "Saving…" : "Save"}
           </Button>
-        </form>
+        </ActionForm>
       ) : null}
 
       {resetOpen ? (
-        <form
-          action={resetFormAction}
+        <ActionForm
+          action={resetFormAction} state={resetState}
           className="flex items-center justify-end gap-2"
         >
           <PasswordInput
@@ -141,7 +142,7 @@ export function StaffActions({
           <Button type="submit" size="sm" disabled={resetting}>
             {resetting ? "Setting…" : "Set"}
           </Button>
-        </form>
+        </ActionForm>
       ) : null}
 
       {editState.error ? (

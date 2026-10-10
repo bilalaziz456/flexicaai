@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState, useTransition } from "react";
 import {
   resetStaffPermissions,
@@ -52,7 +53,7 @@ export function PermissionsGrid({
     });
 
   return (
-    <form action={formAction} className="space-y-4">
+    <ActionForm action={formAction} state={state} className="space-y-4">
       <PermissionMatrix resources={resources} granted={granted} onChange={setGranted} />
 
       <div className="flex flex-wrap items-center gap-4">
@@ -69,6 +70,6 @@ export function PermissionsGrid({
         </Button>
       </div>
 
-    </form>
+    </ActionForm>
   );
 }

@@ -62,14 +62,21 @@ export default async function AccountPage() {
       <Card>
         <CardHeader>
           <CardTitle>Profile</CardTitle>
-          <CardDescription>Your name, title and contact email.</CardDescription>
+          <CardDescription>Your name, title, contact number and email.</CardDescription>
         </CardHeader>
         <CardContent>
           <ProfileForm
             prefix={u.prefix}
             fullName={u.fullName}
             email={u.email}
+            phone={u.phone}
+            phoneRequired={u.role === "super_admin"}
             username={u.username}
+            usernameNote={
+              u.role === "super_admin" || u.role === "clinic_admin"
+                ? undefined
+                : "Your login username is managed by your clinic admin."
+            }
           />
         </CardContent>
       </Card>

@@ -25,6 +25,7 @@ export async function getMyProfile(userId: string) {
       prefix: users.prefix,
       fullName: users.fullName,
       email: users.email,
+      phone: users.phone,
       username: users.username,
       role: users.role,
       avatarKey: users.avatarKey,
@@ -70,7 +71,7 @@ export async function getMyTotpState(
 /** Name, title and email — what the account form edits. */
 export async function updateMyProfile(
   userId: string,
-  input: { fullName: string; prefix: string | null; email: string | null },
+  input: { fullName: string; prefix: string | null; email: string | null; phone: string | null },
 ): Promise<void> {
   await db
     .update(users)

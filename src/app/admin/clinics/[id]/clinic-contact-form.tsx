@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState } from "react";
 import { updateClinicContact, type AdminActionState } from "@/app/admin/actions";
 import { SelectField } from "@/core/ui/select-field";
@@ -80,7 +81,7 @@ export function ClinicContactForm({
     setF((s) => ({ ...s, [k]: e.target.value }));
 
   return (
-    <form action={formAction} className="space-y-4">
+    <ActionForm action={formAction} state={state} className="space-y-4">
       <ActionToast state={state} saved="Owner & contact saved." />
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -186,6 +187,6 @@ export function ClinicContactForm({
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Save owner & contact"}
       </Button>
-    </form>
+    </ActionForm>
   );
 }

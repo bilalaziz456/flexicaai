@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState } from "react";
 import { updateWhatsappSettings } from "@/app/clinic/actions";
 import type { ClinicActionState } from "@/app/clinic/actions";
@@ -32,7 +33,7 @@ export function WhatsappSettingsForm({
   const [signature, setSignature] = useState(initialSignature ?? "");
 
   return (
-    <form action={formAction} className="space-y-4">
+    <ActionForm action={formAction} state={state} className="space-y-4">
       <p className="text-sm text-muted-foreground">
         Add a signature that appears at the end of every WhatsApp message the clinic
         sends. The message layout itself is a WhatsApp-approved template.
@@ -65,6 +66,6 @@ export function WhatsappSettingsForm({
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Save signature"}
       </Button>
-    </form>
+    </ActionForm>
   );
 }

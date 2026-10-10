@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState, useTransition } from "react";
 import {
   recordClinicPaymentAction,
@@ -323,7 +324,7 @@ export function ClinicBilling({
 
       {/* ---- Price / cycle / grace (manage only) ---- */}
       {canManage ? (
-      <form action={priceAction} className="space-y-3">
+      <ActionForm action={priceAction} state={priceState} className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="monthlyPrice">Monthly price (PKR)</Label>
@@ -349,12 +350,12 @@ export function ClinicBilling({
         <Button type="submit" variant="outline" disabled={savingPrice}>
           {savingPrice ? "Saving…" : "Save billing settings"}
         </Button>
-      </form>
+      </ActionForm>
       ) : null}
 
       {/* ---- Record a payment (manage only) ---- */}
       {canManage ? (
-      <form action={payAction} className="space-y-3 rounded-md border well p-4">
+      <ActionForm action={payAction} state={payState} className="space-y-3 rounded-md border well p-4">
         <input type="hidden" name="kind" value={kind} />
         <div className="text-sm font-medium">Record payment / refund / credit</div>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -437,7 +438,7 @@ export function ClinicBilling({
         <Button type="submit" disabled={paying}>
           {paying ? "Saving…" : isPayment ? "Record payment" : kind === "refund" ? "Record refund" : "Record credit"}
         </Button>
-      </form>
+      </ActionForm>
       ) : null}
 
       {/* ---- History ---- */}

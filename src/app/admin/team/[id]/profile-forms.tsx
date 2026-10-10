@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState, useTransition } from "react";
 import {
   deactivateMemberAction,
@@ -38,7 +39,7 @@ export function ProfileForm({
   const [nameVal, setNameVal] = useState(fullName);
   const [userVal, setUserVal] = useState(username);
   return (
-    <form action={action} className="space-y-3">
+    <ActionForm action={action} state={state} className="space-y-3">
       {state.saved ? <Toast message="Profile saved." /> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
@@ -60,7 +61,7 @@ export function ProfileForm({
       </div>
       {state.error ? <p className="text-sm text-destructive" role="alert">{state.error}</p> : null}
       <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save profile"}</Button>
-    </form>
+    </ActionForm>
   );
 }
 
@@ -70,7 +71,7 @@ export function PasswordResetForm({ userId }: { userId: string }) {
     {},
   );
   return (
-    <form action={action} className="space-y-3">
+    <ActionForm action={action} state={state} className="space-y-3">
       {state.saved ? <Toast message="Password reset. They must set a new one on next login." /> : null}
       <div className="max-w-sm space-y-2">
         <Label htmlFor="password">New temporary password</Label>
@@ -78,7 +79,7 @@ export function PasswordResetForm({ userId }: { userId: string }) {
       </div>
       {state.error ? <p className="text-sm text-destructive" role="alert">{state.error}</p> : null}
       <Button type="submit" variant="outline" disabled={pending}>{pending ? "Resetting…" : "Reset password"}</Button>
-    </form>
+    </ActionForm>
   );
 }
 

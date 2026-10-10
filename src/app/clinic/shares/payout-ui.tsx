@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState, useTransition } from "react";
 import { Undo2 } from "lucide-react";
 import {
@@ -43,7 +44,7 @@ export function RecordPayoutForm({
   const [amount, setAmount] = useState(String(outstanding));
 
   return (
-    <form action={formAction} className="space-y-3">
+    <ActionForm action={formAction} state={state} className="space-y-3">
       <input type="hidden" name="doctorId" value={doctorId} />
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="space-y-1">
@@ -89,7 +90,7 @@ export function RecordPayoutForm({
       >
         {pending ? "Recording…" : "Record payment"}
       </Button>
-    </form>
+    </ActionForm>
   );
 }
 

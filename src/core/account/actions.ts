@@ -20,6 +20,7 @@
  */
 
 
+import { toE164 } from "@/core/lib/phone";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { zodErrorMessage } from "@/core/lib/zod-error";
@@ -58,6 +59,14 @@ const profileSchema = z.object({
     .email("Enter a valid email.")
     .optional()
     .or(z.literal("").transform(() => undefined)),
+  // E.164 through the shared `toE164`, the same as every other stored number; an
+  // empty field is allowed here and checked against the role below.
+  phone: z
+    .string()
+    .trim()
+    .transform((raw) => toE164(raw))
+    .refine((r) => r.valid, { message: "That does not look like a phone number." })
+    .transform((r) => r.phone),
 });
 
 /** The signed-in user edits their OWN profile — name, title and email. */
@@ -72,9 +81,16 @@ export async function updateMyProfile(
     fullName: formData.get("fullName"),
     prefix: formData.get("prefix") || undefined,
     email: formData.get("email") ?? "",
+    phone: formData.get("phone") ?? "",
   });
   if (!parsed.success) {
     return { error: zodErrorMessage(parsed.error) };
+  }
+  // The super admin's team must keep a number on file: clinics are shown it as their
+  // account manager's contact, and the Team page already requires it. Clearing it here
+  // would quietly undo that requirement.
+  if (user.role === "super_admin" && !parsed.data.phone) {
+    return { error: "A contact number is required — the clinics you manage are shown it." };
   }
 
   try {
@@ -82,6 +98,7 @@ export async function updateMyProfile(
       fullName: parsed.data.fullName,
       prefix: parsed.data.prefix ?? null,
       email: parsed.data.email ?? null,
+      phone: parsed.data.phone ?? null,
     });
   } catch (err) {
     const code =

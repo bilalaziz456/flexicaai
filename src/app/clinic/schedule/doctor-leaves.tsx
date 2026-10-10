@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState } from "react";
 import { CalendarOff, Pencil, X } from "lucide-react";
 import {
@@ -64,7 +65,7 @@ function LeaveEntry({
   if (editing) {
     return (
       <li className="rounded-md border well p-3">
-        <form action={formAction} className="space-y-3">
+        <ActionForm action={formAction} state={state} className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <Label htmlFor={`edit-from-${leave.id}`} className="text-xs">
@@ -125,7 +126,7 @@ function LeaveEntry({
               </span>
             ) : null}
           </div>
-        </form>
+        </ActionForm>
       </li>
     );
   }
@@ -229,7 +230,7 @@ export function DoctorLeaves({
       )}
 
       {canCreate ? (
-      <form action={formAction} className="space-y-3 rounded-md border well p-3">
+      <ActionForm action={formAction} state={state} className="space-y-3 rounded-md border well p-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
             <Label htmlFor={`from-${doctorId}`} className="text-xs">
@@ -289,7 +290,7 @@ export function DoctorLeaves({
             </span>
           ) : null}
         </div>
-      </form>
+      </ActionForm>
       ) : null}
       {canCreate ? (
         <p className="text-xs text-muted-foreground">

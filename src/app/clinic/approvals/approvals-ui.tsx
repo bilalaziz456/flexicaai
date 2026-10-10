@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState } from "react";
 import { Check, CheckCircle2, X } from "lucide-react";
 import {
@@ -33,7 +34,7 @@ export function ClinicDiscountPolicy({ initial }: { initial: boolean }) {
   useActionToast(state, { saved: "Saved.", error: true });
 
   return (
-    <form action={formAction} className="space-y-3">
+    <ActionForm action={formAction} state={state} className="space-y-3">
       <input type="hidden" name="requireApproval" value={on ? "on" : ""} />
       <label className="flex min-h-6 items-center gap-2 text-sm">
         <Checkbox
@@ -49,7 +50,7 @@ export function ClinicDiscountPolicy({ initial }: { initial: boolean }) {
       <Button type="submit" size="sm" disabled={pending}>
         {pending ? "Saving…" : "Save"}
       </Button>
-    </form>
+    </ActionForm>
   );
 }
 
@@ -75,7 +76,7 @@ function ApprovalRow({ item }: { item: QueueItem }) {
           </p>
         </div>
       </div>
-      <form action={formAction} className="space-y-2">
+      <ActionForm action={formAction} state={state} className="space-y-2">
         <input type="hidden" name="rowId" value={item.id} />
         <input
           type="text"
@@ -110,7 +111,7 @@ function ApprovalRow({ item }: { item: QueueItem }) {
             <X className="size-4" aria-hidden="true" /> Reject
           </Button>
         </div>
-      </form>
+      </ActionForm>
     </li>
   );
 }

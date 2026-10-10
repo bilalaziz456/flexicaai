@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useEffect, useRef } from "react";
 import { createSuperAdminAction, type TeamActionState } from "./actions";
 import { SelectField } from "@/core/ui/select-field";
@@ -22,7 +23,7 @@ export function CreateSuperAdminForm() {
   }, [state.saved]);
 
   return (
-    <form ref={formRef} action={action} className="space-y-3">
+    <ActionForm ref={formRef} action={action} state={state} className="space-y-3">
       {state.saved ? <Toast message="Team member added." /> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
@@ -61,6 +62,6 @@ export function CreateSuperAdminForm() {
       </div>
       {state.error ? <p className="text-sm text-destructive" role="alert">{state.error}</p> : null}
       <Button type="submit" disabled={pending}>{pending ? "Adding…" : "Add team member"}</Button>
-    </form>
+    </ActionForm>
   );
 }

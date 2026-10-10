@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState, useTransition } from "react";
 import {
   beginTotpEnrollment,
@@ -141,7 +142,7 @@ function EnrollView() {
           </Button>
         </CardContent>
       ) : (
-        <form action={confirmAction}>
+        <ActionForm action={confirmAction} state={confirmState}>
           <CardContent className="space-y-4">
             <div className="space-y-1">
               <p className="text-sm font-medium">1. Add this key to your authenticator app</p>
@@ -185,7 +186,7 @@ function EnrollView() {
               Cancel
             </Button>
           </CardFooter>
-        </form>
+        </ActionForm>
       )}
     </Card>
   );
@@ -219,7 +220,7 @@ function EnabledView({ backupCount }: { backupCount: number }) {
             <BackupCodes codes={regenState.backupCodes} title="New backup codes" />
           </CardContent>
         ) : (
-          <form action={regenAction}>
+          <ActionForm action={regenAction} state={regenState}>
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Regenerating replaces all existing backup codes.
@@ -244,7 +245,7 @@ function EnabledView({ backupCount }: { backupCount: number }) {
                 {regenning ? "Generating…" : "Regenerate backup codes"}
               </Button>
             </CardFooter>
-          </form>
+          </ActionForm>
         )}
       </Card>
 
@@ -255,7 +256,7 @@ function EnabledView({ backupCount }: { backupCount: number }) {
             Your account will be protected by password only. Not recommended.
           </CardDescription>
         </CardHeader>
-        <form action={disableAction}>
+        <ActionForm action={disableAction} state={disableState}>
           <CardContent className="space-y-3">
             <div className="space-y-2">
               <Label htmlFor="disable-password">Confirm your password</Label>
@@ -282,7 +283,7 @@ function EnabledView({ backupCount }: { backupCount: number }) {
               {disabling ? "Disabling…" : "Disable two-factor"}
             </Button>
           </CardFooter>
-        </form>
+        </ActionForm>
       </Card>
     </div>
   );

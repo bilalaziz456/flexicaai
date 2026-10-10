@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState } from "react";
 import { updateClinicSettings, type ClinicActionState } from "@/app/clinic/actions";
 import { Button } from "@/core/ui/button";
@@ -14,7 +15,7 @@ export function AvgVisitValueForm({ value }: { value: number }) {
   >(updateClinicSettings, {});
 
   return (
-    <form action={formAction} className="space-y-1.5">
+    <ActionForm action={formAction} state={state} className="space-y-1.5">
       <Label htmlFor="avgVisitValue" className="text-xs">
         Average visit value (PKR)
       </Label>
@@ -45,6 +46,6 @@ export function AvgVisitValueForm({ value }: { value: number }) {
           <span className="text-xs text-success-text">Saved.</span>
         ) : null}
       </div>
-    </form>
+    </ActionForm>
   );
 }

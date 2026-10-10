@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState, useTransition } from "react";
 import { RotateCcw, Trash2 } from "lucide-react";
 import {
@@ -59,7 +60,7 @@ export function IssueInvoiceForm({ clinics }: { clinics: InvoiceClinic[] }) {
   const clinicOptions = clinics.map((c) => ({ value: c.id, label: c.monthlyPrice > 0 ? `${c.name} (Rs ${c.monthlyPrice.toLocaleString("en-PK")}/mo)` : c.name }));
 
   return (
-    <form action={formAction} className="space-y-3">
+    <ActionForm action={formAction} state={state} className="space-y-3">
       <input type="hidden" name="clinicId" value={clinicId} />
       <input type="hidden" name="periodStart" value={start} />
       <input type="hidden" name="periodEnd" value={end} />
@@ -102,7 +103,7 @@ export function IssueInvoiceForm({ clinics }: { clinics: InvoiceClinic[] }) {
         </div>
       </div>
       <Button type="submit" disabled={pending || !clinicId}>{pending ? "Issuing…" : "Issue invoice"}</Button>
-    </form>
+    </ActionForm>
   );
 }
 

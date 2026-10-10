@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useEffect, useState, type ReactNode } from "react";
 import { SelectField } from "@/core/ui/select-field";
 import { Dialog } from "@/core/ui/dialog";
@@ -60,7 +61,7 @@ export function AddLeaveForm({
   const id = `${doctorId ?? "pick"}-${date}`;
 
   return (
-    <form action={formAction} className="mt-4 space-y-3">
+    <ActionForm action={formAction} state={state} className="mt-4 space-y-3">
       {doctorId ? null : (
         <div className="space-y-1">
           <Label htmlFor={`leave-doctor-${id}`} className="text-xs">
@@ -131,7 +132,7 @@ export function AddLeaveForm({
           {state.error}
         </p>
       ) : null}
-    </form>
+    </ActionForm>
   );
 }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState } from "react";
 import { requestResetAction } from "../reset-actions";
 import type { AuthActionState } from "@/core/auth/actions";
@@ -30,7 +31,7 @@ export function ForgotPasswordForm() {
           Enter your username or email and we&apos;ll send you a reset link.
         </CardDescription>
       </CardHeader>
-      <form action={formAction}>
+      <ActionForm action={formAction} state={state}>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="identifier">Username or email</Label>
@@ -67,7 +68,7 @@ export function ForgotPasswordForm() {
             </p>
           </div>
         </CardFooter>
-      </form>
+      </ActionForm>
     </Card>
   );
 }

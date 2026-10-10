@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState, useTransition } from "react";
 import { BadgePercent, ListPlus, Trash2 } from "lucide-react";
 import {
@@ -246,7 +247,7 @@ function AddProcedureForm({ templatesAvailable }: { templatesAvailable: boolean 
 
   return (
     <div className="space-y-3 rounded-lg border well p-4">
-      <form action={formAction} className="flex flex-wrap items-end gap-3">
+      <ActionForm action={formAction} state={state} className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="new-proc-name">Procedure</Label>
           <Input
@@ -273,7 +274,7 @@ function AddProcedureForm({ templatesAvailable }: { templatesAvailable: boolean 
         <Button type="submit" disabled={pending}>
           {pending ? "Adding…" : "Add procedure"}
         </Button>
-      </form>
+      </ActionForm>
 
       {templatesAvailable ? (
         <button
@@ -334,7 +335,7 @@ function ProcedureRow({
 
   return (
     <div className="space-y-1.5 rounded-md border well p-2">
-      <form action={formAction} className="flex flex-wrap items-center gap-2">
+      <ActionForm action={formAction} state={state} className="flex flex-wrap items-center gap-2">
         {perms.edit ? (
           <Checkbox
             checked={selected}
@@ -407,7 +408,7 @@ function ProcedureRow({
           )
         ) : null}
         <span className="sr-only">{fmtPkr(procedure.price)}</span>
-      </form>
+      </ActionForm>
 
       {status !== "none" ? (
         <div className="flex flex-wrap items-center gap-2 pl-1 text-xs">
@@ -499,7 +500,7 @@ function OfferDialog({
       {/* A two-column grid of standard Fields: every control gets the same height and
           a full column to itself. The date picker has a minimum width (min-w-48), so
           squeezing it into a fixed narrower box made it spill over its neighbours. */}
-      <form id="offer-form" action={formAction} className="grid gap-4 sm:grid-cols-2">
+      <ActionForm id="offer-form" action={formAction} state={state} className="grid gap-4 sm:grid-cols-2">
         <Field label="Discount type" htmlFor="offer-type">
           <SelectField
             id="offer-type"
@@ -555,7 +556,7 @@ function OfferDialog({
             {state.error}
           </p>
         ) : null}
-      </form>
+      </ActionForm>
     </Dialog>
   );
 }

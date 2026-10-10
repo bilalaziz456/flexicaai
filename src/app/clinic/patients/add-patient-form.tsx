@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState } from "react";
 import { createPatient, type ClinicActionState } from "@/app/clinic/actions";
 import { SelectField } from "@/core/ui/select-field";
@@ -28,7 +29,7 @@ export function AddPatientForm({
   useActionToast(state, { error: true });
 
   return (
-    <form action={formAction} className="space-y-4">
+    <ActionForm action={formAction} state={state} className="space-y-4">
       {thenBook ? <input type="hidden" name="then" value="book" /> : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
@@ -95,6 +96,6 @@ export function AddPatientForm({
       <Button type="submit" disabled={pending}>
         {pending ? "Adding…" : "Add patient"}
       </Button>
-    </form>
+    </ActionForm>
   );
 }

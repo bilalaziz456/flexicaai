@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { signIn, type AuthActionState } from "@/core/auth/actions";
@@ -47,7 +48,7 @@ export function LoginForm({
             : "Access your FlexicaAI workspace."}
         </CardDescription>
       </CardHeader>
-      <form action={formAction}>
+      <ActionForm action={formAction} state={state}>
         <CardContent className="space-y-4">
           {/* Phase 1 fields. In the 2FA phase they stay in the form (hidden) so
               username+password are re-posted and re-verified with the code. */}
@@ -128,7 +129,7 @@ export function LoginForm({
             </Link>
           ) : null}
         </CardFooter>
-      </form>
+      </ActionForm>
     </Card>
   );
 }

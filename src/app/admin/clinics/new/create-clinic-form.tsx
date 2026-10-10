@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import Link from "next/link";
 import { useActionState, useCallback, useState } from "react";
 import type { SpecialtyCatalogEntry } from "@/core/types/module";
@@ -48,7 +49,7 @@ export function CreateClinicForm({
   useActionToast(state, { error: true });
 
   return (
-    <form action={formAction} className="space-y-6">
+    <ActionForm action={formAction} state={state} className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>Clinic</CardTitle>
@@ -196,6 +197,6 @@ export function CreateClinicForm({
           Cancel
         </Link>
       </div>
-    </form>
+    </ActionForm>
   );
 }

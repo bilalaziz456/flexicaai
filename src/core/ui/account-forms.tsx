@@ -14,6 +14,8 @@
  * Server Action several panels share belongs in core, the same way `endImpersonation`
  * does.
  */
+import { PhoneInput } from "@/core/ui/phone-input";
+import { ActionForm } from "@/core/ui/action-form";
 import {
   useActionState,
   useEffect,
@@ -314,12 +316,23 @@ export function ProfileForm({
   prefix,
   fullName,
   email,
+  phone,
+  phoneRequired = false,
   username,
+  usernameNote = "Your login username can't be changed here.",
 }: {
   prefix: string | null;
   fullName: string | null;
   email: string | null;
+  /** Stored E.164; shown as stored. */
+  phone: string | null;
+  /** The super admin's team must keep one (clinics see it as their account manager's). */
+  phoneRequired?: boolean;
   username: string;
+  /** Who changes the username, for this viewer. Clinic staff are told to ask their
+   *  clinic admin; saying that to the clinic admin, or to the super admin's team, was
+   *  wrong — so the default says only that it is not changed here. */
+  usernameNote?: string;
 }) {
   const [state, formAction, pending] = useActionState<AccountActionState, FormData>(
     updateMyProfile,
@@ -331,24 +344,28 @@ export function ProfileForm({
   const [emailVal, setEmailVal] = useState(email ?? "");
 
   return (
-    <form action={formAction} className="space-y-4">
+    <ActionForm action={formAction} state={state} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>
+          {/* The title is a short fixed column and the name takes the rest. It was
+              `w-full`, which gave the title the whole row and squeezed the name into a
+              box too narrow to show or type anything. */}
           <div className="flex gap-2">
             <SelectField
               name="prefix"
               defaultValue={prefix ?? ""}
               options={[{ value: "", label: "Title" }, ...STAFF_PREFIXES.map((p) => ({ value: p, label: p }))]}
               ariaLabel="Title"
-              className="h-8 w-full"
+              className="w-24 shrink-0"
             />
             <Input
               id="fullName"
               name="fullName"
               value={nameVal}
               onChange={(e) => setNameVal(e.target.value)}
-              className="flex-1"
+              placeholder="Your full name"
+              className="min-w-0 flex-1"
               required
             />
           </div>
@@ -357,18 +374,31 @@ export function ProfileForm({
           <Label htmlFor="email">Email</Label>
           <Input id="email" name="email" type="email" value={emailVal} onChange={(e) => setEmailVal(e.target.value)} />
         </div>
+        <div className="space-y-2">
+          <Label htmlFor="phone">Contact number</Label>
+          <PhoneInput
+            id="phone"
+            name="phone"
+            defaultValue={phone ?? ""}
+            placeholder="e.g. 0300 1234567"
+            required={phoneRequired}
+          />
+          {phoneRequired ? (
+            <p className="text-xs text-muted-foreground">
+              Clinics you look after see this as their account manager&apos;s number.
+            </p>
+          ) : null}
+        </div>
       </div>
       <div className="space-y-1">
         <Label className="text-muted-foreground">Username</Label>
         <p className="text-sm">{username}</p>
-        <p className="text-xs text-muted-foreground">
-          Your login username is managed by your clinic admin.
-        </p>
+        <p className="text-xs text-muted-foreground">{usernameNote}</p>
       </div>
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Save profile"}
       </Button>
-    </form>
+    </ActionForm>
   );
 }
 
@@ -389,7 +419,7 @@ export function DiscountApprovalForm({
   const [needsApproval, setNeedsApproval] = useState(discountNeedsApproval);
 
   return (
-    <form action={formAction} className="space-y-3">
+    <ActionForm action={formAction} state={state} className="space-y-3">
       <input type="hidden" name="discountNeedsApproval" value={needsApproval ? "on" : ""} />
       <label className="flex min-h-6 items-center gap-2 text-sm">
         <Checkbox
@@ -405,7 +435,7 @@ export function DiscountApprovalForm({
       <Button type="submit" size="sm" disabled={pending}>
         {pending ? "Saving…" : "Save"}
       </Button>
-    </form>
+    </ActionForm>
   );
 }
 
@@ -422,7 +452,7 @@ export function PasswordForm() {
   }, [state.saved]);
 
   return (
-    <form ref={formRef} action={formAction} className="space-y-4">
+    <ActionForm ref={formRef} action={formAction} state={state} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="currentPassword">Current password</Label>
         <PasswordInput
@@ -455,7 +485,7 @@ export function PasswordForm() {
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Change password"}
       </Button>
-    </form>
+    </ActionForm>
   );
 }
 
@@ -488,7 +518,7 @@ export function SessionsForm({ otherCount }: { otherCount: number }) {
   }
 
   return (
-    <form ref={formRef} action={formAction} className="space-y-4">
+    <ActionForm ref={formRef} action={formAction} state={state} className="space-y-4">
       <p className="text-sm text-muted-foreground">
         {state.saved
           ? "This device stays signed in."
@@ -510,6 +540,6 @@ export function SessionsForm({ otherCount }: { otherCount: number }) {
           </Button>
         </>
       )}
-    </form>
+    </ActionForm>
   );
 }

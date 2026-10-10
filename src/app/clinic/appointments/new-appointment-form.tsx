@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { startTransition, useActionState, useRef, useState } from "react";
 import { Check, Minus, Plus, Search } from "lucide-react";
 import { cn } from "@/core/lib/utils";
@@ -352,7 +353,7 @@ export function NewAppointmentForm({
     !onLeaveBlock && date && effectiveTime ? `${date}T${effectiveTime}` : "";
 
   return (
-    <form ref={formRef} action={formAction} className="space-y-4">
+    <ActionForm ref={formRef} action={formAction} state={state} className="space-y-4">
       <input
         type="hidden"
         name="patientId"
@@ -983,6 +984,6 @@ export function NewAppointmentForm({
       {/* Failed create/edit → error toast (re-triggered per attempt via nonce). */}
       {/* Edit success → stay on the edit form, show a saved toast (re-triggered per
           save). Create instead redirects to the new appointment's detail page. */}
-    </form>
+    </ActionForm>
   );
 }

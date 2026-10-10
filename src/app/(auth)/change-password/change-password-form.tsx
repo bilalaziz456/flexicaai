@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState } from "react";
 import { changePassword, type AuthActionState } from "@/core/auth/actions";
 import { Button } from "@/core/ui/button";
@@ -30,7 +31,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
             : "Choose a new password for your account."}
         </CardDescription>
       </CardHeader>
-      <form action={formAction}>
+      <ActionForm action={formAction} state={state}>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="password">New password</Label>
@@ -61,7 +62,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
             {pending ? "Saving…" : "Save password"}
           </Button>
         </CardFooter>
-      </form>
+      </ActionForm>
     </Card>
   );
 }

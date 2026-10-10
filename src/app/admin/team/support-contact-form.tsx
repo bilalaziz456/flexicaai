@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState } from "react";
 import { setCompanySupportContactAction, type TeamActionState } from "./actions";
 import { Button } from "@/core/ui/button";
@@ -31,7 +32,7 @@ export function SupportContactForm({
   useActionToast(state, { saved: "Company contact saved." });
 
   return (
-    <form action={action} className="space-y-3">
+    <ActionForm action={action} state={state} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="supportPhone">Phone</Label>
@@ -64,6 +65,6 @@ export function SupportContactForm({
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Save contact"}
       </Button>
-    </form>
+    </ActionForm>
   );
 }

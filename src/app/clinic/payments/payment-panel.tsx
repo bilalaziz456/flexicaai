@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -205,7 +206,7 @@ export function PaymentPanel({
 
       {/* Collect */}
       {canCollect && outstanding > 0 ? (
-        <form action={formAction} className="space-y-2 rounded-lg border well p-3">
+        <ActionForm action={formAction} state={state} className="space-y-2 rounded-lg border well p-3">
           <div className="grid gap-2 sm:grid-cols-3">
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground" htmlFor="pp-amount">Amount (Rs)</label>
@@ -258,7 +259,7 @@ export function PaymentPanel({
               </Button>
             ) : null}
           </div>
-        </form>
+        </ActionForm>
       ) : outstanding <= 0 && billTotal > 0 ? (
         <p className="text-sm text-success-text">Fully paid.</p>
       ) : null}
@@ -272,7 +273,7 @@ export function PaymentPanel({
       {/* Refund: give back money already collected on this visit. */}
       {canRefund && collected > 0 ? (
         refundOpen ? (
-          <form action={refundAction} className="space-y-2 rounded-lg border border-destructive/40 well p-3">
+          <ActionForm action={refundAction} state={refundState} className="space-y-2 rounded-lg border border-destructive/40 well p-3">
             <p className="text-xs font-medium text-destructive">
               Refund from {money.format(collected)} collected
             </p>
@@ -315,7 +316,7 @@ export function PaymentPanel({
                 Cancel
               </Button>
             </div>
-          </form>
+          </ActionForm>
         ) : (
           <Button type="button" size="sm" variant="outline" onClick={() => setRefundOpen(true)}>
             Refund…

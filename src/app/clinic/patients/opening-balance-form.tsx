@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState } from "react";
 import { SelectField } from "@/core/ui/select-field";
 import { Button } from "@/core/ui/button";
@@ -18,7 +19,7 @@ export function OpeningBalanceForm({ patientId, owed }: { patientId: string; owe
   const [state, action, pending] = useActionState(recordOpeningPayment.bind(null, patientId), {} as { error?: string; saved?: boolean });
 
   return (
-    <form action={action} className="flex flex-wrap items-end gap-2">
+    <ActionForm action={action} state={state} className="flex flex-wrap items-end gap-2">
       <label className="text-sm">
         <span className="mb-1 block text-xs text-muted-foreground">Amount (up to Rs {owed.toLocaleString("en-PK")})</span>
         <Input name="amount" type="number" min={1} max={owed} step={1} required className="w-36" placeholder="0" />
@@ -40,6 +41,6 @@ export function OpeningBalanceForm({ patientId, owed }: { patientId: string; owe
         {pending ? "Recording…" : "Record payment"}
       </Button>
       {state.error ? <p className="w-full text-sm text-destructive">{state.error}</p> : null}
-    </form>
+    </ActionForm>
   );
 }

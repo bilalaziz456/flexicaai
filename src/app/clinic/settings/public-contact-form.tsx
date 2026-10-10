@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useCallback, useState } from "react";
 import type { ClinicHour } from "@/core/lib/clinic-hours";
 import { Button } from "@/core/ui/button";
@@ -32,7 +33,7 @@ export function PublicContactForm({
   const onInvalidChange = useCallback((v: boolean) => setInvalid(v), []);
 
   return (
-    <form action={action} className="space-y-5">
+    <ActionForm action={action} state={state} className="space-y-5">
       <PublicContactFields
         address={address}
         hours={hours}
@@ -51,6 +52,6 @@ export function PublicContactForm({
       </div>
       <ActionToast state={state} saved="Saved." />
       <Toast message={state.error ?? null} variant="error" token={state.error ?? ""} />
-    </form>
+    </ActionForm>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useMemo, useState, useTransition } from "react";
 import { Undo2 } from "lucide-react";
 import { recordSettlement, voidSettlement, type PayoutActionState } from "./actions";
@@ -53,7 +54,7 @@ export function SettlementForm({
   if (options.length === 0) return null;
 
   return (
-    <form action={formAction} className="space-y-3">
+    <ActionForm action={formAction} state={state} className="space-y-3">
       <input type="hidden" name="doctorId" value={doctorId} />
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">
@@ -92,7 +93,7 @@ export function SettlementForm({
       <Button type="submit" disabled={pending || Number(amount) <= 0 || Number(amount) > max}>
         {pending ? "Recording…" : "Record"}
       </Button>
-    </form>
+    </ActionForm>
   );
 }
 

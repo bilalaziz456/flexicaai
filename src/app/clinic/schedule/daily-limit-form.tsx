@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState } from "react";
 import { setDoctorDailyLimit, type ReceptionActionState } from "@/app/clinic/appointments/actions";
 import { Button } from "@/core/ui/button";
@@ -20,7 +21,7 @@ export function DailyLimitForm({
   >(action, {});
 
   return (
-    <form action={formAction} className="flex flex-wrap items-center gap-2">
+    <ActionForm action={formAction} state={state} className="flex flex-wrap items-center gap-2">
       <Input
         // Remount on the saved value so the uncontrolled field re-inits cleanly.
         key={limit}
@@ -45,6 +46,6 @@ export function DailyLimitForm({
           {state.error}
         </span>
       ) : null}
-    </form>
+    </ActionForm>
   );
 }

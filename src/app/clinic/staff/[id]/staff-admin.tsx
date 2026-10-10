@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState } from "react";
 import { Trash2 } from "lucide-react";
 import {
@@ -61,7 +62,7 @@ export function EditStaffForm({
   const [scheduleValid, setScheduleValid] = useState(true);
 
   return (
-    <form action={formAction} className="space-y-5">
+    <ActionForm action={formAction} state={state} className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>
@@ -115,7 +116,7 @@ export function EditStaffForm({
           {pending ? "Saving…" : "Save changes"}
         </Button>
       </div>
-    </form>
+    </ActionForm>
   );
 }
 
@@ -170,7 +171,7 @@ export function DoctorSharesForm({
     "h-8 w-20 rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
   return (
-    <form action={formAction} className="space-y-5">
+    <ActionForm action={formAction} state={state} className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="consultationSharePct">Consultation share (%)</Label>
@@ -269,7 +270,7 @@ export function DoctorSharesForm({
           {pending ? "Saving…" : "Save revenue share"}
         </Button>
       </div>
-    </form>
+    </ActionForm>
   );
 }
 
@@ -282,7 +283,7 @@ export function ResetPasswordForm({ userId }: { userId: string }) {
   >(action, {});
 
   return (
-    <form action={formAction} className="space-y-3">
+    <ActionForm action={formAction} state={state} className="space-y-3">
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
           <Label htmlFor="new-temp-password" className="text-xs">
@@ -311,7 +312,7 @@ export function ResetPasswordForm({ userId }: { userId: string }) {
           {state.error}
         </p>
       ) : null}
-    </form>
+    </ActionForm>
   );
 }
 

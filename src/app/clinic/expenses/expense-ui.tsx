@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState, useTransition } from "react";
 import { RotateCcw, Trash2 } from "lucide-react";
 import {
@@ -63,7 +64,7 @@ export function AddExpenseForm({
   ];
 
   return (
-    <form action={formAction} className="space-y-3">
+    <ActionForm action={formAction} state={state} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <SearchableSelect
           label="Category"
@@ -132,7 +133,7 @@ export function AddExpenseForm({
           className="h-8"
         />
       </div>
-    </form>
+    </ActionForm>
   );
 }
 
@@ -187,13 +188,13 @@ export function CategoryManager({
 
   return (
     <div className="space-y-3">
-      <form action={formAction} className="flex flex-wrap items-end gap-2">
+      <ActionForm action={formAction} state={state} className="flex flex-wrap items-end gap-2">
         <div className="space-y-1">
           <Label htmlFor="cat-name" className="text-xs text-muted-foreground">New category</Label>
           <Input id="cat-name" name="name" placeholder="e.g. Equipment" className="h-8 w-48" />
         </div>
         <Button type="submit" size="sm" disabled={pending}>Add</Button>
-      </form>
+      </ActionForm>
       <ul className="flex flex-wrap gap-2">
         {categories.map((c) => (
           <li key={c.id}>

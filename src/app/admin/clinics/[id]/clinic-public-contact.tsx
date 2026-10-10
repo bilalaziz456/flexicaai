@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useCallback, useState } from "react";
 import { updateClinicPublicContact, type AdminActionState } from "@/app/admin/actions";
 import type { ClinicHour } from "@/core/lib/clinic-hours";
@@ -53,7 +54,7 @@ export function ClinicPublicContact({
   }
 
   return (
-    <form action={formAction} className="space-y-5">
+    <ActionForm action={formAction} state={state} className="space-y-5">
       <PublicContactFields
         address={address}
         hours={hours}
@@ -72,6 +73,6 @@ export function ClinicPublicContact({
       </div>
       <ActionToast state={state} saved="Patient-facing details saved." />
       <Toast message={state.error ?? null} variant="error" token={state.error ?? ""} />
-    </form>
+    </ActionForm>
   );
 }

@@ -42,10 +42,17 @@ export default async function AdminAccountPage() {
       <Card>
         <CardHeader>
           <CardTitle>Profile</CardTitle>
-          <CardDescription>Your name, title and contact email.</CardDescription>
+          <CardDescription>Your name, title, contact number and email.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ProfileForm prefix={u.prefix} fullName={u.fullName} email={u.email} username={u.username} />
+          <ProfileForm
+            prefix={u.prefix}
+            fullName={u.fullName}
+            email={u.email}
+            phone={u.phone}
+            phoneRequired
+            username={u.username}
+          />
         </CardContent>
       </Card>
 

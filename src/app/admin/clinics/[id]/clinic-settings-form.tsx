@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState } from "react";
 import type { SpecialtyCatalogEntry } from "@/core/types/module";
 import type { ClinicFeature } from "@/core/lib/features";
@@ -63,7 +64,7 @@ export function ClinicSettingsForm({
   const toggleFeat = toggler(setFeats);
 
   return (
-    <form action={formAction} className="space-y-6">
+    <ActionForm action={formAction} state={state} className="space-y-6">
       <div className="space-y-2">
         <Label htmlFor="name">Clinic name</Label>
         <Input key={name} id="name" name="name" defaultValue={name} required />
@@ -220,6 +221,6 @@ export function ClinicSettingsForm({
         </Button>
       </div>
       <ActionToast state={state} saved="Clinic settings saved." />
-    </form>
+    </ActionForm>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState } from "react";
 import { submitResetAction } from "../reset-actions";
 import type { AuthActionState } from "@/core/auth/actions";
@@ -27,7 +28,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
         <CardTitle className="text-xl">Set a new password</CardTitle>
         <CardDescription>Choose a new password for your account.</CardDescription>
       </CardHeader>
-      <form action={formAction}>
+      <ActionForm action={formAction} state={state}>
         <CardContent className="space-y-4">
           <input type="hidden" name="token" value={token} />
           <div className="space-y-2">
@@ -49,7 +50,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
             {pending ? "Saving…" : "Set new password"}
           </Button>
         </CardFooter>
-      </form>
+      </ActionForm>
     </Card>
   );
 }

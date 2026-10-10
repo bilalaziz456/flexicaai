@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState } from "react";
 import { saveCostRatesAction, type CostRatesActionState } from "./actions";
 import { Button } from "@/core/ui/button";
@@ -76,7 +77,7 @@ export function CostRatesForm({
   ) / 100;
 
   return (
-    <form action={action} className="space-y-5">
+    <ActionForm action={action} state={state} className="space-y-5">
       <Toast message={state.saved ? "Cost rates saved." : null} token={state.savedAt} />
 
       <div className="space-y-3">
@@ -157,6 +158,6 @@ export function CostRatesForm({
 
       {state.error ? <p className="text-sm text-destructive" role="alert">{state.error}</p> : null}
       <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save rates"}</Button>
-    </form>
+    </ActionForm>
   );
 }

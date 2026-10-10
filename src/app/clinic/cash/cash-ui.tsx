@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState } from "react";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
@@ -53,7 +54,7 @@ export function CountForm({ expected }: { expected: number | null }) {
   const variance = expected !== null && n !== null && Number.isFinite(n) ? n - expected : null;
 
   return (
-    <form action={formAction} className="space-y-3">
+    <ActionForm action={formAction} state={state} className="space-y-3">
       <div className="space-y-1.5">
         <Label htmlFor="countedTotal">
           {expected === null ? "What is in the drawer now?" : "Cash total"}
@@ -104,7 +105,7 @@ export function CountForm({ expected }: { expected: number | null }) {
       <Button type="submit" disabled={pending}>
         {pending ? "Recording…" : expected === null ? "Record opening float" : "Record cash"}
       </Button>
-    </form>
+    </ActionForm>
   );
 }
 
@@ -149,7 +150,11 @@ export function TransferForm({ canSpend }: { canSpend: boolean }) {
   const spending = kind === SPEND;
 
   return (
-    <form action={spending ? spendAction : formAction} className="space-y-3">
+    <ActionForm
+      action={spending ? spendAction : formAction}
+      state={spending ? spendState : state}
+      className="space-y-3"
+    >
       <input type="hidden" name="kind" value={kind} />
       <div className="space-y-1.5">
         {/* Not `htmlFor` — the trigger is a Base UI button with its own generated id,
@@ -186,6 +191,6 @@ export function TransferForm({ canSpend }: { canSpend: boolean }) {
       <Button type="submit" variant="outline" disabled={pending || spendPending}>
         {pending || spendPending ? "Recording…" : "Record"}
       </Button>
-    </form>
+    </ActionForm>
   );
 }

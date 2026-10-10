@@ -71,6 +71,20 @@ note above it; obvious logic gets none.
 - Authorization is the **first** statement, via `core/auth` (`requireWorkspace` /
   `apiRequireWorkspace`). Never hand-roll a check.
 - The action owns `revalidatePath`; core domain functions never call it.
+- **A Server Action form is an `<ActionForm action={formAction} state={state}>`**
+  (`core/ui/action-form.tsx`), never `<form action={formAction}>`. React 19 resets a
+  form's uncontrolled fields after its action finishes — on ERROR as well as success —
+  so a save rejected for one field wiped everything else the user had typed (owner's
+  report, 2026-10-11; 60 forms converted). `ActionForm` submits through `onSubmit`,
+  which React does not reset, and resets only when the state reports `saved: true` /
+  `ok: true` (`resetWhen` to change that). A form holding only a button (sign out,
+  suspend) has nothing to lose and may keep a plain `action`.
+- **A printable page names its PDF.** Browsers save a print under `document.title`,
+  which is "FlexicaAI" everywhere, so a print page passes `fileName` to
+  `InvoicePrintFrame` or renders `<PrintFileName name="…" />` (`core/ui/print-file-name.tsx`):
+  the title becomes "Invoice INV-… - 11 Oct 2026 03-58 PM" on `beforeprint` (so Ctrl+P
+  too) and is restored on `afterprint`. The shell names any other page after its
+  section at a lower priority. A specialty names its own chart (`chartName`).
 - **A controlled checkbox in a Server Action form needs `ref={syncChecked(v)}`**
   (`core/ui/checkbox-sync.ts`). React RESETS the form once the action completes, and a
   reset restores each checkbox to its `defaultChecked` — which React writes on the first

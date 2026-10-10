@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState } from "react";
 import { createStaff, type ClinicActionState } from "@/app/clinic/actions";
 import { Button } from "@/core/ui/button";
@@ -35,7 +36,7 @@ export function AddStaffForm({ resources }: { resources: PermResource[] }) {
   useActionToast(state, { error: true });
 
   return (
-    <form action={formAction} className="space-y-4">
+    <ActionForm action={formAction} state={state} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>
@@ -122,6 +123,6 @@ export function AddStaffForm({ resources }: { resources: PermResource[] }) {
       >
         {pending ? "Adding…" : "Add staff"}
       </Button>
-    </form>
+    </ActionForm>
   );
 }

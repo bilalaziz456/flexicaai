@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState } from "react";
 import { saveSessionIdle } from "./actions";
 import { Button } from "@/core/ui/button";
@@ -26,7 +27,7 @@ export function SessionPolicy({ current }: { current: number }) {
   useActionToast(state, { saved: "Session timeout saved.", error: true });
 
   return (
-    <form action={formAction} className="space-y-4">
+    <ActionForm action={formAction} state={state} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="minutes">Sign out after inactivity</Label>
         <SelectField
@@ -47,6 +48,6 @@ export function SessionPolicy({ current }: { current: number }) {
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Save"}
       </Button>
-    </form>
+    </ActionForm>
   );
 }

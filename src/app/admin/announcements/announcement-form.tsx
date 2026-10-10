@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useMemo, useState } from "react";
 import {
   createAnnouncementAction,
@@ -178,7 +179,7 @@ export function AnnouncementForm({
     !initial || !initial.audience || initial.audience.includes(role);
 
   return (
-    <form action={action} className="space-y-4">
+    <ActionForm action={action} state={state} className="space-y-4">
       {initial ? <input type="hidden" name="id" value={initial.id} /> : null}
       {/* The scope travels as its own field so the server can tell "every clinic" from
           "meant to pick some and picked none" — which look identical as an empty list,
@@ -350,6 +351,6 @@ export function AnnouncementForm({
       <Button type="submit" disabled={pending || (!everyClinic && picked.size === 0)}>
         {pending ? "Saving…" : initial ? "Save changes" : "Post announcement"}
       </Button>
-    </form>
+    </ActionForm>
   );
 }

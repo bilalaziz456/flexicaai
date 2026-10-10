@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState } from "react";
 import { Trash2 } from "lucide-react";
 import {
@@ -44,7 +45,7 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
   useActionToast(state, { saved: "Patient updated.", error: true });
 
   return (
-    <form action={formAction} className="space-y-4">
+    <ActionForm action={formAction} state={state} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>
@@ -135,7 +136,7 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
           {pending ? "Saving…" : "Save changes"}
         </Button>
       </div>
-    </form>
+    </ActionForm>
   );
 }
 

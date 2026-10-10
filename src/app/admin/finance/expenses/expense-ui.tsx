@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState, useTransition } from "react";
 import { Pencil, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import {
@@ -88,7 +89,7 @@ export function CompanyExpenseForm({
   const categoryOptions = [{ value: "", label: "Uncategorized" }, ...categories.map((c) => ({ value: c.id, label: c.name }))];
 
   return (
-    <form action={formAction} className="space-y-3">
+    <ActionForm action={formAction} state={state} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <SearchableSelect
           label="Category"
@@ -160,7 +161,7 @@ export function CompanyExpenseForm({
           <Button type="button" variant="ghost" size="sm" onClick={onDone}>Cancel</Button>
         ) : null}
       </div>
-    </form>
+    </ActionForm>
   );
 }
 
@@ -285,13 +286,13 @@ export function CompanyCategoryManager({ categories }: { categories: { id: strin
 
   return (
     <div className="space-y-3">
-      <form action={formAction} className="flex flex-wrap items-end gap-2">
+      <ActionForm action={formAction} state={state} className="flex flex-wrap items-end gap-2">
         <div className="space-y-1">
           <Label htmlFor="cat-name" className="text-xs text-muted-foreground">New category</Label>
           <Input id="cat-name" name="name" placeholder="e.g. Office" className="h-8 w-48" />
         </div>
         <Button type="submit" size="sm" variant="outline" disabled={pending}>Add</Button>
-      </form>
+      </ActionForm>
       <ul className="flex flex-wrap gap-2">
         {categories.map((c) => (
           <li key={c.id}>
