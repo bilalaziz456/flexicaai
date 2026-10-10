@@ -126,6 +126,7 @@ export function SalesFilters({
   doctorId,
   doctors,
   showDoctor = true,
+  selects = [],
 }: {
   period: string;
   from: string;
@@ -134,6 +135,11 @@ export function SalesFilters({
   doctors: { id: string; name: string }[];
   /** Hide the doctor filter (e.g. a doctor's self-scoped shares view). */
   showDoctor?: boolean;
+  /**
+   * Further dropdowns a report needs (status, type, procedure…), each its own query
+   * param. Every change keeps the others, so filters combine rather than reset.
+   */
+  selects?: { param: string; label: string; value: string; options: { value: string; label: string }[]; searchable?: boolean }[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -141,12 +147,16 @@ export function SalesFilters({
   const [fromD, setFromD] = useState(from);
   const [toD, setToD] = useState(to);
   const [doctorV, setDoctorV] = useState(doctorId);
+  const [extra, setExtra] = useState<Record<string, string>>(() =>
+    Object.fromEntries(selects.map((x) => [x.param, x.value])),
+  );
 
   function push(next: {
     period?: string;
     from?: string;
     to?: string;
     doctorId?: string;
+    extra?: Record<string, string>;
   }) {
     const pr = next.period ?? periodV;
     const f = next.from ?? fromD;
@@ -159,6 +169,7 @@ export function SalesFilters({
       if (t) params.set("to", t);
     }
     if (doc) params.set("doctorId", doc);
+    for (const [k, v] of Object.entries(next.extra ?? extra)) if (v) params.set(k, v);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
@@ -188,6 +199,32 @@ export function SalesFilters({
           }}
         />
       ) : null}
+      {selects.map((x) => {
+        const onChange = (v: string) => {
+          const next = { ...extra, [x.param]: v };
+          setExtra(next);
+          push({ extra: next });
+        };
+        return x.searchable ? (
+          <SearchableSelect
+            key={x.param}
+            label={x.label}
+            ariaLabel={`Filter by ${x.label.toLowerCase()}`}
+            value={extra[x.param] ?? ""}
+            options={x.options}
+            onChange={onChange}
+          />
+        ) : (
+          <FilterSelect
+            key={x.param}
+            label={x.label}
+            ariaLabel={`Filter by ${x.label.toLowerCase()}`}
+            value={extra[x.param] ?? ""}
+            options={x.options}
+            onChange={onChange}
+          />
+        );
+      })}
       <DateRangeFields
         from={fromD}
         to={toD}

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import {
   ArrowRight,
+  CalendarDays,
+  ClipboardList,
   Download,
   FileSpreadsheet,
   FileText,
@@ -43,6 +45,8 @@ export default async function ReportsHubPage() {
 
   const reports = [
     { show: finance && can(user, "finance", "view"), title: "Overview", Icon: FileSpreadsheet, desc: "The clinic's day end to end. Sales, discounts, shares, cash, profit.", href: "/clinic/reports/overview" },
+    { show: can(user, "appointments", "view"), title: "Appointments", Icon: CalendarDays, desc: "Booked, completed, no-shows and cancellations, by doctor, day and hour.", href: "/clinic/reports/appointments", csvHref: "/api/reports/export?kind=appointments" },
+    { show: can(user, "appointments", "view"), title: "Procedures", Icon: ClipboardList, desc: "Which procedures were done, how often, for how many patients, and what they billed.", href: "/clinic/reports/procedures", csvHref: "/api/reports/export?kind=procedures" },
     { show: can(user, "sales", "view"), title: "Sales", Icon: TrendingUp, desc: "Collected revenue from completed visits.", href: "/clinic/sales", csv: "sales" },
     { show: can(user, "discounts", "view"), title: "Discounts", Icon: TicketPercent, desc: "Every discount, who bears it, approval state.", href: "/clinic/discounts", csv: "discounts" },
     { show: can(user, "shares", "view"), title: "Revenue shares", Icon: PieChart, desc: "Per-doctor earnings, paid and outstanding.", href: "/clinic/shares", csv: "shares" },
@@ -58,7 +62,7 @@ export default async function ReportsHubPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-[-0.02em]">Reports</h1>
-        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">Finance reports, with CSV export where available.</p>
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">Appointments, procedures and finance reports, with CSV export where available.</p>
       </div>
 
       {reports.length === 0 ? (
@@ -107,9 +111,9 @@ export default async function ReportsHubPage() {
                   and renders an empty footer rather than none, which is what keeps it
                   the same height as the two cards beside it. */}
               <CardContent className="mt-auto pt-0">
-                {r.csv ? (
+                {r.csv || r.csvHref ? (
                   <a
-                    href={`/api/finance/export?type=${r.csv}`}
+                    href={r.csvHref ?? `/api/finance/export?type=${r.csv}`}
                     className={cn(
                       buttonVariants({ variant: "outline", size: "sm" }),
                       "relative z-10",
