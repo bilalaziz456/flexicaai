@@ -5,7 +5,9 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, patients, users } from "@/core/db/schema";
 import {
+  appointmentHasProcedureSql,
   appointmentHasProceduresSql,
+  appointmentProcedureNamesSql,
   appointmentProceduresGrossSql,
   appointmentProceduresNetSql,
 } from "@/core/appointments/procedures";
@@ -39,6 +41,8 @@ export type AppointmentFilterInput = {
   /** Narrow to one doctor. Set from `appointmentDoctorScope`, not from the URL —
    *  it's a viewer's scope, not something they choose. */
   doctorId?: string;
+  /** Narrow to visits carrying this catalog procedure. */
+  procedureId?: string;
 };
 
 /**
@@ -62,6 +66,7 @@ export function buildAppointmentConds(f: AppointmentFilterInput): SQL[] {
   // Applies even inside a queue session, so a doctor opening someone else's
   // queue key by hand still only sees their own patients.
   if (f.doctorId) conds.push(eq(appointments.doctorId, f.doctorId));
+  if (f.procedureId) conds.push(appointmentHasProcedureSql(f.procedureId));
 
   // Visit type = consultation (fee, no procedures) · procedure (procedures, fee not
   // charged) · both (fee + procedures). Derived from charge_consultation + procedures.
@@ -180,6 +185,7 @@ export async function listClinicAppointments(
         proceduresGross: appointmentProceduresGrossSql(),
         proceduresTotal: appointmentProceduresNetSql(),
         hasProcedures: appointmentHasProceduresSql(),
+        procedureNames: appointmentProcedureNamesSql(),
       })
       .from(appointments)
       .innerJoin(patients, eq(appointments.patientId, patients.id))
@@ -243,6 +249,7 @@ export async function listAppointmentExportBatch(
       proceduresGross: appointmentProceduresGrossSql(),
       proceduresTotal: appointmentProceduresNetSql(),
       hasProcedures: appointmentHasProceduresSql(),
+      procedureNames: appointmentProcedureNamesSql(),
     })
     .from(appointments)
     .innerJoin(patients, eq(appointments.patientId, patients.id))

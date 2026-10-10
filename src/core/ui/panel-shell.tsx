@@ -347,7 +347,12 @@ export function PanelShell({
     // sideways. `clip` (not `hidden`) doesn't create a scroll container, so the sticky
     // headers below keep working; content that needs to scroll uses its own
     // overflow-x-auto box.
-    <div className="app-root min-h-screen overflow-x-clip md:pl-64">
+    // PRINT: the page prints, the panel does not. Every chrome element below carries
+    // `print:hidden` HERE rather than each print page listing selectors: the pages
+    // hid `aside, header`, but the search row and the notice bar sit outside any
+    // <header>, so an A4 sheet (narrower than `md`) printed the search box and the
+    // announcement on every invoice, statement and list.
+    <div className="app-root min-h-screen overflow-x-clip md:pl-64 print:pl-0">
       {/* Skip link — the FIRST focusable element, so a keyboard user can Tab once and
           jump past the sidebar nav to the page content (WCAG 2.4.1). Hidden until focused. */}
       <a
@@ -357,7 +362,7 @@ export function PanelShell({
         Skip to content
       </a>
       {/* ---- Desktop sidebar ---- */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-sidebar-border bg-sidebar md:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-sidebar-border bg-sidebar md:flex print:hidden">
         <div className="px-4 pt-5 pb-4">
           {/* The logo is the only name this link has, and it is an image — so the
               link needs one of its own or a screen reader announces the primary way
@@ -401,7 +406,7 @@ export function PanelShell({
           through them; `backdrop-blur` solves the same problem the other way — what
           shows through is diffused, so the tint still reads as a tint. The /85 base
           keeps it legible where backdrop-filter is unsupported. */}
-      <div className="sticky top-0 z-40 bg-background/85 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">
+      <div className="sticky top-0 z-40 bg-background/85 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70 print:hidden">
         {banner}
         {/* ---- Desktop top bar (clinic name left; theme + profile top-right) ---- */}
         <header className="hidden items-center justify-between gap-4 border-b border-border/70 px-6 py-2.5 md:flex">
@@ -484,7 +489,7 @@ export function PanelShell({
       {/* ---- Mobile drawer (slides in/out; backdrop fades) ---- */}
       <div
         className={cn(
-          "fixed inset-0 z-50 md:hidden",
+          "fixed inset-0 z-50 md:hidden print:hidden",
           open ? "pointer-events-auto" : "pointer-events-none",
         )}
         aria-hidden={!open}
@@ -535,7 +540,7 @@ export function PanelShell({
       <main
         id="main-content"
         tabIndex={-1}
-        className="mx-auto w-full max-w-[80rem] px-4 pt-7 outline-none sm:px-6 lg:px-8"
+        className="mx-auto w-full max-w-[80rem] px-4 pt-7 outline-none sm:px-6 lg:px-8 print:max-w-none print:!p-0"
         style={{ paddingBottom: pillPad || 32 }}
       >
         {children}
@@ -546,7 +551,7 @@ export function PanelShell({
           (first child) lowest. Its measured height drives the main padding above. */}
       <div
         ref={stackRef}
-        className="fixed bottom-4 left-1/2 z-[60] flex -translate-x-1/2 flex-col-reverse items-center gap-2"
+        className="fixed bottom-4 left-1/2 z-[60] flex -translate-x-1/2 flex-col-reverse items-center gap-2 print:hidden"
       >
         <ConnectionStatus />
         {bottomPill}

@@ -20,3 +20,16 @@ export function appointmentDoctorScope(user: {
 }): string | undefined {
   return user.role === "doctor" ? user.id : undefined;
 }
+
+/**
+ * The doctor every figure on the appointments screen is narrowed to: the viewer's
+ * SCOPE when they have one, otherwise the Doctor filter they picked ("" = everyone).
+ * The scope always wins, so a doctor cannot widen their view to a colleague's
+ * schedule by editing `?doctor=` — the page and the CSV export both go through here.
+ */
+export function appointmentDoctorFilter(
+  user: { id: string; role: string },
+  requested: string,
+): string | undefined {
+  return appointmentDoctorScope(user) ?? (requested || undefined);
+}

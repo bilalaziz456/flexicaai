@@ -1,34 +1,38 @@
 import { listClinicAppointments } from "@/core/appointments/list-query";
 import { TableCard } from "@/core/ui/table-card";
 import Link from "next/link";
-import { ChevronRight, Download, CalendarSearch } from "lucide-react";
+import { ChevronRight, Download, CalendarSearch, Printer } from "lucide-react";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicHasFeature } from "@/core/lib/features";
 import { Badge } from "@/core/ui/badge";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import { EmptyState } from "@/core/ui/empty-state";
-import {
-  billFromTotals,
-  effectiveDiscountValue,
-  formatPkr,
-} from "@/core/appointments/fee";
 import { getDayQueue } from "@/core/appointments/queue";
 import { parseListFilters } from "@/core/appointments/list-filters";
 import { buildAppointmentConds } from "@/core/appointments/list-query";
 import { getCalendarDays, monthBounds } from "@/core/appointments/calendar";
+import { listClinicDoctors } from "@/core/appointments/doctors";
+import { listProcedureCatalog } from "@/core/appointments/procedures";
 import { AppointmentMonth } from "@/app/clinic/appointments/appointment-month";
 import {
   HEADER_SENTINEL_ID,
   NewAppointmentFab,
 } from "@/app/clinic/appointments/new-appointment-fab";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
-import { displayStaffName } from "@/core/types/auth";
 import { QueueSummary } from "@/core/ui/queue-summary";
 import { Pagination } from "@/core/ui/pagination";
 import { RowLink } from "@/core/ui/row-link";
 import { FlashToast } from "@/core/ui/toast";
 import { AppointmentFilters } from "@/app/clinic/appointments/appointment-filters";
+import {
+  appointmentDoctorLabel,
+  appointmentFeeLabel,
+  appointmentPayLabel,
+  appointmentTypeInfo,
+  formatWhen,
+  type AppointmentRow,
+} from "@/app/clinic/appointments/row-format";
 import {
   Table,
   TableBody,
@@ -50,6 +54,10 @@ export type AppointmentsListSearchParams = {
   status?: string;
   type?: string;
   payment?: string;
+  /** Doctor filter (a user id). Ignored for a viewer who has a doctor SCOPE. */
+  doctor?: string;
+  /** Procedure filter (a catalog procedure id). */
+  procedure?: string;
   session?: string;
   /** "YYYY-MM" — which month the calendar shows. Independent of from/to so
    *  browsing months doesn't change which day the table lists. */
@@ -108,8 +116,26 @@ export async function AppointmentsList({
       ? "Appointment updated."
       : null;
 
-  const { fromStr, toStr, today, q, status, type, start, endExclusive } =
+  const { fromStr, toStr, today, q, status, type, doctor, procedure, start, endExclusive } =
     parseListFilters(sp);
+
+  // The Doctor filter. A viewer with a SCOPE (a doctor) never sees it: their scope
+  // already pins every figure to them. For everyone else the requested id must be a
+  // doctor of THIS clinic — anything else is dropped rather than matching nothing,
+  // so a stale bookmark shows the whole clinic instead of an empty screen.
+  const doctors = doctorScope ? [] : await listClinicDoctors(clinicId);
+  const pickedDoctor = doctors.find((d) => d.id === doctor);
+  const doctorId = doctorScope ?? pickedDoctor?.id;
+
+  // The Procedure filter offers the clinic's catalog — retired procedures too, since
+  // past visits still carry them and "who had a scaling last year" is a fair question.
+  // Same rule as the doctor: an id that is not this clinic's is dropped.
+  const catalog = await listProcedureCatalog(clinicId);
+  const procedureOptions = [...catalog]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((p) => ({ value: p.id, label: p.isActive ? p.name : `${p.name} (retired)` }));
+  const pickedProcedure = catalog.find((p) => p.id === procedure);
+  const procedureId = pickedProcedure?.id;
 
   const session = typeof sp.session === "string" ? sp.session : "";
 
@@ -145,6 +171,8 @@ export async function AppointmentsList({
   if (status) exportParams.set("status", status);
   if (type) exportParams.set("type", type);
   if (payment) exportParams.set("payment", payment);
+  if (pickedDoctor) exportParams.set("doctor", pickedDoctor.id);
+  if (procedureId) exportParams.set("procedure", procedureId);
 
   // A queue session pins the doctor + day + window (ordered by token); the date
   // range applies only in the normal list. The other filters (search, status,
@@ -158,7 +186,8 @@ export async function AppointmentsList({
     status,
     type,
     payment,
-    doctorId: doctorScope,
+    doctorId,
+    procedureId,
   });
 
   // The calendar sits above the table showing the month around the current
@@ -173,7 +202,7 @@ export async function AppointmentsList({
       { offset: pageOffset(page, pageSize), limit: pageSize },
       { byQueueNumber: Boolean(session) },
     ),
-    getDayQueue(clinicId, new Date(), doctorScope ? { doctorId: doctorScope } : undefined),
+    getDayQueue(clinicId, new Date(), doctorId ? { doctorId } : undefined),
     // A queue view has no date range for a calendar to sit against.
     session
       ? Promise.resolve([])
@@ -182,65 +211,18 @@ export async function AppointmentsList({
           status,
           type,
           payment,
-          doctorId: doctorScope,
-        }),
+          doctorId,
+          procedureId,
+        }, doctorScope ? undefined : doctors),
   ]);
 
   const activeQueue = session ? (queue.find((s) => s.key === session) ?? null) : null;
 
-  const fmt = (d: Date) =>
-    d.toLocaleString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  const doctorLabel = (a: (typeof rows)[number]) =>
-    a.doctorName || a.doctorUsername
-      ? displayStaffName(a.doctorPrefix, a.doctorName, a.doctorUsername ?? "")
-      : "Any doctor";
-  const feeLabel = (a: (typeof rows)[number]) => {
-    // gross is now the TRUE pre-discount figure: passing only the NET made the
-    // struck-through "full price" understate whenever a line carried a discount,
-    // so this row disagreed with the invoice it prints.
-    const { gross, discount, net } = billFromTotals(
-      a.chargeConsultation ? a.consultationFee : 0,
-      Number(a.proceduresGross),
-      Number(a.proceduresTotal),
-      a.discountType === "percent" ? "percent" : "amount",
-      effectiveDiscountValue(a.discountStatus, a.discountValue),
-    );
-    if (gross === 0) return null;
-    return { net: formatPkr(net), discounted: discount > 0, full: formatPkr(gross) };
-  };
-  // Payment status of a completed visit (bill vs collected). Null when billing is
-  // off or the visit isn't completed / has no bill.
-  const payLabel = (
-    a: (typeof rows)[number],
-  ): { label: string; variant: "outline" | "secondary" | "destructive" } | null => {
-    if (!billingOn || a.status !== "completed") return null;
-    const bill = billFromTotals(
-      a.chargeConsultation ? a.consultationFee : 0,
-      Number(a.proceduresGross),
-      Number(a.proceduresTotal),
-      a.discountType === "percent" ? "percent" : "amount",
-      effectiveDiscountValue(a.discountStatus, a.discountValue),
-    ).net;
-    if (bill <= 0) return null;
-    const left = bill - a.amountCollected;
-    if (left <= 0) return { label: "Paid", variant: "outline" };
-    if (a.amountCollected > 0) return { label: `Partial · ${formatPkr(left)} left`, variant: "secondary" };
-    return { label: "Unpaid", variant: "destructive" };
-  };
-  // What the visit is FOR: consultation (fee, no procedures) · procedure (procedures,
-  // consultation not charged) · both. Mirrors the `type` filter's SQL derivation.
-  const typeInfo = (
-    a: (typeof rows)[number],
-  ): { label: string; variant: "default" | "secondary" | "outline" } => {
-    if (a.hasProcedures && a.chargeConsultation) return { label: "Both", variant: "default" };
-    if (a.hasProcedures) return { label: "Procedure", variant: "secondary" };
-    return { label: "Consultation", variant: "outline" };
-  };
+  const fmt = formatWhen;
+  const doctorLabel = appointmentDoctorLabel;
+  const feeLabel = appointmentFeeLabel;
+  const payLabel = (a: AppointmentRow) => appointmentPayLabel(a, billingOn);
+  const typeInfo = appointmentTypeInfo;
 
   const rangeLabel =
     fromStr === toStr ? (fromStr === today ? "today" : fromStr) : `${fromStr} → ${toStr}`;
@@ -248,7 +230,7 @@ export async function AppointmentsList({
   const typeLabel = type ? ` · ${type}` : "";
   const contextLabel = session
     ? `queue · ${activeQueue ? `${activeQueue.doctorName} · ${activeQueue.windowLabel}` : "selected"}`
-    : `${rangeLabel}${statusLabel}${typeLabel}${q ? ` · “${q}”` : ""}`;
+    : `${rangeLabel}${statusLabel}${typeLabel}${pickedDoctor ? ` · ${pickedDoctor.name}` : ""}${pickedProcedure ? ` · ${pickedProcedure.name}` : ""}${q ? ` · “${q}”` : ""}`;
 
   // Calendar links keep every other filter exactly as the user set it — a day
   // click only moves the date range, a month step only moves `month`.
@@ -265,6 +247,8 @@ export async function AppointmentsList({
     if (status) params.set("status", status);
     if (type) params.set("type", type);
     if (payment) params.set("payment", payment);
+    if (pickedDoctor) params.set("doctor", pickedDoctor.id);
+    if (procedureId) params.set("procedure", procedureId);
     if (next.month) params.set("month", next.month);
     if (next.collapsed ?? calCollapsed) params.set("cal", "0");
     return `${listPath}?${params.toString()}`;
@@ -349,6 +333,10 @@ export async function AppointmentsList({
         session={session}
         month={sp.month && calendarDays.length > 0 ? toYm(month.start) : ""}
         calCollapsed={calCollapsed}
+        doctor={pickedDoctor?.id ?? ""}
+        doctorOptions={doctors.map((d) => ({ value: d.id, label: d.name }))}
+        procedure={procedureId ?? ""}
+        procedureOptions={procedureOptions}
       />
 
       {/* The month at a glance, above the table it filters. Hover a day for the
@@ -369,19 +357,37 @@ export async function AppointmentsList({
           todayHref={calendarHref({ from: today, to: today, month: toYm(new Date()) })}
           dayHref={(date) => calendarHref({ from: date, to: date, month: toYm(month.start) })}
           bookHref={canCreate ? (date) => `${newHref}?date=${date}` : undefined}
+          filterLabel={[pickedDoctor?.name, pickedProcedure?.name].filter(Boolean).join(" · ") || undefined}
           selectedFrom={fromStr}
           selectedTo={toStr}
         />
       ) : null}
 
-      <Pagination
-        page={page}
-        pageSize={pageSize}
-        total={total}
-        basePath={listPath}
-        searchParams={sp}
-        unit="appointment"
-      />
+      {/* Print sits on the pagination line because it answers the same question —
+          "what is this list?" — and prints ALL of it, not the page showing: a
+          printed day list that silently stops at row 20 is worse than none. */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            basePath={listPath}
+            searchParams={sp}
+            unit="appointment"
+          />
+        </div>
+        {total > 0 ? (
+          <a
+            href={`${listPath}/print?${exportParams.toString()}`}
+            target="_blank"
+            rel="noopener"
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+          >
+            <Printer className="size-4" aria-hidden="true" /> Print (A4)
+          </a>
+        ) : null}
+      </div>
 
       {rows.length === 0 ? (
         <EmptyState
@@ -423,6 +429,13 @@ export async function AppointmentsList({
                         const t = typeInfo(a);
                         return <Badge variant={t.variant}>{t.label}</Badge>;
                       })()}
+                      {/* What the visit is for, by name — the badge alone says only
+                          "Procedure", which is the question the desk is asked. */}
+                      {a.procedureNames ? (
+                        <span className="mt-1 block max-w-[16rem] text-xs text-muted-foreground">
+                          {a.procedureNames}
+                        </span>
+                      ) : null}
                     </TableCell>
                     <TableCell>
                       {(() => {
@@ -501,6 +514,9 @@ export async function AppointmentsList({
                     const t = typeInfo(a);
                     return <Badge variant={t.variant}>{t.label}</Badge>;
                   })()}
+                  {a.procedureNames ? (
+                    <span className="text-xs text-muted-foreground">{a.procedureNames}</span>
+                  ) : null}
                 </div>
                 <div className="text-sm text-muted-foreground">
                   {fmt(a.scheduledAt)} · {doctorLabel(a)}

@@ -106,6 +106,14 @@ export function appointmentProcedureNamesSql(): SQL<string | null> {
   )`;
 }
 
+/** Correlated EXISTS — does the OUTER `appointments.id` carry a line for THIS
+ *  catalog procedure? The appointment list's Procedure filter. Matches by
+ *  `procedure_id`, not by the snapshot name, so a renamed procedure still finds
+ *  the visits booked under its old name. */
+export function appointmentHasProcedureSql(procedureId: string): SQL<boolean> {
+  return sql<boolean>`exists (select 1 from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${outerAppointmentId} and ${appointmentProcedures.procedureId} = ${procedureId})`;
+}
+
 /** Correlated EXISTS — does the OUTER `appointments.id` have any procedure line? */
 export function appointmentHasProceduresSql(): SQL<boolean> {
   return sql<boolean>`exists (select 1 from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${outerAppointmentId})`;

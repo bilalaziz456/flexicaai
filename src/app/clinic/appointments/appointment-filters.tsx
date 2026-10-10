@@ -87,6 +87,10 @@ export function AppointmentFilters({
   session = "",
   month = "",
   calCollapsed = false,
+  doctor = "",
+  doctorOptions = [],
+  procedure = "",
+  procedureOptions = [],
 }: {
   from: string;
   to: string;
@@ -106,6 +110,15 @@ export function AppointmentFilters({
   /** Whether the calendar is folded. Carried through for the same reason — a
    *  filter change shouldn't reopen a grid the user chose to close. */
   calCollapsed?: boolean;
+  /** The Doctor filter's current value ("" = every doctor). */
+  doctor?: string;
+  /** The clinic's doctors. Empty = no Doctor filter (a doctor viewing their own
+   *  schedule is already scoped to it, so there is nothing to choose). */
+  doctorOptions?: { value: string; label: string }[];
+  /** The Procedure filter's current value ("" = any). */
+  procedure?: string;
+  /** The clinic's procedure catalog. Empty = no Procedure filter. */
+  procedureOptions?: { value: string; label: string }[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -116,6 +129,8 @@ export function AppointmentFilters({
   const [statusV, setStatusV] = useState(status);
   const [typeV, setTypeV] = useState(type);
   const [paymentV, setPaymentV] = useState(payment);
+  const [doctorV, setDoctorV] = useState(doctor);
+  const [procedureV, setProcedureV] = useState(procedure);
 
   function push(next: {
     from?: string;
@@ -124,6 +139,8 @@ export function AppointmentFilters({
     status?: string;
     type?: string;
     payment?: string;
+    doctor?: string;
+    procedure?: string;
   }) {
     const f = next.from ?? fromD;
     const t = next.to ?? toD;
@@ -131,6 +148,8 @@ export function AppointmentFilters({
     const st = next.status ?? statusV;
     const ty = next.type ?? typeV;
     const pay = next.payment ?? paymentV;
+    const dr = next.doctor ?? doctorV;
+    const pr = next.procedure ?? procedureV;
     const params = new URLSearchParams();
     // In a queue view the session pins the doctor/day — keep it and drop the date
     // range; otherwise carry the date range as usual.
@@ -144,6 +163,8 @@ export function AppointmentFilters({
     if (st) params.set("status", st);
     if (ty) params.set("type", ty);
     if (pay) params.set("payment", pay);
+    if (dr) params.set("doctor", dr);
+    if (pr) params.set("procedure", pr);
     if (month) params.set("month", month);
     if (calCollapsed) params.set("cal", "0");
     const s = params.toString();
@@ -221,6 +242,32 @@ export function AppointmentFilters({
           }}
         />
       ) : null}
+      {doctorOptions.length > 0 ? (
+        <FilterSelect
+          label="Doctor"
+          ariaLabel="Filter by doctor"
+          value={doctorV}
+          options={[{ value: "", label: "All doctors" }, ...doctorOptions]}
+          onChange={(v) => {
+            setDoctorV(v);
+            push({ doctor: v });
+          }}
+        />
+      ) : null}
+
+      {procedureOptions.length > 0 ? (
+        <FilterSelect
+          label="Procedure"
+          ariaLabel="Filter by procedure"
+          value={procedureV}
+          options={[{ value: "", label: "Any procedure" }, ...procedureOptions]}
+          onChange={(v) => {
+            setProcedureV(v);
+            push({ procedure: v });
+          }}
+        />
+      ) : null}
+
       <FilterSelect
         label="Status"
         ariaLabel="Filter by status"

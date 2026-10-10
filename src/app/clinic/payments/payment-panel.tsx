@@ -146,10 +146,10 @@ export function PaymentPanel({
       flash(r.error ?? "Applied credit.", Boolean(r.error));
     });
   };
-  const doVoid = (paymentId: string) =>
+  const doVoid = (paymentId: string, isRefund: boolean) =>
     startTransition(async () => {
       const r = await voidAppointmentPayment(appointmentId, paymentId);
-      flash(r.error ?? "Voided.", Boolean(r.error));
+      flash(r.error ?? (isRefund ? "Refund cancelled." : "Payment cancelled."), Boolean(r.error));
     });
   const doInvoice = () =>
     startTransition(async () => {
@@ -402,10 +402,18 @@ export function PaymentPanel({
                   variant="ghost"
                   className="shrink-0 text-destructive hover:text-destructive"
                   disabled={busy}
-                  onClick={() => doVoid(e.id)}
+                  onClick={() => doVoid(e.id, e.kind === "refund")}
+                  // Plain words, owner's call: "Void" read as jargon. This REMOVES an
+                  // entry recorded by mistake — no money moves — which is not a refund
+                  // (money handed back), so the tooltip says which one it is.
+                  title={
+                    e.kind === "refund"
+                      ? "Remove this refund entry (it was recorded by mistake)"
+                      : "Remove this payment (it was recorded by mistake). To give money back, use Refund."
+                  }
                 >
                   <Undo2 aria-hidden="true" />
-                  {e.kind === "refund" ? "Reverse" : "Void"}
+                  {e.kind === "refund" ? "Cancel refund" : "Cancel payment"}
                 </Button>
               ) : null}
             </li>

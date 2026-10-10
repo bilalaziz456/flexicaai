@@ -10,7 +10,7 @@ import {
 } from "@/core/appointments/fee";
 import { parseListFilters } from "@/core/appointments/list-filters";
 import { buildAppointmentConds } from "@/core/appointments/list-query";
-import { appointmentDoctorScope } from "@/core/appointments/scope";
+import { appointmentDoctorFilter } from "@/core/appointments/scope";
 import { displayStaffName } from "@/core/types/auth";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
@@ -27,7 +27,7 @@ export async function GET(req: Request) {
   const { user, clinicId } = auth;
   const sp = Object.fromEntries(new URL(req.url).searchParams.entries());
 
-  const { q, status, type, start, endExclusive, fromStr, toStr } = parseListFilters(sp);
+  const { q, status, type, doctor, procedure, start, endExclusive, fromStr, toStr } = parseListFilters(sp);
   const session = typeof sp.session === "string" ? sp.session : "";
 
   const clinicRow = await getClinic(clinicId);
@@ -38,9 +38,21 @@ export async function GET(req: Request) {
   // the list page + calendar so the CSV always matches what's on screen.
   // Same scope the screen applies — a doctor's download is their own schedule,
   // not the clinic's. Enforced here rather than trusted from the caller.
-  const doctorId = appointmentDoctorScope(user);
+  const doctorId = appointmentDoctorFilter(user, doctor);
   const baseConds = (): SQL[] =>
-    buildAppointmentConds({ session, start, endExclusive, q, status, type, payment, doctorId });
+    buildAppointmentConds({
+      session,
+      start,
+      endExclusive,
+      q,
+      status,
+      type,
+      payment,
+      doctorId,
+      // Tenant-safe unchecked: the EXISTS is correlated to this clinic's own
+      // appointments, so another clinic's procedure id simply matches nothing.
+      procedureId: procedure || undefined,
+    });
 
   const typeLabel = (charge: boolean, hasProc: boolean): string => {
     if (charge && hasProc) return "Consultation + procedure";
@@ -79,6 +91,7 @@ export async function GET(req: Request) {
           doctor,
           vocabularyLabel("appointment_statuses", r.status),
           typeLabel(r.chargeConsultation, Boolean(r.hasProcedures)),
+          r.procedureNames ?? "",
           r.reason ?? "",
           net,
           r.amountCollected ?? 0,
@@ -93,7 +106,7 @@ export async function GET(req: Request) {
 
   return streamCsvResponse({
     filename: session ? "appointments-queue" : `appointments-${fromStr}_to_${toStr}`,
-    headers: ["Date", "Token", "Patient", "Phone", "Doctor", "Status", "Type", "Reason", "Bill", "Collected", "Payment"],
+    headers: ["Date", "Token", "Patient", "Phone", "Doctor", "Status", "Type", "Procedures", "Reason", "Bill", "Collected", "Payment"],
     rows: rows(),
   });
 }

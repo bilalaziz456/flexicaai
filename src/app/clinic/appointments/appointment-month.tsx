@@ -65,6 +65,7 @@ export function AppointmentMonth({
   todayHref,
   dayHref,
   bookHref,
+  filterLabel,
   selectedFrom,
   selectedTo,
 }: {
@@ -83,12 +84,25 @@ export function AppointmentMonth({
   /** Builds "book on this date" for the + on each cell; omitted = the user cannot
    *  create appointments, and no + is drawn. */
   bookHref?: (date: string) => string;
+  /** Names the narrowing the month total reflects (e.g. the picked doctor), so
+   *  "12 appointments" is never read as the whole clinic's when it is one doctor's. */
+  filterLabel?: string;
   /** The table's current range, highlighted in the grid. */
   selectedFrom: string;
   selectedTo: string;
 }) {
   if (days.length === 0) return null;
   const monthTotal = days.reduce((n, d) => n + d.total, 0);
+  // The month's total, in BOTH states. It sums the same filtered counts the cells
+  // show, so with a doctor (or status/type) picked it is that filtered total — and
+  // says whose it is, since an unlabelled smaller number reads as a quiet month.
+  const totalNote = (
+    <span className="text-sm text-muted-foreground">
+      · <span className="font-medium text-foreground tabular-nums">{monthTotal}</span>{" "}
+      appointment{monthTotal === 1 ? "" : "s"}
+      {filterLabel ? ` · ${filterLabel}` : ""}
+    </span>
+  );
 
   const disclosure = (
     <Link
@@ -111,9 +125,7 @@ export function AppointmentMonth({
     return (
       <section className="flex items-center gap-2">
         {disclosure}
-        <span className="text-sm text-muted-foreground">
-          · {monthTotal} appointment{monthTotal === 1 ? "" : "s"}
-        </span>
+        {totalNote}
       </section>
     );
   }
@@ -143,6 +155,7 @@ export function AppointmentMonth({
         >
           Today
         </Link>
+        <span className="ml-1">{totalNote}</span>
       </div>
 
       <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
@@ -230,11 +243,11 @@ export function AppointmentMonth({
               {/* Book on this day. A SIBLING of the cell link, not inside it — an
                   anchor inside an anchor is invalid HTML and browsers split it — and
                   positioned over the cell's top-right corner.
-                  On a desktop it APPEARS ON HOVER (or keyboard focus): written into all
-                  thirty-one cells at once it was the loudest thing in the grid, louder
-                  than the appointments it sits beside. A touch screen has no hover, so
-                  there it is always shown (`pointer-coarse`). Placed at the cell's own
-                  padding and the date's line height, so it sits on the date's line. */}
+                  ALWAYS shown (owner's call, 2026-10-10): hover-only hid the action, so
+                  nobody knew a day could be booked from here. Kept to a quiet tint that
+                  only fills on hover, so thirty-one of them don't out-shout the
+                  appointments. Placed at the cell's own padding and the date's line
+                  height, so it sits on the date's line. */}
               {bookHref ? (
                 <Link
                   href={bookHref(d.date)}
@@ -242,9 +255,6 @@ export function AppointmentMonth({
                   className={cn(
                     "absolute right-1 top-0.5 z-10 inline-flex h-[1.375rem] min-w-[1.375rem] items-center justify-center rounded-md px-1 text-[0.7rem] font-medium leading-none outline-none transition",
                     "bg-primary/10 text-primary-text hover:bg-primary hover:text-primary-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
-                    // Desktop: hidden until this cell is hovered or focused.
-                    "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100",
-                    "pointer-coarse:opacity-100",
                   )}
                 >
                   {/* Words where the cell can hold them; a phone's cell is ~45px wide,
