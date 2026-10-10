@@ -3,23 +3,32 @@ import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
 import { serverEnv } from "@/core/lib/env";
 import { report, reportEvent } from "@/core/observability";
+import { isGmailApiConfigured, sendViaGmailApi } from "./gmail-api";
 
 /**
  * Email channel — CORE, specialty-agnostic, provider-agnostic (any SMTP host via
  * nodemailer: SES / Resend / Postmark / …). Config-gated exactly like the WhatsApp
  * channel: without SMTP host+user+pass it NO-OPS (logs) so the app boots and tests run
  * the same — the live send is a §Z go-live step. Best-effort: never throws.
+ *
+ * TWO ROUTES OUT, chosen by configuration: the Gmail API over HTTPS when its three
+ * GMAIL_* values are set (for a host that blocks the SMTP ports — ours does), SMTP
+ * otherwise. Callers cannot tell which; the message is built the same way for both.
  */
 
-/** True when SMTP is configured (host + user + pass present). */
-export function isEmailConfigured(): boolean {
+function isSmtpConfigured(): boolean {
   return Boolean(serverEnv.SMTP_HOST && serverEnv.SMTP_USER && serverEnv.SMTP_PASS);
+}
+
+/** True when either route is configured. */
+export function isEmailConfigured(): boolean {
+  return isGmailApiConfigured() || isSmtpConfigured();
 }
 
 // One transport, lazily built and reused.
 let transport: Transporter | null = null;
 function getTransport(): Transporter | null {
-  if (!isEmailConfigured()) return null;
+  if (!isSmtpConfigured()) return null;
   if (!transport) {
     transport = nodemailer.createTransport({
       host: serverEnv.SMTP_HOST!,
@@ -43,8 +52,9 @@ export async function sendEmail(args: {
    *  SPF/DMARC and the message lands in spam. */
   replyTo?: string;
 }): Promise<{ ok: boolean; error?: string }> {
-  const t = getTransport();
-  if (!t) {
+  const useGmailApi = isGmailApiConfigured();
+  const t = useGmailApi ? null : getTransport();
+  if (!useGmailApi && !t) {
     // Graceful no-send: the flow still works (token issued etc.), only delivery waits.
     // The recipient address is PII, so it is NOT logged — the subject identifies
     // which flow was affected, which is what an operator actually needs.
@@ -56,7 +66,20 @@ export async function sendEmail(args: {
     return { ok: false, error: "Email is not configured." };
   }
   try {
-    await t.sendMail({ from: from(), to: args.to, subject: args.subject, text: args.text, html: args.html, replyTo: args.replyTo });
+    if (useGmailApi) {
+      // Gmail sends as the authorised account; From is only passed when one was set
+      // explicitly, since the SMTP fallbacks would name an address Gmail rewrites.
+      await sendViaGmailApi({
+        from: serverEnv.EMAIL_FROM || undefined,
+        to: args.to,
+        subject: args.subject,
+        text: args.text,
+        html: args.html,
+        replyTo: args.replyTo,
+      });
+    } else {
+      await t!.sendMail({ from: from(), to: args.to, subject: args.subject, text: args.text, html: args.html, replyTo: args.replyTo });
+    }
     return { ok: true };
   } catch (e) {
     // Password-reset mail rides this path: a silent failure looks to the user like

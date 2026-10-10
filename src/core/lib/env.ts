@@ -106,6 +106,12 @@ const serverSchema = z.object({
     .transform((v) => v === "true"),
   // The From header, e.g. "FlexicaAI <flexicaai@gmail.com>". Falls back to SMTP_USER.
   EMAIL_FROM: z.string().optional(),
+  // ---- Email via the Gmail API (HTTPS, port 443) — for a host that blocks the SMTP
+  // ports. When all three are set this is used INSTEAD of SMTP. The refresh token
+  // comes from `npm run email:gmail-token` (core/notifications/gmail-api.ts). ----
+  GMAIL_CLIENT_ID: z.string().optional(),
+  GMAIL_CLIENT_SECRET: z.string().optional(),
+  GMAIL_REFRESH_TOKEN: z.string().optional(),
 
   // ---- Observability (core/observability) ----
   // Lowest severity to emit. "error" quietens routine warnings in a noisy prod;
@@ -151,6 +157,9 @@ export const serverEnv = serverSchema.parse({
   SMTP_PASS: process.env.SMTP_PASS,
   SMTP_SECURE: process.env.SMTP_SECURE,
   EMAIL_FROM: process.env.EMAIL_FROM,
+  GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID,
+  GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET,
+  GMAIL_REFRESH_TOKEN: process.env.GMAIL_REFRESH_TOKEN,
   LOG_LEVEL: process.env.LOG_LEVEL,
   OBSERVABILITY_WEBHOOK_URL: process.env.OBSERVABILITY_WEBHOOK_URL,
 });
