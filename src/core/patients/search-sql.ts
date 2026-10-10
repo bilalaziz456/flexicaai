@@ -2,19 +2,29 @@ import "server-only";
 
 import { ilike, or, sql, type SQL } from "drizzle-orm";
 import { patients } from "@/core/db/schema";
-import { phoneSearchDigits } from "@/core/lib/phone";
+import { phoneSearchTerm } from "@/core/lib/phone";
 
 /**
  * Does this patient's phone match the term? The raw substring, OR — when the term is
- * phone-shaped — its national digits, so "03450186120" finds a patient stored as
- * "+923450186120" (`phoneSearchDigits` says why). Every patient search uses this; a
- * screen with its own `ilike(phone)` finds a number the others miss.
+ * phone-shaped — its digits placed where they belong in an E.164 number, so "0345" and
+ * "03450186120" both find a patient stored as "+923450186120" (`phoneSearchTerm` says
+ * how). Every patient search uses this; a screen with its own `ilike(phone)` finds a
+ * number the others miss. The raw match stays for numbers stored before E.164.
  */
 export function patientPhoneMatchSql(term: string): SQL {
   const t = term.trim();
-  const digits = phoneSearchDigits(t);
   const raw = ilike(patients.phone, `%${t}%`);
-  return digits ? or(raw, ilike(patients.phone, `%${digits}%`))! : raw;
+  const p = phoneSearchTerm(t);
+  if (!p) return raw;
+  // `digits` is digits only (phoneSearchTerm strips everything else), so it is safe
+  // to place in a pattern; it still travels as a bound parameter.
+  const shaped =
+    p.anchor === "national"
+      ? sql`${patients.phone} ~ ${String.raw`^\+[0-9]{1,3}` + p.digits}`
+      : p.anchor === "international"
+        ? ilike(patients.phone, `+${p.digits}%`)
+        : ilike(patients.phone, `%${p.digits}%`);
+  return or(raw, shaped)!;
 }
 
 /**

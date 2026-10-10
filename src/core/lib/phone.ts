@@ -59,23 +59,44 @@ export function phoneDigits(raw: string, defaultCc: string = DEFAULT_COUNTRY_COD
 }
 
 /**
- * The digits to SEARCH stored phones by, or null when the term is not phone-shaped.
+ * How a phone-shaped search term should match stored numbers, or null when the term is
+ * not phone-shaped (or too short to mean anything).
  *
- * Stored numbers are E.164, but the desk types what is on the patient's card —
- * "0345 0186120" — and a plain substring match of that against "+923450186120"
- * finds nothing. Dropping the trunk "0" (or the "00" international prefix) leaves the
- * national number, which IS a substring of the E.164 form whatever the country code,
- * so this needs no clinic country and works for a partial number too.
+ * Stored numbers are E.164 ("+923450186120"), but the desk types what is on the
+ * patient's card — "0345 0186120", or just the start of it, "0345". What the term
+ * STARTS with says where its digits sit in the stored number:
+ *
+ *  - "0…" (trunk prefix) → `national`: the rest is the START of the national number,
+ *    which in E.164 follows a 1–3 digit country code. "0345" finds "+92 345…" and not
+ *    every number with 345 somewhere in the middle.
+ *  - "+…" / "00…"        → `international`: the digits are the start of the E.164
+ *    number itself.
+ *  - anything else       → `anywhere`: a fragment, matched as a substring.
+ *
+ * At least FOUR digits must be TYPED. The count is taken before the trunk "0" is
+ * dropped: it used to be taken after, so "0345" — four digits, and the most natural
+ * thing to type — became "345", fell under the limit, and found nobody.
  */
-export function phoneSearchDigits(term: string): string | null {
+export type PhoneSearchTerm = {
+  digits: string;
+  anchor: "national" | "international" | "anywhere";
+};
+
+export function phoneSearchTerm(term: string): PhoneSearchTerm | null {
   const t = term.trim();
   if (!/^\+?[\d\s\-().]+$/.test(t)) return null;
-  let digits = t.replace(/\D/g, "");
-  if (digits.startsWith("00")) digits = digits.slice(2);
-  else if (digits.startsWith("0")) digits = digits.slice(1);
-  // Below this the raw substring match already does the job, and a 1–3 digit run
-  // would match most of the list.
-  return digits.length >= 4 ? digits : null;
+  const typed = t.replace(/\D/g, "");
+  // Below this a 1–3 digit run would match most of the list.
+  if (typed.length < 4) return null;
+  if (t.startsWith("+")) return { digits: typed, anchor: "international" };
+  if (typed.startsWith("00")) return { digits: typed.slice(2), anchor: "international" };
+  if (typed.startsWith("0")) return { digits: typed.slice(1), anchor: "national" };
+  return { digits: typed, anchor: "anywhere" };
+}
+
+/** The search digits alone — for a caller that only needs "is this a phone?". */
+export function phoneSearchDigits(term: string): string | null {
+  return phoneSearchTerm(term)?.digits ?? null;
 }
 
 /**

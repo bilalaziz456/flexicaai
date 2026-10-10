@@ -356,10 +356,13 @@ throw — use it in tests.
   not folded into the shared predicate.
 - **A phone is matched through `patientPhoneMatchSql`, never a bare `ilike(phone)`.**
   Phones are stored E.164 ("+923450186120") and the desk types the card ("0345…"), so a
-  plain substring search found nobody. The helper also matches the term's NATIONAL
-  digits (trunk `0` / `00` dropped — `core/lib/phone.ts#phoneSearchDigits`), which are a
-  substring of the E.164 form whatever the country code. Seven searches had their own
-  `ilike(phone)` and every one of them had the bug.
+  plain substring search found nobody. The helper places the typed digits where they
+  sit in an E.164 number (`core/lib/phone.ts#phoneSearchTerm`): after a trunk `0` they
+  are the START of the national number (so "0345" finds "+92 345…" and not every number
+  with 345 in the middle), after `+`/`00` the start of the E.164 number, otherwise a
+  substring. At least four digits must be TYPED — counted before the `0` is dropped,
+  or "0345" (the most natural partial) shrinks to "345" and finds nobody. Seven
+  searches had their own `ilike(phone)` and every one of them had the bug.
 - **A condition set reused by two queries must only name tables BOTH join.** The
   receivables search sat in conditions shared with the per-visit query, which joins
   `users` but not `patients` — every matching search 500'd with `missing FROM-clause

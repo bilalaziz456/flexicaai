@@ -6,7 +6,7 @@
  * differently is invisible to inbound messages. Every way of writing one number has
  * to land on the same string.
  */
-import { toE164, phoneDigits, sanitisePhoneInput } from "@/core/lib/phone";
+import { toE164, phoneDigits, phoneSearchTerm, sanitisePhoneInput } from "@/core/lib/phone";
 
 let failures = 0;
 function check(name: string, got: unknown, want: unknown) {
@@ -58,6 +58,16 @@ console.log("\nCountry code is per clinic, not assumed:");
 check("UAE local with its own code", toE164("0501234567", "971").phone, "+971501234567");
 check("Saudi local with its own code", toE164("0512345678", "966").phone, "+966512345678");
 check("a number already carrying +971 is untouched", toE164("+971501234567", "971").phone, "+971501234567");
+
+// Search: how a typed term should match a stored E.164 number.
+console.log("\nSearching by phone — where the typed digits sit:");
+check('"0345" — the start of a card number — is 4 digits and searchable', phoneSearchTerm("0345"), { digits: "345", anchor: "national" });
+check("…the full card number too", phoneSearchTerm("0345 018 6120"), { digits: "3450186120", anchor: "national" });
+check('"+92345" is the start of the stored number', phoneSearchTerm("+92345"), { digits: "92345", anchor: "international" });
+check('"0092345" likewise', phoneSearchTerm("0092345"), { digits: "92345", anchor: "international" });
+check("a fragment with no prefix matches anywhere", phoneSearchTerm("186120"), { digits: "186120", anchor: "anywhere" });
+check("under four TYPED digits is not a phone search", phoneSearchTerm("034"), null);
+check("a name is not a phone search", phoneSearchTerm("Bilal"), null);
 
 console.log(failures === 0 ? "\nALL PASSED" : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);
