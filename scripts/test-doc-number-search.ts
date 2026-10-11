@@ -29,10 +29,11 @@ async function main() {
     const d = parseDocNumber(q);
     ok(`"${q}" → ${year ?? "any year"} #${no}`, d?.year === year && d?.no === no, JSON.stringify(d));
   };
-  eqDoc("0000002", null, 2);
+  // One running series per clinic (migration 0121): INV-100002, never reset by year.
+  eqDoc("INV-100002", null, 100002);
+  eqDoc("RCP-100002", null, 100002);
+  eqDoc("100002", null, 100002);
   eqDoc("2", null, 2);
-  eqDoc("INV-2026-0000002", 2026, 2);
-  eqDoc("2026-2", 2026, 2);
   ok('"03450186120" (a phone) is not a document number', parseDocNumber("03450186120") === null);
   ok('"umer" is not a document number', parseDocNumber("umer") === null);
 
@@ -45,11 +46,11 @@ async function main() {
     }
     console.log("\nInvoice register and payments ledger:");
     for (const s of sample) {
-      const padded = String(s.invoice_no).padStart(7, "0");
-      const inv = await getInvoicesList(s.clinic_id, { q: padded });
-      ok(`invoice register "${padded}" lists only invoice ${s.invoice_no}`, inv.rows.length > 0 && inv.rows.every((r) => r.invoiceNo === s.invoice_no), `${inv.rows.length} rows: ${inv.rows.slice(0, 5).map((r) => r.label).join(", ")}`);
+      const padded = String(s.invoice_no);
+      const inv = await getInvoicesList(s.clinic_id, { q: `INV-${padded}` });
+      ok(`invoice register "INV-${padded}" lists only invoice ${s.invoice_no}`, inv.rows.length > 0 && inv.rows.every((r) => r.invoiceNo === s.invoice_no), `${inv.rows.length} rows: ${inv.rows.slice(0, 5).map((r) => r.label).join(", ")}`);
       const pay = await getPaymentsLedger(s.clinic_id, { q: `INV-${padded}` });
-      ok(`payments "INV-${padded}" lists only payments against it`, pay.rows.every((r) => r.invoiceLabel?.endsWith(padded) ?? false), `${pay.rows.length} rows`);
+      ok(`payments "INV-${padded}" lists only payments against it`, pay.rows.every((r) => r.invoiceLabel === `INV-${padded}`), `${pay.rows.length} rows`);
     }
   });
 

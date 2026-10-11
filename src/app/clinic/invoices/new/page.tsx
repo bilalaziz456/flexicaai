@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { FlashToast } from "@/core/ui/toast";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { getClinic } from "@/core/clinics/get-clinic";
@@ -18,9 +19,10 @@ export default async function NewInvoicePage({
   searchParams,
 }: {
   /** `?patientId=` — from "Create invoice" on a patient in the top search. */
-  searchParams: Promise<{ patientId?: string }>;
+  /** `?patientCreated=1` — the patient was just added with "Save & create invoice". */
+  searchParams: Promise<{ patientId?: string; patientCreated?: string }>;
 }) {
-  const { patientId } = await searchParams;
+  const { patientId, patientCreated } = await searchParams;
   const user = await requireWorkspace("billing", "create");
   if (!can(user, "appointments", "create")) notFound();
   const clinic = await getClinic(user.clinicId);
@@ -28,13 +30,16 @@ export default async function NewInvoicePage({
 
   const now = new Date();
   return (
-    <NewAppointmentPanel
+    <>
+      <FlashToast message={patientCreated ? "Patient added successfully." : null} params={["patientCreated"]} />
+      <NewAppointmentPanel
       clinicId={user.clinicId}
       backHref="/clinic/invoices"
       invoiceMode
       preselectedPatientId={patientId}
       preselectedDate={`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`}
       preselectedTime={`${pad(now.getHours())}:${pad(now.getMinutes() - (now.getMinutes() % 5))}`}
-    />
+      />
+    </>
   );
 }

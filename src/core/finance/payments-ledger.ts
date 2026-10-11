@@ -109,10 +109,10 @@ function docNumberConds(q: string, px: SearchPrefixes): SQL[] {
   const namedRcp = Boolean(px.receiptPrefix) && upper.includes(px.receiptPrefix.toUpperCase());
   const out: SQL[] = [];
   if (!namedInv || namedRcp) {
-    out.push(and(eq(appointments.receiptNo, doc.no), doc.year ? eq(appointments.receiptYear, doc.year) : undefined)!);
+    out.push(eq(appointments.receiptNo, doc.no));
   }
   if (!namedRcp || namedInv) {
-    out.push(and(eq(invoices.invoiceNo, doc.no), doc.year ? eq(invoices.invoiceYear, doc.year) : undefined)!);
+    out.push(eq(invoices.invoiceNo, doc.no));
   }
   return out;
 }
@@ -205,7 +205,7 @@ export async function getPaymentsLedger(
           : null,
       receiptLabel:
         r.receiptNo != null
-          ? formatReceiptNo(px.receiptPrefix, r.receiptYear ?? r.occurredAt.getFullYear(), r.receiptNo)
+          ? formatReceiptNo(px.receiptPrefix, r.receiptNo)
           : null,
       ...invoiceOf(r, px),
     })),
@@ -294,7 +294,7 @@ export async function* iteratePaymentsLedger(
             : null,
         receiptLabel:
           r.receiptNo != null
-            ? formatReceiptNo(px.receiptPrefix, r.receiptYear ?? r.occurredAt.getFullYear(), r.receiptNo)
+            ? formatReceiptNo(px.receiptPrefix, r.receiptNo)
             : null,
         ...invoiceOf(r, px),
       };
@@ -310,8 +310,7 @@ function invoiceOf(
   px: SearchPrefixes,
 ): { invoiceLabel: string | null; invoiceVoided: boolean } {
   if (r.invoiceNo == null) return { invoiceLabel: null, invoiceVoided: false };
-  const year = r.invoiceYear ?? r.invoiceIssuedAt?.getFullYear() ?? new Date().getFullYear();
-  return { invoiceLabel: formatInvoiceNo(px.invoicePrefix, year, r.invoiceNo), invoiceVoided: r.invoiceVoidedAt !== null };
+  return { invoiceLabel: formatInvoiceNo(px.invoicePrefix, r.invoiceNo), invoiceVoided: r.invoiceVoidedAt !== null };
 }
 
 /** Is this ledger kind money-out (a refund)? Exposed so the UI signs the amount. */

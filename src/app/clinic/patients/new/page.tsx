@@ -1,4 +1,7 @@
 import { requireWorkspace } from "@/core/auth/user";
+import { clinicHasFeature } from "@/core/lib/features";
+import { can } from "@/core/auth/permissions";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { sanitisePhoneInput } from "@/core/lib/phone";
 import { NewPatientPanel } from "../new-patient-panel";
 
@@ -14,7 +17,8 @@ export default async function NewPatientPage({
 }: {
   searchParams: Promise<{ phone?: string; name?: string; then?: string }>;
 }) {
-  await requireWorkspace("patients", "create");
+  const user = await requireWorkspace("patients", "create");
+  const clinic = await getClinic(user.clinicId);
   const { phone, name, then } = await searchParams;
   return (
     <NewPatientPanel
@@ -26,6 +30,12 @@ export default async function NewPatientPage({
         fullName: name?.trim().slice(0, 120) || undefined,
       }}
       thenBook={then === "book"}
+      canBook={can(user, "appointments", "create")}
+      canInvoice={
+        clinicHasFeature(clinic?.featuresEnabled, "sales") &&
+        can(user, "billing", "create") &&
+        can(user, "appointments", "create")
+      }
     />
   );
 }

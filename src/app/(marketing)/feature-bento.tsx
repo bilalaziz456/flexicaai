@@ -204,7 +204,7 @@ export function FeatureBento() {
               Restore
             </span>
           </div>
-          {["Invoice INV-2026-0000142 issued", "Note approved by Dr. Sana", "Payment recorded · Rs 10,000"].map((t, i) => (
+          {["Invoice INV-100142 issued", "Note approved by Dr. Sana", "Payment recorded · Rs 10,000"].map((t, i) => (
             <div key={t} className="flex items-center gap-2.5 px-1 text-3xs text-muted-foreground">
               <span className={`size-1.5 shrink-0 rounded-full ${i === 0 ? "bg-brand-teal" : "bg-foreground/20"}`} />
               <span className="truncate">{t}</span>

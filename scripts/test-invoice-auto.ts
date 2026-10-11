@@ -73,6 +73,8 @@ async function main() {
       await autoIssueInvoice(c.clinicId, a, actor);
       const invA = await getInvoiceForAppointment(c.clinicId, a);
       ok("gets an invoice number at booking", Boolean(invA) && !invA!.voided, JSON.stringify(invA));
+      // One running series per clinic, never reset (migration 0121).
+      ok("a new clinic's first invoice is INV-100001", invA?.label === "INV-100001", invA?.label);
       await autoIssueInvoice(c.clinicId, a, actor);
       const count = async (id: string) =>
         (await db.select({ n: sql<number>`count(*)::int` }).from(invoices).where(and(eq(invoices.clinicId, c.clinicId), eq(invoices.appointmentId, id))))[0].n;

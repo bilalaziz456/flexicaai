@@ -114,7 +114,7 @@ async function main() {
     const nowHasReceipt = after[0]?.no != null;
     record("TC-BILL-011", noReceiptYet && nowHasReceipt,
       `before any collection the visit has NO receipt number; after Rs 1,000 was collected it has one ` +
-      `(${formatReceiptNo("RCP-", after[0]?.yr ?? 0, after[0]?.no ?? 0)}) — the receipt is proof of payment, so it cannot predate one`);
+      `(${formatReceiptNo("RCP-", after[0]?.no ?? 0)}) — the receipt is proof of payment, so it cannot predate one`);
   }
 
   // TC-BILL-010 — the receipt number is allocated automatically and ONCE, and is

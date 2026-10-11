@@ -38,7 +38,7 @@ export type SearchHit =
       kind: "invoice" | "receipt";
       /** The appointment the document belongs to; every panel can route to it. */
       appointmentId: string;
-      /** Printable number, e.g. "INV-2026-0000005". */
+      /** Printable number, e.g. "INV-100005". */
       label: string;
       detail: string;
     };
@@ -122,11 +122,7 @@ export async function globalSearch(query: string): Promise<SearchResult> {
     hits.push({
       kind: "invoice",
       appointmentId: r.appointmentId,
-      label: formatInvoiceNo(
-        clinic?.invoicePrefix,
-        r.year ?? r.issuedAt.getFullYear(),
-        r.no,
-      ),
+      label: formatInvoiceNo(clinic?.invoicePrefix, r.no),
       detail: r.patientName,
     });
   }
@@ -135,11 +131,7 @@ export async function globalSearch(query: string): Promise<SearchResult> {
     hits.push({
       kind: "receipt",
       appointmentId: r.appointmentId,
-      label: formatReceiptNo(
-        clinic?.receiptPrefix,
-        r.year ?? r.scheduledAt.getFullYear(),
-        r.no,
-      ),
+      label: formatReceiptNo(clinic?.receiptPrefix, r.no),
       detail: r.patientName,
     });
   }

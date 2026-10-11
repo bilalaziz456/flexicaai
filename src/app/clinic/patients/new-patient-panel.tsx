@@ -14,11 +14,15 @@ export function NewPatientPanel({
   backHref,
   defaults,
   thenBook = false,
+  canBook = false,
+  canInvoice = false,
 }: {
   backHref: string;
   defaults?: AddPatientDefaults;
-  /** On save, continue to "New appointment" with this patient selected. */
+  /** Came here intending to book: Save & create appointment is the main button. */
   thenBook?: boolean;
+  canBook?: boolean;
+  canInvoice?: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -39,7 +43,7 @@ export function NewPatientPanel({
           <CardDescription>Name and WhatsApp number are required.</CardDescription>
         </CardHeader>
         <CardContent>
-          <AddPatientForm defaults={defaults} thenBook={thenBook} />
+          <AddPatientForm defaults={defaults} thenBook={thenBook} canBook={canBook} canInvoice={canInvoice} />
         </CardContent>
       </Card>
     </div>

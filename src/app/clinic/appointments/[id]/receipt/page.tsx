@@ -64,7 +64,7 @@ export default async function ReceiptPage({
   // receipt is self-explanatory under its one number.
   const rcpLabel =
     row.receiptNo != null
-      ? formatReceiptNo(clinic?.receiptPrefix, row.receiptYear ?? row.scheduledAt.getFullYear(), row.receiptNo)
+      ? formatReceiptNo(clinic?.receiptPrefix, row.receiptNo)
       : null;
   const received = ledger.filter((e) => e.kind !== "advance"); // money in/out on THIS visit
   // Bill breakdown (consultation + procedures), mirroring the invoice.

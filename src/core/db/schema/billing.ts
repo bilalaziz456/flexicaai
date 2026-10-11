@@ -556,8 +556,9 @@ export const invoices = pgTable(
     uniqueIndex("invoices_appointment_unique")
       .on(t.appointmentId)
       .where(sql`${t.deletedAt} is null`),
-    // Numbers are unique per clinic PER YEAR (they reset each year).
-    uniqueIndex("invoices_clinic_year_no_unique").on(t.clinicId, t.invoiceYear, t.invoiceNo),
+    // One running series per clinic (INV-100001…, never reset — migration 0121), so
+    // the number alone is unique within a clinic; `invoice_year` is informational.
+    uniqueIndex("invoices_clinic_no_unique").on(t.clinicId, t.invoiceNo),
     index("invoices_clinic_issued_idx").on(t.clinicId, t.issuedAt),
     index("invoices_patient_idx").on(t.patientId),
   ],

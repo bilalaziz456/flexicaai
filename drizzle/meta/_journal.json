@@ -848,6 +848,13 @@
       "when": 1791751794444,
       "tag": "0120_invoice_deleted_by",
       "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1791755215603,
+      "tag": "0121_document_series",
+      "breakpoints": true
     }
   ]
 }

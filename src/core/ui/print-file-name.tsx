@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 /**
- * Names the PDF a print is saved as: "Invoice INV-2026-0000005 - 11 Oct 2026 03-58 PM"
+ * Names the PDF a print is saved as: "Invoice INV-100005 - 11 Oct 2026 03-58 PM"
  * instead of "FlexicaAI" for everything (owner's report).
  *
  * Browsers take the file name from `document.title`, and every page shares the app's

@@ -1275,6 +1275,15 @@ these for churn-risk + usage/cost anomaly flags.
   time — while `getAccountManagerContact` falls back to the company number for whoever
   has not been edited yet. It never shows a name above a blank line, and it falls back
   for a SUSPENDED or deleted manager too: somebody who cannot sign in will not answer.
+- Migration **`0121`** makes invoice and receipt numbers ONE running series per clinic
+  that never resets — `INV-100001`, `INV-100002` … and `RCP-100001` … (owner's call,
+  2026-10-12), replacing the yearly reset of `0072`/`0073` (`INV-2026-0000005`). The
+  uniqueness moves from (clinic, year, number) to (clinic, number); `invoice_year` /
+  `receipt_year` stay as informational columns; both counters default to 100001
+  (`DOCUMENT_SERIES_START`). **Existing numbers were RENUMBERED** in issue order (the
+  owner's decision, safe only because there are no live clinics yet) — never repeat
+  that once patients hold printed invoices: a document number is an identity, like an
+  MRN (`0115`). Search reads the digits as the number (`core/billing/doc-number.ts`).
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

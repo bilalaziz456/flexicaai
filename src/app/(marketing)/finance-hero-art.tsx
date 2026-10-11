@@ -75,7 +75,7 @@ export function FinanceHeroArt() {
           </span>
           <span className="min-w-0">
             <span className="block text-xs font-semibold">Rs 10,000 received</span>
-            <span className="block truncate font-mono text-3xs text-muted-foreground">RCP-2026-0000213 · Bank</span>
+            <span className="block truncate font-mono text-3xs text-muted-foreground">RCP-100213 · Bank</span>
           </span>
         </div>
       </div>

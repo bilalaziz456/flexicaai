@@ -1,5 +1,6 @@
 import "server-only";
 
+import { DOCUMENT_SERIES_START } from "@/core/billing/invoice";
 import { autoIssueInvoice } from "@/core/billing/invoice";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/core/db";
@@ -44,8 +45,9 @@ async function ensureReceiptNumber(tx: Tx, clinicId: string, appointmentId: stri
     .for("update")
     .limit(1);
   if (!c) return;
+  // One running series per clinic that never resets (RCP-100001…, migration 0121).
   const currentYear = new Date().getFullYear();
-  const allocated = c.year === currentYear ? c.next : 1;
+  const allocated = Math.max(c.next, DOCUMENT_SERIES_START);
   await tx
     .update(clinics)
     .set({ nextReceiptNo: allocated + 1, receiptYear: currentYear, updatedAt: new Date() })

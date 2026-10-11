@@ -18,8 +18,9 @@ import { procedureTotals } from "@/core/appointments/procedures";
  * Invoices — CORE (Finance). One live invoice per appointment. The number is a
  * per-clinic sequential integer that RESETS each calendar year (allocated by locking
  * the clinic row `SELECT … FOR UPDATE` and bumping `next_invoice_no`, so two
- * receptionists issuing at once never collide). Rendered `<prefix><YYYY>-<7-digit>`,
- * e.g. "INV-2026-0000005". The bill amount is NOT stored — it's derived from
+ * receptionists issuing at once never collide). Rendered `<prefix><number>`, e.g.
+ * "INV-100005" — one running series per clinic that NEVER resets (owner's call,
+ * 2026-10-12; it used to restart every January as "INV-2026-0000005"). The bill amount is NOT stored — it's derived from
  * `computeBill` at render time (see core/billing/bill.ts).
  */
 
@@ -30,19 +31,17 @@ type Actor = { id: string | null; name: string };
 function invoiceNumberSql(q: string) {
   const doc = parseDocNumber(q);
   if (!doc) return sql`false`;
-  return doc.year
-    ? and(eq(invoices.invoiceNo, doc.no), eq(invoices.invoiceYear, doc.year))!
-    : eq(invoices.invoiceNo, doc.no);
+  return eq(invoices.invoiceNo, doc.no);
 }
 
-/** Printable invoice number — `<prefix><YYYY>-<7-digit>` (numbers reset per year). */
-export function formatInvoiceNo(
-  prefix: string | null | undefined,
-  year: number,
-  no: number,
-): string {
-  return `${prefix ?? ""}${year}-${String(no).padStart(7, "0")}`;
+/** Printable invoice number — `<prefix><number>`, e.g. "INV-100005". The series
+ *  starts at 100001 per clinic and never resets. */
+export function formatInvoiceNo(prefix: string | null | undefined, no: number): string {
+  return `${prefix ?? ""}${no}`;
 }
+
+/** Where a clinic's invoice and receipt series start (migration 0121). */
+export const DOCUMENT_SERIES_START = 100001;
 
 /** Payment-receipt number — same shape as an invoice number, different series/prefix. */
 export const formatReceiptNo = formatInvoiceNo;
@@ -50,7 +49,7 @@ export const formatReceiptNo = formatInvoiceNo;
 export type IssuedInvoice = {
   id: string;
   invoiceNo: number;
-  label: string; // e.g. "INV-2026-0000005"
+  label: string; // e.g. "INV-100005"
   issuedAt: Date;
   /** The visit was cancelled or became a no-show; the number is kept, marked void. */
   voided: boolean;
@@ -87,11 +86,10 @@ export async function getInvoiceForAppointment(
     )
     .limit(1);
   if (!row) return null;
-  const year = row.invoiceYear ?? row.issuedAt.getFullYear();
   return {
     id: row.id,
     invoiceNo: row.invoiceNo,
-    label: formatInvoiceNo(row.prefix, year, row.invoiceNo),
+    label: formatInvoiceNo(row.prefix, row.invoiceNo),
     issuedAt: row.issuedAt,
     voided: row.voidedAt !== null,
     deleted:
@@ -157,7 +155,7 @@ export async function autoIssueInvoice(clinicId: string, appointmentId: string, 
 
 export type InvoiceListRow = {
   id: string;
-  label: string; // e.g. "INV-2026-0000042"
+  label: string; // e.g. "INV-100042"
   invoiceNo: number;
   issuedAt: Date;
   issuedByName: string | null;
@@ -236,8 +234,8 @@ export async function getInvoicesList(
         // three screens (`core/patients/search-sql.ts`).
         patientSearchSql(filters.q, mrnPrefix, { mrn: !parseDocNumber(filters.q) }),
         // What this SCREEN owns: the invoice number — matched EXACTLY
-        // (`doc-number.ts`): "INV-2026-0000005", "2026-5", "0000005" or "5" find
-        // invoice 5, not every number with a 5 in it.
+        // (`doc-number.ts`): "INV-100005" or "100005" find invoice 100005, not every
+        // number with those digits in it.
         invoiceNumberSql(filters.q),
       )!,
     );
@@ -319,7 +317,7 @@ export async function getInvoicesList(
 
   const list = rows.map((r) => ({
     id: r.id,
-    label: formatInvoiceNo(prefix, r.invoiceYear ?? r.issuedAt.getFullYear(), r.invoiceNo),
+    label: formatInvoiceNo(prefix, r.invoiceNo),
     invoiceNo: r.invoiceNo,
     issuedAt: r.issuedAt,
     issuedByName: r.issuedByName,
@@ -386,9 +384,10 @@ export async function issueInvoice(
       .limit(1);
     if (!c) return { error: "Clinic not found." };
 
-    // Reset the sequence to 1 on a new year (or first-ever issue).
+    // One running series that never resets. `invoice_year` is still stamped (the
+    // year it was issued) but is no longer part of the number or its uniqueness.
     const currentYear = new Date().getFullYear();
-    const allocated = c.year === currentYear ? c.next : 1;
+    const allocated = Math.max(c.next, DOCUMENT_SERIES_START);
     await tx
       .update(clinics)
       .set({ nextInvoiceNo: allocated + 1, invoiceYear: currentYear, updatedAt: new Date() })
@@ -413,7 +412,7 @@ export async function issueInvoice(
     return {
       id: inv.id,
       invoiceNo: allocated,
-      label: formatInvoiceNo(c.prefix, currentYear, allocated),
+      label: formatInvoiceNo(c.prefix, allocated),
       issuedAt: inv.issuedAt,
       voided: gone,
       deleted: null,

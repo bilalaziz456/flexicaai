@@ -182,15 +182,15 @@ export const clinics = pgTable(
       .notNull()
       .default(sql`ARRAY['thermal','a5','a4']::text[]`),
     invoicePrefix: text("invoice_prefix").notNull().default("INV-"),
-    nextInvoiceNo: integer("next_invoice_no").notNull().default(1),
-    // The calendar year `next_invoice_no` currently belongs to. Invoice numbers RESET
-    // to 1 each new year → the label is `<prefix><YYYY>-<7-digit>` (e.g. INV-2026-0000005).
+    nextInvoiceNo: integer("next_invoice_no").notNull().default(100001),
+    // Informational since migration 0121: numbers are ONE running series per clinic
+    // (`<prefix><number>`, e.g. INV-100005, starting at 100001) that never resets.
     invoiceYear: integer("invoice_year"),
     // Payment-receipt numbering — a per-clinic series distinct from invoices, allocated
-    // once per appointment on first money-in (`core/billing/payments.ts`), also RESET per
-    // year. Label `<receipt_prefix><YYYY>-<7-digit>` (e.g. RCP-2026-0000012).
+    // once per appointment on first money-in (`core/billing/payments.ts`). One running
+    // series that never resets: `<receipt_prefix><number>`, e.g. RCP-100012.
     receiptPrefix: text("receipt_prefix").notNull().default("RCP-"),
-    nextReceiptNo: integer("next_receipt_no").notNull().default(1),
+    nextReceiptNo: integer("next_receipt_no").notNull().default(100001),
     receiptYear: integer("receipt_year"),
     // Clinic logo (branding) — an opaque storage key (local FS, per-clinic). Uploaded
     // by the owner/super-admin/account-manager (not the clinic). Printed in B&W at the

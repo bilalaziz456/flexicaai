@@ -624,8 +624,19 @@ export async function createPatient(
   // Registered from "Create patient" in the search box: the desk is mid-booking, so
   // carry on to the appointment form with this patient chosen. Only if they may
   // book — otherwise that page would bounce them, and the list is the better landing.
-  if (formData.get("then") === "book" && can(user, "appointments", "create")) {
-    redirect(`/clinic/appointments/new?patientId=${createdPatient.id}&patientCreated=1`);
+  // Which save button was pressed: Save & create appointment / Save & create invoice
+  // continue with this patient already chosen and today's date; plain Save goes back
+  // to the list. Each re-checks its own permission — the button only being hidden is
+  // not the gate.
+  const then = formData.get("then");
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  if (then === "book" && can(user, "appointments", "create")) {
+    redirect(`/clinic/appointments/new?patientId=${createdPatient.id}&date=${today}&patientCreated=1`);
+  }
+  if (then === "invoice" && can(user, "billing", "create") && can(user, "appointments", "create")) {
+    // New invoice starts at now on its own; it re-checks the sales feature itself.
+    redirect(`/clinic/invoices/new?patientId=${createdPatient.id}&patientCreated=1`);
   }
   redirect(`${home}?created=1`);
 }

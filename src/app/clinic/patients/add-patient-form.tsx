@@ -16,9 +16,17 @@ export type AddPatientDefaults = { fullName?: string; phone?: string };
 export function AddPatientForm({
   defaults,
   thenBook = false,
+  canBook = false,
+  canInvoice = false,
 }: {
   defaults?: AddPatientDefaults;
+  /** Arrived from "Create patient" in the top search with booking in mind: Save &
+   *  create appointment becomes the main button. */
   thenBook?: boolean;
+  /** Offer "Save & create appointment". */
+  canBook?: boolean;
+  /** Offer "Save & create invoice". */
+  canInvoice?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<
     ClinicActionState,
@@ -30,7 +38,6 @@ export function AddPatientForm({
 
   return (
     <ActionForm action={formAction} state={state} className="space-y-4">
-      {thenBook ? <input type="hidden" name="then" value="book" /> : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>
@@ -93,9 +100,29 @@ export function AddPatientForm({
         Patient consents to their data being stored and used for care.
       </label>
 
-      <Button type="submit" disabled={pending}>
-        {pending ? "Adding…" : "Add patient"}
-      </Button>
+      {/* Three ways to save; the button pressed travels as `then` (the submitter),
+          and the server decides where to go next. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="submit" variant={thenBook && canBook ? "outline" : "default"} disabled={pending}>
+          {pending ? "Saving…" : "Save"}
+        </Button>
+        {canBook ? (
+          <Button
+            type="submit"
+            name="then"
+            value="book"
+            variant={thenBook ? "default" : "outline"}
+            disabled={pending}
+          >
+            Save &amp; create appointment
+          </Button>
+        ) : null}
+        {canInvoice ? (
+          <Button type="submit" name="then" value="invoice" variant="outline" disabled={pending}>
+            Save &amp; create invoice
+          </Button>
+        ) : null}
+      </div>
     </ActionForm>
   );
 }

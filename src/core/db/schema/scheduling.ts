@@ -157,8 +157,10 @@ export const appointments = pgTable(
     queueSession: text("queue_session"),
     queueNumber: integer("queue_number"),
     // Payment-receipt number (RCP series), allocated ONCE on the first money-in for
-    // this visit (`core/billing/payments.ts`) — NULL until then. Resets per year; the
-    // label is `<clinics.receipt_prefix><receipt_year>-<7-digit receipt_no>`.
+    // this visit (`core/billing/payments.ts`) — NULL until then. The
+    // label is `<clinics.receipt_prefix><receipt_no>`, e.g. "RCP-100012" — one running
+    // series per clinic that never resets (migration 0121); `receipt_year` is
+    // informational only.
     receiptNo: integer("receipt_no"),
     receiptYear: integer("receipt_year"),
     ...softDeleteColumns(),
@@ -189,7 +191,7 @@ export const appointments = pgTable(
     index("appointments_clinic_id_idx").on(t.clinicId),
     // Receipt numbers are unique per clinic per year (they reset each year).
     uniqueIndex("appointments_receipt_unique")
-      .on(t.clinicId, t.receiptYear, t.receiptNo)
+      .on(t.clinicId, t.receiptNo)
       .where(sql`${t.receiptNo} is not null`),
     index("appointments_patient_id_idx").on(t.patientId),
     // Calendar/day views query by clinic + time window.

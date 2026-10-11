@@ -45,10 +45,10 @@ const TREND = [
 ];
 
 const PAYMENTS = [
-  { no: "RCP-2026-0000214", who: "Ayesha Khan", method: "Cash", amount: 8000, note: "Paid in full" },
-  { no: "RCP-2026-0000213", who: "Imran Qureshi", method: "Bank", amount: 10000, note: "Part payment · Rs 8,000 due" },
-  { no: "RCP-2026-0000212", who: "Fatima Noor", method: "Advance", amount: 5000, note: "From credit held" },
-  { no: "RCP-2026-0000211", who: "Hamza Siddiqui", method: "Cash", amount: 3500, note: "Paid in full" },
+  { no: "RCP-100214", who: "Ayesha Khan", method: "Cash", amount: 8000, note: "Paid in full" },
+  { no: "RCP-100213", who: "Imran Qureshi", method: "Bank", amount: 10000, note: "Part payment · Rs 8,000 due" },
+  { no: "RCP-100212", who: "Fatima Noor", method: "Advance", amount: 5000, note: "From credit held" },
+  { no: "RCP-100211", who: "Hamza Siddiqui", method: "Cash", amount: 3500, note: "Paid in full" },
 ];
 
 const FLAGS: {
@@ -316,7 +316,7 @@ export function FinanceDashboard() {
               <p className="flex items-center gap-2 text-sm font-semibold">
                 <Receipt className="size-4 text-primary-text" /> Invoice
               </p>
-              <span className="font-mono text-3xs text-muted-foreground">INV-2026-0000142</span>
+              <span className="font-mono text-3xs text-muted-foreground">INV-100142</span>
             </div>
             <dl className="mt-4 space-y-2 text-xs">
               {[
