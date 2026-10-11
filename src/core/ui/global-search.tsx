@@ -42,6 +42,8 @@ export function GlobalSearch({
   documentPages = false,
   newPatientHref,
   newAppointmentHref,
+  invoiceBase,
+  newInvoiceHref,
   className,
 }: {
   navItems: SearchNavItem[];
@@ -54,6 +56,10 @@ export function GlobalSearch({
   newPatientHref?: string;
   /** e.g. "/clinic/appointments/new" — "Book appointment" on a patient hit. */
   newAppointmentHref?: string;
+  /** e.g. "/clinic/invoices" — invoice hits View the print screen and Edit the invoice. */
+  invoiceBase?: string;
+  /** e.g. "/clinic/invoices/new" — "Create invoice" on a patient hit. */
+  newInvoiceHref?: string;
   className?: string;
 }) {
   const router = useRouter();
@@ -66,7 +72,9 @@ export function GlobalSearch({
     rows: SearchHit[];
     canCreatePatient: boolean;
     canBookAppointment: boolean;
-  }>({ q: "", rows: [], canCreatePatient: false, canBookAppointment: false });
+    canCreateInvoice: boolean;
+    canEditInvoice: boolean;
+  }>({ q: "", rows: [], canCreatePatient: false, canBookAppointment: false, canCreateInvoice: false, canEditInvoice: false });
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -78,8 +86,17 @@ export function GlobalSearch({
     if (term.length < 2) return;
     let cancelled = false;
     const timer = setTimeout(async () => {
-      const { hits, canCreatePatient, canBookAppointment } = await globalSearch(term);
-      if (!cancelled) setResult({ q: term, rows: hits, canCreatePatient, canBookAppointment });
+      const r = await globalSearch(term);
+      if (!cancelled) {
+        setResult({
+          q: term,
+          rows: r.hits,
+          canCreatePatient: r.canCreatePatient,
+          canBookAppointment: r.canBookAppointment,
+          canCreateInvoice: r.canCreateInvoice,
+          canEditInvoice: r.canEditInvoice,
+        });
+      }
     }, 250);
     return () => {
       cancelled = true;
@@ -157,7 +174,31 @@ export function GlobalSearch({
           href: `${newAppointmentHref}?patientId=${h.id}`,
         });
       }
+      if (result.canCreateInvoice && newInvoiceHref) {
+        actions.splice(actions.length - 1, 0, {
+          label: "Create invoice",
+          href: `${newInvoiceHref}?patientId=${h.id}`,
+        });
+      }
       return { key: `patient-${h.id}`, label: h.label, detail: h.detail, badge: "Patient", actions };
+    }
+    // With invoice pages, an invoice opens its print screen (View) or its own page
+    // (Edit), and a payment its receipt — all under Invoices.
+    if (invoiceBase) {
+      const actions: RowAction[] =
+        h.kind === "invoice"
+          ? [{ label: "View", href: `${invoiceBase}/${h.appointmentId}/print` }]
+          : [{ label: "View payment", href: `${invoiceBase}/${h.appointmentId}/receipt` }];
+      if (h.kind === "invoice" && result.canEditInvoice) {
+        actions.push({ label: "Edit invoice", href: `${invoiceBase}/${h.appointmentId}` });
+      }
+      return {
+        key: `${h.kind}-${h.appointmentId}-${h.label}`,
+        label: h.label,
+        detail: h.detail,
+        badge: h.kind === "invoice" ? "Invoice" : "Payment",
+        actions,
+      };
     }
     const href = documentPages
       ? `${appointmentBase}/${h.appointmentId}/${h.kind}`
@@ -230,7 +271,10 @@ export function GlobalSearch({
       </div>
 
       {open && q.length >= 2 ? (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-lg border bg-popover shadow-lg">
+        // Wider than the box (up to 36rem, never past the screen): a patient row can
+        // carry three actions — Book appointment · Create invoice · View patient — and
+        // at the box's own width they squeezed the patient's NAME out of the row.
+        <div className="absolute left-0 top-full z-50 mt-1 w-[max(100%,min(36rem,calc(100vw-2rem)))] overflow-hidden rounded-lg border bg-popover shadow-lg">
           {rows.length === 0 ? (
             <p className="px-3 py-2.5 text-sm text-muted-foreground">
               {loading ? "Searching…" : "Nothing found."}
@@ -240,9 +284,11 @@ export function GlobalSearch({
               {rows.map((r) => (
                 <li
                   key={r.key}
-                  className="flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-accent/50"
+                  className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-3 py-2 text-sm transition-colors hover:bg-accent/50"
                 >
-                  <div className="min-w-0 flex-1">
+                  {/* The name keeps at least this much room; when the actions do not fit
+                      beside it they wrap underneath instead of truncating it away. */}
+                  <div className="min-w-[10rem] flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="truncate font-medium">{r.label}</span>
                       <span className="shrink-0 rounded-md border border-input px-1.5 py-0.5 text-[0.65rem] text-muted-foreground">

@@ -1,4 +1,5 @@
 
+import { asInvoiceState } from "@/core/billing/invoice";
 import { asVisitPaymentStatus, visitPaymentStatus, VISIT_PAYMENT_STATUS_LABEL } from "@/core/billing/payment-status";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { apiRequireWorkspace } from "@/core/auth/user";
@@ -149,6 +150,7 @@ export async function GET(req: Request) {
       toExclusive: range?.end,
       q: url.searchParams.get("q") || undefined,
       payment: asVisitPaymentStatus(url.searchParams.get("payment")),
+      state: asInvoiceState(url.searchParams.get("state")),
       // The register pages at 100 by default; an export is the WHOLE filtered set.
       // (It used to export only the first 100 invoices.)
       limit: 100_000,
@@ -159,7 +161,7 @@ export async function GET(req: Request) {
       list.rows.map((r) => {
         const status = visitPaymentStatus({ bill: r.amount, collected: r.collected, refunded: r.refunded, visitStatus: r.visitStatus });
         return [
-          r.voided ? `${r.label} (void)` : r.label,
+          r.deleted ? `${r.label} (deleted)` : r.voided ? `${r.label} (void)` : r.label,
           ymd(r.issuedAt),
           r.patientName,
           r.patientPhone ?? "",

@@ -29,6 +29,12 @@ export default async function PatientDetailPage({
       canDelete={can(user, "patients", "delete")}
       canBook={can(user, "appointments", "create")}
       bookPath="/clinic/appointments/new"
+      canInvoice={
+        clinicHasFeature(clinic?.featuresEnabled, "sales") &&
+        can(user, "billing", "create") &&
+        can(user, "appointments", "create")
+      }
+      invoicePath="/clinic/invoices/new"
       canViewClinical={can(user, "clinical", "view")}
       canEditClinical={can(user, "clinical", "edit")}
       canViewPrescriptions={can(user, "prescriptions", "view")}

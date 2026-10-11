@@ -31,6 +31,10 @@ export async function applyAppointmentStatus(
   clinicId: string,
   appointmentId: string,
   status: AppointmentStatus,
+  /** `notify: false` skips the patient's WhatsApp message — for a cancellation that is
+   *  an office correction (an invoice deleted from the Invoices page), not news the
+   *  patient needs. */
+  opts: { notify?: boolean } = {},
 ): Promise<boolean> {
   // Source + prior status decide whether/what to message the patient.
   const [prior] = await db
@@ -104,7 +108,9 @@ export async function applyAppointmentStatus(
   // transaction: a WhatsApp send or an audit write must never roll back a clinical
   // status change, and holding a DB transaction open across a network call to a
   // provider is how you exhaust a connection pool.
-  if (status === "cancelled") {
+  if (opts.notify === false) {
+    // An office correction: nothing to tell the patient.
+  } else if (status === "cancelled") {
     await notifyAppointmentsCancelled(clinicId, [appointmentId]);
   } else if (status === "confirmed" && prior.source === "whatsapp") {
     await notifyAppointmentBooked(clinicId, appointmentId);

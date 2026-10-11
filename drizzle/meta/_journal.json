@@ -841,6 +841,13 @@
       "when": 1791749184385,
       "tag": "0119_invoice_backfill_paid",
       "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1791751794444,
+      "tag": "0120_invoice_deleted_by",
+      "breakpoints": true
     }
   ]
 }

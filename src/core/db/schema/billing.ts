@@ -543,6 +543,12 @@ export const invoices = pgTable(
     // `core/billing/invoice.ts#setInvoicesVoid`.
     voidedAt: timestamp("voided_at", { withTimezone: true }),
     voidReason: text("void_reason"),
+    // WHO voided it, when a PERSON did — i.e. the invoice was DELETED from the
+    // Invoices page (password-confirmed). NULL for the automatic void that follows a
+    // cancellation or no-show. The difference matters: an automatic void is undone
+    // when the visit is brought back; a deletion is a decision and is not.
+    voidedBy: uuid("voided_by"),
+    voidedByName: text("voided_by_name"),
     ...softDeleteColumns(),
   },
   (t) => [

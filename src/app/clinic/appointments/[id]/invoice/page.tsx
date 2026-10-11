@@ -1,4 +1,8 @@
 import { Fragment } from "react";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
+import { listAppointmentPayments } from "@/core/billing/payments";
+import { PaymentHistoryPrint } from "@/core/ui/payment-history-print";
+import { FlashToast } from "@/core/ui/toast";
 import { getAppointmentForDocument } from "@/core/billing/invoice";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
@@ -27,12 +31,18 @@ import { InvoicePrintFrame } from "@/core/ui/invoice-print";
  */
 export default async function InvoicePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  /** `from=invoice`: opened from the Invoices pages, so Back returns to the invoice
+   *  rather than to the appointment. `created=1`: just saved with "Save & print". */
+  searchParams: Promise<{ from?: string; created?: string }>;
 }) {
   const user = await requireWorkspace("billing");
   const { clinicId } = user;
   const { id } = await params;
+  const { from, created } = await searchParams;
+  const fromInvoice = from === "invoice";
 
   const row = await getAppointmentForDocument(clinicId, id);
   if (!row) notFound();
@@ -44,11 +54,23 @@ export default async function InvoicePage({
   const mrnLabel = formatMrn(clinic?.mrnPrefix, row.patientMrn, row.patientCreatedAt);
   const logo = await getClinicLogoDataUri(clinic?.logoKey);
 
-  const [items, aBill, invoice] = await Promise.all([
+  const [items, aBill, invoice, ledger] = await Promise.all([
     getAppointmentProcedureItems(clinicId, id),
     getAppointmentBill(clinicId, id),
     getInvoiceForAppointment(clinicId, id),
+    listAppointmentPayments(clinicId, id),
   ]);
+  // Every payment and refund on this visit, for the printed history.
+  const history = ledger
+    .filter((e) => e.kind !== "advance")
+    .map((e) => ({
+      id: e.id,
+      kind: e.kind,
+      amount: e.amount,
+      occurredAt: e.occurredAt,
+      methodLabel: e.method ? vocabularyLabel("payment_methods", e.method) : null,
+      note: e.note,
+    }));
 
   const discountType = normalizeDiscountType(row.discountType);
   const doctorFee = row.chargeConsultation ? (row.doctorFee ?? 0) : 0;
@@ -73,9 +95,13 @@ export default async function InvoicePage({
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
+      <FlashToast
+        message={created && invoice ? `Invoice ${invoice.label} created.` : null}
+        params={["created"]}
+      />
       <div className="no-print">
-        <BackLink href={`/clinic/appointments/${id}`}>
-          Back to appointment
+        <BackLink href={fromInvoice ? `/clinic/invoices/${id}` : `/clinic/appointments/${id}`}>
+          {fromInvoice ? "Back to invoice" : "Back to appointment"}
         </BackLink>
       </div>
 
@@ -186,6 +212,12 @@ export default async function InvoicePage({
             <span>Total</span>
             <span className="tabular-nums">{formatPkr(bill.net)}</span>
           </div>
+        </div>
+
+        {/* Every payment and refund, with what was due after each. */}
+        <PaymentHistoryPrint bill={aBill.billTotal} entries={history} />
+
+        <div className="mt-2 space-y-0.5 border-t border-black/20 pt-1 text-[0.95em]">
           <div className="flex justify-between">
             <span className="opacity-70">Paid</span>
             <span className="tabular-nums">{formatPkr(aBill.collected)}</span>

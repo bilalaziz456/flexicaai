@@ -1,4 +1,5 @@
 import { Fragment } from "react";
+import { PaymentHistoryPrint } from "@/core/ui/payment-history-print";
 import { getAppointmentForDocument, getInvoiceForAppointment } from "@/core/billing/invoice";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
@@ -30,12 +31,18 @@ import { vocabularyLabel } from "@/core/db/vocabulary-cache";
  */
 export default async function ReceiptPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  /** `from=invoice`: opened from the Invoices pages, so Back returns to the invoice
+   *  rather than to the appointment. `created=1`: just saved with "Save & print". */
+  searchParams: Promise<{ from?: string; created?: string }>;
 }) {
   const user = await requireWorkspace("billing");
   const { clinicId } = user;
   const { id } = await params;
+  const { from } = await searchParams;
+  const fromInvoice = from === "invoice";
 
   const row = await getAppointmentForDocument(clinicId, id);
   if (!row) notFound();
@@ -60,11 +67,6 @@ export default async function ReceiptPage({
       ? formatReceiptNo(clinic?.receiptPrefix, row.receiptYear ?? row.scheduledAt.getFullYear(), row.receiptNo)
       : null;
   const received = ledger.filter((e) => e.kind !== "advance"); // money in/out on THIS visit
-  const KIND_LABEL: Record<string, string> = {
-    payment: "Payment",
-    advance_applied: "Advance applied",
-    refund: "Refund",
-  };
   // Bill breakdown (consultation + procedures), mirroring the invoice.
   const discountType = normalizeDiscountType(row.discountType);
   const doctorFee = row.chargeConsultation ? (row.doctorFee ?? 0) : 0;
@@ -108,8 +110,8 @@ export default async function ReceiptPage({
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="no-print">
-        <BackLink href={`/clinic/appointments/${id}`}>
-          Back to appointment
+        <BackLink href={fromInvoice ? `/clinic/invoices/${id}` : `/clinic/appointments/${id}`}>
+          {fromInvoice ? "Back to invoice" : "Back to appointment"}
         </BackLink>
       </div>
 
@@ -201,36 +203,19 @@ export default async function ReceiptPage({
           </tbody>
         </table>
 
-        {/* Payments received — each installment under this one receipt number. */}
-        {received.length > 0 ? (
-          <>
-            <div className="mt-3 text-[0.9em] font-semibold opacity-80">Payments received</div>
-            <table className="mt-1 w-full border-collapse text-[0.95em]">
-              <thead>
-                <tr className="border-y border-black/20 text-left">
-                  <th className="py-1 font-normal opacity-70">Date</th>
-                  <th className="py-1 font-normal opacity-70">Type</th>
-                  <th className="py-1 text-right font-normal opacity-70">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {received.map((e) => (
-                  <tr key={e.id}>
-                    <td className="py-1">{fmtDate(e.occurredAt)}</td>
-                    <td className="py-1">
-                      {KIND_LABEL[e.kind] ?? e.kind}
-                      {e.method ? <span className="opacity-70"> · {vocabularyLabel("payment_methods", e.method)}</span> : null}
-                    </td>
-                    <td className="py-1 text-right tabular-nums">
-                      {e.kind === "refund" ? "−" : ""}
-                      {formatPkr(e.amount)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        ) : null}
+        {/* Every payment and refund under this one receipt number, with what was due
+            after each (shared with the invoice print). */}
+        <PaymentHistoryPrint
+          bill={aBill.billTotal}
+          entries={received.map((e) => ({
+            id: e.id,
+            kind: e.kind,
+            amount: e.amount,
+            occurredAt: e.occurredAt,
+            methodLabel: e.method ? vocabularyLabel("payment_methods", e.method) : null,
+            note: e.note,
+          }))}
+        />
 
         {/* Summary — one money column: charged → paid → due */}
         <div className="mt-3 space-y-1 border-t border-black/20 pt-2 text-[0.95em]">

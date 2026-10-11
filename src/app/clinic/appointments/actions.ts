@@ -1,5 +1,9 @@
 "use server";
 
+import { report } from "@/core/observability";
+import type { PaymentMethodCode } from "@/core/db/vocabulary-seed";
+import { PAYMENT_METHODS } from "@/core/finance/payment-methods";
+import { recordPayment } from "@/core/billing/payments";
 import { displayStaffName } from "@/core/types/auth";
 import { autoIssueInvoice } from "@/core/billing/invoice";
 import { redirect } from "next/navigation";
@@ -185,6 +189,15 @@ async function sameDayWarning(
   };
 }
 
+/** What the Invoices page's form takes with a new invoice. */
+const invoicePaymentSchema = z.object({
+  amount: z.coerce.number().int("Enter a whole amount.").min(0, "The amount can't be negative.").max(100_000_000),
+  method: z.enum(PAYMENT_METHODS),
+  reference: z.string().trim().max(120).optional(),
+  /** Why — e.g. "part payment, balance next visit". Shown on the payment. */
+  note: z.string().trim().max(500).optional(),
+});
+
 /** Schedules an appointment in the receptionist's clinic. */
 export async function createAppointment(
   _prev: ReceptionActionState,
@@ -193,6 +206,34 @@ export async function createAppointment(
   const { user, clinicId, home } = await requireAppointmentsAccess();
   if (!can(user, "appointments", "create")) {
     return { error: "You don't have permission to create appointments." };
+  }
+
+  // From the Invoices page: the visit is created WITH its invoice and the payment
+  // taken (owner's call, 2026-10-12). Needs the billing grant as well.
+  const asInvoice = formData.get("asInvoice") === "1";
+  let invoicePayment: {
+    amount: number;
+    method: PaymentMethodCode;
+    reference: string | null;
+    note: string | null;
+  } | null = null;
+  if (asInvoice) {
+    if (!can(user, "billing", "create")) {
+      return { error: "You don't have permission to create invoices." };
+    }
+    const pay = invoicePaymentSchema.safeParse({
+      amount: formData.get("payAmount") || "0",
+      method: formData.get("payMethod") || "cash",
+      reference: formData.get("payReference") || undefined,
+      note: formData.get("payNote") || undefined,
+    });
+    if (!pay.success) return { error: zodErrorMessage(pay.error) };
+    invoicePayment = {
+      amount: pay.data.amount,
+      method: pay.data.method,
+      reference: pay.data.reference ?? null,
+      note: pay.data.note ?? null,
+    };
   }
 
   const parsed = createSchema.safeParse({
@@ -330,8 +371,34 @@ export async function createAppointment(
     name: displayStaffName(user.prefix, user.fullName, user.username),
   });
 
-  // Confirm to the patient over WhatsApp (doctor, hours, fee, time).
-  await notifyAppointmentBooked(clinicId, created.id);
+  const actor = { id: user.id, name: displayStaffName(user.prefix, user.fullName, user.username) };
+  if (asInvoice) {
+    // An invoice is for a visit that is happening or has happened: complete it, so
+    // it is in sales and doctor shares like any other completed visit. A future date
+    // is billing in ADVANCE — the visit stays booked until it is actually completed.
+    if (when.getTime() <= Date.now()) {
+      await applyAppointmentStatus(clinicId, created.id, "completed", { notify: false });
+    }
+    if (invoicePayment && invoicePayment.amount > 0) {
+      const paid = await recordPayment(clinicId, {
+        patientId: parsed.data.patientId,
+        appointmentId: created.id,
+        amount: invoicePayment.amount,
+        method: invoicePayment.method,
+        reference: invoicePayment.reference,
+        note: invoicePayment.note,
+        actor,
+      });
+      // The visit and invoice exist either way; say so rather than lose the payment.
+      if ("error" in paid) {
+        report(new Error(paid.error), { op: "invoices.create.payment", clinicId, ids: { appointmentId: created.id } });
+      }
+    }
+  } else {
+    // Confirm to the patient over WhatsApp (doctor, hours, fee, time). Not for an
+    // invoice: the patient is standing at the desk, not waiting for a booking.
+    await notifyAppointmentBooked(clinicId, created.id);
+  }
 
   await logActivity({
     action: "create",
@@ -340,6 +407,16 @@ export async function createAppointment(
     summary: `Scheduled an appointment for ${when.toLocaleString("en-GB")}`,
   });
   revalidatePath(home);
+  if (asInvoice) {
+    revalidatePath("/clinic/invoices");
+    revalidateFinance();
+    // "Save & print" goes straight to the invoice's print screen; "Save" opens the
+    // invoice's own page, where Print invoice is at the top.
+    if (formData.get("then") === "print") {
+      redirect(`/clinic/invoices/${created.id}/print?created=1`);
+    }
+    redirect(`/clinic/invoices/${created.id}?created=1`);
+  }
   // Land on the NEW appointment's detail page — the payment panel + "Print bill /
   // receipt" are there, so staff can collect the fee and print right away instead of
   // going back to the list to find the appointment they just created.
@@ -549,6 +626,9 @@ export async function updateAppointment(
   revalidatePath(home);
   revalidatePath(`/clinic/appointments/${appointmentId}`);
   revalidatePath(`/reception/appointments/${appointmentId}`);
+  // The same visit is edited from its invoice page too, and the register lists its bill.
+  revalidatePath(`/clinic/invoices/${appointmentId}`);
+  revalidatePath("/clinic/invoices");
   revalidateFinance(); // an edit can change the bill/discount → revenue/shares
   // Stay on the edit form and show a success toast (no redirect).
   return { saved: true };
@@ -604,6 +684,9 @@ export async function setAppointmentStatus(
   revalidatePath(home);
   revalidatePath(`/clinic/appointments/${appointmentId}`);
   revalidatePath(`/reception/appointments/${appointmentId}`);
+  // The same visit is edited from its invoice page too, and the register lists its bill.
+  revalidatePath(`/clinic/invoices/${appointmentId}`);
+  revalidatePath("/clinic/invoices");
   revalidateFinance(); // completing/uncompleting changes realised revenue + shares
 }
 

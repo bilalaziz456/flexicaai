@@ -44,6 +44,8 @@ export const CLINIC_NAV: PanelNav = {
     documentPages: true,
     newPatientHref: "/clinic/patients/new",
     newAppointmentHref: "/clinic/appointments/new",
+    invoiceBase: "/clinic/invoices",
+    newInvoiceHref: "/clinic/invoices/new",
   },
   // Top-level items stay flat; the rest are grouped under collapsible parents.
   nodes: [

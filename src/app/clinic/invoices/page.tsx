@@ -1,10 +1,14 @@
 import { notFound } from "next/navigation";
+import { FloatingCreateButton } from "@/core/ui/floating-create-button";
+import { asInvoiceState } from "@/core/billing/invoice";
+import { can } from "@/core/auth/permissions";
+import Link from "next/link";
 import { asVisitPaymentStatus } from "@/core/billing/payment-status";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import { getClinic } from "@/core/clinics/get-clinic";
 
-import { Download } from "lucide-react";
+import { Download, Plus } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { clinicHasFeature } from "@/core/lib/features";
 import { resolveSalesRange } from "@/core/sales/report";
@@ -20,6 +24,8 @@ import { InvoicesTable } from "./invoices-table";
 import { Pagination } from "@/core/ui/pagination";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { StatCard } from "@/core/ui/charts/stat-card";
+
+const INVOICES_HEADER_SENTINEL_ID = "invoices-header-end";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -42,11 +48,13 @@ export default async function InvoicesPage({
     to?: string;
     q?: string;
     payment?: string;
+    state?: string;
     page?: string;
     size?: string;
   }>;
 }) {
-  const { clinicId } = await requireWorkspace("billing");
+  const user = await requireWorkspace("billing");
+  const { clinicId } = user;
   const clinic = await getClinic(clinicId);
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales")) notFound();
 
@@ -55,6 +63,7 @@ export default async function InvoicesPage({
   const range = hasRange ? resolveSalesRange(sp.period, sp.from, sp.to, clinic?.createdAt) : null;
   const q = sp.q?.trim() || "";
   const payment = asVisitPaymentStatus(sp.payment);
+  const state = asInvoiceState(sp.state);
 
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
@@ -64,10 +73,12 @@ export default async function InvoicesPage({
     toExclusive: range?.end,
     q: q || undefined,
     payment,
+    state,
     offset: pageOffset(page, pageSize),
     limit: pageSize,
   });
 
+  const canCreate = can(user, "billing", "create") && can(user, "appointments", "create");
   const exportParams = new URLSearchParams({ type: "invoices" });
   if (hasRange && range) {
     exportParams.set("period", range.period);
@@ -78,10 +89,18 @@ export default async function InvoicesPage({
   }
   if (q) exportParams.set("q", q);
   if (payment) exportParams.set("payment", payment);
+  if (state) exportParams.set("state", state);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      {canCreate ? (
+        <FloatingCreateButton href="/clinic/invoices/new" label="New invoice" sentinelId={INVOICES_HEADER_SENTINEL_ID} />
+      ) : null}
+      <div className="relative flex flex-wrap items-start justify-between gap-3">
+        {/* What the floating New invoice button watches: once this scrolls out of
+            view the header button is gone, so the floating one appears (as on
+            Appointments). Absolute, so it takes no space of its own. */}
+        <div id={INVOICES_HEADER_SENTINEL_ID} aria-hidden="true" className="absolute inset-x-0 bottom-0 h-px" />
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Invoices</h1>
           <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
@@ -89,6 +108,13 @@ export default async function InvoicesPage({
             number, and reprint any invoice.
           </p>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+        {canCreate ? (
+          // Hidden on a phone, where the floating button is the create action.
+          <Link href="/clinic/invoices/new" className={cn(buttonVariants(), "hidden sm:inline-flex")}>
+            <Plus aria-hidden="true" /> New invoice
+          </Link>
+        ) : null}
         {list.rows.length > 0 ? (
           <a
             href={`/api/finance/export?${exportParams.toString()}`}
@@ -97,9 +123,10 @@ export default async function InvoicesPage({
             <Download aria-hidden="true" /> CSV
           </a>
         ) : null}
+        </div>
       </div>
 
-      <InvoiceFilters period={range?.period ?? "all"} from={range?.from ?? ""} to={range?.to ?? ""} q={q} payment={payment ?? ""} />
+      <InvoiceFilters period={range?.period ?? "all"} from={range?.from ?? ""} to={range?.to ?? ""} q={q} payment={payment ?? ""} state={state ?? ""} />
 
       {/* Two rows of three: what was BILLED and what is owed on top, the MONEY that
           actually moved underneath. */}
@@ -133,7 +160,7 @@ export default async function InvoicesPage({
         pageSize={pageSize}
         total={list.count}
         basePath="/clinic/invoices"
-        searchParams={{ period: sp.period, from: sp.from, to: sp.to, q, payment, size: sp.size }}
+        searchParams={{ period: sp.period, from: sp.from, to: sp.to, q, payment, state, size: sp.size }}
         unit="invoice"
       />
 
@@ -145,6 +172,8 @@ export default async function InvoicesPage({
           <InvoicesTable
             rows={list.rows}
             empty={q ? "No invoices match your search." : "No invoices issued yet."}
+            canEdit={can(user, "appointments", "edit")}
+            canDelete={can(user, "billing", "delete")}
           />
         </CardContent>
       </Card>

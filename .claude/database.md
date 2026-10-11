@@ -492,7 +492,12 @@ taking a payment or applying an advance on a visit with no invoice issues one
 no-show visit), and migration `0119` numbered the visits that had taken money before
 `0118`, continuing each clinic's sequence for the year and never reusing a number. The
 payments ledger, its CSV and the printed receipt show the invoice number, and the
-ledger searches by it. Indexes: unique(`clinic_id`,`invoice_no`);
+ledger searches by it. **`voided_by` / `voided_by_name`** (migration `0120`): set only when a
+PERSON deleted the invoice from the Invoices page (`core/billing/invoice-delete.ts`,
+password-confirmed, refused while money is held; it also cancels the visit without
+messaging the patient). A deleted invoice stays on the register marked Deleted with
+who/when/why, and — unlike the automatic void of a cancellation — is NOT restored when
+its visit is brought back (`setInvoicesVoid` skips rows with `voided_by` set). Indexes: unique(`clinic_id`,`invoice_no`);
 (`clinic_id`,`issued_at`); (`patient_id`).
 
 ### `appointment_discount_approvals` — discount sign-off (revenue-share, phase 3)

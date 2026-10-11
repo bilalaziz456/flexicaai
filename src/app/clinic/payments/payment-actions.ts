@@ -63,6 +63,9 @@ function revalidateAppt(appointmentId: string, patientId: string | null) {
   revalidatePath(`/reception/appointments/${appointmentId}`);
   revalidatePath("/clinic/appointments");
   if (patientId) revalidatePath(`/clinic/patients/${patientId}`);
+  // Payments are also taken on the invoice page, and the register shows their status.
+  revalidatePath(`/clinic/invoices/${appointmentId}`);
+  revalidatePath("/clinic/invoices");
   // A payment changes collected revenue → refresh the dashboard KPIs + reports.
   revalidateFinance();
 }

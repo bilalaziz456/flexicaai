@@ -24,6 +24,8 @@ export async function NewAppointmentPanel({
   backHref,
   preselectedPatientId,
   preselectedDate,
+  preselectedTime,
+  invoiceMode = false,
 }: {
   clinicId: string;
   backHref: string;
@@ -32,6 +34,10 @@ export async function NewAppointmentPanel({
   /** Start on this date (from "New appointment" on the list, which carries the day
    *  the calendar is showing). Already validated as YYYY-MM-DD by the caller. */
   preselectedDate?: string;
+  preselectedTime?: string;
+  /** The Invoices page's "New invoice": same form, plus the payment, and the visit is
+   *  created with its invoice (see NewAppointmentForm's `invoiceMode`). */
+  invoiceMode?: boolean;
 }) {
   const clinic = await getClinic(clinicId);
   const toPatient = (p: {
@@ -62,15 +68,21 @@ export async function NewAppointmentPanel({
     <div className="space-y-6">
       <div>
         <BackLink href={backHref}>
-          Back to appointments
+          {invoiceMode ? "Back to invoices" : "Back to appointments"}
         </BackLink>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em]">New appointment</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em]">
+          {invoiceMode ? "New invoice" : "New appointment"}
+        </h1>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Schedule</CardTitle>
-          <CardDescription>Pick a patient and a date &amp; time.</CardDescription>
+          <CardTitle>{invoiceMode ? "Invoice" : "Schedule"}</CardTitle>
+          <CardDescription>
+            {invoiceMode
+              ? "Patient, doctor, date & time, procedures and the payment received. The visit is created with its invoice number."
+              : "Pick a patient and a date & time."}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <NewAppointmentForm
@@ -80,6 +92,8 @@ export async function NewAppointmentPanel({
             procedures={bookingProcedures}
             preselectedPatient={preselectedPatient}
             preselectedDate={preselectedDate}
+            preselectedTime={preselectedTime}
+            invoiceMode={invoiceMode}
             planItems={
               preselectedPatientId
                 ? (await getUnscheduledItems(clinicId, preselectedPatientId)).map((i) => ({

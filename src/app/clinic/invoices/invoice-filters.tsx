@@ -17,6 +17,13 @@ const inputCls =
   "h-8 w-56 rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
 // The six payment badges (core/billing/payment-status.ts), plus "any".
+const STATE_OPTIONS = [
+  { value: "", label: "All invoices" },
+  { value: "active", label: "Active" },
+  { value: "deleted", label: "Deleted" },
+  { value: "void", label: "Void (visit cancelled)" },
+];
+
 const PAYMENT_OPTIONS = [
   { value: "", label: "Any payment" },
   ...VISIT_PAYMENT_STATUSES.map((s) => ({ value: s, label: VISIT_PAYMENT_STATUS_LABEL[s] })),
@@ -29,12 +36,14 @@ export function InvoiceFilters({
   to,
   q,
   payment,
+  state,
 }: {
   period: string;
   from: string;
   to: string;
   q: string;
   payment: string;
+  state: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -43,13 +52,15 @@ export function InvoiceFilters({
   const [toD, setToD] = useState(to);
   const [qV, setQV] = useState(q);
   const [payV, setPayV] = useState(payment);
+  const [stateV, setStateV] = useState(state);
 
-  function push(next: Partial<{ period: string; from: string; to: string; q: string; payment: string }>) {
+  function push(next: Partial<{ period: string; from: string; to: string; q: string; payment: string; state: string }>) {
     const pr = next.period ?? periodV;
     const f = next.from ?? fromD;
     const t = next.to ?? toD;
     const query = next.q ?? qV;
     const pay = next.payment ?? payV;
+    const st = next.state ?? stateV;
     const params = new URLSearchParams();
     if (pr && pr !== "all") params.set("period", pr);
     if (pr === "custom") {
@@ -58,6 +69,7 @@ export function InvoiceFilters({
     }
     if (query.trim()) params.set("q", query.trim());
     if (pay) params.set("payment", pay);
+    if (st) params.set("state", st);
     router.replace(params.toString() ? `${pathname}?${params.toString()}` : pathname, { scroll: false });
   }
 
@@ -68,6 +80,16 @@ export function InvoiceFilters({
         onChange={(v) => {
           setPeriodV(v);
           push({ period: v });
+        }}
+      />
+      <FilterSelect
+        label="Status"
+        ariaLabel="Filter by invoice status"
+        value={stateV}
+        options={STATE_OPTIONS}
+        onChange={(v) => {
+          setStateV(v);
+          push({ state: v });
         }}
       />
       <FilterSelect

@@ -7,7 +7,7 @@ import {
 import Link from "next/link";
 import { TabTitle } from "@/core/ui/app-tabs";
 import { notFound } from "next/navigation";
-import { CalendarDays, CalendarPlus, ClipboardList, Pill, Printer } from "lucide-react";
+import { CalendarDays, CalendarPlus, ClipboardList, Pill, Printer, ReceiptText } from "lucide-react";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicalRecordFor } from "@/config/modules";
 import { BackLink } from "@/core/ui/back-link";
@@ -59,6 +59,8 @@ export async function PatientDetail({
   canDelete,
   canBook = false,
   bookPath,
+  canInvoice = false,
+  invoicePath,
   viewerId,
   canViewClinical = false,
   canEditClinical = false,
@@ -86,6 +88,11 @@ export async function PatientDetail({
    *  new-appointment page path (`bookPath`). */
   canBook?: boolean;
   bookPath?: string;
+  /** Show a "Create invoice" action beside it — the New invoice form with this
+   *  patient already chosen. Needs billing + booking grants and the sales feature
+   *  (decided by the caller), and the new-invoice page path. */
+  canInvoice?: boolean;
+  invoicePath?: string;
   /** The signed-in user. Clinical history shows approved notes to everyone, and
    *  unapproved drafts only to the doctor who dictated them. Omit and the history
    *  is approved-only. */
@@ -321,15 +328,27 @@ export async function PatientDetail({
             </p>
           ) : null}
         </div>
-        {canBook && bookPath ? (
-          <Link
-            href={`${bookPath}?patientId=${patient.id}`}
-            className={cn(buttonVariants(), "hidden sm:inline-flex")}
-          >
-            <CalendarPlus className="size-4" aria-hidden="true" />
-            Create appointment
-          </Link>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {canInvoice && invoicePath ? (
+            // Shown on a phone too: the floating button there is for appointments.
+            <Link
+              href={`${invoicePath}?patientId=${patient.id}`}
+              className={cn(buttonVariants({ variant: "outline" }))}
+            >
+              <ReceiptText className="size-4" aria-hidden="true" />
+              Create invoice
+            </Link>
+          ) : null}
+          {canBook && bookPath ? (
+            <Link
+              href={`${bookPath}?patientId=${patient.id}`}
+              className={cn(buttonVariants(), "hidden sm:inline-flex")}
+            >
+              <CalendarPlus className="size-4" aria-hidden="true" />
+              Create appointment
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       <AllergyBanner allergies={allergies} />

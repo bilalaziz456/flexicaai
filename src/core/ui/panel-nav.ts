@@ -49,6 +49,11 @@ export type PanelSearch = {
   /** "Book appointment" on a patient hit; the box appends `?patientId=`. Omitted =
    *  no booking action in this panel. */
   newAppointmentHref?: string;
+  /** e.g. "/clinic/invoices" — an invoice hit gets View (`/<id>/print`) and Edit
+   *  (`/<id>`), and a payment hit opens `/<id>/receipt`. */
+  invoiceBase?: string;
+  /** e.g. "/clinic/invoices/new" — "Create invoice" on a patient hit. */
+  newInvoiceHref?: string;
 };
 
 export type PanelNav = {

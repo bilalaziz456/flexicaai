@@ -1,8 +1,9 @@
 "use client";
 
+import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 import { ActionForm } from "@/core/ui/action-form";
 import { startTransition, useActionState, useRef, useState } from "react";
-import { Check, Minus, Plus, Search } from "lucide-react";
+import { Check, Minus, Plus, Printer, Search } from "lucide-react";
 import { cn } from "@/core/lib/utils";
 import {
   createAppointment,
@@ -77,9 +78,11 @@ export function NewAppointmentForm({
   fixedPatient,
   preselectedPatient,
   preselectedDate,
+  preselectedTime,
   planItems = [],
   initial,
   initialSlots,
+  invoiceMode = false,
 }: {
   initialPatients: Patient[];
   doctors: Doctor[];
@@ -97,6 +100,15 @@ export function NewAppointmentForm({
   /** Create mode: start on this date (the day the appointments list was showing),
    *  still changeable. Ignored in edit mode, where  is the real one. */
   preselectedDate?: string;
+  /** Create mode: start at this time (HH:MM) — the Invoices page passes "now",
+   *  computed on the SERVER so the first render matches on both sides. */
+  preselectedTime?: string;
+  /** The Invoices page's form: create a visit AND its invoice, with the payment taken
+   *  (owner's call, 2026-10-12). Defaults to now, with the time free (an invoice is
+   *  usually for a visit happening or just happened), adds a Payment section, and
+   *  the server completes the visit and records the payment. In edit mode it only
+   *  changes the button wording. */
+  invoiceMode?: boolean;
   /** Edit mode: the doctor's windows for the appointment's own date, resolved on the
    *  server so the time picker is already constrained when the page paints. */
   initialSlots?: DoctorDaySlots | null;
@@ -122,6 +134,12 @@ export function NewAppointmentForm({
   };
 }) {
   const isEdit = Boolean(appointmentId);
+  const newInvoice = invoiceMode && !isEdit;
+  const methodOptions = useTenderOptions();
+  // Payment taken with the invoice. Follows the bill until the person types an
+  // amount — then it is theirs (a part payment, or nothing yet).
+  const [payTouched, setPayTouched] = useState(false);
+  const [payAmount, setPayAmount] = useState("");
   const [patient, setPatient] = useState<Patient | null>(preselectedPatient ?? null);
   const [planItemSel, setPlanItemSel] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
@@ -130,7 +148,7 @@ export function NewAppointmentForm({
   // `initial.date` wins over the prefill: in edit mode it IS the appointment's own
   // date, and a stray `?date=` must never silently move a booking that exists.
   const [date, setDate] = useState(initial?.date ?? preselectedDate ?? "");
-  const [rawTime, setTime] = useState(initial?.time ?? "09:00");
+  const [rawTime, setTime] = useState(initial?.time ?? preselectedTime ?? "09:00");
   const [duration, setDuration] = useState(initial?.durationMinutes ?? 30);
   const [reason, setReason] = useState(initial?.reason ?? "");
   const [discountType, setDiscountType] = useState<DiscountType>(
@@ -159,10 +177,14 @@ export function NewAppointmentForm({
   );
   const splitNumber = Math.max(0, Number(splitValue) || 0);
   // A procedure-only visit can skip the doctor's consultation fee.
+  // A new invoice starts WITHOUT the consultation fee (owner's call, 2026-10-12): it
+  // is usually for procedures, and the fee is ticked on when it applies.
   const [chargeConsultation, setChargeConsultation] = useState(
-    initial?.chargeConsultation ?? true,
+    initial?.chargeConsultation ?? !newInvoice,
   );
-  const [customTime, setCustomTime] = useState(initial?.customTime ?? false);
+  // A new invoice bills a visit that is happening now — the doctor's visiting hours
+  // are not a reason to refuse it, so it starts with the time free.
+  const [customTime, setCustomTime] = useState(initial?.customTime ?? newInvoice);
   // Selected procedures → { quantity (≥1) }. Missing key = unselected. A line's
   // discount is not chosen here — it is the clinic offer (see `lineDiscount`).
   type ProcState = { quantity: number };
@@ -246,7 +268,7 @@ export function NewAppointmentForm({
   // Re-trigger the error toast on every failed submit — `state` is a fresh
   // object each time the action settles, so this bumps even for an identical
   // error message on a second attempt.
-  useActionToast(state, { saved: "Changes saved.", error: true });
+  useActionToast(state, { saved: invoiceMode ? "Invoice saved." : "Changes saved.", error: true });
 
   // Same-day duplicate: the action answered with a question instead of saving.
   // Open for THAT answer only — keyed on the state object's identity, so closing it
@@ -254,10 +276,14 @@ export function NewAppointmentForm({
   const formRef = useRef<HTMLFormElement>(null);
   const [dismissedDuplicate, setDismissedDuplicate] = useState<ReceptionActionState | null>(null);
   const duplicateOpen = Boolean(state.duplicate) && dismissedDuplicate !== state;
+  // Which save button was pressed (Save vs Save & print). The same-day question
+  // resubmits from the form itself, which has no submitter — so remember it.
+  const thenRef = useRef("");
   function bookAnyway() {
     if (!formRef.current) return;
     const fd = new FormData(formRef.current);
     fd.set("confirmDuplicate", "1");
+    if (thenRef.current) fd.set("then", thenRef.current);
     setDismissedDuplicate(state);
     startTransition(() => formAction(fd));
   }
@@ -361,6 +387,7 @@ export function NewAppointmentForm({
       />
       <input type="hidden" name="scheduledAt" value={scheduledAt} />
       <input type="hidden" name="customTime" value={customTime ? "1" : "0"} />
+      {newInvoice ? <input type="hidden" name="asInvoice" value="1" /> : null}
 
       <div className="space-y-2">
         <Label>Patient</Label>
@@ -946,17 +973,96 @@ export function NewAppointmentForm({
         </p>
       ) : null}
 
-      <div className="flex items-center gap-3">
-        <Button type="submit" disabled={pending || !scheduledAt}>
-          {pending
-            ? isEdit
-              ? "Saving…"
-              : "Scheduling…"
-            : isEdit
-              ? "Save changes"
-              : "Schedule appointment"}
-        </Button>
-      </div>
+      {newInvoice ? (
+        <div className="space-y-2 rounded-lg border well p-3">
+          <p className="text-sm font-medium">Payment received</p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <div className="space-y-1">
+              <Label htmlFor="inv-pay-amount" className="text-xs text-muted-foreground">
+                Amount (Rs)
+              </Label>
+              <Input
+                id="inv-pay-amount"
+                name="payAmount"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={payTouched ? payAmount : String(bill.net)}
+                onChange={(e) => {
+                  setPayTouched(true);
+                  setPayAmount(e.target.value.replace(/[^\d]/g, ""));
+                }}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="inv-pay-method" className="text-xs text-muted-foreground">
+                Method
+              </Label>
+              <SelectField
+                id="inv-pay-method"
+                name="payMethod"
+                defaultValue="cash"
+                options={methodOptions.map((m) => ({ value: m.value, label: m.label }))}
+                ariaLabel="Payment method"
+                className="h-9 w-full"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="inv-pay-ref" className="text-xs text-muted-foreground">
+                Reference
+              </Label>
+              <Input id="inv-pay-ref" name="payReference" placeholder="Optional" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="inv-pay-note" className="text-xs text-muted-foreground">
+              Reason (optional)
+            </Label>
+            <Input id="inv-pay-note" name="payNote" maxLength={500} placeholder="e.g. part payment, balance next visit" />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Bill {formatPkr(bill.net)}. Enter 0 if nothing is paid yet; anything above the bill
+            is kept as the patient&apos;s advance.
+          </p>
+        </div>
+      ) : null}
+
+      {newInvoice ? (
+        // Save opens the invoice; Save & print goes straight to its print screen.
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="submit"
+            variant="outline"
+            disabled={pending || !scheduledAt}
+            onClick={() => (thenRef.current = "")}
+          >
+            {pending ? "Saving…" : "Save"}
+          </Button>
+          <Button
+            type="submit"
+            name="then"
+            value="print"
+            disabled={pending || !scheduledAt}
+            onClick={() => (thenRef.current = "print")}
+          >
+            <Printer aria-hidden="true" /> {pending ? "Saving…" : "Save & print"}
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          <Button type="submit" disabled={pending || !scheduledAt}>
+            {pending
+              ? isEdit
+                ? "Saving…"
+                : "Scheduling…"
+              : isEdit
+                ? invoiceMode
+                  ? "Save invoice"
+                  : "Save changes"
+                : "Schedule appointment"}
+          </Button>
+        </div>
+      )}
 
       <Dialog
         open={duplicateOpen}
@@ -966,16 +1072,16 @@ export function NewAppointmentForm({
         title="This patient already has an appointment that day"
         description={
           state.duplicate
-            ? `${state.duplicate.date}: ${state.duplicate.existing.join(", ")}. ${isEdit ? "Move this one to that day anyway?" : "Book another one anyway?"}`
+            ? `${state.duplicate.date}: ${state.duplicate.existing.join(", ")}. ${isEdit ? "Move this one to that day anyway?" : newInvoice ? "Create this invoice anyway?" : "Book another one anyway?"}`
             : undefined
         }
         footer={
           <>
             <Button type="button" variant="ghost" onClick={() => setDismissedDuplicate(state)}>
-              {isEdit ? "Don't move" : "Don't book"}
+              {isEdit ? "Don't move" : newInvoice ? "Don't create" : "Don't book"}
             </Button>
             <Button type="button" onClick={bookAnyway} disabled={pending}>
-              {isEdit ? "Move anyway" : "Book another"}
+              {isEdit ? "Move anyway" : newInvoice ? "Create invoice anyway" : "Book another"}
             </Button>
           </>
         }

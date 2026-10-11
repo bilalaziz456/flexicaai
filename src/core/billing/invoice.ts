@@ -3,7 +3,7 @@ import "server-only";
 import { outstandingSql, paymentStatusSql, refundedSql } from "@/core/billing/payment-status-sql";
 import type { VisitPaymentStatus } from "@/core/billing/payment-status";
 import { parseDocNumber } from "@/core/billing/doc-number";
-import { and, desc, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import type { Executor } from "@/core/db/tx";
 import { clinicHasFeature } from "@/core/lib/features";
@@ -54,6 +54,8 @@ export type IssuedInvoice = {
   issuedAt: Date;
   /** The visit was cancelled or became a no-show; the number is kept, marked void. */
   voided: boolean;
+  /** Set when a PERSON deleted it (not the automatic void of a cancellation). */
+  deleted: { byName: string | null; at: Date; reason: string | null } | null;
 };
 
 /** The live invoice for an appointment, if one has been issued. */
@@ -68,6 +70,9 @@ export async function getInvoiceForAppointment(
       invoiceYear: invoices.invoiceYear,
       issuedAt: invoices.issuedAt,
       voidedAt: invoices.voidedAt,
+      voidedBy: invoices.voidedBy,
+      voidedByName: invoices.voidedByName,
+      voidReason: invoices.voidReason,
       prefix: clinics.invoicePrefix,
     })
     .from(invoices)
@@ -89,6 +94,10 @@ export async function getInvoiceForAppointment(
     label: formatInvoiceNo(row.prefix, year, row.invoiceNo),
     issuedAt: row.issuedAt,
     voided: row.voidedAt !== null,
+    deleted:
+      row.voidedAt && row.voidedBy
+        ? { byName: row.voidedByName, at: row.voidedAt, reason: row.voidReason }
+        : null,
   };
 }
 
@@ -116,6 +125,9 @@ export async function setInvoicesVoid(
         clinicId,
         notDeleted(invoices.deletedAt),
         inArray(invoices.appointmentId, appointmentIds),
+        // A DELETED invoice (voided by a person) is left alone either way: bringing
+        // its visit back must not resurrect an invoice somebody deleted on purpose.
+        isNull(invoices.voidedBy),
       ),
     );
 }
@@ -156,6 +168,8 @@ export type InvoiceListRow = {
   amount: number; // derived bill (computeBill mirror), never stored
   /** Cancelled / no-show visit: listed, marked void, and left out of the total. */
   voided: boolean;
+  /** Deleted by a person from the Invoices page (also `voided`). */
+  deleted: { byName: string | null; at: Date; reason: string | null } | null;
   collected: number;
   refunded: number;
   visitStatus: string;
@@ -174,12 +188,21 @@ export type InvoiceList = {
   /** moneyIn − refunds = Σ amount_collected. */
   net: number;
 };
+export const INVOICE_STATES = ["active", "deleted", "void"] as const;
+export type InvoiceState = (typeof INVOICE_STATES)[number];
+export function asInvoiceState(v: string | null | undefined): InvoiceState | undefined {
+  return (INVOICE_STATES as readonly string[]).includes(v ?? "") ? (v as InvoiceState) : undefined;
+}
+
 export type InvoiceListFilters = {
   from?: Date;
   toExclusive?: Date;
   q?: string;
   /** The payment badge (core/billing/payment-status.ts). */
   payment?: VisitPaymentStatus;
+  /** active = not void · deleted = deleted by a person · void = voided by a
+   *  cancellation / no-show. */
+  state?: InvoiceState;
   limit?: number;
   offset?: number;
 };
@@ -223,6 +246,9 @@ export async function getInvoicesList(
   const pt = procedureTotals(clinicId);
   // Filtering by the badge needs the bill, so it is added after `pt` exists.
   if (filters.payment) conds.push(paymentStatusSql(filters.payment, appointmentNetSql(pt)));
+  if (filters.state === "active") conds.push(isNull(invoices.voidedAt));
+  if (filters.state === "deleted") conds.push(and(isNotNull(invoices.voidedAt), isNotNull(invoices.voidedBy))!);
+  if (filters.state === "void") conds.push(and(isNotNull(invoices.voidedAt), isNull(invoices.voidedBy))!);
   const where = byClinic(invoices.clinicId, clinicId, and(...conds));
 
   // THE SUMMARY IS AGGREGATED OVER THE WHOLE FILTERED SET, NOT OVER THE PAGE.
@@ -272,6 +298,9 @@ export async function getInvoicesList(
       appointmentId: appointments.id,
       amount: appointmentNetSql(pt),
       voidedAt: invoices.voidedAt,
+      voidedBy: invoices.voidedBy,
+      voidedByName: invoices.voidedByName,
+      voidReason: invoices.voidReason,
       // For the payment badge (core/billing/payment-status.ts): what has been taken,
       // what was given back, and where the visit stands.
       collected: appointments.amountCollected,
@@ -300,6 +329,10 @@ export async function getInvoicesList(
     appointmentId: r.appointmentId,
     amount: Number(r.amount),
     voided: r.voidedAt !== null,
+    deleted:
+      r.voidedAt && r.voidedBy
+        ? { byName: r.voidedByName, at: r.voidedAt, reason: r.voidReason }
+        : null,
     collected: r.collected,
     refunded: Number(r.refunded),
     visitStatus: r.visitStatus,
@@ -383,6 +416,7 @@ export async function issueInvoice(
       label: formatInvoiceNo(c.prefix, currentYear, allocated),
       issuedAt: inv.issuedAt,
       voided: gone,
+      deleted: null,
     };
   });
 }

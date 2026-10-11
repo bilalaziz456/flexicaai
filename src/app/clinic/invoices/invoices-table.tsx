@@ -3,7 +3,8 @@
 import { paymentStatusBadge, visitPaymentStatus } from "@/core/billing/payment-status";
 import { Badge } from "@/core/ui/badge";
 import Link from "next/link";
-import { Printer } from "lucide-react";
+import { Pencil, Printer } from "lucide-react";
+import { DeleteInvoiceButton } from "@/app/clinic/invoices/delete-invoice-button";
 import { DataTable, type Column } from "@/core/ui/data-table";
 
 const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
@@ -19,6 +20,7 @@ type Row = {
   amount: number;
   appointmentId: string;
   voided: boolean;
+  deleted: { byName: string | null; at: Date; reason: string | null } | null;
   collected: number;
   refunded: number;
   visitStatus: string;
@@ -36,17 +38,43 @@ function payBadge(r: Row) {
 }
 
 /** Invoice register table (client) — sortable columns + a mobile card view via DataTable. */
-export function InvoicesTable({ rows, empty }: { rows: Row[]; empty: string }) {
+export function InvoicesTable({
+  rows,
+  empty,
+  canEdit,
+  canDelete,
+}: {
+  rows: Row[];
+  empty: string;
+  canEdit: boolean;
+  canDelete: boolean;
+}) {
   const columns: Column<Row>[] = [
-    { id: "invoice", header: "Invoice", cardTitle: true, sortValue: (r) => r.label, cell: (r) =>
-      r.voided ? (
-        // The visit was cancelled or became a no-show: the number stays, marked.
-        <span className="font-medium text-muted-foreground line-through" title="Void — the visit was cancelled or became a no-show">
-          {r.label} <span className="no-underline">· Void</span>
-        </span>
-      ) : (
-        <span className="font-medium">{r.label}</span>
-      ) },
+    {
+      id: "invoice",
+      header: "Invoice",
+      cardTitle: true,
+      sortValue: (r) => r.label,
+      cell: (r) => (
+        <div>
+          <Link
+            href={`/clinic/invoices/${r.appointmentId}`}
+            className={`font-medium underline underline-offset-4 ${r.voided ? "text-muted-foreground line-through" : ""}`}
+          >
+            {r.label}
+          </Link>
+          {r.deleted ? (
+            // Deleted by a person: kept on the register, with who, when and why.
+            <span className="block text-xs text-destructive-text">
+              Deleted by {r.deleted.byName ?? "someone"}, {dayFmt(r.deleted.at)}
+              {r.deleted.reason && r.deleted.reason !== "Deleted" ? ` — ${r.deleted.reason}` : ""}
+            </span>
+          ) : r.voided ? (
+            <span className="block text-xs text-muted-foreground">Void — visit cancelled / no-show</span>
+          ) : null}
+        </div>
+      ),
+    },
     { id: "date", header: "Date", sortValue: (r) => r.issuedAt.getTime(), cell: (r) => <span className="whitespace-nowrap">{dayFmt(r.issuedAt)}</span> },
     {
       id: "patient",
@@ -68,23 +96,37 @@ export function InvoicesTable({ rows, empty }: { rows: Row[]; empty: string }) {
       cellClassName: "pl-6",
       sortValue: (r) => r.amount - r.collected,
       cell: (r) => {
+        if (r.deleted) return <Badge variant="destructive">Deleted</Badge>;
         const b = payBadge(r);
         return b ? <Badge variant={b.variant}>{b.label}</Badge> : <span className="text-muted-foreground">—</span>;
       },
     },
     {
-      id: "print",
-      header: "Print",
+      id: "actions",
+      header: "Actions",
       align: "right",
       cell: (r) => (
-        <Link
-          href={`/clinic/appointments/${r.appointmentId}/invoice`}
-          className="inline-flex min-h-6 items-center gap-1 text-muted-foreground underline underline-offset-4 hover:text-foreground"
-        >
-          <Printer className="size-3.5" aria-hidden="true" /> Print
-        </Link>
+        <div className="flex items-center justify-end gap-3">
+          <Link
+            href={`/clinic/invoices/${r.appointmentId}/print`}
+            className="inline-flex min-h-6 items-center gap-1 text-muted-foreground underline underline-offset-4 hover:text-foreground"
+          >
+            <Printer className="size-3.5" aria-hidden="true" /> Print
+          </Link>
+          {canEdit && !r.voided ? (
+            <Link
+              href={`/clinic/invoices/${r.appointmentId}`}
+              className="inline-flex min-h-6 items-center gap-1 text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            >
+              <Pencil className="size-3.5" aria-hidden="true" /> Edit
+            </Link>
+          ) : null}
+          {canDelete && !r.deleted ? (
+            <DeleteInvoiceButton appointmentId={r.appointmentId} label={r.label} held={r.collected} compact />
+          ) : null}
+        </div>
       ),
     },
   ];
-  return <DataTable rows={rows} columns={columns} getRowKey={(r) => r.id} minWidthClassName="min-w-[54rem]" empty={empty} />;
+  return <DataTable rows={rows} columns={columns} getRowKey={(r) => r.id} minWidthClassName="min-w-[62rem]" empty={empty} />;
 }

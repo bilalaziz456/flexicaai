@@ -1,5 +1,6 @@
 "use server";
 
+import { clinicHasFeature } from "@/core/lib/features";
 import { parseDocNumber } from "@/core/billing/doc-number";
 import { and, desc, eq, ilike, isNotNull, or } from "drizzle-orm";
 import { db } from "@/core/db";
@@ -53,6 +54,11 @@ export type SearchResult = {
   canCreatePatient: boolean;
   /** Whether a patient hit may offer "Book appointment". */
   canBookAppointment: boolean;
+  /** Whether a patient hit may offer "Create invoice" (billing + booking, with the
+   *  `sales` feature — the same gates as the Invoices page's New invoice). */
+  canCreateInvoice: boolean;
+  /** Whether an invoice hit may offer "Edit invoice". */
+  canEditInvoice: boolean;
 };
 
 export async function globalSearch(query: string): Promise<SearchResult> {
@@ -60,7 +66,9 @@ export async function globalSearch(query: string): Promise<SearchResult> {
   const q = query.trim();
   // Two characters is the floor: one letter matches most of the patient list and
   // makes every keystroke a table scan for nothing.
-  if (!user?.clinicId || q.length < 2) return { hits: [], canCreatePatient: false, canBookAppointment: false };
+  if (!user?.clinicId || q.length < 2) {
+    return { hits: [], canCreatePatient: false, canBookAppointment: false, canCreateInvoice: false, canEditInvoice: false };
+  }
   const clinicId = user.clinicId;
 
   const [clinic] = await db
@@ -68,6 +76,7 @@ export async function globalSearch(query: string): Promise<SearchResult> {
       mrnPrefix: clinics.mrnPrefix,
       invoicePrefix: clinics.invoicePrefix,
       receiptPrefix: clinics.receiptPrefix,
+      featuresEnabled: clinics.featuresEnabled,
     })
     .from(clinics)
     .where(eq(clinics.id, clinicId))
@@ -138,6 +147,11 @@ export async function globalSearch(query: string): Promise<SearchResult> {
     hits,
     canCreatePatient: can(user, "patients", "create"),
     canBookAppointment: can(user, "appointments", "create"),
+    canCreateInvoice:
+      clinicHasFeature(clinic?.featuresEnabled, "sales") &&
+      can(user, "billing", "create") &&
+      can(user, "appointments", "create"),
+    canEditInvoice: clinicHasFeature(clinic?.featuresEnabled, "sales") && can(user, "appointments", "edit"),
   };
 }
 

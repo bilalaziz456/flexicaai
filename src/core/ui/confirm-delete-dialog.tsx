@@ -35,6 +35,7 @@ export function ConfirmDeleteDialog({
   description,
   warning,
   confirmLabel = "Delete",
+  reasonField,
   onConfirm,
 }: {
   triggerLabel: string;
@@ -52,11 +53,15 @@ export function ConfirmDeleteDialog({
    */
   warning?: React.ReactNode;
   confirmLabel?: string;
+  /** Adds an optional free-text "why" above the password — passed to `onConfirm`
+   *  and kept on the record (a deleted invoice shows it on the register). */
+  reasonField?: { label: string; placeholder?: string };
   /** Re-verifies the password server-side, then deletes. Return an error to keep the dialog open. */
-  onConfirm: (password: string) => Promise<{ error?: string } | void>;
+  onConfirm: (password: string, reason: string) => Promise<{ error?: string } | void>;
 }) {
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
+  const [reason, setReason] = useState("");
   const [show, setShow] = useState(false);
   const [readonly, setReadonly] = useState(true); // blocks autofill-on-open
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +69,7 @@ export function ConfirmDeleteDialog({
 
   function reset() {
     setPassword("");
+    setReason("");
     setShow(false);
     setReadonly(true);
     setError(null);
@@ -82,7 +88,7 @@ export function ConfirmDeleteDialog({
     setPending(true);
     setError(null);
     try {
-      const result = await onConfirm(password);
+      const result = await onConfirm(password, reason);
       if (result?.error) {
         setError(result.error);
         setPending(false);
@@ -146,6 +152,22 @@ export function ConfirmDeleteDialog({
         ) : null}
 
         <form id={FORM_ID} onSubmit={submit} autoComplete="off" className="space-y-2">
+              {reasonField ? (
+                <div className="mb-3 space-y-2">
+                  <Label htmlFor="reauth-reason" className="text-sm">
+                    {reasonField.label}
+                  </Label>
+                  <Input
+                    id="reauth-reason"
+                    value={reason}
+                    maxLength={300}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder={reasonField.placeholder}
+                    autoComplete="off"
+                    className="h-9"
+                  />
+                </div>
+              ) : null}
               <Label htmlFor="reauth-password" className="text-sm">
                 Enter your password to confirm
               </Label>
