@@ -13,6 +13,8 @@ const isMoneyOut = (kind: string) => kind === "refund";
 type Row = {
   id: string;
   receiptLabel: string | null;
+  invoiceLabel: string | null;
+  invoiceVoided: boolean;
   occurredAt: Date;
   patientId: string;
   patientName: string;
@@ -36,6 +38,25 @@ export function PaymentsTable({ rows, empty }: { rows: Row[]; empty: string }) {
   const methods = useVocabulary("payment_methods");
   const columns: Column<Row>[] = [
     { id: "receipt", header: "Payment #", sortValue: (r) => r.receiptLabel ?? "", cell: (r) => <span className="font-medium tabular-nums">{r.receiptLabel ?? "—"}</span> },
+    {
+      id: "invoice",
+      header: "Invoice #",
+      sortValue: (r) => r.invoiceLabel ?? "",
+      // Every payment is shown against its visit's invoice. Opens the visit, where the
+      // invoice, its payments and what is still owed sit together.
+      cell: (r) =>
+        r.invoiceLabel && r.appointmentId ? (
+          <Link
+            href={`/clinic/appointments/${r.appointmentId}`}
+            className={`whitespace-nowrap tabular-nums underline underline-offset-4 ${r.invoiceVoided ? "text-muted-foreground line-through" : ""}`}
+            title={r.invoiceVoided ? "Void — the visit was cancelled or became a no-show" : undefined}
+          >
+            {r.invoiceLabel}
+          </Link>
+        ) : (
+          <span className="text-muted-foreground" title={r.appointmentId ? "No invoice yet" : "Advance — not yet against a visit"}>—</span>
+        ),
+    },
     { id: "date", header: "Date", cardTitle: true, sortValue: (r) => r.occurredAt.getTime(), cell: (r) => <span className="whitespace-nowrap">{dayFmt(r.occurredAt)}</span> },
     {
       id: "patient",
@@ -96,5 +117,5 @@ export function PaymentsTable({ rows, empty }: { rows: Row[]; empty: string }) {
         ),
     },
   ];
-  return <DataTable rows={rows} columns={columns} getRowKey={(r) => r.id} minWidthClassName="min-w-[52rem]" emptyIcon={HandCoins} empty={empty} />;
+  return <DataTable rows={rows} columns={columns} getRowKey={(r) => r.id} minWidthClassName="min-w-[60rem]" emptyIcon={HandCoins} empty={empty} />;
 }

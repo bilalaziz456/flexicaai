@@ -1,6 +1,6 @@
 import "server-only";
 
-import { ilike, or, sql, type SQL } from "drizzle-orm";
+import { eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { patients } from "@/core/db/schema";
 import { phoneSearchTerm } from "@/core/lib/phone";
 
@@ -56,7 +56,15 @@ export function patientPhoneMatchSql(term: string): SQL {
  * single-timezone assumption showing through, and it stays correct exactly as long as
  * that assumption does.
  */
-export function patientSearchSql(q: string | undefined, mrnPrefix: string): SQL | undefined {
+export function patientSearchSql(
+  q: string | undefined,
+  mrnPrefix: string,
+  /** False on a DOCUMENT screen when the term is a document number: there "0000023"
+   *  means invoice / payment 23, not also every invoice of the patient with MRN 23
+   *  (owner's report, 2026-10-12). The MRN in its full printed form is not a bare
+   *  number, so it still finds the patient. */
+  opts: { mrn?: boolean } = {},
+): SQL | undefined {
   const term = q?.trim();
   if (!term) return undefined;
   const like = `%${term}%`;
@@ -69,6 +77,13 @@ export function patientSearchSql(q: string | undefined, mrnPrefix: string): SQL 
     // often still quotes this, and it is the one identifier a patient may have
     // written down from before FlexicaAI existed.
     ilike(patients.externalRef, like),
-    sql`(${mrnPrefix} || to_char(${patients.createdAt} AT TIME ZONE ${tz}, 'YYYYMMDD') || lpad(${patients.mrn}::text, 7, '0')) ilike ${like}`,
+    // A bare short number ("0000002", "2") is the MRN's NUMBER, matched exactly: as a
+    // substring of the 7-digit tail it also found MRN 20–29, 120… — a page of patients
+    // for one number. Longer runs (a date, a full MRN) and prefixed forms stay partial.
+    opts.mrn === false
+      ? undefined
+      : /^\d{1,7}$/.test(term)
+      ? eq(patients.mrn, Number(term))
+      : sql`(${mrnPrefix} || to_char(${patients.createdAt} AT TIME ZONE ${tz}, 'YYYYMMDD') || lpad(${patients.mrn}::text, 7, '0')) ilike ${like}`,
   );
 }

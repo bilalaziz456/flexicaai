@@ -15,6 +15,7 @@ import { appointments, clinics, invoices, patients, users } from "@/core/db/sche
 import { autoIssueInvoice, getInvoiceForAppointment } from "@/core/billing/invoice";
 import { applyAppointmentStatus } from "@/core/appointments/set-status";
 import { addDoctorLeave } from "@/core/appointments/leave";
+import { recordPayment } from "@/core/billing/payments";
 
 let pass = 0;
 let fail = 0;
@@ -102,6 +103,18 @@ async function main() {
       await addDoctorLeave(c.clinicId, c.doctorId, { startDate: ymd(day(5)), endDate: ymd(day(5)), reason: null });
       ok("leave cancels the visit and voids its invoice", (await getInvoiceForAppointment(c.clinicId, l))?.voided === true);
 
+      console.log("\nTaking a payment:");
+      const payActor = { id: c.doctorId, name: "Test" };
+      const p1 = await book("staff", day(6));
+      ok("a visit booked without a number has none", (await getInvoiceForAppointment(c.clinicId, p1)) === null);
+      await recordPayment(c.clinicId, { patientId: c.patientId, appointmentId: p1, amount: 500, method: "cash", reference: null, note: null, actor: payActor });
+      const invP = await getInvoiceForAppointment(c.clinicId, p1);
+      ok("a payment gives it its invoice number", Boolean(invP) && !invP!.voided);
+      const p2 = await book("staff", day(7));
+      await applyAppointmentStatus(c.clinicId, p2, "cancelled");
+      await recordPayment(c.clinicId, { patientId: c.patientId, appointmentId: p2, amount: 300, method: "cash", reference: null, note: null, actor: payActor });
+      ok("a late payment on a cancelled visit gets a VOID invoice", (await getInvoiceForAppointment(c.clinicId, p2))?.voided === true);
+
       console.log("\nA clinic without billing:");
       const n = await seedClinic([]);
       created.push(n.clinicId);
@@ -113,7 +126,7 @@ async function main() {
       ok("gets no invoice number", (await getInvoiceForAppointment(n.clinicId, na.id)) === null);
     } finally {
       for (const id of created) {
-        for (const t of ["notifications", "activity_logs", "whatsapp_messages", "invoices", "sales", "sale_shares", "discount_settlements", "doctor_leaves"]) {
+        for (const t of ["notifications", "activity_logs", "whatsapp_messages", "patient_payments", "invoices", "sales", "sale_shares", "discount_settlements", "doctor_leaves"]) {
           await db.execute(sql`delete from ${sql.identifier(t)} where clinic_id = ${id}::uuid`);
         }
         await db.delete(appointments).where(eq(appointments.clinicId, id));

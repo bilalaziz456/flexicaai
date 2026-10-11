@@ -1,5 +1,6 @@
 import "server-only";
 
+import { autoIssueInvoice } from "@/core/billing/invoice";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
@@ -268,6 +269,9 @@ export async function recordPayment(
   });
   // Re-recognise revenue/shares on the new collected amount (collected basis).
   await recordSaleForAppointment(clinicId, input.appointmentId);
+  // Every payment is held against an invoice number: a visit that has none yet (booked
+  // before automatic numbering) gets it now. Best-effort, idempotent.
+  await autoIssueInvoice(clinicId, input.appointmentId, input.actor);
   return { ok: true, paid: toBill, credited: excess };
 }
 
@@ -299,6 +303,7 @@ export async function applyAdvance(
     await recomputeCollected(tx, clinicId, input.appointmentId);
   });
   await recordSaleForAppointment(clinicId, input.appointmentId);
+  await autoIssueInvoice(clinicId, input.appointmentId, input.actor);
   return { ok: true, paid: applyAmt, credited: 0 };
 }
 

@@ -1,5 +1,6 @@
 "use server";
 
+import { parseDocNumber } from "@/core/billing/doc-number";
 import { and, desc, eq, ilike, isNotNull, or } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
@@ -44,19 +45,6 @@ export type SearchHit =
 /** Cap per type — this is a jump-to box, not a report. */
 const LIMIT = 6;
 
-/**
- * A document number in a term: "INV-2026-0000005", "2026-5", or bare digits.
- * Returns the year when the term carries one, so "0000005" still matches
- * invoice 5 in any year while a full paste pins the right one.
- */
-function parseDocNumber(q: string): { year: number | null; no: number } | null {
-  const paired = /(\d{4})\s*-\s*(\d{1,7})/.exec(q);
-  if (paired) return { year: Number(paired[1]), no: Number(paired[2]) };
-  const digits = q.replace(/\D/g, "");
-  // A bare number only — anything longer is an MRN or a phone, not a doc number.
-  if (digits && digits.length <= 7) return { year: null, no: Number(digits) };
-  return null;
-}
 
 export type SearchResult = {
   hits: SearchHit[];

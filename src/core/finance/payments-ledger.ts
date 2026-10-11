@@ -1,24 +1,25 @@
 import "server-only";
 
-import { and, desc, eq, gte, lt, or, sql, type SQL } from "drizzle-orm";
+import { parseDocNumber } from "@/core/billing/doc-number";
+import { and, desc, eq, gte, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { patientSearchSql } from "@/core/patients/search-sql";
-import { appointments, clinics, patientPayments, patients, users } from "@/core/db/schema";
+import { appointments, clinics, invoices, patientPayments, patients, users } from "@/core/db/schema";
 import { displayStaffName } from "@/core/types/auth";
-import { formatReceiptNo } from "@/core/billing/invoice";
+import { formatInvoiceNo, formatReceiptNo } from "@/core/billing/invoice";
 import { paymentKindId } from "@/core/db/vocabulary-seed";
 import { asPaymentKindCode, asPaymentMethodCode } from "@/core/db/vocabulary-seed";
 
-/** Clinic prefixes needed to reconstruct the searchable RCP receipt # + MRN #. */
-type SearchPrefixes = { receiptPrefix: string; mrnPrefix: string };
+/** Clinic prefixes needed to reconstruct the searchable RCP #, INV # and MRN #. */
+type SearchPrefixes = { receiptPrefix: string; invoicePrefix: string; mrnPrefix: string };
 async function getSearchPrefixes(clinicId: string): Promise<SearchPrefixes> {
   const [c] = await db
-    .select({ receiptPrefix: clinics.receiptPrefix, mrnPrefix: clinics.mrnPrefix })
+    .select({ receiptPrefix: clinics.receiptPrefix, invoicePrefix: clinics.invoicePrefix, mrnPrefix: clinics.mrnPrefix })
     .from(clinics)
     .where(eq(clinics.id, clinicId))
     .limit(1);
-  return { receiptPrefix: c?.receiptPrefix ?? "", mrnPrefix: c?.mrnPrefix ?? "" };
+  return { receiptPrefix: c?.receiptPrefix ?? "", invoicePrefix: c?.invoicePrefix ?? "", mrnPrefix: c?.mrnPrefix ?? "" };
 }
 
 /**
@@ -44,6 +45,10 @@ export type PaymentLedgerRow = {
   appointmentId: string | null;
   doctorName: string | null;
   receiptLabel: string | null; // the RCP # of the payment's visit (null for unallocated advances)
+  /** The INV # of the payment's visit — every payment is shown against its invoice.
+   *  Null for an unallocated advance, or a visit with no invoice yet. */
+  invoiceLabel: string | null;
+  invoiceVoided: boolean;
 };
 
 export type PaymentLedgerFilters = {
@@ -78,20 +83,38 @@ function conds(clinicId: string, f: PaymentLedgerFilters, px: SearchPrefixes, ex
   if (kind) parts.push(eq(patientPayments.kind, kind));
   if (f.doctorId) parts.push(eq(appointments.doctorId, f.doctorId));
   if (f.q) {
-    const like = `%${f.q}%`;
     parts.push(
       or(
         // Who the patient is — name, phone, the clinic's own ref, MRN — shared with
         // receivables and the invoice register, so one search cannot find a patient
         // on one screen and miss them on another (`core/patients/search-sql.ts`).
-        patientSearchSql(f.q, px.mrnPrefix),
-        // What this SCREEN owns: the RCP receipt number on the payment's appointment.
-        sql`(${px.receiptPrefix} || ${appointments.receiptYear}::text || '-' || lpad(${appointments.receiptNo}::text, 7, '0')) ilike ${like}`,
+        patientSearchSql(f.q, px.mrnPrefix, { mrn: !parseDocNumber(f.q) }),
+        // What this SCREEN owns: the RCP number on the payment's visit and the
+        // INVOICE number it is held against — both matched EXACTLY (`doc-number.ts`),
+        // so "0000002" finds number 2 and not 20–29, 120… A term naming one series
+        // ("RCP…" / "INV…") searches only that one.
+        ...docNumberConds(f.q, px),
       )!,
     );
   }
   if (extra) parts.push(extra);
   return byClinic(patientPayments.clinicId, clinicId, and(...parts));
+}
+
+function docNumberConds(q: string, px: SearchPrefixes): SQL[] {
+  const doc = parseDocNumber(q);
+  if (!doc) return [];
+  const upper = q.toUpperCase();
+  const namedInv = Boolean(px.invoicePrefix) && upper.includes(px.invoicePrefix.toUpperCase());
+  const namedRcp = Boolean(px.receiptPrefix) && upper.includes(px.receiptPrefix.toUpperCase());
+  const out: SQL[] = [];
+  if (!namedInv || namedRcp) {
+    out.push(and(eq(appointments.receiptNo, doc.no), doc.year ? eq(appointments.receiptYear, doc.year) : undefined)!);
+  }
+  if (!namedRcp || namedInv) {
+    out.push(and(eq(invoices.invoiceNo, doc.no), doc.year ? eq(invoices.invoiceYear, doc.year) : undefined)!);
+  }
+  return out;
 }
 
 export async function getPaymentsLedger(
@@ -119,6 +142,10 @@ export async function getPaymentsLedger(
         appointmentId: patientPayments.appointmentId,
         receiptNo: appointments.receiptNo,
         receiptYear: appointments.receiptYear,
+        invoiceNo: invoices.invoiceNo,
+        invoiceYear: invoices.invoiceYear,
+        invoiceIssuedAt: invoices.issuedAt,
+        invoiceVoidedAt: invoices.voidedAt,
         doctorPrefix: users.prefix,
         doctorFullName: users.fullName,
         doctorUsername: users.username,
@@ -126,6 +153,8 @@ export async function getPaymentsLedger(
       .from(patientPayments)
       .innerJoin(patients, eq(patients.id, patientPayments.patientId))
       .leftJoin(appointments, eq(appointments.id, patientPayments.appointmentId))
+      // The visit's LIVE invoice — at most one (partial unique), so no row doubles.
+      .leftJoin(invoices, and(eq(invoices.appointmentId, appointments.id), isNull(invoices.deletedAt)))
       .leftJoin(users, eq(users.id, appointments.doctorId))
       .where(where)
       .orderBy(desc(patientPayments.occurredAt))
@@ -136,6 +165,8 @@ export async function getPaymentsLedger(
       .from(patientPayments)
       .innerJoin(patients, eq(patients.id, patientPayments.patientId))
       .leftJoin(appointments, eq(appointments.id, patientPayments.appointmentId))
+      // The visit's LIVE invoice — at most one (partial unique), so no row doubles.
+      .leftJoin(invoices, and(eq(invoices.appointmentId, appointments.id), isNull(invoices.deletedAt)))
       .where(where),
     // Money in = payment + advance + advance_applied; out = refund. Net = in − out.
     db
@@ -146,6 +177,8 @@ export async function getPaymentsLedger(
       .from(patientPayments)
       .innerJoin(patients, eq(patients.id, patientPayments.patientId))
       .leftJoin(appointments, eq(appointments.id, patientPayments.appointmentId))
+      // The visit's LIVE invoice — at most one (partial unique), so no row doubles.
+      .leftJoin(invoices, and(eq(invoices.appointmentId, appointments.id), isNull(invoices.deletedAt)))
       .where(where),
   ]);
 
@@ -174,6 +207,7 @@ export async function getPaymentsLedger(
         r.receiptNo != null
           ? formatReceiptNo(px.receiptPrefix, r.receiptYear ?? r.occurredAt.getFullYear(), r.receiptNo)
           : null,
+      ...invoiceOf(r, px),
     })),
     total: Number(total),
     totals: { in: moneyIn, out: moneyOut, net: moneyIn - moneyOut },
@@ -214,6 +248,10 @@ export async function* iteratePaymentsLedger(
         appointmentId: patientPayments.appointmentId,
         receiptNo: appointments.receiptNo,
         receiptYear: appointments.receiptYear,
+        invoiceNo: invoices.invoiceNo,
+        invoiceYear: invoices.invoiceYear,
+        invoiceIssuedAt: invoices.issuedAt,
+        invoiceVoidedAt: invoices.voidedAt,
         doctorPrefix: users.prefix,
         doctorFullName: users.fullName,
         doctorUsername: users.username,
@@ -221,6 +259,8 @@ export async function* iteratePaymentsLedger(
       .from(patientPayments)
       .innerJoin(patients, eq(patients.id, patientPayments.patientId))
       .leftJoin(appointments, eq(appointments.id, patientPayments.appointmentId))
+      // The visit's LIVE invoice — at most one (partial unique), so no row doubles.
+      .leftJoin(invoices, and(eq(invoices.appointmentId, appointments.id), isNull(invoices.deletedAt)))
       .leftJoin(users, eq(users.id, appointments.doctorId))
       .where(conds(clinicId, filters, px, keyset))
       .orderBy(desc(patientPayments.occurredAt), desc(patientPayments.id))
@@ -256,12 +296,22 @@ export async function* iteratePaymentsLedger(
           r.receiptNo != null
             ? formatReceiptNo(px.receiptPrefix, r.receiptYear ?? r.occurredAt.getFullYear(), r.receiptNo)
             : null,
+        ...invoiceOf(r, px),
       };
     }
     if (batch.length < batchSize) break;
     const lastRow = batch[batch.length - 1];
     cursor = { ts: lastRow.cursorTs, id: lastRow.id };
   }
+}
+
+function invoiceOf(
+  r: { invoiceNo: number | null; invoiceYear: number | null; invoiceIssuedAt: Date | null; invoiceVoidedAt: Date | null },
+  px: SearchPrefixes,
+): { invoiceLabel: string | null; invoiceVoided: boolean } {
+  if (r.invoiceNo == null) return { invoiceLabel: null, invoiceVoided: false };
+  const year = r.invoiceYear ?? r.invoiceIssuedAt?.getFullYear() ?? new Date().getFullYear();
+  return { invoiceLabel: formatInvoiceNo(px.invoicePrefix, year, r.invoiceNo), invoiceVoided: r.invoiceVoidedAt !== null };
 }
 
 /** Is this ledger kind money-out (a refund)? Exposed so the UI signs the amount. */

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { parseDocNumber } from "@/core/billing/doc-number";
 import { and, desc, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import type { Executor } from "@/core/db/tx";
@@ -22,6 +23,15 @@ import { procedureTotals } from "@/core/appointments/procedures";
 
 /** Who issued it. `id` null = issued by the system (a WhatsApp booking confirmed). */
 type Actor = { id: string | null; name: string };
+
+/** Matches a typed invoice number exactly (see `parseDocNumber`); false if none. */
+function invoiceNumberSql(q: string) {
+  const doc = parseDocNumber(q);
+  if (!doc) return sql`false`;
+  return doc.year
+    ? and(eq(invoices.invoiceNo, doc.no), eq(invoices.invoiceYear, doc.year))!
+    : eq(invoices.invoiceNo, doc.no);
+}
 
 /** Printable invoice number — `<prefix><YYYY>-<7-digit>` (numbers reset per year). */
 export function formatInvoiceNo(
@@ -177,17 +187,16 @@ export async function getInvoicesList(
   if (filters.from) conds.push(gte(invoices.issuedAt, filters.from));
   if (filters.toExclusive) conds.push(lt(invoices.issuedAt, filters.toExclusive));
   if (filters.q) {
-    const like = `%${filters.q}%`;
     conds.push(
       or(
         // Who the patient is — name, phone, the clinic's own ref, MRN — shared with
         // receivables and the payments ledger, so one search behaves the same on all
         // three screens (`core/patients/search-sql.ts`).
-        patientSearchSql(filters.q, mrnPrefix),
-        // What this SCREEN owns: the invoice number. The full label (prefix + year +
-        // 7-digit) so "INV-2026-0000005", "2026-0000005" or a bare "5" all hit.
-        sql`(${prefix} || ${invoices.invoiceYear}::text || '-' || lpad(${invoices.invoiceNo}::text, 7, '0')) ilike ${like}`,
-        sql`${invoices.invoiceNo}::text ilike ${like}`,
+        patientSearchSql(filters.q, mrnPrefix, { mrn: !parseDocNumber(filters.q) }),
+        // What this SCREEN owns: the invoice number — matched EXACTLY
+        // (`doc-number.ts`): "INV-2026-0000005", "2026-5", "0000005" or "5" find
+        // invoice 5, not every number with a 5 in it.
+        invoiceNumberSql(filters.q),
       )!,
     );
   }
@@ -279,7 +288,7 @@ export async function issueInvoice(
   if (existing) return existing;
 
   const [appt] = await db
-    .select({ patientId: appointments.patientId })
+    .select({ patientId: appointments.patientId, status: appointments.status })
     .from(appointments)
     .where(
       byClinic(
@@ -291,6 +300,7 @@ export async function issueInvoice(
     )
     .limit(1);
   if (!appt) return { error: "Appointment not found." };
+  const gone = appt.status === "cancelled" || appt.status === "no_show";
 
   return db.transaction(async (tx) => {
     // Lock the clinic row so the number allocation serializes.
@@ -320,6 +330,9 @@ export async function issueInvoice(
         invoiceYear: currentYear,
         issuedBy: actor.id,
         issuedByName: actor.name,
+        // Issued for a visit that is already cancelled / a no-show (a late payment, or
+        // the manual button): born void, so it is accounted for but bills nothing.
+        ...(gone ? { voidedAt: new Date(), voidReason: appt.status === "no_show" ? "No-show" : "Cancelled" } : {}),
       })
       .returning({ id: invoices.id, issuedAt: invoices.issuedAt });
 
@@ -328,7 +341,7 @@ export async function issueInvoice(
       invoiceNo: allocated,
       label: formatInvoiceNo(c.prefix, currentYear, allocated),
       issuedAt: inv.issuedAt,
-      voided: false,
+      voided: gone,
     };
   });
 }

@@ -486,7 +486,13 @@ only; best-effort, the manual "Create invoice #" button remains. **`voided_at` /
 marked, out of the total billed, its number never reused — and bringing the visit back
 clears it, restoring the SAME number (`setInvoicesVoid`, on the status change's own
 transaction; leave cancellations too). The RCP receipt number is unchanged: still
-allocated at the first payment. Indexes: unique(`clinic_id`,`invoice_no`);
+allocated at the first payment. **Every payment is held against an invoice number:**
+taking a payment or applying an advance on a visit with no invoice issues one
+(`recordPayment` / `applyAdvance` → `autoIssueInvoice`; born void for a cancelled or
+no-show visit), and migration `0119` numbered the visits that had taken money before
+`0118`, continuing each clinic's sequence for the year and never reusing a number. The
+payments ledger, its CSV and the printed receipt show the invoice number, and the
+ledger searches by it. Indexes: unique(`clinic_id`,`invoice_no`);
 (`clinic_id`,`issued_at`); (`patient_id`).
 
 ### `appointment_discount_approvals` — discount sign-off (revenue-share, phase 3)

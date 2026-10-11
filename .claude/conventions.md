@@ -368,6 +368,13 @@ throw — use it in tests.
   drifted, so the same search found a patient on one screen and missed them on another.
   A screen's own DOCUMENT number (invoice #, RCP #) is ORed on by that screen; it is
   not folded into the shared predicate.
+- **A typed document number is matched EXACTLY, never as a substring**
+  (`core/billing/doc-number.ts#parseDocNumber`, shared by the top search, the invoice
+  register and the payments ledger). The label is zero-padded, so "0000002" as a
+  substring also hit 0000020–0000029, 0000120… — a page of invoices for one number. On a
+  document screen a bare number is the DOCUMENT, so the patient predicate is called with
+  `{ mrn: false }`: otherwise "0000023" also lists every invoice of the patient with MRN
+  23. Elsewhere a bare short number matches the MRN's number exactly, not as a substring.
 - **A phone is matched through `patientPhoneMatchSql`, never a bare `ilike(phone)`.**
   Phones are stored E.164 ("+923450186120") and the desk types the card ("0345…"), so a
   plain substring search found nobody. The helper places the typed digits where they

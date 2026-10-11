@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { getAppointmentForDocument } from "@/core/billing/invoice";
+import { getAppointmentForDocument, getInvoiceForAppointment } from "@/core/billing/invoice";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
 import { requireWorkspace } from "@/core/auth/user";
@@ -47,10 +47,11 @@ export default async function ReceiptPage({
   const mrnLabel = formatMrn(clinic?.mrnPrefix, row.patientMrn, row.patientCreatedAt);
   const logo = await getClinicLogoDataUri(clinic?.logoKey);
 
-  const [aBill, items, ledger] = await Promise.all([
+  const [aBill, items, ledger, invoice] = await Promise.all([
     getAppointmentBill(clinicId, id),
     getAppointmentProcedureItems(clinicId, id),
     listAppointmentPayments(clinicId, id),
+    getInvoiceForAppointment(clinicId, id),
   ]);
   // The receipt number (RCP series) + the per-payment breakdown so a partial-payment
   // receipt is self-explanatory under its one number.
@@ -126,6 +127,13 @@ export default async function ReceiptPage({
           </div>
           <div className="text-right text-[0.9em]">
             {rcpLabel ? <div className="font-semibold">{rcpLabel}</div> : null}
+            {/* The invoice these payments are held against. */}
+            {invoice ? (
+              <div>
+                Against invoice {invoice.label}
+                {invoice.voided ? " (void)" : ""}
+              </div>
+            ) : null}
             {row.queueNumber != null ? (
               <div className="opacity-70">Appointment #{row.queueNumber}</div>
             ) : null}
