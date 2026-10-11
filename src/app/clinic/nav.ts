@@ -51,6 +51,10 @@ export const CLINIC_NAV: PanelNav = {
     { href: "/clinic/appointments", label: "Appointments", Icon: CalendarClock, resource: "appointments" },
     { href: "/clinic/patients", label: "Patients", Icon: Contact, resource: "patients" },
     { href: "/clinic/scribe", label: "Voice scribe", Icon: Mic, resource: "clinical" },
+    // Top level, not under Finance: it now holds appointment and procedure reports
+    // as well as the money ones. Shown when the user can open at least one report
+    // (`reports/catalog.ts`, computed by the layout).
+    { href: "/clinic/reports", label: "Reports", Icon: FileSpreadsheet, gate: "reports" },
     {
       group: "Finance",
       Icon: Wallet,
@@ -67,8 +71,6 @@ export const CLINIC_NAV: PanelNav = {
         // the cash half of that ledger.
         { href: "/clinic/cash", label: "Petty cash", Icon: Banknote, resource: "cash", feature: "finance" },
         { href: "/clinic/pl", label: "Profit & Loss", Icon: Wallet, resource: "finance", feature: "finance" },
-        // The hub gates each card itself, so it needs no resource of its own.
-        { href: "/clinic/reports", label: "Reports", Icon: FileSpreadsheet, feature: "sales" },
         { href: "/clinic/history", label: "History", Icon: Archive, resource: "billing", feature: "sales" },
         // Shown to potential approvers — a doctor, or anyone holding the capability.
         { href: "/clinic/approvals", label: "Discount approvals", Icon: BadgeCheck, gate: "approvals" },

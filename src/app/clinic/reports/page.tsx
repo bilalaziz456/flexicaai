@@ -1,23 +1,9 @@
 import Link from "next/link";
-import {
-  ArrowRight,
-  CalendarDays,
-  ClipboardList,
-  Download,
-  FileSpreadsheet,
-  FileText,
-  HandCoins,
-  PieChart,
-  Receipt,
-  TicketPercent,
-  TrendingUp,
-  Wallet,
-} from "lucide-react";
+import { ArrowRight, FileSpreadsheet } from "lucide-react";
 import { getClinic } from "@/core/clinics/get-clinic";
-import { notFound } from "next/navigation";
 
 import { requireWorkspace } from "@/core/auth/user";
-import { can } from "@/core/auth/permissions";
+import { reportsFor } from "./catalog";
 import { clinicHasFeature } from "@/core/lib/features";
 import {
   Card,
@@ -27,13 +13,11 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { EmptyState } from "@/core/ui/empty-state";
-import { buttonVariants } from "@/core/ui/button";
-import { cn } from "@/core/lib/utils";
 
 /**
- * Reports hub (Finance) — a landing that gathers the finance reports the user can
- * access, with CSV export where available. Gated by the sales feature; each card is
- * shown only if the user holds the report's permission.
+ * Reports hub — a top-level landing for every report the user can open (the list and
+ * its rules live in `catalog.ts`, which the layout also reads to decide whether the
+ * Reports link shows). Each card checks its own permission and feature.
  */
 export default async function ReportsHubPage() {
   const user = await requireWorkspace();
@@ -41,28 +25,14 @@ export default async function ReportsHubPage() {
   const clinic = await getClinic(clinicId);
   const sales = clinicHasFeature(clinic?.featuresEnabled, "sales");
   const finance = clinicHasFeature(clinic?.featuresEnabled, "finance");
-  if (!sales) notFound();
 
-  const reports = [
-    { show: finance && can(user, "finance", "view"), title: "Overview", Icon: FileSpreadsheet, desc: "The clinic's day end to end. Sales, discounts, shares, cash, profit.", href: "/clinic/reports/overview" },
-    { show: can(user, "appointments", "view"), title: "Appointments", Icon: CalendarDays, desc: "Booked, completed, no-shows and cancellations, by doctor, day and hour.", href: "/clinic/reports/appointments", csvHref: "/api/reports/export?kind=appointments" },
-    { show: can(user, "appointments", "view"), title: "Procedures", Icon: ClipboardList, desc: "Which procedures were done, how often, for how many patients, and what they billed.", href: "/clinic/reports/procedures", csvHref: "/api/reports/export?kind=procedures" },
-    { show: can(user, "sales", "view"), title: "Sales", Icon: TrendingUp, desc: "Collected revenue from completed visits.", href: "/clinic/sales", csv: "sales" },
-    { show: can(user, "discounts", "view"), title: "Discounts", Icon: TicketPercent, desc: "Every discount, who bears it, approval state.", href: "/clinic/discounts", csv: "discounts" },
-    { show: can(user, "shares", "view"), title: "Revenue shares", Icon: PieChart, desc: "Per-doctor earnings, paid and outstanding.", href: "/clinic/shares", csv: "shares" },
-    { show: can(user, "receivables", "view"), title: "Receivables", Icon: HandCoins, desc: "What patients owe on completed visits.", href: "/clinic/receivables", csv: "receivables" },
-    { show: can(user, "billing", "view"), title: "Payments", Icon: HandCoins, desc: "Every payment, advance, and refund. Money in and out.", href: "/clinic/payments", csv: "payments" },
-    { show: can(user, "billing", "view"), title: "Invoices", Icon: FileText, desc: "The numbered invoice register. Look up & reprint.", href: "/clinic/invoices", csv: "invoices" },
-    { show: can(user, "billing", "view"), title: "Day book", Icon: Receipt, desc: "A day's cash in and out, by method.", href: "/clinic/reports/daybook", csv: "daybook" },
-    { show: finance && can(user, "expenses", "view"), title: "Expenses", Icon: Receipt, desc: "The clinic's costs.", href: "/clinic/expenses", csv: "expenses" },
-    { show: finance && can(user, "finance", "view"), title: "Profit & Loss", Icon: Wallet, desc: "Revenue − shares − expenses.", href: "/clinic/pl", csv: "pl" },
-  ].filter((r) => r.show);
+  const reports = reportsFor(user, { sales, finance });
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-[-0.02em]">Reports</h1>
-        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">Appointments, procedures and finance reports, with CSV export where available.</p>
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">Appointments, procedures and finance reports. Each one exports to CSV with the filters you choose inside it.</p>
       </div>
 
       {reports.length === 0 ? (
@@ -106,24 +76,6 @@ export default async function ReportsHubPage() {
                 </CardTitle>
                 <CardDescription>{r.desc}</CardDescription>
               </CardHeader>
-              {/* `mt-auto` pins the export to the bottom of every card, so the row of
-                  them lines up however long the description ran. Overview has no CSV
-                  and renders an empty footer rather than none, which is what keeps it
-                  the same height as the two cards beside it. */}
-              <CardContent className="mt-auto pt-0">
-                {r.csv || r.csvHref ? (
-                  <a
-                    href={r.csvHref ?? `/api/finance/export?type=${r.csv}`}
-                    className={cn(
-                      buttonVariants({ variant: "outline", size: "sm" }),
-                      "relative z-10",
-                    )}
-                  >
-                    <Download aria-hidden="true" />
-                    CSV
-                  </a>
-                ) : null}
-              </CardContent>
             </Card>
           ))}
         </div>

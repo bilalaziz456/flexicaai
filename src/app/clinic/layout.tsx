@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { reportsFor } from "@/app/clinic/reports/catalog";
 import { Megaphone, ShieldAlert, UserRound } from "lucide-react";
 import { PaymentNoticePill } from "@/core/ui/payment-notice-pill";
 import { requireWorkspace } from "@/core/auth/user";
@@ -180,7 +181,15 @@ export default async function ClinicLayout({
         sales: clinicHasFeature(clinic?.featuresEnabled, "sales"),
         finance: clinicHasFeature(clinic?.featuresEnabled, "finance"),
       }}
-      gates={{ logs: logsEnabled, approvals: approvalsEnabled }}
+      gates={{
+        logs: logsEnabled,
+        approvals: approvalsEnabled,
+        reports:
+          reportsFor(user, {
+            sales: clinicHasFeature(clinic?.featuresEnabled, "sales"),
+            finance: clinicHasFeature(clinic?.featuresEnabled, "finance"),
+          }).length > 0,
+      }}
       accessibleResources={navResources}
       // In-app tabs (owner's call: clinic workspace only). Keyed per user, so two
       // people sharing the front-desk computer keep their own.
