@@ -477,7 +477,16 @@ is allocated by locking the clinic row (`FOR UPDATE`) and bumping
 `clinics.next_invoice_no`, shown with `clinics.invoice_prefix`. The bill amount is
 NOT stored — derived from `computeBill` at render (thermal/A5/A4 print), the same
 formula the lists aggregate in SQL. See
-`core/billing/invoice.ts`. Indexes: unique(`clinic_id`,`invoice_no`);
+`core/billing/invoice.ts`. **Issued automatically** (migration `0118`, owner's call
+2026-10-12): at booking for a staff booking, and when the front desk CONFIRMS a
+WhatsApp request (`applyAppointmentStatus` → `autoIssueInvoice`) — never when the
+patient merely sends one, so declined requests use up no numbers. Sales-feature clinics
+only; best-effort, the manual "Create invoice #" button remains. **`voided_at` /
+`void_reason`**: a cancelled or no-show visit's invoice is VOID — kept in the register,
+marked, out of the total billed, its number never reused — and bringing the visit back
+clears it, restoring the SAME number (`setInvoicesVoid`, on the status change's own
+transaction; leave cancellations too). The RCP receipt number is unchanged: still
+allocated at the first payment. Indexes: unique(`clinic_id`,`invoice_no`);
 (`clinic_id`,`issued_at`); (`patient_id`).
 
 ### `appointment_discount_approvals` — discount sign-off (revenue-share, phase 3)

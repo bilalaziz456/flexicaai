@@ -16,12 +16,21 @@ type Row = {
   issuedByName: string | null;
   amount: number;
   appointmentId: string;
+  voided: boolean;
 };
 
 /** Invoice register table (client) — sortable columns + a mobile card view via DataTable. */
 export function InvoicesTable({ rows, empty }: { rows: Row[]; empty: string }) {
   const columns: Column<Row>[] = [
-    { id: "invoice", header: "Invoice", cardTitle: true, sortValue: (r) => r.label, cell: (r) => <span className="font-medium">{r.label}</span> },
+    { id: "invoice", header: "Invoice", cardTitle: true, sortValue: (r) => r.label, cell: (r) =>
+      r.voided ? (
+        // The visit was cancelled or became a no-show: the number stays, marked.
+        <span className="font-medium text-muted-foreground line-through" title="Void — the visit was cancelled or became a no-show">
+          {r.label} <span className="no-underline">· Void</span>
+        </span>
+      ) : (
+        <span className="font-medium">{r.label}</span>
+      ) },
     { id: "date", header: "Date", sortValue: (r) => r.issuedAt.getTime(), cell: (r) => <span className="whitespace-nowrap">{dayFmt(r.issuedAt)}</span> },
     {
       id: "patient",

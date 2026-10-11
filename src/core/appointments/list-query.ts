@@ -3,7 +3,7 @@ import "server-only";
 import { and, asc, count, eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, patients, users } from "@/core/db/schema";
+import { appointments, patientPayments, patients, users } from "@/core/db/schema";
 import {
   appointmentHasProcedureSql,
   appointmentHasProceduresSql,
@@ -14,7 +14,7 @@ import {
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
 import { patientPhoneMatchSql } from "@/core/patients/search-sql";
 import type { StatusFilter, VisitTypeFilter } from "./list-filters";
-import { appointmentStatusId } from "@/core/db/vocabulary-seed";
+import { appointmentStatusId, paymentKindId } from "@/core/db/vocabulary-seed";
 
 /**
  * The appointment list's filter SQL, in ONE place — the list page, the CSV
@@ -186,6 +186,9 @@ export async function listClinicAppointments(
         proceduresTotal: appointmentProceduresNetSql(),
         hasProcedures: appointmentHasProceduresSql(),
         procedureNames: appointmentProcedureNamesSql(),
+        // Σ refunds on this visit — `amount_collected` is already NET of them, so
+        // this is what tells "refunded" from "never paid" on the payment badge.
+        refunded: sql<number>`coalesce((select sum(${patientPayments.amount}) from ${patientPayments} where ${patientPayments.appointmentId} = ${appointments.id} and ${patientPayments.clinicId} = ${appointments.clinicId} and ${patientPayments.kind} = ${paymentKindId("refund")} and ${patientPayments.deletedAt} is null), 0)::int`,
       })
       .from(appointments)
       .innerJoin(patients, eq(appointments.patientId, patients.id))

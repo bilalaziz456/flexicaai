@@ -1,5 +1,6 @@
 import "server-only";
 
+import { autoIssueInvoice, setInvoicesVoid } from "@/core/billing/invoice";
 import { eq } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
@@ -80,7 +81,24 @@ export async function applyAppointmentStatus(
     } else if (prior.status === "completed") {
       await voidSaleForAppointment(clinicId, appointmentId, tx);
     }
+
+    // The invoice follows the visit: a cancelled or no-show visit's invoice is VOID
+    // (number kept), and bringing the visit back restores the same number.
+    const gone = (s: string) => s === "cancelled" || s === "no_show";
+    if (gone(status) && !gone(prior.status)) {
+      await setInvoicesVoid(tx, clinicId, [appointmentId], true, status === "no_show" ? "No-show" : "Cancelled");
+    } else if (gone(prior.status) && !gone(status)) {
+      await setInvoicesVoid(tx, clinicId, [appointmentId], false);
+    }
   });
+
+  // A visit going ahead gets its invoice number. This is where a WhatsApp request
+  // gets one — when the front desk confirms it, not when the patient sent it, so a
+  // declined request uses up no number. Staff bookings already have theirs from
+  // booking (idempotent). Best-effort, like everything below.
+  if (status === "confirmed" || status === "arrived" || status === "in_progress" || status === "completed") {
+    await autoIssueInvoice(clinicId, appointmentId, { id: null, name: "Automatic" });
+  }
 
   // ── Everything below is an EXTERNAL side effect, deliberately outside the
   // transaction: a WhatsApp send or an audit write must never roll back a clinical

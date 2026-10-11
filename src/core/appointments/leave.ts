@@ -1,5 +1,6 @@
 import "server-only";
 
+import { setInvoicesVoid } from "@/core/billing/invoice";
 import { and, eq, gte, inArray, lt } from "drizzle-orm";
 import { db } from "@/core/db";
 import { appointments, doctorLeaves, users } from "@/core/db/schema";
@@ -98,6 +99,9 @@ async function cancelInRange(
       ),
     )
     .returning({ id: appointments.id });
+  // Their invoices go void with them (numbers kept) — the same rule as a single
+  // cancellation (applyAppointmentStatus), on the same transaction.
+  await setInvoicesVoid(tx, clinicId, rows.map((r) => r.id), true, "Cancelled (doctor on leave)");
   return rows.map((r) => r.id);
 }
 

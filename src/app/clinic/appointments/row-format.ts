@@ -5,6 +5,11 @@ import {
   formatPkr,
 } from "@/core/appointments/fee";
 import { displayStaffName } from "@/core/types/auth";
+import {
+  paymentStatusBadge,
+  visitPaymentStatus,
+  type PaymentBadgeVariant,
+} from "@/core/billing/payment-status";
 
 /**
  * How one appointment row reads — shared by the list and its A4 print, so the
@@ -46,19 +51,31 @@ export function appointmentFeeLabel(
   return { net: formatPkr(net), discounted: discount > 0, full: formatPkr(gross) };
 }
 
-/** Payment status of a completed visit (bill vs collected). Null when billing is
- *  off or the visit isn't completed / has no bill. */
+/**
+ * The payment badge — six derived states (`core/billing/payment-status.ts`): Not paid,
+ * Advance paid, Partially paid, Paid, Refund due, Refunded. Shown on EVERY visit,
+ * not just completed ones: an advance taken before the visit is the case the old
+ * completed-only badge could not show. Null when billing is off or there is nothing to
+ * say (no bill, nothing taken).
+ */
 export function appointmentPayLabel(
   a: AppointmentRow,
   billingOn: boolean,
-): { label: string; variant: "outline" | "secondary" | "destructive" } | null {
-  if (!billingOn || a.status !== "completed") return null;
+): { label: string; variant: PaymentBadgeVariant } | null {
+  if (!billingOn) return null;
   const bill = billOf(a).net;
-  if (bill <= 0) return null;
-  const left = bill - a.amountCollected;
-  if (left <= 0) return { label: "Paid", variant: "outline" };
-  if (a.amountCollected > 0) return { label: `Partial · ${formatPkr(left)} left`, variant: "secondary" };
-  return { label: "Unpaid", variant: "destructive" };
+  const status = visitPaymentStatus({
+    bill,
+    collected: a.amountCollected,
+    refunded: Number(a.refunded ?? 0),
+    visitStatus: a.status,
+  });
+  if (!status) return null;
+  return paymentStatusBadge(status, {
+    outstanding: Math.max(0, bill - a.amountCollected),
+    visitStatus: a.status,
+    formatMoney: formatPkr,
+  });
 }
 
 /** What the visit is FOR: consultation (fee, no procedures) · procedure (procedures,

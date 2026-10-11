@@ -1,4 +1,5 @@
 import { listClinicDoctors } from "@/core/appointments/doctors";
+import { paymentStatusBadge, visitPaymentStatus } from "@/core/billing/payment-status";
 import { TabTitle } from "@/core/ui/app-tabs";
 import { getAppointmentDetail } from "@/core/appointments/list-query";
 import { getClinic } from "@/core/clinics/get-clinic";
@@ -155,6 +156,23 @@ export async function AppointmentDetail({
     minute: "2-digit",
   });
 
+  const payStatus =
+    billingOn && aBill
+      ? visitPaymentStatus({
+          bill: aBill.billTotal,
+          collected: aBill.collected,
+          refunded: (ledger ?? []).filter((e) => e.kind === "refund").reduce((n, e) => n + e.amount, 0),
+          visitStatus: appt.status,
+        })
+      : null;
+  const payBadge = payStatus
+    ? paymentStatusBadge(payStatus, {
+        outstanding: Math.max(0, aBill?.outstanding ?? 0),
+        visitStatus: appt.status,
+        formatMoney: formatPkr,
+      })
+    : null;
+
   return (
     <div className="space-y-6">
       <TabTitle title={`Appt · ${appt.patientName}`} />
@@ -180,15 +198,9 @@ export async function AppointmentDetail({
           ) : appt.discountValue > 0 && appt.discountStatus === "approved" ? (
             <Badge variant="outline">Discount approved</Badge>
           ) : null}
-          {billingOn && aBill && aBill.status === "completed" && aBill.billTotal > 0 ? (
-            aBill.paymentStatus === "paid" ? (
-              <Badge variant="outline">Paid</Badge>
-            ) : aBill.paymentStatus === "partial" ? (
-              <Badge variant="secondary">Partial · Rs {aBill.outstanding.toLocaleString("en-PK")} left</Badge>
-            ) : (
-              <Badge variant="destructive">Unpaid</Badge>
-            )
-          ) : null}
+          {/* Payment status — derived from the payment records, so it moves the
+              moment a payment, refund or cancelled payment is saved. */}
+          {payBadge ? <Badge variant={payBadge.variant}>{payBadge.label}</Badge> : null}
         </div>
         <p className="text-sm text-muted-foreground">{whenLabel}</p>
       </div>
@@ -314,7 +326,7 @@ export async function AppointmentDetail({
               canVoidRefundEntry={Boolean(currentUser && can(currentUser, "refund", "delete"))}
               canInvoice={Boolean(currentUser && can(currentUser, "billing", "create"))}
               canSendWhatsapp={Boolean(currentUser && can(currentUser, "whatsapp", "create"))}
-              invoiceLabel={invoice?.label ?? null}
+              invoiceLabel={invoice ? (invoice.voided ? `${invoice.label} (void)` : invoice.label) : null}
               invoiceHref={`/clinic/appointments/${appt.id}/invoice`}
               receiptHref={`/clinic/appointments/${appt.id}/receipt`}
             />

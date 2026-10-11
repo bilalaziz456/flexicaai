@@ -1,7 +1,10 @@
 import "server-only";
 
-import { and, desc, eq, gte, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/core/db";
+import type { Executor } from "@/core/db/tx";
+import { clinicHasFeature } from "@/core/lib/features";
+import { report } from "@/core/observability";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, clinics, invoices, patients, users } from "@/core/db/schema";
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
@@ -17,7 +20,8 @@ import { procedureTotals } from "@/core/appointments/procedures";
  * `computeBill` at render time (see core/billing/bill.ts).
  */
 
-type Actor = { id: string; name: string };
+/** Who issued it. `id` null = issued by the system (a WhatsApp booking confirmed). */
+type Actor = { id: string | null; name: string };
 
 /** Printable invoice number — `<prefix><YYYY>-<7-digit>` (numbers reset per year). */
 export function formatInvoiceNo(
@@ -36,6 +40,8 @@ export type IssuedInvoice = {
   invoiceNo: number;
   label: string; // e.g. "INV-2026-0000005"
   issuedAt: Date;
+  /** The visit was cancelled or became a no-show; the number is kept, marked void. */
+  voided: boolean;
 };
 
 /** The live invoice for an appointment, if one has been issued. */
@@ -49,6 +55,7 @@ export async function getInvoiceForAppointment(
       invoiceNo: invoices.invoiceNo,
       invoiceYear: invoices.invoiceYear,
       issuedAt: invoices.issuedAt,
+      voidedAt: invoices.voidedAt,
       prefix: clinics.invoicePrefix,
     })
     .from(invoices)
@@ -69,7 +76,59 @@ export async function getInvoiceForAppointment(
     invoiceNo: row.invoiceNo,
     label: formatInvoiceNo(row.prefix, year, row.invoiceNo),
     issuedAt: row.issuedAt,
+    voided: row.voidedAt !== null,
   };
+}
+
+/**
+ * Voids (or, with `voided` false, restores) the invoices of these appointments — the
+ * visit was cancelled or became a no-show, or was brought back. The number is never
+ * deleted or reused: a void invoice stays in the register, marked, so the sequence
+ * still accounts for it, and restoring brings back the SAME number. Takes the caller's
+ * transaction so the status change and its invoice move together (ADR-016).
+ */
+export async function setInvoicesVoid(
+  exec: Executor,
+  clinicId: string,
+  appointmentIds: string[],
+  voided: boolean,
+  reason?: string,
+): Promise<void> {
+  if (appointmentIds.length === 0) return;
+  await exec
+    .update(invoices)
+    .set(voided ? { voidedAt: new Date(), voidReason: reason ?? null } : { voidedAt: null, voidReason: null })
+    .where(
+      byClinic(
+        invoices.clinicId,
+        clinicId,
+        notDeleted(invoices.deletedAt),
+        inArray(invoices.appointmentId, appointmentIds),
+      ),
+    );
+}
+
+/**
+ * Gives a visit its invoice number automatically (owner's call, 2026-10-12): at
+ * booking for staff bookings, and when the front desk CONFIRMS a WhatsApp request —
+ * not when the patient sends it, so declined or spam requests use up no numbers.
+ * Only for clinics with billing (the `sales` feature), like the manual button.
+ * Idempotent, and best-effort: a numbering hiccup must never fail the booking or the
+ * confirmation, so a failure is reported and the "Create invoice #" button remains.
+ */
+export async function autoIssueInvoice(clinicId: string, appointmentId: string, actor: Actor): Promise<void> {
+  try {
+    const [c] = await db
+      .select({ features: clinics.featuresEnabled })
+      .from(clinics)
+      .where(eq(clinics.id, clinicId))
+      .limit(1);
+    if (!clinicHasFeature(c?.features, "sales")) return;
+    const res = await issueInvoice(clinicId, appointmentId, actor);
+    if ("error" in res) report(new Error(res.error), { op: "billing.invoice.autoIssue", clinicId, ids: { appointmentId } });
+  } catch (e) {
+    report(e, { op: "billing.invoice.autoIssue", clinicId, ids: { appointmentId } });
+  }
 }
 
 export type InvoiceListRow = {
@@ -83,6 +142,8 @@ export type InvoiceListRow = {
   patientPhone: string | null;
   appointmentId: string;
   amount: number; // derived bill (computeBill mirror), never stored
+  /** Cancelled / no-show visit: listed, marked void, and left out of the total. */
+  voided: boolean;
 };
 /** `rows` is ONE PAGE; `count` and `totalBilled` describe the whole filtered set. */
 export type InvoiceList = { rows: InvoiceListRow[]; count: number; totalBilled: number };
@@ -145,7 +206,8 @@ export async function getInvoicesList(
   const [summary] = await db
     .select({
       count: sql<number>`count(*)::int`,
-      totalBilled: sql<number>`coalesce(sum(${appointmentNetSql(pt)}), 0)::int`,
+      // A void invoice stays listed (marked) but bills nothing.
+      totalBilled: sql<number>`coalesce(sum(${appointmentNetSql(pt)}) filter (where ${isNull(invoices.voidedAt)}), 0)::int`,
     })
     .from(invoices)
     .innerJoin(appointments, eq(appointments.id, invoices.appointmentId))
@@ -171,6 +233,7 @@ export async function getInvoicesList(
       patientPhone: patients.phone,
       appointmentId: appointments.id,
       amount: appointmentNetSql(pt),
+      voidedAt: invoices.voidedAt,
     })
     .from(invoices)
     .innerJoin(appointments, eq(appointments.id, invoices.appointmentId))
@@ -193,6 +256,7 @@ export async function getInvoicesList(
     patientPhone: r.patientPhone,
     appointmentId: r.appointmentId,
     amount: Number(r.amount),
+    voided: r.voidedAt !== null,
   }));
   return {
     rows: list,
@@ -264,6 +328,7 @@ export async function issueInvoice(
       invoiceNo: allocated,
       label: formatInvoiceNo(c.prefix, currentYear, allocated),
       issuedAt: inv.issuedAt,
+      voided: false,
     };
   });
 }

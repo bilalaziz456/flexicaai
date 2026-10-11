@@ -535,6 +535,14 @@ export const invoices = pgTable(
     issuedBy: uuid("issued_by"),
     issuedByName: text("issued_by_name"),
     note: text("note"),
+    // VOID — the visit was cancelled or became a no-show. The number is KEPT and shown
+    // as void (never deleted, never reused), so the sequence still accounts for every
+    // number it handed out; bringing the visit back clears it and reuses the SAME
+    // number. Distinct from the soft-delete columns, which hide a row from the
+    // register — a void invoice stays in the register, marked. Set and cleared only by
+    // `core/billing/invoice.ts#setInvoicesVoid`.
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    voidReason: text("void_reason"),
     ...softDeleteColumns(),
   },
   (t) => [

@@ -1,5 +1,7 @@
 "use server";
 
+import { displayStaffName } from "@/core/types/auth";
+import { autoIssueInvoice } from "@/core/billing/invoice";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -319,6 +321,14 @@ export async function createAppointment(
   // Work out whether this discount needs anyone's approval (no-op unless a party
   // opted in) and set the appointment's discount status accordingly.
   await syncDiscountApprovals(clinicId, created.id);
+
+  // A staff booking gets its invoice number now (owner's call): the number exists
+  // from the start, for the slip and for search. WhatsApp requests get theirs when
+  // the front desk confirms them (applyAppointmentStatus). Best-effort.
+  await autoIssueInvoice(clinicId, created.id, {
+    id: user.id,
+    name: displayStaffName(user.prefix, user.fullName, user.username),
+  });
 
   // Confirm to the patient over WhatsApp (doctor, hours, fee, time).
   await notifyAppointmentBooked(clinicId, created.id);
