@@ -2,13 +2,13 @@
 
 import { clinicHasFeature } from "@/core/lib/features";
 import { parseDocNumber } from "@/core/billing/doc-number";
-import { and, desc, eq, ilike, isNotNull, or } from "drizzle-orm";
+import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, clinics, invoices, patients } from "@/core/db/schema";
+import { clinics, invoices, patients } from "@/core/db/schema";
 import { getCurrentUser } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
-import { formatInvoiceNo, formatReceiptNo } from "@/core/billing/invoice";
+import { formatInvoiceNo } from "@/core/billing/invoice";
 import { formatMrn, mrnDigits, mrnMatchesSql } from "@/core/patients/mrn";
 import { patientPhoneMatchSql } from "@/core/patients/search-sql";
 
@@ -35,7 +35,9 @@ export type SearchHit =
       detail: string;
     }
   | {
-      kind: "invoice" | "receipt";
+      // Invoices only: the separate receipt is gone — the invoice is the patient's
+      // paper and carries every payment (owner's call, 2026-10-12).
+      kind: "invoice";
       /** The appointment the document belongs to; every panel can route to it. */
       appointmentId: string;
       /** Printable number, e.g. "INV-100005". */
@@ -75,34 +77,20 @@ export async function globalSearch(query: string): Promise<SearchResult> {
     .select({
       mrnPrefix: clinics.mrnPrefix,
       invoicePrefix: clinics.invoicePrefix,
-      receiptPrefix: clinics.receiptPrefix,
       featuresEnabled: clinics.featuresEnabled,
     })
     .from(clinics)
     .where(eq(clinics.id, clinicId))
     .limit(1);
 
-  const doc = parseDocNumber(q);
-  const upper = q.toUpperCase();
-  // A term carrying one prefix shouldn't dredge up the other series.
-  const invPrefix = (clinic?.invoicePrefix ?? "").toUpperCase();
-  const rcpPrefix = (clinic?.receiptPrefix ?? "").toUpperCase();
-  const namedInvoice = Boolean(invPrefix) && upper.includes(invPrefix);
-  const namedReceipt = Boolean(rcpPrefix) && upper.includes(rcpPrefix);
-  const wantInvoice = !namedReceipt || namedInvoice;
-  const wantReceipt = !namedInvoice || namedReceipt;
+  const doc = parseDocNumber(q, clinic?.invoicePrefix);
 
   const canPatients = can(user, "patients", "view");
   const canBilling = can(user, "billing", "view");
 
-  const [patientRows, invoiceRows, receiptRows] = await Promise.all([
+  const [patientRows, invoiceRows] = await Promise.all([
     canPatients ? searchPatients(clinicId, q) : Promise.resolve([]),
-    canBilling && doc && wantInvoice
-      ? searchInvoices(clinicId, doc)
-      : Promise.resolve([]),
-    canBilling && doc && wantReceipt
-      ? searchReceipts(clinicId, doc)
-      : Promise.resolve([]),
+    canBilling && doc ? searchInvoices(clinicId, doc) : Promise.resolve([]),
   ]);
 
   const hits: SearchHit[] = [];
@@ -115,23 +103,11 @@ export async function globalSearch(query: string): Promise<SearchResult> {
       detail: [p.phone, mrn].filter(Boolean).join(" · "),
     });
   }
-  // `invoice_year` / `receipt_year` were added after the numbers themselves
-  // (migrations 0072/0073), so fall back to the document's own date the way the
-  // invoice and receipt pages already do.
   for (const r of invoiceRows) {
     hits.push({
       kind: "invoice",
       appointmentId: r.appointmentId,
       label: formatInvoiceNo(clinic?.invoicePrefix, r.no),
-      detail: r.patientName,
-    });
-  }
-  for (const r of receiptRows) {
-    if (r.no == null) continue;
-    hits.push({
-      kind: "receipt",
-      appointmentId: r.appointmentId,
-      label: formatReceiptNo(clinic?.receiptPrefix, r.no),
       detail: r.patientName,
     });
   }
@@ -199,30 +175,3 @@ function searchInvoices(clinicId: string, doc: { year: number | null; no: number
     .limit(LIMIT);
 }
 
-/** Receipt numbers live on the appointment, not in a table of their own. */
-function searchReceipts(clinicId: string, doc: { year: number | null; no: number }) {
-  return db
-    .select({
-      appointmentId: appointments.id,
-      no: appointments.receiptNo,
-      year: appointments.receiptYear,
-      scheduledAt: appointments.scheduledAt,
-      patientName: patients.fullName,
-    })
-    .from(appointments)
-    .innerJoin(patients, eq(appointments.patientId, patients.id))
-    .where(
-      byClinic(
-        appointments.clinicId,
-        clinicId,
-        notDeleted(appointments.deletedAt),
-        and(
-          isNotNull(appointments.receiptNo),
-          eq(appointments.receiptNo, doc.no),
-          doc.year ? eq(appointments.receiptYear, doc.year) : undefined,
-        ),
-      ),
-    )
-    .orderBy(desc(appointments.scheduledAt))
-    .limit(LIMIT);
-}

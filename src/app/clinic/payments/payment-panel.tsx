@@ -67,7 +67,6 @@ export function PaymentPanel({
   canSendWhatsapp,
   invoiceLabel,
   invoiceHref,
-  receiptHref,
 }: {
   appointmentId: string;
   billTotal: number;
@@ -85,8 +84,6 @@ export function PaymentPanel({
   invoiceLabel: string | null;
   /** Reserved for the printable invoice link (next step). */
   invoiceHref?: string;
-  /** Printable payment receipt link (shown once money has been collected). */
-  receiptHref?: string;
 }) {
   // Labels come from the database (ADR-027); read once, since a hook cannot run
   // inside a cell or map callback.
@@ -240,7 +237,7 @@ export function PaymentPanel({
           <input type="text" name="note" aria-label="Note for this payment" placeholder="Note (optional)" className={inputCls} />
           <div className="flex flex-wrap items-center gap-2">
             <Button type="submit" size="sm" variant="outline" disabled={pending}>
-              {pending ? "Saving…" : "Collect payment"}
+              {pending ? "Saving…" : "Save payment"}
             </Button>
             {invoiceHref ? (
               <Button
@@ -250,7 +247,7 @@ export function PaymentPanel({
                 size="sm"
                 disabled={pending}
               >
-                <Printer className="size-3.5" aria-hidden="true" /> Collect &amp; print bill
+                <Printer className="size-3.5" aria-hidden="true" /> Save &amp; print invoice
               </Button>
             ) : null}
             {credit > 0 ? (
@@ -324,7 +321,7 @@ export function PaymentPanel({
         )
       ) : null}
 
-      {/* Invoice / receipt: create a number + print (thermal/A5/A4), all as
+      {/* Invoice: create a number + print (thermal/A5/A4), all as
           consistent buttons so it's clear each is a clickable action. */}
       <div className="space-y-1.5">
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -342,15 +339,7 @@ export function PaymentPanel({
               href={invoiceHref}
               className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
             >
-              <Printer className="size-3.5" aria-hidden="true" /> Print bill
-            </Link>
-          ) : null}
-          {receiptHref && collected > 0 ? (
-            <Link
-              href={receiptHref}
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-            >
-              <Printer className="size-3.5" aria-hidden="true" /> Print receipt
+              <Printer className="size-3.5" aria-hidden="true" /> Print invoice
             </Link>
           ) : null}
           {canSendWhatsapp && billTotal > 0 ? (
@@ -366,10 +355,11 @@ export function PaymentPanel({
           ) : null}
         </div>
         {invoiceHref ? (
+          // ONE paper for the patient (owner's call, 2026-10-12): the invoice shows the
+          // bill, every payment and refund, and what is still due — there is no
+          // separate receipt to choose between.
           <p className="text-xs text-muted-foreground">
-            <span className="font-medium">Bill</span> = what the patient owes ·{" "}
-            <span className="font-medium">Receipt</span> = proof of payment
-            {collected > 0 ? "" : " (available once money is collected)"}.
+            The invoice is what the patient takes: it shows the bill, every payment and the balance due.
           </p>
         ) : null}
       </div>

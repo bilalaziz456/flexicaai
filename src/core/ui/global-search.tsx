@@ -26,7 +26,7 @@ type Row = { key: string; label: string; detail: string; badge: string; actions:
 
 /**
  * Top-bar search across the clinic: patients (name / phone / MRN), document
- * numbers (invoice + receipt), and the navigation itself.
+ * invoice numbers, and the navigation itself.
  *
  * Navigation matching is local — the caller passes the same list the sidebar has
  * already filtered by permission, so "where is Trash?" costs no query and can
@@ -37,7 +37,7 @@ export function GlobalSearch({
   navItems,
   patientBase,
   appointmentBase,
-  /** Only the clinic workspace has invoice/receipt pages; elsewhere the
+  /** Only the clinic workspace has invoice pages; elsewhere the
    *  appointment is the closest reachable thing. */
   documentPages = false,
   newPatientHref,
@@ -183,20 +183,17 @@ export function GlobalSearch({
       return { key: `patient-${h.id}`, label: h.label, detail: h.detail, badge: "Patient", actions };
     }
     // With invoice pages, an invoice opens its print screen (View) or its own page
-    // (Edit), and a payment its receipt — all under Invoices.
+    // (Edit), both under Invoices.
     if (invoiceBase) {
-      const actions: RowAction[] =
-        h.kind === "invoice"
-          ? [{ label: "View", href: `${invoiceBase}/${h.appointmentId}/print` }]
-          : [{ label: "View payment", href: `${invoiceBase}/${h.appointmentId}/receipt` }];
-      if (h.kind === "invoice" && result.canEditInvoice) {
+      const actions: RowAction[] = [{ label: "View", href: `${invoiceBase}/${h.appointmentId}/print` }];
+      if (result.canEditInvoice) {
         actions.push({ label: "Edit invoice", href: `${invoiceBase}/${h.appointmentId}` });
       }
       return {
         key: `${h.kind}-${h.appointmentId}-${h.label}`,
         label: h.label,
         detail: h.detail,
-        badge: h.kind === "invoice" ? "Invoice" : "Payment",
+        badge: "Invoice",
         actions,
       };
     }
@@ -207,8 +204,8 @@ export function GlobalSearch({
       key: `${h.kind}-${h.appointmentId}-${h.label}`,
       label: h.label,
       detail: h.detail,
-      badge: h.kind === "invoice" ? "Invoice" : "Payment",
-      actions: [{ label: h.kind === "invoice" ? "View invoice" : "View payment", href }],
+      badge: "Invoice",
+      actions: [{ label: "View invoice", href }],
     };
   });
 

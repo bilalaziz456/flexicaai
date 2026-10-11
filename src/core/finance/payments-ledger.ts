@@ -7,19 +7,19 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { patientSearchSql } from "@/core/patients/search-sql";
 import { appointments, clinics, invoices, patientPayments, patients, users } from "@/core/db/schema";
 import { displayStaffName } from "@/core/types/auth";
-import { formatInvoiceNo, formatReceiptNo } from "@/core/billing/invoice";
+import { formatInvoiceNo } from "@/core/billing/invoice";
 import { paymentKindId } from "@/core/db/vocabulary-seed";
 import { asPaymentKindCode, asPaymentMethodCode } from "@/core/db/vocabulary-seed";
 
-/** Clinic prefixes needed to reconstruct the searchable RCP #, INV # and MRN #. */
-type SearchPrefixes = { receiptPrefix: string; invoicePrefix: string; mrnPrefix: string };
+/** Clinic prefixes needed to reconstruct the searchable INV # and MRN #. */
+type SearchPrefixes = { invoicePrefix: string; mrnPrefix: string };
 async function getSearchPrefixes(clinicId: string): Promise<SearchPrefixes> {
   const [c] = await db
-    .select({ receiptPrefix: clinics.receiptPrefix, invoicePrefix: clinics.invoicePrefix, mrnPrefix: clinics.mrnPrefix })
+    .select({ invoicePrefix: clinics.invoicePrefix, mrnPrefix: clinics.mrnPrefix })
     .from(clinics)
     .where(eq(clinics.id, clinicId))
     .limit(1);
-  return { receiptPrefix: c?.receiptPrefix ?? "", invoicePrefix: c?.invoicePrefix ?? "", mrnPrefix: c?.mrnPrefix ?? "" };
+  return { invoicePrefix: c?.invoicePrefix ?? "", mrnPrefix: c?.mrnPrefix ?? "" };
 }
 
 /**
@@ -44,7 +44,6 @@ export type PaymentLedgerRow = {
   patientPhone: string | null;
   appointmentId: string | null;
   doctorName: string | null;
-  receiptLabel: string | null; // the RCP # of the payment's visit (null for unallocated advances)
   /** The INV # of the payment's visit — every payment is shown against its invoice.
    *  Null for an unallocated advance, or a visit with no invoice yet. */
   invoiceLabel: string | null;
@@ -89,11 +88,10 @@ function conds(clinicId: string, f: PaymentLedgerFilters, px: SearchPrefixes, ex
         // receivables and the invoice register, so one search cannot find a patient
         // on one screen and miss them on another (`core/patients/search-sql.ts`).
         patientSearchSql(f.q, px.mrnPrefix, { mrn: !parseDocNumber(f.q) }),
-        // What this SCREEN owns: the RCP number on the payment's visit and the
-        // INVOICE number it is held against — both matched EXACTLY (`doc-number.ts`),
-        // so "0000002" finds number 2 and not 20–29, 120… A term naming one series
-        // ("RCP…" / "INV…") searches only that one.
-        ...docNumberConds(f.q, px),
+        // What this SCREEN owns: the INVOICE number the payment is held against,
+        // matched EXACTLY (`doc-number.ts`). There is no separate receipt number any
+        // more — the invoice is the patient's paper (owner's call, 2026-10-12).
+        ...docNumberConds(f.q, px.invoicePrefix),
       )!,
     );
   }
@@ -101,27 +99,16 @@ function conds(clinicId: string, f: PaymentLedgerFilters, px: SearchPrefixes, ex
   return byClinic(patientPayments.clinicId, clinicId, and(...parts));
 }
 
-function docNumberConds(q: string, px: SearchPrefixes): SQL[] {
-  const doc = parseDocNumber(q);
-  if (!doc) return [];
-  const upper = q.toUpperCase();
-  const namedInv = Boolean(px.invoicePrefix) && upper.includes(px.invoicePrefix.toUpperCase());
-  const namedRcp = Boolean(px.receiptPrefix) && upper.includes(px.receiptPrefix.toUpperCase());
-  const out: SQL[] = [];
-  if (!namedInv || namedRcp) {
-    out.push(eq(appointments.receiptNo, doc.no));
-  }
-  if (!namedRcp || namedInv) {
-    out.push(eq(invoices.invoiceNo, doc.no));
-  }
-  return out;
+function docNumberConds(q: string, invoicePrefix: string): SQL[] {
+  const doc = parseDocNumber(q, invoicePrefix);
+  return doc ? [eq(invoices.invoiceNo, doc.no)] : [];
 }
 
 export async function getPaymentsLedger(
   clinicId: string,
   filters: PaymentLedgerFilters = {},
 ): Promise<PaymentLedger> {
-  // Always needed now (the RCP # is shown on every row), and reused for search.
+  // Always needed (the invoice # is shown on every row), and reused for search.
   const px = await getSearchPrefixes(clinicId);
   const where = conds(clinicId, filters, px);
 
@@ -140,8 +127,6 @@ export async function getPaymentsLedger(
         patientName: patients.fullName,
         patientPhone: patients.phone,
         appointmentId: patientPayments.appointmentId,
-        receiptNo: appointments.receiptNo,
-        receiptYear: appointments.receiptYear,
         invoiceNo: invoices.invoiceNo,
         invoiceYear: invoices.invoiceYear,
         invoiceIssuedAt: invoices.issuedAt,
@@ -203,10 +188,6 @@ export async function getPaymentsLedger(
         r.doctorFullName || r.doctorUsername
           ? displayStaffName(r.doctorPrefix, r.doctorFullName, r.doctorUsername ?? "")
           : null,
-      receiptLabel:
-        r.receiptNo != null
-          ? formatReceiptNo(px.receiptPrefix, r.receiptNo)
-          : null,
       ...invoiceOf(r, px),
     })),
     total: Number(total),
@@ -246,8 +227,6 @@ export async function* iteratePaymentsLedger(
         patientName: patients.fullName,
         patientPhone: patients.phone,
         appointmentId: patientPayments.appointmentId,
-        receiptNo: appointments.receiptNo,
-        receiptYear: appointments.receiptYear,
         invoiceNo: invoices.invoiceNo,
         invoiceYear: invoices.invoiceYear,
         invoiceIssuedAt: invoices.issuedAt,
@@ -291,10 +270,6 @@ export async function* iteratePaymentsLedger(
         doctorName:
           r.doctorFullName || r.doctorUsername
             ? displayStaffName(r.doctorPrefix, r.doctorFullName, r.doctorUsername ?? "")
-            : null,
-        receiptLabel:
-          r.receiptNo != null
-            ? formatReceiptNo(px.receiptPrefix, r.receiptNo)
             : null,
         ...invoiceOf(r, px),
       };

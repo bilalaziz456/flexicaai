@@ -28,8 +28,8 @@ import { procedureTotals } from "@/core/appointments/procedures";
 type Actor = { id: string | null; name: string };
 
 /** Matches a typed invoice number exactly (see `parseDocNumber`); false if none. */
-function invoiceNumberSql(q: string) {
-  const doc = parseDocNumber(q);
+function invoiceNumberSql(q: string, prefix: string) {
+  const doc = parseDocNumber(q, prefix);
   if (!doc) return sql`false`;
   return eq(invoices.invoiceNo, doc.no);
 }
@@ -236,7 +236,7 @@ export async function getInvoicesList(
         // What this SCREEN owns: the invoice number — matched EXACTLY
         // (`doc-number.ts`): "INV-100005" or "100005" find invoice 100005, not every
         // number with those digits in it.
-        invoiceNumberSql(filters.q),
+        invoiceNumberSql(filters.q, prefix),
       )!,
     );
   }

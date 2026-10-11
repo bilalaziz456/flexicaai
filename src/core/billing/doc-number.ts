@@ -15,7 +15,13 @@
  */
 export type DocNumber = { year: number | null; no: number };
 
-export function parseDocNumber(q: string): DocNumber | null {
+export function parseDocNumber(q: string, invoicePrefix?: string | null): DocNumber | null {
+  // A term carrying LETTERS that are not the invoice prefix ("RCP-100009", an old
+  // receipt) is not an invoice number — taking just its digits would open a different
+  // patient's invoice that happens to share them.
+  const letters = q.replace(/[^a-z]/gi, "").toUpperCase();
+  const prefixLetters = (invoicePrefix ?? "INV").replace(/[^a-z]/gi, "").toUpperCase();
+  if (letters && letters !== prefixLetters) return null;
   const digits = q.replace(/\D/g, "");
   if (digits && digits.length <= 7) return { year: null, no: Number(digits) };
   return null;

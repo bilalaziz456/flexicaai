@@ -1284,6 +1284,11 @@ these for churn-risk + usage/cost anomaly flags.
   owner's decision, safe only because there are no live clinics yet) — never repeat
   that once patients hold printed invoices: a document number is an identity, like an
   MRN (`0115`). Search reads the digits as the number (`core/billing/doc-number.ts`).
+  **The receipt is no longer a patient document** (owner's call, 2026-10-12): the
+  invoice is the one paper a patient gets, carrying every payment and refund. The RCP
+  number is still ALLOCATED and stored (`appointments.receipt_no`, nothing dropped, so
+  it can return) but is shown and searched nowhere; the receipt print routes redirect
+  to the invoice print.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

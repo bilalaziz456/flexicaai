@@ -31,11 +31,11 @@ async function main() {
   };
   // One running series per clinic (migration 0121): INV-100002, never reset by year.
   eqDoc("INV-100002", null, 100002);
-  eqDoc("RCP-100002", null, 100002);
   eqDoc("100002", null, 100002);
   eqDoc("2", null, 2);
   ok('"03450186120" (a phone) is not a document number', parseDocNumber("03450186120") === null);
   ok('"umer" is not a document number', parseDocNumber("umer") === null);
+  ok('"RCP-100009" (an old receipt) is not read as invoice 100009', parseDocNumber("RCP-100009", "INV-") === null);
 
   await unscoped("behaviour test — reads every clinic's own invoices", async () => {
     const res = await db.execute(sql`select clinic_id::text as clinic_id, invoice_no from invoices where deleted_at is null order by issued_at desc limit 5`);

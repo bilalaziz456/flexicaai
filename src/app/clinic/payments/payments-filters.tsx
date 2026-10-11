@@ -142,7 +142,7 @@ export function PaymentsFilters({
           id="pay-q"
           type="search"
           defaultValue={q}
-          placeholder="Name, phone, payment #, invoice # or MRN"
+          placeholder="Name, phone, invoice # or MRN"
           onChange={(e) => {
             setQV(e.target.value);
           }}

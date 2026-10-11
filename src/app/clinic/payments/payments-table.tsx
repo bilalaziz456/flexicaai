@@ -12,7 +12,6 @@ const isMoneyOut = (kind: string) => kind === "refund";
 
 type Row = {
   id: string;
-  receiptLabel: string | null;
   invoiceLabel: string | null;
   invoiceVoided: boolean;
   occurredAt: Date;
@@ -37,7 +36,6 @@ export function PaymentsTable({ rows, empty }: { rows: Row[]; empty: string }) {
   // inside a cell callback, so the rows are captured and `labelFrom` used below.
   const methods = useVocabulary("payment_methods");
   const columns: Column<Row>[] = [
-    { id: "receipt", header: "Payment #", sortValue: (r) => r.receiptLabel ?? "", cell: (r) => <span className="font-medium tabular-nums">{r.receiptLabel ?? "—"}</span> },
     {
       id: "invoice",
       header: "Invoice #",
@@ -101,13 +99,14 @@ export function PaymentsTable({ rows, empty }: { rows: Row[]; empty: string }) {
       ),
     },
     {
-      id: "receiptlink",
-      header: "Receipt",
+      id: "print",
+      header: "Print",
       align: "right",
+      // The patient's paper is the invoice (it lists every payment), so Print opens it.
       cell: (r) =>
-        r.appointmentId ? (
+        r.appointmentId && r.invoiceLabel ? (
           <Link
-            href={`/clinic/appointments/${r.appointmentId}/receipt`}
+            href={`/clinic/invoices/${r.appointmentId}/print`}
             className="inline-flex min-h-6 items-center gap-1 text-muted-foreground underline underline-offset-4 hover:text-foreground"
           >
             <Printer className="size-3.5" aria-hidden="true" /> Print

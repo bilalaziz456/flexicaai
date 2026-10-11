@@ -50,7 +50,7 @@ export type PanelSearch = {
    *  no booking action in this panel. */
   newAppointmentHref?: string;
   /** e.g. "/clinic/invoices" — an invoice hit gets View (`/<id>/print`) and Edit
-   *  (`/<id>`), and a payment hit opens `/<id>/receipt`. */
+   *  (`/<id>`). */
   invoiceBase?: string;
   /** e.g. "/clinic/invoices/new" — "Create invoice" on a patient hit. */
   newInvoiceHref?: string;

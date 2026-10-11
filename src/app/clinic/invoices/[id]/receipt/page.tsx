@@ -1,6 +1,8 @@
-import AppointmentReceiptPrint from "@/app/clinic/appointments/[id]/receipt/page";
+import { redirect } from "next/navigation";
 
-/** The receipt's print screen at an INVOICES address (see ../print/page.tsx). */
-export default async function InvoiceReceiptPage({ params }: { params: Promise<{ id: string }> }) {
-  return AppointmentReceiptPrint({ params, searchParams: Promise.resolve({ from: "invoice" }) });
+/** The receipt is gone — the invoice is the patient's paper (see the appointment
+ *  receipt route). An old link lands on the invoice's print screen. */
+export default async function InvoiceReceiptRedirect({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  redirect(`/clinic/invoices/${id}/print`);
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Printer, ReceiptText } from "lucide-react";
+import { Printer } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { getClinic } from "@/core/clinics/get-clinic";
@@ -110,14 +110,6 @@ export default async function InvoicePage({
             <Link href={`/clinic/invoices/${id}/print`} className={buttonVariants()}>
               <Printer aria-hidden="true" /> Print invoice
             </Link>
-            {ledger.length > 0 ? (
-              <Link
-                href={`/clinic/invoices/${id}/receipt`}
-                className={buttonVariants({ variant: "outline" })}
-              >
-                <ReceiptText aria-hidden="true" /> Print receipt
-              </Link>
-            ) : null}
             {canDelete ? (
               <DeleteInvoiceButton appointmentId={id} label={invoice.label} held={aBill.collected} />
             ) : null}
@@ -230,7 +222,6 @@ export default async function InvoicePage({
             canSendWhatsapp={can(user, "whatsapp", "create")}
             invoiceLabel={invoice.voided ? `${invoice.label} (void)` : invoice.label}
             invoiceHref={`/clinic/invoices/${id}/print`}
-            receiptHref={`/clinic/invoices/${id}/receipt`}
           />
         </CardContent>
       </Card>

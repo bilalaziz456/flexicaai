@@ -328,7 +328,6 @@ export async function AppointmentDetail({
               canSendWhatsapp={Boolean(currentUser && can(currentUser, "whatsapp", "create"))}
               invoiceLabel={invoice ? (invoice.voided ? `${invoice.label} (void)` : invoice.label) : null}
               invoiceHref={`/clinic/appointments/${appt.id}/invoice`}
-              receiptHref={`/clinic/appointments/${appt.id}/receipt`}
             />
           </CardContent>
         </Card>
