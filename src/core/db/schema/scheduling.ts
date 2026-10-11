@@ -145,6 +145,13 @@ export const appointments = pgTable(
       .notNull()
       .default("staff")
       .references(() => appointmentSources.id),
+    // WHO created it (a staff booking or a New invoice), snapshotted so the name
+    // survives the user being renamed or removed — no FK, like `deleted_by`. NULL on a
+    // patient's WhatsApp self-booking (`source = whatsapp` says who instead).
+    // Backfilled from the activity log for appointments made before it existed
+    // (migration 0122).
+    createdBy: uuid("created_by"),
+    createdByName: text("created_by_name"),
     // Set when the day-before WhatsApp reminder has been sent, so the reminder
     // cron never messages the same appointment twice. Null = not yet reminded.
     reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),

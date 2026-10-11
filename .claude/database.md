@@ -1289,6 +1289,15 @@ these for churn-risk + usage/cost anomaly flags.
   number is still ALLOCATED and stored (`appointments.receipt_no`, nothing dropped, so
   it can return) but is shown and searched nowhere; the receipt print routes redirect
   to the invoice print.
+- Migration **`0122`** adds `appointments.created_by` (uuid, no FK) +
+  `created_by_name` (snapshot) — WHO booked it, shown as "Created by" on the
+  appointments list (owner's ask, 2026-10-12). Written by the staff booking action
+  (and so by New invoice); NULL on a patient's WhatsApp self-booking, where
+  `source = whatsapp` says who instead. Existing staff bookings were backfilled from
+  the activity log's `create` row for that appointment (earliest wins); one with no such
+  row stays NULL and shows "—" rather than a guess. `listAppointmentCreators` reads the
+  filter's options from the bookings themselves, so a member who has left is still
+  findable by the name the rows carry.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

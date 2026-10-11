@@ -27,7 +27,7 @@ export async function GET(req: Request) {
   const { user, clinicId } = auth;
   const sp = Object.fromEntries(new URL(req.url).searchParams.entries());
 
-  const { q, status, type, doctor, procedure, start, endExclusive, fromStr, toStr } = parseListFilters(sp);
+  const { q, status, type, doctor, procedure, createdBy, start, endExclusive, fromStr, toStr } = parseListFilters(sp);
   const session = typeof sp.session === "string" ? sp.session : "";
 
   const clinicRow = await getClinic(clinicId);
@@ -52,6 +52,8 @@ export async function GET(req: Request) {
       // Tenant-safe unchecked: the EXISTS is correlated to this clinic's own
       // appointments, so another clinic's procedure id simply matches nothing.
       procedureId: procedure || undefined,
+      // Tenant-safe unchecked, like the procedure: the conditions pin this clinic.
+      createdBy: createdBy || undefined,
     });
 
   const typeLabel = (charge: boolean, hasProc: boolean): string => {
@@ -96,6 +98,7 @@ export async function GET(req: Request) {
           net,
           r.amountCollected ?? 0,
           pay,
+          r.source === "whatsapp" ? "WhatsApp" : (r.createdByName ?? ""),
         ];
       }
       if (batch.length < BATCH) break;
@@ -106,7 +109,7 @@ export async function GET(req: Request) {
 
   return streamCsvResponse({
     filename: session ? "appointments-queue" : `appointments-${fromStr}_to_${toStr}`,
-    headers: ["Date", "Token", "Patient", "Phone", "Doctor", "Status", "Type", "Procedures", "Reason", "Bill", "Collected", "Payment"],
+    headers: ["Date", "Token", "Patient", "Phone", "Doctor", "Status", "Type", "Procedures", "Reason", "Bill", "Collected", "Payment", "Created by"],
     rows: rows(),
   });
 }

@@ -78,6 +78,14 @@ export function appointmentPayLabel(
   });
 }
 
+/** "Created by": WhatsApp for a patient's self-booking, else the staff member who
+ *  booked it (a name snapshot), or null when nothing recorded it (bookings made before
+ *  the column, with no activity-log entry to recover it from). */
+export function appointmentCreatedByLabel(a: AppointmentRow): string | null {
+  if (a.source === "whatsapp") return "WhatsApp";
+  return a.createdByName ?? null;
+}
+
 /** What the visit is FOR: consultation (fee, no procedures) · procedure (procedures,
  *  consultation not charged) · both. Mirrors the `type` filter's SQL derivation. */
 export function appointmentTypeInfo(

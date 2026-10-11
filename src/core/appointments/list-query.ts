@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, isNotNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, patientPayments, patients, users } from "@/core/db/schema";
@@ -43,6 +43,9 @@ export type AppointmentFilterInput = {
   doctorId?: string;
   /** Narrow to visits carrying this catalog procedure. */
   procedureId?: string;
+  /** "whatsapp" = the patient booked it themselves; a user id = that staff member
+   *  booked it. Tenant-safe: the conditions already pin the clinic. */
+  createdBy?: string;
 };
 
 /**
@@ -67,6 +70,8 @@ export function buildAppointmentConds(f: AppointmentFilterInput): SQL[] {
   // queue key by hand still only sees their own patients.
   if (f.doctorId) conds.push(eq(appointments.doctorId, f.doctorId));
   if (f.procedureId) conds.push(appointmentHasProcedureSql(f.procedureId));
+  if (f.createdBy === "whatsapp") conds.push(eq(appointments.source, "whatsapp"));
+  else if (f.createdBy) conds.push(eq(appointments.createdBy, f.createdBy));
 
   // Visit type = consultation (fee, no procedures) · procedure (procedures, fee not
   // charged) · both (fee + procedures). Derived from charge_consultation + procedures.
@@ -186,6 +191,9 @@ export async function listClinicAppointments(
         proceduresTotal: appointmentProceduresNetSql(),
         hasProcedures: appointmentHasProceduresSql(),
         procedureNames: appointmentProcedureNamesSql(),
+        // "Created by": WhatsApp for a self-booking, else the staff member's name.
+        source: appointments.source,
+        createdByName: appointments.createdByName,
         // Σ refunds on this visit — `amount_collected` is already NET of them, so
         // this is what tells "refunded" from "never paid" on the payment badge.
         refunded: sql<number>`coalesce((select sum(${patientPayments.amount}) from ${patientPayments} where ${patientPayments.appointmentId} = ${appointments.id} and ${patientPayments.clinicId} = ${appointments.clinicId} and ${patientPayments.kind} = ${paymentKindId("refund")} and ${patientPayments.deletedAt} is null), 0)::int`,
@@ -253,6 +261,8 @@ export async function listAppointmentExportBatch(
       proceduresTotal: appointmentProceduresNetSql(),
       hasProcedures: appointmentHasProceduresSql(),
       procedureNames: appointmentProcedureNamesSql(),
+      source: appointments.source,
+      createdByName: appointments.createdByName,
     })
     .from(appointments)
     .innerJoin(patients, eq(appointments.patientId, patients.id))
@@ -260,4 +270,32 @@ export async function listAppointmentExportBatch(
     .where(byClinic(appointments.clinicId, clinicId, notDeleted(appointments.deletedAt), and(...all)))
     .orderBy(asc(appointments.scheduledAt), asc(appointments.id))
     .limit(batchSize);
+}
+
+/**
+ * Who has booked appointments in this clinic — the options for the list's "Created
+ * by" filter. Read from the bookings themselves (the name SNAPSHOT), so a member who
+ * has since left or been renamed is still findable by the name the rows carry.
+ */
+export async function listAppointmentCreators(
+  clinicId: string,
+): Promise<{ id: string; name: string }[]> {
+  const rows = await db
+    .selectDistinctOn([appointments.createdBy], {
+      id: appointments.createdBy,
+      name: appointments.createdByName,
+    })
+    .from(appointments)
+    .where(
+      byClinic(
+        appointments.clinicId,
+        clinicId,
+        notDeleted(appointments.deletedAt),
+        isNotNull(appointments.createdBy),
+      ),
+    )
+    .orderBy(appointments.createdBy, desc(appointments.createdAt));
+  return rows
+    .filter((r): r is { id: string; name: string } => Boolean(r.id && r.name))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }

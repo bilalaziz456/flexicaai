@@ -36,6 +36,7 @@ export function parseListFilters(sp: {
   type?: string;
   doctor?: string;
   procedure?: string;
+  createdBy?: string;
 }): {
   fromStr: string;
   toStr: string;
@@ -48,6 +49,9 @@ export function parseListFilters(sp: {
   doctor: string;
   /** The Procedure filter — a catalog procedure id ("" = any). */
   procedure: string;
+  /** The Created by filter — "whatsapp" (patient self-bookings) or a staff user id
+   *  ("" = anyone). */
+  createdBy: string;
   start: Date;
   endExclusive: Date;
 } {
@@ -64,8 +68,10 @@ export function parseListFilters(sp: {
     : "";
   const doctor = sp.doctor && UUID.test(sp.doctor) ? sp.doctor : "";
   const procedure = sp.procedure && UUID.test(sp.procedure) ? sp.procedure : "";
+  const createdBy =
+    sp.createdBy === "whatsapp" || (sp.createdBy && UUID.test(sp.createdBy)) ? sp.createdBy : "";
   const start = dateFromStr(fromStr);
   const endExclusive = dateFromStr(toStr);
   endExclusive.setDate(endExclusive.getDate() + 1);
-  return { fromStr, toStr, today, q, status, type, doctor, procedure, start, endExclusive };
+  return { fromStr, toStr, today, q, status, type, doctor, procedure, createdBy, start, endExclusive };
 }

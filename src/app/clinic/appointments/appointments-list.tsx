@@ -1,4 +1,5 @@
 import { listClinicAppointments } from "@/core/appointments/list-query";
+import { listAppointmentCreators } from "@/core/appointments/list-query";
 import { TableCard } from "@/core/ui/table-card";
 import Link from "next/link";
 import { ChevronRight, Download, CalendarSearch, Printer } from "lucide-react";
@@ -29,6 +30,7 @@ import {
   appointmentDoctorLabel,
   appointmentFeeLabel,
   appointmentPayLabel,
+  appointmentCreatedByLabel,
   appointmentTypeInfo,
   formatWhen,
   type AppointmentRow,
@@ -58,6 +60,8 @@ export type AppointmentsListSearchParams = {
   doctor?: string;
   /** Procedure filter (a catalog procedure id). */
   procedure?: string;
+  /** Created by filter: "whatsapp" or a staff user id. */
+  createdBy?: string;
   session?: string;
   /** "YYYY-MM" — which month the calendar shows. Independent of from/to so
    *  browsing months doesn't change which day the table lists. */
@@ -116,7 +120,7 @@ export async function AppointmentsList({
       ? "Appointment updated."
       : null;
 
-  const { fromStr, toStr, today, q, status, type, doctor, procedure, start, endExclusive } =
+  const { fromStr, toStr, today, q, status, type, doctor, procedure, createdBy, start, endExclusive } =
     parseListFilters(sp);
 
   // The Doctor filter. A viewer with a SCOPE (a doctor) never sees it: their scope
@@ -136,6 +140,16 @@ export async function AppointmentsList({
     .map((p) => ({ value: p.id, label: p.isActive ? p.name : `${p.name} (retired)` }));
   const pickedProcedure = catalog.find((p) => p.id === procedure);
   const procedureId = pickedProcedure?.id;
+
+  // The Created by filter: WhatsApp (self-bookings) or a staff member who has booked
+  // here. A staff id that has booked nothing in this clinic is dropped, like a doctor.
+  const creators = await listAppointmentCreators(clinicId);
+  const createdByOptions = [
+    { value: "whatsapp", label: "WhatsApp" },
+    ...creators.map((c) => ({ value: c.id, label: c.name })),
+  ];
+  const pickedCreator = createdByOptions.find((o) => o.value === createdBy);
+  const createdByFilter = pickedCreator?.value;
 
   const session = typeof sp.session === "string" ? sp.session : "";
 
@@ -173,6 +187,7 @@ export async function AppointmentsList({
   if (payment) exportParams.set("payment", payment);
   if (pickedDoctor) exportParams.set("doctor", pickedDoctor.id);
   if (procedureId) exportParams.set("procedure", procedureId);
+  if (createdByFilter) exportParams.set("createdBy", createdByFilter);
 
   // A queue session pins the doctor + day + window (ordered by token); the date
   // range applies only in the normal list. The other filters (search, status,
@@ -188,6 +203,7 @@ export async function AppointmentsList({
     payment,
     doctorId,
     procedureId,
+    createdBy: createdByFilter,
   });
 
   // The calendar sits above the table showing the month around the current
@@ -213,6 +229,7 @@ export async function AppointmentsList({
           payment,
           doctorId,
           procedureId,
+          createdBy: createdByFilter,
         }, doctorScope ? undefined : doctors),
   ]);
 
@@ -249,6 +266,7 @@ export async function AppointmentsList({
     if (payment) params.set("payment", payment);
     if (pickedDoctor) params.set("doctor", pickedDoctor.id);
     if (procedureId) params.set("procedure", procedureId);
+    if (createdByFilter) params.set("createdBy", createdByFilter);
     if (next.month) params.set("month", next.month);
     if (next.collapsed ?? calCollapsed) params.set("cal", "0");
     return `${listPath}?${params.toString()}`;
@@ -337,6 +355,8 @@ export async function AppointmentsList({
         doctorOptions={doctors.map((d) => ({ value: d.id, label: d.name }))}
         procedure={procedureId ?? ""}
         procedureOptions={procedureOptions}
+        createdBy={createdByFilter ?? ""}
+        createdByOptions={createdByOptions}
       />
 
       {/* The month at a glance, above the table it filters. Hover a day for the
@@ -408,6 +428,7 @@ export async function AppointmentsList({
                   <TableHead>Type</TableHead>
                   <TableHead>Fee</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Created by</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -463,6 +484,17 @@ export async function AppointmentsList({
                           return p ? <Badge variant={p.variant}>{p.label}</Badge> : null;
                         })()}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const c = appointmentCreatedByLabel(a);
+                        if (!c) return <span className="text-muted-foreground">—</span>;
+                        return a.source === "whatsapp" ? (
+                          <Badge variant="info">WhatsApp</Badge>
+                        ) : (
+                          <span className="text-sm">{c}</span>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -521,6 +553,7 @@ export async function AppointmentsList({
                 <div className="text-sm text-muted-foreground">
                   {fmt(a.scheduledAt)} · {doctorLabel(a)}
                   {a.reason ? ` · ${a.reason}` : ""}
+                  {appointmentCreatedByLabel(a) ? ` · by ${appointmentCreatedByLabel(a)}` : ""}
                 </div>
                 {(() => {
                   const f = feeLabel(a);

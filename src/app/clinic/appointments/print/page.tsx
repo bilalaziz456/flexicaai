@@ -1,4 +1,5 @@
 import { requireWorkspace } from "@/core/auth/user";
+import { listAppointmentCreators } from "@/core/appointments/list-query";
 import { PrintFileName } from "@/core/ui/print-file-name";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicHasFeature } from "@/core/lib/features";
@@ -19,6 +20,7 @@ import {
   appointmentPayLabel,
   appointmentTypeInfo,
   formatWhen,
+  appointmentCreatedByLabel,
 } from "@/app/clinic/appointments/row-format";
 
 /**
@@ -52,8 +54,12 @@ export default async function PrintAppointmentsPage({
   const { clinicId } = user;
   const sp = await searchParams;
 
-  const { fromStr, toStr, q, status, type, doctor, procedure, start, endExclusive } =
+  const { fromStr, toStr, q, status, type, doctor, procedure, createdBy, start, endExclusive } =
     parseListFilters(sp);
+  // Same rule as the list: WhatsApp, or a staff member who has booked here.
+  const creators = createdBy && createdBy !== "whatsapp" ? await listAppointmentCreators(clinicId) : [];
+  const pickedCreator =
+    createdBy === "whatsapp" ? { id: "whatsapp", name: "WhatsApp" } : creators.find((c) => c.id === createdBy);
   const session = typeof sp.session === "string" ? sp.session : "";
   const clinic = await getClinic(clinicId);
   const billingOn = clinicHasFeature(clinic?.featuresEnabled, "sales");
@@ -79,6 +85,7 @@ export default async function PrintAppointmentsPage({
     payment,
     doctorId,
     procedureId: pickedProcedure?.id,
+    createdBy: pickedCreator?.id,
   });
   const { rows, total } = await listClinicAppointments(
     clinicId,
@@ -101,6 +108,7 @@ export default async function PrintAppointmentsPage({
     session ? "Doctor's queue" : range,
     pickedDoctor?.name,
     pickedProcedure ? `Procedure: ${pickedProcedure.name}` : null,
+    pickedCreator ? `Created by: ${pickedCreator.name}` : null,
     status ? vocabularyLabel("appointment_statuses", status) : null,
     type ? `Type: ${type}` : null,
     payment ? `Payment: ${payment}` : null,
@@ -157,6 +165,7 @@ export default async function PrintAppointmentsPage({
               <th className={th}>Type</th>
               <th className={`${th} text-right`}>Fee</th>
               <th className={th}>Status</th>
+              <th className={th}>Created by</th>
             </tr>
           </thead>
           <tbody>
@@ -186,6 +195,7 @@ export default async function PrintAppointmentsPage({
                     {vocabularyLabel("appointment_statuses", a.status)}
                     {pay ? <span className="block text-muted-foreground">{pay.label}</span> : null}
                   </td>
+                  <td className={td}>{appointmentCreatedByLabel(a) ?? "—"}</td>
                 </tr>
               );
             })}

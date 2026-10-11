@@ -336,6 +336,9 @@ export async function createAppointment(
     discountSplitValue: parsed.data.discountSplitValue,
           chargeConsultation,
           customTime,
+          // Who booked it — shown as "Created by" on the appointments list.
+          createdBy: user.id,
+          createdByName: displayStaffName(user.prefix, user.fullName, user.username),
           queueSession: q.queueSession,
           queueNumber: q.queueNumber,
         }),

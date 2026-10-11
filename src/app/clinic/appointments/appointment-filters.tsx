@@ -91,6 +91,8 @@ export function AppointmentFilters({
   doctorOptions = [],
   procedure = "",
   procedureOptions = [],
+  createdBy = "",
+  createdByOptions = [],
 }: {
   from: string;
   to: string;
@@ -119,6 +121,10 @@ export function AppointmentFilters({
   procedure?: string;
   /** The clinic's procedure catalog. Empty = no Procedure filter. */
   procedureOptions?: { value: string; label: string }[];
+  /** "whatsapp" or a staff user id ("" = anyone). */
+  createdBy?: string;
+  /** WhatsApp + every staff member who has booked here. Empty = no filter. */
+  createdByOptions?: { value: string; label: string }[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -131,6 +137,7 @@ export function AppointmentFilters({
   const [paymentV, setPaymentV] = useState(payment);
   const [doctorV, setDoctorV] = useState(doctor);
   const [procedureV, setProcedureV] = useState(procedure);
+  const [createdByV, setCreatedByV] = useState(createdBy);
 
   function push(next: {
     from?: string;
@@ -141,6 +148,7 @@ export function AppointmentFilters({
     payment?: string;
     doctor?: string;
     procedure?: string;
+    createdBy?: string;
   }) {
     const f = next.from ?? fromD;
     const t = next.to ?? toD;
@@ -150,6 +158,7 @@ export function AppointmentFilters({
     const pay = next.payment ?? paymentV;
     const dr = next.doctor ?? doctorV;
     const pr = next.procedure ?? procedureV;
+    const cb = next.createdBy ?? createdByV;
     const params = new URLSearchParams();
     // In a queue view the session pins the doctor/day — keep it and drop the date
     // range; otherwise carry the date range as usual.
@@ -165,6 +174,7 @@ export function AppointmentFilters({
     if (pay) params.set("payment", pay);
     if (dr) params.set("doctor", dr);
     if (pr) params.set("procedure", pr);
+    if (cb) params.set("createdBy", cb);
     if (month) params.set("month", month);
     if (calCollapsed) params.set("cal", "0");
     const s = params.toString();
@@ -264,6 +274,18 @@ export function AppointmentFilters({
           onChange={(v) => {
             setProcedureV(v);
             push({ procedure: v });
+          }}
+        />
+      ) : null}
+      {createdByOptions.length > 0 ? (
+        <FilterSelect
+          label="Created by"
+          ariaLabel="Filter by who created the appointment"
+          value={createdByV}
+          options={[{ value: "", label: "Anyone" }, ...createdByOptions]}
+          onChange={(v) => {
+            setCreatedByV(v);
+            push({ createdBy: v });
           }}
         />
       ) : null}
