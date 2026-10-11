@@ -1,5 +1,7 @@
 "use client";
 
+import { paymentStatusBadge, visitPaymentStatus } from "@/core/billing/payment-status";
+import { Badge } from "@/core/ui/badge";
 import Link from "next/link";
 import { Printer } from "lucide-react";
 import { DataTable, type Column } from "@/core/ui/data-table";
@@ -17,7 +19,21 @@ type Row = {
   amount: number;
   appointmentId: string;
   voided: boolean;
+  collected: number;
+  refunded: number;
+  visitStatus: string;
 };
+
+/** The same six payment states as the appointments list (core/billing/payment-status). */
+function payBadge(r: Row) {
+  const status = visitPaymentStatus({ bill: r.amount, collected: r.collected, refunded: r.refunded, visitStatus: r.visitStatus });
+  if (!status) return null;
+  return paymentStatusBadge(status, {
+    outstanding: Math.max(0, r.amount - r.collected),
+    visitStatus: r.visitStatus,
+    formatMoney: (n) => money.format(n),
+  });
+}
 
 /** Invoice register table (client) — sortable columns + a mobile card view via DataTable. */
 export function InvoicesTable({ rows, empty }: { rows: Row[]; empty: string }) {
@@ -45,6 +61,18 @@ export function InvoicesTable({ rows, empty }: { rows: Row[]; empty: string }) {
     { id: "by", header: "Issued by", sortValue: (r) => r.issuedByName ?? "", cell: (r) => <span className="text-muted-foreground">{r.issuedByName ?? "—"}</span> },
     { id: "amount", header: "Amount", align: "right", sortValue: (r) => r.amount, cell: (r) => <span className="tabular-nums">{money.format(r.amount)}</span> },
     {
+      id: "payment",
+      header: "Payment",
+      // Room after the right-aligned Amount, or the two headings read as one word.
+      headerClassName: "pl-6",
+      cellClassName: "pl-6",
+      sortValue: (r) => r.amount - r.collected,
+      cell: (r) => {
+        const b = payBadge(r);
+        return b ? <Badge variant={b.variant}>{b.label}</Badge> : <span className="text-muted-foreground">—</span>;
+      },
+    },
+    {
       id: "print",
       header: "Print",
       align: "right",
@@ -58,5 +86,5 @@ export function InvoicesTable({ rows, empty }: { rows: Row[]; empty: string }) {
       ),
     },
   ];
-  return <DataTable rows={rows} columns={columns} getRowKey={(r) => r.id} minWidthClassName="min-w-[44rem]" empty={empty} />;
+  return <DataTable rows={rows} columns={columns} getRowKey={(r) => r.id} minWidthClassName="min-w-[54rem]" empty={empty} />;
 }

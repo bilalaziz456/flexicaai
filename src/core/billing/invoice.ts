@@ -1,5 +1,7 @@
 import "server-only";
 
+import { outstandingSql, paymentStatusSql, refundedSql } from "@/core/billing/payment-status-sql";
+import type { VisitPaymentStatus } from "@/core/billing/payment-status";
 import { parseDocNumber } from "@/core/billing/doc-number";
 import { and, desc, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/core/db";
@@ -154,13 +156,30 @@ export type InvoiceListRow = {
   amount: number; // derived bill (computeBill mirror), never stored
   /** Cancelled / no-show visit: listed, marked void, and left out of the total. */
   voided: boolean;
+  collected: number;
+  refunded: number;
+  visitStatus: string;
 };
 /** `rows` is ONE PAGE; `count` and `totalBilled` describe the whole filtered set. */
-export type InvoiceList = { rows: InvoiceListRow[]; count: number; totalBilled: number };
+export type InvoiceList = {
+  rows: InvoiceListRow[];
+  count: number;
+  totalBilled: number;
+  /** Still owed across the filtered (non-void) invoices: Σ max(0, bill − collected). */
+  totalOutstanding: number;
+  /** Money taken against these invoices (payments + advance applied), BEFORE refunds. */
+  moneyIn: number;
+  /** Money given back against these invoices. */
+  refunds: number;
+  /** moneyIn − refunds = Σ amount_collected. */
+  net: number;
+};
 export type InvoiceListFilters = {
   from?: Date;
   toExclusive?: Date;
   q?: string;
+  /** The payment badge (core/billing/payment-status.ts). */
+  payment?: VisitPaymentStatus;
   limit?: number;
   offset?: number;
 };
@@ -202,6 +221,8 @@ export async function getInvoicesList(
   }
 
   const pt = procedureTotals(clinicId);
+  // Filtering by the badge needs the bill, so it is added after `pt` exists.
+  if (filters.payment) conds.push(paymentStatusSql(filters.payment, appointmentNetSql(pt)));
   const where = byClinic(invoices.clinicId, clinicId, and(...conds));
 
   // THE SUMMARY IS AGGREGATED OVER THE WHOLE FILTERED SET, NOT OVER THE PAGE.
@@ -217,6 +238,14 @@ export async function getInvoicesList(
       count: sql<number>`count(*)::int`,
       // A void invoice stays listed (marked) but bills nothing.
       totalBilled: sql<number>`coalesce(sum(${appointmentNetSql(pt)}) filter (where ${isNull(invoices.voidedAt)}), 0)::int`,
+      // What patients still owe on these invoices. A void invoice (cancelled visit)
+      // owes nothing — money held there is a refund due, not a debt.
+      totalOutstanding: sql<number>`coalesce(sum(${outstandingSql(appointmentNetSql(pt))}) filter (where ${isNull(invoices.voidedAt)}), 0)::int`,
+      // Money actually moved, void invoices included — cash taken on a visit later
+      // cancelled was still taken, and its refund still went out.
+      // `amount_collected` is already NET of refunds, so money in = collected + refunded.
+      net: sql<number>`coalesce(sum(${appointments.amountCollected}), 0)::int`,
+      refunds: sql<number>`coalesce(sum(${refundedSql()}), 0)::int`,
     })
     .from(invoices)
     .innerJoin(appointments, eq(appointments.id, invoices.appointmentId))
@@ -243,6 +272,11 @@ export async function getInvoicesList(
       appointmentId: appointments.id,
       amount: appointmentNetSql(pt),
       voidedAt: invoices.voidedAt,
+      // For the payment badge (core/billing/payment-status.ts): what has been taken,
+      // what was given back, and where the visit stands.
+      collected: appointments.amountCollected,
+      visitStatus: appointments.status,
+      refunded: sql<number>`${refundedSql()}::int`,
     })
     .from(invoices)
     .innerJoin(appointments, eq(appointments.id, invoices.appointmentId))
@@ -266,11 +300,18 @@ export async function getInvoicesList(
     appointmentId: r.appointmentId,
     amount: Number(r.amount),
     voided: r.voidedAt !== null,
+    collected: r.collected,
+    refunded: Number(r.refunded),
+    visitStatus: r.visitStatus,
   }));
   return {
     rows: list,
     count: Number(summary?.count ?? 0),
     totalBilled: Number(summary?.totalBilled ?? 0),
+    totalOutstanding: Number(summary?.totalOutstanding ?? 0),
+    moneyIn: Number(summary?.net ?? 0) + Number(summary?.refunds ?? 0),
+    refunds: Number(summary?.refunds ?? 0),
+    net: Number(summary?.net ?? 0),
   };
 }
 

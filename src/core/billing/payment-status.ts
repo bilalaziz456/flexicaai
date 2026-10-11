@@ -76,3 +76,20 @@ export function paymentStatusBadge(
       return { label: LABEL.not_paid, variant: opts.visitStatus === "completed" ? "destructive" : "outline" };
   }
 }
+
+/** Every status, in the order a filter offers them. */
+export const VISIT_PAYMENT_STATUSES: readonly VisitPaymentStatus[] = [
+  "not_paid",
+  "advance_paid",
+  "partially_paid",
+  "paid",
+  "refund_due",
+  "refunded",
+];
+
+export const VISIT_PAYMENT_STATUS_LABEL = LABEL;
+
+/** Narrows an untrusted value (a URL param) to a status, or undefined. */
+export function asVisitPaymentStatus(v: string | null | undefined): VisitPaymentStatus | undefined {
+  return (VISIT_PAYMENT_STATUSES as readonly string[]).includes(v ?? "") ? (v as VisitPaymentStatus) : undefined;
+}

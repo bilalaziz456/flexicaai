@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { asVisitPaymentStatus } from "@/core/billing/payment-status";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import { getClinic } from "@/core/clinics/get-clinic";
@@ -40,6 +41,7 @@ export default async function InvoicesPage({
     from?: string;
     to?: string;
     q?: string;
+    payment?: string;
     page?: string;
     size?: string;
   }>;
@@ -52,6 +54,7 @@ export default async function InvoicesPage({
   const hasRange = Boolean(sp.period) && sp.period !== "all";
   const range = hasRange ? resolveSalesRange(sp.period, sp.from, sp.to, clinic?.createdAt) : null;
   const q = sp.q?.trim() || "";
+  const payment = asVisitPaymentStatus(sp.payment);
 
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
@@ -60,6 +63,7 @@ export default async function InvoicesPage({
     from: range?.start,
     toExclusive: range?.end,
     q: q || undefined,
+    payment,
     offset: pageOffset(page, pageSize),
     limit: pageSize,
   });
@@ -73,6 +77,7 @@ export default async function InvoicesPage({
     }
   }
   if (q) exportParams.set("q", q);
+  if (payment) exportParams.set("payment", payment);
 
   return (
     <div className="space-y-6">
@@ -94,15 +99,31 @@ export default async function InvoicesPage({
         ) : null}
       </div>
 
-      <InvoiceFilters period={range?.period ?? "all"} from={range?.from ?? ""} to={range?.to ?? ""} q={q} />
+      <InvoiceFilters period={range?.period ?? "all"} from={range?.from ?? ""} to={range?.to ?? ""} q={q} payment={payment ?? ""} />
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/* Two rows of three: what was BILLED and what is owed on top, the MONEY that
+          actually moved underneath. */}
+      <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Invoices" value={String(list.count)} hint="Issued in this view" />
         <StatCard
           label="Total billed"
           value={money.format(list.totalBilled)}
           hint="Sum of these invoices"
         />
+        <StatCard
+          label="Outstanding"
+          value={money.format(list.totalOutstanding)}
+          hint="Still owed on these invoices"
+        />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard
+          label="Money in"
+          value={money.format(list.moneyIn)}
+          hint="Payments + advances applied"
+        />
+        <StatCard label="Refunds" value={money.format(list.refunds)} hint="Money returned" />
+        <StatCard label="Net" value={money.format(list.net)} hint="In − refunds" />
       </div>
 
       {/* Above the table, matching the drawer history and Trash — the reader decides
@@ -112,7 +133,7 @@ export default async function InvoicesPage({
         pageSize={pageSize}
         total={list.count}
         basePath="/clinic/invoices"
-        searchParams={{ period: sp.period, from: sp.from, to: sp.to, q, size: sp.size }}
+        searchParams={{ period: sp.period, from: sp.from, to: sp.to, q, payment, size: sp.size }}
         unit="invoice"
       />
 

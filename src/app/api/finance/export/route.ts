@@ -1,4 +1,5 @@
 
+import { asVisitPaymentStatus, visitPaymentStatus, VISIT_PAYMENT_STATUS_LABEL } from "@/core/billing/payment-status";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { apiRequireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
@@ -147,11 +148,28 @@ export async function GET(req: Request) {
       from: range?.start,
       toExclusive: range?.end,
       q: url.searchParams.get("q") || undefined,
+      payment: asVisitPaymentStatus(url.searchParams.get("payment")),
+      // The register pages at 100 by default; an export is the WHOLE filtered set.
+      // (It used to export only the first 100 invoices.)
+      limit: 100_000,
     });
     name = range ? `invoices-${range.from}_to_${range.to}` : "invoices-all";
     csv = toCsv(
-      ["Invoice", "Date", "Patient", "Phone", "Issued by", "Amount"],
-      list.rows.map((r) => [r.label, ymd(r.issuedAt), r.patientName, r.patientPhone ?? "", r.issuedByName ?? "", r.amount]),
+      ["Invoice", "Date", "Patient", "Phone", "Issued by", "Amount", "Collected", "Outstanding", "Payment"],
+      list.rows.map((r) => {
+        const status = visitPaymentStatus({ bill: r.amount, collected: r.collected, refunded: r.refunded, visitStatus: r.visitStatus });
+        return [
+          r.voided ? `${r.label} (void)` : r.label,
+          ymd(r.issuedAt),
+          r.patientName,
+          r.patientPhone ?? "",
+          r.issuedByName ?? "",
+          r.amount,
+          r.collected,
+          r.voided ? 0 : Math.max(0, r.amount - r.collected),
+          status ? VISIT_PAYMENT_STATUS_LABEL[status] : "",
+        ];
+      }),
     );
   } else if (type === "shares") {
     if (!hasSales || !can(user, "shares", "view")) return new Response("Forbidden", { status: 403 });

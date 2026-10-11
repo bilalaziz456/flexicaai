@@ -1,10 +1,12 @@
 "use client";
 
+import { VISIT_PAYMENT_STATUSES, VISIT_PAYMENT_STATUS_LABEL } from "@/core/billing/payment-status";
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Label } from "@/core/ui/label";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 import {
+  FilterSelect,
   PeriodTabs,
   filterFieldCls,
   filterLabelCls,
@@ -14,17 +16,25 @@ import {
 const inputCls =
   "h-8 w-56 rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
-/** Filter bar for the Invoices register: period (default All time) + range, search. */
+// The six payment badges (core/billing/payment-status.ts), plus "any".
+const PAYMENT_OPTIONS = [
+  { value: "", label: "Any payment" },
+  ...VISIT_PAYMENT_STATUSES.map((s) => ({ value: s, label: VISIT_PAYMENT_STATUS_LABEL[s] })),
+];
+
+/** Filter bar for the Invoices register: period (default All time) + range, payment, search. */
 export function InvoiceFilters({
   period,
   from,
   to,
   q,
+  payment,
 }: {
   period: string;
   from: string;
   to: string;
   q: string;
+  payment: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -32,12 +42,14 @@ export function InvoiceFilters({
   const [fromD, setFromD] = useState(from);
   const [toD, setToD] = useState(to);
   const [qV, setQV] = useState(q);
+  const [payV, setPayV] = useState(payment);
 
-  function push(next: Partial<{ period: string; from: string; to: string; q: string }>) {
+  function push(next: Partial<{ period: string; from: string; to: string; q: string; payment: string }>) {
     const pr = next.period ?? periodV;
     const f = next.from ?? fromD;
     const t = next.to ?? toD;
     const query = next.q ?? qV;
+    const pay = next.payment ?? payV;
     const params = new URLSearchParams();
     if (pr && pr !== "all") params.set("period", pr);
     if (pr === "custom") {
@@ -45,6 +57,7 @@ export function InvoiceFilters({
       if (t) params.set("to", t);
     }
     if (query.trim()) params.set("q", query.trim());
+    if (pay) params.set("payment", pay);
     router.replace(params.toString() ? `${pathname}?${params.toString()}` : pathname, { scroll: false });
   }
 
@@ -55,6 +68,16 @@ export function InvoiceFilters({
         onChange={(v) => {
           setPeriodV(v);
           push({ period: v });
+        }}
+      />
+      <FilterSelect
+        label="Payment"
+        ariaLabel="Filter by payment status"
+        value={payV}
+        options={PAYMENT_OPTIONS}
+        onChange={(v) => {
+          setPayV(v);
+          push({ payment: v });
         }}
       />
       <div className={filterFieldCls}>
