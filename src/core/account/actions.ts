@@ -20,7 +20,7 @@
  */
 
 
-import { toE164 } from "@/core/lib/phone";
+import { toE164, PHONE_ERROR } from "@/core/lib/phone";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { zodErrorMessage } from "@/core/lib/zod-error";
@@ -65,7 +65,7 @@ const profileSchema = z.object({
     .string()
     .trim()
     .transform((raw) => toE164(raw))
-    .refine((r) => r.valid, { message: "That does not look like a phone number." })
+    .refine((r) => r.valid, { message: PHONE_ERROR })
     .transform((r) => r.phone),
 });
 

@@ -6,7 +6,7 @@
  * differently is invisible to inbound messages. Every way of writing one number has
  * to land on the same string.
  */
-import { toE164, phoneDigits, phoneSearchTerm, sanitisePhoneInput } from "@/core/lib/phone";
+import { PHONE_PATTERN, toE164, phoneDigits, phoneSearchTerm, sanitisePhoneInput } from "@/core/lib/phone";
 
 let failures = 0;
 function check(name: string, got: unknown, want: unknown) {
@@ -68,6 +68,27 @@ check('"0092345" likewise', phoneSearchTerm("0092345"), { digits: "92345", ancho
 check("a fragment with no prefix matches anywhere", phoneSearchTerm("186120"), { digits: "186120", anchor: "anywhere" });
 check("under four TYPED digits is not a phone search", phoneSearchTerm("034"), null);
 check("a name is not a phone search", phoneSearchTerm("Bilal"), null);
+
+// The owner's rule (2026-10-13): a Pakistani mobile in the three ways it is written,
+// and nothing a digit short or over. The browser's field pattern and the server's
+// check must agree, or the form would let through what the save refuses.
+console.log("\nWhat a phone field accepts (browser pattern = server check):");
+const fieldAccepts = new RegExp(`^(?:${PHONE_PATTERN})$`, "v");
+for (const [raw, want] of [
+  ["03451234567", true],
+  ["+923451234567", true],
+  ["00923451234567", true],
+  ["923451234567", true],
+  ["+971501234567", true],
+  ["+9234561234567", false], // one digit too many
+  ["00921234567", false], // too short
+  ["0345123456", false], // one digit short
+  ["034512345678", false], // one digit over
+  ["0421234567", false], // a landline
+] as const) {
+  check(`${raw} — browser`, fieldAccepts.test(raw), want);
+  check(`${raw} — server`, toE164(raw).valid, want);
+}
 
 console.log(failures === 0 ? "\nALL PASSED" : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

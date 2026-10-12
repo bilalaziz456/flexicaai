@@ -1,5 +1,6 @@
 "use server";
 
+import { PHONE_ERROR, toE164 } from "@/core/lib/phone";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -188,7 +189,15 @@ const clinicSettingsSchema = z.object({
     .max(3650, "That's too long (max 3650 days)."),
   // Per-clinic WhatsApp SENDER (Meta Cloud API) — provisioned by the super admin.
   whatsappPhoneNumberId: z.string().trim().max(64).optional(),
-  whatsappDisplayNumber: z.string().trim().max(32).optional(),
+  // Stored as E.164 like every other number (it was free text).
+  whatsappDisplayNumber: z
+    .string()
+    .trim()
+    .max(40)
+    .optional()
+    .transform((v) => (v ? toE164(v) : { phone: null, valid: true }))
+    .refine((r) => r.valid, { message: PHONE_ERROR })
+    .transform((r) => r.phone ?? undefined),
   whatsappSenderName: z.string().trim().max(120).optional(),
 });
 
@@ -503,7 +512,14 @@ const contactSchema = z.object({
     .refine((v) => !v || z.string().email().safeParse(v).success, {
       message: "Enter a valid email address.",
     }),
-  ownerPhone: z.string().trim().max(40).optional(),
+  ownerPhone: z
+    .string()
+    .trim()
+    .max(40)
+    .optional()
+    .transform((v) => (v ? toE164(v) : { phone: null, valid: true }))
+    .refine((r) => r.valid, { message: PHONE_ERROR })
+    .transform((r) => r.phone ?? undefined),
   country: z.string().trim().max(80).optional(),
   province: z.string().trim().max(40).optional(),
   city: z.string().trim().max(80).optional(),

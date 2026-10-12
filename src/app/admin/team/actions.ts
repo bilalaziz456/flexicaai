@@ -31,7 +31,7 @@ import {
 import { setCompanySupportContact } from "@/core/admin/company-settings";
 import { logActivity } from "@/core/audit/log";
 import { USERNAME_REGEX } from "@/core/types/auth";
-import { toE164 } from "@/core/lib/phone";
+import { toE164, PHONE_ERROR } from "@/core/lib/phone";
 import { report } from "@/core/observability";
 
 export type TeamActionState = { error?: string; saved?: boolean };
@@ -74,7 +74,7 @@ const phoneField = z
   .trim()
   .min(1, "A contact number is required — the clinics you manage are shown it.")
   .transform((raw) => toE164(raw))
-  .refine((r) => r.valid && r.phone, { message: "That does not look like a phone number." })
+  .refine((r) => r.valid && r.phone, { message: PHONE_ERROR })
   .transform((r) => r.phone as string);
 
 const createSchema = z.object({
@@ -364,7 +364,7 @@ const supportSchema = z.object({
     .string()
     .trim()
     .transform((raw) => (raw ? toE164(raw) : { phone: null, valid: true }))
-    .refine((r) => r.valid, { message: "That does not look like a phone number." })
+    .refine((r) => r.valid, { message: PHONE_ERROR })
     .transform((r) => r.phone),
   email: z
     .string()

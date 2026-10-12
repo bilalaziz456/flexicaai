@@ -49,7 +49,6 @@ export function AddPatientForm({
             id="phone"
             name="phone"
             required
-            placeholder="03450186120"
             defaultValue={defaults?.phone}
           />
         </div>

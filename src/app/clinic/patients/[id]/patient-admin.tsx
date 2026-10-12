@@ -65,7 +65,6 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
             name="phone"
             required
             defaultValue={patient.phone ?? ""}
-            placeholder="03450186120"
           />
         </div>
         <div className="space-y-2">

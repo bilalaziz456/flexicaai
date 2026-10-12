@@ -1,5 +1,6 @@
 "use client";
 
+import { PhoneInput } from "@/core/ui/phone-input";
 import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState } from "react";
 import type { SpecialtyCatalogEntry } from "@/core/types/module";
@@ -194,12 +195,11 @@ export function ClinicSettingsForm({
           </div>
           <div className="space-y-2">
             <Label htmlFor="whatsappDisplayNumber">Display number</Label>
-            <Input
+            <PhoneInput
               key={`wd-${whatsappDisplayNumber ?? ""}`}
               id="whatsappDisplayNumber"
               name="whatsappDisplayNumber"
               defaultValue={whatsappDisplayNumber ?? ""}
-              placeholder="+9203…"
             />
           </div>
           <div className="space-y-2">

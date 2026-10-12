@@ -21,6 +21,35 @@
 export const DEFAULT_COUNTRY_CODE = "92";
 
 /**
+ * The ONE placeholder and the ONE error message for every phone / WhatsApp field
+ * (owner's call, 2026-10-13) — the number on the clinic's own card, in the format the
+ * desk types most: local, leading 0.
+ */
+export const PHONE_PLACEHOLDER = "03450186111";
+export const PHONE_ERROR = "Enter a valid mobile number, e.g. 03450186111.";
+
+/**
+ * What a phone FIELD accepts, for the browser's own check as you type (an HTML
+ * `pattern`, implicitly anchored). A Pakistani mobile in the three ways people write
+ * it — 03XXXXXXXXX, +923XXXXXXXXX, 00923XXXXXXXXX (or 923XXXXXXXXX pasted from a
+ * chat) — or another country's number written with its code (+ or 00), for the GCC.
+ * The input has already stripped spaces and dashes (`sanitisePhoneInput`), so this
+ * only sees digits and a leading +. The server re-checks with `isValidMobile`.
+ */
+export const PHONE_PATTERN =
+  "03[0-9]{9}|\\+923[0-9]{9}|00923[0-9]{9}|923[0-9]{9}|\\+(?!92)[1-9][0-9]{9,14}|00(?!92)[1-9][0-9]{9,14}";
+
+/**
+ * Is this E.164 number a plausible MOBILE? A Pakistani one must be +92 3XX XXXXXXX —
+ * exactly ten digits after 92, starting with 3 — so "+9234561234567" (one digit too
+ * many) or a landline is refused. Any other country: 10–15 digits, as before.
+ */
+export function isValidMobile(e164: string): boolean {
+  if (e164.startsWith("+92")) return /^\+923\d{9}$/.test(e164);
+  return /^\+[1-9]\d{9,14}$/.test(e164);
+}
+
+/**
  * Best-effort E.164 for storage. `defaultCc` is the country code assumed for a
  * LOCAL number (one starting `0`, or bare digits) — pass the clinic's, because a
  * UAE clinic's "0501234567" is +971, not +92. Returns null for empty input.
@@ -47,7 +76,7 @@ export function toE164(
     e164 = "+" + digits;
   } else e164 = "+" + defaultCc + digits;
 
-  return { phone: e164, valid: /^\+\d{10,15}$/.test(e164) };
+  return { phone: e164, valid: isValidMobile(e164) };
 }
 
 /**

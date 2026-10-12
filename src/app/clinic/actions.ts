@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { toE164 } from "@/core/lib/phone";
+import { toE164, PHONE_ERROR } from "@/core/lib/phone";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { zodErrorMessage } from "@/core/lib/zod-error";
@@ -565,9 +565,9 @@ const createPatientSchema = z.object({
   phone: z
     .string()
     .trim()
-    .min(1, "Phone number is required.")
+    .min(1, "Enter a mobile number, e.g. 03450186111.")
     .transform((v) => toE164(v).phone ?? "")
-    .refine((v) => toE164(v).valid && v !== "", "Enter a valid phone number."),
+    .refine((v) => toE164(v).valid && v !== "", PHONE_ERROR),
 });
 
 /**

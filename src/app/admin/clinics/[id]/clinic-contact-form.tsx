@@ -1,5 +1,6 @@
 "use client";
 
+import { PHONE_ERROR, PHONE_PATTERN, PHONE_PLACEHOLDER, sanitisePhoneInput } from "@/core/lib/phone";
 import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState } from "react";
 import { updateClinicContact, type AdminActionState } from "@/app/admin/actions";
@@ -91,7 +92,22 @@ export function ClinicContactForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="ownerPhone">Owner phone</Label>
-          <Input id="ownerPhone" name="ownerPhone" value={f.ownerPhone} onChange={on("ownerPhone")} />
+          <Input
+            id="ownerPhone"
+            name="ownerPhone"
+            type="tel"
+            inputMode="tel"
+            maxLength={16}
+            placeholder={PHONE_PLACEHOLDER}
+            pattern={PHONE_PATTERN}
+            title={PHONE_ERROR}
+            value={f.ownerPhone}
+            onChange={(e) => {
+              e.currentTarget.setCustomValidity("");
+              setF((s) => ({ ...s, ownerPhone: sanitisePhoneInput(e.target.value) }));
+            }}
+            onInvalid={(e) => e.currentTarget.setCustomValidity(PHONE_ERROR)}
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="ownerEmail">Owner email</Label>

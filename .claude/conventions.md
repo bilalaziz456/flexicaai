@@ -402,6 +402,23 @@ throw — use it in tests.
   expression reads — `appointmentNetSql` reads `users.consultation_fee`, so a summary
   selecting no user column still joins `users` or fails at runtime.
 
+### Phone numbers
+
+- **Every phone / WhatsApp field is a `PhoneInput`** (`core/ui/phone-input.tsx`) and
+  every server check goes through `toE164(...).valid` — one rule, one placeholder
+  (`PHONE_PLACEHOLDER`, "03450186111"), one message (`PHONE_ERROR`), all in
+  `core/lib/phone.ts` (owner's call, 2026-10-13). A Pakistani number must be a MOBILE
+  of exactly the right length: `03XXXXXXXXX`, `+923XXXXXXXXX` or `00923XXXXXXXXX`
+  (`923…` pasted from a chat too). Another country's number is written with its code.
+- The browser checks first (`PHONE_PATTERN` on the input, with the plain-words message
+  instead of "match the requested format") and the server re-checks, because a form is
+  not a guarantee. `scripts/test-phone.ts` asserts the two agree, case by case — a
+  pattern that accepted what the save refuses would let a form submit and then fail.
+- A form that keeps its fields in React state (the admin clinic contact form) can't use
+  the uncontrolled `PhoneInput`; it applies the same four props and `sanitisePhoneInput`.
+- Numbers saved before the rule are not rewritten: they keep working, and the form asks
+  for a correct one the next time that record is edited.
+
 ### Sessions
 
 - **Two expiries, and they answer different questions.** `sessions.expires_at` is an

@@ -1,5 +1,6 @@
 "use server";
 
+import { PHONE_ERROR, toE164 } from "@/core/lib/phone";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { deliverContactEnquiry } from "@/core/notifications/contact-enquiry";
@@ -29,7 +30,7 @@ const optional = (max: number) =>
 const enquirySchema = z.object({
   name: z.string().trim().min(2, "Please enter your name.").max(100),
   email: z.string().trim().max(200).pipe(z.email("Please enter a valid email address.")),
-  phone: optional(30),
+  phone: optional(30).refine((v) => !v || toE164(v).valid, PHONE_ERROR),
   subject: z.string().trim().min(3, "Please add a subject.").max(150),
   message: z
     .string()

@@ -380,7 +380,6 @@ export function ProfileForm({
             id="phone"
             name="phone"
             defaultValue={phone ?? ""}
-            placeholder="e.g. 0300 1234567"
             required={phoneRequired}
           />
           {phoneRequired ? (

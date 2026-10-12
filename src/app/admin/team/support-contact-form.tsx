@@ -36,7 +36,7 @@ export function SupportContactForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="supportPhone">Phone</Label>
-          <PhoneInput id="supportPhone" name="supportPhone" defaultValue={phone ?? ""} placeholder={BRAND_PHONE} />
+          <PhoneInput id="supportPhone" name="supportPhone" defaultValue={phone ?? ""} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="supportEmail">Email</Label>

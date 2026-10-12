@@ -1,5 +1,6 @@
 "use client";
 
+import { PhoneInput } from "@/core/ui/phone-input";
 import { startTransition, useActionState, useEffect, useRef, type FormEvent } from "react";
 import { CheckCircle2, Loader2, Send } from "lucide-react";
 import { Button } from "@/core/ui/button";
@@ -69,7 +70,7 @@ export function ContactForm() {
         <Input name="email" type="email" autoComplete="off" required maxLength={200} />
       </Field>
       <Field label="Phone" hint="Optional — WhatsApp works best." className="sm:col-span-2">
-        <Input name="phone" type="tel" autoComplete="off" maxLength={30} />
+        <PhoneInput name="phone" autoComplete="off" />
       </Field>
       <Field label="Subject" required className="sm:col-span-2">
         <Input name="subject" autoComplete="off" required minLength={3} maxLength={150} placeholder="e.g. A demo for our clinic" />
