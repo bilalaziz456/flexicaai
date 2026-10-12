@@ -1,4 +1,5 @@
 import { requireWorkspace } from "@/core/auth/user";
+import { displayStaffName } from "@/core/types/auth";
 import { listAppointmentCreators } from "@/core/appointments/list-query";
 import { PrintFileName } from "@/core/ui/print-file-name";
 import { getClinic } from "@/core/clinics/get-clinic";
@@ -145,7 +146,10 @@ export default async function PrintAppointmentsPage({
             <span className="font-semibold text-foreground tabular-nums">{total}</span>{" "}
             appointment{total === 1 ? "" : "s"}
           </p>
-          <p>Printed {formatWhen(new Date())}</p>
+          <p>
+            Printed {new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+          </p>
+          <p>Printed by {displayStaffName(user.prefix, user.fullName, user.username)}</p>
         </div>
       </div>
 
@@ -165,7 +169,6 @@ export default async function PrintAppointmentsPage({
               <th className={th}>Type</th>
               <th className={`${th} text-right`}>Fee</th>
               <th className={th}>Status</th>
-              <th className={th}>Created by</th>
             </tr>
           </thead>
           <tbody>
@@ -178,7 +181,14 @@ export default async function PrintAppointmentsPage({
                   <td className={`${td} tabular-nums`}>
                     {a.queueNumber != null ? `#${a.queueNumber}` : "—"}
                   </td>
-                  <td className={`${td} whitespace-nowrap`}>{formatWhen(a.scheduledAt)}</td>
+                  <td className={`${td} whitespace-nowrap`}>
+                    {formatWhen(a.scheduledAt)}
+                    {/* Who made it, under the time — as its own column it ran past
+                        the edge of an A4 page and was cut off (owner's report). */}
+                    {appointmentCreatedByLabel(a) ? (
+                      <span className="block text-muted-foreground">by {appointmentCreatedByLabel(a)}</span>
+                    ) : null}
+                  </td>
                   <td className={td}>{a.patientName}</td>
                   <td className={`${td} whitespace-nowrap tabular-nums`}>{a.patientPhone ?? "—"}</td>
                   <td className={td}>{appointmentDoctorLabel(a)}</td>
@@ -195,7 +205,6 @@ export default async function PrintAppointmentsPage({
                     {vocabularyLabel("appointment_statuses", a.status)}
                     {pay ? <span className="block text-muted-foreground">{pay.label}</span> : null}
                   </td>
-                  <td className={td}>{appointmentCreatedByLabel(a) ?? "—"}</td>
                 </tr>
               );
             })}

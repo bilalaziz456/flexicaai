@@ -83,6 +83,7 @@ export function NewAppointmentForm({
   initial,
   initialSlots,
   invoiceMode = false,
+  canTakePayment = false,
 }: {
   initialPatients: Patient[];
   doctors: Doctor[];
@@ -109,6 +110,9 @@ export function NewAppointmentForm({
    *  the server completes the visit and records the payment. In edit mode it only
    *  changes the button wording. */
   invoiceMode?: boolean;
+  /** New appointment: offer an optional Payment received section (an advance taken
+   *  at booking). Billing on + the person may record payments; decided by the page. */
+  canTakePayment?: boolean;
   /** Edit mode: the doctor's windows for the appointment's own date, resolved on the
    *  server so the time picker is already constrained when the page paints. */
   initialSlots?: DoctorDaySlots | null;
@@ -135,6 +139,9 @@ export function NewAppointmentForm({
 }) {
   const isEdit = Boolean(appointmentId);
   const newInvoice = invoiceMode && !isEdit;
+  // Payment with the save: always on a new invoice, optional on a new appointment;
+  // both start at the bill total.
+  const showPayment = newInvoice || (!isEdit && canTakePayment);
   const methodOptions = useTenderOptions();
   // Payment taken with the invoice. Follows the bill until the person types an
   // amount — then it is theirs (a part payment, or nothing yet).
@@ -973,9 +980,11 @@ export function NewAppointmentForm({
         </p>
       ) : null}
 
-      {newInvoice ? (
+      {showPayment ? (
         <div className="space-y-2 rounded-lg border well p-3">
-          <p className="text-sm font-medium">Payment received</p>
+          <p className="text-sm font-medium">
+            Payment received{newInvoice ? "" : <span className="font-normal text-muted-foreground"> (optional)</span>}
+          </p>
           <div className="grid gap-2 sm:grid-cols-3">
             <div className="space-y-1">
               <Label htmlFor="inv-pay-amount" className="text-xs text-muted-foreground">
@@ -987,7 +996,10 @@ export function NewAppointmentForm({
                 type="number"
                 inputMode="numeric"
                 min={0}
-                value={payTouched ? payAmount : String(bill.net)}
+                // Pre-filled with the bill on both forms (owner's call, 2026-10-13); the
+                // person changes it for a part payment, or clears it if nothing is paid.
+                value={payTouched ? payAmount : bill.net > 0 ? String(bill.net) : ""}
+                placeholder="0"
                 onChange={(e) => {
                   setPayTouched(true);
                   setPayAmount(e.target.value.replace(/[^\d]/g, ""));
@@ -1021,8 +1033,9 @@ export function NewAppointmentForm({
             <Input id="inv-pay-note" name="payNote" maxLength={500} placeholder="e.g. part payment, balance next visit" />
           </div>
           <p className="text-xs text-muted-foreground">
-            Bill {formatPkr(bill.net)}. Enter 0 if nothing is paid yet; anything above the bill
-            is kept as the patient&apos;s advance.
+            {newInvoice
+              ? `Bill ${formatPkr(bill.net)}. Enter 0 if nothing is paid yet; anything above the bill is kept as the patient's advance.`
+              : `${bill.net > 0 ? `Bill ${formatPkr(bill.net)}. ` : ""}Set to 0 if nothing is paid now. A payment here confirms the appointment and shows on its invoice.`}
           </p>
         </div>
       ) : null}

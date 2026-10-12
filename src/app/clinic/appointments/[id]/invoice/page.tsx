@@ -90,8 +90,8 @@ export default async function InvoicePage({
     row.doctorName || row.doctorUsername
       ? displayStaffName(row.doctorPrefix, row.doctorName, row.doctorUsername ?? "")
       : null;
-  const fmtDate = (d: Date) =>
-    d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const fmtDateTime = (d: Date) =>
+    d.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -119,10 +119,26 @@ export default async function InvoicePage({
           </div>
           <div className="text-right text-[0.9em]">
             {invoice ? <div className="font-semibold">{invoice.label}</div> : null}
-            {row.queueNumber != null ? (
-              <div className="opacity-70">Appointment #{row.queueNumber}</div>
+            {/* When the invoice was raised, and when the visit is/was — two different
+                moments (a visit billed in advance, or invoiced after the fact). */}
+            {invoice ? (
+              <div>
+                <span className="opacity-70">Invoice date: </span>
+                {fmtDateTime(invoice.issuedAt)}
+              </div>
             ) : null}
-            <div>{fmtDate(row.scheduledAt)}</div>
+            <div>
+              <span className="opacity-70">Appointment: </span>
+              {fmtDateTime(row.scheduledAt)}
+            </div>
+            {/* The appointment's own number (its queue token), on its own labelled
+                line, and only when it has one — a visit without a doctor gets none. */}
+            {row.queueNumber != null ? (
+              <div>
+                <span className="opacity-70">Appointment #: </span>
+                {row.queueNumber}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -231,6 +247,11 @@ export default async function InvoicePage({
         <div className="mt-3 border-t border-black/20 pt-2 text-center text-[0.85em] opacity-70">
           {clinic?.whatsappSignature ? <div>{clinic.whatsappSignature}</div> : null}
           <div>Thank you.</div>
+          {/* Who printed this copy, and when — the page is rendered when it is opened
+              for printing, so this is the print time. */}
+          <div className="mt-1 text-[0.9em]">
+            Printed by {displayStaffName(user.prefix, user.fullName, user.username)} · {fmtDateTime(new Date())}
+          </div>
         </div>
       </InvoicePrintFrame>
     </div>

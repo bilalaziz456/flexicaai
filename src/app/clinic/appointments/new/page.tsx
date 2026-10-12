@@ -1,4 +1,7 @@
 import { requireWorkspace } from "@/core/auth/user";
+import { can } from "@/core/auth/permissions";
+import { clinicHasFeature } from "@/core/lib/features";
+import { getClinic } from "@/core/clinics/get-clinic";
 import { FlashToast } from "@/core/ui/toast";
 import { NewAppointmentPanel } from "@/app/clinic/appointments/new-appointment-panel";
 
@@ -24,6 +27,10 @@ export default async function ClinicNewAppointmentPage({
   searchParams: Promise<{ patientId?: string; date?: string; patientCreated?: string }>;
 }) {
   const user = await requireWorkspace("appointments", "create");
+  const clinic = await getClinic(user.clinicId);
+  // An advance can be taken with the booking when the clinic bills and this person
+  // may record payments (the action re-checks).
+  const canTakePayment = clinicHasFeature(clinic?.featuresEnabled, "sales") && can(user, "billing", "create");
   const { patientId, date, patientCreated } = await searchParams;
   return (
     <>
@@ -36,6 +43,7 @@ export default async function ClinicNewAppointmentPage({
         backHref="/clinic/appointments"
         preselectedPatientId={patientId}
         preselectedDate={date && YMD.test(date) ? date : undefined}
+        canTakePayment={canTakePayment}
       />
     </>
   );

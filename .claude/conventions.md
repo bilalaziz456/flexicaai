@@ -244,6 +244,12 @@ note above it; obvious logic gets none.
   card level and publishes the recess for its own children, the same relationship a
   card has with the page, so panel → rows → anything inside a row keeps alternating.
   Only on a recessed ground: on the page ground a plain `well` is already a card.
+- **A table row shows its ONE next step; the rest go behind "⋯"** (`core/ui/action-menu.tsx`,
+  `ActionMenu` — links and/or a single-choice list such as "Change status"). The
+  appointments list's actions column (next step + status dropdown + Open) was clipped off
+  the right edge once the table gained a column (owner's report, 2026-10-12). A row that
+  is itself a `RowLink` needs no Open button — the menu carries one for keyboard and
+  discoverability. Menu clicks don't trigger the row: `RowLink` ignores `[role="menu"]`.
 - **Every data table sits in a `TableCard`** (`core/ui/table-card.tsx`) — one surface,
   app-wide, at the owner's direction. It had previously been split: a table that WAS
   the page sat on the page ground, a table that was one section among several took a

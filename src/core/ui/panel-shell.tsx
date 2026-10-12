@@ -3,7 +3,7 @@
 import { PrintFileName } from "@/core/ui/print-file-name";
 import { Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   getNavGroups,
   getNavGroupsServer,
@@ -16,7 +16,7 @@ import { AppTabs } from "@/core/ui/app-tabs";
 // Only the icons the CHROME itself draws. Every route icon moved out with the nav
 // (ADR-019) — this list shrinking from 33 to 5 is the clearest measure of how much
 // application knowledge was living in shared UI.
-import { ChevronRight, LogOut, Menu, UserRound, X } from "lucide-react";
+import { ArrowLeft, ChevronRight, LogOut, Menu, UserRound, X } from "lucide-react";
 import { signOut } from "@/core/auth/actions";
 import { Logo } from "@/core/ui/logo";
 import { NotificationBell } from "@/core/ui/notification-bell";
@@ -147,6 +147,7 @@ export function PanelShell({
   const { brand, nodes, search } = nav;
   const canSee = accessibleResources ? new Set(accessibleResources) : null;
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
 
   // Per-item gating, entirely from what the item DECLARES. This used to be a chain of
@@ -201,10 +202,26 @@ export function PanelShell({
    * Longest matching href wins, so `/clinic/patients/[id]` resolves to Patients rather
    * than to whichever shorter prefix also matched.
    */
-  const currentLabel = visibleNodes
+  const currentItem = visibleNodes
     .flatMap((n): NavItem[] => (isGroup(n) ? n.items : [n]))
     .filter(isActive)
-    .sort((a, b) => b.href.length - a.href.length)[0]?.label;
+    .sort((a, b) => b.href.length - a.href.length)[0];
+  const currentLabel = currentItem?.label;
+  // An INNER screen of a section (a record, a form, a print) — anything below the
+  // section's own page. It gets a back button in the top bar (owner's ask,
+  // 2026-10-13), and the section name links to the section's main page.
+  const isSubPage = Boolean(currentItem) && pathname.replace(/\/$/, "") !== currentItem!.href;
+  const goBack = () => {
+    // Back to where the person came from when that was inside the app; a screen
+    // opened directly (a bookmark, a new tab) has nowhere to go back to, so it falls
+    // back to the section's main page rather than leaving the app.
+    const cameFromApp =
+      typeof document !== "undefined" &&
+      document.referrer.startsWith(window.location.origin) &&
+      window.history.length > 1;
+    if (cameFromApp) router.back();
+    else if (currentItem) router.push(currentItem.href);
+  };
 
   // A group is open if the user toggled it, else auto-open when it holds the active
   // page. Explicit toggles persist across navigations, in localStorage — which the
@@ -441,10 +458,24 @@ export function PanelShell({
             answered the second question and left the first to the sidebar, which meant
             the header carried no information about the page at all. */}
         <div className="flex min-w-0 shrink items-baseline gap-2">
-          {currentLabel ? (
-            <span className="truncate font-display text-[0.95rem] font-semibold tracking-[-0.015em]">
+          {isSubPage ? (
+            <button
+              type="button"
+              onClick={goBack}
+              aria-label="Back"
+              title="Back"
+              className="-ml-1.5 self-center rounded-md p-1 text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <ArrowLeft className="size-4" aria-hidden="true" />
+            </button>
+          ) : null}
+          {currentItem ? (
+            <Link
+              href={currentItem.href}
+              className="truncate rounded-sm font-display text-[0.95rem] font-semibold tracking-[-0.015em] outline-none hover:underline hover:underline-offset-4 focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
               {currentLabel}
-            </span>
+            </Link>
           ) : null}
           <span className="hidden max-w-[14rem] shrink truncate text-xs text-muted-foreground lg:inline">
             {currentLabel ? <span className="mr-2 text-border">/</span> : null}
@@ -471,6 +502,8 @@ export function PanelShell({
 
       {/* ---- Mobile top bar ---- */}
       <header className="flex items-center justify-between border-b border-border/70 px-4 py-2.5 md:hidden">
+        {/* Menu and (on an inner screen) Back sit together on the left. */}
+        <div className="flex items-center gap-1">
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -479,6 +512,17 @@ export function PanelShell({
         >
           <Menu className="size-6" aria-hidden="true" />
         </button>
+        {isSubPage ? (
+          <button
+            type="button"
+            onClick={goBack}
+            aria-label="Back"
+            className="rounded-md p-1.5 text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 hover:bg-accent"
+          >
+            <ArrowLeft className="size-5" aria-hidden="true" />
+          </button>
+        ) : null}
+        </div>
         <Link
           href={brand}
           aria-label="FlexicaAI home"

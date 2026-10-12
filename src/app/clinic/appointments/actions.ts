@@ -1,5 +1,6 @@
 "use server";
 
+import { clinicHasFeature } from "@/core/lib/features";
 import { report } from "@/core/observability";
 import type { PaymentMethodCode } from "@/core/db/vocabulary-seed";
 import { PAYMENT_METHODS } from "@/core/finance/payment-methods";
@@ -66,7 +67,7 @@ import {
 } from "@/core/notifications/appointment";
 import { logActivity } from "@/core/audit/log";
 import { APPOINTMENT_STATUSES, type AppointmentStatus } from "@/core/appointments/status";
-import { applyAppointmentStatus } from "@/core/appointments/set-status";
+import { applyAppointmentStatus, confirmAppointmentOnPayment } from "@/core/appointments/set-status";
 import { findSameDayAppointments } from "@/core/appointments/same-day";
 import { DISCOUNT_BEARER_CODES , DISCOUNT_TYPE_CODES } from "@/core/db/vocabulary-seed";
 
@@ -217,9 +218,17 @@ export async function createAppointment(
     reference: string | null;
     note: string | null;
   } | null = null;
-  if (asInvoice) {
+  // A plain booking may carry a payment too — an advance taken at booking, so the
+  // desk does not schedule first and then open the appointment to record it (owner's
+  // ask, 2026-10-13). Only when an amount was actually entered.
+  const bookingPayment = !asInvoice && Number(formData.get("payAmount") || 0) > 0;
+  if (asInvoice || bookingPayment) {
     if (!can(user, "billing", "create")) {
-      return { error: "You don't have permission to create invoices." };
+      return {
+        error: asInvoice
+          ? "You don't have permission to create invoices."
+          : "You don't have permission to record payments.",
+      };
     }
     const pay = invoicePaymentSchema.safeParse({
       amount: formData.get("payAmount") || "0",
@@ -401,6 +410,26 @@ export async function createAppointment(
     // Confirm to the patient over WhatsApp (doctor, hours, fee, time). Not for an
     // invoice: the patient is standing at the desk, not waiting for a booking.
     await notifyAppointmentBooked(clinicId, created.id);
+    // An advance taken with the booking: recorded against the visit (its invoice
+    // shows it), and — like taking money from the appointment page — it confirms a
+    // scheduled appointment.
+    if (invoicePayment && invoicePayment.amount > 0 && clinicHasFeature(clinic?.featuresEnabled, "sales")) {
+      const paid = await recordPayment(clinicId, {
+        patientId: parsed.data.patientId,
+        appointmentId: created.id,
+        amount: invoicePayment.amount,
+        method: invoicePayment.method,
+        reference: invoicePayment.reference,
+        note: invoicePayment.note,
+        actor,
+      });
+      if ("error" in paid) {
+        report(new Error(paid.error), { op: "appointments.create.payment", clinicId, ids: { appointmentId: created.id } });
+      } else {
+        await confirmAppointmentOnPayment(clinicId, created.id);
+        revalidateFinance();
+      }
+    }
   }
 
   await logActivity({

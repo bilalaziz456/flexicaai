@@ -1,8 +1,9 @@
 import { listClinicAppointments } from "@/core/appointments/list-query";
+import { ActionMenu } from "@/core/ui/action-menu";
 import { listAppointmentCreators } from "@/core/appointments/list-query";
 import { TableCard } from "@/core/ui/table-card";
 import Link from "next/link";
-import { ChevronRight, Download, CalendarSearch, Printer } from "lucide-react";
+import { Download, CalendarSearch, Printer } from "lucide-react";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicHasFeature } from "@/core/lib/features";
 import { Badge } from "@/core/ui/badge";
@@ -277,7 +278,9 @@ export async function AppointmentsList({
   };
 
   return (
-    <div className="space-y-6">
+    // Bottom room for the floating + button, so it never sits on the last row's
+    // actions.
+    <div className={cn("space-y-6", canCreate && "pb-20")}>
       <FlashToast message={toastMessage} />
       <div className="relative flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -428,13 +431,14 @@ export async function AppointmentsList({
                   <TableHead>Type</TableHead>
                   <TableHead>Fee</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Created by</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((a) => (
-                  <RowLink key={a.id} href={`${detailBase}/${a.id}`} className="border-b">
+                  // Tighter than the table default (py-2, not py-3): this list is read
+                  // a screenful at a time at the front desk.
+                  <RowLink key={a.id} href={`${detailBase}/${a.id}`} className="border-b [&>td]:py-2">
                     <TableCell className="font-semibold tabular-nums">
                       {a.queueNumber != null ? (
                         `#${a.queueNumber}`
@@ -442,7 +446,22 @@ export async function AppointmentsList({
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="font-medium">{fmt(a.scheduledAt)}</TableCell>
+                    <TableCell>
+                      <span className="font-medium">{fmt(a.scheduledAt)}</span>
+                      {/* Who made it — a second line here rather than a column of its
+                          own, which pushed the actions off the right edge. */}
+                      {(() => {
+                        const c = appointmentCreatedByLabel(a);
+                        if (!c) return null;
+                        return a.source === "whatsapp" ? (
+                          <span className="mt-0.5 block">
+                            <Badge variant="info" className="px-1.5 py-0 text-[0.65rem]">WhatsApp</Badge>
+                          </span>
+                        ) : (
+                          <span className="mt-0.5 block text-xs text-muted-foreground">by {c}</span>
+                        );
+                      })()}
+                    </TableCell>
                     <TableCell>{a.patientName}</TableCell>
                     <TableCell>{doctorLabel(a)}</TableCell>
                     <TableCell>
@@ -475,7 +494,9 @@ export async function AppointmentsList({
                       })()}
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-wrap items-center gap-1.5">
+                      {/* Status above payment, always — side by side they wrapped
+                          only when the payment label was long, so rows changed height. */}
+                      <div className="flex flex-col items-start gap-1">
                         <Badge variant={APPOINTMENT_STATUS_VARIANT[a.status] ?? "secondary"}>
                           {vocabularyLabel("appointment_statuses", a.status)}
                         </Badge>
@@ -486,27 +507,23 @@ export async function AppointmentsList({
                       </div>
                     </TableCell>
                     <TableCell>
-                      {(() => {
-                        const c = appointmentCreatedByLabel(a);
-                        if (!c) return <span className="text-muted-foreground">—</span>;
-                        return a.source === "whatsapp" ? (
-                          <Badge variant="info">WhatsApp</Badge>
-                        ) : (
-                          <span className="text-sm">{c}</span>
-                        );
-                      })()}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        {canEdit ? <AppointmentActions id={a.id} status={a.status} /> : null}
-                        <Link
-                          href={`${detailBase}/${a.id}`}
-                          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-                        >
-                          Open
-                          <ChevronRight className="size-4" aria-hidden="true" />
-                        </Link>
-                      </div>
+                      {/* The one next step, and the rest behind "⋯". The row itself
+                          opens the appointment, so a separate Open button was a third
+                          control in a column that had run out of room. */}
+                      {canEdit ? (
+                        <AppointmentActions
+                          id={a.id}
+                          status={a.status}
+                          compact={{ openHref: `${detailBase}/${a.id}`, label: a.patientName }}
+                        />
+                      ) : (
+                        <div className="flex justify-end">
+                          <ActionMenu
+                            label={`More actions for ${a.patientName}`}
+                            sections={[{ kind: "links", items: [{ label: "Open appointment", href: `${detailBase}/${a.id}` }] }]}
+                          />
+                        </div>
+                      )}
                     </TableCell>
                   </RowLink>
                 ))}
@@ -570,16 +587,15 @@ export async function AppointmentsList({
                     </div>
                   );
                 })()}
-                <div className="flex flex-wrap items-center gap-2">
-                  {canEdit ? <AppointmentActions id={a.id} status={a.status} /> : null}
-                  <Link
-                    href={`${detailBase}/${a.id}`}
-                    className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-                  >
-                    Open
-                    <ChevronRight className="size-4" aria-hidden="true" />
-                  </Link>
-                </div>
+                {/* Same as the table: the next step, the rest behind "⋯" (the card
+                    itself opens the appointment). */}
+                {canEdit ? (
+                  <AppointmentActions
+                    id={a.id}
+                    status={a.status}
+                    compact={{ openHref: `${detailBase}/${a.id}`, label: a.patientName }}
+                  />
+                ) : null}
               </RowLink>
             ))}
           </ul>

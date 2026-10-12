@@ -26,6 +26,7 @@ export async function NewAppointmentPanel({
   preselectedDate,
   preselectedTime,
   invoiceMode = false,
+  canTakePayment = false,
 }: {
   clinicId: string;
   backHref: string;
@@ -38,6 +39,8 @@ export async function NewAppointmentPanel({
   /** The Invoices page's "New invoice": same form, plus the payment, and the visit is
    *  created with its invoice (see NewAppointmentForm's `invoiceMode`). */
   invoiceMode?: boolean;
+  /** Offer an optional payment on a new appointment (see the form). */
+  canTakePayment?: boolean;
 }) {
   const clinic = await getClinic(clinicId);
   const toPatient = (p: {
@@ -94,6 +97,7 @@ export async function NewAppointmentPanel({
             preselectedDate={preselectedDate}
             preselectedTime={preselectedTime}
             invoiceMode={invoiceMode}
+            canTakePayment={canTakePayment}
             planItems={
               preselectedPatientId
                 ? (await getUnscheduledItems(clinicId, preselectedPatientId)).map((i) => ({
