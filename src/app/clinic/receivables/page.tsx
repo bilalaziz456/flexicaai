@@ -32,9 +32,9 @@ const dayFmt = (d: Date) =>
   d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
 /**
- * Receivables report (Finance) — what patients OWE on completed visits, grouped by
+ * Receivables report (Finance) — what patients OWE on past visits (`owedVisitSql`), grouped by
  * patient with a per-visit drill-in. Reconciles with the dashboard "Outstanding" KPI
- * (same rule: completed visits, bill − collected). Gated by the `sales` feature +
+ * (same rule: owed visits, bill − collected). Gated by the `sales` feature +
  * the `receivables` permission (front-desk work — no `finance` feature required).
  */
 export default async function ReceivablesPage({
@@ -97,7 +97,7 @@ export default async function ReceivablesPage({
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Receivables</h1>
           <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
-            What patients owe on completed visits. This total matches the dashboard&apos;s Outstanding.
+            What patients owe on visits that have taken place (not cancelled or no-show). This total matches the dashboard&apos;s Outstanding.
           </p>
         </div>
         {report.patients.length > 0 ? (
@@ -123,7 +123,7 @@ export default async function ReceivablesPage({
         <StatCard
           label="Total outstanding"
           value={money.format(report.total)}
-          hint="Owed on completed visits"
+          hint="Owed on past visits"
         />
         <StatCard
           label="Patients owing"

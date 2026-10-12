@@ -1,10 +1,11 @@
 import "server-only";
 
-import { and, eq, isNull, isNotNull, ne, or, sql } from "drizzle-orm";
+import { eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { unscoped } from "@/core/db/tenant-guard";
-import { appointments, clinics, sales, users } from "@/core/db/schema";
+import { appointments, clinics, patientPayments, sales, users } from "@/core/db/schema";
+import { paymentKindId } from "@/core/db/vocabulary-seed";
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
 import { procedureTotals, type ProcedureTotals } from "@/core/appointments/procedures";
 import { recordSaleForAppointment, voidSaleForAppointment } from "@/core/sales/ledger";
@@ -30,7 +31,8 @@ import { report, reportEvent } from "@/core/observability";
  */
 
 /**
- * Realised revenue for a completed visit = what was collected, capped at the bill.
+ * Realised revenue for a visit = what was collected, capped at the bill — whatever
+ * the visit's status (revenue follows the money since 2026-10-13).
  *
  * Takes the pre-aggregated procedure totals because this sweep scans every completed
  * appointment in a clinic, for every clinic, nightly — and it names the expression
@@ -38,13 +40,17 @@ import { report, reportEvent } from "@/core/observability";
  * `appointment_procedures` per appointment examined.
  */
 function expectedNetSql(totals: ProcedureTotals) {
-  return sql<number>`least(${appointments.amountCollected}, ${appointmentNetSql(totals)})`;
+  // From the PAYMENT LEDGER itself — the same rows the sale's money days are built
+  // from (`money-days.ts`) — not the `amount_collected` cache, so the check and the
+  // ledger it checks can never disagree about how much came in.
+  const received = sql`coalesce((select sum(case when p.kind_id = ${paymentKindId("refund")} then -p.amount else p.amount end) from ${patientPayments} p where p.appointment_id = ${appointments.id} and p.clinic_id = ${appointments.clinicId} and p.deleted_at is null and p.kind_id in (${paymentKindId("payment")}, ${paymentKindId("advance_applied")}, ${paymentKindId("refund")})), 0)`;
+  return sql<number>`greatest(least(${received}, ${appointmentNetSql(totals)}), 0)`;
 }
 
 export type ReconcileResult = {
-  /** Completed, paid visits whose sale was missing or wrong → re-derived. */
+  /** Visits whose sale rows were missing or didn't add up → re-derived. */
   repaired: number;
-  /** Sales for visits that are no longer completed → voided. */
+  /** Sale rows for visits that were trashed → removed. */
   voided: number;
   /** Rows we tried to fix but couldn't (already reported individually). */
   failed: number;
@@ -60,26 +66,21 @@ export async function reconcileClinicSales(clinicId: string): Promise<ReconcileR
   const out: ReconcileResult = { repaired: 0, voided: 0, failed: 0 };
   const pt = procedureTotals(clinicId);
 
-  // ── Drifted or missing: a completed visit whose expected realised revenue doesn't
-  // match the stored sale (or has none at all while money has been collected).
+  // ── Drifted or missing: a visit whose sale rows (one per day money moved) don't add
+  // up to its expected realised revenue. Compared as a TOTAL per visit, since the
+  // rows are per day.
+  const bookedSql = sql<number>`coalesce((select sum(s.net_amount) from ${sales} s where s.appointment_id = ${appointments.id} and s.clinic_id = ${appointments.clinicId}), 0)`;
   const drifted = await db
     .select({ id: appointments.id })
     .from(appointments)
     .leftJoin(users, eq(users.id, appointments.doctorId))
-    .leftJoin(sales, eq(sales.appointmentId, appointments.id))
     .leftJoin(pt, eq(pt.appointmentId, appointments.id))
     .where(
       byClinic(
         appointments.clinicId,
         clinicId,
         notDeleted(appointments.deletedAt),
-        and(
-          eq(appointments.status, "completed"),
-          or(
-            and(isNull(sales.id), sql`${expectedNetSql(pt)} > 0`),
-            and(isNotNull(sales.id), ne(sales.netAmount, expectedNetSql(pt))),
-          ),
-        ),
+        sql`${bookedSql} <> ${expectedNetSql(pt)}`,
       ),
     );
 
@@ -93,19 +94,13 @@ export async function reconcileClinicSales(clinicId: string): Promise<ReconcileR
     }
   }
 
-  // ── Stale: revenue still on the books for a visit that is no longer completed, or
-  // has been trashed. An OVER-statement, so it matters as much as a missing one.
+  // ── Stale: revenue still on the books for a visit that has been trashed. An
+  // OVER-statement, so it matters as much as a missing one.
   const stale = await db
-    .select({ id: sales.appointmentId })
+    .selectDistinct({ id: sales.appointmentId })
     .from(sales)
     .innerJoin(appointments, eq(appointments.id, sales.appointmentId))
-    .where(
-      byClinic(
-        sales.clinicId,
-        clinicId,
-        or(ne(appointments.status, "completed"), isNotNull(appointments.deletedAt)),
-      ),
-    );
+    .where(byClinic(sales.clinicId, clinicId, isNotNull(appointments.deletedAt)));
 
   for (const a of stale) {
     try {

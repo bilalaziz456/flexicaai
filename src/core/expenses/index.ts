@@ -59,6 +59,7 @@ export async function setCategoryActive(clinicId: string, id: string, isActive: 
 
 export type ExpenseRow = {
   id: string;
+  categoryId: string | null;
   categoryName: string | null;
   amount: number;
   incurredOn: string;
@@ -67,6 +68,7 @@ export type ExpenseRow = {
   reference: string | null;
   note: string | null;
   recurring: boolean;
+  recurrence: RecurrenceCode | null;
   createdByName: string | null;
   deleted: boolean;
 };
@@ -108,6 +110,7 @@ export async function listExpenses(
     db
       .select({
         id: expenses.id,
+        categoryId: expenses.categoryId,
         categoryName: expenseCategories.name,
         amount: expenses.amount,
         incurredOn: expenses.incurredOn,
@@ -116,6 +119,7 @@ export async function listExpenses(
         reference: expenses.reference,
         note: expenses.note,
         recurring: expenses.recurring,
+        recurrence: expenses.recurrence,
         createdByName: expenses.createdByName,
         deletedAt: expenses.deletedAt,
       })

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, notInArray, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, patientPayments, patients, users } from "@/core/db/schema";
@@ -17,8 +17,10 @@ import { getPatientCredit } from "@/core/billing/payments";
 
 /**
  * A patient's account (Finance) — the per-visit bill/collected/outstanding across
- * their completed visits, the totals, unallocated advance credit, and recent ledger
- * entries. CORE, clinic-scoped. Bills are computed the same way as the appointment
+ * ALL their visits except cancelled and no-show ones (past and upcoming: on the
+ * patient's own profile the desk expects to see what a booked visit will cost — owner,
+ * 2026-10-13; it used to count completed visits only), the totals, unallocated advance
+ * credit, and recent ledger entries. CORE, clinic-scoped. Bills are computed the same way as the appointment
  * detail (approval-gated discount), so figures reconcile everywhere.
  */
 export type PatientVisit = {
@@ -27,6 +29,9 @@ export type PatientVisit = {
   bill: number;
   collected: number;
   outstanding: number;
+  /** The visit is still ahead (its time has not come). Its balance is part of the
+   *  patient's outstanding but not yet a receivable (`core/finance/owed.ts`). */
+  upcoming: boolean;
 };
 
 export type PatientLedgerEntry = {
@@ -41,7 +46,13 @@ export type PatientAccount = {
   credit: number;
   /** Net imported opening balance still owed (0 if none). Included in totals.outstanding. */
   openingBalance: number;
-  totals: { billed: number; collected: number; outstanding: number };
+  totals: {
+    billed: number;
+    collected: number;
+    outstanding: number;
+    /** The part of `outstanding` that is for visits still ahead. */
+    upcoming: number;
+  };
   visits: PatientVisit[];
   payments: PatientLedgerEntry[];
 };
@@ -70,11 +81,15 @@ export async function getPatientAccount(
         appointments.clinicId,
         clinicId,
         notDeleted(appointments.deletedAt),
-        and(eq(appointments.patientId, patientId), eq(appointments.status, "completed")),
+        and(
+          eq(appointments.patientId, patientId),
+          notInArray(appointments.status, ["cancelled", "no_show"]),
+        ),
       ),
     )
     .orderBy(desc(appointments.scheduledAt));
 
+  const now = Date.now();
   const visits: PatientVisit[] = rows.map((r) => {
     const bill = billFromTotals(
       r.chargeConsultation ? (r.fee ?? 0) : 0,
@@ -84,7 +99,14 @@ export async function getPatientAccount(
       effectiveDiscountValue(r.discountStatus, r.discountValue),
     ).net;
     const collected = r.amountCollected;
-    return { id: r.id, scheduledAt: r.scheduledAt, bill, collected, outstanding: Math.max(0, bill - collected) };
+    return {
+      id: r.id,
+      scheduledAt: r.scheduledAt,
+      bill,
+      collected,
+      outstanding: Math.max(0, bill - collected),
+      upcoming: r.scheduledAt.getTime() > now,
+    };
   });
 
   const totals = visits.reduce(
@@ -92,8 +114,9 @@ export async function getPatientAccount(
       billed: a.billed + v.bill,
       collected: a.collected + v.collected,
       outstanding: a.outstanding + v.outstanding,
+      upcoming: a.upcoming + (v.upcoming ? v.outstanding : 0),
     }),
-    { billed: 0, collected: 0, outstanding: 0 },
+    { billed: 0, collected: 0, outstanding: 0, upcoming: 0 },
   );
 
   const [credit, payments, patRow, openPaidRow] = await Promise.all([

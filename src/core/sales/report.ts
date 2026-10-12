@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, gte, lt, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointmentProcedures, appointments, patients, sales, users } from "@/core/db/schema";
@@ -226,6 +226,7 @@ export async function getSalesReport(
 
   const rows = await db
     .select({
+      appointmentId: sales.appointmentId,
       doctorId: sales.doctorId,
       doctorName: sales.doctorName,
       grossAmount: sales.grossAmount,
@@ -255,8 +256,13 @@ export async function getSalesReport(
   let discountTotal = 0;
   let grossTotal = 0;
   const doctorMap = new Map<string, DoctorSales>();
+  // VISITS, not rows: since revenue counts on the day money arrives, one visit paid in
+  // instalments has a row per day. A visit counts once, per doctor and overall.
+  const doctorVisits = new Map<string, Set<string>>();
+  const visits = new Set<string>();
 
   for (const r of rows) {
+    visits.add(r.appointmentId);
     netTotal += r.netAmount;
     discountTotal += r.discountAmount;
     grossTotal += r.grossAmount;
@@ -266,10 +272,13 @@ export async function getSalesReport(
     if (bi !== undefined) buckets[bi].value += r.netAmount;
 
     const key = r.doctorId ?? "__none__";
+    const seen = doctorVisits.get(key) ?? new Set<string>();
+    seen.add(r.appointmentId);
+    doctorVisits.set(key, seen);
     const existing = doctorMap.get(key);
     if (existing) {
       existing.net += r.netAmount;
-      existing.count += 1;
+      existing.count = seen.size;
     } else {
       doctorMap.set(key, {
         doctorId: r.doctorId,
@@ -292,12 +301,25 @@ export async function getSalesReport(
       qty: sql<number>`sum(${appointmentProcedures.quantity})::int`,
     })
     .from(appointmentProcedures)
-    .innerJoin(sales, eq(sales.appointmentId, appointmentProcedures.appointmentId))
     .where(
       byClinic(
         appointmentProcedures.clinicId,
         clinicId,
-        and(gte(sales.occurredAt, start), lt(sales.occurredAt, end), doctorFilter),
+        // The visits that took money in the window — as a set, not a join: a visit
+        // has a sale row per payment day, and joining would count its lines per day.
+        inArray(
+          appointmentProcedures.appointmentId,
+          db
+            .selectDistinct({ id: sales.appointmentId })
+            .from(sales)
+            .where(
+              byClinic(
+                sales.clinicId,
+                clinicId,
+                and(gte(sales.occurredAt, start), lt(sales.occurredAt, end), doctorFilter),
+              ),
+            ),
+        ),
       ),
     )
     .groupBy(appointmentProcedures.name)
@@ -309,7 +331,7 @@ export async function getSalesReport(
     qty: Number(r.qty),
   }));
 
-  const count = rows.length;
+  const count = visits.size;
   return {
     netTotal,
     discountTotal,
@@ -346,7 +368,6 @@ export async function getSalesSummary(
     .select({
       d: sql<string>`to_char(date_trunc('day', ${sales.occurredAt}), 'YYYY-MM-DD')`,
       net: sql<number>`coalesce(sum(${sales.netAmount}), 0)::int`,
-      count: sql<number>`count(*)::int`,
     })
     .from(sales)
     .where(
@@ -370,9 +391,21 @@ export async function getSalesSummary(
     trend.push(byDay.get(key) ?? 0);
   }
 
+  // Visits counted ONCE over the range (a visit paid on two days has two rows).
+  const [visitCount] = await db
+    .select({ n: sql<number>`count(distinct ${sales.appointmentId})::int` })
+    .from(sales)
+    .where(
+      byClinic(
+        sales.clinicId,
+        clinicId,
+        and(gte(sales.occurredAt, range.start), lt(sales.occurredAt, range.end)),
+      ),
+    );
+
   return {
     netTotal: rows.reduce((a, r) => a + Number(r.net), 0),
-    count: rows.reduce((a, r) => a + Number(r.count), 0),
+    count: Number(visitCount?.n ?? 0),
     trend,
   };
 }

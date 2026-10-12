@@ -1172,6 +1172,45 @@ read, derive, store only the irreducible fact. And anything it borrows for DISPL
 separable from anything it counts in a FIGURE; keep them separable, because the owner will
 rightly ask for one without the other.
 
+**ADR-035 — Revenue follows the MONEY: it counts on the day it is received, and a
+visit's status is for the queue only** · *2026-10-13* · `Accepted` *(refines ADR-016)*
+`sales` and `sale_shares` are derived from a visit's PAYMENT LEDGER, one row per
+calendar day its collected total moved (`core/sales/money-days.ts`) — whatever the
+visit's status. A deposit, the balance and a refund each land on their own date; a
+refund is a negative row. "Who owes money" is one shared predicate,
+`core/finance/owed.ts#owedVisitSql` — the visit's time has passed and it is not
+cancelled or a no-show — used by Receivables and the dashboard's Outstanding.
+
+**Why, and who decided.** The owner's call: the front desk is not trained in accrual
+accounting, records a payment, and expects to see it everywhere. Under the old rule a
+payment on a visit nobody had pressed *Complete* on was a "deposit" — in the day book
+and the drawer but absent from Sales, the P&L, doctor shares and receivables — and the
+screen said so in a paragraph the desk could not act on. The visit status
+(Arrived / Call in / Completed) is now an operational marker for the queue, not an
+accounting event. The four rules were chosen explicitly: revenue on the date
+received; owed once the visit time passes; the doctor's share follows the money; a
+cancelled visit's money stays until it is refunded (shown as Refund due).
+
+**Two implementation details carry it:**
+- **Rounding on RUNNING totals.** Each day's row is the difference of the clamped
+  cumulative figures, never a per-row rounding, so a visit's rows always sum to
+  exactly what the old single snapshot booked; per-doctor shares do the same.
+- **Reconcile compares TOTALS against the payment ledger**, not `amount_collected`:
+  the check and the ledger it checks read the same rows. It cannot see a sale that is
+  correct in total but on the wrong DATE, which is why the one-time move to per-day
+  rows is a script (`scripts/rederive-sales.ts`, `npm run db:rederive-sales`) run after
+  migration `0124` on every environment, not something the nightly job would do.
+
+**Consequences.**
+- `sales.appointment_id` is no longer unique (`0124`): anything counting VISITS from
+  `sales` counts DISTINCT appointments (the Sales report and summary do), and anything
+  joining `sales` to per-visit rows (procedure mix) must use a set, not a join.
+- The discount settlement stays an accrual recognised at completion OR first money.
+- Cash basis means a cancellation does not reduce revenue by itself — the refund does,
+  on its own date. That is the trade the owner chose for simplicity.
+- `getAppointmentBill` no longer returns `not_billed` for a found visit, so the payment
+  panel has no "deposit / estimate" state.
+
 ---
 
 ## 6. Deltas — where the code is not yet the architecture

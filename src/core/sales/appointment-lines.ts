@@ -47,7 +47,8 @@ async function rawLineEarnings(
     .from(appointments)
     .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
     .limit(1);
-  if (!appt || appt.status !== "completed") return [];
+  // Any visit with money against it (the share follows the money, not the status).
+  if (!appt) return [];
 
   const collected = Math.max(0, Math.min(appt.collected ?? 0, ctx.netEffective));
   const fraction = ctx.grossTotal > 0 ? collected / ctx.grossTotal : 0;

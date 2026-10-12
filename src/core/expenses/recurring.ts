@@ -13,11 +13,11 @@ import { expenses } from "@/core/db/schema";
  * cron. Pure date math here so create/update and the cron agree.
  */
 
-export type Recurrence = "monthly" | "weekly";
+export type Recurrence = "monthly" | "weekly" | "yearly";
 
 /** Normalise free-text input to a supported interval (default monthly). */
 export function normalizeRecurrence(v: string | null | undefined): Recurrence {
-  return v === "weekly" ? "weekly" : "monthly";
+  return v === "weekly" || v === "yearly" ? v : "monthly";
 }
 
 const p2 = (n: number) => String(n).padStart(2, "0");
@@ -30,6 +30,11 @@ export function nextRunFrom(iso: string, recurrence: Recurrence): string {
   if (recurrence === "weekly") {
     const dt = new Date(y, m - 1, d + 7);
     return toIso(dt.getFullYear(), dt.getMonth() + 1, dt.getDate());
+  }
+  if (recurrence === "yearly") {
+    // Same day next year; 29 Feb clamps to 28 Feb in a non-leap year rather than
+    // rolling into March.
+    return toIso(y + 1, m, Math.min(d, daysInMonth(y + 1, m)));
   }
   // Monthly: advance one month, clamping the day to the target month's length so
   // Jan 31 → Feb 28/29 rather than rolling into March.

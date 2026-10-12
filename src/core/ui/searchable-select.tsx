@@ -70,8 +70,10 @@ export function SearchableSelect({
           </Combobox.Icon>
         </Combobox.Trigger>
         <Combobox.Portal>
-          <Combobox.Positioner side="bottom" align="start" sideOffset={4} className="z-50">
-            <Combobox.Popup className="z-50 flex max-h-80 w-[var(--anchor-width)] min-w-44 flex-col overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg outline-none [&_[role=status]]:sr-only">
+          {/* Above a dialog (z-100), like SelectField and DatePicker — at z-50 it opened
+              BEHIND the Edit expense dialog (owner's report, 2026-10-13). */}
+          <Combobox.Positioner side="bottom" align="start" sideOffset={4} className="z-[110]">
+            <Combobox.Popup className="z-[110] flex max-h-80 w-[var(--anchor-width)] min-w-44 flex-col overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg outline-none [&_[role=status]]:sr-only">
               {/* Search box lives INSIDE the popup, empty on every open. */}
               <div className="border-b p-1">
                 <Combobox.Input

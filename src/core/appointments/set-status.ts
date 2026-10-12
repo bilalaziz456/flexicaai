@@ -9,7 +9,7 @@ import {
   notifyAppointmentBooked,
   notifyAppointmentsCancelled,
 } from "@/core/notifications/appointment";
-import { recordSaleForAppointment, voidSaleForAppointment } from "@/core/sales/ledger";
+import { recordSaleForAppointment } from "@/core/sales/ledger";
 import { logActivity } from "@/core/audit/log";
 import type { AppointmentStatus } from "./status";
 
@@ -77,13 +77,13 @@ export async function applyAppointmentStatus(
       })
       .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)));
 
-    // Sales ledger: a completed appointment is a realised sale; leaving "completed"
-    // voids it. Inside the transaction, so a ledger failure rolls the status back
-    // rather than leaving the two disagreeing.
-    if (status === "completed") {
+    // Sales ledger: revenue follows the MONEY, not the status (owner's call,
+    // 2026-10-13), so a status change no longer creates or removes revenue. It is
+    // still re-derived when completion changes, because the discount settlement is
+    // recognised at completion. Inside the transaction, so a ledger failure rolls the
+    // status back rather than leaving the two disagreeing.
+    if (status === "completed" || prior.status === "completed") {
       await recordSaleForAppointment(clinicId, appointmentId, tx);
-    } else if (prior.status === "completed") {
-      await voidSaleForAppointment(clinicId, appointmentId, tx);
     }
 
     // The invoice follows the visit: a cancelled or no-show visit's invoice is VOID

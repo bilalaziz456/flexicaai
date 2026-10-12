@@ -60,14 +60,11 @@ export async function getAppointmentBill(
   const billTotal = Math.max(0, ctx.netEffective);
   const collected = appt.amountCollected;
   const outstanding = Math.max(0, billTotal - collected);
+  // Whatever the visit's status: the bill is the bill and money taken is a payment,
+  // not a "deposit" held until completion (owner's call, 2026-10-13 — the status is
+  // for the queue; revenue follows the money). `not_billed` now only means "not found".
   const paymentStatus: PaymentStatus =
-    appt.status !== "completed"
-      ? "not_billed"
-      : outstanding <= 0
-        ? "paid"
-        : collected > 0
-          ? "partial"
-          : "unpaid";
+    outstanding <= 0 ? "paid" : collected > 0 ? "partial" : "unpaid";
 
   return { found: true, status: appt.status, billTotal, collected, outstanding, paymentStatus };
 }

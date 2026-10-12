@@ -9,13 +9,19 @@
  * corrupt the ledger the way a failed write would, and assert reconciliation puts it
  * back.
  *
+ * Since 2026-10-13 revenue follows the MONEY, not the visit's status: a visit's sale
+ * rows are one per day money moved, derived from its payment ledger. So the seeding
+ * records a real payment (the old test set `amount_collected` with nothing behind
+ * it), and "un-completing" a visit no longer removes its revenue — trashing it does.
+ *
  * Run: `tsx --env-file=.env.local --tsconfig scripts/_seed/tsconfig.json scripts/test-sales-reconcile.ts`
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import {
   appointments,
   clinics,
+  patientPayments,
   patients,
   saleShares,
   sales,
@@ -83,10 +89,21 @@ async function seed() {
       })
       .returning({ id: appointments.id })
   )[0].id;
+  // The payment itself — the sale is derived from this, not from the cache above.
+  await db.insert(patientPayments).values({
+    clinicId,
+    patientId,
+    appointmentId: apptId,
+    kind: "payment",
+    amount: COLLECTED,
+    method: "cash",
+  });
 }
 
-const saleRow = async () =>
-  (await db.select().from(sales).where(eq(sales.appointmentId, apptId)))[0] ?? null;
+const saleTotal = async () => {
+  const rows = await db.select().from(sales).where(eq(sales.appointmentId, apptId));
+  return rows.length === 0 ? null : rows.reduce((n, r) => n + r.netAmount, 0);
+};
 const shareRows = async () =>
   await db.select().from(saleShares).where(eq(saleShares.appointmentId, apptId));
 
@@ -96,8 +113,7 @@ async function main() {
   console.log("The derived set is written together:");
   {
     await recordSaleForAppointment(clinicId, apptId);
-    const s = await saleRow();
-    check("a sale is recorded for the completed, paid visit", s?.netAmount, COLLECTED);
+    check("a sale is recorded for the paid visit", await saleTotal(), COLLECTED);
     // The point of the transaction: revenue and the doctor credited for it either both
     // exist or neither does. Previously these were separate writes on separate
     // connections and a crash between them left revenue with nobody credited.
@@ -110,11 +126,11 @@ async function main() {
     await unscoped("test: simulate a lost sale", () =>
       db.delete(sales).where(eq(sales.appointmentId, apptId)),
     );
-    check("…gone", await saleRow(), null);
+    check("…gone", await saleTotal(), null);
 
     const r = await reconcileClinicSales(clinicId);
     check("reconcile reports one repair", { repaired: r.repaired, voided: r.voided, failed: r.failed }, { repaired: 1, voided: 0, failed: 0 });
-    check("…and the sale is back, with the right amount", (await saleRow())?.netAmount, COLLECTED);
+    check("…and the sale is back, with the right amount", await saleTotal(), COLLECTED);
   }
 
   console.log("\nA WRONG amount (a stale snapshot) is corrected:");
@@ -124,23 +140,34 @@ async function main() {
     );
     const r = await reconcileClinicSales(clinicId);
     check("reconcile repairs it", r.repaired, 1);
-    check("…back to the collected amount", (await saleRow())?.netAmount, COLLECTED);
+    check("…back to the collected amount", await saleTotal(), COLLECTED);
   }
 
-  console.log("\nRevenue left on the books for an un-completed visit is voided:");
+  console.log("\nThe status no longer decides revenue — the money does:");
   {
-    // Change the status BEHIND the app's back, as a direct DB edit or a failed void
-    // would leave it — the hook is exactly what we're testing the absence of.
+    // Move it back to Scheduled behind the app's back. Under the old rule reconcile
+    // voided the revenue; now the money was received, so it stays.
     await db
       .update(appointments)
       .set({ status: "scheduled" })
       // Clinic-scoped even in scaffolding: the tenant guard flags an id-only write,
       // and a guard that routinely warns is a guard people stop reading.
       .where(and(eq(appointments.clinicId, clinicId), eq(appointments.id, apptId)));
+    const r = await reconcileClinicSales(clinicId);
+    check("reconcile finds nothing to change", r, { repaired: 0, voided: 0, failed: 0 });
+    check("…the revenue is still there", await saleTotal(), COLLECTED);
+    check("…and the doctor is still credited", (await shareRows()).length, 1);
+  }
 
+  console.log("\nRevenue left on the books for a TRASHED visit is removed:");
+  {
+    await db
+      .update(appointments)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(appointments.clinicId, clinicId), eq(appointments.id, apptId)));
     const r = await reconcileClinicSales(clinicId);
     check("reconcile voids it", { voided: r.voided, failed: r.failed }, { voided: 1, failed: 0 });
-    check("…no sale remains", await saleRow(), null);
+    check("…no sale remains", await saleTotal(), null);
     check("…and no doctor is still credited", (await shareRows()).length, 0);
   }
 
@@ -151,6 +178,8 @@ async function main() {
   }
 
   await unscoped("test cleanup", async () => {
+    await db.execute(sql`delete from discount_settlements where clinic_id = ${clinicId}::uuid`);
+    await db.delete(patientPayments).where(eq(patientPayments.clinicId, clinicId));
     await db.delete(saleShares).where(eq(saleShares.clinicId, clinicId));
     await db.delete(sales).where(eq(sales.clinicId, clinicId));
     await db.delete(appointments).where(eq(appointments.clinicId, clinicId));

@@ -507,6 +507,8 @@ export const TAX_MODE_ROWS = [
 export const RECURRENCE_ROWS = [
   { id: 1, code: "monthly", label: "Monthly", sortOrder: 1 },
   { id: 2, code: "weekly", label: "Weekly", sortOrder: 2 },
+  // Annual costs — a licence, an insurance premium, a membership (migration 0123).
+  { id: 3, code: "yearly", label: "Yearly", sortOrder: 3 },
 ] as const satisfies readonly VocabularyRow[];
 
 /** `appointments.source`. */

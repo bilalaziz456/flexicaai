@@ -1,5 +1,6 @@
 import "server-only";
 
+import { owedVisitSql } from "@/core/finance/owed";
 import { and, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
@@ -53,7 +54,8 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
   // Reuses the P&L math verbatim (so a delta can never disagree with the report).
   const priorRange = precedingRange(range30);
 
-  // Outstanding receivable = Σ(bill − collected) over completed visits. Shared bill
+  // Outstanding receivable = Σ(bill − collected) over OWED visits (`owedVisitSql` —
+  // time passed, not cancelled / no-show; was "completed"). Shared bill
   // expression with the Receivables report, so the two always reconcile.
   //
   // JOINED, not correlated. All three queries below run the bill across every
@@ -83,7 +85,7 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
           appointments.clinicId,
           clinicId,
           notDeleted(appointments.deletedAt),
-          eq(appointments.status, "completed"),
+          owedVisitSql(),
         ),
       ),
     getDoctorBalances(clinicId),
@@ -102,14 +104,14 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
           clinicId,
           notDeleted(appointments.deletedAt),
           and(
-            eq(appointments.status, "completed"),
+            owedVisitSql(),
             gte(appointments.scheduledAt, range30.start),
             lt(appointments.scheduledAt, range30.end),
           ),
         ),
       )
       .groupBy(sql`date_trunc('day', ${appointments.scheduledAt})`),
-    // Opening receivable — completed visits BEFORE the window — to seed the running line.
+    // Opening receivable — owed visits BEFORE the window — to seed the running line.
     db
       .select({
         v: sql<number>`coalesce(sum(greatest(${netSql} - ${appointments.amountCollected}, 0)), 0)::int`,
@@ -122,7 +124,7 @@ export async function getFinanceKpis(clinicId: string): Promise<FinanceKpis> {
           appointments.clinicId,
           clinicId,
           notDeleted(appointments.deletedAt),
-          and(eq(appointments.status, "completed"), lt(appointments.scheduledAt, range30.start)),
+          and(owedVisitSql(), lt(appointments.scheduledAt, range30.start)),
         ),
       ),
   ]);

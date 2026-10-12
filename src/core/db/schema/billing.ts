@@ -240,8 +240,9 @@ export const sales = pgTable(
       .defaultNow(),
   },
   (t) => [
-    // One sale per appointment (upserted on completion).
-    uniqueIndex("sales_appointment_unique").on(t.appointmentId),
+    // NOT unique since migration 0124: revenue counts on the DAY it is received, so
+    // a visit paid in instalments (or refunded) has one row per such day.
+    index("sales_appointment_idx").on(t.appointmentId),
     // The report aggregates by clinic + date window.
     index("sales_clinic_occurred_idx").on(t.clinicId, t.occurredAt),
     index("sales_doctor_idx").on(t.doctorId),

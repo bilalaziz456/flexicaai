@@ -2,7 +2,8 @@
 
 import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState, useTransition } from "react";
-import { RotateCcw, Trash2 } from "lucide-react";
+import { Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { Dialog } from "@/core/ui/dialog";
 import {
   saveExpense,
   deleteExpenseAction,
@@ -19,10 +20,10 @@ import { Label } from "@/core/ui/label";
 import { DatePicker } from "@/core/ui/date-picker";
 import { Toast, useActionToast } from "@/core/ui/toast";
 import { SearchableSelect } from "@/core/ui/searchable-select";
-import { useTenderOptions } from "@/core/ui/vocabulary-provider";
+import { useTenderOptions, useVocabularyOptions } from "@/core/ui/vocabulary-provider";
 
 const inputCls =
-  "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+  "h-9 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
 const todayStr = () => {
   const d = new Date();
@@ -30,42 +31,79 @@ const todayStr = () => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 };
 
-/** Record a new expense. */
+/** What an existing expense brings into the form when it is edited. */
+export type EditableExpense = {
+  id: string;
+  categoryId: string | null;
+  categoryName: string | null;
+  amount: number;
+  incurredOn: string;
+  vendor: string | null;
+  method: string | null;
+  reference: string | null;
+  note: string | null;
+  recurring: boolean;
+  recurrence: string | null;
+};
+
+/** Record a new expense - or, given `expense`, edit that one (same form, filled in). */
 export function AddExpenseForm({
   categories,
+  expense,
+  onSaved,
 }: {
   categories: { id: string; name: string }[];
+  expense?: EditableExpense;
+  /** Edit mode: called after a successful save (closes the dialog). */
+  onSaved?: () => void;
 }) {
   // Methods come from the database (ADR-027): active only, in its own order.
   const methodOptions = useTenderOptions();
-  const [date, setDate] = useState(todayStr());
-  const [amount, setAmount] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  // Monthly / Weekly / Yearly — from the database (ADR-027), so the list and its
+  // labels are the vocabulary's, not a copy kept in step by hand.
+  const recurrenceOptions = useVocabularyOptions("recurrences");
+  const isEdit = Boolean(expense);
+  const [date, setDate] = useState(expense?.incurredOn ?? todayStr());
+  const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
+  const [categoryId, setCategoryId] = useState(expense?.categoryId ?? "");
   // Clearing the form is part of adding the expense — the next one is usually
   // typed straight after — so it happens in the action, not in an effect that
   // notices the save afterwards and re-renders to undo the fields.
   const [state, formAction, pending] = useActionState<ExpenseActionState, FormData>(
     async (prev, fd) => {
-      const res = await saveExpense(null, prev, fd);
+      const res = await saveExpense(expense?.id ?? null, prev, fd);
       if (res.saved) {
-        setAmount("");
-        setDate(todayStr());
-        setCategoryId("");
+        if (isEdit) onSaved?.();
+        else {
+          setAmount("");
+          setDate(todayStr());
+          setCategoryId("");
+        }
       }
       return res;
     },
     {},
   );
-  useActionToast(state, { saved: "Expense added.", error: true });
+  useActionToast(state, { saved: isEdit ? "Expense updated." : "Expense added.", error: true });
 
   const categoryOptions = [
     { value: "", label: "Uncategorized" },
     ...categories.map((c) => ({ value: c.id, label: c.name })),
+    // An expense filed under a category since switched off still shows it, so an
+    // edit does not quietly move it to "Uncategorized".
+    ...(expense?.categoryId && !categories.some((c) => c.id === expense.categoryId)
+      ? [{ value: expense.categoryId, label: `${expense.categoryName ?? "Category"} (inactive)` }]
+      : []),
   ];
+  // Distinct field ids per form: an edit dialog can be open while the add form is
+  // on the page, and two inputs sharing an id break their labels.
+  const idp = isEdit ? `ex-${expense!.id.slice(0, 8)}-` : "ex-";
 
   return (
     <ActionForm action={formAction} state={state} className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Two columns in the Edit dialog (four squeezed the date into Method); four
+          across on the page, where there is room. */}
+      <div className={isEdit ? "grid gap-3 sm:grid-cols-2" : "grid gap-3 sm:grid-cols-2 lg:grid-cols-4"}>
         <SearchableSelect
           label="Category"
           ariaLabel="Expense category"
@@ -74,12 +112,12 @@ export function AddExpenseForm({
           onChange={setCategoryId}
           options={categoryOptions}
           placeholder="Category"
-          className="h-8 w-full"
+          className="h-9 w-full"
         />
         <div className="space-y-1">
-          <Label htmlFor="ex-amount" className="text-xs text-muted-foreground">Amount (Rs)</Label>
+          <Label htmlFor={`${idp}amount`} className="text-xs text-muted-foreground">Amount (Rs)</Label>
           <input
-            id="ex-amount"
+            id={`${idp}amount`}
             name="amount"
             type="number"
             inputMode="numeric"
@@ -91,54 +129,80 @@ export function AddExpenseForm({
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="ex-date" className="text-xs text-muted-foreground">Date</Label>
+          <Label htmlFor={`${idp}date`} className="text-xs text-muted-foreground">Date</Label>
           <input type="hidden" name="incurredOn" value={date} />
-          <DatePicker id="ex-date" ariaLabel="Expense date" value={date} onChange={setDate} />
+          <DatePicker id={`${idp}date`} ariaLabel="Expense date" value={date} onChange={setDate} />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="ex-method" className="text-xs text-muted-foreground">Method</Label>
+          <Label htmlFor={`${idp}method`} className="text-xs text-muted-foreground">Method</Label>
           <SelectField
-            id="ex-method"
+            id={`${idp}method`}
             name="method"
-            defaultValue="cash"
+            defaultValue={expense?.method ?? "cash"}
             options={[...methodOptions.map((m) => ({ value: m.value, label: m.label }))]}
             ariaLabel="method"
-            className="h-8 w-full"
+            className="h-9 w-full"
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="ex-vendor" className="text-xs text-muted-foreground">Vendor / payee</Label>
-          <Input id="ex-vendor" name="vendor" className="h-8" />
+          <Label htmlFor={`${idp}vendor`} className="text-xs text-muted-foreground">Vendor / payee</Label>
+          <Input id={`${idp}vendor`} name="vendor" className="h-9" defaultValue={expense?.vendor ?? ""} />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="ex-ref" className="text-xs text-muted-foreground">Reference</Label>
-          <Input id="ex-ref" name="reference" className="h-8" />
+          <Label htmlFor={`${idp}ref`} className="text-xs text-muted-foreground">Reference</Label>
+          <Input id={`${idp}ref`} name="reference" className="h-9" defaultValue={expense?.reference ?? ""} />
         </div>
         <div className="space-y-1 sm:col-span-2">
-          <Label htmlFor="ex-note" className="text-xs text-muted-foreground">Note</Label>
-          <Input id="ex-note" name="note" className="h-8" />
+          <Label htmlFor={`${idp}note`} className="text-xs text-muted-foreground">Note</Label>
+          <Input id={`${idp}note`} name="note" className="h-9" defaultValue={expense?.note ?? ""} />
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-4">
-        <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Add expense"}</Button>
-        <label className="flex min-h-6 items-center gap-2 text-sm">
-          <Checkbox name="recurring" />
-          Recurring cost
-        </label>
-        <SelectField
-          name="recurrence"
-          defaultValue="monthly"
-          options={[{ value: "monthly", label: "Monthly" }, { value: "weekly", label: "Weekly" }]}
-          ariaLabel="Recurrence interval"
-          className="h-8"
-        />
+      {/* Recurring settings, then the save button — at the far right in the dialog,
+          where a dialog's primary action is expected. */}
+      <div className={isEdit ? "flex flex-wrap items-center justify-between gap-4 pt-1" : "flex flex-wrap items-center gap-4"}>
+        {isEdit ? null : (
+          <Button type="submit" disabled={pending}>
+            {pending ? "Saving…" : "Add expense"}
+          </Button>
+        )}
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex min-h-6 items-center gap-2 text-sm">
+            <Checkbox name="recurring" defaultChecked={expense?.recurring ?? false} />
+            Recurring cost
+          </label>
+          <SelectField
+            name="recurrence"
+            defaultValue={expense?.recurrence ?? "monthly"}
+            options={recurrenceOptions}
+            ariaLabel="Recurrence interval"
+            className="h-9"
+          />
+        </div>
+        {isEdit ? (
+          <Button type="submit" disabled={pending}>
+            {pending ? "Saving…" : "Save changes"}
+          </Button>
+        ) : null}
       </div>
     </ActionForm>
   );
 }
 
-/** Delete (soft) or restore an expense row. */
-export function ExpenseRowActions({ id, deleted }: { id: string; deleted: boolean }) {
+/** Edit (the expense form in a dialog), delete (soft) or restore an expense row. */
+export function ExpenseRowActions({
+  id,
+  deleted,
+  expense,
+  categories,
+  canEdit = false,
+}: {
+  id: string;
+  deleted: boolean;
+  expense?: EditableExpense;
+  categories?: { id: string; name: string }[];
+  canEdit?: boolean;
+}) {
+  const [editOpen, setEditOpen] = useState(false);
   const [pending, start] = useTransition();
   const [err, setErr] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
@@ -152,6 +216,19 @@ export function ExpenseRowActions({ id, deleted }: { id: string; deleted: boolea
     });
   return (
     <>
+      {!deleted && canEdit && expense ? (
+        <>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setEditOpen(true)}>
+            <Pencil className="size-3.5" aria-hidden="true" /> Edit
+          </Button>
+          <Dialog open={editOpen} onOpenChange={setEditOpen} title="Edit expense" className="sm:max-w-3xl">
+            {/* Mounted only while open, so it always starts from the row's values. */}
+            {editOpen ? (
+              <AddExpenseForm categories={categories ?? []} expense={expense} onSaved={() => setEditOpen(false)} />
+            ) : null}
+          </Dialog>
+        </>
+      ) : null}
       {deleted ? (
         <Button
           type="button"

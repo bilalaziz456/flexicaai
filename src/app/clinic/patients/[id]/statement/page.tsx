@@ -109,7 +109,7 @@ export default async function PatientStatementPage({
             </tbody>
           </table>
         ) : (
-          <p className="mt-3 text-[0.9em] opacity-70">No completed visits yet.</p>
+          <p className="mt-3 text-[0.9em] opacity-70">No visits yet.</p>
         )}
 
         {/* Totals */}

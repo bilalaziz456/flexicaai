@@ -71,9 +71,10 @@ export function paymentStatusBadge(
     case "refunded":
       return { label: LABEL.refunded, variant: "outline" };
     case "not_paid":
-      // Red only once the visit is done and the money is owed; before that, nobody
-      // has failed to pay yet.
-      return { label: LABEL.not_paid, variant: opts.visitStatus === "completed" ? "destructive" : "outline" };
+      // Always red (owner's call, 2026-10-13): the visit status runs the queue and no
+      // longer decides anything about money, so "nothing paid yet" reads the same
+      // before and after the visit.
+      return { label: LABEL.not_paid, variant: "destructive" };
   }
 }
 

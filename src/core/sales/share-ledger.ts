@@ -3,12 +3,13 @@ import "server-only";
 import { eq, inArray } from "drizzle-orm";
 import { byClinic } from "@/core/db/tenant";
 import type { Executor } from "@/core/db/tx";
-import { appointments, saleShares, users } from "@/core/db/schema";
+import { saleShares, users } from "@/core/db/schema";
 import { computeShare } from "@/core/appointments/shares";
 import { getAppointmentShareContext } from "@/core/appointments/share-context";
+import type { MoneyDay } from "@/core/sales/money-days";
 
 /**
- * Per-doctor EARNINGS ledger — each doctor's share of a COMPLETED appointment on a
+ * Per-doctor EARNINGS ledger — each doctor's share of a PAID appointment on a
  * **collected, GROSS** basis (discount-bearing phase 3): a doctor earns his full
  * pre-discount cut scaled by `collected ÷ gross`. The discount itself is NOT taken
  * out here — it's handled entirely by the settlement ledger (`discount_settlements`),
@@ -29,6 +30,8 @@ export async function recordSaleSharesForAppointment(
   clinicId: string,
   appointmentId: string,
   exec: Executor,
+  /** The visit's money days (`money-days.ts`) — the sale's own, so the two agree. */
+  days: MoneyDay[],
 ): Promise<void> {
   const ctx = await getAppointmentShareContext(clinicId, appointmentId, exec);
 
@@ -40,30 +43,37 @@ export async function recordSaleSharesForAppointment(
 
   if (!ctx.found || !ctx.occurredAt) return;
 
-  // Each doctor earns his GROSS cut scaled by collected ÷ gross (the discount is
-  // borne separately in the settlement ledger). `collected` is capped at the net
-  // bill — the patient never pays more than they owe.
-  const [appt] = await exec
-    .select({ collected: appointments.amountCollected })
-    .from(appointments)
-    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
-    .limit(1);
-  const collected = Math.max(0, Math.min(appt?.collected ?? 0, ctx.netEffective));
-  const fraction = ctx.grossTotal > 0 ? collected / ctx.grossTotal : 0;
+  if (days.length === 0 || ctx.grossTotal <= 0) return;
 
+  // Each doctor earns his GROSS cut scaled by collected ÷ gross (the discount is
+  // borne separately in the settlement ledger) — earned on the DAY the money arrives,
+  // like the sale (owner's call, 2026-10-13). Per doctor, rounding is done on the
+  // RUNNING total and each day's row is the difference, so the rows sum to exactly
+  // the share the old single snapshot held; a refund day is a negative row.
   const gross = computeShare({
     consultation: ctx.consultation,
     lines: ctx.lines,
     netTotal: ctx.grossTotal, // no discount → each doctor's full gross cut
     borneBy: "clinic",
   });
-  const earning = Object.entries(gross.doctors)
-    .map(([id, amt]) => [id, Math.round(amt * fraction)] as const)
-    .filter(([, amt]) => amt > 0);
+  const doctorCuts = Object.entries(gross.doctors).filter(([, amt]) => amt > 0);
+  if (doctorCuts.length === 0) return;
+
+  const earning: { doctorId: string; shareAmount: number; at: Date }[] = [];
+  const prev = new Map<string, number>();
+  for (const d of days) {
+    const fraction = d.cumulative / ctx.grossTotal;
+    for (const [doctorId, amt] of doctorCuts) {
+      const cum = Math.round(amt * fraction);
+      const delta = cum - (prev.get(doctorId) ?? 0);
+      prev.set(doctorId, cum);
+      if (delta !== 0) earning.push({ doctorId, shareAmount: delta, at: d.at });
+    }
+  }
   if (earning.length === 0) return;
 
   // Name snapshots for the earning doctors (clinic-scoped).
-  const ids = earning.map(([id]) => id);
+  const ids = [...new Set(earning.map((e) => e.doctorId))];
   const names = new Map<string, string>();
   const rows = await exec
     .select({ id: users.id, fullName: users.fullName, username: users.username })
@@ -72,19 +82,19 @@ export async function recordSaleSharesForAppointment(
   for (const r of rows) names.set(r.id, r.fullName ?? r.username);
 
   await exec.insert(saleShares).values(
-    earning.map(([doctorId, shareAmount]) => ({
+    earning.map((e) => ({
       clinicId,
       appointmentId,
-      doctorId,
-      doctorName: names.get(doctorId) ?? null,
-      shareAmount,
-      occurredAt: ctx.occurredAt as Date,
+      doctorId: e.doctorId,
+      doctorName: names.get(e.doctorId) ?? null,
+      shareAmount: e.shareAmount,
+      occurredAt: e.at,
     })),
   );
 }
 
 /**
- * Removes an appointment's per-doctor share rows (when it leaves "completed").
+ * Removes an appointment's per-doctor share rows (the visit was trashed).
  * Throws on failure — same reasoning as above; the outer boundary reports.
  */
 export async function voidSaleSharesForAppointment(

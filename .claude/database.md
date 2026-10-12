@@ -94,7 +94,7 @@ is_active)`, company-global — no
 | `announcement_levels` | info, warning | `announcements.level` |
 | `ai_providers` | whisper, claude | `ai_usage.provider` (NOT `.model`) |
 | `tax_modes` | itemized, total | `platform_cost_rates.tax_mode` |
-| `recurrences` | monthly, weekly | `expenses.recurrence`, `company_expenses.recurrence` |
+| `recurrences` | monthly, weekly, **yearly** (`0123`) | `expenses.recurrence`, `company_expenses.recurrence` |
 | `appointment_sources` | staff, whatsapp | `appointments.source` |
 | `cash_transfer_kinds` | bank_deposit ("Banked"), owner_draw ("Taken by owner"), float_topup ("Cash added") | `cash_transfers.kind` |
 
@@ -367,6 +367,11 @@ back for the edit-form prefill and the read-only bill. Indexes: `appointment_id`
 `clinic_id`; `procedure_id`.
 
 ### `sales` — realised-revenue ledger (Sales feature, phase 3)
+> **Since 2026-10-13 (ADR-035, migration `0124`) the model below is superseded in two
+> ways:** rows are ONE PER DAY a visit's collected total moved (derived from its
+> payment ledger by `core/sales/money-days.ts`), dated when the money arrived, and they
+> exist whatever the visit's status — `appointment_id` is no longer unique. The same
+> holds for `sale_shares`. Count visits with `count(distinct appointment_id)`.
 `id`, `clinic_id` → clinics (`cascade`), `appointment_id` → appointments
 (`cascade`, **UNIQUE** — one sale per appointment), `doctor_id` → users (`set
 null`), `doctor_name` (**snapshot**, survives the doctor being renamed/deleted),
@@ -1298,6 +1303,12 @@ these for churn-risk + usage/cost anomaly flags.
   row stays NULL and shows "—" rather than a guess. `listAppointmentCreators` reads the
   filter's options from the bookings themselves, so a member who has left is still
   findable by the name the rows carry.
+- Migration **`0124`** drops `sales_appointment_unique` for a plain index: revenue
+  counts on the DAY money is received (ADR-035), so a visit paid in instalments or
+  refunded has a sale row per such day. Existing rows are re-dated by
+  `npm run db:rederive-sales` (`scripts/rederive-sales.ts`), which must run after this
+  migration on every environment — the nightly reconcile compares totals and would not
+  notice a sale on the wrong date.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

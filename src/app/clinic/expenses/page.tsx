@@ -172,6 +172,8 @@ export default async function ExpensesPage({
         <ExpensesTable
           rows={rows}
           canManage={canManage}
+          canEdit={can(user, "expenses", "edit")}
+          categories={activeCategories}
           empty={deleted ? "Nothing in the Trash" : "No expenses match these filters"}
         />
       </TableCard>

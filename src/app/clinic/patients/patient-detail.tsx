@@ -366,7 +366,7 @@ export async function PatientDetail({
           <CardHeader>
             <CardTitle>Account</CardTitle>
             <CardDescription>
-              Billed, collected and outstanding across completed visits.
+              Billed, collected and outstanding across this patient&apos;s visits (cancelled and no-shows excluded).
             </CardDescription>
             <Link
               href={`/clinic/patients/${patient.id}/statement`}
@@ -390,12 +390,22 @@ export async function PatientDetail({
                 ...(account.openingBalance > 0
                   ? [{ label: "Opening balance", value: money(account.openingBalance) }]
                   : []),
-                { label: "Outstanding", value: money(account.totals.outstanding) },
+                {
+                  label: "Outstanding",
+                  value: money(account.totals.outstanding),
+                  // Why this can be more than Receivables: a booked visit still ahead
+                  // is owed by the patient but is not a receivable until it happens.
+                  note:
+                    account.totals.upcoming > 0
+                      ? `incl. ${money(account.totals.upcoming)} for upcoming visits`
+                      : null,
+                },
                 { label: "Advance payment", value: money(account.credit) },
-              ].map((s) => (
+              ].map((s: { label: string; value: string; note?: string | null }) => (
                 <div key={s.label} className="p-3">
                   <div className="text-xs text-muted-foreground">{s.label}</div>
                   <div className="text-lg font-semibold tabular-nums">{s.value}</div>
+                  {s.note ? <div className="text-xs text-muted-foreground">{s.note}</div> : null}
                 </div>
               ))}
             </div>
@@ -415,12 +425,15 @@ export async function PatientDetail({
                     .filter((v) => v.outstanding > 0)
                     .map((v) => (
                       <li key={v.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                        <Link
-                          href={`/clinic/appointments/${v.id}`}
-                          className="underline underline-offset-4"
-                        >
-                          {dayFmt(v.scheduledAt)}
-                        </Link>
+                        <span className="flex items-center gap-1.5">
+                          <Link
+                            href={`/clinic/appointments/${v.id}`}
+                            className="underline underline-offset-4"
+                          >
+                            {dayFmt(v.scheduledAt)}
+                          </Link>
+                          {v.upcoming ? <Badge variant="outline">Upcoming</Badge> : null}
+                        </span>
                         <span className="text-muted-foreground">
                           {money(v.collected)} / {money(v.bill)} ·{" "}
                           <span className="font-medium text-foreground">

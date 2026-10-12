@@ -862,6 +862,20 @@
       "when": 1791756555053,
       "tag": "0122_appointment_created_by",
       "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1791833978664,
+      "tag": "0123_recurrence_yearly",
+      "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1791835837039,
+      "tag": "0124_sales_per_money_day",
+      "breakpoints": true
     }
   ]
 }

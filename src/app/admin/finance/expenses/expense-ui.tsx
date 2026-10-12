@@ -21,7 +21,7 @@ import { Label } from "@/core/ui/label";
 import { DatePicker } from "@/core/ui/date-picker";
 import { Toast, useActionToast } from "@/core/ui/toast";
 import { SearchableSelect } from "@/core/ui/searchable-select";
-import { useTenderOptions } from "@/core/ui/vocabulary-provider";
+import { useTenderOptions, useVocabularyOptions } from "@/core/ui/vocabulary-provider";
 
 const inputCls =
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -62,6 +62,8 @@ export function CompanyExpenseForm({
 }) {
   // Methods come from the database (ADR-027): active only, in its own order.
   const methodOptions = useTenderOptions();
+  // Monthly / Weekly / Yearly from the database (ADR-027).
+  const recurrenceOptions = useVocabularyOptions("recurrences");
   const isEdit = !!expense;
   const [date, setDate] = useState(expense?.incurredOn ?? todayStr());
   const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
@@ -153,7 +155,7 @@ export function CompanyExpenseForm({
         <SelectField
           name="recurrence"
           defaultValue={expense?.recurrence ?? "monthly"}
-          options={[{ value: "monthly", label: "Monthly" }, { value: "weekly", label: "Weekly" }]}
+          options={recurrenceOptions}
           ariaLabel="Recurrence interval"
           className="h-8"
         />

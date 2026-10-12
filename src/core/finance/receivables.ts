@@ -1,5 +1,6 @@
 import "server-only";
 
+import { owedVisitSql } from "@/core/finance/owed";
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
@@ -38,7 +39,7 @@ async function openingOwed(clinicId: string): Promise<number> {
 // carry a byte-identical copy of it, and `list-query.ts` a third — each documented
 // as "the single source" (D-02). There is now ONE definition and one name.
 
-/** Total outstanding receivable across all completed visits (matches the dashboard). */
+/** Total outstanding receivable across all OWED visits (`owedVisitSql`; matches the dashboard). */
 export async function getOutstandingTotal(clinicId: string): Promise<number> {
   // Joined, not correlated: this is a balance, so it has no date bound and runs the
   // bill over the clinic's entire completed history. See `procedures.ts#procedureTotals`.
@@ -49,7 +50,7 @@ export async function getOutstandingTotal(clinicId: string): Promise<number> {
     .from(appointments)
     .leftJoin(users, eq(users.id, appointments.doctorId))
     .leftJoin(pt, eq(pt.appointmentId, appointments.id))
-    .where(byClinic(appointments.clinicId, clinicId, notDeleted(appointments.deletedAt), eq(appointments.status, "completed")));
+    .where(byClinic(appointments.clinicId, clinicId, notDeleted(appointments.deletedAt), owedVisitSql()));
   return Number(row?.v ?? 0) + (await openingOwed(clinicId));
 }
 
@@ -113,7 +114,7 @@ export async function getReceivablesReport(
   // It is also redundant there. By that point the page's patients are already chosen;
   // re-asking whether each one matches the search cannot change the answer. The date
   // and doctor filters DO belong in both, because they select which VISITS to show.
-  const conds = [eq(appointments.status, "completed"), sql`${net} > ${appointments.amountCollected}`];
+  const conds = [owedVisitSql(), sql`${net} > ${appointments.amountCollected}`];
   if (filters.doctorId) conds.push(eq(appointments.doctorId, filters.doctorId));
   if (filters.from) conds.push(gte(appointments.scheduledAt, filters.from));
   if (filters.toExclusive) conds.push(lt(appointments.scheduledAt, filters.toExclusive));
