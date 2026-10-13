@@ -107,8 +107,13 @@ function scriptSrc(strict: boolean, nonce?: string, scriptHash?: string): string
     : `script-src 'self' 'unsafe-inline'${dev}`;
 }
 
-/** The one path our own pages may frame (see the end of `proxy`). */
-const FRAMEABLE_FILE_PREFIX = "/api/clinical/attachment/";
+/**
+ * The only responses our own pages may frame (see the end of `proxy`): a clinical file
+ * in the viewer dialog, and the letterhead preview on the admin clinic page.
+ */
+const isFrameableByUs = (path: string) =>
+  path.startsWith("/api/clinical/attachment/") ||
+  /^\/api\/admin\/clinics\/[^/]+\/letterhead-preview$/.test(path);
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -149,7 +154,7 @@ export async function proxy(request: NextRequest) {
   // which needs it to be framed — by OUR pages only. Every other response stays
   // unframeable (clickjacking); next.config.ts relaxes X-Frame-Options for the same
   // path, and the two must agree or the browser obeys the stricter one.
-  if (pathname.startsWith(FRAMEABLE_FILE_PREFIX)) {
+  if (isFrameableByUs(pathname)) {
     policy = policy.replace("frame-ancestors 'none'", "frame-ancestors 'self'");
   }
 

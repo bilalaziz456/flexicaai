@@ -86,6 +86,11 @@ const nextConfig: NextConfig = {
         source: "/api/clinical/attachment/:id",
         headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
       },
+      // The letterhead preview on the admin clinic page — same rule, same pairing.
+      {
+        source: "/api/admin/clinics/:id/letterhead-preview",
+        headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
+      },
     ];
   },
 };

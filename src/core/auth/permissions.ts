@@ -239,7 +239,9 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     plans: [V],
     // Manager oversees the lab tracker (can update status too).
     lab: [V, C, E],
-    prescriptions: [V],
+    // The desk TYPES what the doctor wrote and prints it on the letterhead (owner's
+    // call, 2026-10-14), and may correct or delete it.
+    prescriptions: [V, C, E, D],
     // Trash: view + restore on by default (C = "Restore"); purge stays super-admin.
     trash: [V, C],
     // staff / settings management stays clinic-admin-only for now.
@@ -287,8 +289,9 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     // The drawer is counted at handover, by whoever is handing over.
     cash: [V, C],
     leave: [V, C, E, D],
-    // Front desk can view/print a prescription PDF (not author it).
-    prescriptions: [V],
+    // Front desk types the doctor's prescription, prints it on the letterhead, and may
+    // correct or delete it (owner's call, 2026-10-14).
+    prescriptions: [V, C, E, D],
     // Front desk sees treatment plans to schedule their items onto appointments.
     plans: [V],
     // Front desk tracks lab cases for handoffs ("is the crown back?").

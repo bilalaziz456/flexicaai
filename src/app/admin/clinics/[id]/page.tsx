@@ -34,6 +34,7 @@ import {
 } from "@/core/ui/table";
 import { ClinicSettingsForm } from "./clinic-settings-form";
 import { ClinicLogoForm } from "./clinic-logo-form";
+import { ClinicLetterheadForm } from "./clinic-letterhead-form";
 import { ClinicLifecycle } from "./clinic-lifecycle";
 import { ClinicAssignee } from "./clinic-assignee";
 import { ImpersonateClinic } from "./impersonate-clinic";
@@ -91,6 +92,7 @@ export default async function ClinicDetailPage({
   const railSections: RailSection[] = [
     { id: "subscription", label: "Subscription", group: "Account" },
     { id: "logo", label: "Logo", group: "Account" },
+    { id: "letterhead", label: "Letterhead", group: "Account" },
     { id: "plan", label: "Plan & features", group: "Account" },
     ...(billing ? [{ id: "billing", label: "Billing", group: "Account" }] : []),
     { id: "manager", label: "Account manager", group: "Relationship" },
@@ -167,6 +169,28 @@ export default async function ClinicDetailPage({
         </CardHeader>
         <CardContent>
           <ClinicLogoForm clinicId={clinic.id} logo={logo} />
+        </CardContent>
+      </Card>
+
+      <Card id="letterhead" className="scroll-mt-24">
+        <CardHeader>
+          <CardTitle>Letterhead</CardTitle>
+          <CardDescription>
+            The clinic&apos;s own letterhead, that typed prescriptions are printed on.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ClinicLetterheadForm
+            clinicId={clinic.id}
+            hasLetterhead={Boolean(clinic.letterheadKey)}
+            margins={{
+              top: clinic.letterheadTopMm,
+              bottom: clinic.letterheadBottomMm,
+              left: clinic.letterheadLeftMm,
+              right: clinic.letterheadRightMm,
+            }}
+            version={clinic.updatedAt.getTime()}
+          />
         </CardContent>
       </Card>
 

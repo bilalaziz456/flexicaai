@@ -197,6 +197,20 @@ export const clinics = pgTable(
     // by the owner/super-admin/account-manager (not the clinic). Printed in B&W at the
     // top of documents; NULL = show nothing. See core/clinics/logo.ts.
     logoKey: text("logo_key"),
+    // The clinic's own LETTERHEAD (owner's call, 2026-10-14): a blank A4 page as PDF or
+    // image, uploaded by the account manager, that typed prescriptions are printed ON.
+    // Every clinic's design differs (header and footer sizes, text left or right), so
+    // instead of a template the four margins say where the writing may go, in mm.
+    // NULL key = no letterhead (a plain default header is used). See core/clinics/letterhead.ts.
+    letterheadKey: text("letterhead_key"),
+    letterheadTopMm: integer("letterhead_top_mm").notNull().default(45),
+    letterheadBottomMm: integer("letterhead_bottom_mm").notNull().default(30),
+    letterheadLeftMm: integer("letterhead_left_mm").notNull().default(20),
+    letterheadRightMm: integer("letterhead_right_mm").notNull().default(20),
+    // Whether a NEW prescription starts with "Print doctor's name" ticked — the clinic
+    // admin's default; each prescription can still change it. Many letterheads already
+    // carry the doctor's name, which is why it can be off.
+    rxPrintDoctorName: boolean("rx_print_doctor_name").notNull().default(true),
     // Patient MRN SERIES (owner's call, 2026-10-13) — set by the super admin / account
     // manager as a "starting MRN" such as "FA-100001" or "GS-00000001", split into the
     // prefix ("FA-"), the digit width it is padded to (6) and the NEXT number (100001).

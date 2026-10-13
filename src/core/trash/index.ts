@@ -9,6 +9,7 @@ import {
   clinics,
   doctorLeaves,
   expenses,
+  prescriptions,
   patients,
   procedures,
   recalls,
@@ -42,6 +43,7 @@ export type TrashEntity =
   | "recall"
   | "procedure"
   | "expense"
+  | "prescription"
   | "leave"
   | "staff"
   | "clinic";
@@ -188,7 +190,7 @@ async function collect(
   };
 
   // Each entity is queried separately (label/detail differ).
-  const [pats, appts, vis, recs, procs, exps, leaves, staff, clins] = await Promise.all([
+  const [pats, appts, vis, recs, procs, exps, rxs, leaves, staff, clins] = await Promise.all([
     db
       .select({
         id: patients.id,
@@ -280,6 +282,22 @@ async function collect(
       .limit(need),
     db
       .select({
+        id: prescriptions.id,
+        group: prescriptions.deleteGroup,
+        deletedAt: prescriptions.deletedAt,
+        deletedBy: prescriptions.deletedBy,
+        clinicId: prescriptions.clinicId,
+        prescribedOn: prescriptions.prescribedOn,
+        doctorName: prescriptions.doctorName,
+        patientName: patients.fullName,
+      })
+      .from(prescriptions)
+      .leftJoin(patients, eq(prescriptions.patientId, patients.id))
+      .where(cond("prescription", prescriptions.clinicId, prescriptions.deletedAt, prescriptions.deletedByCascade, prescriptions.deletedBy, [patients.fullName, prescriptions.doctorName]))
+      .orderBy(desc(prescriptions.deletedAt))
+      .limit(need),
+    db
+      .select({
         id: doctorLeaves.id,
         group: doctorLeaves.deleteGroup,
         deletedAt: doctorLeaves.deletedAt,
@@ -344,6 +362,8 @@ async function collect(
     push({ entity: "procedure", id: r.id, group: r.group ?? r.id, label: r.name, detail: `${r.isService ? "Service · " : ""}Rs ${r.price}`, clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
   for (const r of exps)
     push({ entity: "expense", id: r.id, group: r.group ?? r.id, label: r.vendor || r.note || "Expense", detail: `Rs ${r.amount} · ${dateStr(r.incurredOn)}`, clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
+  for (const r of rxs)
+    push({ entity: "prescription", id: r.id, group: r.group ?? r.id, label: r.patientName ? `${r.patientName} · prescription` : "Prescription", detail: [dateStr(r.prescribedOn), r.doctorName].filter(Boolean).join(" · "), clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
   for (const r of leaves)
     push({ entity: "leave", id: r.id, group: r.group ?? r.id, label: `${r.doctorName ?? r.doctorUsername ?? "Doctor"} · leave`, detail: r.startDate === r.endDate ? dateStr(r.startDate) : `${dateStr(r.startDate)} – ${dateStr(r.endDate)}`, clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
   for (const r of staff)
@@ -436,6 +456,7 @@ async function countAll(
     db.select({ n }).from(recalls).leftJoin(patients, eq(recalls.patientId, patients.id)).where(cond("recall", recalls.clinicId, recalls.deletedAt, recalls.deletedByCascade, recalls.deletedBy, [patients.fullName, recalls.reason])),
     db.select({ n }).from(procedures).where(cond("procedure", procedures.clinicId, procedures.deletedAt, procedures.deletedByCascade, procedures.deletedBy, [procedures.name])),
     db.select({ n }).from(expenses).where(cond("expense", expenses.clinicId, expenses.deletedAt, expenses.deletedByCascade, expenses.deletedBy, [expenses.vendor, expenses.note])),
+    db.select({ n }).from(prescriptions).leftJoin(patients, eq(prescriptions.patientId, patients.id)).where(cond("prescription", prescriptions.clinicId, prescriptions.deletedAt, prescriptions.deletedByCascade, prescriptions.deletedBy, [patients.fullName, prescriptions.doctorName])),
     db.select({ n }).from(doctorLeaves).leftJoin(users, eq(doctorLeaves.doctorId, users.id)).where(cond("leave", doctorLeaves.clinicId, doctorLeaves.deletedAt, doctorLeaves.deletedByCascade, doctorLeaves.deletedBy, [users.fullName, users.username])),
     db.select({ n }).from(users).where(cond("staff", users.clinicId, users.deletedAt, users.deletedByCascade, users.deletedBy, [users.fullName, users.username])),
     scope.kind === "all"
@@ -505,6 +526,7 @@ const TRASH_ENTITIES: readonly TrashEntity[] = [
   "recall",
   "procedure",
   "expense",
+  "prescription",
   "leave",
   "staff",
   "clinic",
@@ -587,6 +609,7 @@ async function revertGroup(group: string, clinicId: string | null): Promise<void
   await db.update(recalls).set(set).where(clinicId ? and(eq(recalls.deleteGroup, group), eq(recalls.clinicId, clinicId)) : eq(recalls.deleteGroup, group));
   await db.update(procedures).set(set).where(clinicId ? and(eq(procedures.deleteGroup, group), eq(procedures.clinicId, clinicId)) : eq(procedures.deleteGroup, group));
   await db.update(expenses).set(set).where(clinicId ? and(eq(expenses.deleteGroup, group), eq(expenses.clinicId, clinicId)) : eq(expenses.deleteGroup, group));
+  await db.update(prescriptions).set(set).where(clinicId ? and(eq(prescriptions.deleteGroup, group), eq(prescriptions.clinicId, clinicId)) : eq(prescriptions.deleteGroup, group));
   await db.update(doctorLeaves).set(set).where(clinicId ? and(eq(doctorLeaves.deleteGroup, group), eq(doctorLeaves.clinicId, clinicId)) : eq(doctorLeaves.deleteGroup, group));
   await db.update(users).set(set).where(clinicId ? and(eq(users.deleteGroup, group), eq(users.clinicId, clinicId)) : eq(users.deleteGroup, group));
 
@@ -657,6 +680,7 @@ export async function purgeGroup(
     await tx.delete(appointments).where(eq(appointments.deleteGroup, group));
     await tx.delete(doctorLeaves).where(eq(doctorLeaves.deleteGroup, group));
     await tx.delete(expenses).where(eq(expenses.deleteGroup, group));
+    await tx.delete(prescriptions).where(eq(prescriptions.deleteGroup, group));
     await tx.delete(procedures).where(eq(procedures.deleteGroup, group));
     await tx.delete(patients).where(eq(patients.deleteGroup, group));
     await tx.delete(users).where(eq(users.deleteGroup, group));

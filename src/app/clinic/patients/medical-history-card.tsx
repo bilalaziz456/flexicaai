@@ -8,12 +8,8 @@ import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Badge } from "@/core/ui/badge";
 import { Toast } from "@/core/ui/toast";
-import { Checkbox } from "@/core/ui/checkbox";
 import {
-  DURATION_UNITS,
   MEDICAL_CONDITIONS,
-  MEDICATION_FORMS,
-  MEDICATION_FREQUENCIES,
   asMedicalHistory,
   describeMedication,
   type Allergy,
@@ -21,6 +17,7 @@ import {
   type MedicalHistoryData,
 } from "@/core/lib/medical-history";
 import { saveMedicalHistoryAction } from "./patient-clinical-actions";
+import { MedicineRow } from "./medicine-row";
 
 const SEVERITIES = ["", "mild", "moderate", "severe"];
 
@@ -193,67 +190,15 @@ export function MedicalHistoryCard({
       {/* Medications */}
       <Field label="Medications">
         <div className="space-y-2">
-          {data.medications.map((m, i) => {
-            const patch = (p: Partial<Medication>) => set("medications", replace(data.medications, i, { ...m, ...p }));
-            return (
-              // One box per medicine; the fields wrap onto a second line on a tablet.
-              <div key={i} className="flex flex-wrap items-center gap-2 rounded-lg border well p-2">
-                <Input className="h-8 w-44" aria-label="Medication name" placeholder="Name, e.g. Warfarin" value={m.name} onChange={(e) => patch({ name: e.target.value })} />
-                <Input className="h-8 w-36" aria-label="Medication dose" placeholder="Dose, e.g. 5 mg" value={m.dose ?? ""} onChange={(e) => patch({ dose: e.target.value })} />
-                <SelectField
-                  value={m.form ?? ""}
-                  onValueChange={(v) => patch({ form: (v || undefined) as Medication["form"] })}
-                  options={[{ value: "", label: "Type" }, ...MEDICATION_FORMS.map((o) => ({ value: o.value, label: o.label }))]}
-                  ariaLabel="Medication type"
-                  className="h-8 w-auto"
-                />
-                <SelectField
-                  value={m.frequency ?? ""}
-                  onValueChange={(v) => patch({ frequency: (v || undefined) as Medication["frequency"] })}
-                  options={[{ value: "", label: "Frequency" }, ...MEDICATION_FREQUENCIES.map((o) => ({ value: o.value, label: o.label }))]}
-                  ariaLabel="Medication frequency"
-                  className="h-8 w-auto"
-                />
-                {m.frequency === "other" ? (
-                  <Input
-                    className="h-8 w-32"
-                    aria-label="Frequency as written"
-                    placeholder="e.g. 2-2-2"
-                    maxLength={30}
-                    value={m.frequencyOther ?? ""}
-                    onChange={(e) => patch({ frequencyOther: e.target.value })}
-                  />
-                ) : null}
-                <div className="flex items-center gap-1" role="group" aria-label="Duration">
-                  <Input
-                    className="h-8 w-16"
-                    inputMode="numeric"
-                    aria-label="Duration"
-                    placeholder="For"
-                    value={m.durationValue ? String(m.durationValue) : ""}
-                    onChange={(e) => {
-                      const n = Number(e.target.value.replace(/[^\d]/g, "").slice(0, 3));
-                      patch({ durationValue: n > 0 ? n : undefined, durationUnit: m.durationUnit ?? "days" });
-                    }}
-                  />
-                  <SelectField
-                    value={m.durationUnit ?? "days"}
-                    onValueChange={(v) => patch({ durationUnit: v as Medication["durationUnit"] })}
-                    options={DURATION_UNITS.map((o) => ({ value: o.value, label: o.label }))}
-                    ariaLabel="Duration unit"
-                    className="h-8 w-auto"
-                  />
-                </div>
-                <label className="flex min-h-6 items-center gap-1.5 text-sm">
-                  <Checkbox checked={Boolean(m.ongoing)} onCheckedChange={(on) => patch({ ongoing: on === true ? true : undefined })} />
-                  Ongoing
-                </label>
-                <button type="button" onClick={() => set("medications", remove(data.medications, i))} aria-label="Remove medication" className="ml-auto">
-                  <X className="size-4 text-muted-foreground" />
-                </button>
-              </div>
-            );
-          })}
+          {data.medications.map((m, i) => (
+            <MedicineRow
+              key={i}
+              value={m}
+              onChange={(next) => set("medications", replace(data.medications, i, next))}
+              onRemove={() => set("medications", remove(data.medications, i))}
+              showOngoing
+            />
+          ))}
           <Button size="sm" variant="outline" onClick={() => set("medications", [...data.medications, { name: "" } as Medication])}>
             <Plus className="size-4" /> Medication
           </Button>

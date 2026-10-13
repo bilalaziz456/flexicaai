@@ -41,6 +41,9 @@ export default async function PatientDetailPage({
       canViewClinical={can(user, "clinical", "view")}
       canEditClinical={can(user, "clinical", "edit")}
       canViewPrescriptions={can(user, "prescriptions", "view")}
+      canCreatePrescriptions={can(user, "prescriptions", "create")}
+      canEditPrescriptions={can(user, "prescriptions", "edit")}
+      canDeletePrescriptions={can(user, "prescriptions", "delete")}
       canViewAttachments={can(user, "attachments", "view")}
       canUploadAttachments={can(user, "attachments", "create")}
       canDeleteAttachments={can(user, "attachments", "delete")}

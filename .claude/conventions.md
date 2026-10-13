@@ -458,10 +458,12 @@ throw — use it in tests.
 
 - **In transit:** HTTPS everywhere; TLS terminates at nginx, with HSTS set.
 - **Framing:** every response is unframeable (`X-Frame-Options: DENY` +
-  `frame-ancestors 'none'`) EXCEPT `/api/clinical/attachment/:id`, which our own pages
-  may frame (`SAMEORIGIN` / `'self'`) so a PDF opens in the viewer dialog. The two
-  headers are set in two places (`next.config.ts`, `src/proxy.ts`) and must agree —
-  the browser obeys the stricter. Never widen it to another origin or another path.
+  `frame-ancestors 'none'`) EXCEPT two our own pages may frame (`SAMEORIGIN` /
+  `'self'`): `/api/clinical/attachment/:id` (a PDF in the file viewer) and
+  `/api/admin/clinics/:id/letterhead-preview` (the letterhead preview). The two headers
+  are set in two places (`next.config.ts`, `src/proxy.ts#isFrameableByUs`) and must
+  agree — the browser obeys the stricter. Never widen it to another origin, and add a
+  path only for a document our own page shows inline.
 - **Uploaded files are served as what they ARE, not what the browser claimed.** A
   clinical attachment must be JPG, PNG, WebP or PDF (`ATTACHMENT_MIME_EXT`), refused
   otherwise at upload; the serve route renders only those types and sends anything

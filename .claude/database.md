@@ -1342,6 +1342,20 @@ these for churn-risk + usage/cost anomaly flags.
   migration RENUMBERED every patient to `FA-100001` onwards per clinic, in registration
   order — the owner's call, safe only because no clinic is live (`0115`'s rule stands:
   never renumber a number that has been printed). `scripts/test-mrn-series.ts`.
+- Migration **`0128`** adds **typed prescriptions on the clinic's letterhead** (owner's
+  call, 2026-10-14). `prescriptions` (`clinic_id`, `patient_id`, optional
+  `appointment_id`, `doctor_id` + `doctor_name` snapshot = the PRESCRIBING doctor,
+  `prescribed_on` date, `items` jsonb of medicine lines in the medical history's shape —
+  name, dose, type, frequency or a typed "2-2-2", duration — checked and bounded by
+  `core/lib/prescription-items.ts`, `notes`, `print_doctor_name`, `created_by(+name)` =
+  who TYPED it, soft-delete → Trash). Distinct from the prescriptions inside an approved
+  scribe note (`visits.note`), which stay where they are; both are listed together.
+  `clinics` gained the **letterhead**: `letterhead_key` (a blank A4 PDF/PNG/JPG, uploaded
+  by the account manager) and four margins in mm (`letterhead_top/bottom/left/right_mm`)
+  saying where the writing goes — every clinic's design differs, so the page itself is
+  the template (`core/lib/letterhead-pdf.ts`, `core/clinics/letterhead.ts`); and
+  `rx_print_doctor_name`, the clinic admin's default for a new prescription's "Print the
+  doctor's name". `scripts/test-prescriptions.ts`.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

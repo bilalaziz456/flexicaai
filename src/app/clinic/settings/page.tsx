@@ -16,6 +16,7 @@ import {
   PasswordForm,
 } from "@/core/ui/account-forms";
 import { PrintingForm } from "./printing-form";
+import { PrescriptionSettings } from "./prescription-settings";
 import { PublicContactForm } from "./public-contact-form";
 
 function initialsOf(name: string): string {
@@ -164,6 +165,18 @@ export default async function ClinicSettingsPage() {
               address={clinic.publicAddress}
               hours={clinic.openingHours ?? null}
             />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {clinic ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Prescriptions</CardTitle>
+            <CardDescription>How prescriptions print on your letterhead.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PrescriptionSettings printDoctorName={clinic.rxPrintDoctorName} />
           </CardContent>
         </Card>
       ) : null}

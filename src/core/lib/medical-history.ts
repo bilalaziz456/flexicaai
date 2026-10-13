@@ -171,7 +171,8 @@ function asAllergy(v: unknown): Allergy | null {
   return { substance, reaction: str(o.reaction, 200), severity: str(o.severity, 20) };
 }
 
-function asMedication(v: unknown): Medication | null {
+/** One medication, checked and bounded (also used for prescription lines). */
+export function asMedication(v: unknown): Medication | null {
   const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
   const name = typeof o.name === "string" ? o.name.slice(0, 120) : "";
   const value = Number(o.durationValue);

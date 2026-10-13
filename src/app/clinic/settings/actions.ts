@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { setInvoicePapers, setPublicContact } from "@/core/clinics/settings";
+import { setInvoicePapers, setPublicContact, setRxPrintDoctorName } from "@/core/clinics/settings";
 import { parsePublicContact } from "@/core/clinics/public-contact";
 import { requireWorkspace } from "@/core/auth/user";
 import { logActivity } from "@/core/audit/log";
@@ -84,6 +84,23 @@ export async function setClinicPublicContact(
     // No values in the summary: an address is the clinic's, but the log is read by
     // staff and there is no reason to copy it into a second place.
     summary: "Updated the clinic's public address and opening hours",
+  });
+  revalidatePath("/clinic/settings");
+  return { saved: true };
+}
+
+/** The prescription default: print the doctor's name, or not. Clinic-admin only. */
+export async function setRxPrintDoctorNameAction(value: boolean): Promise<SettingsActionState> {
+  const user = await requireWorkspace();
+  if (user.role !== "clinic_admin" || !user.clinicId) {
+    return { error: "Only the clinic admin can change prescription settings." };
+  }
+  await setRxPrintDoctorName(user.clinicId, value === true);
+  await logActivity({
+    action: "update",
+    entity: "settings",
+    clinicId: user.clinicId,
+    summary: value ? "Prescriptions print the doctor's name by default" : "Prescriptions leave the doctor's name off by default",
   });
   revalidatePath("/clinic/settings");
   return { saved: true };

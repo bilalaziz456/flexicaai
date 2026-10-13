@@ -10,9 +10,12 @@ import { getPatientPaymentsPage } from "@/core/billing/account";
 import Link from "next/link";
 import { TabTitle } from "@/core/ui/app-tabs";
 import { notFound } from "next/navigation";
-import { CalendarDays, CalendarPlus, ClipboardList, Pill, Printer, ReceiptText } from "lucide-react";
+import { CalendarDays, CalendarPlus, ClipboardList, Printer, ReceiptText } from "lucide-react";
 import { getClinic } from "@/core/clinics/get-clinic";
-import { clinicalRecordFor } from "@/config/modules";
+import { clinicalRecordFor, getClinicWorkspace } from "@/config/modules";
+import { listPrescriptionAppointmentOptions, listPrescriptions } from "@/core/patients/prescriptions";
+import { listClinicDoctors } from "@/core/appointments/doctors";
+import { PrescriptionsCard } from "./prescriptions-card";
 import { BackLink } from "@/core/ui/back-link";
 import { EmptyState } from "@/core/ui/empty-state";
 import { Badge } from "@/core/ui/badge";
@@ -71,6 +74,9 @@ export async function PatientDetail({
   canViewClinical = false,
   canEditClinical = false,
   canViewPrescriptions = false,
+  canCreatePrescriptions = false,
+  canEditPrescriptions = false,
+  canDeletePrescriptions = false,
   canViewAttachments = false,
   canUploadAttachments = false,
   canDeleteAttachments = false,
@@ -111,6 +117,10 @@ export async function PatientDetail({
   /** Show the patient's prescription history (reprint) — needs `prescriptions:view`.
    *  Independent of clinical: front desk may reprint without seeing full notes. */
   canViewPrescriptions?: boolean;
+  /** Typed prescriptions (the desk enters what the doctor wrote) — `prescriptions:*`. */
+  canCreatePrescriptions?: boolean;
+  canEditPrescriptions?: boolean;
+  canDeletePrescriptions?: boolean;
   /** Clinical attachments (imaging/docs) — `attachments` view/create/delete. */
   canViewAttachments?: boolean;
   canUploadAttachments?: boolean;
@@ -178,6 +188,21 @@ export async function PatientDetail({
         return [{ visitId: v.id, date: v.visitDate, doctor, drugs }];
       })
     : [];
+
+  // Typed prescriptions + what their form needs (owner's call, 2026-10-14).
+  const dateLabel = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const localYmd = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const [typedRx, rxDoctors, rxAppointments, rxClinic] = canViewPrescriptions
+    ? await Promise.all([
+        listPrescriptions(clinicId, patientId),
+        listClinicDoctors(clinicId),
+        listPrescriptionAppointmentOptions(clinicId, patientId),
+        getClinic(clinicId),
+      ])
+    : [[], [], [], null];
+  const todayYmd = localYmd(new Date());
+  const todaysAppt = rxAppointments.find((a) => localYmd(a.scheduledAt) === todayYmd) ?? null;
 
   // The clinic's enabled modules — drives every module-agnostic clinical section
   // (chart / perio / plans / lab), resolved via the contract (core never knows dental).
@@ -728,44 +753,51 @@ export async function PatientDetail({
           <CardHeader>
             <CardTitle>Prescriptions</CardTitle>
             <CardDescription>
-              Prescriptions from approved visits. Open to print or re-print the PDF.
+              The doctor&apos;s prescriptions, printed on the clinic&apos;s letterhead, and those from approved visit notes.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {prescriptionVisits.length === 0 ? (
-              <EmptyState
-                compact
-                icon={Pill}
-                title="No prescriptions yet"
-                description="Approved visits that include drugs appear here, ready to reprint."
-              />
-            ) : (
-              <ol className="divide-y divide-border/60 rounded-lg border border-border/60">
-                {prescriptionVisits.map((rx) => (
-                  <li key={rx.visitId} className="p-3 text-sm">
-                    <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-medium">
-                        {rx.date ? dayFmt(rx.date) : "—"}
-                        <span className="text-muted-foreground"> · {rx.doctor}</span>
-                      </span>
-                      <a
-                        href={`/api/prescriptions/${rx.visitId}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-primary-text underline underline-offset-4"
-                      >
-                        <Printer className="size-3.5" aria-hidden="true" /> Print
-                      </a>
-                    </div>
-                    <p className="text-muted-foreground">
-                      {rx.drugs
-                        .map((d) => d.drug + (d.dosage ? ` (${d.dosage}${d.duration ? `, ${d.duration}` : ""})` : d.duration ? ` (${d.duration})` : ""))
-                        .join(" · ")}
-                    </p>
-                  </li>
-                ))}
-              </ol>
-            )}
+            <PrescriptionsCard
+              patientId={patient.id}
+              typed={typedRx.map((t) => ({
+                id: t.id,
+                prescribedOn: t.prescribedOn,
+                dateLabel: dateLabel(new Date(`${t.prescribedOn}T12:00:00`)),
+                doctorId: t.doctorId,
+                doctorName: t.doctorName,
+                appointmentId: t.appointmentId,
+                items: t.items,
+                notes: t.notes,
+                printDoctorName: t.printDoctorName,
+                createdByName: t.createdByName,
+              }))}
+              generated={prescriptionVisits.map((g) => ({
+                visitId: g.visitId,
+                dateLabel: g.date ? dayFmt(g.date) : "—",
+                sortKey: g.date ? localYmd(g.date) : "0000-00-00",
+                doctor: g.doctor,
+                drugs: g.drugs,
+              }))}
+              doctors={rxDoctors.filter((d) => d.isActive).map((d) => ({ value: d.id, label: d.name }))}
+              appointments={rxAppointments.map((a) => ({
+                value: a.id,
+                label: `${dateLabel(a.scheduledAt)} ${a.scheduledAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`,
+                doctorId: a.doctorId,
+              }))}
+              defaults={{
+                date: todayYmd,
+                appointmentId: todaysAppt?.id ?? null,
+                doctorId: todaysAppt?.doctorId ?? null,
+                printDoctorName: rxClinic?.rxPrintDoctorName ?? true,
+              }}
+              allergies={allergies}
+              formularyNames={[
+                ...new Set(
+                  getClinicWorkspace(modulesEnabled).drugFormulary.flatMap((d) => [d.name, ...d.brands]),
+                ),
+              ]}
+              can={{ create: canCreatePrescriptions, edit: canEditPrescriptions, delete: canDeletePrescriptions }}
+            />
           </CardContent>
         </Card>
       ) : null}

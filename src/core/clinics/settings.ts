@@ -94,3 +94,14 @@ export async function setPublicContact(
     })
     .where(eq(clinics.id, clinicId));
 }
+
+/**
+ * Whether a NEW prescription starts with "Print the doctor's name" ticked — the clinic
+ * admin's default (owner's call, 2026-10-14); each prescription can still change it.
+ */
+export async function setRxPrintDoctorName(clinicId: string, value: boolean): Promise<void> {
+  await db
+    .update(clinics)
+    .set({ rxPrintDoctorName: value, updatedAt: new Date() })
+    .where(eq(clinics.id, clinicId));
+}

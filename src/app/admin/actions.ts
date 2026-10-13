@@ -1,5 +1,6 @@
 "use server";
 
+import { LETTERHEAD_MIME_EXT, MAX_LETTERHEAD_BYTES } from "@/core/clinics/letterhead";
 import { report } from "@/core/observability";
 import { setClinicMrnSeries } from "@/core/patients/mrn";
 import { parseStartingMrn } from "@/core/patients/mrn-series";
@@ -1086,6 +1087,92 @@ export async function removeClinicLogo(clinicId: string): Promise<AdminActionSta
   await updateClinicFields(clinicId, { logoKey: null, updatedAt: new Date() });
   if (gate.logoKey) await deleteFileByKey(gate.logoKey);
   await logActivity({ action: "update", entity: "clinic", entityId: clinicId, clinicId, summary: "Removed the clinic logo" });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  return { saved: true };
+}
+
+/**
+ * Upload / replace the clinic's LETTERHEAD — a blank A4 page (PDF, PNG or JPG) that
+ * typed prescriptions are printed on (owner's call, 2026-10-14). Account manager (or a
+ * full admin), the same rule as the logo.
+ */
+export async function uploadClinicLetterhead(
+  clinicId: string,
+  _prev: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  const gate = await assertCanEditClinicLogo(clinicId);
+  if ("error" in gate) return gate;
+  const c = await getLiveClinic(clinicId);
+  const old = c?.letterheadKey ?? null;
+
+  const file = formData.get("letterhead");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose the letterhead file." };
+  const ext = LETTERHEAD_MIME_EXT[file.type];
+  if (!ext) return { error: "Use a PDF, PNG or JPG of the blank A4 letterhead." };
+  if (file.size > MAX_LETTERHEAD_BYTES) return { error: "The letterhead must be under 5 MB." };
+
+  const key = await saveClinicFile(clinicId, "letterhead", Buffer.from(await file.arrayBuffer()), ext);
+  await updateClinicFields(clinicId, { letterheadKey: key, updatedAt: new Date() });
+  if (old && old !== key) await deleteFileByKey(old);
+
+  await logActivity({ action: "update", entity: "clinic", entityId: clinicId, clinicId, summary: "Updated the clinic letterhead" });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  return { saved: true };
+}
+
+/** Removes the letterhead — prescriptions go back to the plain header. */
+export async function removeClinicLetterhead(clinicId: string): Promise<AdminActionState> {
+  const gate = await assertCanEditClinicLogo(clinicId);
+  if ("error" in gate) return gate;
+  const c = await getLiveClinic(clinicId);
+  await updateClinicFields(clinicId, { letterheadKey: null, updatedAt: new Date() });
+  if (c?.letterheadKey) await deleteFileByKey(c.letterheadKey);
+  await logActivity({ action: "update", entity: "clinic", entityId: clinicId, clinicId, summary: "Removed the clinic letterhead" });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  return { saved: true };
+}
+
+const marginsSchema = z.object({
+  top: z.coerce.number().int("Whole millimetres.").min(0).max(150, "Top margin: up to 150 mm."),
+  bottom: z.coerce.number().int("Whole millimetres.").min(0).max(150, "Bottom margin: up to 150 mm."),
+  left: z.coerce.number().int("Whole millimetres.").min(0).max(60, "Left margin: up to 60 mm."),
+  right: z.coerce.number().int("Whole millimetres.").min(0).max(60, "Right margin: up to 60 mm."),
+});
+
+/** Where the writing goes on the letterhead: the four margins, in mm. */
+export async function setLetterheadMargins(
+  clinicId: string,
+  _prev: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  const gate = await assertCanEditClinicLogo(clinicId);
+  if ("error" in gate) return gate;
+  const parsed = marginsSchema.safeParse({
+    top: formData.get("top"),
+    bottom: formData.get("bottom"),
+    left: formData.get("left"),
+    right: formData.get("right"),
+  });
+  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
+  const m = parsed.data;
+  // The box the writing goes in must still be there: A4 is 297 × 210 mm.
+  if (m.top + m.bottom > 230) return { error: "Top and bottom margins leave no room to write." };
+  if (m.left + m.right > 150) return { error: "Left and right margins leave no room to write." };
+  await updateClinicFields(clinicId, {
+    letterheadTopMm: m.top,
+    letterheadBottomMm: m.bottom,
+    letterheadLeftMm: m.left,
+    letterheadRightMm: m.right,
+    updatedAt: new Date(),
+  });
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: `Letterhead margins set to ${m.top}/${m.bottom}/${m.left}/${m.right} mm (top/bottom/left/right)`,
+  });
   revalidatePath(`/admin/clinics/${clinicId}`);
   return { saved: true };
 }

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  date,
   index,
   integer,
   jsonb,
@@ -11,6 +12,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { Allergy, Medication } from "@/core/lib/medical-history";
+import type { PrescriptionItem } from "@/core/lib/prescription-items";
 import { appointments } from "@/core/db/schema/scheduling";
 import { clinics, patients, users } from "@/core/db/schema/identity";
 import { procedures } from "@/core/db/schema/billing";
@@ -277,6 +279,46 @@ export const treatmentPlanItems = pgTable(
 export type PatientMedicalHistory = typeof patientMedicalHistory.$inferSelect;
 
 export type ClinicalAttachment = typeof clinicalAttachments.$inferSelect;
+
+/**
+ * A TYPED prescription — what the doctor wrote, entered at the desk (owner's call,
+ * 2026-10-14), printed on the clinic's letterhead. Distinct from the prescriptions inside
+ * an approved scribe note (visits.note), which stay where they are. Soft-deleted to
+ * Trash. `items` is checked and bounded by core/lib/prescription-items.ts.
+ */
+export const prescriptions = pgTable(
+  "prescriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    patientId: uuid("patient_id")
+      .notNull()
+      .references(() => patients.id, { onDelete: "cascade" }),
+    appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: "set null" }),
+    // The PRESCRIBING doctor (whoever typed it is `created_by`).
+    doctorId: uuid("doctor_id").references(() => users.id, { onDelete: "set null" }),
+    doctorName: text("doctor_name"), // snapshot
+    prescribedOn: date("prescribed_on").notNull(),
+    items: jsonb("items").$type<PrescriptionItem[]>().notNull().default([]),
+    notes: text("notes"),
+    printDoctorName: boolean("print_doctor_name").notNull().default(true),
+    createdBy: uuid("created_by"),
+    createdByName: text("created_by_name"),
+    ...softDeleteColumns(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("prescriptions_patient_idx").on(t.clinicId, t.patientId),
+    index("prescriptions_deleted_idx")
+      .on(t.clinicId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
+  ],
+);
+
+export type Prescription = typeof prescriptions.$inferSelect;
 
 export type TreatmentPlan = typeof treatmentPlans.$inferSelect;
 
