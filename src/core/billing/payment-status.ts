@@ -56,12 +56,23 @@ const LABEL: Record<VisitPaymentStatus, string> = {
 /** The badge: label (with what is still owed, where that helps) and a colour. */
 export function paymentStatusBadge(
   status: VisitPaymentStatus,
-  opts: { outstanding: number; visitStatus: string; formatMoney: (n: number) => string },
+  opts: {
+    outstanding: number;
+    /** Money held beyond the bill (a deposit larger than the charges so far). */
+    extra?: number;
+    visitStatus: string;
+    formatMoney: (n: number) => string;
+  },
 ): { label: string; variant: PaymentBadgeVariant } {
   const left = opts.outstanding > 0 ? ` · ${opts.formatMoney(opts.outstanding)} left` : "";
   switch (status) {
     case "paid":
-      return { label: LABEL.paid, variant: "success" };
+      // A deposit bigger than the charges so far is still "paid" — nothing is owed —
+      // but the extra is named, because at discharge it is refunded or kept as credit
+      // (the payment panel's Settle step). Amber, not green: something is left to do.
+      return (opts.extra ?? 0) > 0
+        ? { label: `${LABEL.paid} · ${opts.formatMoney(opts.extra!)} extra`, variant: "warning" }
+        : { label: LABEL.paid, variant: "success" };
     case "advance_paid":
       return { label: `${LABEL.advance_paid}${left}`, variant: "info" };
     case "partially_paid":

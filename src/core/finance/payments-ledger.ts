@@ -1,5 +1,6 @@
 import "server-only";
 
+import { notCreditTransferSql } from "@/core/billing/credit-transfer";
 import { parseDocNumber } from "@/core/billing/doc-number";
 import { and, desc, eq, gte, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
@@ -156,8 +157,9 @@ export async function getPaymentsLedger(
     // Money in = payment + advance + advance_applied; out = refund. Net = in − out.
     db
       .select({
-        moneyIn: sql<number>`coalesce(sum(case when ${patientPayments.kind} = ${paymentKindId("refund")} then 0 else ${patientPayments.amount} end), 0)::int`,
-        moneyOut: sql<number>`coalesce(sum(case when ${patientPayments.kind} = ${paymentKindId("refund")} then ${patientPayments.amount} else 0 end), 0)::int`,
+        // A "kept as credit" transfer moves no money, so it is in neither total.
+        moneyIn: sql<number>`coalesce(sum(case when not ${notCreditTransferSql()} then 0 when ${patientPayments.kind} = ${paymentKindId("refund")} then 0 else ${patientPayments.amount} end), 0)::int`,
+        moneyOut: sql<number>`coalesce(sum(case when not ${notCreditTransferSql()} then 0 when ${patientPayments.kind} = ${paymentKindId("refund")} then ${patientPayments.amount} else 0 end), 0)::int`,
       })
       .from(patientPayments)
       .innerJoin(patients, eq(patients.id, patientPayments.patientId))

@@ -876,6 +876,20 @@
       "when": 1791835837039,
       "tag": "0124_sales_per_money_day",
       "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1791838630035,
+      "tag": "0125_services",
+      "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1791915790502,
+      "tag": "0126_mrn_series",
+      "breakpoints": true
     }
   ]
 }

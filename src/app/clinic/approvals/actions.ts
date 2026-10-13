@@ -2,7 +2,6 @@
 
 import { getApprovalRow } from "@/core/appointments/approvals";
 import { setDiscountNeedsApproval } from "@/core/clinics/settings";
-import { getAppointmentStatus } from "@/core/appointments/manage";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -66,11 +65,9 @@ export async function decideApproval(
   );
   if ("error" in result) return { error: result.error };
 
-  // Re-snapshot the sale if the appointment is already completed (best-effort).
-  const status = await getAppointmentStatus(clinicId, result.appointmentId);
-  if (status === "completed") {
-    await recordSaleForAppointment(clinicId, result.appointmentId);
-  }
+  // Re-derive the revenue: a decided discount changes the bill, and money already
+  // taken counts against it whatever the visit's status (ADR-035).
+  await recordSaleForAppointment(clinicId, result.appointmentId);
 
   await logActivity({
     action: "update",

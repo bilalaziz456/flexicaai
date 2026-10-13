@@ -32,6 +32,7 @@ function payBadge(r: Row) {
   if (!status) return null;
   return paymentStatusBadge(status, {
     outstanding: Math.max(0, r.amount - r.collected),
+    extra: Math.max(0, r.collected - r.amount),
     visitStatus: r.visitStatus,
     formatMoney: (n) => money.format(n),
   });

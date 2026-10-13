@@ -9,7 +9,7 @@ import { clinics, invoices, patients } from "@/core/db/schema";
 import { getCurrentUser } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { formatInvoiceNo } from "@/core/billing/invoice";
-import { formatMrn, mrnDigits, mrnMatchesSql } from "@/core/patients/mrn";
+import { mrnMatchesSql } from "@/core/patients/mrn";
 import { patientPhoneMatchSql } from "@/core/patients/search-sql";
 
 /**
@@ -95,7 +95,7 @@ export async function globalSearch(query: string): Promise<SearchResult> {
 
   const hits: SearchHit[] = [];
   for (const p of patientRows) {
-    const mrn = formatMrn(clinic?.mrnPrefix, p.mrn, p.createdAt);
+    const mrn = p.mrnLabel;
     hits.push({
       kind: "patient",
       id: p.id,
@@ -129,16 +129,16 @@ function searchPatients(clinicId: string, q: string) {
     ilike(patients.fullName, `%${q}%`),
     patientPhoneMatchSql(q),
   ];
-  const digits = mrnDigits(q);
   // Same predicate the patients list uses, so a term that finds a patient there
   // finds the same patient here.
-  if (digits) conds.push(mrnMatchesSql(digits));
+  conds.push(mrnMatchesSql(q));
   return db
     .select({
       id: patients.id,
       fullName: patients.fullName,
       phone: patients.phone,
       mrn: patients.mrn,
+      mrnLabel: patients.mrnLabel,
       createdAt: patients.createdAt,
     })
     .from(patients)

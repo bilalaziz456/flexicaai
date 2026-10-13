@@ -1,11 +1,11 @@
 import "server-only";
 
+import { allocateMrns } from "@/core/patients/mrn";
 import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/core/db";
 import {
   appointments,
-  clinics,
   discountSettlements,
   patients,
   recalls,
@@ -44,25 +44,14 @@ export type PatientInput = {
 export async function createPatient(
   clinicId: string,
   input: PatientInput,
-): Promise<{ id: string; mrn: number }> {
+): Promise<{ id: string; mrn: number; mrnLabel: string }> {
   return db.transaction(async (tx) => {
-    const [c] = await tx
-      .select({ nextMrn: clinics.nextMrn })
-      .from(clinics)
-      .where(eq(clinics.id, clinicId))
-      .for("update")
-      .limit(1);
-    const mrn = c?.nextMrn ?? 1;
-    await tx
-      .update(clinics)
-      .set({ nextMrn: mrn + 1, updatedAt: new Date() })
-      .where(eq(clinics.id, clinicId));
-
+    const [{ mrn, label }] = await allocateMrns(tx, clinicId, 1);
     const [row] = await tx
       .insert(patients)
-      .values({ clinicId, mrn, ...input })
+      .values({ clinicId, mrn, mrnLabel: label, ...input })
       .returning({ id: patients.id });
-    return { id: row.id, mrn };
+    return { id: row.id, mrn, mrnLabel: label };
   });
 }
 

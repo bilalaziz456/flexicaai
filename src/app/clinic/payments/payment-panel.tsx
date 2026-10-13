@@ -8,6 +8,7 @@ import { Printer, Undo2 } from "lucide-react";
 import {
   collectPayment,
   applyAppointmentAdvance,
+  keepExtraAsCredit,
   refundAppointmentPayment,
   voidAppointmentPayment,
   issueAppointmentInvoice,
@@ -67,6 +68,8 @@ export function PaymentPanel({
   canSendWhatsapp,
   invoiceLabel,
   invoiceHref,
+  extra = 0,
+  canKeepAsCredit = false,
 }: {
   appointmentId: string;
   billTotal: number;
@@ -84,6 +87,11 @@ export function PaymentPanel({
   invoiceLabel: string | null;
   /** Reserved for the printable invoice link (next step). */
   invoiceHref?: string;
+  /** Money held beyond the bill — a deposit bigger than the final charges, or all of
+   *  it on a cancelled visit. Settled by a refund or by keeping it as credit. */
+  extra?: number;
+  /** May move the extra to the patient's credit (`billing:edit`). */
+  canKeepAsCredit?: boolean;
 }) {
   // Labels come from the database (ADR-027); read once, since a hook cannot run
   // inside a cell or map callback.
@@ -138,6 +146,12 @@ export function PaymentPanel({
     setMsgNonce((n) => n + 1);
   };
 
+  // Settle, the "less than the deposit" half: keep the extra for a later visit.
+  const doKeepAsCredit = async () => {
+    const r = await keepExtraAsCredit(appointmentId);
+    if (r.error) return { error: r.error };
+    flash(`${money.format(extra)} kept as credit for the patient.`);
+  };
   const applyCredit = () => {
     const amt = Math.min(credit, outstanding);
     startTransition(async () => {
@@ -182,12 +196,19 @@ export function PaymentPanel({
           <div className="text-xs text-muted-foreground">Collected</div>
           <div className="font-medium tabular-nums">{money.format(collected)}</div>
         </div>
-        <div>
-          <div className="text-xs text-muted-foreground">Outstanding</div>
-          <div className={`font-medium tabular-nums ${statusTone}`}>
-            {money.format(outstanding)}
+        {extra > 0 ? (
+          <div>
+            <div className="text-xs text-muted-foreground">Extra held</div>
+            <div className="font-medium tabular-nums text-warning-text">{money.format(extra)}</div>
           </div>
-        </div>
+        ) : (
+          <div>
+            <div className="text-xs text-muted-foreground">Outstanding</div>
+            <div className={`font-medium tabular-nums ${statusTone}`}>
+              {money.format(outstanding)}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Collect */}
@@ -246,6 +267,33 @@ export function PaymentPanel({
             ) : null}
           </div>
         </ActionForm>
+      ) : extra > 0 ? (
+        // Settle: more was taken than the bill came to (a deposit at admission, say).
+        // The extra is given back or kept for the next visit — never left unexplained.
+        <div className="space-y-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+          <p>
+            <span className="font-medium">{money.format(extra)} extra</span> is held on this visit
+            {billTotal > 0 ? ` — the patient paid ${money.format(collected)} against a bill of ${money.format(billTotal)}` : ""}.
+            Refund it, or keep it as credit for the next visit.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {canRefund ? (
+              <Button type="button" size="sm" variant="outline" onClick={() => setRefundOpen(true)}>
+                Refund {money.format(extra)}
+              </Button>
+            ) : null}
+            {canKeepAsCredit ? (
+              <ConfirmDialog
+                triggerLabel="Keep as credit"
+                triggerVariant="outline"
+                title={`Keep ${money.format(extra)} as credit?`}
+                description="It moves from this visit to the patient's credit, ready to apply to their next visit. No cash changes hands."
+                confirmLabel="Keep as credit"
+                onConfirm={doKeepAsCredit}
+              />
+            ) : null}
+          </div>
+        </div>
       ) : outstanding <= 0 && billTotal > 0 ? (
         <p className="text-sm text-success-text">Fully paid.</p>
       ) : null}
@@ -273,7 +321,7 @@ export function PaymentPanel({
                   inputMode="numeric"
                   min={1}
                   max={collected}
-                  defaultValue={String(collected)}
+                  defaultValue={String(extra > 0 ? extra : collected)}
                   className={inputCls}
                 />
               </div>

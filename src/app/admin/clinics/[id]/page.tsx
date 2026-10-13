@@ -1,4 +1,5 @@
 import { getClinic } from "@/core/clinics/get-clinic";
+import { nextMrnLabel } from "@/core/patients/mrn-series";
 import { listAllClinicUsers } from "@/core/users/clinic-staff";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -190,6 +191,7 @@ export default async function ClinicDetailPage({
             whatsappPhoneNumberId={clinic.whatsappPhoneNumberId}
             whatsappDisplayNumber={clinic.whatsappDisplayNumber}
             whatsappSenderName={clinic.whatsappSenderName}
+            nextMrn={nextMrnLabel(clinic)}
           />
         </CardContent>
       </Card>

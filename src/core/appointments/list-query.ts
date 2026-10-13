@@ -1,5 +1,6 @@
 import "server-only";
 
+import { notCreditTransferSql } from "@/core/billing/credit-transfer";
 import { and, asc, count, desc, eq, gte, ilike, isNotNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
@@ -196,7 +197,7 @@ export async function listClinicAppointments(
         createdByName: appointments.createdByName,
         // Σ refunds on this visit — `amount_collected` is already NET of them, so
         // this is what tells "refunded" from "never paid" on the payment badge.
-        refunded: sql<number>`coalesce((select sum(${patientPayments.amount}) from ${patientPayments} where ${patientPayments.appointmentId} = ${appointments.id} and ${patientPayments.clinicId} = ${appointments.clinicId} and ${patientPayments.kind} = ${paymentKindId("refund")} and ${patientPayments.deletedAt} is null), 0)::int`,
+        refunded: sql<number>`coalesce((select sum(${patientPayments.amount}) from ${patientPayments} where ${patientPayments.appointmentId} = ${appointments.id} and ${patientPayments.clinicId} = ${appointments.clinicId} and ${patientPayments.kind} = ${paymentKindId("refund")} and ${notCreditTransferSql()} and ${patientPayments.deletedAt} is null), 0)::int`,
       })
       .from(appointments)
       .innerJoin(patients, eq(appointments.patientId, patients.id))

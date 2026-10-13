@@ -63,6 +63,9 @@ export async function getProcedureReport(
   const conds: SQL[] = [
     gte(appointments.scheduledAt, range.start),
     lt(appointments.scheduledAt, range.end),
+    // Procedures only: services and one-off charges (room, medicines) are not work a
+    // doctor performed, and would crowd the ranking this report exists for.
+    eq(appointmentProcedures.isService, false),
   ];
   if (scope === "done") conds.push(eq(appointments.status, "completed"));
   else if (scope === "booked") conds.push(inArray(appointments.status, [...ACTIVE_APPT_STATUSES]));

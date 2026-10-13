@@ -15,7 +15,6 @@ import { parseCsv, parseXlsx } from "../src/core/admin/import/parse";
 import { previewImport, commitImport, undoBatch, listBatches } from "../src/core/admin/import";
 import { getOutstandingTotal, getReceivablesReport } from "../src/core/finance/receivables";
 import { getOpeningBalanceOwed, settleOpeningBalance } from "../src/core/billing/payments";
-import { formatMrn } from "../src/core/patients/mrn";
 
 let failures = 0;
 function check(name: string, got: unknown, want: unknown) {
@@ -62,13 +61,13 @@ async function main() {
     check("imported = 3", res.imported, 3);
     {
       const rows = await db
-        .select({ mrn: patients.mrn, createdAt: patients.createdAt, name: patients.fullName, phone: patients.phone, ext: patients.externalRef, opening: patients.openingBalance })
+        .select({ mrn: patients.mrn, label: patients.mrnLabel, createdAt: patients.createdAt, name: patients.fullName, phone: patients.phone, ext: patients.externalRef, opening: patients.openingBalance })
         .from(patients)
         .where(byClinic(patients.clinicId, cid, notDeleted(patients.deletedAt)))
         .orderBy(patients.mrn);
       check("3 patients live", rows.length, 3);
-      check("MRNs allocated 1..3", rows.map((r) => r.mrn), [1, 2, 3]);
-      check("MRN formats as KL-<date>0000001", formatMrn("KL-", rows[0].mrn, rows[0].createdAt)?.startsWith("KL-") && formatMrn("KL-", rows[0].mrn, rows[0].createdAt)?.endsWith("0000001"), true);
+      // A new clinic's series is the default, FA-100001 onwards (2026-10-13).
+      check("MRNs allocated in the clinic's series", rows.map((r) => r.label), ["FA-100001", "FA-100002", "FA-100003"]);
       check("phone normalised to E.164", rows.find((r) => r.ext === "OLD-2")?.phone, "+923001112222");
       check("external_ref stored", rows.map((r) => r.ext).sort(), ["OLD-1", "OLD-2", "OLD-3"]);
       check("opening balances stored", rows.reduce((s, r) => s + r.opening, 0), 7500);

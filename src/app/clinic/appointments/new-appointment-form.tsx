@@ -3,7 +3,7 @@
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 import { ActionForm } from "@/core/ui/action-form";
 import { startTransition, useActionState, useRef, useState } from "react";
-import { Check, Minus, Plus, Printer, Search } from "lucide-react";
+import { Check, Minus, Plus, Printer, Search, X } from "lucide-react";
 import { cn } from "@/core/lib/utils";
 import {
   createAppointment,
@@ -46,7 +46,18 @@ type Doctor = {
   flexibleHours: boolean;
   consultationFee: number;
 };
-type ProcedureOption = { id: string; name: string; price: number; offer?: ProcedureOffer };
+type ProcedureOption = {
+  id: string;
+  name: string;
+  price: number;
+  offer?: ProcedureOffer;
+  /** A service (room, X-ray, medicines): its own section, price editable, no offer. */
+  isService?: boolean;
+};
+/** A one-off "other charge" typed on the bill — not on any price list. */
+type OtherCharge = { key: string; name: string; price: string; quantity: number };
+/** The longest description a one-off charge may carry (matches the server). */
+const OTHER_CHARGE_NAME_MAX = 80;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const timeToMin = (s: string) => {
@@ -72,7 +83,7 @@ const label12 = (hhmm: string) => {
 export function NewAppointmentForm({
   initialPatients,
   doctors,
-  procedures = [],
+  procedures: allOptions = [],
   clinicName,
   appointmentId,
   fixedPatient,
@@ -84,11 +95,16 @@ export function NewAppointmentForm({
   initialSlots,
   invoiceMode = false,
   canTakePayment = false,
+  chargesEnabled = false,
 }: {
   initialPatients: Patient[];
   doctors: Doctor[];
-  /** The clinic's active procedures (empty unless the `sales` feature is on). */
+  /** The clinic's active procedures AND services (empty unless the `sales` feature is
+   *  on); split into their two sections here by `isService`. */
   procedures?: ProcedureOption[];
+  /** The clinic bills (sales feature on): offer "+ Add other charge" even when the
+   *  services list is empty. */
+  chargesEnabled?: boolean;
   /** Names the offer on a procedure line ("Clinic002 offer · 10% discount"). */
   clinicName?: string | null;
   /** Unscheduled treatment-plan items for the (preselected) patient — booking-from-plan. */
@@ -134,7 +150,11 @@ export function NewAppointmentForm({
       quantity: number;
       discountType?: DiscountType;
       discountValue?: number;
+      /** The price the line was billed at — a service keeps it on an edit. */
+      unitPrice?: number;
     }[];
+    /** One-off charges already on the bill, so an edit keeps them. */
+    otherCharges?: { name: string; unitPrice: number; quantity: number }[];
   };
 }) {
   const isEdit = Boolean(appointmentId);
@@ -192,16 +212,70 @@ export function NewAppointmentForm({
   // A new invoice bills a visit that is happening now — the doctor's visiting hours
   // are not a reason to refuse it, so it starts with the time free.
   const [customTime, setCustomTime] = useState(initial?.customTime ?? newInvoice);
+  // The one list the page sends holds both price lists; each gets its own section.
+  const serviceIds = new Set(allOptions.filter((p) => p.isService).map((p) => p.id));
+  const procedures = allOptions.filter((p) => !p.isService);
+  const services = allOptions.filter((p) => p.isService);
   // Selected procedures → { quantity (≥1) }. Missing key = unselected. A line's
   // discount is not chosen here — it is the clinic offer (see `lineDiscount`).
   type ProcState = { quantity: number };
   const [procSel, setProcSel] = useState<Map<string, ProcState>>(() => {
     const m = new Map<string, ProcState>();
     for (const it of initial?.procedures ?? []) {
+      if (serviceIds.has(it.procedureId)) continue;
       m.set(it.procedureId, { quantity: Math.max(1, it.quantity) });
     }
     return m;
   });
+  // Selected services → quantity + the price on THIS bill (starts at the list price,
+  // or what an edited visit was billed at; the server honours it for services only).
+  type SvcState = { quantity: number; price: string };
+  const [svcSel, setSvcSel] = useState<Map<string, SvcState>>(() => {
+    const m = new Map<string, SvcState>();
+    for (const it of initial?.procedures ?? []) {
+      if (!serviceIds.has(it.procedureId)) continue;
+      const listPrice = allOptions.find((o) => o.id === it.procedureId)?.price ?? 0;
+      m.set(it.procedureId, {
+        quantity: Math.max(1, it.quantity),
+        price: String(it.unitPrice ?? listPrice),
+      });
+    }
+    return m;
+  });
+  const toggleSvc = (id: string, listPrice: number) =>
+    setSvcSel((prev) => {
+      const next = new Map(prev);
+      if (next.has(id)) next.delete(id);
+      else next.set(id, { quantity: 1, price: String(listPrice) });
+      return next;
+    });
+  const patchSvc = (id: string, patch: Partial<SvcState>) =>
+    setSvcSel((prev) => {
+      const cur = prev.get(id);
+      if (!cur) return prev;
+      const next = new Map(prev);
+      const merged = { ...cur, ...patch };
+      if (merged.quantity <= 0) next.delete(id);
+      else next.set(id, { ...merged, quantity: Math.min(99, merged.quantity) });
+      return next;
+    });
+  // One-off charges ("Medicines Rs 2,000") — typed here, not picked from a list.
+  const [charges, setCharges] = useState<OtherCharge[]>(() =>
+    (initial?.otherCharges ?? []).map((c, i) => ({
+      key: `saved-${i}`,
+      name: c.name,
+      price: String(c.unitPrice),
+      quantity: Math.max(1, c.quantity),
+    })),
+  );
+  const addCharge = () =>
+    setCharges((prev) => [...prev, { key: crypto.randomUUID(), name: "", price: "", quantity: 1 }]);
+  const patchCharge = (key: string, patch: Partial<OtherCharge>) =>
+    setCharges((prev) => prev.map((c) => (c.key === key ? { ...c, ...patch } : c)));
+  const removeCharge = (key: string) => setCharges((prev) => prev.filter((c) => c.key !== key));
+  const priceOf = (v: string) => Math.max(0, Math.round(Number(v) || 0));
+  // A charge only counts once it has a description — the server drops nameless ones.
+  const liveCharges = charges.filter((c) => c.name.trim().length > 0);
   const toggleProc = (id: string) =>
     setProcSel((prev) => {
       const next = new Map(prev);
@@ -248,7 +322,7 @@ export function NewAppointmentForm({
   };
   // The selected lines, in the shape the shared bill takes — through `computeBill`,
   // so the preview uses the same formula as the invoice it will become.
-  const billLines = procedures
+  const procedureBillLines = procedures
     .filter((p) => procSel.has(p.id))
     .map((p) => {
       const d = lineDiscount(p);
@@ -259,6 +333,23 @@ export function NewAppointmentForm({
         discountValue: d?.value ?? 0,
       };
     });
+  // Services and one-off charges carry no discount of their own (no offers).
+  const otherBillLines = [
+    ...services
+      .filter((p) => svcSel.has(p.id))
+      .map((p) => {
+        const s = svcSel.get(p.id)!;
+        return { unitPrice: priceOf(s.price), quantity: s.quantity, discountType: "amount" as DiscountType, discountValue: 0 };
+      }),
+    ...liveCharges.map((c) => ({
+      unitPrice: priceOf(c.price),
+      quantity: c.quantity,
+      discountType: "amount" as DiscountType,
+      discountValue: 0,
+    })),
+  ];
+  const otherChargesTotal = otherBillLines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
+  const billLines = [...procedureBillLines, ...otherBillLines];
   // Seeded by the server when editing, so the picker is constrained on the first
   // paint. It used to be null with an effect that fetched the same thing on mount:
   // a round trip after hydration, and a moment where the form offered times the
@@ -794,6 +885,124 @@ export function NewAppointmentForm({
           </div>
         ) : null}
 
+        {/* Services (room, X-ray, medicines…) and one-off charges — the "Other charges"
+            on the bill. No offers and no doctor share; the price can be changed here. */}
+        {chargesEnabled || services.length > 0 ? (
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Services &amp; other charges (optional)</Label>
+            {services.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {services.map((p) => {
+                  const checked = svcSel.has(p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      aria-pressed={checked}
+                      onClick={() => toggleSvc(p.id, p.price)}
+                      className={cn(
+                        "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors",
+                        checked ? "border-primary bg-primary/10" : "hover:bg-accent",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "inline-flex size-4 shrink-0 items-center justify-center rounded border",
+                          checked ? "border-primary bg-primary text-primary-foreground" : "border-input",
+                        )}
+                      >
+                        {checked ? <Check className="size-3" aria-hidden="true" /> : null}
+                      </span>
+                      {p.name} · {formatPkr(p.price)}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {svcSel.size > 0 || charges.length > 0 ? (
+              <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
+                {services
+                  .filter((p) => svcSel.has(p.id))
+                  .map((p) => {
+                    const s = svcSel.get(p.id)!;
+                    return (
+                      <li key={p.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2 text-sm">
+                        <span className="min-w-0 truncate font-medium">{p.name}</span>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <QuantityStepper
+                            label={p.name}
+                            value={s.quantity}
+                            onChange={(q) => patchSvc(p.id, { quantity: q })}
+                          />
+                          <PriceInput
+                            label={`${p.name} price`}
+                            value={s.price}
+                            onChange={(v) => patchSvc(p.id, { price: v })}
+                          />
+                          <span className="w-24 text-right font-medium tabular-nums">
+                            {formatPkr(priceOf(s.price) * s.quantity)}
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                {charges.map((c) => (
+                  <li key={c.key} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2 text-sm">
+                    <Input
+                      value={c.name}
+                      onChange={(e) => patchCharge(c.key, { name: e.target.value.slice(0, OTHER_CHARGE_NAME_MAX) })}
+                      placeholder="e.g. Medicines"
+                      aria-label="Charge description"
+                      className="h-8 min-w-40 flex-1"
+                    />
+                    <div className="flex flex-wrap items-center gap-3">
+                      <QuantityStepper
+                        label={c.name || "charge"}
+                        value={c.quantity}
+                        onChange={(q) => (q <= 0 ? removeCharge(c.key) : patchCharge(c.key, { quantity: Math.min(99, q) }))}
+                      />
+                      <PriceInput
+                        label={`${c.name || "Charge"} amount`}
+                        value={c.price}
+                        onChange={(v) => patchCharge(c.key, { price: v })}
+                      />
+                      <span className="w-24 text-right font-medium tabular-nums">
+                        {formatPkr(priceOf(c.price) * c.quantity)}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Remove charge"
+                        onClick={() => removeCharge(c.key)}
+                        className="inline-flex size-7 items-center justify-center rounded-md hover:bg-accent"
+                      >
+                        <X className="size-3.5" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            <Button type="button" variant="outline" size="sm" onClick={addCharge}>
+              <Plus className="size-4" aria-hidden="true" /> Add other charge
+            </Button>
+
+            {/* "<id>:<qty>:<price>" per service; one JSON field per one-off charge. */}
+            {[...svcSel.entries()].map(([id, s]) => (
+              <input key={id} type="hidden" name="service" value={`${id}:${s.quantity}:${priceOf(s.price)}`} />
+            ))}
+            {liveCharges.map((c) => (
+              <input
+                key={c.key}
+                type="hidden"
+                name="charge"
+                value={JSON.stringify({ n: c.name.trim(), p: priceOf(c.price), q: c.quantity })}
+              />
+            ))}
+          </div>
+        ) : null}
+
         {/* Discount off the whole bill (consultation fee + procedures). Default
             type is Amount (flat PKR); switch to Percent for a % of the total. */}
         <div className="space-y-2 sm:col-span-2">
@@ -840,7 +1049,9 @@ export function NewAppointmentForm({
             (() => {
               const parts: string[] = [];
               if (bill.consultation > 0) parts.push(`${formatPkr(bill.consultation)} fee`);
-              if (bill.proceduresNet > 0) parts.push(`${formatPkr(bill.proceduresNet)} procedures`);
+              const proceduresOnly = bill.proceduresNet - otherChargesTotal;
+              if (proceduresOnly > 0) parts.push(`${formatPkr(proceduresOnly)} procedures`);
+              if (otherChargesTotal > 0) parts.push(`${formatPkr(otherChargesTotal)} other charges`);
               // Procedures are shown AFTER their clinic offers, so the sum on the left is
               // the SUBTOTAL and only the patient discount comes off it. Subtracting
               // `bill.discount` here (offers included) took each offer off twice.
@@ -857,8 +1068,8 @@ export function NewAppointmentForm({
           ) : selectedDoctor ? (
             <p className="text-sm text-muted-foreground">
               {consultationFee > 0
-                ? "Consultation fee not charged and no procedures selected."
-                : "No consultation fee set and no procedures selected."}
+                ? "Consultation fee not charged and nothing else added."
+                : "No consultation fee set and nothing else added."}
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">
@@ -1104,5 +1315,49 @@ export function NewAppointmentForm({
       {/* Edit success → stay on the edit form, show a saved toast (re-triggered per
           save). Create instead redirects to the new appointment's detail page. */}
     </ActionForm>
+  );
+}
+
+/** − n + for a bill line's quantity. 0 removes the line (the caller decides how). */
+function QuantityStepper({ label, value, onChange }: { label: string; value: number; onChange: (q: number) => void }) {
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        aria-label={`Decrease ${label} quantity`}
+        onClick={() => onChange(value - 1)}
+        className="inline-flex size-7 items-center justify-center rounded-md border hover:bg-accent"
+      >
+        <Minus className="size-3.5" aria-hidden="true" />
+      </button>
+      <span className="w-6 text-center tabular-nums" aria-live="polite">
+        {value}
+      </span>
+      <button
+        type="button"
+        aria-label={`Increase ${label} quantity`}
+        onClick={() => onChange(value + 1)}
+        className="inline-flex size-7 items-center justify-center rounded-md border hover:bg-accent"
+      >
+        <Plus className="size-3.5" aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+/** A rupee amount typed on the bill — digits only. */
+function PriceInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-xs text-muted-foreground">Rs</span>
+      <Input
+        value={value}
+        inputMode="numeric"
+        onChange={(e) => onChange(e.target.value.replace(/[^\d]/g, "").slice(0, 8))}
+        placeholder="0"
+        aria-label={label}
+        className="h-8 w-24 text-right tabular-nums"
+      />
+    </div>
   );
 }

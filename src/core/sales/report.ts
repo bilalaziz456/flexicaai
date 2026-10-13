@@ -34,6 +34,8 @@ export type SalesReport = {
   buckets: SalesBucket[];
   byDoctor: DoctorSales[];
   byProcedure: ProcedureSales[];
+  /** Services and one-off charges (room, X-ray, medicines), ranked the same way. */
+  byService: ProcedureSales[];
 };
 
 export type ResolvedRange = {
@@ -299,6 +301,7 @@ export async function getSalesReport(
       name: appointmentProcedures.name,
       gross: sql<number>`sum(${netExpr})::int`,
       qty: sql<number>`sum(${appointmentProcedures.quantity})::int`,
+      isService: appointmentProcedures.isService,
     })
     .from(appointmentProcedures)
     .where(
@@ -322,14 +325,16 @@ export async function getSalesReport(
         ),
       ),
     )
-    .groupBy(appointmentProcedures.name)
+    .groupBy(appointmentProcedures.name, appointmentProcedures.isService)
     .orderBy(desc(sql`sum(${netExpr})`));
 
-  const byProcedure: ProcedureSales[] = procRows.map((r) => ({
+  const toSales = (r: (typeof procRows)[number]): ProcedureSales => ({
     name: r.name,
     gross: Number(r.gross),
     qty: Number(r.qty),
-  }));
+  });
+  const byProcedure = procRows.filter((r) => !r.isService).map(toSales);
+  const byService = procRows.filter((r) => r.isService).map(toSales);
 
   const count = visits.size;
   return {
@@ -342,6 +347,7 @@ export async function getSalesReport(
     buckets: buckets.map((b) => ({ label: b.label, value: b.value })),
     byDoctor,
     byProcedure,
+    byService,
   };
 }
 

@@ -53,7 +53,7 @@ export default async function InvoicePage({
   const [invoice, doctors, bookingProcedures, items, aBill, credit, ledger] = await Promise.all([
     getInvoiceForAppointment(clinicId, id),
     listClinicDoctors(clinicId, { order: "newest" }),
-    getBookingProcedures(clinicId),
+    getBookingProcedures(clinicId, { includeServices: true }),
     getAppointmentProcedureItems(clinicId, id),
     getAppointmentBill(clinicId, id),
     getPatientCredit(clinicId, appt.patientId),
@@ -61,7 +61,7 @@ export default async function InvoicePage({
   ]);
   if (!invoice) notFound();
 
-  const refunded = ledger.filter((e) => e.kind === "refund").reduce((n, e) => n + e.amount, 0);
+  const refunded = ledger.filter((e) => e.kind === "refund" && e.method !== "advance").reduce((n, e) => n + e.amount, 0);
   const status = visitPaymentStatus({
     bill: aBill.billTotal,
     collected: aBill.collected,
@@ -69,7 +69,12 @@ export default async function InvoicePage({
     visitStatus: appt.status,
   });
   const payBadge = status
-    ? paymentStatusBadge(status, { outstanding: aBill.outstanding, visitStatus: appt.status, formatMoney: formatPkr })
+    ? paymentStatusBadge(status, {
+        outstanding: aBill.outstanding,
+        extra: Math.max(0, aBill.collected - aBill.billTotal),
+        visitStatus: appt.status,
+        formatMoney: formatPkr,
+      })
     : null;
 
   const deleted = invoice.deleted;
@@ -156,6 +161,7 @@ export default async function InvoicePage({
               doctors={doctors}
               initialPatients={[]}
               procedures={bookingProcedures}
+              chargesEnabled
               appointmentId={id}
               fixedPatient={{ id: appt.patientId, fullName: appt.patientName }}
               initialSlots={initialSlots}
@@ -180,7 +186,12 @@ export default async function InvoicePage({
                     quantity: i.quantity,
                     discountType: i.discountType,
                     discountValue: i.discountValue,
+                    unitPrice: i.unitPrice,
                   })),
+                // Kept on an edit: a one-off charge has no list item to re-select.
+                otherCharges: items
+                  .filter((i) => !i.procedureId && i.isService)
+                  .map((i) => ({ name: i.name, unitPrice: i.unitPrice, quantity: i.quantity })),
               }}
             />
           </CardContent>
@@ -216,6 +227,12 @@ export default async function InvoicePage({
             }))}
             canCollect={!deleted && can(user, "billing", "create")}
             canRefund={can(user, "refund", "create")}
+            extra={
+              appt.status === "cancelled" || appt.status === "no_show"
+                ? aBill.collected
+                : Math.max(0, aBill.collected - aBill.billTotal)
+            }
+            canKeepAsCredit={!deleted && can(user, "billing", "edit")}
             canVoidPayment={can(user, "billing", "delete")}
             canVoidRefundEntry={can(user, "refund", "delete")}
             canInvoice={false}

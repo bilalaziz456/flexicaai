@@ -137,6 +137,7 @@ export async function getAppointmentShareContext(
       discountType: appointmentProcedures.discountType,
       discountValue: appointmentProcedures.discountValue,
       doctorId: appointmentProcedures.doctorId,
+      isService: appointmentProcedures.isService,
     })
     .from(appointmentProcedures)
     .where(
@@ -151,7 +152,7 @@ export async function getAppointmentShareContext(
   // Rates for every doctor involved (consulting + each performing doctor).
   const doctorIds = [
     ...new Set(
-      [consultDoctorId, ...procRows.map((r) => r.doctorId)].filter(
+      [consultDoctorId, ...procRows.map((r) => (r.isService ? null : r.doctorId))].filter(
         (v): v is string => Boolean(v),
       ),
     ),
@@ -176,8 +177,13 @@ export async function getAppointmentShareContext(
   // Rs 100, Rs 90 or nothing depending on a field about something else. Every share
   // figure is derived from these lines (sale shares, settlements, per-line waives),
   // so this one change moves them all together.
+  //
+  // A SERVICE line (room, medicines, a one-off charge) earns no doctor share at all
+  // (owner's call, 2026-10-13) — it stays in the lines so the bill and the discount
+  // split still see it, with no doctor and a 0% rate, so the clinic keeps all of it.
   const lines = procRows.map((r) => {
-    const rate = r.doctorId ? rates.get(r.doctorId) : undefined;
+    const doctorId = r.isService ? null : r.doctorId;
+    const rate = doctorId ? rates.get(doctorId) : undefined;
     const line = computeProcedureLine({
       unitPrice: r.unitPrice,
       quantity: r.quantity,
@@ -185,7 +191,7 @@ export async function getAppointmentShareContext(
       discountValue: r.discountValue,
     });
     return {
-      doctorId: r.doctorId,
+      doctorId,
       gross: Math.max(0, line.net),
       pct: rate ? resolveProcedureRate(rate, r.procedureId) : 0,
       lineRef: r.id,

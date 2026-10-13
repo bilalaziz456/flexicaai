@@ -1211,6 +1211,30 @@ cancelled visit's money stays until it is refunded (shown as Refund due).
 - `getAppointmentBill` no longer returns `not_billed` for a found visit, so the payment
   panel has no "deposit / estimate" state.
 
+**ADR-036 — A payment on a visit stays on that visit, even beyond its bill; the
+extra is settled, never silently re-filed** · *2026-10-13* · `Accepted` *(refines ADR-035)*
+`recordPayment` holds the WHOLE amount on the appointment. It used to split anything
+beyond the outstanding into patient credit, which broke the admission case the owner
+raised: a Rs 10,000 deposit taken before the charges were known showed as "Paid" on
+an invoice whose bill was the consultation alone, the rest sat on the patient's
+account, and every charge added afterwards showed as owed. Now the deposit and the
+growing bill meet on one invoice.
+
+**What keeps it honest.** Revenue counts only up to the bill (`money-days` clamps), so
+held money is never revenue. The badge says "Paid · Rs X extra" and the payment panel
+offers the two ways to settle it: a REFUND, or **Keep as credit**
+(`moveExtraToCredit`), written as a refund off the visit and an advance on the patient,
+both with the no-cash method `advance`. That pair is a transfer, so every cash or refund
+figure leaves it out by one rule (`core/billing/credit-transfer.ts`, TS and SQL twins),
+and the two rows are linked (`reverses_id`) so cancelling either half cancels both — half
+a transfer would double or lose the money.
+
+**Found on the way, and fixed:** three places still re-derived revenue only for a
+COMPLETED visit (the appointment edit, a discount decision, a Trash restore), so under
+ADR-035 a deposit followed by added charges stayed at Rs 0 revenue until the nightly
+reconcile. They now always re-derive; the ledger itself decides whether there is
+anything to book. `scripts/test-services-deposit.ts`.
+
 ---
 
 ## 6. Deltas — where the code is not yet the architecture

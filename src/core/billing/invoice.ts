@@ -447,6 +447,7 @@ export async function getAppointmentForDocument(clinicId: string, appointmentId:
       patientName: patients.fullName,
       patientPhone: patients.phone,
       patientMrn: patients.mrn,
+      patientMrnLabel: patients.mrnLabel,
       patientCreatedAt: patients.createdAt,
       doctorPrefix: users.prefix,
       doctorName: users.fullName,

@@ -5,7 +5,7 @@
  *   - CSV escaping incl. the streaming single-row formatter (core/lib/csv)
  * Run: `tsx --tsconfig scripts/_seed/tsconfig.json scripts/test-session-work.ts`
  */
-import { formatMrn, mrnDigits } from "../src/core/patients/mrn";
+import { formatMrnLabel, mrnDigits, parseStartingMrn } from "../src/core/patients/mrn-series";
 import {
   APPOINTMENT_STATUSES,
   nextQueueAction,
@@ -27,14 +27,19 @@ function check(name: string, got: unknown, want: unknown) {
 
 console.log("Patient MRN:");
 {
-  const d = new Date(2026, 6, 11, 9, 30); // 2026-07-11, local
-  check("format = prefix + YYYYMMDD + 7-digit", formatMrn("KL-", 42, d), "KL-202607110000042");
-  check("counter zero-pads to 7", formatMrn("KL-", 3, d), "KL-202607110000003");
-  check("large counter not truncated", formatMrn("KL-", 1234567, d), "KL-202607111234567");
-  check("null mrn → null", formatMrn("KL-", null, d), null);
-  check("empty prefix tolerated", formatMrn("", 1, d), "202607110000001");
+  // The clinic's series (2026-10-13): prefix + the counter at the starting width.
+  check("FA-100001 → FA-, width 6, from 100001", parseStartingMrn("FA-100001"), { prefix: "FA-", width: 6, start: 100001 });
+  check("GS-00000001 keeps its 8-digit padding", formatMrnLabel("GS-", 8, 2), "GS-00000002");
+  check("AB-999 continues as AB-1000", formatMrnLabel("AB-", 3, 1000), "AB-1000");
+  check("lower case is accepted and capitalised", parseStartingMrn("gs-001"), { prefix: "GS-", width: 3, start: 1 });
+  check("digits in the prefix: last run is the counter", parseStartingMrn("MRN2024-0001"), { prefix: "MRN2024-", width: 4, start: 1 });
+  check("fewer than 3 trailing digits refused", "error" in parseStartingMrn("AB-12"), true);
+  check("under 3 characters refused", "error" in parseStartingMrn("A1"), true);
+  check("over 15 characters refused", "error" in parseStartingMrn("ABCDEFGHIJKL-0001"), true);
+  check("other characters refused", "error" in parseStartingMrn("FA_100001"), true);
+  check("leading - refused", "error" in parseStartingMrn("-FA100"), true);
   check("digits: plain number", mrnDigits("42"), "42");
-  check("digits: strips prefix + zeros kept", mrnDigits("KL-202607110000042"), "202607110000042");
+  check("digits: strips prefix + zeros kept", mrnDigits("FA-0000042"), "0000042");
   check("digits: hash/space stripped", mrnDigits("# 42 "), "42");
   check("digits: none → empty", mrnDigits("abc"), "");
 }

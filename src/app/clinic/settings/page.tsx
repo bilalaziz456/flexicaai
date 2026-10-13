@@ -1,4 +1,5 @@
 import { getMyProfile } from "@/core/users/profile";
+import { nextMrnLabel } from "@/core/patients/mrn-series";
 import { requireWorkspace } from "@/core/auth/user";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { getAccountManagerContact } from "@/core/clinics/account-manager";
@@ -130,6 +131,22 @@ export default async function ClinicSettingsPage() {
                 </a>
               </p>
             ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {clinic ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Patient numbers (MRN)</CardTitle>
+            <CardDescription>
+              Every new patient gets the next number in this series. Your account manager
+              sets the series; ask them to change it.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm">
+            Next patient&apos;s MRN:{" "}
+            <span className="font-mono font-medium">{nextMrnLabel(clinic)}</span>
           </CardContent>
         </Card>
       ) : null}

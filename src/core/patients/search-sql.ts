@@ -43,18 +43,11 @@ export function patientPhoneMatchSql(term: string): SQL {
  * the invoice register and a receipt number to the payments ledger. Those are ORed
  * onto this, never folded into it.
  *
- * THE MRN IS MATCHED IN ITS PRINTABLE FORM, which is why the prefix is a parameter.
- * `patients.mrn` is a bare integer; what the desk reads off a card is
- * `<prefix><YYYYMMDD registration><7-digit>` (`core/patients/mrn.ts#formatMrn`). So the
- * SQL rebuilds that string and matches against it — a full "KL-202609070000001", a
- * partial digit run, or the prefix alone all hit.
- *
- * AND IT IS BUILT IN SERVER-LOCAL TIME, deliberately. `formatMrn` renders the date in
- * the server's zone; `to_char` on a `timestamptz` would use the SESSION's zone, and a
- * patient registered near midnight would render one day in the UI and another in the
- * search — a full-MRN search that misses the patient it names. This is the D-14
- * single-timezone assumption showing through, and it stays correct exactly as long as
- * that assumption does.
+ * THE MRN is matched two ways: a bare number ("23", "0000023") is the MRN's NUMBER,
+ * exactly, in any series; anything else is matched against the printed MRN STORED on
+ * the patient ("FA-1000", a pasted "GS-00000042"). The MRN used to be re-assembled
+ * here from the clinic's prefix and the registration date, which is why `mrnPrefix`
+ * is still a parameter — it is no longer read (`core/patients/mrn.ts`).
  */
 export function patientSearchSql(
   q: string | undefined,
@@ -68,7 +61,6 @@ export function patientSearchSql(
   const term = q?.trim();
   if (!term) return undefined;
   const like = `%${term}%`;
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
   return or(
     ilike(patients.fullName, like),
@@ -82,8 +74,8 @@ export function patientSearchSql(
     // for one number. Longer runs (a date, a full MRN) and prefixed forms stay partial.
     opts.mrn === false
       ? undefined
-      : /^\d{1,7}$/.test(term)
+      : /^\d{1,15}$/.test(term)
       ? eq(patients.mrn, Number(term))
-      : sql`(${mrnPrefix} || to_char(${patients.createdAt} AT TIME ZONE ${tz}, 'YYYYMMDD') || lpad(${patients.mrn}::text, 7, '0')) ilike ${like}`,
+      : ilike(patients.mrnLabel, like),
   );
 }

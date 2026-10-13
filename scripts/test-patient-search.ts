@@ -31,7 +31,6 @@ import {
 import { getReceivablesReport } from "@/core/finance/receivables";
 import { getPaymentsLedger } from "@/core/finance/payments-ledger";
 import { getInvoicesList } from "@/core/billing/invoice";
-import { formatMrn } from "@/core/patients/mrn";
 
 let passed = 0;
 let failed = 0;
@@ -69,11 +68,13 @@ async function main() {
         fullName: "Zainab Quresh",
         phone: "+923001234567",
         mrn: 42,
+        // The printed MRN is stored on the patient (2026-10-13).
+        mrnLabel: `${clinic.mrnPrefix}000042`,
         externalRef: "OLD-9182",
       })
-      .returning({ id: patients.id, createdAt: patients.createdAt, mrn: patients.mrn });
+      .returning({ id: patients.id, createdAt: patients.createdAt, mrn: patients.mrn, label: patients.mrnLabel });
 
-    const mrn = formatMrn(clinic.mrnPrefix, pt.mrn, pt.createdAt)!;
+    const mrn = pt.label!;
     console.log(`\nSeeded patient: ${mrn}  (old ref OLD-9182)`);
 
     // One completed, unpaid visit — so the patient appears in receivables — plus an

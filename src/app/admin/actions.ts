@@ -1,5 +1,8 @@
 "use server";
 
+import { report } from "@/core/observability";
+import { setClinicMrnSeries } from "@/core/patients/mrn";
+import { parseStartingMrn } from "@/core/patients/mrn-series";
 import { PHONE_ERROR, toE164 } from "@/core/lib/phone";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -129,6 +132,15 @@ export async function createClinicWithAdmin(
   const contact = parsePublicContact(formData);
   if (!contact.ok) return { error: contact.error };
 
+  // Starting MRN, as the clinic wants it ("GS-00000001"); empty = FA-100001. Checked
+  // BEFORE the clinic is created, so a typo is a form error rather than a clinic
+  // half-set-up. A new clinic has no patients, so it cannot collide.
+  const startingMrn = String(formData.get("startingMrn") ?? "").trim();
+  if (startingMrn) {
+    const series = parseStartingMrn(startingMrn);
+    if ("error" in series) return { error: series.error };
+  }
+
   const passwordHash = await hashPassword(parsed.data.adminPassword);
 
   let newClinicId: string;
@@ -148,6 +160,11 @@ export async function createClinicWithAdmin(
       return { error: "That username is already in use." };
     }
     throw err;
+  }
+
+  if (startingMrn) {
+    const set = await setClinicMrnSeries(newClinicId, startingMrn);
+    if ("error" in set) report(new Error(set.error), { op: "admin.createClinic.mrn", clinicId: newClinicId });
   }
 
   // Optional logo picked at creation — save it now the clinic has an id. Invalid
@@ -225,6 +242,16 @@ export async function updateClinic(
     return { error: zodErrorMessage(parsed.error) };
   }
 
+  // The clinic's next MRN — changing it starts a new series for NEW patients only.
+  // First, so a refused series ("already used") stops the save with nothing changed.
+  const startingMrn = String(formData.get("startingMrn") ?? "").trim();
+  let mrnChanged = false;
+  if (startingMrn) {
+    const set = await setClinicMrnSeries(clinicId, startingMrn);
+    if ("error" in set) return { error: set.error };
+    mrnChanged = set.changed;
+  }
+
   const specialtyAllowed = new Set(availableSpecialtyIds());
   const modulesEnabled = formData
     .getAll("modules")
@@ -295,7 +322,7 @@ export async function updateClinic(
     entity: "clinic",
     entityId: clinicId,
     clinicId,
-    summary: `Updated settings for clinic “${parsed.data.name}”`,
+    summary: `Updated settings for clinic “${parsed.data.name}”${mrnChanged ? ` (next MRN ${startingMrn.toUpperCase()})` : ""}`,
   });
   revalidatePath(`/admin/clinics/${clinicId}`);
   revalidatePath("/admin");

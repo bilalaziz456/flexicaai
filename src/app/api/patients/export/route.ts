@@ -1,8 +1,6 @@
 import { apiRequireWorkspace } from "@/core/auth/user";
-import { getClinic } from "@/core/clinics/get-clinic";
 import { toCsv } from "@/core/lib/csv";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
-import { formatMrn } from "@/core/patients/mrn";
 import { listPatientsForExport } from "@/core/patients/list";
 import { ageFromDob } from "@/core/lib/age";
 
@@ -20,14 +18,11 @@ export async function GET(req: Request) {
 
   const rows = await listPatientsForExport(clinicId, query);
 
-  const clinicRow = await getClinic(clinicId);
-  const mrnPrefix = clinicRow?.mrnPrefix ?? "";
-
 
   const csv = toCsv(
     ["MRN", "Name", "Phone", "Email", "Gender", "Age", "Reference", "Registered"],
     rows.map((p) => [
-      formatMrn(mrnPrefix, p.mrn, p.createdAt) ?? "",
+      p.mrnLabel ?? "",
       p.fullName,
       p.phone ?? "",
       p.email ?? "",

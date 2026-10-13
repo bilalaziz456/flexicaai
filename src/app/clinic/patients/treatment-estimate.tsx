@@ -3,7 +3,6 @@ import { getPatientHeader } from "@/core/patients/list";
 import { getTreatmentPlan, listTreatmentPlanItems } from "@/core/patients/treatment-plans";
 import { notFound } from "next/navigation";
 import { formatPkr } from "@/core/appointments/fee";
-import { formatMrn } from "@/core/patients/mrn";
 import { BackLink } from "@/core/ui/back-link";
 import { InvoicePrintFrame } from "@/core/ui/invoice-print";
 
@@ -30,7 +29,7 @@ export async function TreatmentEstimate({
   if (!patient) notFound();
 
   const clinic = await getClinic(clinicId);
-  const mrnLabel = formatMrn(clinic?.mrnPrefix, patient.mrn, patient.createdAt);
+  const mrnLabel = patient.mrnLabel;
 
   const items = await listTreatmentPlanItems(clinicId, planId);
 

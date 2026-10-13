@@ -256,6 +256,7 @@ async function collect(
         clinicId: procedures.clinicId,
         name: procedures.name,
         price: procedures.price,
+        isService: procedures.isService,
       })
       .from(procedures)
       .where(cond("procedure", procedures.clinicId, procedures.deletedAt, procedures.deletedByCascade, procedures.deletedBy, [procedures.name]))
@@ -340,7 +341,7 @@ async function collect(
   for (const r of recs)
     push({ entity: "recall", id: r.id, group: r.group ?? r.id, label: r.patientName ? `${r.patientName} · recall` : (r.reason ?? "Recall"), detail: r.reason, clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
   for (const r of procs)
-    push({ entity: "procedure", id: r.id, group: r.group ?? r.id, label: r.name, detail: `Rs ${r.price}`, clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
+    push({ entity: "procedure", id: r.id, group: r.group ?? r.id, label: r.name, detail: `${r.isService ? "Service · " : ""}Rs ${r.price}`, clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
   for (const r of exps)
     push({ entity: "expense", id: r.id, group: r.group ?? r.id, label: r.vendor || r.note || "Expense", detail: `Rs ${r.amount} · ${dateStr(r.incurredOn)}`, clinicId: r.clinicId, deletedAt: r.deletedAt!, deletedById: r.deletedBy });
   for (const r of leaves)
@@ -601,12 +602,13 @@ async function revertGroup(group: string, clinicId: string | null): Promise<void
   }
 
   // Re-sync the sales ledger: a whole restored clinic re-backfills; otherwise each
-  // restored completed appointment re-snapshots its sale.
+  // restored appointment re-derives its sale — any that took money, not only the
+  // completed ones (ADR-035); the ledger books nothing for a visit with neither.
   if (restoredClinicId) {
     await backfillClinicSales(restoredClinicId);
   } else {
     for (const a of restoredAppts) {
-      if (a.status === "completed") await recordSaleForAppointment(a.clinicId, a.id);
+      await recordSaleForAppointment(a.clinicId, a.id);
     }
   }
 }

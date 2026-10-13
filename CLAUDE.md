@@ -472,6 +472,17 @@ are in `.env.example`.
   manager clears the date, which is what keeps an UNASSIGNED clinic silent rather than
   told it has nobody.
 
+- **Services & other charges, deposits** (`0125`, ADR-036) — a Services price list
+  beside Procedures (room, X-ray, medicines: no doctor share, no offer, price editable on
+  the bill; **ACL: `services`**, clinic admin by default, scoped per clinic by the super
+  admin / account manager), one-off "other charges" on any bill, and a deposit held on
+  the visit until it is settled by a refund or **Keep as credit**.
+
+- **MRN series per clinic** (`0126`) — the super admin / account manager sets a
+  clinic's starting MRN (`FA-100001`, `GS-00000001`; letters, numbers, `-`, 3–15 chars,
+  ≥3 trailing digits). Each patient's MRN is STORED and never changes; changing the
+  series affects new patients only (`core/patients/mrn.ts`, `mrn-series.ts`).
+
 Still NOT to build without instruction (§11/§12 unchanged): derma, hair, mobile apps,
 advanced analytics.
 

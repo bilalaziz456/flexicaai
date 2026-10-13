@@ -26,7 +26,6 @@ import { ViewLogger } from "@/core/ui/view-logger";
 import { AllergyBanner } from "@/core/ui/allergy-banner";
 import { SectionRail, type RailSection } from "@/core/ui/section-rail";
 import { ageFromDob } from "@/core/lib/age";
-import { formatMrn } from "@/core/patients/mrn";
 import { APPOINTMENT_STATUS_VARIANT } from "@/core/appointments/status";
 import { getPatientAccount } from "@/core/billing/account";
 import { getMedicalHistory, getPatientAllergies } from "@/core/patients/medical-history";
@@ -174,7 +173,7 @@ export async function PatientDetail({
   // (chart / perio / plans / lab), resolved via the contract (core never knows dental).
   const clinicModulesRow = await getClinic(clinicId);
   const modulesEnabled: string[] = clinicModulesRow?.modulesEnabled ?? [];
-  const mrnLabel = formatMrn(clinicModulesRow?.mrnPrefix, patient.mrn, patient.createdAt);
+  const mrnLabel = patient.mrnLabel;
 
   let clinicalRecord: ReturnType<typeof clinicalRecordFor> = undefined;
   let currentChart: unknown = null;

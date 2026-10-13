@@ -2,7 +2,6 @@ import { getPatientHeader } from "@/core/patients/list";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { notFound } from "next/navigation";
 import { clinicalRecordFor } from "@/config/modules";
-import { formatMrn } from "@/core/patients/mrn";
 import { BackLink } from "@/core/ui/back-link";
 import { InvoicePrintFrame } from "@/core/ui/invoice-print";
 
@@ -24,7 +23,7 @@ export async function ClinicalChartPrint({
   if (!patient) notFound();
 
   const clinic = await getClinic(clinicId);
-  const mrnLabel = formatMrn(clinic?.mrnPrefix, patient.mrn, patient.createdAt);
+  const mrnLabel = patient.mrnLabel;
 
   const clinicalRecord = clinicalRecordFor(clinic?.modulesEnabled ?? []);
   if (!clinicalRecord) notFound();

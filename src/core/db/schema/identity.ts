@@ -2,6 +2,7 @@ import type { ClinicHour } from "@/core/lib/clinic-hours";
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  bigint,
   boolean,
   date,
   index,
@@ -196,13 +197,15 @@ export const clinics = pgTable(
     // by the owner/super-admin/account-manager (not the clinic). Printed in B&W at the
     // top of documents; NULL = show nothing. See core/clinics/logo.ts.
     logoKey: text("logo_key"),
-    // Patient MRN (Medical Record Number) — a per-clinic, human-friendly patient
-    // number formatted as `<mrnPrefix><YYYYMMDD registration><7-digit nextMrn>`, e.g.
-    // "KL-202607270000042" (see core/patients/mrn.ts#formatMrn). `nextMrn` is the
-    // running counter atomically bumped when a patient is registered (the clinic row
-    // is locked, the same collision-free scheme as `nextInvoiceNo`).
-    mrnPrefix: text("mrn_prefix").notNull().default("KL-"),
-    nextMrn: integer("next_mrn").notNull().default(1),
+    // Patient MRN SERIES (owner's call, 2026-10-13) — set by the super admin / account
+    // manager as a "starting MRN" such as "FA-100001" or "GS-00000001", split into the
+    // prefix ("FA-"), the digit width it is padded to (6) and the NEXT number (100001).
+    // See core/patients/mrn-series.ts. The label a patient gets is STORED on the patient
+    // (`patients.mrn_label`), so changing the series later never relabels anyone.
+    // `nextMrn` is bumped under a lock on this row (the same scheme as `nextInvoiceNo`).
+    mrnPrefix: text("mrn_prefix").notNull().default("FA-"),
+    mrnWidth: integer("mrn_width").notNull().default(6),
+    nextMrn: bigint("next_mrn", { mode: "number" }).notNull().default(100001),
     // When true, a CLINIC-borne discount needs approval (from a `discount_approval`
     // grantee) before it applies. Per-doctor discounts use users.discountNeedsApproval.
     // See docs/doctor-shares-plan.md §6.
@@ -520,11 +523,13 @@ export const patients = pgTable(
     clinicId: uuid("clinic_id")
       .notNull()
       .references(() => clinics.id, { onDelete: "cascade" }),
-    // Per-clinic Medical Record Number — a human-friendly patient number allocated
-    // sequentially on registration (see core/patients/mrn.ts) and shown with the
-    // clinic's `mrnPrefix`. Nullable only so the column can be added + backfilled;
-    // every live patient has one. Unique per clinic (index below).
-    mrn: integer("mrn"),
+    // The MRN's NUMBER within its series (100023 of "FA-100023"). Not unique on its own:
+    // a clinic that moved from FA- to GS- has both FA-100001 and GS-100001.
+    mrn: bigint("mrn", { mode: "number" }),
+    // The MRN as printed ("FA-100023") — STORED, never re-derived: it is on the
+    // patient's card and file, so changing the clinic's series must not change it.
+    // Unique per clinic (index below). Nullable only for the add-then-backfill step.
+    mrnLabel: text("mrn_label"),
     fullName: text("full_name").notNull(),
     // E.164 WhatsApp number (e.g. +9230…). Primary contact for reminders.
     phone: text("phone"),
@@ -563,11 +568,13 @@ export const patients = pgTable(
   },
   (t) => [
     index("patients_clinic_id_idx").on(t.clinicId),
-    // MRN is unique per clinic and this is the exact-lookup index for "open the
-    // patient by MRN" (partial: only rows that have a number).
-    uniqueIndex("patients_clinic_mrn_idx")
-      .on(t.clinicId, t.mrn)
-      .where(sql`${t.mrn} is not null`),
+    // The printed MRN is unique per clinic — including trashed patients, so a restore
+    // can never collide — and this is the exact lookup for "open the patient by MRN".
+    uniqueIndex("patients_clinic_mrn_label_idx")
+      .on(t.clinicId, t.mrnLabel)
+      .where(sql`${t.mrnLabel} is not null`),
+    // "Patient 23" — the number alone, across series.
+    index("patients_clinic_mrn_idx").on(t.clinicId, t.mrn),
     // Lookup by the clinic's old patient number (only rows that carry one).
     index("patients_clinic_external_ref_idx")
       .on(t.clinicId, t.externalRef)

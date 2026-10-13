@@ -10,6 +10,7 @@ import {
   type AdminActionState,
 } from "@/app/admin/actions";
 import { SpecialtyCheckboxes } from "@/app/admin/clinics/specialty-checkboxes";
+import { MrnField } from "@/app/admin/clinics/mrn-field";
 import { Button, buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import { useActionToast } from "@/core/ui/toast";
@@ -64,6 +65,7 @@ export function CreateClinicForm({
             <Label>Specialties</Label>
             <SpecialtyCheckboxes catalog={catalog} />
           </div>
+          <MrnField mode="create" />
           <div className="space-y-2">
             <Label>Account manager (optional)</Label>
             <SearchableSelect

@@ -238,6 +238,24 @@ export default async function ClinicSalesPage({
             )}
           </CardContent>
         </Card>
+
+        {report.byService.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Services &amp; other charges</CardTitle>
+              <CardDescription>
+                Room, X-ray, medicines and other charges billed on paying visits. No doctor share.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <LollipopChart
+                showShare
+                ariaLabel="Billed value by service"
+                rows={report.byService.map((p) => ({ label: p.name, value: p.gross, sublabel: `×${p.qty}` }))}
+              />
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
     </div>
   );

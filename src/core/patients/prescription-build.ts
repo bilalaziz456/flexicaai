@@ -4,7 +4,6 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
 import { clinics, patients, users, visits } from "@/core/db/schema";
-import { formatMrn } from "@/core/patients/mrn";
 import {
   generatePrescriptionPdf,
   type RxItem,
@@ -31,6 +30,7 @@ export async function buildPrescriptionPdf(
       patientName: patients.fullName,
       patientPhone: patients.phone,
       patientMrn: patients.mrn,
+      patientMrnLabel: patients.mrnLabel,
       patientCreatedAt: patients.createdAt,
       clinicName: clinics.name,
       mrnPrefix: clinics.mrnPrefix,
@@ -75,7 +75,7 @@ export async function buildPrescriptionPdf(
   const pdf = await generatePrescriptionPdf({
     clinicName: row.clinicName,
     patientName: row.patientName,
-    patientMrn: formatMrn(row.mrnPrefix, row.patientMrn, row.patientCreatedAt),
+    patientMrn: row.patientMrnLabel,
     doctorName: row.doctorName,
     date: row.visitDate,
     diagnosis,

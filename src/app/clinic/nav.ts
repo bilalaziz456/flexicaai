@@ -7,6 +7,7 @@ import {
   CalendarRange,
   CalendarX2,
   ClipboardList,
+  ConciergeBell,
   Contact,
   FileSpreadsheet,
   FileText,
@@ -83,6 +84,7 @@ export const CLINIC_NAV: PanelNav = {
       Icon: ClipboardList,
       items: [
         { href: "/clinic/procedures", label: "Procedures", Icon: ClipboardList, resource: "procedures", feature: "sales" },
+        { href: "/clinic/services", label: "Services", Icon: ConciergeBell, resource: "services", feature: "sales" },
         { href: "/clinic/schedule", label: "Doctor schedule", Icon: CalendarRange, resource: "schedule" },
         { href: "/clinic/no-shows", label: "No-shows", Icon: CalendarX2, resource: "appointments" },
         { href: "/clinic/whatsapp", label: "WhatsApp", Icon: MessageCircle, resource: "whatsapp" },

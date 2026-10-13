@@ -19,7 +19,6 @@ import {
   normalizeDiscountType,
 } from "@/core/appointments/fee";
 import { displayStaffName } from "@/core/types/auth";
-import { formatMrn } from "@/core/patients/mrn";
 import { getClinicLogoDataUri } from "@/core/clinics/logo";
 import { BackLink } from "@/core/ui/back-link";
 import { InvoicePrintFrame } from "@/core/ui/invoice-print";
@@ -51,7 +50,7 @@ export default async function InvoicePage({
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales") || !can(user, "billing", "view")) {
     notFound();
   }
-  const mrnLabel = formatMrn(clinic?.mrnPrefix, row.patientMrn, row.patientCreatedAt);
+  const mrnLabel = row.patientMrnLabel;
   const logo = await getClinicLogoDataUri(clinic?.logoKey);
 
   const [items, aBill, invoice, ledger] = await Promise.all([
@@ -185,8 +184,18 @@ export default async function InvoicePage({
               // under its procedure so the patient sees the full price and what came
               // off it — and so the printed lines still add up to the total.
               const off = bill.lines[idx]?.discount ?? 0;
+              // Services and one-off charges come last (the read orders them so) under
+              // their own heading, so the patient can see what the extra is for.
+              const firstOther = it.isService && !items[idx - 1]?.isService;
               return (
                 <Fragment key={idx}>
+                  {firstOther ? (
+                    <tr>
+                      <td className="pt-2 pb-0.5 text-[0.9em] font-semibold" colSpan={3}>
+                        Other charges
+                      </td>
+                    </tr>
+                  ) : null}
                   <tr>
                     <td className="py-1">{it.name}</td>
                     <td className="py-1 text-right">{it.quantity}</td>

@@ -7,7 +7,6 @@ import { can } from "@/core/auth/permissions";
 import { clinicHasFeature } from "@/core/lib/features";
 import { getPatientAccount } from "@/core/billing/account";
 import { formatPkr } from "@/core/appointments/fee";
-import { formatMrn } from "@/core/patients/mrn";
 import { BackLink } from "@/core/ui/back-link";
 import { InvoicePrintFrame } from "@/core/ui/invoice-print";
 
@@ -33,7 +32,7 @@ export default async function PatientStatementPage({
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales") || !can(user, "billing", "view")) {
     notFound();
   }
-  const mrnLabel = formatMrn(clinic?.mrnPrefix, patient.mrn, patient.createdAt);
+  const mrnLabel = patient.mrnLabel;
 
   const account = await getPatientAccount(clinicId, patient.id);
   const fmtDate = (d: Date) =>

@@ -73,6 +73,7 @@ export function appointmentPayLabel(
   if (!status) return null;
   return paymentStatusBadge(status, {
     outstanding: Math.max(0, bill - a.amountCollected),
+    extra: Math.max(0, a.amountCollected - bill),
     visitStatus: a.status,
     formatMoney: formatPkr,
   });

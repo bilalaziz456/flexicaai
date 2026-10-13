@@ -3,6 +3,7 @@ import "server-only";
 import { and, eq, gt, inArray, lte, not, sql, type SQL } from "drizzle-orm";
 import { appointments, patientPayments } from "@/core/db/schema";
 import { paymentKindId } from "@/core/db/vocabulary-seed";
+import { notCreditTransferSql } from "@/core/billing/credit-transfer";
 import type { VisitPaymentStatus } from "@/core/billing/payment-status";
 
 /**
@@ -15,7 +16,7 @@ import type { VisitPaymentStatus } from "@/core/billing/payment-status";
  * caller's join set (procedure totals, users) is the one it reads.
  */
 export function refundedSql(): SQL<number> {
-  return sql<number>`coalesce((select sum(${patientPayments.amount}) from ${patientPayments} where ${patientPayments.appointmentId} = ${appointments.id} and ${patientPayments.clinicId} = ${appointments.clinicId} and ${patientPayments.kind} = ${paymentKindId("refund")} and ${patientPayments.deletedAt} is null), 0)`;
+  return sql<number>`coalesce((select sum(${patientPayments.amount}) from ${patientPayments} where ${patientPayments.appointmentId} = ${appointments.id} and ${patientPayments.clinicId} = ${appointments.clinicId} and ${patientPayments.kind} = ${paymentKindId("refund")} and ${notCreditTransferSql()} and ${patientPayments.deletedAt} is null), 0)`;
 }
 
 export function paymentStatusSql(status: VisitPaymentStatus, bill: SQL): SQL {

@@ -74,6 +74,11 @@ export const procedures = pgTable(
     module: text("module"),
     // Inactive procedures are hidden from booking but kept for history.
     isActive: boolean("is_active").notNull().default(true),
+    // A SERVICE rather than a procedure (owner's call, 2026-10-13): room, X-ray,
+    // dressing, medicines — billed like a procedure but never earning a doctor's
+    // share, never carrying a clinic offer, and priced at the counter if needed.
+    // Same table so the bill, invoice, payments and revenue need no second rule.
+    isService: boolean("is_service").notNull().default(false),
     // CLINIC OFFER — a discount the clinic gives EVERY patient on this procedure
     // (core/appointments/procedure-offer.ts). Applied by the server at booking as the
     // line's discount and snapshotted there, so changing or ending an offer never
@@ -668,6 +673,11 @@ export const appointmentProcedures = pgTable(
     doctorId: uuid("doctor_id").references(() => users.id, { onDelete: "set null" }),
     name: text("name").notNull(), // snapshot
     unitPrice: integer("unit_price").notNull().default(0), // snapshot, PKR
+    // A service line (from the Services list, or a one-off "other charge" with no
+    // procedure_id). SNAPSHOTTED like the name and price, so turning a price-list
+    // entry into a service later never re-shares a bill already raised. A service
+    // line earns no doctor share (share-context.ts).
+    isService: boolean("is_service").notNull().default(false),
     quantity: integer("quantity").notNull().default(1),
     // Optional per-line discount, applied to THIS line's gross (unit_price×qty)
     // BEFORE the appointment-level discount. 'amount' = flat PKR, 'percent' = %

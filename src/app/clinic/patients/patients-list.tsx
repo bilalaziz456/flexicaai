@@ -1,7 +1,5 @@
-import { getClinic } from "@/core/clinics/get-clinic";
 import { TableCard } from "@/core/ui/table-card";
 import { listClinicPatients } from "@/core/patients/list";
-import { formatMrn } from "@/core/patients/mrn";
 import Link from "next/link";
 import { CalendarPlus, ChevronRight, Download, Plus, Users } from "lucide-react";
 import { EmptyState } from "@/core/ui/empty-state";
@@ -74,11 +72,10 @@ export async function PatientsList({
 
   // Search (name / phone / MRN) and paging live in core, shared with the CSV export
   // so the download can never return a different set from the list (ADR-014).
-  const [clinicRow, { rows, total }] = await Promise.all([
-    getClinic(clinicId),
-    listClinicPatients(clinicId, query ?? "", { offset: pageOffset(page, pageSize), limit: pageSize }),
-  ]);
-  const mrnPrefix = clinicRow?.mrnPrefix ?? "";
+  const { rows, total } = await listClinicPatients(clinicId, query ?? "", {
+    offset: pageOffset(page, pageSize),
+    limit: pageSize,
+  });
 
   return (
     <div className="space-y-6">
@@ -150,7 +147,7 @@ export async function PatientsList({
                 {rows.map((p) => (
                   <RowLink key={p.id} href={`${detailBase}/${p.id}`} className="border-b">
                     <TableCell className="tabular-nums text-muted-foreground">
-                      {formatMrn(mrnPrefix, p.mrn, p.createdAt) ?? "—"}
+                      {p.mrnLabel ?? "—"}
                     </TableCell>
                     <TableCell className="font-medium">{p.fullName}</TableCell>
                     <TableCell>{p.phone ?? "—"}</TableCell>
@@ -193,9 +190,9 @@ export async function PatientsList({
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="font-medium">{p.fullName}</div>
-                  {formatMrn(mrnPrefix, p.mrn, p.createdAt) ? (
+                  {p.mrnLabel ? (
                     <span className="text-xs tabular-nums text-muted-foreground">
-                      {formatMrn(mrnPrefix, p.mrn, p.createdAt)}
+                      {p.mrnLabel}
                     </span>
                   ) : null}
                 </div>

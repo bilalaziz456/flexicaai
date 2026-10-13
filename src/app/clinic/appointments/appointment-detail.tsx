@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { listClinicDoctors } from "@/core/appointments/doctors";
 import { paymentStatusBadge, visitPaymentStatus } from "@/core/billing/payment-status";
 import { TabTitle } from "@/core/ui/app-tabs";
@@ -63,7 +64,7 @@ export async function AppointmentDetail({
     // `newest` keeps this list in the order it was already in — a display order is
     // still behaviour, and a refactor is not the place to change one.
     listClinicDoctors(clinicId, { order: "newest" }),
-    getBookingProcedures(clinicId),
+    getBookingProcedures(clinicId, { includeServices: true }),
     getAppointmentProcedureItems(clinicId, appointmentId),
   ]);
 
@@ -76,7 +77,13 @@ export async function AppointmentDetail({
       quantity: i.quantity,
       discountType: i.discountType,
       discountValue: i.discountValue,
+      unitPrice: i.unitPrice,
     }));
+  // One-off charges have no list item, so they travel separately — without them an
+  // edit would silently drop "Medicines Rs 2,000" from the bill.
+  const initialOtherCharges = procedureItems
+    .filter((i) => !i.procedureId && i.isService)
+    .map((i) => ({ name: i.name, unitPrice: i.unitPrice, quantity: i.quantity }));
 
   // Read-only bill: consultation fee + line items (each with its own discount),
   // then the appointment-level discount on the subtotal. A procedure-only visit
@@ -161,13 +168,14 @@ export async function AppointmentDetail({
       ? visitPaymentStatus({
           bill: aBill.billTotal,
           collected: aBill.collected,
-          refunded: (ledger ?? []).filter((e) => e.kind === "refund").reduce((n, e) => n + e.amount, 0),
+          refunded: (ledger ?? []).filter((e) => e.kind === "refund" && e.method !== "advance").reduce((n, e) => n + e.amount, 0),
           visitStatus: appt.status,
         })
       : null;
   const payBadge = payStatus
     ? paymentStatusBadge(payStatus, {
         outstanding: Math.max(0, aBill?.outstanding ?? 0),
+        extra: Math.max(0, (aBill?.collected ?? 0) - (aBill?.billTotal ?? 0)),
         visitStatus: appt.status,
         formatMoney: formatPkr,
       })
@@ -224,7 +232,7 @@ export async function AppointmentDetail({
           <CardHeader>
             <CardTitle>Bill</CardTitle>
             <CardDescription>
-              Consultation fee, procedures and discount for this visit.
+              Consultation fee, procedures, other charges and discount for this visit.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -237,8 +245,16 @@ export async function AppointmentDetail({
               ) : null}
               {procedureItems.map((i, idx) => {
                 const l = bill.lines[idx];
+                // Services and one-off charges are read last, under their own heading.
+                const firstOther = i.isService && !procedureItems[idx - 1]?.isService;
                 return (
-                  <div key={idx} className="flex items-center justify-between gap-3">
+                  <Fragment key={idx}>
+                  {firstOther ? (
+                    <div className="pt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Other charges
+                    </div>
+                  ) : null}
+                  <div className="flex items-center justify-between gap-3">
                     <dt className="min-w-0 truncate text-muted-foreground">
                       {i.name}
                       {i.quantity > 1 ? (
@@ -254,6 +270,7 @@ export async function AppointmentDetail({
                     </dt>
                     <dd className="tabular-nums">{formatPkr(l.net)}</dd>
                   </div>
+                  </Fragment>
                 );
               })}
               {bill.appointmentDiscount > 0 ? (
@@ -322,6 +339,13 @@ export async function AppointmentDetail({
               }))}
               canCollect={Boolean(currentUser && can(currentUser, "billing", "create"))}
               canRefund={Boolean(currentUser && can(currentUser, "refund", "create"))}
+              // A cancelled visit owes nothing, so everything it holds is extra.
+              extra={
+                appt.status === "cancelled" || appt.status === "no_show"
+                  ? aBill.collected
+                  : Math.max(0, aBill.collected - aBill.billTotal)
+              }
+              canKeepAsCredit={Boolean(currentUser && can(currentUser, "billing", "edit"))}
               canVoidPayment={Boolean(currentUser && can(currentUser, "billing", "delete"))}
               canVoidRefundEntry={Boolean(currentUser && can(currentUser, "refund", "delete"))}
               canInvoice={Boolean(currentUser && can(currentUser, "billing", "create"))}
@@ -372,6 +396,7 @@ export async function AppointmentDetail({
               doctors={doctors}
               initialPatients={[]}
               procedures={bookingProcedures}
+              chargesEnabled={clinicHasFeature(clinicRow?.featuresEnabled, "sales")}
               appointmentId={appt.id}
               fixedPatient={{ id: appt.patientId, fullName: appt.patientName }}
               initialSlots={initialSlots}
@@ -389,6 +414,7 @@ export async function AppointmentDetail({
                 chargeConsultation: appt.chargeConsultation,
                 customTime: appt.customTime,
                 procedures: initialProcedures,
+                otherCharges: initialOtherCharges,
               }}
             />
           </CardContent>

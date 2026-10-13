@@ -4,7 +4,7 @@ import { count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
 import { patients } from "@/core/db/schema";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { mrnDigits, mrnMatchesSql } from "@/core/patients/mrn";
+import { mrnMatchesSql } from "@/core/patients/mrn";
 import { patientPhoneMatchSql } from "@/core/patients/search-sql";
 
 /**
@@ -23,10 +23,8 @@ export function patientSearchWhere(clinicId: string, q = ""): SQL | undefined {
   let search;
   if (query) {
     const conds = [ilike(patients.fullName, `%${query}%`), patientPhoneMatchSql(query)];
-    // Match the MRN's digits (registration date + padded counter) so "42", "0000042"
-    // or a pasted "KL-202607270000042" all resolve to the same patient.
-    const digits = mrnDigits(query);
-    if (digits) conds.push(mrnMatchesSql(digits));
+    // The MRN: its number ("42", "0000042") or the printed form ("FA-100042").
+    conds.push(mrnMatchesSql(query));
     search = or(...conds);
   }
   return byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt), search);
@@ -68,6 +66,7 @@ export async function listPatientsForExport(clinicId: string, q = ""): Promise<P
 const PATIENT_LIST_COLUMNS = {
   id: patients.id,
   mrn: patients.mrn,
+  mrnLabel: patients.mrnLabel,
   createdAt: patients.createdAt,
   fullName: patients.fullName,
   phone: patients.phone,
@@ -80,6 +79,7 @@ const PATIENT_LIST_COLUMNS = {
 export type PatientListRow = {
   id: string;
   mrn: number | null;
+  mrnLabel: string | null;
   createdAt: Date;
   fullName: string;
   phone: string | null;
@@ -95,6 +95,7 @@ const PATIENT_PICKER_COLUMNS = {
   fullName: patients.fullName,
   phone: patients.phone,
   mrn: patients.mrn,
+  mrnLabel: patients.mrnLabel,
   createdAt: patients.createdAt,
 } as const;
 
@@ -132,6 +133,7 @@ export async function getPatientHeader(clinicId: string, patientId: string) {
       fullName: patients.fullName,
       phone: patients.phone,
       mrn: patients.mrn,
+      mrnLabel: patients.mrnLabel,
       createdAt: patients.createdAt,
     })
     .from(patients)

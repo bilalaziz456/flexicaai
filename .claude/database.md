@@ -1309,6 +1309,39 @@ these for churn-risk + usage/cost anomaly flags.
   `npm run db:rederive-sales` (`scripts/rederive-sales.ts`), which must run after this
   migration on every environment — the nightly reconcile compares totals and would not
   notice a sale on the wrong date.
+- Migration **`0125`** adds **services** (owner's call, 2026-10-13): `procedures.is_service`
+  and `appointment_procedures.is_service` (bool, default false). A service — room, X-ray,
+  dressing, medicines — lives in the SAME table as procedures so the bill formula,
+  invoice, payments and revenue need no second rule; what differs is enforced on the
+  flag: **no doctor share** (`share-context.ts` gives a service line no doctor and 0%),
+  **no clinic offer** (`applyClinicOffers`/`setProcedureOffer` skip services), and the
+  **price may be typed on the bill** (`saveAppointmentProcedures` honours a typed price
+  for a service only). A one-off **other charge** ("Medicines Rs 2,000") is a service
+  line with `procedure_id` NULL. The line flag is a SNAPSHOT, like the name and price.
+  Every catalog call takes a `kind` (`listProcedureCatalog`, `updateProcedure`,
+  `softDeleteProcedure`) so the Procedures and Services screens — each behind its own
+  ACL resource, `services` being new — cannot touch each other's rows. The migration
+  backfills the `services` capability onto scoped clinics from their `procedures`
+  slugs (ADR-033). The Procedures report counts procedures only; Sales lists services
+  in their own group.
+- Migration **`0126`** gives each clinic its own **MRN series** (owner's call,
+  2026-10-13) and STORES each patient's MRN. The super admin / account manager types a
+  starting MRN on the new-clinic form or the clinic page — letters, numbers and `-`,
+  3–15 characters, ending in at least 3 digits, e.g. `FA-100001` or `GS-00000001`
+  (empty = `FA-100001`). It is split into `clinics.mrn_prefix` + `clinics.mrn_width` +
+  `clinics.next_mrn` (now `bigint`), and every patient gets the printed form in
+  `patients.mrn_label` (unique per clinic, trashed rows included) with the number in
+  `patients.mrn` (`bigint`, no longer unique — `FA-100001` and `GS-100001` may coexist).
+  **The label is stored, never re-derived**, because it is on the patient's card: the
+  old `<prefix><YYYYMMDD><7 digits>` was re-assembled from the clinic's prefix at every
+  read, so changing the prefix would have relabelled everyone. Changing the series
+  affects NEW patients only, and is refused at or below the highest number already given
+  under that prefix (`core/patients/mrn.ts#setClinicMrnSeries`); allocation skips a
+  number already held, and a series that outgrows its width just adds a digit
+  (`AB-999` → `AB-1000`). The clinic sees its next MRN read-only in Settings. The
+  migration RENUMBERED every patient to `FA-100001` onwards per clinic, in registration
+  order — the owner's call, safe only because no clinic is live (`0115`'s rule stands:
+  never renumber a number that has been printed). `scripts/test-mrn-series.ts`.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

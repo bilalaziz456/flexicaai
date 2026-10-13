@@ -1,5 +1,6 @@
 "use client";
 
+import { MrnField } from "@/app/admin/clinics/mrn-field";
 import { PhoneInput } from "@/core/ui/phone-input";
 import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState } from "react";
@@ -31,6 +32,7 @@ export function ClinicSettingsForm({
   whatsappPhoneNumberId,
   whatsappDisplayNumber,
   whatsappSenderName,
+  nextMrn,
 }: {
   clinicId: string;
   name: string;
@@ -42,6 +44,8 @@ export function ClinicSettingsForm({
   whatsappPhoneNumberId: string | null;
   whatsappDisplayNumber: string | null;
   whatsappSenderName: string | null;
+  /** The MRN the clinic's next patient will get ("FA-100231"). */
+  nextMrn: string;
 }) {
   const action = updateClinic.bind(null, clinicId);
   const [state, formAction, pending] = useActionState<
@@ -171,6 +175,11 @@ export function ClinicSettingsForm({
           />
           <span className="text-sm text-muted-foreground">days</span>
         </div>
+      </section>
+
+      <section className="space-y-2 border-t pt-4">
+        {/* Remounted when the saved value changes, so it shows the series as stored. */}
+        <MrnField key={nextMrn} mode="edit" defaultValue={nextMrn} />
       </section>
 
       <section className="space-y-3 border-t pt-4">

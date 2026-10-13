@@ -34,7 +34,6 @@ import {
 import { findClinicPatient } from "@/core/patients/manage";
 import { listRecentPatients, searchPatientsForPicker } from "@/core/patients/list";
 import { getClinic } from "@/core/clinics/get-clinic";
-import { formatMrn } from "@/core/patients/mrn";
 import {
   windowKind,
   windowsForWeekday,
@@ -162,6 +161,53 @@ function parseProcedureSelections(formData: FormData): ProcedureSelection[] {
       };
     })
     .filter((s) => s.procedureId);
+}
+
+/**
+ * The services and one-off "other charges" on the bill. A service is
+ * "<id>:<qty>:<price>"; a one-off charge is JSON {n, p, q}. Neither carries a
+ * discount (no offers) nor a doctor (no share) — `saveAppointmentProcedures` also
+ * refuses a typed price on anything that is not really a service, and clamps.
+ */
+function parseServiceSelections(formData: FormData): ProcedureSelection[] {
+  const listed = formData
+    .getAll("service")
+    .map(String)
+    .map((raw) => {
+      const [procedureId, qty, price] = raw.split(":");
+      return {
+        procedureId,
+        quantity: Number(qty) || 1,
+        unitPrice: Math.max(0, Number(price) || 0),
+        discountType: "amount" as const,
+        discountValue: 0,
+      };
+    })
+    .filter((s) => s.procedureId);
+  const oneOff = formData
+    .getAll("charge")
+    .map(String)
+    .flatMap((raw): ProcedureSelection[] => {
+      try {
+        const c = JSON.parse(raw) as { n?: unknown; p?: unknown; q?: unknown };
+        const name = typeof c.n === "string" ? c.n.trim() : "";
+        if (!name) return [];
+        return [
+          {
+            procedureId: null,
+            name,
+            unitPrice: Math.max(0, Number(c.p) || 0),
+            quantity: Number(c.q) || 1,
+            discountType: "amount",
+            discountValue: 0,
+          },
+        ];
+      } catch {
+        // Our own form wrote this field; a malformed one is a bug, not user input.
+        return [];
+      }
+    });
+  return [...listed, ...oneOff];
 }
 
 /** Stamp every procedure line with the appointment's doctor (its performing doctor). */
@@ -356,11 +402,10 @@ export async function createAppointment(
   // Attach the selected procedures (snapshotted prices) before notifying, so the
   // confirmation quotes the full total. Each line's performing doctor = the
   // appointment's doctor.
-  await saveAppointmentProcedures(
-    clinicId,
-    created.id,
-    withApptDoctor(procedureSelections, parsed.data.doctorId ?? null),
-  );
+  await saveAppointmentProcedures(clinicId, created.id, [
+    ...withApptDoctor(procedureSelections, parsed.data.doctorId ?? null),
+    ...parseServiceSelections(formData),
+  ]);
 
   // Booking-from-plan: schedule any selected treatment-plan items onto this
   // appointment — mints their appointment_procedures lines + marks them in progress.
@@ -632,22 +677,21 @@ export async function updateAppointment(
 
   // Replace the appointment's procedure line items with the current selection;
   // each line's performing doctor = the appointment's doctor.
-  await saveAppointmentProcedures(
-    clinicId,
-    appointmentId,
-    withApptDoctor(procedureSelections, parsed.data.doctorId ?? null),
-  );
+  await saveAppointmentProcedures(clinicId, appointmentId, [
+    ...withApptDoctor(procedureSelections, parsed.data.doctorId ?? null),
+    ...parseServiceSelections(formData),
+  ]);
 
   // Recompute approvals AFTER the procedures/discount are saved (editing a discount
   // re-opens approval if it was decided), then re-snapshot the sale so the ledger
   // reflects the now-effective (possibly gated) discount.
   await syncDiscountApprovals(clinicId, appointmentId);
 
-  // If this appointment is already completed, its sale is on the books — re-snapshot
-  // it so the edit (doctor/fee, procedures, discount) flows through to the report.
-  if (appt.status === "completed") {
-    await recordSaleForAppointment(clinicId, appointmentId);
-  }
+  // Re-derive the revenue so the edit (doctor/fee, procedures, discount) flows through
+  // to the report. Not only for a completed visit: revenue follows the money
+  // (ADR-035), so a deposit taken before the charges were entered becomes revenue as
+  // they are added. The ledger decides for itself whether there is anything to book.
+  await recordSaleForAppointment(clinicId, appointmentId);
 
   await logActivity({
     action: "update",
@@ -729,17 +773,14 @@ export async function searchClinicPatients(
   const { clinicId } = await requireAppointmentsAccess();
   const q = query.trim();
 
-  const [clinic, rows] = await Promise.all([
-    getClinic(clinicId),
-    // Same picker shape the booking panel uses (core/patients/list).
-    q ? searchPatientsForPicker(clinicId, q) : listRecentPatients(clinicId, 20),
-  ]);
+  // Same picker shape the booking panel uses (core/patients/list).
+  const rows = await (q ? searchPatientsForPicker(clinicId, q) : listRecentPatients(clinicId, 20));
 
   return rows.map((p) => ({
     id: p.id,
     fullName: p.fullName,
     phone: p.phone,
-    mrn: formatMrn(clinic?.mrnPrefix, p.mrn, p.createdAt),
+    mrn: p.mrnLabel,
   }));
 }
 

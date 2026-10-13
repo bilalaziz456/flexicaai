@@ -15,6 +15,7 @@ import { displayStaffName } from "@/core/types/auth";
 import {
   recordPayment,
   applyAdvance,
+  moveExtraToCredit,
   refund,
   voidPayment,
   settleOpeningBalance,
@@ -190,6 +191,32 @@ export async function applyAppointmentAdvance(
     entity: "appointment",
     entityId: appointmentId,
     summary: `Applied Rs ${res.paid} advance credit`,
+  });
+  revalidateAppt(appointmentId, patientId);
+  return { saved: true };
+}
+
+/**
+ * "Keep as credit": the money this visit holds beyond its bill (a deposit larger than
+ * the final charges) moves to the patient's credit for a later visit. No cash moves,
+ * so it needs the same `billing:edit` as applying credit — not `refund`.
+ */
+export async function keepExtraAsCredit(appointmentId: string): Promise<BillingActionState> {
+  const guard = await requireBilling("edit");
+  if ("error" in guard) return guard;
+  const { user, clinicId } = guard;
+
+  const patientId = await apptPatient(clinicId, appointmentId);
+  if (!patientId) return { error: "Appointment not found." };
+
+  const res = await moveExtraToCredit(clinicId, { patientId, appointmentId, actor: actorOf(user) });
+  if ("error" in res) return { error: res.error };
+
+  await logActivity({
+    action: "update",
+    entity: "appointment",
+    entityId: appointmentId,
+    summary: `Kept Rs ${res.moved} extra as patient credit`,
   });
   revalidateAppt(appointmentId, patientId);
   return { saved: true };

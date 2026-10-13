@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isCreditTransfer } from "@/core/billing/credit-transfer";
 import { and, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
@@ -63,6 +64,11 @@ export function aggregateCash(
     return r;
   };
   for (const p of payRows) {
+    // Extra on a visit moved to the patient's credit (`moveExtraToCredit`): a refund
+    // and an advance, both with the system method `advance`. No tender moved, so the
+    // pair stays out of a report about cash — counted, it would show the same amount
+    // collected AND refunded.
+    if (isCreditTransfer(p)) continue;
     const r = row(normalizePaymentMethod(p.method));
     // EXHAUSTIVE on purpose: every kind is named and the default is loud. This used to
     // be an allow-list that silently ignored anything it didn't recognise, which is how

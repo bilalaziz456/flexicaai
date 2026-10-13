@@ -2,7 +2,8 @@ import "server-only";
 
 import { DOCUMENT_SERIES_START } from "@/core/billing/invoice";
 import { autoIssueInvoice } from "@/core/billing/invoice";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
+import { isCreditTransfer } from "@/core/billing/credit-transfer";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
@@ -216,9 +217,14 @@ async function patientInClinic(clinicId: string, patientId: string): Promise<boo
 }
 
 /**
- * Record a payment. Tied to an appointment → pays that bill; any amount beyond the
- * outstanding becomes an **advance** (credit). With no appointment → a pure advance
- * (deposit). Returns how much went to the bill vs credit.
+ * Record a payment. Tied to an appointment → ALL of it is held on that visit, even
+ * beyond the bill so far: a deposit taken at admission is usually more than the
+ * charges entered by then, and the bill grows to meet it (owner's call, 2026-10-13).
+ * It used to split the excess off into patient credit, which left the invoice saying
+ * "Paid" while the deposit sat elsewhere and the next charge showed as owed. What is
+ * still extra at discharge is refunded or moved to credit (`moveExtraToCredit`).
+ * Revenue only ever counts up to the bill (money-days clamps), so held money is not
+ * revenue. With no appointment → a pure advance (deposit on the patient's account).
  */
 export async function recordPayment(
   clinicId: string,
@@ -255,8 +261,8 @@ export async function recordPayment(
   const bill = await getAppointmentBill(clinicId, input.appointmentId);
   if (!bill.found) return { error: "Appointment not found." };
 
-  const toBill = Math.min(amount, bill.outstanding);
-  const excess = amount - toBill;
+  const toBill = amount;
+  const excess = 0;
 
   await db.transaction(async (tx) => {
     if (toBill > 0) {
@@ -307,6 +313,51 @@ export async function applyAdvance(
   await recordSaleForAppointment(clinicId, input.appointmentId);
   await autoIssueInvoice(clinicId, input.appointmentId, input.actor);
   return { ok: true, paid: applyAmt, credited: 0 };
+}
+
+/**
+ * Moves the money a visit holds BEYOND its bill to the patient's credit, for a later
+ * visit — the "Keep as credit" half of settling a deposit (the other half is a refund).
+ * No money changes hands, so both rows carry the system method `advance`: a refund OFF
+ * the visit and an advance ON the patient. The day book and the drawer skip the pair
+ * (`isCreditTransfer`), since counting it would show cash in and out that never moved.
+ * Only the extra can move — the bill's own money stays, so revenue is untouched.
+ */
+export async function moveExtraToCredit(
+  clinicId: string,
+  input: { patientId: string; appointmentId: string; actor: Actor },
+): Promise<{ error: string } | { ok: true; moved: number }> {
+  if (!(await patientInClinic(clinicId, input.patientId))) return { error: "Patient not found." };
+  const bill = await getAppointmentBill(clinicId, input.appointmentId);
+  if (!bill.found) return { error: "Appointment not found." };
+  // A cancelled or no-show visit owes nothing, so all of what it holds is extra.
+  const gone = bill.status === "cancelled" || bill.status === "no_show";
+  const extra = gone ? bill.collected : bill.collected - bill.billTotal;
+  if (extra <= 0) return { error: "Nothing extra is held on this visit." };
+
+  const base = {
+    clinicId,
+    patientId: input.patientId,
+    method: "advance" as const,
+    reference: null,
+    note: "Extra on the visit kept as credit",
+    createdBy: input.actor.id,
+    createdByName: input.actor.name,
+  };
+  await db.transaction(async (tx) => {
+    const [off] = await tx
+      .insert(patientPayments)
+      .values({ ...base, appointmentId: input.appointmentId, kind: "refund", amount: extra })
+      .returning({ id: patientPayments.id });
+    // Linked to its other half, so cancelling either cancels both (`voidPayment`):
+    // half a transfer either doubles the money or loses it.
+    await tx
+      .insert(patientPayments)
+      .values({ ...base, appointmentId: null, kind: "advance", amount: extra, reversesId: off.id });
+    await recomputeCollected(tx, clinicId, input.appointmentId);
+  });
+  await recordSaleForAppointment(clinicId, input.appointmentId);
+  return { ok: true, moved: extra };
 }
 
 /**
@@ -364,7 +415,12 @@ export async function voidPayment(
   actor: Actor,
 ): Promise<{ error: string } | { ok: true }> {
   const [row] = await db
-    .select({ appointmentId: patientPayments.appointmentId })
+    .select({
+      appointmentId: patientPayments.appointmentId,
+      kind: patientPayments.kind,
+      method: patientPayments.method,
+      reversesId: patientPayments.reversesId,
+    })
     .from(patientPayments)
     .where(
       byClinic(
@@ -377,14 +433,39 @@ export async function voidPayment(
     .limit(1);
   if (!row) return { error: "Payment not found." };
 
+  // A "kept as credit" transfer is two rows; cancelling one half cancels the other,
+  // under one delete group, so it also restores as one.
+  const ids = [paymentId];
+  let visitId = row.appointmentId;
+  if (isCreditTransfer(row)) {
+    const partners = await db
+      .select({ id: patientPayments.id, appointmentId: patientPayments.appointmentId })
+      .from(patientPayments)
+      .where(
+        byClinic(
+          patientPayments.clinicId,
+          clinicId,
+          notDeleted(patientPayments.deletedAt),
+          or(
+            row.reversesId ? eq(patientPayments.id, row.reversesId) : undefined,
+            eq(patientPayments.reversesId, paymentId),
+          ),
+        ),
+      );
+    for (const p of partners) {
+      ids.push(p.id);
+      visitId = visitId ?? p.appointmentId;
+    }
+  }
+
   await db.transaction(async (tx) => {
     await tx
       .update(patientPayments)
       .set(softDeleteValues(actor.id, newDeleteGroup()))
-      .where(byClinic(patientPayments.clinicId, clinicId, eq(patientPayments.id, paymentId)));
-    if (row.appointmentId) await recomputeCollected(tx, clinicId, row.appointmentId);
+      .where(byClinic(patientPayments.clinicId, clinicId, inArray(patientPayments.id, ids)));
+    if (visitId) await recomputeCollected(tx, clinicId, visitId);
   });
-  if (row.appointmentId) await recordSaleForAppointment(clinicId, row.appointmentId);
+  if (visitId) await recordSaleForAppointment(clinicId, visitId);
   return { ok: true };
 }
 

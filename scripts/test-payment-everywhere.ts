@@ -61,9 +61,9 @@ async function main() {
         .returning({ id: patients.id });
       const actor = { id: doctor.id, name: "Front Desk" };
 
-      // A visit LATER TODAY, booked and never completed — the owner's case.
-      const later = new Date();
-      later.setHours(23, 0, 0, 0);
+      // A visit still AHEAD (two hours from now), booked and never completed — the
+      // owner's case. Not a fixed "23:00 today": after 11 pm that is in the past.
+      const later = new Date(Date.now() + 2 * 3600_000);
       const [appt] = await db
         .insert(appointments)
         .values({ clinicId, patientId: patient.id, doctorId: doctor.id, scheduledAt: later, status: "scheduled" })
@@ -90,11 +90,10 @@ async function main() {
       ok("no 'deposit' state — it is a part payment", bill.paymentStatus === "partial", bill.paymentStatus);
       ok("taking money confirmed the appointment", bill.status === "confirmed", bill.status);
 
-      const today0 = new Date();
-      today0.setHours(0, 0, 0, 0);
-      const tomorrow0 = new Date(today0);
-      tomorrow0.setDate(tomorrow0.getDate() + 1);
-      const list = await listClinicAppointments(clinicId, buildAppointmentConds({ start: today0, endExclusive: tomorrow0 }), { offset: 0, limit: 10 });
+      // A window around the visit, which may fall on tomorrow late at night.
+      const from = new Date(Date.now() - 86_400_000);
+      const to = new Date(Date.now() + 2 * 86_400_000);
+      const list = await listClinicAppointments(clinicId, buildAppointmentConds({ start: from, endExclusive: to }), { offset: 0, limit: 10 });
       const row = list.rows.find((r) => r.id === id);
       const badge = row && visitPaymentStatus({ bill: 3500, collected: row.amountCollected, refunded: Number(row.refunded), visitStatus: row.status });
       ok("Appointments list badge: Advance paid", badge === "advance_paid", String(badge));
@@ -125,7 +124,7 @@ async function main() {
       ok("Dashboard: Collected (30d) includes the Rs 1,000", kpis.collected30d === 1000, String(kpis.collected30d));
 
       console.log("\nWho owes money:");
-      ok("Receivables: nothing yet — the visit is later today", (await getOutstandingTotal(clinicId)) === 0);
+      ok("Receivables: nothing yet — the visit is still ahead", (await getOutstandingTotal(clinicId)) === 0);
       // The same visit once its time has passed (still never marked Completed).
       const past = new Date();
       past.setHours(past.getHours() - 1);

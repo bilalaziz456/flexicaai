@@ -1,9 +1,9 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { allocateMrns } from "@/core/patients/mrn";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { clinics, importBatches, patients } from "@/core/db/schema";
+import { importBatches, patients } from "@/core/db/schema";
 import { dobFromAge } from "@/core/lib/age";
 import { parseImportFile, pick, type ImportRow } from "./parse";
 import { applyMapping, resolveMapping } from "./fields";
@@ -164,23 +164,14 @@ export async function commitPatients(
       })
       .returning({ id: importBatches.id });
 
-    // Allocate a contiguous MRN block by locking the clinic row (same scheme as
-    // createPatient, batched): reserve `ready.length` numbers, bump next_mrn once.
-    const [c] = await tx
-      .select({ nextMrn: clinics.nextMrn })
-      .from(clinics)
-      .where(eq(clinics.id, clinicId))
-      .for("update")
-      .limit(1);
-    let mrn = c?.nextMrn ?? 1;
-    await tx
-      .update(clinics)
-      .set({ nextMrn: mrn + ready.length, updatedAt: new Date() })
-      .where(eq(clinics.id, clinicId));
+    // The next MRNs in the clinic's series, in one locked step (same scheme as
+    // createPatient, batched). Each patient's printed MRN is stored with it.
+    const mrns = await allocateMrns(tx, clinicId, ready.length);
 
-    const values = ready.map((p) => ({
+    const values = ready.map((p, i) => ({
       clinicId,
-      mrn: mrn++,
+      mrn: mrns[i].mrn,
+      mrnLabel: mrns[i].label,
       importBatchId: batch.id,
       fullName: p.fullName,
       phone: p.phone,
@@ -191,8 +182,8 @@ export async function commitPatients(
       externalRef: p.externalRef,
       reference: p.reference,
       openingBalance: p.openingBalance,
-      // A "registered on" column sets created_at so the MRN's date segment reflects
-      // the real first visit, not the import day.
+      // A "registered on" column sets created_at so the patient's registration date
+      // reflects the real first visit, not the import day.
       ...(p.registeredAt ? { createdAt: p.registeredAt } : {}),
     }));
     for (let i = 0; i < values.length; i += 500) {

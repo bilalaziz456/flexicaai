@@ -70,6 +70,15 @@ export const PERM_RESOURCES: PermResource[] = [
   { id: "recalls", label: "Recalls", actions: ["view", "create", "edit", "delete"] },
   { id: "whatsapp", label: "WhatsApp", actions: ["view", "create"], createLabel: "Send" },
   { id: "procedures", label: "Procedures", actions: ["view", "create", "edit", "delete"], feature: "sales" },
+  // The SERVICES price list (room, X-ray, dressing, medicines — owner's call,
+  // 2026-10-13). Its own slug because it is a different list with different money
+  // rules (no doctor share, price editable on the bill), and the owner wanted it held
+  // by the clinic admin alone by default; the super admin / account manager scope it
+  // per clinic through the capability whitelist like any other resource. Adding a
+  // service LINE to a bill is NOT this permission — that is editing the appointment
+  // or invoice, so the front desk can still charge for a service it cannot re-price
+  // in the list.
+  { id: "services", label: "Services", actions: ["view", "create", "edit", "delete"], feature: "sales" },
   { id: "sales", label: "Sales report", actions: ["view"], feature: "sales" },
   // Discounts report — who got what discount, borne by whom, approval state.
   { id: "discounts", label: "Discounts report", actions: ["view"], feature: "sales" },

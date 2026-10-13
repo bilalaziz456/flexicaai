@@ -1,7 +1,7 @@
+import { clinicHasFeature } from "@/core/lib/features";
 import { BackLink } from "@/core/ui/back-link";
 import { getPatientForPicker, listRecentPatients } from "@/core/patients/list";
 import { getClinic } from "@/core/clinics/get-clinic";
-import { formatMrn } from "@/core/patients/mrn";
 import {
   Card,
   CardContent,
@@ -48,18 +48,19 @@ export async function NewAppointmentPanel({
     fullName: string;
     phone: string | null;
     mrn: number | null;
+    mrnLabel: string | null;
     createdAt: Date;
   }) => ({
     id: p.id,
     fullName: p.fullName,
     phone: p.phone,
-    mrn: formatMrn(clinic?.mrnPrefix, p.mrn, p.createdAt),
+    mrn: p.mrnLabel,
   });
   const [recentRows, doctors, bookingProcedures, preselectedRow] = await Promise.all([
     listRecentPatients(clinicId),
     // `newest` preserves this picker's existing order (see appointment-detail).
     listClinicDoctors(clinicId, { order: "newest" }),
-    getBookingProcedures(clinicId),
+    getBookingProcedures(clinicId, { includeServices: true }),
     preselectedPatientId
       ? getPatientForPicker(clinicId, preselectedPatientId)
       : Promise.resolve(null),
@@ -93,6 +94,7 @@ export async function NewAppointmentPanel({
             initialPatients={recentPatients}
             doctors={doctors}
             procedures={bookingProcedures}
+            chargesEnabled={clinicHasFeature(clinic?.featuresEnabled, "sales")}
             preselectedPatient={preselectedPatient}
             preselectedDate={preselectedDate}
             preselectedTime={preselectedTime}

@@ -15,7 +15,23 @@ import { clampDiscountValue, type DiscountType } from "@/core/appointments/fee";
 import { offerForVisit, type ProcedureOffer } from "@/core/appointments/procedure-offer";
 import { discountTypeId, type DiscountTypeCode } from "@/core/db/vocabulary-seed";
 
-export type BookingProcedure = { id: string; name: string; price: number; offer: ProcedureOffer };
+export type BookingProcedure = {
+  id: string;
+  name: string;
+  price: number;
+  offer: ProcedureOffer;
+  /** A service (room, X-ray, medicines…): no doctor share, no offer, price editable on the bill. */
+  isService: boolean;
+};
+
+/** Which price list a catalog call is about. Services and procedures share a table. */
+export type CatalogKind = "procedure" | "service";
+const kindCondition = (kind: CatalogKind) => eq(procedures.isService, kind === "service");
+
+/** The longest description a one-off "other charge" may carry. */
+export const OTHER_CHARGE_NAME_MAX = 80;
+/** A one-off charge's price ceiling (Rs) — a typo guard, far above any real charge. */
+export const OTHER_CHARGE_PRICE_MAX = 10_000_000;
 
 /** The offer columns, as one `ProcedureOffer` — selected by every reader of an offer. */
 const offerColumns = {
@@ -45,11 +61,17 @@ function toOffer(r: {
  * doctor.
  */
 export type ProcedureSelection = {
-  procedureId: string;
+  /** NULL = a one-off "other charge" that is not on any price list. */
+  procedureId: string | null;
   quantity: number;
   discountType: DiscountType;
   discountValue: number;
   doctorId?: string | null;
+  /** The price typed on the bill. Honoured for SERVICES and one-off charges only —
+   *  a procedure always takes its list price (its offer is the only discount). */
+  unitPrice?: number;
+  /** A one-off charge's description ("Medicines"). Ignored for list items. */
+  name?: string;
 };
 
 /** A saved appointment line item (snapshotted name + price + quantity + discount). */
@@ -61,7 +83,15 @@ export type AppointmentProcedureItem = {
   discountType: DiscountType;
   discountValue: number;
   doctorId: string | null;
+  /** A service or one-off charge — printed under "Other charges", no doctor share. */
+  isService: boolean;
 };
+
+/** Clamp a typed price to a whole, non-negative rupee figure under the ceiling. */
+function clampPrice(p: number | undefined): number {
+  if (p === undefined || !Number.isFinite(p)) return 0;
+  return Math.max(0, Math.min(OTHER_CHARGE_PRICE_MAX, Math.round(p)));
+}
 
 /** Clamp a raw quantity to a sane whole number in [1, 99]. */
 function clampQty(q: number): number {
@@ -194,6 +224,7 @@ export type ProcedureTotals = ReturnType<typeof procedureTotals>;
  */
 export async function getBookingProcedures(
   clinicId: string,
+  opts: { includeServices?: boolean } = {},
 ): Promise<BookingProcedure[]> {
   const [clinic] = await db
     .select({ featuresEnabled: clinics.featuresEnabled })
@@ -203,7 +234,13 @@ export async function getBookingProcedures(
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales")) return [];
 
   const rows = await db
-    .select({ id: procedures.id, name: procedures.name, price: procedures.price, ...offerColumns })
+    .select({
+      id: procedures.id,
+      name: procedures.name,
+      price: procedures.price,
+      isService: procedures.isService,
+      ...offerColumns,
+    })
     .from(procedures)
     .where(
       byClinic(
@@ -211,10 +248,20 @@ export async function getBookingProcedures(
         clinicId,
         notDeleted(procedures.deletedAt),
         eq(procedures.isActive, true),
+        // Plans, share overrides and the rest list PROCEDURES; only the bill-building
+        // forms (booking, invoice) also want the services list.
+        opts.includeServices ? undefined : kindCondition("procedure"),
       ),
     )
     .orderBy(asc(procedures.name));
-  return rows.map((r) => ({ id: r.id, name: r.name, price: r.price, offer: toOffer(r) }));
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    price: r.price,
+    // A service never carries an offer, whatever its columns say.
+    offer: r.isService ? { type: "amount", value: 0, startsOn: null, endsOn: null } : toOffer(r),
+    isService: r.isService,
+  }));
 }
 
 /**
@@ -234,16 +281,24 @@ export async function applyClinicOffers(
   visitDate: string,
   keep?: Map<string, { discountType: DiscountType; discountValue: number }>,
 ): Promise<ProcedureSelection[]> {
-  const ids = [...new Set(selections.map((s) => s.procedureId).filter(Boolean))];
+  const ids = [...new Set(selections.map((s) => s.procedureId).filter((v): v is string => Boolean(v)))];
   if (ids.length === 0) return selections;
   const rows = await db
     .select({ id: procedures.id, ...offerColumns })
     .from(procedures)
     .where(
-      byClinic(procedures.clinicId, clinicId, notDeleted(procedures.deletedAt), inArray(procedures.id, ids)),
+      byClinic(
+        procedures.clinicId,
+        clinicId,
+        notDeleted(procedures.deletedAt),
+        inArray(procedures.id, ids),
+        // A service has no offer; its line keeps no discount of its own.
+        kindCondition("procedure"),
+      ),
     );
   const offers = new Map(rows.map((r) => [r.id, toOffer(r)]));
   return selections.map((s) => {
+    if (!s.procedureId) return { ...s, discountType: "amount", discountValue: 0 };
     const kept = keep?.get(s.procedureId);
     if (kept) return { ...s, discountType: kept.discountType, discountValue: kept.discountValue };
     const offer = offers.get(s.procedureId);
@@ -285,6 +340,7 @@ export async function setProcedureOffer(
         clinicId,
         notDeleted(procedures.deletedAt),
         inArray(procedures.id, procedureIds),
+        kindCondition("procedure"),
       ),
     )
     .returning({ id: procedures.id });
@@ -313,11 +369,35 @@ export async function saveAppointmentProcedures(
       ),
     );
 
-  // One row per procedure (the form never dupes; last wins if it somehow does).
+  // One row per list item (the form never dupes; last wins if it somehow does).
   const byId = new Map<string, ProcedureSelection>();
   for (const s of selections) {
     if (!s.procedureId) continue;
     byId.set(s.procedureId, s);
+  }
+  // One-off "other charges": no list item behind them, so the description and price
+  // come from the bill itself. Always a service — no doctor share, no offer.
+  const otherCharges = selections
+    .filter((s) => !s.procedureId)
+    .map((s) => ({
+      name: (s.name ?? "").trim().slice(0, OTHER_CHARGE_NAME_MAX),
+      unitPrice: clampPrice(s.unitPrice),
+      quantity: clampQty(s.quantity),
+    }))
+    .filter((c) => c.name.length > 0);
+  if (otherCharges.length > 0) {
+    await db.insert(appointmentProcedures).values(
+      otherCharges.map((c) => ({
+        clinicId,
+        appointmentId,
+        procedureId: null,
+        doctorId: null,
+        name: c.name,
+        unitPrice: c.unitPrice,
+        quantity: c.quantity,
+        isService: true,
+      })),
+    );
   }
   const ids = [...byId.keys()];
   if (ids.length === 0) return;
@@ -327,6 +407,7 @@ export async function saveAppointmentProcedures(
       id: procedures.id,
       name: procedures.name,
       price: procedures.price,
+      isService: procedures.isService,
     })
     .from(procedures)
     .where(
@@ -363,14 +444,19 @@ export async function saveAppointmentProcedures(
   await db.insert(appointmentProcedures).values(
     rows.map((r) => {
       const s = byId.get(r.id)!;
-      const doctorId = s.doctorId && validDoctors.has(s.doctorId) ? s.doctorId : null;
+      // A service earns no doctor share, so it has no performing doctor either.
+      const doctorId =
+        !r.isService && s.doctorId && validDoctors.has(s.doctorId) ? s.doctorId : null;
       return {
         clinicId,
         appointmentId,
         procedureId: r.id,
         doctorId,
         name: r.name,
-        unitPrice: r.price,
+        // A service may be priced at the counter (medicine varies); a procedure always
+        // bills its list price, so the only discount on it is the clinic offer.
+        unitPrice: r.isService && s.unitPrice !== undefined ? clampPrice(s.unitPrice) : r.price,
+        isService: r.isService,
         quantity: clampQty(s.quantity),
         // The literals are pinned: inside a .map() TypeScript widens the ternary to
         // `string`, which the column no longer accepts.
@@ -405,6 +491,7 @@ export async function getAppointmentProcedureItems(
       discountType: appointmentProcedures.discountType,
       discountValue: appointmentProcedures.discountValue,
       doctorId: appointmentProcedures.doctorId,
+      isService: appointmentProcedures.isService,
     })
     .from(appointmentProcedures)
     .where(
@@ -414,7 +501,8 @@ export async function getAppointmentProcedureItems(
         eq(appointmentProcedures.appointmentId, appointmentId),
       ),
     )
-    .orderBy(asc(appointmentProcedures.name));
+    // Procedures first, then other charges — the order the bill prints them in.
+    .orderBy(asc(appointmentProcedures.isService), asc(appointmentProcedures.name));
   return rows.map((r) => ({
     ...r,
     discountType: r.discountType === "percent" ? "percent" : "amount",
@@ -425,7 +513,7 @@ export async function getAppointmentProcedureItems(
  * The clinic's procedure catalog — CORE per ADR-014. Newest first, matching the
  * matching the catalog page so the export is the same list the user was looking at.
  */
-export async function listProcedureCatalog(clinicId: string) {
+export async function listProcedureCatalog(clinicId: string, kind: CatalogKind = "procedure") {
   return db
     .select({
       id: procedures.id,
@@ -435,7 +523,7 @@ export async function listProcedureCatalog(clinicId: string) {
       ...offerColumns,
     })
     .from(procedures)
-    .where(byClinic(procedures.clinicId, clinicId, notDeleted(procedures.deletedAt)))
+    .where(byClinic(procedures.clinicId, clinicId, notDeleted(procedures.deletedAt), kindCondition(kind)))
     .orderBy(desc(procedures.createdAt))
     .then((rows) =>
       rows.map(({ offerType, offerValue, offerStartsOn, offerEndsOn, ...p }) => ({
@@ -448,7 +536,7 @@ export async function listProcedureCatalog(clinicId: string) {
 /** Adds one priced procedure to the clinic's catalog. Returns its id. */
 export async function createProcedure(
   clinicId: string,
-  input: { name: string; price: number; module: string | null },
+  input: { name: string; price: number; module: string | null; isService?: boolean },
 ): Promise<string> {
   const [row] = await db
     .insert(procedures)
@@ -462,6 +550,7 @@ export async function updateProcedure(
   clinicId: string,
   procedureId: string,
   input: { name: string; price: number; isActive: boolean },
+  kind: CatalogKind = "procedure",
 ): Promise<boolean> {
   const rows = await db
     .update(procedures)
@@ -472,6 +561,9 @@ export async function updateProcedure(
         clinicId,
         notDeleted(procedures.deletedAt),
         eq(procedures.id, procedureId),
+        // The Procedures screen cannot edit a service, nor Services a procedure —
+        // each is behind its own permission.
+        kindCondition(kind),
       ),
     )
     .returning({ id: procedures.id });
@@ -487,6 +579,7 @@ export async function softDeleteProcedure(
   clinicId: string,
   procedureId: string,
   actorId: string,
+  kind: CatalogKind = "procedure",
 ): Promise<void> {
   await db
     .update(procedures)
@@ -497,6 +590,7 @@ export async function softDeleteProcedure(
         clinicId,
         notDeleted(procedures.deletedAt),
         eq(procedures.id, procedureId),
+        kindCondition(kind),
       ),
     );
 }
