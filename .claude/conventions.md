@@ -457,6 +457,16 @@ throw — use it in tests.
 ## 14. Encryption and residency
 
 - **In transit:** HTTPS everywhere; TLS terminates at nginx, with HSTS set.
+- **Framing:** every response is unframeable (`X-Frame-Options: DENY` +
+  `frame-ancestors 'none'`) EXCEPT `/api/clinical/attachment/:id`, which our own pages
+  may frame (`SAMEORIGIN` / `'self'`) so a PDF opens in the viewer dialog. The two
+  headers are set in two places (`next.config.ts`, `src/proxy.ts`) and must agree —
+  the browser obeys the stricter. Never widen it to another origin or another path.
+- **Uploaded files are served as what they ARE, not what the browser claimed.** A
+  clinical attachment must be JPG, PNG, WebP or PDF (`ATTACHMENT_MIME_EXT`), refused
+  otherwise at upload; the serve route renders only those types and sends anything
+  older as a download. The type comes from the uploader, so trusting it would let an
+  uploaded HTML page run script on our own origin.
 - **In the browser:** the CSP is **enforced** (ADR-026), set per-request in
   `src/proxy.ts` — never in `next.config.ts`, because its `script-src` depends on
   whether the response is server-rendered. Panels get a strict nonce +

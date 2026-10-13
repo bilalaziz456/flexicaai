@@ -477,6 +477,10 @@ export const ATTACHMENT_KIND_ROWS = [
   { id: 2, code: "photo", label: "Photo", sortOrder: 2 },
   { id: 3, code: "document", label: "Document", sortOrder: 3 },
   { id: 4, code: "consent", label: "Consent form", sortOrder: 4 },
+  // A document about the patient's medical history — another doctor's letter, a
+  // prescription listing their medicines, a lab report (2026-10-13). Shown with the
+  // Medical history, not in the imaging gallery.
+  { id: 5, code: "history", label: "Medical history", sortOrder: 5 },
 ] as const satisfies readonly VocabularyRow[];
 
 /** `import_batches.status`. */

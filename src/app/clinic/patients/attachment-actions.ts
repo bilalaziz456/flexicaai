@@ -1,10 +1,12 @@
 "use server";
 
+import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_LABEL, fileSizeLabel } from "@/core/patients/attachment-limits";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { displayStaffName } from "@/core/types/auth";
 import {
+  ATTACHMENT_MIME_EXT,
   createAttachment,
   setPhotoConsent,
   softDeleteAttachment,
@@ -14,13 +16,6 @@ import { logActivity } from "@/core/audit/log";
 
 type State = { ok?: true; error?: string };
 
-const EXT_BY_MIME: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "application/pdf": "pdf",
-};
-const MAX_BYTES = 15 * 1024 * 1024; // 15 MB
 /** A 640px JPEG lands well under this; anything larger is not a thumbnail. */
 const MAX_THUMB_BYTES = 400 * 1024;
 
@@ -40,11 +35,16 @@ export async function uploadAttachmentAction(
 
   const file = formData.get("file");
   const kind = (formData.get("kind") as AttachmentKind) || "document";
-  const caption = (formData.get("caption") as string) || null;
   if (!(file instanceof File) || file.size === 0) return { error: "Choose a file." };
-  if (file.size > MAX_BYTES) return { error: "File is too large (max 15 MB)." };
-
-  const ext = EXT_BY_MIME[file.type] ?? (file.name.split(".").pop() ?? "bin");
+  if (file.size > MAX_ATTACHMENT_BYTES) {
+    return { error: `${file.name} is ${fileSizeLabel(file.size)} — the limit is ${MAX_ATTACHMENT_LABEL}.` };
+  }
+  // Images and PDF only: the type is served back to the browser, so anything else
+  // (an HTML page, say) must not get in at all.
+  const ext = ATTACHMENT_MIME_EXT[file.type];
+  if (!ext) return { error: "Upload a JPG, PNG, WebP image or a PDF." };
+  // No label typed → the file's own name, so no file is ever shown nameless.
+  const caption = String(formData.get("caption") ?? "").trim() || file.name.trim() || null;
   const data = Buffer.from(await file.arrayBuffer());
 
   // Optional gallery thumbnail, generated in the browser beside the original. Treated
@@ -61,12 +61,17 @@ export async function uploadAttachmentAction(
 
   const res = await createAttachment(
     user.clinicId,
-    { patientId, kind, caption, data, ext, mime: file.type || "application/octet-stream", thumb },
+    { patientId, kind, caption, data, ext, mime: file.type, thumb },
     { id: user.id, name: displayStaffName(user.prefix, user.fullName, user.username) },
   );
   if ("error" in res) return { error: res.error };
 
-  await logActivity({ action: "create", entity: "patient", entityId: patientId, summary: `Uploaded a clinical ${kind}` });
+  await logActivity({
+    action: "create",
+    entity: "patient",
+    entityId: patientId,
+    summary: kind === "history" ? "Uploaded a medical history document" : `Uploaded a clinical ${kind}`,
+  });
   revalidate(patientId);
   return { ok: true };
 }

@@ -8,11 +8,14 @@ import { PatientDetail } from "../patient-detail";
 /** Clinic workspace: open a patient — edit details, see appointments, delete. */
 export default async function PatientDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ payPage?: string; paySize?: string }>;
 }) {
   const user = await requireWorkspace("patients");
   const { id } = await params;
+  const sp = await searchParams;
 
   // The Finance account card needs the sales feature + billing view access.
   const clinic = await getClinic(user.clinicId);
@@ -51,6 +54,7 @@ export default async function PatientDetailPage({
       canDeleteLab={can(user, "lab", "delete")}
       showFinancials={showFinancials}
       canRecordPayment={showFinancials && can(user, "billing", "create")}
+      paymentsPaging={{ page: sp.payPage, size: sp.paySize }}
     />
   );
 }

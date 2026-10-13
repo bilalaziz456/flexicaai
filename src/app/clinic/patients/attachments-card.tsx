@@ -6,10 +6,13 @@ import { SelectField } from "@/core/ui/select-field";
 import { EmptyState } from "@/core/ui/empty-state";
 
 import { useRef, useState, useTransition } from "react";
-import { FileText, Trash2, Upload, Paperclip } from "lucide-react";
+import { Upload, Paperclip } from "lucide-react";
+import { AttachmentGallery } from "./attachment-gallery";
+import { FilePicker } from "./file-picker";
+import { shrinkForUpload } from "./shrink-upload";
+import { Label } from "@/core/ui/label";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
-import { Badge } from "@/core/ui/badge";
 import { Toast } from "@/core/ui/toast";
 import { labelFrom, useVocabulary } from "@/core/ui/vocabulary-provider";
 import {
@@ -47,6 +50,9 @@ export function AttachmentsCard({
   // inside a map callback below.
   const kindLabels = useVocabulary("attachment_kinds");
   const formRef = useRef<HTMLFormElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  // Bumped after an upload so the picker starts clean (its "too large" notes too).
+  const [pickerKey, setPickerKey] = useState(0);
   const [kind, setKind] = useState("xray");
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null);
@@ -65,7 +71,12 @@ export function AttachmentsCard({
       // detail a clinician may need months later. Best-effort — `downscaleImage`
       // returns null for non-images and for anything it cannot decode, and a missing
       // thumbnail only costs the grid its optimisation.
-      const picked = fd.get("file");
+      // The picker keeps the file in state (its input is the hidden half of a button).
+      if (!file) return;
+      // An X-ray keeps every pixel; anything else (a photo, a scanned form) is shrunk.
+      const toSend = kind === "xray" ? file : await shrinkForUpload(file);
+      fd.set("file", toSend);
+      const picked = toSend;
       if (picked instanceof File && picked.type.startsWith("image/")) {
         const thumb = await downscaleImage(picked, {
           maxPx: 640,
@@ -81,16 +92,19 @@ export function AttachmentsCard({
       else {
         flash("Uploaded.");
         formRef.current?.reset();
+        setFile(null);
+        setPickerKey((k) => k + 1);
         setKind("xray");
       }
     });
   };
 
-  const del = (id: string) =>
-    start(async () => {
-      const r = await deleteAttachmentAction(id, patientId);
-      flash(r.error ?? "Removed.", Boolean(r.error));
-    });
+  // Runs from the gallery's confirmation dialog: an error keeps it open and shows there.
+  const del = async (id: string) => {
+    const r = await deleteAttachmentAction(id, patientId);
+    if (r.error) return { error: r.error };
+    flash("Deleted.");
+  };
 
   const toggleConsent = () =>
     start(async () => {
@@ -118,59 +132,30 @@ export function AttachmentsCard({
           description="X-rays, photos, consent forms and documents for this patient appear here."
         />
       ) : (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-          {attachments.map((a) => {
-            const isImage = (a.mime ?? "").startsWith("image/");
-            return (
-              <li key={a.id} className="group relative overflow-hidden rounded-lg border">
-                <a href={`/api/clinical/attachment/${a.id}`} target="_blank" rel="noreferrer" className="block">
-                  {isImage ? (
-                    // `?thumb=1` serves the small copy when one exists and silently
-                    // falls back to the original otherwise, so this grid no longer
-                    // downloads full-size diagnostic images to draw 150px squares.
-                    // The link around it still opens the untouched original.
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={`/api/clinical/attachment/${a.id}?thumb=1`}
-                      alt={a.caption ?? labelFrom(kindLabels, a.kind)}
-                      loading="lazy"
-                      decoding="async"
-                      className="aspect-square w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex aspect-square w-full flex-col items-center justify-center gap-1 bg-muted text-muted-foreground">
-                      <FileText className="size-8" aria-hidden="true" />
-                      <span className="text-xs">{labelFrom(kindLabels, a.kind)}</span>
-                    </div>
-                  )}
-                </a>
-                <div className="space-y-0.5 p-1.5">
-                  <div className="flex items-center justify-between gap-1">
-                    <Badge variant="secondary" className="text-[10px]">{labelFrom(kindLabels, a.kind)}</Badge>
-                    {canDelete ? (
-                      <button type="button" onClick={() => del(a.id)} disabled={pending} aria-label="Remove" className="text-muted-foreground hover:text-destructive">
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    ) : null}
-                  </div>
-                  {a.caption ? <p className="truncate text-xs">{a.caption}</p> : null}
-                  <p className="truncate text-[10px] text-muted-foreground">{a.createdAt}</p>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        <AttachmentGallery
+          attachments={attachments}
+          labelOf={(a) => labelFrom(kindLabels, a.kind)}
+          canDelete={canDelete}
+          onDelete={del}
+        />
       )}
 
       {/* Upload */}
       {canUpload ? (
         <form ref={formRef} onSubmit={upload} className="flex flex-wrap items-end gap-2 rounded-xl border border-border/70 bg-surface-sunken p-3.5">
-          <div className="space-y-1">
-            <label htmlFor="att-file" className="text-xs text-muted-foreground">File</label>
-            <input id="att-file" name="file" type="file" accept="image/*,application/pdf" required className="block max-w-52 text-sm" />
+          <div className="w-full space-y-1.5">
+            <Label>File</Label>
+            <FilePicker
+              key={pickerKey}
+              files={file ? [file] : []}
+              onChange={(f) => setFile(f[0] ?? null)}
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              shrinksImages={kind !== "xray"}
+              hint={`JPG, PNG, WebP or PDF · up to 5 MB${kind === "xray" ? "" : " (photos are shrunk automatically)"}`}
+            />
           </div>
-          <div className="space-y-1">
-            <label htmlFor="att-kind" className="text-xs text-muted-foreground">Type</label>
+          <div className="space-y-1.5">
+            <Label htmlFor="att-kind">Type</Label>
             {/* Photo stays VISIBLE and unselectable without consent rather than
                 disappearing: an option that is simply absent tells the uploader
                 nothing about why, and consent is the whole point of the rule
@@ -193,11 +178,11 @@ export function AttachmentsCard({
               ariaLabel="Attachment type"
             />
           </div>
-          <div className="space-y-1">
-            <label htmlFor="att-caption" className="text-xs text-muted-foreground">Caption</label>
-            <Input id="att-caption" name="caption" placeholder="Optional" className="h-9 w-40" />
+          <div className="space-y-1.5">
+            <Label htmlFor="att-caption">Label (optional)</Label>
+            <Input id="att-caption" name="caption" placeholder="File name if empty" className="h-9 w-48" />
           </div>
-          <Button type="submit" size="sm" disabled={pending}>
+          <Button type="submit" size="sm" className="h-9" disabled={pending || !file}>
             <Upload className="size-4" /> {pending ? "Uploading…" : "Upload"}
           </Button>
         </form>

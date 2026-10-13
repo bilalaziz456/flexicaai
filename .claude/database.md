@@ -89,7 +89,7 @@ is_active)`, company-global — no
 | `invoice_papers` | thermal, a5, a4 | `clinics.invoice_paper` (the default) + `clinics.invoice_papers_enabled` (which are offered) |
 | `treatment_plan_statuses` | proposed, active, completed, cancelled | `treatment_plans.status` |
 | `treatment_item_statuses` | planned, in_progress, done, cancelled | `treatment_plan_items.status` |
-| `attachment_kinds` | xray, photo, document, consent | `clinical_attachments.kind` |
+| `attachment_kinds` | xray, photo, document, consent, **history** (`0127`) | `clinical_attachments.kind` |
 | `import_batch_statuses` | active, undone | `import_batches.status` |
 | `announcement_levels` | info, warning | `announcements.level` |
 | `ai_providers` | whisper, claude | `ai_usage.provider` (NOT `.model`) |

@@ -67,7 +67,10 @@ launch. (On serverless/multi-instance, both become launch blockers — see scale
       reply, invoice, lab ready. Recalls / reminders /
       booking confirmations / prescription delivery all depend on it. Template approval
       takes days.
-- [ ] **nginx** — `client_max_body_size 25m` on `/api/ai/scribe`, or a normal dictation is
+- [ ] **nginx** — `client_max_body_size 6m` for the app as a whole (uploads: clinical files,
+      medical-history documents, logos and imports are Server Actions posted to page URLs,
+      capped at 5 MB in the app — nginx's 1 MB default would refuse a normal phone photo
+      before the app sees it), and `client_max_body_size 25m` on `/api/ai/scribe`, or a normal dictation is
       rejected at the proxy before the app ever sees it. `proxy_read_timeout` no longer
       needs raising for the scribe (ADR-020 made it a background job), but the 60s default
       is still the ceiling for any future long request. TLS + HSTS terminate here; session

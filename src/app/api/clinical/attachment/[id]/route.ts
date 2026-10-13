@@ -1,5 +1,5 @@
 import { apiRequireWorkspace } from "@/core/auth/user";
-import { getAttachmentForServe } from "@/core/patients/attachments";
+import { ATTACHMENT_MIME_EXT, getAttachmentForServe } from "@/core/patients/attachments";
 import { readFileByKey } from "@/core/integrations/storage";
 import { report } from "@/core/observability";
 
@@ -31,11 +31,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   try {
     const data = await readFileByKey(key);
+    // Only an image or a PDF is handed to the browser to RENDER. Anything else — a
+    // file stored before uploads were restricted — goes down as a download, so a
+    // type the uploader's browser claimed can never become a page on our origin.
+    const renderable = useThumb || Boolean(row.mime && ATTACHMENT_MIME_EXT[row.mime]);
     return new Response(new Uint8Array(data), {
       status: 200,
       headers: {
         // The thumbnail is always a JPEG, whatever the original was.
-        "Content-Type": useThumb ? "image/jpeg" : (row.mime ?? "application/octet-stream"),
+        "Content-Type": useThumb ? "image/jpeg" : renderable ? row.mime! : "application/octet-stream",
+        "Content-Disposition": renderable ? "inline" : "attachment",
         "Cache-Control": "no-store",
       },
     });

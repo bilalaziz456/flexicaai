@@ -164,3 +164,37 @@ export async function getPatientAccount(
 
   return { credit, openingBalance, totals, visits, payments };
 }
+
+/**
+ * One page of a patient's payments, newest first, and how many there are in all —
+ * the patient profile's "Recent payments", paged (10 / 20 / 50 / 100). Clinic-scoped.
+ */
+export async function getPatientPaymentsPage(
+  clinicId: string,
+  patientId: string,
+  paging: { offset: number; limit: number },
+): Promise<{ rows: PatientLedgerEntry[]; total: number }> {
+  const where = byClinic(
+    patientPayments.clinicId,
+    clinicId,
+    notDeleted(patientPayments.deletedAt),
+    eq(patientPayments.patientId, patientId),
+  );
+  const [rows, [count]] = await Promise.all([
+    db
+      .select({
+        id: patientPayments.id,
+        kind: patientPayments.kind,
+        amount: patientPayments.amount,
+        method: patientPayments.method,
+        occurredAt: patientPayments.occurredAt,
+      })
+      .from(patientPayments)
+      .where(where)
+      .orderBy(desc(patientPayments.occurredAt), desc(patientPayments.id))
+      .limit(paging.limit)
+      .offset(paging.offset),
+    db.select({ n: sql<number>`count(*)::int` }).from(patientPayments).where(where),
+  ]);
+  return { rows, total: Number(count?.n ?? 0) };
+}

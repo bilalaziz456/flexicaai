@@ -229,7 +229,7 @@ export async function savePerioExamAction(
   return { ok: true };
 }
 
-/** Save the patient's medical & dental history. Gated by `clinical:edit`. */
+/** Save the patient's medical history. Gated by `clinical:edit`. */
 export async function saveMedicalHistoryAction(
   patientId: string,
   data: unknown,

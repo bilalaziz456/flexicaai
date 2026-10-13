@@ -17,24 +17,30 @@ export function PageSizeSelect({
   size,
   basePath,
   searchParams,
+  pageParam = "page",
+  sizeParam = "size",
+  options: choices = PAGE_SIZE_OPTIONS,
 }: {
   size: number;
   basePath: string;
   searchParams: Record<string, string | undefined>;
+  pageParam?: string;
+  sizeParam?: string;
+  options?: readonly number[];
 }) {
   const router = useRouter();
 
   const change = (value: string) => {
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(searchParams)) {
-      if (v && !DROP.has(k)) params.set(k, v);
+      if (v && !DROP.has(k) && k !== pageParam && k !== sizeParam) params.set(k, v);
     }
-    params.set("size", value);
+    params.set(sizeParam, value);
     const s = params.toString();
     router.replace(s ? `${basePath}?${s}` : basePath, { scroll: false });
   };
 
-  const options = PAGE_SIZE_OPTIONS.map((n) => ({
+  const options = choices.map((n) => ({
     value: String(n),
     label: `${n} / page`,
   }));

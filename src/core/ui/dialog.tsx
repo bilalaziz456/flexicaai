@@ -23,6 +23,8 @@ const sizes = {
   sm: "max-w-sm",
   md: "max-w-lg",
   lg: "max-w-2xl",
+  // A document or image viewer — the content is the point, so it takes the room.
+  xl: "max-w-5xl",
 } as const;
 
 export function Dialog({

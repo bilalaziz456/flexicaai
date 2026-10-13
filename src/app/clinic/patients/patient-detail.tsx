@@ -4,6 +4,9 @@ import {
   listPatientPrescriptionVisits,
   listPatientVisits,
 } from "@/core/patients/manage";
+import { Pagination } from "@/core/ui/pagination";
+import { parsePage } from "@/core/lib/pagination";
+import { getPatientPaymentsPage } from "@/core/billing/account";
 import Link from "next/link";
 import { TabTitle } from "@/core/ui/app-tabs";
 import { notFound } from "next/navigation";
@@ -35,6 +38,7 @@ import { listPlans } from "@/core/patients/treatment-plans";
 import { getBookingProcedures } from "@/core/appointments/procedures";
 import { treatmentTemplatesFor } from "@/config/modules";
 import { MedicalHistoryCard } from "./medical-history-card";
+import { MedicalHistoryDocuments } from "./medical-history-documents";
 import { AttachmentsCard, type AttachmentRow } from "./attachments-card";
 import { TreatmentPlansCard, type PlanRow } from "./treatment-plans-card";
 import { LabTrackerCard, type LabCaseRow } from "./lab-tracker-card";
@@ -50,6 +54,9 @@ import { vocabularyLabel } from "@/core/db/vocabulary-cache";
  * return to; `canEdit`/`canDelete` gate the edit form and delete (view-only shows
  * the details read-only).
  */
+/** Rows-per-page for the profile's Recent payments; the first is the default. */
+const PAYMENT_PAGE_SIZES = [10, 20, 50, 100] as const;
+
 export async function PatientDetail({
   clinicId,
   patientId,
@@ -77,6 +84,7 @@ export async function PatientDetail({
   canDeleteLab = false,
   showFinancials = false,
   canRecordPayment = false,
+  paymentsPaging,
 }: {
   clinicId: string;
   patientId: string;
@@ -121,6 +129,8 @@ export async function PatientDetail({
   showFinancials?: boolean;
   /** Allow recording an opening-balance payment (billing:create). */
   canRecordPayment?: boolean;
+  /** `?payPage` / `?paySize` for the Recent payments list (10 / 20 / 50 / 100). */
+  paymentsPaging?: { page?: string; size?: string };
 }) {
   const patient = await getPatient(clinicId, patientId);
   if (!patient) notFound();
@@ -213,6 +223,9 @@ export async function PatientDetail({
     uploadedByName: a.uploadedByName,
     createdAt: a.createdAt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
   }));
+  // Medical-history documents sit with the history; the imaging gallery shows the rest.
+  const historyDocuments = attachments.filter((a) => a.kind === "history");
+  const imagingAttachments = attachments.filter((a) => a.kind !== "history");
 
   // Treatment plans — gated by `plans:view`. Procedures + templates power the builder.
   const planRows = canViewPlans ? await listPlans(clinicId, patientId) : [];
@@ -242,6 +255,14 @@ export async function PatientDetail({
   }
 
   const account = showFinancials ? await getPatientAccount(clinicId, patientId) : null;
+  // Recent payments, paged on their own keys so nothing else on the profile moves.
+  const payPage = parsePage(paymentsPaging?.page);
+  const paySize = (PAYMENT_PAGE_SIZES as readonly number[]).includes(Number(paymentsPaging?.size))
+    ? Number(paymentsPaging?.size)
+    : PAYMENT_PAGE_SIZES[0];
+  const payments = showFinancials
+    ? await getPatientPaymentsPage(clinicId, patientId, { offset: (payPage - 1) * paySize, limit: paySize })
+    : null;
   const money = (n: number) =>
     new Intl.NumberFormat("en-PK", {
       style: "currency",
@@ -445,11 +466,11 @@ export async function PatientDetail({
               </div>
             ) : null}
 
-            {account.payments.length > 0 ? (
-              <div>
+            {payments && payments.total > 0 ? (
+              <div className="space-y-2">
                 <p className="mb-1 text-sm font-medium">Recent payments</p>
                 <ul className="divide-y divide-border/60 rounded-lg border border-border/60 text-sm">
-                  {account.payments.slice(0, 10).map((p) => (
+                  {payments.rows.map((p) => (
                     <li key={p.id} className="flex items-center justify-between gap-3 px-3 py-2">
                       <span>
                         {KIND_LABEL[p.kind] ?? p.kind}
@@ -465,6 +486,17 @@ export async function PatientDetail({
                     </li>
                   ))}
                 </ul>
+                <Pagination
+                  page={payPage}
+                  pageSize={paySize}
+                  total={payments.total}
+                  basePath={`/clinic/patients/${patientId}`}
+                  searchParams={{ payPage: paymentsPaging?.page, paySize: paymentsPaging?.size }}
+                  unit="payment"
+                  pageParam="payPage"
+                  sizeParam="paySize"
+                  sizeOptions={PAYMENT_PAGE_SIZES}
+                />
               </div>
             ) : null}
           </CardContent>
@@ -527,9 +559,9 @@ export async function PatientDetail({
       {canViewClinical && medHistory ? (
         <Card id="medical-history" className="scroll-mt-24">
           <CardHeader>
-            <CardTitle>Medical &amp; dental history</CardTitle>
+            <CardTitle>Medical history</CardTitle>
             <CardDescription>
-              Allergies, conditions, medications: reviewed before treatment.
+              Allergies, conditions, medications and documents: reviewed before treatment.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -538,6 +570,16 @@ export async function PatientDetail({
               patientId={patient.id}
               canEdit={canEditClinical}
             />
+            {canViewAttachments ? (
+              <div className="mt-6 border-t pt-5">
+                <MedicalHistoryDocuments
+                  documents={historyDocuments}
+                  patientId={patient.id}
+                  canUpload={canUploadAttachments}
+                  canDelete={canDeleteAttachments}
+                />
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
@@ -784,7 +826,7 @@ export async function PatientDetail({
           </CardHeader>
           <CardContent>
             <AttachmentsCard
-              attachments={attachments}
+              attachments={imagingAttachments}
               patientId={patient.id}
               photoConsent={photoConsent}
               canUpload={canUploadAttachments}

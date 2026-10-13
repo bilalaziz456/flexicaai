@@ -33,6 +33,9 @@ export function Pagination({
   basePath,
   searchParams,
   unit = "result",
+  pageParam = "page",
+  sizeParam = "size",
+  sizeOptions,
 }: {
   page: number;
   pageSize: number;
@@ -40,6 +43,12 @@ export function Pagination({
   basePath: string;
   searchParams: Record<string, string | undefined>;
   unit?: string;
+  /** The URL keys, for a second paged list on a page that already has one (the
+   *  patient profile's payments use `payPage` / `paySize`). */
+  pageParam?: string;
+  sizeParam?: string;
+  /** The "N / page" choices, when the list's default differs from 20 / 50 / 100. */
+  sizeOptions?: readonly number[];
 }) {
   if (total <= 0) return null;
 
@@ -55,9 +64,9 @@ export function Pagination({
   const href = (p: number) => {
     const sp = new URLSearchParams();
     for (const [k, v] of Object.entries(searchParams)) {
-      if (v && !EXCLUDED_KEYS.has(k)) sp.set(k, v);
+      if (v && !EXCLUDED_KEYS.has(k) && k !== pageParam) sp.set(k, v);
     }
-    if (p > 1) sp.set("page", String(p));
+    if (p > 1) sp.set(pageParam, String(p));
     const s = sp.toString();
     return s ? `${basePath}?${s}` : basePath;
   };
@@ -77,6 +86,9 @@ export function Pagination({
           size={pageSize}
           basePath={basePath}
           searchParams={searchParams}
+          pageParam={pageParam}
+          sizeParam={sizeParam}
+          options={sizeOptions}
         />
         {totalPages > 1 ? (
           <>

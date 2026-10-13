@@ -52,8 +52,16 @@ const nextConfig: NextConfig = {
   // Don't advertise the framework/version.
   poweredByHeader: false,
   experimental: {
-    // Omitted entirely when empty, so local dev keeps Next's default behaviour.
-    ...(allowedOrigins.length ? { serverActions: { allowedOrigins } } : {}),
+    serverActions: {
+      // Every upload (clinical files, logos, imports) is a Server Action, and Next
+      // refuses an action body over 1 MB by default — which silently made the 1 MB
+      // default the real upload limit. 6 MB = the 5 MB attachment limit
+      // (core/patients/attachment-limits.ts) plus the form's own overhead. nginx's
+      // `client_max_body_size` must be at least this too (docs/launch-checklist.md).
+      bodySizeLimit: "6mb",
+      // Omitted when empty, so local dev keeps Next's default origin check.
+      ...(allowedOrigins.length ? { allowedOrigins } : {}),
+    },
     // WHY: in `next dev`, opening a dynamic-segment route ([id]/[slug] — staff
     // profiles, appointment/patient details, any dynamic list) makes Next fork a
     // separate "static-paths" Node child process to load that page's full server
@@ -69,7 +77,16 @@ const nextConfig: NextConfig = {
     preloadEntriesOnStart: false,
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // Clinical files are shown in a dialog on the patient page, so OUR pages may
+      // frame them (and only ours). Later entries win for the same header key; the
+      // matching CSP `frame-ancestors 'self'` is set for this path in src/proxy.ts.
+      {
+        source: "/api/clinical/attachment/:id",
+        headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
+      },
+    ];
   },
 };
 

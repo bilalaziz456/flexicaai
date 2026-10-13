@@ -82,7 +82,9 @@ storage** (a real disk persists, so clinical attachments are safe) and the
 2. **nginx's `proxy_read_timeout` is the request ceiling** (default **60s**), and
    `maxDuration` is a platform hint that does nothing here. The scribe no longer needs
    it raised — it returns 202 and the AI runs in a background job (ADR-020) — but
-   **`client_max_body_size 25m` on `/api/ai/scribe` is still required**, or a normal
+   **`client_max_body_size 6m` for the app** (uploads are Server Actions capped at 5 MB;
+   `serverActions.bodySizeLimit` is 6mb in next.config.ts) **and `25m` on
+   `/api/ai/scribe` are still required**, or a normal
    dictation is rejected at the proxy before the app sees it. Any future route that
    does hold a connection open still has to reckon with the 60s default.
 3. **Single node is an assumption with teeth.** A second instance or PM2 *cluster*

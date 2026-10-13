@@ -11,7 +11,7 @@ import {
 } from "@/core/lib/medical-history";
 
 /**
- * Patient medical & dental history — CORE data layer (server-only). One row per
+ * Patient medical history — CORE data layer (server-only). One row per
  * patient (the latest snapshot); clinic-scoped. See core/lib/medical-history.ts for
  * the shape + the allergy gate.
  */

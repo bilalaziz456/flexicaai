@@ -1,6 +1,6 @@
 import "server-only";
 
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray, notInArray } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
@@ -16,14 +16,28 @@ import { ATTACHMENT_KIND_ROWS } from "@/core/db/vocabulary-seed";
  */
 
 /** X-ray/photo/document/consent kinds. `photo` is the only consent-gated one. */
-export type AttachmentKind = "xray" | "photo" | "document" | "consent";
+export type AttachmentKind = "xray" | "photo" | "document" | "consent" | "history";
 const KINDS: readonly AttachmentKind[] = ATTACHMENT_KIND_ROWS.map((r) => r.code);
 
-/** A patient's live attachments, newest first (optionally one visit's). */
+/**
+ * The ONLY file types a clinical attachment may be — images and PDF, with the
+ * extension each is stored under. Anything else is refused at upload, and the serve
+ * route will not hand any other type to the browser to render: the type comes from
+ * the uploader's browser, so trusting it would let an uploaded HTML page run script
+ * on our own origin (2026-10-13 — before this, any type was accepted and served).
+ */
+export const ATTACHMENT_MIME_EXT: Readonly<Record<string, string>> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "application/pdf": "pdf",
+};
+
+/** A patient's live attachments, newest first (optionally one visit's, or some kinds). */
 export async function listAttachments(
   clinicId: string,
   patientId: string,
-  opts?: { visitId?: string },
+  opts?: { visitId?: string; kinds?: AttachmentKind[]; excludeKinds?: AttachmentKind[] },
 ): Promise<ClinicalAttachment[]> {
   return db
     .select()
@@ -35,6 +49,8 @@ export async function listAttachments(
         notDeleted(clinicalAttachments.deletedAt),
         eq(clinicalAttachments.patientId, patientId),
         opts?.visitId ? eq(clinicalAttachments.visitId, opts.visitId) : undefined,
+        opts?.kinds?.length ? inArray(clinicalAttachments.kind, opts.kinds) : undefined,
+        opts?.excludeKinds?.length ? notInArray(clinicalAttachments.kind, opts.excludeKinds) : undefined,
       ),
     )
     .orderBy(desc(clinicalAttachments.createdAt));
