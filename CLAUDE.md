@@ -488,7 +488,7 @@ are in `.env.example`.
 - **Typed prescriptions on the clinic letterhead** (`0128`) — the desk enters what the
   doctor wrote (medicine lines like the medical history's, notes, the prescribing doctor,
   optional appointment); downloaded or printed as A4 on the clinic's own letterhead, which
-  the account manager uploads with four margins and a live preview. "Print on pad" prints
+  the account manager uploads with four margins and a live preview. "Print without letterhead" (was "Print on pad") prints
   only the writing for pre-printed pads. **ACL:** receptionist and manager now hold
   `prescriptions` view/create/edit/delete by default.
 

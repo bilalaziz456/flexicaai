@@ -260,7 +260,7 @@ export function AppTabs({
 
 /**
  * Names the current page's tab — rendered by a page whose own name says more than its
- * section ("test patient", not "Patients"). Renders nothing.
+ * section ("Patient · test patient", not "Patients"). Renders nothing.
  */
 export function TabTitle({ title }: { title: string }) {
   const pathname = usePathname();

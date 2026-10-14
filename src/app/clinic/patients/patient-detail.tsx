@@ -371,7 +371,7 @@ export async function PatientDetail({
 
   return (
     <div className="space-y-6">
-      <TabTitle title={patient.fullName} />
+      <TabTitle title={`Patient · ${patient.fullName}`} />
       <ViewLogger
         entity="patient"
         entityId={patient.id}

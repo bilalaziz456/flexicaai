@@ -114,20 +114,34 @@ export function PrescriptionsCard({
                     {r.t.doctorName ? <span className="text-muted-foreground"> · {r.t.doctorName}</span> : null}
                   </span>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <a href={`/api/rx/${r.t.id}`} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-                      <FileText className="size-3.5" aria-hidden="true" /> View
-                    </a>
-                    <a href={`/api/rx/${r.t.id}?download=1`} className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-                      <Download className="size-3.5" aria-hidden="true" /> Download
+                    {/* Named by WHAT COMES OUT (owner's call, 2026-10-15). "Print on pad",
+                        then "Print on letterhead paper", both read as if they printed
+                        the letterhead — the opposite of what they do. */}
+                    <a
+                      href={`/api/rx/${r.t.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="For plain white paper: the clinic letterhead is printed with the prescription"
+                      // The one used most, so it is the green main action (owner's call).
+                      className={cn(buttonVariants({ size: "sm" }))}
+                    >
+                      <FileText className="size-3.5" aria-hidden="true" /> Print with letterhead
                     </a>
                     <a
                       href={`/api/rx/${r.t.id}?pad=1`}
                       target="_blank"
                       rel="noreferrer"
-                      title="Only the writing, to print on the clinic's own pre-printed pad"
+                      title="For paper that already has your letterhead printed on it: only the prescription is printed, in the right place"
                       className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
                     >
-                      <Printer className="size-3.5" aria-hidden="true" /> Print on pad
+                      <Printer className="size-3.5" aria-hidden="true" /> Print without letterhead
+                    </a>
+                    <a
+                      href={`/api/rx/${r.t.id}?download=1`}
+                      title="Save the PDF with the letterhead, e.g. to send on WhatsApp"
+                      className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                    >
+                      <Download className="size-3.5" aria-hidden="true" /> Download
                     </a>
                     {can.edit ? (
                       <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(r.t)} aria-label="Edit prescription">
