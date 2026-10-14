@@ -229,6 +229,12 @@ export interface ModuleClinicalRecord {
   /** What this specialty calls its chart — the printed heading and the saved PDF's
    *  name ("Odontogram" for dental). Core never names a specialty's chart itself. */
   chartName?: string;
+  /**
+   * Check and tidy a typed list of charted items — for dental, teeth ("47, 48, 53").
+   * Core's treatment plans use it so a plan item can name several teeth, without core
+   * knowing what a valid tooth is. Absent → core only splits and de-duplicates.
+   */
+  parseItemList?: (raw: string | null | undefined) => { items: string[] } | { error: string };
   VisitEditor: ComponentType<ClinicalVisitEditorProps>;
   PatientChart: ComponentType<PatientChartProps>;
   /** Map a scribe draft note into the editor's initial value (a pre-filled chart). */

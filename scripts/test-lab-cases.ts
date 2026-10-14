@@ -10,10 +10,14 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { unscoped } from "@/core/db/tenant-guard";
-import { clinics, patients } from "@/core/db/schema";
+import { clinics, patients, treatmentPlanItems, treatmentPlans } from "@/core/db/schema";
 import { labCases } from "@/modules/dental/db/schema";
 import { dentalLab } from "@/modules/dental/db/lab";
+import { dentalTrash } from "@/modules/dental/db/records";
 import { parseToothList } from "@/modules/dental/tooth-status";
+import { clinicalRecordFor } from "@/config/modules";
+import { addPlanItem, createPlan, listPlans, listTreatmentPlanItems, softDeletePlan, updatePlan, updatePlanItem } from "@/core/patients/treatment-plans";
+import { listClinicTrash, restoreForClinic } from "@/core/trash";
 
 let pass = 0;
 let fail = 0;
@@ -35,6 +39,13 @@ async function main() {
   const bad = parseToothList("47, 49, 99");
   ok("a number that is not a tooth is named", "error" in bad && bad.error.startsWith("49, 99 aren't tooth numbers"), JSON.stringify(bad));
   ok("baby teeth count (FDI 5–8)", "teeth" in parseToothList("53, 85"));
+
+  console.log("\nTreatment plans get the same check through the module:");
+  const parseItems = clinicalRecordFor(["dental"])?.parseItemList;
+  ok("the dental module supplies it", Boolean(parseItems));
+  const viaModule = parseItems?.("47 48, 53");
+  ok("…and it tidies a list", Boolean(viaModule && "items" in viaModule && viaModule.items.join() === "47,48,53"));
+  ok("…and refuses a wrong tooth", Boolean(parseItems && "error" in parseItems("47, 19")));
 
   await unscoped("behaviour test — seeds its own clinic", async () => {
     const [c] = await db.insert(clinics).values({ name: `lab${Date.now()}`, modulesEnabled: ["dental"] }).returning({ id: clinics.id });
@@ -63,9 +74,41 @@ async function main() {
       ok("…and neither wrote a case", (await dentalLab.loadCases(c.id, pt.id)).length === 1);
       const noContact = await dentalLab.saveCase(c.id, pt.id, { item: "crown", tooth: "11" }, actor);
       ok("the contact is optional", !(noContact && "error" in noContact));
+
+      console.log("\nA deleted lab case can be restored:");
+      const [toDelete] = await dentalLab.loadCases(c.id, pt.id);
+      await dentalLab.deleteCase(c.id, toDelete.id, pt.id);
+      ok("delete hides it", !(await dentalLab.loadCases(c.id, pt.id)).some((x) => x.id === toDelete.id));
+      const listed = (await dentalTrash.list({ kind: "clinic", clinicId: c.id, cutoff: new Date(0) })).find((t) => t.id === toDelete.id);
+      ok("it is listed in Trash as a lab case", Boolean(listed?.label.endsWith("lab case")), listed?.label ?? "missing");
+      if (listed) await dentalTrash.restore(listed.group, c.id);
+      ok("Restore brings it back", (await dentalLab.loadCases(c.id, pt.id)).some((x) => x.id === toDelete.id));
+
+      console.log("\nA plan item keeps the whole list:");
+      const plan = await createPlan(c.id, { patientId: pt.id, module: "dental", title: "Bridge" }, actor);
+      await addPlanItem(c.id, plan.id, { name: "Crown", unitPrice: 15000, tooth: "47, 48, 53", quantity: 3 });
+      const [item] = await listTreatmentPlanItems(c.id, plan.id);
+      ok("stored in full (it used to be cut to 4 characters)", item?.tooth === "47, 48, 53", item?.tooth ?? "");
+
+      console.log("\nEditing and deleting a plan:");
+      await updatePlan(c.id, plan.id, { title: "Lower bridge", note: "Two visits" });
+      await updatePlanItem(c.id, item.id, { unitPrice: 14000, quantity: 2 });
+      const [edited] = await listPlans(c.id, pt.id);
+      ok("title and note change", edited?.title === "Lower bridge" && edited?.note === "Two visits");
+      ok("an item's price and quantity change", edited?.items[0]?.unitPrice === 14000 && edited?.items[0]?.quantity === 2);
+      await softDeletePlan(c.id, plan.id, pt.id);
+      ok("delete hides it", (await listPlans(c.id, pt.id)).length === 0);
+      const trash = await listClinicTrash(c.id, 30);
+      const inTrash = trash.items.find((t) => t.entity === "treatment_plan" && t.id === plan.id);
+      ok("it is listed in Trash as a treatment plan", Boolean(inTrash), JSON.stringify(trash.items.map((t) => t.entity)));
+      if (inTrash) await restoreForClinic(c.id, inTrash.group);
+      const back = await listPlans(c.id, pt.id);
+      ok("Restore brings it back with its items", back.length === 1 && back[0].items.length === 1);
     } finally {
       await db.execute(sql`delete from activity_logs where clinic_id = ${c.id}::uuid`);
       await db.delete(labCases).where(eq(labCases.clinicId, c.id));
+      await db.delete(treatmentPlanItems).where(eq(treatmentPlanItems.clinicId, c.id));
+      await db.delete(treatmentPlans).where(eq(treatmentPlans.clinicId, c.id));
       await db.delete(patients).where(eq(patients.clinicId, c.id));
       await db.delete(clinics).where(eq(clinics.id, c.id));
     }

@@ -7,6 +7,7 @@ import { newDeleteGroup, restoreValues, softDeleteValues } from "@/core/db/soft-
 import {
   dentalCharts,
   dentalRecords,
+  labCases,
   type ChartTeeth,
   type ChartTooth,
   type ToothFinding,
@@ -597,7 +598,41 @@ export const dentalTrash: ModuleTrash = {
       .where(and(...where))
       .orderBy(desc(dentalRecords.deletedAt));
 
-    return rows.map((r) => {
+    // Lab cases are this module's too (owner's call, 2026-10-15: a deleted case was
+    // hidden but restorable from nowhere). Same scope rules as the records above.
+    const labWhere: (SQL | undefined)[] = [isNotNull(labCases.deletedAt), eq(labCases.deletedByCascade, false)];
+    if (scope.kind === "clinic") {
+      labWhere.push(eq(labCases.clinicId, scope.clinicId), gte(labCases.deletedAt, scope.cutoff));
+    } else if (scope.clinicId) {
+      labWhere.push(eq(labCases.clinicId, scope.clinicId));
+    }
+    const labs = await db
+      .select({
+        id: labCases.id,
+        group: labCases.deleteGroup,
+        clinicId: labCases.clinicId,
+        deletedAt: labCases.deletedAt,
+        deletedBy: labCases.deletedBy,
+        item: labCases.item,
+        tooth: labCases.tooth,
+        labName: labCases.labName,
+        patientName: patients.fullName,
+      })
+      .from(labCases)
+      .leftJoin(patients, eq(labCases.patientId, patients.id))
+      .where(and(...labWhere))
+      .orderBy(desc(labCases.deletedAt));
+    const labRows = labs.map((l) => ({
+      id: l.id,
+      group: l.group ?? l.id,
+      label: l.patientName ? `${l.patientName} · lab case` : "Lab case",
+      detail: [l.item, l.tooth, l.labName].filter(Boolean).join(" · "),
+      clinicId: l.clinicId,
+      deletedAt: l.deletedAt as Date,
+      deletedById: l.deletedBy,
+    }));
+
+    return [...rows.map((r) => {
       // Name the teeth it covered, so a row in Trash says what it was.
       const teeth = Object.keys((r.chartAfter ?? {}) as ChartTeeth);
       const what = teeth.length
@@ -612,10 +647,18 @@ export const dentalTrash: ModuleTrash = {
         deletedAt: r.deletedAt as Date,
         deletedById: r.deletedBy,
       };
-    });
+    }), ...labRows].sort((a, b) => b.deletedAt.getTime() - a.deletedAt.getTime());
   },
 
   async restore(group, clinicId) {
+    await db
+      .update(labCases)
+      .set(restoreValues())
+      .where(
+        clinicId
+          ? and(eq(labCases.deleteGroup, group), eq(labCases.clinicId, clinicId))
+          : eq(labCases.deleteGroup, group),
+      );
     const rows = await db
       .update(dentalRecords)
       .set(restoreValues())
@@ -638,6 +681,7 @@ export const dentalTrash: ModuleTrash = {
   },
 
   async purge(group) {
+    await db.delete(labCases).where(eq(labCases.deleteGroup, group));
     await db.delete(dentalRecords).where(eq(dentalRecords.deleteGroup, group));
   },
 };

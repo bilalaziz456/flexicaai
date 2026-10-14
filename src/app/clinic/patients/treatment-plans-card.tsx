@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { SelectField } from "@/core/ui/select-field";
 import { EmptyState } from "@/core/ui/empty-state";
 import Link from "next/link";
-import { Plus, Printer, Trash2, ClipboardList } from "lucide-react";
+import { Plus, Printer, Trash2, ClipboardList, Pencil } from "lucide-react";
+import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Badge } from "@/core/ui/badge";
@@ -17,6 +18,7 @@ import {
   deletePlanAction,
   deletePlanItemAction,
   setPlanStatusAction,
+  updatePlanAction,
   updatePlanItemAction,
 } from "./treatment-plan-actions";
 import {
@@ -59,6 +61,9 @@ export function TreatmentPlansCard({
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null);
   const [nonce, setNonce] = useState(0);
+  // One plan and one item can be in edit mode at a time.
+  const [editingPlan, setEditingPlan] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<string | null>(null);
   const run = (fn: () => Promise<{ ok?: true; error?: string }>, okText: string) =>
     start(async () => {
       const r = await fn();
@@ -81,9 +86,36 @@ export function TreatmentPlansCard({
             const total = p.items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
             return (
               <li key={p.id} className="space-y-2 p-3">
+                {editingPlan === p.id ? (
+                  <EditPlanForm
+                    plan={p}
+                    pending={pending}
+                    onCancel={() => setEditingPlan(null)}
+                    onSave={(title, note) =>
+                      run(async () => {
+                        const r = await updatePlanAction(p.id, patientId, title, note);
+                        if (r.ok) setEditingPlan(null);
+                        return r;
+                      }, "Plan updated.")
+                    }
+                  />
+                ) : null}
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium">{p.title}</span>
+                  {editingPlan === p.id ? (
+                    <span />
+                  ) : (
+                    <div className="min-w-0">
+                      <span className="font-medium">{p.title}</span>
+                      {p.note ? <p className="text-xs text-muted-foreground">{p.note}</p> : null}
+                    </div>
+                  )}
                   <div className="flex items-center gap-2">
+                    {canEdit && editingPlan !== p.id ? (
+                      <Button size="sm" variant="outline" disabled={pending} onClick={() => setEditingPlan(p.id)}>
+                        <Pencil className="size-3.5" aria-hidden="true" /> Edit
+                        <span className="sr-only"> plan {p.title}</span>
+                      </Button>
+                    ) : null}
                     {estimateBase && p.items.length > 0 ? (
                       <Link href={`${estimateBase}/${p.id}`} className="inline-flex items-center gap-1 text-xs font-medium underline underline-offset-4">
                         <Printer className="size-3.5" aria-hidden="true" /> Estimate
@@ -102,9 +134,23 @@ export function TreatmentPlansCard({
                       <Badge variant={PLAN_VARIANT[p.status] ?? "secondary"}>{p.status}</Badge>
                     )}
                     {canDelete ? (
-                      <button type="button" disabled={pending} aria-label="Delete plan" onClick={() => run(() => deletePlanAction(p.id, patientId), "Plan deleted.")} className="text-muted-foreground hover:text-destructive">
-                        <Trash2 className="size-4" />
-                      </button>
+                      <ConfirmDialog
+                        triggerLabel={`Delete plan ${p.title}`}
+                        triggerIcon={<Trash2 className="size-4" aria-hidden="true" />}
+                        triggerVariant="ghost"
+                        triggerClassName="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text [&>span]:hidden"
+                        triggerDisabled={pending}
+                        title="Delete this treatment plan?"
+                        description={`"${p.title}" and its ${p.items.length} item${p.items.length === 1 ? "" : "s"} will move to Trash. You can restore it from Trash.`}
+                        confirmLabel="Delete plan"
+                        confirmVariant="destructive"
+                        onConfirm={async () => {
+                          const r = await deletePlanAction(p.id, patientId);
+                          if (r.error) return { error: r.error };
+                          setMsg({ text: "Plan moved to Trash.", error: false });
+                          setNonce((n) => n + 1);
+                        }}
+                      />
                     ) : null}
                   </div>
                 </div>
@@ -112,9 +158,32 @@ export function TreatmentPlansCard({
                 {p.items.length > 0 ? (
                   <table className="w-full text-sm">
                     <tbody>
-                      {p.items.map((it) => (
+                      {p.items.map((it) =>
+                        editingItem === it.id ? (
+                          <tr key={it.id} className="border-b last:border-0">
+                            <td colSpan={5} className="py-1.5">
+                              <EditItemForm
+                                item={it}
+                                pending={pending}
+                                onCancel={() => setEditingItem(null)}
+                                onSave={(patch) =>
+                                  run(async () => {
+                                    const r = await updatePlanItemAction(it.id, patientId, patch);
+                                    if (r.ok) setEditingItem(null);
+                                    return r;
+                                  }, "Item updated.")
+                                }
+                              />
+                            </td>
+                          </tr>
+                        ) : (
                         <tr key={it.id} className="border-b last:border-0">
-                          <td className="py-1">{it.name}{it.tooth ? <span className="text-muted-foreground"> · {it.tooth}</span> : null}</td>
+                          <td className="py-1">
+                            {it.name}
+                            {it.tooth ? (
+                              <span className="text-muted-foreground"> · {it.tooth.includes(",") ? "teeth" : "tooth"} {it.tooth}</span>
+                            ) : null}
+                          </td>
                           <td className="py-1 text-center text-muted-foreground">×{it.quantity}</td>
                           <td className="py-1 text-right tabular-nums">{money(it.unitPrice * it.quantity)}</td>
                           <td className="py-1 pl-2">
@@ -133,13 +202,39 @@ export function TreatmentPlansCard({
                           </td>
                           <td className="py-1 pl-1">
                             {canEdit ? (
-                              <button type="button" disabled={pending} aria-label="Remove item" onClick={() => run(() => deletePlanItemAction(it.id, patientId), "Removed.")} className="text-muted-foreground hover:text-destructive">
-                                <Trash2 className="size-3.5" />
-                              </button>
+                              <span className="flex items-center">
+                                <Button
+                                  size="icon-sm"
+                                  variant="ghost"
+                                  disabled={pending}
+                                  aria-label={`Edit ${it.name}`}
+                                  onClick={() => setEditingItem(it.id)}
+                                >
+                                  <Pencil className="size-3.5" aria-hidden="true" />
+                                </Button>
+                                <ConfirmDialog
+                                  triggerLabel={`Remove ${it.name}`}
+                                  triggerIcon={<Trash2 className="size-3.5" aria-hidden="true" />}
+                                  triggerVariant="ghost"
+                                  triggerClassName="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text [&>span]:hidden"
+                                  triggerDisabled={pending}
+                                  title="Remove this item?"
+                                  description={`"${it.name}${it.tooth ? ` (${it.tooth})` : ""}" will be taken off "${p.title}" and the estimate. This can't be undone — add it again if needed.`}
+                                  confirmLabel="Remove"
+                                  confirmVariant="destructive"
+                                  onConfirm={async () => {
+                                    const r = await deletePlanItemAction(it.id, patientId);
+                                    if (r.error) return { error: r.error };
+                                    setMsg({ text: "Item removed.", error: false });
+                                    setNonce((n) => n + 1);
+                                  }}
+                                />
+                              </span>
                             ) : null}
                           </td>
                         </tr>
-                      ))}
+                        ),
+                      )}
                     </tbody>
                   </table>
                 ) : <p className="text-xs text-muted-foreground">No items yet.</p>}
@@ -196,11 +291,19 @@ function AddItem({ planId, patientId, procedures, pending, onRun }: { planId: st
   const [procId, setProcId] = useState("");
   const [tooth, setTooth] = useState("");
   const [qty, setQty] = useState("1");
+  // Quantity follows the number of teeth typed (a crown on 47, 48, 53 is three
+  // crowns) until somebody types a quantity themselves.
+  const [qtyTouched, setQtyTouched] = useState(false);
+  const toothCount = tooth.split(/[\s,;/]+/).filter(Boolean).length;
   const add = () => {
     const proc = procedures.find((p) => p.id === procId);
     if (!proc) return;
-    onRun(() => addPlanItemAction(planId, patientId, { procedureId: proc.id, name: proc.name, unitPrice: proc.price, tooth: tooth || null, quantity: Number(qty) || 1 }), "Item added.");
-    setProcId(""); setTooth(""); setQty("1");
+    onRun(async () => {
+      const r = await addPlanItemAction(planId, patientId, { procedureId: proc.id, name: proc.name, unitPrice: proc.price, tooth: tooth || null, quantity: Number(qty) || 1 });
+      // Keep what was typed when the save is refused (a wrong tooth number), so it can be fixed.
+      if (r.ok) { setProcId(""); setTooth(""); setQty("1"); setQtyTouched(false); }
+      return r;
+    }, "Item added.");
   };
   return (
     <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -212,9 +315,114 @@ function AddItem({ planId, patientId, procedures, pending, onRun }: { planId: st
         placeholder="Add procedure…"
         className="h-8 w-52"
       />
-      <Input value={tooth} onChange={(e) => setTooth(e.target.value)} aria-label="Tooth" placeholder="Tooth" className="h-7 w-16" />
-      <Input aria-label="Quantity" value={qty} onChange={(e) => setQty(e.target.value.replace(/[^\d]/g, ""))} className="h-7 w-12" />
+      <Input
+        value={tooth}
+        onChange={(e) => {
+          const next = e.target.value;
+          setTooth(next);
+          if (!qtyTouched) setQty(String(Math.max(1, next.split(/[\s,;/]+/).filter(Boolean).length)));
+        }}
+        aria-label="Tooth or teeth"
+        placeholder="Teeth: 47, 48, 53"
+        maxLength={150}
+        className="h-7 w-36"
+      />
+      <Input
+        aria-label="Quantity"
+        title={toothCount > 1 && !qtyTouched ? "One per tooth — change it if needed" : undefined}
+        value={qty}
+        onChange={(e) => { setQtyTouched(true); setQty(e.target.value.replace(/[^\d]/g, "")); }}
+        className="h-7 w-12"
+      />
       <Button size="sm" variant="outline" disabled={pending || !procId} onClick={add}>Add</Button>
+    </div>
+  );
+}
+
+/** How many teeth a typed list names ("47, 42 46" → 3). */
+function countTeeth(list: string): number {
+  return list.split(/[\s,;/]+/).filter(Boolean).length;
+}
+
+/** Rename a plan and change its note, in place. */
+function EditPlanForm({
+  plan,
+  pending,
+  onSave,
+  onCancel,
+}: {
+  plan: PlanRow;
+  pending: boolean;
+  onSave: (title: string, note: string) => void;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState(plan.title);
+  const [note, setNote] = useState(plan.note ?? "");
+  return (
+    <div className="space-y-2 rounded-md border well p-2.5">
+      <label className="block space-y-1">
+        <span className="block text-xs text-muted-foreground">Plan title</span>
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} className="h-8" />
+      </label>
+      <label className="block space-y-1">
+        <span className="block text-xs text-muted-foreground">Note (optional, printed on the estimate)</span>
+        <Input value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} className="h-8" />
+      </label>
+      <div className="flex gap-2">
+        <Button size="sm" disabled={pending || !title.trim()} onClick={() => onSave(title, note)}>
+          {pending ? "Saving…" : "Save changes"}
+        </Button>
+        <Button size="sm" variant="outline" disabled={pending} onClick={onCancel}>Cancel</Button>
+      </div>
+    </div>
+  );
+}
+
+/** Change one item's teeth, quantity or price, in place. */
+function EditItemForm({
+  item,
+  pending,
+  onSave,
+  onCancel,
+}: {
+  item: PlanItemRow;
+  pending: boolean;
+  onSave: (patch: { tooth: string | null; quantity: number; unitPrice: number }) => void;
+  onCancel: () => void;
+}) {
+  const [tooth, setTooth] = useState(item.tooth ?? "");
+  const [qty, setQty] = useState(String(item.quantity));
+  const [price, setPrice] = useState(String(item.unitPrice));
+  // Quantity follows the teeth while the two are in step — removing 42 from
+  // "47, 42, 46" at quantity 3 makes it 2 (owner's report). A quantity somebody set
+  // on purpose (2 sittings for one tooth) no longer matches the count, so it is kept.
+  const changeTeeth = (next: string) => {
+    if (Number(qty) === countTeeth(tooth) || !qty) setQty(String(Math.max(1, countTeeth(next))));
+    setTooth(next);
+  };
+  return (
+    <div className="flex flex-wrap items-end gap-2 rounded-md border well p-2.5">
+      <span className="w-full text-xs font-medium">{item.name}</span>
+      <label className="block space-y-1">
+        <span className="block text-xs text-muted-foreground">Teeth</span>
+        <Input value={tooth} onChange={(e) => changeTeeth(e.target.value)} placeholder="47, 48, 53" maxLength={150} className="h-8 w-36" />
+      </label>
+      <label className="block space-y-1">
+        <span className="block text-xs text-muted-foreground">Qty</span>
+        <Input value={qty} onChange={(e) => setQty(e.target.value.replace(/[^\d]/g, ""))} className="h-8 w-14" />
+      </label>
+      <label className="block space-y-1">
+        <span className="block text-xs text-muted-foreground">Price each (Rs)</span>
+        <Input value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d]/g, ""))} className="h-8 w-24" />
+      </label>
+      <Button
+        size="sm"
+        disabled={pending}
+        onClick={() => onSave({ tooth: tooth.trim() || null, quantity: Number(qty) || 1, unitPrice: Number(price) || 0 })}
+      >
+        {pending ? "Saving…" : "Save"}
+      </Button>
+      <Button size="sm" variant="outline" disabled={pending} onClick={onCancel}>Cancel</Button>
     </div>
   );
 }

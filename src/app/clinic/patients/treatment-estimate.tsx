@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { formatPkr } from "@/core/appointments/fee";
 import { BackLink } from "@/core/ui/back-link";
 import { InvoicePrintFrame } from "@/core/ui/invoice-print";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 /**
  * Printable treatment-plan ESTIMATE (a patient-facing quote). Thermal/A5/A4 via the
@@ -77,7 +78,10 @@ export async function TreatmentEstimate({
             <thead>
               <tr className="border-b border-black/20 text-left">
                 <th className="py-1 font-normal opacity-70">Treatment</th>
-                <th className="py-1 text-center font-normal opacity-70">Tooth</th>
+                <th className="py-1 text-center font-normal opacity-70">Tooth / teeth</th>
+                {/* Where each item stands — the estimate doubles as a progress sheet
+                    once treatment has begun (owner's ask, 2026-10-15). */}
+                <th className="py-1 text-center font-normal opacity-70">Status</th>
                 <th className="py-1 text-right font-normal opacity-70">Qty</th>
                 <th className="py-1 text-right font-normal opacity-70">Amount</th>
               </tr>
@@ -87,6 +91,7 @@ export async function TreatmentEstimate({
                 <tr key={it.id} className="border-b border-black/10">
                   <td className="py-1">{it.name}</td>
                   <td className="py-1 text-center">{it.tooth ?? "—"}</td>
+                  <td className="py-1 text-center">{vocabularyLabel("treatment_item_statuses", it.status)}</td>
                   <td className="py-1 text-right">{it.quantity}</td>
                   <td className="py-1 text-right tabular-nums">{formatPkr(it.unitPrice * it.quantity)}</td>
                 </tr>

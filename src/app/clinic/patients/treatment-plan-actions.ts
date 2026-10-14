@@ -7,7 +7,7 @@ import { requireRole } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { displayStaffName } from "@/core/types/auth";
 import type { CurrentUser } from "@/core/types/auth";
-import { treatmentTemplatesFor } from "@/config/modules";
+import { clinicalRecordFor, treatmentTemplatesFor } from "@/config/modules";
 import {
   addPlanItem,
   createPlan,
@@ -15,6 +15,7 @@ import {
   deletePlanItem,
   setPlanStatus,
   softDeletePlan,
+  updatePlan,
   updatePlanItem,
 } from "@/core/patients/treatment-plans";
 import { logActivity } from "@/core/audit/log";
@@ -72,18 +73,40 @@ export async function addPlanItemAction(
   const g = await guard("edit");
   if ("error" in g) return g;
   if (!input.name.trim()) return { error: "Choose a procedure." };
-  await addPlanItem(g.clinicId, planId, input);
+  const tooth = await tidyTeeth(g.clinicId, input.tooth);
+  if (typeof tooth === "object" && tooth) return tooth;
+  await addPlanItem(g.clinicId, planId, { ...input, tooth });
   return done(patientId);
 }
 
 export async function updatePlanItemAction(
   itemId: string,
   patientId: string,
-  patch: { status?: string; tooth?: string | null; quantity?: number },
+  patch: { status?: string; tooth?: string | null; quantity?: number; unitPrice?: number },
 ): Promise<State> {
   const g = await guard("edit");
   if ("error" in g) return g;
-  await updatePlanItem(g.clinicId, itemId, { ...patch, status: asCode<TreatmentItemStatusCode>(TREATMENT_ITEM_STATUS_ROWS, patch.status) });
+  let tooth: string | null | undefined = undefined;
+  if (patch.tooth !== undefined) {
+    const t = await tidyTeeth(g.clinicId, patch.tooth);
+    if (typeof t === "object" && t) return t;
+    tooth = t;
+  }
+  await updatePlanItem(g.clinicId, itemId, {
+    ...patch,
+    tooth,
+    status: asCode<TreatmentItemStatusCode>(TREATMENT_ITEM_STATUS_ROWS, patch.status),
+  });
+  return done(patientId);
+}
+
+export async function updatePlanAction(planId: string, patientId: string, title: string, note: string): Promise<State> {
+  const g = await guard("edit");
+  if ("error" in g) return g;
+  if (!title.trim()) return { error: "Enter a plan title." };
+  const ok = await updatePlan(g.clinicId, planId, { title: title.trim(), note: note.trim() || null });
+  if (!ok) return { error: "That plan no longer exists." };
+  await logActivity({ action: "update", entity: "patient", entityId: patientId, summary: `Edited treatment plan "${title.trim()}"` });
   return done(patientId);
 }
 
@@ -109,6 +132,21 @@ export async function deletePlanAction(planId: string, patientId: string): Promi
   await softDeletePlan(g.clinicId, planId, g.user.id);
   await logActivity({ action: "delete", entity: "patient", entityId: patientId, summary: "Deleted a treatment plan" });
   return done(patientId);
+}
+
+/**
+ * A plan item's teeth, checked and tidied: "47 48,53" → "47, 48, 53" (owner's call,
+ * 2026-10-15 — a bridge or a set of fillings is one line on the plan). The enabled
+ * module decides what a valid tooth is; without one, core only splits and de-dupes.
+ * Returns the stored text (null when empty) or an error to show.
+ */
+async function tidyTeeth(clinicId: string, raw: string | null | undefined): Promise<string | null | { error: string }> {
+  const parse = clinicalRecordFor(await moduleList(clinicId))?.parseItemList;
+  const parsed = parse
+    ? parse(raw)
+    : { items: [...new Set((raw ?? "").split(/[\s,;/]+/).map((x) => x.trim()).filter(Boolean))] };
+  if ("error" in parsed) return { error: parsed.error };
+  return parsed.items.length ? parsed.items.join(", ") : null;
 }
 
 async function moduleList(clinicId: string): Promise<string[]> {

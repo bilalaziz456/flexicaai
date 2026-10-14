@@ -133,6 +133,11 @@ A specialty is a `ModuleDefinition` (`core/types/module.ts`) registered in
 procedure and treatment templates, an optional structured clinical record (chart UI +
 `saveRecord` + trash provider), **its own closed vocabularies** (ADR-028), and nav items.
 
+The clinical record may also supply `parseItemList` — "is this a valid list of
+charted items?" (for dental, teeth: "47, 48, 53"). Core's treatment plans call it
+through the registry so a plan line can name several teeth while core still does not
+know what a tooth is; without it core only splits and de-duplicates (2026-10-15).
+
 Core reads `clinic.modules_enabled` and asks the registry. **Core never asks "is this
 dental?"** — that check appearing anywhere in `src/core` is a defect.
 

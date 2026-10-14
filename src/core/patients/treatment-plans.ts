@@ -127,7 +127,8 @@ export async function addPlanItem(
       procedureId: input.procedureId ?? null,
       name: input.name.slice(0, 160),
       unitPrice: Math.max(0, Math.round(input.unitPrice)),
-      tooth: input.tooth?.slice(0, 4) || null,
+      // A tidied list ("47, 48, 53") — the action checked it through the module.
+      tooth: input.tooth?.slice(0, 200) || null,
       quantity: Math.max(1, input.quantity ?? 1),
     })
     .returning({ id: treatmentPlanItems.id });
@@ -138,11 +139,13 @@ export async function addPlanItem(
 export async function updatePlanItem(
   clinicId: string,
   itemId: string,
-  patch: { status?: TreatmentItemStatusCode; tooth?: string | null; quantity?: number },
+  patch: { status?: TreatmentItemStatusCode; tooth?: string | null; quantity?: number; unitPrice?: number },
 ): Promise<boolean> {
   const set: Record<string, unknown> = { updatedAt: new Date() };
   if (patch.status) set.status = patch.status;
-  if (patch.tooth !== undefined) set.tooth = patch.tooth?.slice(0, 4) || null;
+  // An estimate's price is the clinic's to adjust per patient; the catalog is untouched.
+  if (patch.unitPrice !== undefined) set.unitPrice = Math.max(0, Math.round(patch.unitPrice));
+  if (patch.tooth !== undefined) set.tooth = patch.tooth?.slice(0, 200) || null;
   if (patch.quantity !== undefined) set.quantity = Math.max(1, patch.quantity);
   const res = await db
     .update(treatmentPlanItems)
@@ -157,6 +160,20 @@ export async function deletePlanItem(clinicId: string, itemId: string): Promise<
     .delete(treatmentPlanItems)
     .where(byClinic(treatmentPlanItems.clinicId, clinicId, eq(treatmentPlanItems.id, itemId)))
     .returning({ id: treatmentPlanItems.id });
+  return res.length > 0;
+}
+
+/** Rename a plan or change its note. Clinic-scoped; a trashed plan is not touched. */
+export async function updatePlan(
+  clinicId: string,
+  planId: string,
+  patch: { title: string; note: string | null },
+): Promise<boolean> {
+  const res = await db
+    .update(treatmentPlans)
+    .set({ title: patch.title.slice(0, 200), note: patch.note?.slice(0, 2000) || null, updatedAt: new Date() })
+    .where(byClinic(treatmentPlans.clinicId, clinicId, notDeleted(treatmentPlans.deletedAt), eq(treatmentPlans.id, planId)))
+    .returning({ id: treatmentPlans.id });
   return res.length > 0;
 }
 

@@ -10,6 +10,7 @@ import { DatePicker, DATE_FIELD_W } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
 import { Badge } from "@/core/ui/badge";
 import { Toast } from "@/core/ui/toast";
+import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import {
   deleteLabCaseAction,
   saveLabCaseAction,
@@ -139,9 +140,23 @@ export function LabTrackerCard({
                   <Badge variant={STATUS_VARIANT[c.status] ?? "secondary"}>{c.status.replace("_", " ")}</Badge>
                 )}
                 {canDelete ? (
-                  <button type="button" disabled={pending} aria-label="Remove lab case" onClick={() => run(() => deleteLabCaseAction(c.id, patientId), "Removed.")} className="text-muted-foreground hover:text-destructive">
-                    <Trash2 className="size-4" />
-                  </button>
+                  <ConfirmDialog
+                    triggerLabel={`Delete lab case ${c.item}`}
+                    triggerIcon={<Trash2 className="size-4" aria-hidden="true" />}
+                    triggerVariant="ghost"
+                    triggerClassName="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text [&>span]:hidden"
+                    triggerDisabled={pending}
+                    title="Delete this lab case?"
+                    description={`The ${c.item}${c.tooth ? ` for ${c.tooth}` : ""}${c.labName ? ` at ${c.labName}` : ""} will move to Trash. You can restore it from Trash.`}
+                    confirmLabel="Delete"
+                    confirmVariant="destructive"
+                    onConfirm={async () => {
+                      const r = await deleteLabCaseAction(c.id, patientId);
+                      if ("error" in r) return { error: r.error };
+                      setMsg({ text: "Lab case moved to Trash.", error: false });
+                      setNonce((n) => n + 1);
+                    }}
+                  />
                 ) : null}
               </div>
             </li>

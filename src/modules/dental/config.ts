@@ -8,6 +8,7 @@ import { dentalTreatmentTemplates } from "@/modules/dental/treatment-templates";
 import { DentalPatientChart, DentalVisitEditor } from "@/modules/dental/components/tooth-chart";
 import { DentalToothEditor } from "@/modules/dental/components/tooth-editor";
 import { seedFromNote } from "@/modules/dental/seed-from-note";
+import { parseToothList } from "@/modules/dental/tooth-status";
 import {
   getPatientChart,
   saveBaseline,
@@ -53,6 +54,10 @@ export const dentalModule: ModuleDefinition = {
   // contract (never knowing it's a tooth chart) — the deferred `components` slot.
   clinicalRecord: {
     chartName: "Odontogram",
+    parseItemList: (raw) => {
+      const r = parseToothList(raw);
+      return "error" in r ? r : { items: r.teeth };
+    },
     VisitEditor: DentalVisitEditor,
     PatientChart: DentalPatientChart,
     seedFromNote,

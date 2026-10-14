@@ -20,6 +20,7 @@ const TYPE_OPTIONS = [
   { value: "procedure", label: "Procedure" },
   { value: "expense", label: "Expense" },
   { value: "prescription", label: "Prescription" },
+  { value: "treatment_plan", label: "Treatment plan" },
   { value: "leave", label: "Doctor leave" },
   { value: "staff", label: "Staff" },
 ];
