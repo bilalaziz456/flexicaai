@@ -99,7 +99,7 @@ export async function PatientsList({
             </a>
           ) : null}
           {canCreate ? (
-            <Link href={newHref} className={cn(buttonVariants(), "hidden sm:inline-flex")}>
+            <Link href={newHref} data-shortcut="create" aria-keyshortcuts="Alt+C" title="Add patient (Alt+C)" className={cn(buttonVariants(), "hidden sm:inline-flex")}>
               Add patient
             </Link>
           ) : null}
@@ -236,6 +236,8 @@ export async function PatientsList({
         <Link
           href={newHref}
           aria-label="Add patient"
+          aria-keyshortcuts="Alt+C"
+          data-shortcut="create"
           className={cn(
             buttonVariants({ size: "icon" }),
             "fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg sm:hidden",

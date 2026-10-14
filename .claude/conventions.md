@@ -284,6 +284,13 @@ note above it; obvious logic gets none.
 - **A shared component must not know your routes.** Nav lives in each panel's
   `nav.ts` and is passed to `PanelShell` as data, with gating declared on the item
   (`resource` / `cap` / `feature` / `gate`). Adding a page never edits `core/ui`.
+  **Keyboard shortcuts are declared the same way** — `shortcut: "p"` on the item gives
+  Alt+P (`core/ui/nav-shortcuts.tsx`), shown on hover and in `aria-keyshortcuts`, and
+  works only when that item is visible to the person. One letter per panel. **S and C
+  are taken**: Alt+S focuses the top search box (`data-shortcut="search"`) and Alt+C
+  presses the page's own create button — a page marks it `data-shortcut="create"`
+  (the shared `FloatingCreateButton` already is), and renders it only for someone
+  allowed to create, so the shortcut inherits that permission.
 - **Queries belong in `core/<domain>`**, not in pages or actions (ADR-014) — enforced
   by lint: `src/app/**` may not import `@/core/db` or `@/core/db/schema` (type-only
   imports are fine). The legacy allowlist reached zero on 2026-08-22 and was removed,

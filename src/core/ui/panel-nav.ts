@@ -29,6 +29,8 @@ export type NavItem = {
   feature?: string;
   /** A named boolean the panel computes per request (e.g. `logs`, `approvals`). */
   gate?: string;
+  /** One letter: Alt + it opens this page (`nav-shortcuts.tsx`). Unique per panel. */
+  shortcut?: string;
 };
 
 /** A collapsible parent tab that groups related items under a ">" disclosure. */

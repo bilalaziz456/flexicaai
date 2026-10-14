@@ -30,6 +30,7 @@ import {
   type NavNode,
   type PanelNav,
 } from "@/core/ui/panel-nav";
+import { NavShortcuts, shortcutLabel, type NavShortcut } from "@/core/ui/nav-shortcuts";
 
 
 /** The signed-in user's own avatar (from /api/me/avatar); falls back to the name
@@ -170,6 +171,13 @@ export function PanelShell({
     .map((n) => (isGroup(n) ? { ...n, items: n.items.filter(visible) } : n))
     .filter((n) => (isGroup(n) ? n.items.length > 0 : visible(n)));
 
+  // Keyboard shortcuts from the SAME filtered list, so Alt+I does nothing for someone
+  // whose menu has no Invoices.
+  const navShortcuts: NavShortcut[] = visibleNodes
+    .flatMap((n) => (isGroup(n) ? n.items : [n]))
+    .filter((i) => i.shortcut)
+    .map((i) => ({ key: i.shortcut!.toLowerCase(), href: i.href, exact: i.exact }));
+
   // Flattened for the search box — the SAME already-filtered list the sidebar
   // renders, so search can never offer a page the nav wouldn't show.
   const searchNavItems: SearchNavItem[] = visibleNodes.flatMap((n) =>
@@ -296,6 +304,8 @@ export function PanelShell({
         // owns only its own path (the dashboard), so it never claims every page.
         data-app-tab-section={item.exact ? "exact" : "prefix"}
         aria-current={active ? "page" : undefined}
+        aria-keyshortcuts={item.shortcut ? shortcutLabel(item.shortcut) : undefined}
+        title={item.shortcut ? `${item.label} (${shortcutLabel(item.shortcut)})` : undefined}
         className={cn(
           "group/nav relative flex items-center gap-2.5 rounded-lg py-2 pr-3 pl-3.5 text-sm transition-[background-color,color,box-shadow] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
           active
@@ -317,6 +327,12 @@ export function PanelShell({
           aria-hidden="true"
         />
         <span className="truncate">{item.label}</span>
+        {/* The key, shown on hover so the menu teaches its own shortcuts. */}
+        {item.shortcut ? (
+          <kbd className="ml-auto hidden rounded border border-border/70 px-1 font-sans text-[10px] font-medium text-muted-foreground group-hover/nav:inline">
+            {shortcutLabel(item.shortcut)}
+          </kbd>
+        ) : null}
       </Link>
     );
   };
@@ -383,6 +399,8 @@ export function PanelShell({
     // <header>, so an A4 sheet (narrower than `md`) printed the search box and the
     // announcement on every invoice, statement and list.
     <div className="app-root min-h-screen overflow-x-clip md:pl-64 print:pl-0">
+      {/* Always mounted: Alt+S and Alt+C work on every panel, section keys or not. */}
+      <NavShortcuts shortcuts={navShortcuts} />
       {/* Skip link — the FIRST focusable element, so a keyboard user can Tab once and
           jump past the sidebar nav to the page content (WCAG 2.4.1). Hidden until focused. */}
       <a

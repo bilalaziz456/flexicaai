@@ -111,7 +111,7 @@ export default async function InvoicesPage({
         <div className="flex flex-wrap items-center gap-2">
         {canCreate ? (
           // Hidden on a phone, where the floating button is the create action.
-          <Link href="/clinic/invoices/new" className={cn(buttonVariants(), "hidden sm:inline-flex")}>
+          <Link href="/clinic/invoices/new" data-shortcut="create" aria-keyshortcuts="Alt+C" title="New invoice (Alt+C)" className={cn(buttonVariants(), "hidden sm:inline-flex")}>
             <Plus aria-hidden="true" /> New invoice
           </Link>
         ) : null}

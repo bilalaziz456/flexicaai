@@ -300,7 +300,7 @@ export async function AppointmentsList({
             </a>
           ) : null}
           {canCreate ? (
-            <Link href={bookHref} className={cn(buttonVariants(), "hidden sm:inline-flex")}>
+            <Link href={bookHref} data-shortcut="create" aria-keyshortcuts="Alt+C" title="New appointment (Alt+C)" className={cn(buttonVariants(), "hidden sm:inline-flex")}>
               New appointment
             </Link>
           ) : null}

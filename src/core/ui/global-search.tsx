@@ -250,6 +250,8 @@ export function GlobalSearch({
           onFocus={() => setOpen(true)}
           placeholder="Search patients, invoices, pages…"
           aria-label="Search"
+          aria-keyshortcuts="Alt+S"
+          data-shortcut="search"
           className="h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] pl-8 pr-8 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         />
         {query ? (

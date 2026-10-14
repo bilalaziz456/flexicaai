@@ -77,6 +77,8 @@ export function FloatingCreateButton({
       ref={ref}
       href={href}
       aria-label={label}
+      aria-keyshortcuts="Alt+C"
+      data-shortcut="create"
       className={cn(
         buttonVariants({ size: "icon" }),
         "fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg",
