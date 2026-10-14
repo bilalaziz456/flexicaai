@@ -85,6 +85,21 @@ note above it; obvious logic gets none.
   the title becomes "Invoice INV-… - 11 Oct 2026 03-58 PM" on `beforeprint` (so Ctrl+P
   too) and is restored on `afterprint`. The shell names any other page after its
   section at a lower priority. A specialty names its own chart (`chartName`).
+- **Every Print LINK has a Download beside it** (`DownloadLink`), which saves the
+  PDF without opening the print page: it loads the page in a hidden frame with
+  `?pdf=1`, the page's `InvoicePrintFrame` / `PrintButton` makes its own PDF and posts
+  the bytes back, and the opener saves them. A new print page must be added to
+  `PRINT_PAGES` in BOTH `src/proxy.ts` and `next.config.ts`, or its Download is
+  refused by the browser. Pages in a frame do not touch the tab bar or auto-print.
+- **Every Print has a Download PDF beside it** (owner's call, 2026-10-15). Use
+  `InvoicePrintFrame` or `PrintButton`, which both carry one; a hand-rolled print
+  button gets a `DownloadPdfButton` (`core/ui/download-pdf-button.tsx`) next to it. The
+  PDF is made in the BROWSER from the element that prints (`html-to-image` → pdf-lib,
+  `core/ui/download-pdf.ts`), so it cannot drift from the printout and costs the
+  server nothing; its pages are pictures, so their text is not selectable — the
+  accepted trade. Anything marked `.no-print` or `data-no-pdf` is left out of the
+  file, exactly as it is left off paper. The file takes the page's `PrintFileName`.
+  `html2canvas` is the wrong tool here: it cannot parse the app's oklch colours.
 - **A controlled checkbox in a Server Action form needs `ref={syncChecked(v)}`**
   (`core/ui/checkbox-sync.ts`). React RESETS the form once the action completes, and a
   reset restores each checkbox to its `defaultChecked` — which React writes on the first
@@ -458,9 +473,12 @@ throw — use it in tests.
 
 - **In transit:** HTTPS everywhere; TLS terminates at nginx, with HSTS set.
 - **Framing:** every response is unframeable (`X-Frame-Options: DENY` +
-  `frame-ancestors 'none'`) EXCEPT two our own pages may frame (`SAMEORIGIN` /
-  `'self'`): `/api/clinical/attachment/:id` (a PDF in the file viewer) and
-  `/api/admin/clinics/:id/letterhead-preview` (the letterhead preview). The two headers
+  `frame-ancestors 'none'`) EXCEPT what our own pages may frame (`SAMEORIGIN` /
+  `'self'`): `/api/clinical/attachment/:id` (a PDF in the file viewer),
+  `/api/admin/clinics/:id/letterhead-preview` (the letterhead preview), and the
+  PRINT PAGES (statement, chart, estimate, invoice, doctor statement, appointment list,
+  subscription invoice — `PRINT_PAGES`), which a "Download" link loads in a hidden
+  frame to make their PDF (`core/ui/download-link.tsx`, 2026-10-15). The two headers
   are set in two places (`next.config.ts`, `src/proxy.ts#isFrameableByUs`) and must
   agree — the browser obeys the stricter. Never widen it to another origin, and add a
   path only for a document our own page shows inline.

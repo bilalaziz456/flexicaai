@@ -6,6 +6,7 @@ import { EmptyState } from "@/core/ui/empty-state";
 import Link from "next/link";
 import { Plus, Printer, Trash2, ClipboardList, Pencil } from "lucide-react";
 import { ConfirmDialog } from "@/core/ui/confirm-dialog";
+import { DownloadLink } from "@/core/ui/download-link";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Badge } from "@/core/ui/badge";
@@ -117,9 +118,16 @@ export function TreatmentPlansCard({
                       </Button>
                     ) : null}
                     {estimateBase && p.items.length > 0 ? (
+                      <span className="inline-flex items-center gap-3">
                       <Link href={`${estimateBase}/${p.id}`} className="inline-flex items-center gap-1 text-xs font-medium underline underline-offset-4">
                         <Printer className="size-3.5" aria-hidden="true" /> Estimate
                       </Link>
+                      <DownloadLink
+                        href={`${estimateBase}/${p.id}`}
+                        label="Download"
+                        className="gap-1 text-xs underline"
+                      />
+                      </span>
                     ) : null}
                     {canEdit ? (
                       <SelectField

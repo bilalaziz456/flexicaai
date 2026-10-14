@@ -23,6 +23,7 @@ import { RecordPayoutForm } from "./payout-ui";
 import { SettlementForm, VoidSettlementButton } from "./settlement-ui";
 import { BalancesTable, PayoutsTable } from "./shares-tables";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
+import { DownloadLink } from "@/core/ui/download-link";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -125,6 +126,13 @@ export default async function ClinicSharesPage({
             >
               View statement
             </Link>
+          ) : null}
+          {singleDoctor ? (
+            <DownloadLink
+              href={selfOnly ? "/clinic/shares/statement" : `/clinic/shares/statement?doctorId=${doctorId}`}
+              label="Download statement"
+              className="h-8 rounded-lg border px-3 hover:bg-accent hover:no-underline"
+            />
           ) : null}
         </div>
       </div>

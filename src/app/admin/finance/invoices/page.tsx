@@ -32,6 +32,7 @@ import {
 } from "@/core/ui/table";
 import { InvoiceFilters } from "./invoice-filters";
 import { IssueInvoiceForm, InvoiceRowActions } from "./invoice-ui";
+import { DownloadLink } from "@/core/ui/download-link";
 
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 const fmtDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -180,6 +181,9 @@ export default async function ClinicInvoicesPage({
                           <Link href={`/admin/finance/invoices/${r.id}/print`} className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground" prefetch={false}>
                             <Printer className="size-3.5" aria-hidden="true" /> Print
                           </Link>
+                        ) : null}
+                        {!r.deleted ? (
+                          <DownloadLink href={`/admin/finance/invoices/${r.id}/print`} className="min-h-6 gap-1 text-xs font-normal text-muted-foreground underline hover:text-foreground" />
                         ) : null}
                         {canDelete ? <InvoiceRowActions id={r.id} deleted={r.deleted} /> : null}
                       </div>

@@ -70,6 +70,9 @@ export function AppTabs({
   // Sections first, so the very first sync already knows them.
   const sectionsKey = JSON.stringify(sections);
   useEffect(() => {
+    // A page loaded inside a frame (a Download link making its PDF in the background)
+    // shares this browser tab's stored tabs; letting it sync would open a stray tab.
+    if (window.self !== window.top) return;
     setAppTabSections(JSON.parse(sectionsKey) as { path: string; exact: boolean }[]);
     initAppTabs(storageKey);
     syncActiveTab(href, currentTitle);
@@ -265,7 +268,7 @@ export function AppTabs({
 export function TabTitle({ title }: { title: string }) {
   const pathname = usePathname();
   useEffect(() => {
-    if (title) setAppTabTitle(pathname, title);
+    if (title && window.self === window.top) setAppTabTitle(pathname, title);
   }, [pathname, title]);
   return null;
 }

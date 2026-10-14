@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { inPdfMode } from "@/core/ui/download-pdf";
 
 /**
  * Opens the print dialog once the page has painted — for a page whose only purpose
@@ -12,6 +13,8 @@ import { useEffect } from "react";
  */
 export function AutoPrint() {
   useEffect(() => {
+    // Loaded only to make its PDF (a Download link) — no dialog.
+    if (inPdfMode()) return;
     const timer = setTimeout(() => window.print(), 300);
     return () => clearTimeout(timer);
   }, []);

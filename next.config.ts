@@ -48,6 +48,18 @@ function serverActionOrigins(): string[] {
 
 const allowedOrigins = serverActionOrigins();
 
+/** Print pages our own Download links frame. Keep in step with src/proxy.ts. */
+const PRINT_PAGES = [
+  "/clinic/patients/:id/statement",
+  "/clinic/patients/:id/chart-print",
+  "/clinic/patients/:id/estimate/:planId",
+  "/clinic/appointments/:id/invoice",
+  "/clinic/invoices/:id/print",
+  "/clinic/shares/statement",
+  "/clinic/appointments/print",
+  "/admin/finance/invoices/:id/print",
+];
+
 const nextConfig: NextConfig = {
   // Don't advertise the framework/version.
   poweredByHeader: false,
@@ -91,6 +103,12 @@ const nextConfig: NextConfig = {
         source: "/api/admin/clinics/:id/letterhead-preview",
         headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
       },
+      // The print pages, loaded in a hidden frame by a "Download" link to make their
+      // PDF (2026-10-15). Same pairing with PRINT_PAGES in src/proxy.ts.
+      ...PRINT_PAGES.map((source) => ({
+        source,
+        headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
+      })),
     ];
   },
 };

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Pencil, Printer } from "lucide-react";
 import { DeleteInvoiceButton } from "@/app/clinic/invoices/delete-invoice-button";
 import { DataTable, type Column } from "@/core/ui/data-table";
+import { DownloadLink } from "@/core/ui/download-link";
 
 const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
 const dayFmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -114,6 +115,7 @@ export function InvoicesTable({
           >
             <Printer className="size-3.5" aria-hidden="true" /> Print
           </Link>
+          <DownloadLink href={`/clinic/invoices/${r.appointmentId}/print`} className="min-h-6 gap-1 font-normal text-muted-foreground underline hover:text-foreground" />
           {canEdit && !r.voided ? (
             <Link
               href={`/clinic/invoices/${r.appointmentId}`}

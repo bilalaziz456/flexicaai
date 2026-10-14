@@ -50,6 +50,7 @@ import { PatientChartCard } from "./patient-chart-card";
 import { PerioChartCard } from "./perio-chart-card";
 import { OpeningBalanceForm } from "./opening-balance-form";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
+import { DownloadLink } from "@/core/ui/download-link";
 
 /**
  * Shared patient detail — used by the clinic-admin panel and any panel that
@@ -433,6 +434,8 @@ export async function PatientDetail({
             <CardDescription>
               Billed, collected and outstanding across this patient&apos;s visits (cancelled and no-shows excluded).
             </CardDescription>
+            {/* Print and Download on one row: a card header stacks its children. */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
             <Link
               href={`/clinic/patients/${patient.id}/statement`}
               className="inline-flex min-h-7 items-center gap-1.5 text-sm font-medium underline-offset-4 transition-colors hover:underline"
@@ -440,6 +443,8 @@ export async function PatientDetail({
               <Printer className="size-3.5 shrink-0" aria-hidden="true" />
               Print statement
             </Link>
+            <DownloadLink href={`/clinic/patients/${patient.id}/statement`} label="Download statement" className="min-h-7" />
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Figures separated by hairlines rather than four sunken boxes — the
@@ -827,6 +832,7 @@ export async function PatientDetail({
           <CardHeader>
             <CardTitle>Odontogram</CardTitle>
             <CardDescription>The patient&apos;s current tooth chart.</CardDescription>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
             <Link
               href={`${backHref}/${patient.id}/chart-print`}
               className="inline-flex min-h-7 items-center gap-1.5 text-sm font-medium underline-offset-4 transition-colors hover:underline"
@@ -834,6 +840,8 @@ export async function PatientDetail({
               <Printer className="size-3.5 shrink-0" aria-hidden="true" />
               Print chart
             </Link>
+            <DownloadLink href={`${backHref}/${patient.id}/chart-print`} label="Download chart" className="min-h-7" />
+            </div>
           </CardHeader>
           <CardContent>
             <PatientChartCard

@@ -1,7 +1,9 @@
 "use client";
 
 import { PrintFileName } from "@/core/ui/print-file-name";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { DownloadPdfButton } from "@/core/ui/download-pdf-button";
+import { inPdfMode, PDF_PAPER, sendPdfToParent } from "@/core/ui/download-pdf";
 import { Printer } from "lucide-react";
 import { Button } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
@@ -54,6 +56,15 @@ export function InvoicePrintFrame({
     return offered.includes(wanted) ? wanted : offered[0];
   });
   const f = FORMATS[offered.includes(fmt) ? fmt : offered[0]];
+  const sheetRef = useRef<HTMLDivElement>(null);
+  // Loaded by a Download link: make this sheet's PDF at the opening paper size and
+  // hand it back. Runs once; the page is thrown away afterwards.
+  const paperKey = offered.includes(fmt) ? fmt : offered[0];
+  useEffect(() => {
+    if (!inPdfMode()) return;
+    void sendPdfToParent(() => sheetRef.current, { paper: PDF_PAPER[paperKey], includesMargin: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, at the size the page opened at
+  }, []);
   const css = `@media print {
   @page { size: ${f.page}; margin: ${f.margin}; }
   aside, header { display: none !important; }
@@ -87,11 +98,18 @@ export function InvoicePrintFrame({
           </>
         ) : null}
         <Button size="sm" onClick={() => window.print()}>
-          <Printer className="size-4" aria-hidden="true" /> Print / Save PDF
+          <Printer className="size-4" aria-hidden="true" /> Print
         </Button>
+        {/* Straight to a file, at the paper size picked above (owner's call). */}
+        <DownloadPdfButton
+          target={() => sheetRef.current}
+          paper={PDF_PAPER[offered.includes(fmt) ? fmt : offered[0]]}
+          includesMargin
+        />
       </div>
 
       <div
+        ref={sheetRef}
         className="invoice-sheet mx-auto rounded-md border bg-white text-black shadow-sm"
         style={{
           width: `min(100%, ${f.width})`,

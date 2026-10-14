@@ -4,6 +4,7 @@ import Link from "next/link";
 import { HandCoins, Printer } from "lucide-react";
 import { DataTable, type Column } from "@/core/ui/data-table";
 import { labelFrom, useVocabulary } from "@/core/ui/vocabulary-provider";
+import { DownloadLink } from "@/core/ui/download-link";
 
 const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
 const dayFmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -105,12 +106,15 @@ export function PaymentsTable({ rows, empty }: { rows: Row[]; empty: string }) {
       // The patient's paper is the invoice (it lists every payment), so Print opens it.
       cell: (r) =>
         r.appointmentId && r.invoiceLabel ? (
-          <Link
-            href={`/clinic/invoices/${r.appointmentId}/print`}
-            className="inline-flex min-h-6 items-center gap-1 text-muted-foreground underline underline-offset-4 hover:text-foreground"
-          >
-            <Printer className="size-3.5" aria-hidden="true" /> Print
-          </Link>
+          <div className="flex items-center justify-end gap-3">
+            <Link
+              href={`/clinic/invoices/${r.appointmentId}/print`}
+              className="inline-flex min-h-6 items-center gap-1 text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            >
+              <Printer className="size-3.5" aria-hidden="true" /> Print
+            </Link>
+            <DownloadLink href={`/clinic/invoices/${r.appointmentId}/print`} className="min-h-6 gap-1 font-normal text-muted-foreground underline hover:text-foreground" />
+          </div>
         ) : (
           <span className="text-muted-foreground">—</span>
         ),

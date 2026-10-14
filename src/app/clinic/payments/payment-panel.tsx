@@ -23,6 +23,7 @@ import { cn } from "@/core/lib/utils";
 import { MessageCircle } from "lucide-react";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 import { labelFrom, useVocabulary } from "@/core/ui/vocabulary-provider";
+import { DownloadLink } from "@/core/ui/download-link";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -372,12 +373,19 @@ export function PaymentPanel({
             </Button>
           ) : null}
           {invoiceHref ? (
+            <span className="inline-flex items-center gap-2">
             <Link
               href={invoiceHref}
               className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
             >
               <Printer className="size-3.5" aria-hidden="true" /> Print invoice
             </Link>
+            <DownloadLink
+              href={invoiceHref}
+              label="Download invoice"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            />
+            </span>
           ) : null}
           {canSendWhatsapp && billTotal > 0 ? (
             <Button

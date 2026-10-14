@@ -24,6 +24,7 @@ import { NewAppointmentForm } from "@/app/clinic/appointments/new-appointment-fo
 import { doctorDayAvailability } from "@/app/clinic/appointments/actions";
 import { PaymentPanel } from "@/app/clinic/payments/payment-panel";
 import { DeleteInvoiceButton } from "@/app/clinic/invoices/delete-invoice-button";
+import { DownloadLink } from "@/core/ui/download-link";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const whenFmt = (d: Date) =>
@@ -112,9 +113,16 @@ export default async function InvoicePage({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {/* Always here: on a new invoice, and after every save. */}
+            <span className="inline-flex items-center gap-2">
             <Link href={`/clinic/invoices/${id}/print`} className={buttonVariants()}>
               <Printer aria-hidden="true" /> Print invoice
             </Link>
+            <DownloadLink
+              href={`/clinic/invoices/${id}/print`}
+              label="Download invoice"
+              className={buttonVariants({ variant: "outline" })}
+            />
+            </span>
             {canDelete ? (
               <DeleteInvoiceButton appointmentId={id} label={invoice.label} held={aBill.collected} />
             ) : null}

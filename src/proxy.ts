@@ -109,11 +109,27 @@ function scriptSrc(strict: boolean, nonce?: string, scriptHash?: string): string
 
 /**
  * The only responses our own pages may frame (see the end of `proxy`): a clinical file
- * in the viewer dialog, and the letterhead preview on the admin clinic page.
+ * in the viewer dialog, the letterhead preview on the admin clinic page, and the print
+ * pages below.
  */
+/**
+ * The print pages, which a "Download" link loads in a hidden frame to make their PDF
+ * (core/ui/download-link.tsx, 2026-10-15). Same-origin only, like the two above.
+ * Keep in step with PRINT_PAGES in next.config.ts — the browser obeys the stricter.
+ */
+const PRINT_PAGES = [
+  /^\/clinic\/patients\/[^/]+\/(statement|chart-print|estimate\/[^/]+)$/,
+  /^\/clinic\/appointments\/[^/]+\/invoice$/,
+  /^\/clinic\/invoices\/[^/]+\/print$/,
+  /^\/clinic\/shares\/statement$/,
+  /^\/clinic\/appointments\/print$/,
+  /^\/admin\/finance\/invoices\/[^/]+\/print$/,
+];
+
 const isFrameableByUs = (path: string) =>
   path.startsWith("/api/clinical/attachment/") ||
-  /^\/api\/admin\/clinics\/[^/]+\/letterhead-preview$/.test(path);
+  /^\/api\/admin\/clinics\/[^/]+\/letterhead-preview$/.test(path) ||
+  PRINT_PAGES.some((re) => re.test(path));
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

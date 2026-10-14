@@ -86,7 +86,7 @@ export default async function DayBookPage({
           >
             Export CSV
           </a>
-          <PrintButton label="Download PDF" />
+          <PrintButton />
         </div>
       </div>
 

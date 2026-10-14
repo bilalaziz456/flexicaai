@@ -53,6 +53,19 @@ function install() {
   });
 }
 
+/**
+ * The name this page would print under right now ("Invoice INV-… - 15 Oct 2026 02-10 AM"),
+ * so a direct PDF download is named exactly like Print → Save as PDF. Null when the
+ * page names nothing.
+ */
+export function currentPrintFileName(): string | null {
+  const top = registry().entries.reduce<Entry | null>(
+    (best, e) => (!best || e.priority >= best.priority ? e : best),
+    null,
+  );
+  return top ? clean(`${top.name} - ${stamp()}`) : null;
+}
+
 export function PrintFileName({ name, priority = 1 }: { name: string; priority?: number }) {
   useEffect(() => {
     install();

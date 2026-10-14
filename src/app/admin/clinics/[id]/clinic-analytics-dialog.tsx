@@ -1,6 +1,7 @@
 "use client";
 
 import { PrintFileName } from "@/core/ui/print-file-name";
+import { DownloadPdfButton } from "@/core/ui/download-pdf-button";
 import { useState, useTransition } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { BarChart3, Printer, X } from "lucide-react";
@@ -151,6 +152,13 @@ export function ClinicAnalyticsDialog({ clinicId }: { clinicId: string }) {
               <Button variant="outline" size="sm" onClick={() => window.print()} disabled={!data}>
                 <Printer className="size-4" /> Print
               </Button>
+              {/* The scorecard itself, not the scrolling box around it, so the PDF holds
+                  all of it rather than the slice in view. */}
+              {data ? (
+                <DownloadPdfButton
+                  target={() => document.querySelector<HTMLElement>("[data-analytics-scroll]")?.firstElementChild as HTMLElement | null}
+                />
+              ) : null}
               <Dialog.Close
                 render={
                   <Button variant="ghost" size="sm" aria-label="Close">

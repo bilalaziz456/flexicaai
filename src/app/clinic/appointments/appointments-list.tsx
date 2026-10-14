@@ -47,6 +47,7 @@ import {
 import { AppointmentActions } from "@/app/clinic/appointments/appointment-actions";
 import { APPOINTMENT_STATUS_VARIANT } from "@/core/appointments/status";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
+import { DownloadLink } from "@/core/ui/download-link";
 
 export type AppointmentsListSearchParams = {
   created?: string;
@@ -401,6 +402,7 @@ export async function AppointmentsList({
           />
         </div>
         {total > 0 ? (
+          <span className="inline-flex items-center gap-2">
           <a
             href={`${listPath}/print?${exportParams.toString()}`}
             target="_blank"
@@ -409,6 +411,12 @@ export async function AppointmentsList({
           >
             <Printer className="size-4" aria-hidden="true" /> Print (A4)
           </a>
+          <DownloadLink
+            href={`${listPath}/print?${exportParams.toString()}`}
+            label="Download (A4)"
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+          />
+          </span>
         ) : null}
       </div>
 
