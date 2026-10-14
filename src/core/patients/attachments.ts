@@ -60,7 +60,18 @@ export async function listAttachments(
 export async function getAttachmentForServe(
   clinicId: string,
   id: string,
-): Promise<{ storageKey: string; thumbKey: string | null; mime: string | null; isPhoto: boolean; photoConsent: boolean } | null> {
+): Promise<{
+  storageKey: string;
+  thumbKey: string | null;
+  mime: string | null;
+  isPhoto: boolean;
+  photoConsent: boolean;
+  /** For the saved file's name: patient - label - upload time. */
+  patientName: string;
+  caption: string | null;
+  kind: string;
+  createdAt: Date;
+} | null> {
   const [row] = await db
     .select({
       storageKey: clinicalAttachments.storageKey,
@@ -68,6 +79,10 @@ export async function getAttachmentForServe(
       mime: clinicalAttachments.mime,
       isPhoto: clinicalAttachments.isPhoto,
       photoConsent: patients.photoConsent,
+      patientName: patients.fullName,
+      caption: clinicalAttachments.caption,
+      kind: clinicalAttachments.kind,
+      createdAt: clinicalAttachments.createdAt,
     })
     .from(clinicalAttachments)
     .innerJoin(patients, eq(patients.id, clinicalAttachments.patientId))

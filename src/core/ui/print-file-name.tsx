@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { cleanFileName, fileStamp } from "@/core/lib/file-name";
 
 /**
  * Names the PDF a print is saved as: "Invoice INV-100005 - 11 Oct 2026 03-58 PM"
@@ -29,17 +30,9 @@ function registry(): Registry {
   return w.__printFileNames;
 }
 
-/** "11 Oct 2026 03-58 PM": readable, and no ":" — not allowed in a Windows file name. */
-function stamp(d = new Date()): string {
-  const date = d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-  const time = d
-    .toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })
-    .replace(":", "-");
-  return `${date} ${time}`;
-}
-
-/** Characters a file system will refuse or mangle. */
-const clean = (s: string) => s.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim();
+// One naming rule for prints and downloads alike (core/lib/file-name.ts).
+const stamp = fileStamp;
+const clean = cleanFileName;
 
 function install() {
   const reg = registry();

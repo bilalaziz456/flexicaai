@@ -1,4 +1,5 @@
 import "server-only";
+import { patientFileName } from "@/core/lib/file-name";
 
 import { eq } from "drizzle-orm";
 import { db } from "@/core/db";
@@ -115,8 +116,7 @@ export async function buildLetterheadPrescriptionPdf(
     items: rxLines(p.items),
     notes: p.notes,
   });
-  const safeName = row.patientName.replace(/[^\w\- ]+/g, "").trim() || "patient";
-  return { pdf, filename: `Prescription - ${safeName} - ${p.prescribedOn}.pdf` };
+  return { pdf, filename: `${patientFileName(row.patientName, "Prescription")}.pdf` };
 }
 
 /**

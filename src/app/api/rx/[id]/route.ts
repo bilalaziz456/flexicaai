@@ -1,5 +1,6 @@
 import { apiRequireWorkspace } from "@/core/auth/user";
 import { buildLetterheadPrescriptionPdf } from "@/core/clinics/letterhead";
+import { contentDisposition } from "@/core/lib/file-name";
 
 /**
  * GET /api/rx/[id] — a typed prescription as a PDF on the clinic's letterhead.
@@ -17,7 +18,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   return new Response(Buffer.from(out.pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `${disposition}; filename="${out.filename.replace(/"/g, "")}"`,
+      "Content-Disposition": contentDisposition(disposition, out.filename),
       "Cache-Control": "private, no-store",
     },
   });

@@ -1,4 +1,5 @@
 import "server-only";
+import { patientFileName } from "@/core/lib/file-name";
 
 import { and, eq } from "drizzle-orm";
 import { db } from "@/core/db";
@@ -83,9 +84,9 @@ export async function buildPrescriptionPdf(
     advice,
   });
 
-  const nameSlug = row.patientName.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
-  const phoneSlug = (row.patientPhone ?? "").replace(/[^0-9]/g, "");
-  const filename = `prescription-${nameSlug}${phoneSlug ? `-${phoneSlug}` : ""}.pdf`;
+  // The one patient-file naming rule (core/lib/file-name.ts). The phone number used to
+  // be in the name — personal data in a file that gets forwarded on WhatsApp.
+  const filename = `${patientFileName(row.patientName, "Prescription")}.pdf`;
 
   return { ok: true, pdf, filename, clinicId: row.clinicId };
 }

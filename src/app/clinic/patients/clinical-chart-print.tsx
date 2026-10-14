@@ -43,7 +43,7 @@ export async function ClinicalChartPrint({
       </div>
 
       <InvoicePrintFrame
-        fileName={clinicalRecord.chartName ?? "Clinical chart"}
+        fileName={`${patient.fullName} - ${clinicalRecord.chartName ?? "Clinical chart"}`}
         defaultFormat={clinic?.invoicePaper ?? "a4"}
         allowed={clinic?.invoicePapersEnabled}
       >

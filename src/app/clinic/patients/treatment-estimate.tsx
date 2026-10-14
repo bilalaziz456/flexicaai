@@ -46,7 +46,7 @@ export async function TreatmentEstimate({
       </div>
 
       <InvoicePrintFrame
-        fileName="Treatment estimate"
+        fileName={`${patient.fullName} - Treatment estimate`}
         defaultFormat={clinic?.invoicePaper ?? "a4"}
         allowed={clinic?.invoicePapersEnabled}
       >

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { apiRequireWorkspace } from "@/core/auth/user";
 import { buildPrescriptionPdf } from "@/core/patients/prescription-build";
+import { contentDisposition } from "@/core/lib/file-name";
 
 /**
  * GET /api/prescriptions/[visitId] — serves the visit's prescription PDF to
@@ -30,7 +31,7 @@ export async function GET(
   return new Response(Buffer.from(result.pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${result.filename}"`,
+      "Content-Disposition": contentDisposition("inline", result.filename),
       "Cache-Control": "private, no-store",
     },
   });

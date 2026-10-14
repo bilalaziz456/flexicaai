@@ -48,7 +48,7 @@ export default async function PatientStatementPage({
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <PrintFileName name="Statement" />
+      <PrintFileName name={`${patient.fullName} - Statement`} />
       <div className="no-print">
         <BackLink href={`/clinic/patients/${patient.id}`}>
           Back to patient

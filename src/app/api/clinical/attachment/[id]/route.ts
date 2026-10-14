@@ -1,6 +1,8 @@
 import { apiRequireWorkspace } from "@/core/auth/user";
 import { ATTACHMENT_MIME_EXT, getAttachmentForServe } from "@/core/patients/attachments";
 import { readFileByKey } from "@/core/integrations/storage";
+import { contentDisposition, patientFileName } from "@/core/lib/file-name";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 import { report } from "@/core/observability";
 
 /**
@@ -40,7 +42,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       headers: {
         // The thumbnail is always a JPEG, whatever the original was.
         "Content-Type": useThumb ? "image/jpeg" : renderable ? row.mime! : "application/octet-stream",
-        "Content-Disposition": renderable ? "inline" : "attachment",
+        // Named by the one patient-file rule, so "Save" gives "Ali - X-ray lower molars
+        // - 12 Oct 2026 10-05 AM.jpg" rather than a random id. The time is when the
+        // file was uploaded — that is when the X-ray or document is from.
+        "Content-Disposition": contentDisposition(
+          renderable ? "inline" : "attachment",
+          `${patientFileName(row.patientName, row.caption?.trim().replace(/\.(jpe?g|png|webp|pdf)$/i, "") || vocabularyLabel("attachment_kinds", row.kind), row.createdAt)}${
+            useThumb ? ".jpg" : row.mime && ATTACHMENT_MIME_EXT[row.mime] ? `.${ATTACHMENT_MIME_EXT[row.mime]}` : ""
+          }`,
+        ),
         "Cache-Control": "no-store",
       },
     });
