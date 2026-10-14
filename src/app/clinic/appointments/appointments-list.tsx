@@ -76,6 +76,12 @@ export type AppointmentsListSearchParams = {
 
 const YM = /^\d{4}-(0[1-9]|1[0-2])$/;
 /** Local midnight on the 1st of a "YYYY-MM", or null when absent/malformed. */
+/** "Composite filling, Room (per day) +2 more" — the first two names, then a count. */
+function shortProcedureList(names: string): string {
+  const parts = names.split(", ").filter(Boolean);
+  return parts.length <= 2 ? parts.join(", ") : `${parts.slice(0, 2).join(", ")} +${parts.length - 2} more`;
+}
+
 function parseMonth(value: string | undefined): Date | null {
   if (!value || !YM.test(value)) return null;
   const [y, m] = value.split("-").map(Number);
@@ -480,8 +486,16 @@ export async function AppointmentsList({
                       {/* What the visit is for, by name — the badge alone says only
                           "Procedure", which is the question the desk is asked. */}
                       {a.procedureNames ? (
-                        <span className="mt-1 block max-w-[16rem] text-xs text-muted-foreground">
-                          {a.procedureNames}
+                        // The table's cells never wrap (`whitespace-nowrap`), so a visit with
+                        // four procedures ran on in one line across the Status column and
+                        // widened the table into a horizontal scroll (owner's report). Now:
+                        // two names and "+N more", wrapped inside the column, the full list
+                        // on hover.
+                        <span
+                          className="mt-1 block max-w-[14rem] whitespace-normal text-xs leading-snug text-muted-foreground"
+                          title={a.procedureNames}
+                        >
+                          {shortProcedureList(a.procedureNames)}
                         </span>
                       ) : null}
                     </TableCell>
