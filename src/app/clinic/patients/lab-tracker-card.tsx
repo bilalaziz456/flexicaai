@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { SelectField } from "@/core/ui/select-field";
 import { EmptyState } from "@/core/ui/empty-state";
-import { Plus, Trash2, FlaskConical } from "lucide-react";
+import { Plus, Trash2, FlaskConical, Phone } from "lucide-react";
+import { PHONE_ERROR, PHONE_PATTERN, PHONE_PLACEHOLDER, sanitisePhoneInput, toE164 } from "@/core/lib/phone";
 import { Button } from "@/core/ui/button";
 import { DatePicker, DATE_FIELD_W } from "@/core/ui/date-picker";
 import { Input } from "@/core/ui/input";
@@ -18,6 +19,8 @@ import {
 export type LabCaseRow = {
   id: string;
   labName: string | null;
+  labContactName: string | null;
+  labContactPhone: string | null;
   item: string;
   tooth: string | null;
   shade: string | null;
@@ -49,6 +52,8 @@ export function LabTrackerCard({
 }) {
   const [item, setItem] = useState(itemTypes[0] ?? "crown");
   const [labName, setLabName] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [tooth, setTooth] = useState("");
   const [shade, setShade] = useState("");
   const [due, setDue] = useState("");
@@ -66,8 +71,20 @@ export function LabTrackerCard({
 
   const add = () =>
     run(async () => {
-      const r = await saveLabCaseAction(patientId, { item, labName: labName || null, tooth: tooth || null, shade: shade || null, dueAt: due || null, cost: cost ? Number(cost) : null });
-      if ("ok" in r) { setLabName(""); setTooth(""); setShade(""); setDue(""); setCost(""); }
+      // Checked here too so a mistyped number is caught before anything is sent;
+      // the server applies the same rule.
+      if (!toE164(contactPhone).valid) return { error: `Lab contact number: ${PHONE_ERROR}` };
+      const r = await saveLabCaseAction(patientId, {
+        item,
+        labName: labName || null,
+        labContactName: contactName || null,
+        labContactPhone: contactPhone || null,
+        tooth: tooth || null,
+        shade: shade || null,
+        dueAt: due || null,
+        cost: cost ? Number(cost) : null,
+      });
+      if ("ok" in r) { setLabName(""); setContactName(""); setContactPhone(""); setTooth(""); setShade(""); setDue(""); setCost(""); }
       return r;
     }, "Lab case added.");
 
@@ -86,13 +103,27 @@ export function LabTrackerCard({
             <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 p-2.5">
               <div className="min-w-0">
                 <span className="font-medium capitalize">{c.item}</span>
-                {c.tooth ? <span className="text-muted-foreground"> · {c.tooth}</span> : null}
+                {c.tooth ? (
+                  <span className="text-muted-foreground"> · {c.tooth.includes(",") ? "teeth" : "tooth"} {c.tooth}</span>
+                ) : null}
                 {c.shade ? <span className="text-muted-foreground"> · shade {c.shade}</span> : null}
                 <div className="text-xs text-muted-foreground">
                   {c.labName ? `${c.labName} · ` : ""}sent {c.createdAt}
                   {c.dueAt ? ` · due ${c.dueAt}` : ""}
                   {c.cost != null ? ` · ${money(c.cost)}` : ""}
                 </div>
+                {c.labContactName || c.labContactPhone ? (
+                  <div className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+                    <span>Lab contact:</span>
+                    {c.labContactName ? <span className="text-foreground">{c.labContactName}</span> : null}
+                    {c.labContactPhone ? (
+                      <a href={`tel:${c.labContactPhone}`} className="inline-flex items-center gap-1 text-primary hover:underline">
+                        <Phone className="size-3" aria-hidden="true" />
+                        {c.labContactPhone}
+                      </a>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               <div className="flex items-center gap-2">
                 {canEdit ? (
@@ -129,8 +160,24 @@ export function LabTrackerCard({
               className="h-8 w-full capitalize"
             />
           </Field>
-          <Field label="Lab"><Input value={labName} onChange={(e) => setLabName(e.target.value)} className="h-8 w-32" placeholder="Lab name" /></Field>
-          <Field label="Tooth"><Input value={tooth} onChange={(e) => setTooth(e.target.value)} className="h-8 w-16" /></Field>
+          <Field label="Lab"><Input value={labName} onChange={(e) => setLabName(e.target.value)} className="h-8 w-36" placeholder="Lab name" /></Field>
+          <Field label="Lab contact person"><Input value={contactName} onChange={(e) => setContactName(e.target.value)} className="h-8 w-40" placeholder="Who to call at the lab" maxLength={120} /></Field>
+          <Field label="Lab contact number">
+            <Input
+              type="tel"
+              inputMode="tel"
+              value={contactPhone}
+              onChange={(e) => setContactPhone(sanitisePhoneInput(e.target.value))}
+              pattern={PHONE_PATTERN}
+              title={PHONE_ERROR}
+              maxLength={16}
+              placeholder={PHONE_PLACEHOLDER}
+              className="h-8 w-36"
+            />
+          </Field>
+          <Field label="Tooth / teeth">
+            <Input value={tooth} onChange={(e) => setTooth(e.target.value)} className="h-8 w-32" placeholder="47, 48, 53" maxLength={150} />
+          </Field>
           <Field label="Shade"><Input value={shade} onChange={(e) => setShade(e.target.value)} className="h-8 w-16" placeholder="A2" /></Field>
           <Field label="Due"><div className={DATE_FIELD_W}><DatePicker ariaLabel="Due date" value={due} onChange={setDue} /></div></Field>
           <Field label="Cost (Rs)"><Input value={cost} onChange={(e) => setCost(e.target.value.replace(/[^\d]/g, ""))} className="h-8 w-24" /></Field>

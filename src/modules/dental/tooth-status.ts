@@ -265,3 +265,26 @@ export function autoDentition(teeth: ChartTeeth): DentitionView {
   if (prim) return "primary";
   return "permanent";
 }
+
+/** At most this many teeth on one lab case — a full arch of crowns and a little over. */
+export const MAX_LAB_TEETH = 32;
+
+/**
+ * A typed list of teeth — "47, 48, 53", "47 48 53" or "47/48" — checked and tidied
+ * (owner's call, 2026-10-15: a bridge or a set of crowns is ONE lab case covering
+ * several teeth). Each must be a real FDI number; duplicates are dropped and the order
+ * typed is kept. Empty input is fine (the tooth is optional). Pure, so the form says
+ * what is wrong before sending and the server applies the identical rule.
+ */
+export function parseToothList(raw: string | null | undefined): { teeth: string[] } | { error: string } {
+  const parts = (raw ?? "").split(/[\s,;/]+/).map((p) => p.trim()).filter(Boolean);
+  const bad = parts.filter((p) => !isToothNumber(p));
+  if (bad.length) {
+    return {
+      error: `${bad.join(", ")} ${bad.length === 1 ? "isn't a tooth number" : "aren't tooth numbers"}. Use FDI numbers like 47, 48, 53.`,
+    };
+  }
+  const teeth = [...new Set(parts)];
+  if (teeth.length > MAX_LAB_TEETH) return { error: `At most ${MAX_LAB_TEETH} teeth on one lab case.` };
+  return { teeth };
+}

@@ -172,6 +172,9 @@ export interface ModulePerio {
 export interface LabCaseData {
   id: string;
   labName: string | null;
+  /** The lab's point of contact for this case, and their number (E.164). */
+  labContactName: string | null;
+  labContactPhone: string | null;
   item: string;
   tooth: string | null;
   shade: string | null;
@@ -187,6 +190,19 @@ export interface LabCaseData {
  * renders a generic tracker from `statuses`/`itemTypes` + the cases; a status
  * change can fire the module's own "ready" notification.
  */
+/** What the desk enters for a new lab case. `tooth` is free text the module checks. */
+export interface LabCaseInput {
+  labName?: string | null;
+  labContactName?: string | null;
+  labContactPhone?: string | null;
+  item: string;
+  tooth?: string | null;
+  shade?: string | null;
+  dueAt?: string | null;
+  cost?: number | null;
+  note?: string | null;
+}
+
 export interface ModuleLab {
   statuses: string[];
   itemTypes: string[];
@@ -194,9 +210,9 @@ export interface ModuleLab {
   saveCase: (
     clinicId: string,
     patientId: string,
-    input: { labName?: string | null; item: string; tooth?: string | null; shade?: string | null; dueAt?: string | null; cost?: number | null; note?: string | null },
+    input: LabCaseInput,
     actor: { id: string; name: string },
-  ) => Promise<void>;
+  ) => Promise<void | { error: string }>;
   updateStatus: (clinicId: string, caseId: string, status: string) => Promise<void>;
   deleteCase: (clinicId: string, caseId: string, actorId: string) => Promise<void>;
 }

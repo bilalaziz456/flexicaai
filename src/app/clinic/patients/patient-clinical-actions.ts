@@ -7,7 +7,7 @@ import { requireRole } from "@/core/auth/user";
 import { can, type PermAction } from "@/core/auth/permissions";
 import { displayStaffName } from "@/core/types/auth";
 import type { CurrentUser } from "@/core/types/auth";
-import type { ChartItemHistoryEntry, ModuleLab } from "@/core/types/module";
+import type { ChartItemHistoryEntry, LabCaseInput, ModuleLab } from "@/core/types/module";
 import { clinicalRecordFor } from "@/config/modules";
 import { saveMedicalHistory } from "@/core/patients/medical-history";
 import { asMedicalHistory } from "@/core/lib/medical-history";
@@ -333,15 +333,16 @@ function labDone(patientId: string): State {
 
 export async function saveLabCaseAction(
   patientId: string,
-  input: { labName?: string | null; item: string; tooth?: string | null; shade?: string | null; dueAt?: string | null; cost?: number | null; note?: string | null },
+  input: LabCaseInput,
 ): Promise<State> {
   const g = await labGuard("create");
   if ("error" in g) return g;
   if (!input.item?.trim()) return { error: "Choose an item type." };
-  await g.lab.saveCase(g.clinicId, patientId, input, {
+  const saved = await g.lab.saveCase(g.clinicId, patientId, input, {
     id: g.user.id,
     name: displayStaffName(g.user.prefix, g.user.fullName, g.user.username),
   });
+  if (saved && "error" in saved) return saved;
   await logActivity({ action: "create", entity: "patient", entityId: patientId, summary: `Sent a lab case (${input.item})` });
   return labDone(patientId);
 }

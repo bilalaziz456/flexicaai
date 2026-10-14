@@ -11,7 +11,7 @@ export default async function PatientDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ payPage?: string; paySize?: string }>;
+  searchParams: Promise<{ payPage?: string; paySize?: string; apptPage?: string; apptSize?: string }>;
 }) {
   const user = await requireWorkspace("patients");
   const { id } = await params;
@@ -58,6 +58,7 @@ export default async function PatientDetailPage({
       showFinancials={showFinancials}
       canRecordPayment={showFinancials && can(user, "billing", "create")}
       paymentsPaging={{ page: sp.payPage, size: sp.paySize }}
+      appointmentsPaging={{ page: sp.apptPage, size: sp.apptSize }}
     />
   );
 }

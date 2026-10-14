@@ -265,10 +265,17 @@ export const labCases = pgTable(
     visitId: uuid("visit_id").references(() => visits.id, { onDelete: "set null" }),
     planItemId: uuid("plan_item_id").references(() => treatmentPlanItems.id, { onDelete: "set null" }),
     labName: text("lab_name"),
+    /** The lab's point of contact for THIS case — who to call about it, and on what
+     *  number (E.164). Per case, not per lab: labs rotate technicians, and the person
+     *  who took this crown is the one who knows where it is. */
+    labContactName: text("lab_contact_name"),
+    labContactPhone: text("lab_contact_phone"),
     item: vocabularyRef<LabItemCode>(LAB_ITEM_ROWS, "item")
       .notNull()
       .references(() => dentalLabItems.id),
-    tooth: text("tooth"), // FDI, nullable
+    // FDI, nullable. One tooth or a comma-separated list ("47, 48, 53") — a bridge
+    // or a set of crowns is one case. Checked by `parseToothList` on the way in.
+    tooth: text("tooth"),
     shade: text("shade"),
     status: vocabularyRef<LabStatusCode>(LAB_STATUS_ROWS, "status")
       .notNull()

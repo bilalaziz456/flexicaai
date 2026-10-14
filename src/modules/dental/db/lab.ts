@@ -6,7 +6,9 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 import { patients } from "@/core/db/schema";
 import { labCases } from "@/modules/dental/db/schema";
-import type { LabCaseData, ModuleLab } from "@/core/types/module";
+import type { LabCaseData, LabCaseInput, ModuleLab } from "@/core/types/module";
+import { PHONE_ERROR, toE164 } from "@/core/lib/phone";
+import { parseToothList } from "@/modules/dental/tooth-status";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import {
@@ -30,6 +32,8 @@ function toData(row: typeof labCases.$inferSelect): LabCaseData {
   return {
     id: row.id,
     labName: row.labName,
+    labContactName: row.labContactName,
+    labContactPhone: row.labContactPhone,
     item: row.item,
     tooth: row.tooth,
     shade: row.shade,
@@ -55,19 +59,26 @@ async function listLabCases(clinicId: string, patientId: string): Promise<LabCas
 async function saveLabCase(
   clinicId: string,
   patientId: string,
-  input: { labName?: string | null; item: string; tooth?: string | null; shade?: string | null; dueAt?: string | null; cost?: number | null; note?: string | null },
-): Promise<void> {
+  input: LabCaseInput,
+): Promise<void | { error: string }> {
   // Narrowed at the module's own boundary: the core `ModuleLab` contract types this
   // as `string` (core cannot know a dental code exists), so an unrecognised value is
   // refused here rather than stored.
   const itemCode = asCode<LabItemCode>(LAB_ITEM_ROWS, input.item);
-  if (!itemCode) return;
+  if (!itemCode) return { error: "Choose an item type." };
+  const teeth = parseToothList(input.tooth);
+  if ("error" in teeth) return teeth;
+  // Same phone rule as everywhere else (conventions: Phone numbers), stored E.164.
+  const contactPhone = toE164(input.labContactPhone ?? "");
+  if (!contactPhone.valid) return { error: `Lab contact number: ${PHONE_ERROR}` };
   await db.insert(labCases).values({
     clinicId,
     patientId,
-    labName: input.labName?.slice(0, 120) || null,
+    labName: input.labName?.trim().slice(0, 120) || null,
+    labContactName: input.labContactName?.trim().slice(0, 120) || null,
+    labContactPhone: contactPhone.phone,
     item: itemCode,
-    tooth: input.tooth?.slice(0, 4) || null,
+    tooth: teeth.teeth.length ? teeth.teeth.join(", ") : null,
     shade: input.shade?.slice(0, 20) || null,
     status: "sent",
     sentAt: new Date(),

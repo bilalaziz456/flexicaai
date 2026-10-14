@@ -1364,6 +1364,12 @@ these for churn-risk + usage/cost anomaly flags.
   the template (`core/lib/letterhead-pdf.ts`, `core/clinics/letterhead.ts`); and
   `rx_print_doctor_name`, the clinic admin's default for a new prescription's "Print the
   doctor's name". `scripts/test-prescriptions.ts`.
+- Migration **`0129`** adds the lab's point of contact to `lab_cases` (dental module):
+  `lab_contact_name` and `lab_contact_phone` (E.164, the app-wide phone rule), both
+  optional and per CASE rather than per lab — labs rotate technicians, and the person
+  who took this crown is the one to call. `lab_cases.tooth` stays text but may now hold
+  a LIST ("47, 48, 53" — a bridge or a set of crowns is one case), checked and tidied
+  by `modules/dental/tooth-status.ts#parseToothList`. `scripts/test-lab-cases.ts`.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

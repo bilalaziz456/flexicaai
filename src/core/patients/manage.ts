@@ -1,7 +1,7 @@
 import "server-only";
 
 import { allocateMrns } from "@/core/patients/mrn";
-import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/core/db";
 import {
@@ -176,27 +176,42 @@ export async function getPatient(clinicId: string, patientId: string) {
 }
 
 /** A patient's recent appointments, newest first, with the doctor resolved. */
-export async function listPatientAppointments(clinicId: string, patientId: string, limit = 20) {
-  return db
-    .select({
-      id: appointments.id,
-      scheduledAt: appointments.scheduledAt,
-      status: appointments.status,
-      doctorName: users.fullName,
-      doctorUsername: users.username,
-    })
-    .from(appointments)
-    .leftJoin(users, eq(appointments.doctorId, users.id))
-    .where(
-      byClinic(
-        appointments.clinicId,
-        clinicId,
-        notDeleted(appointments.deletedAt),
-        eq(appointments.patientId, patientId),
-      ),
-    )
-    .orderBy(desc(appointments.scheduledAt))
-    .limit(limit);
+/**
+ * One page of a patient's appointments, newest first, with the TRUE total. The
+ * profile used to load the latest 20 and count those, so a patient with 30 visits
+ * read "20 appointments" and the oldest ten were simply not there (owner's ask for
+ * paging, 2026-10-15). The total is counted over the same predicate, not the page.
+ */
+export async function getPatientAppointmentsPage(
+  clinicId: string,
+  patientId: string,
+  page: { offset: number; limit: number },
+) {
+  const where = byClinic(
+    appointments.clinicId,
+    clinicId,
+    notDeleted(appointments.deletedAt),
+    eq(appointments.patientId, patientId),
+  );
+  const [rows, [count]] = await Promise.all([
+    db
+      .select({
+        id: appointments.id,
+        scheduledAt: appointments.scheduledAt,
+        status: appointments.status,
+        doctorName: users.fullName,
+        doctorUsername: users.username,
+      })
+      .from(appointments)
+      .leftJoin(users, eq(appointments.doctorId, users.id))
+      .where(where)
+      // id breaks ties so two visits at the same minute never swap between pages.
+      .orderBy(desc(appointments.scheduledAt), desc(appointments.id))
+      .limit(page.limit)
+      .offset(page.offset),
+    db.select({ n: sql<number>`count(*)::int` }).from(appointments).where(where),
+  ]);
+  return { rows, total: Number(count?.n ?? 0) };
 }
 
 /**

@@ -1,6 +1,6 @@
 import {
   getPatient,
-  listPatientAppointments,
+  getPatientAppointmentsPage,
   listPatientPrescriptionVisits,
   listPatientVisits,
 } from "@/core/patients/manage";
@@ -59,6 +59,7 @@ import { vocabularyLabel } from "@/core/db/vocabulary-cache";
  */
 /** Rows-per-page for the profile's Recent payments; the first is the default. */
 const PAYMENT_PAGE_SIZES = [10, 20, 50, 100] as const;
+const APPOINTMENT_PAGE_SIZES = [10, 20, 50, 100] as const;
 
 export async function PatientDetail({
   clinicId,
@@ -91,6 +92,7 @@ export async function PatientDetail({
   showFinancials = false,
   canRecordPayment = false,
   paymentsPaging,
+  appointmentsPaging,
 }: {
   clinicId: string;
   patientId: string;
@@ -141,11 +143,28 @@ export async function PatientDetail({
   canRecordPayment?: boolean;
   /** `?payPage` / `?paySize` for the Recent payments list (10 / 20 / 50 / 100). */
   paymentsPaging?: { page?: string; size?: string };
+  /** `?apptPage` / `?apptSize` for the Appointments list (10 / 20 / 50 / 100). */
+  appointmentsPaging?: { page?: string; size?: string };
 }) {
   const patient = await getPatient(clinicId, patientId);
   if (!patient) notFound();
 
-  const appts = await listPatientAppointments(clinicId, patientId);
+  const apptPage = parsePage(appointmentsPaging?.page);
+  const apptSize = (APPOINTMENT_PAGE_SIZES as readonly number[]).includes(Number(appointmentsPaging?.size))
+    ? Number(appointmentsPaging?.size)
+    : APPOINTMENT_PAGE_SIZES[0];
+  const { rows: appts, total: apptTotal } = await getPatientAppointmentsPage(clinicId, patientId, {
+    offset: (apptPage - 1) * apptSize,
+    limit: apptSize,
+  });
+  // Each list pages on its own keys; every pager carries ALL of them, so paging one
+  // never sends the other back to its first page.
+  const pagingParams = {
+    payPage: paymentsPaging?.page,
+    paySize: paymentsPaging?.size,
+    apptPage: appointmentsPaging?.page,
+    apptSize: appointmentsPaging?.size,
+  };
 
   // Clinical history — the visit record timeline. Phase 0 reads the existing
   // `visits` (transcript + module-shaped note); later phases add the structured
@@ -274,7 +293,8 @@ export async function PatientDetail({
     labItemTypes = labBundle.itemTypes;
     const d = (x: Date | null) => (x ? x.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : null);
     labCaseRows = (await labBundle.loadCases(clinicId, patientId)).map((c) => ({
-      id: c.id, labName: c.labName, item: c.item, tooth: c.tooth, shade: c.shade,
+      id: c.id, labName: c.labName, labContactName: c.labContactName, labContactPhone: c.labContactPhone,
+      item: c.item, tooth: c.tooth, shade: c.shade,
       status: c.status, dueAt: d(c.dueAt), cost: c.cost, createdAt: d(c.createdAt) ?? "",
     }));
   }
@@ -516,7 +536,7 @@ export async function PatientDetail({
                   pageSize={paySize}
                   total={payments.total}
                   basePath={`/clinic/patients/${patientId}`}
-                  searchParams={{ payPage: paymentsPaging?.page, paySize: paymentsPaging?.size }}
+                  searchParams={pagingParams}
                   unit="payment"
                   pageParam="payPage"
                   sizeParam="paySize"
@@ -915,7 +935,7 @@ export async function PatientDetail({
         <CardHeader>
           <CardTitle>Appointments</CardTitle>
           <CardDescription>
-            {appts.length} appointment{appts.length === 1 ? "" : "s"}.
+            {apptTotal} appointment{apptTotal === 1 ? "" : "s"}.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -947,6 +967,19 @@ export async function PatientDetail({
               ))}
             </ul>
           )}
+          {apptTotal > 0 ? (
+            <Pagination
+              page={apptPage}
+              pageSize={apptSize}
+              total={apptTotal}
+              basePath={`/clinic/patients/${patientId}`}
+              searchParams={pagingParams}
+              unit="appointment"
+              pageParam="apptPage"
+              sizeParam="apptSize"
+              sizeOptions={APPOINTMENT_PAGE_SIZES}
+            />
+          ) : null}
         </CardContent>
       </Card>
 
