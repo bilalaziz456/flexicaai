@@ -139,7 +139,7 @@ export default async function ClinicDetailPage({
         <SectionRail sections={railSections} />
         <div className="min-w-0 space-y-6">
 
-      <Card id="subscription" className="scroll-mt-24">
+      <Card id="subscription" className="scroll-mt-32">
         <CardHeader>
           <CardTitle>Subscription & access</CardTitle>
           <CardDescription>
@@ -160,7 +160,7 @@ export default async function ClinicDetailPage({
         </CardContent>
       </Card>
 
-      <Card id="logo" className="scroll-mt-24">
+      <Card id="logo" className="scroll-mt-32">
         <CardHeader>
           <CardTitle>Logo</CardTitle>
           <CardDescription>
@@ -172,7 +172,7 @@ export default async function ClinicDetailPage({
         </CardContent>
       </Card>
 
-      <Card id="letterhead" className="scroll-mt-24">
+      <Card id="letterhead" className="scroll-mt-32">
         <CardHeader>
           <CardTitle>Letterhead</CardTitle>
           <CardDescription>
@@ -194,7 +194,7 @@ export default async function ClinicDetailPage({
         </CardContent>
       </Card>
 
-      <Card id="plan" className="scroll-mt-24">
+      <Card id="plan" className="scroll-mt-32">
         <CardHeader>
           <CardTitle>Plan &amp; features</CardTitle>
           <CardDescription>
@@ -221,7 +221,7 @@ export default async function ClinicDetailPage({
       </Card>
 
       {billing ? (
-        <Card id="billing" className="scroll-mt-24">
+        <Card id="billing" className="scroll-mt-32">
           <CardHeader>
             <CardTitle>Billing</CardTitle>
             <CardDescription>
@@ -269,7 +269,7 @@ export default async function ClinicDetailPage({
         </Card>
       ) : null}
 
-      <Card id="manager" className="scroll-mt-24">
+      <Card id="manager" className="scroll-mt-32">
         <CardHeader>
           <CardTitle>Account manager</CardTitle>
           <CardDescription>
@@ -290,7 +290,7 @@ export default async function ClinicDetailPage({
         </CardContent>
       </Card>
 
-      <Card id="contact" className="scroll-mt-24">
+      <Card id="contact" className="scroll-mt-32">
         <CardHeader>
           <CardTitle>Owner &amp; contact</CardTitle>
           <CardDescription>
@@ -318,7 +318,7 @@ export default async function ClinicDetailPage({
         </CardContent>
       </Card>
 
-      <Card id="public" className="scroll-mt-24">
+      <Card id="public" className="scroll-mt-32">
         <CardHeader>
           <CardTitle>Patient-facing details</CardTitle>
           <CardDescription>
@@ -347,7 +347,7 @@ export default async function ClinicDetailPage({
           </p>
         </div>
 
-        <Card id="capabilities" className="scroll-mt-24">
+        <Card id="capabilities" className="scroll-mt-32">
           <CardHeader>
             <CardTitle>Capabilities</CardTitle>
             <CardDescription>
@@ -365,7 +365,7 @@ export default async function ClinicDetailPage({
           </CardContent>
         </Card>
 
-        <Card id="log-access" className="scroll-mt-24">
+        <Card id="log-access" className="scroll-mt-32">
           <CardHeader>
             <CardTitle>Activity-log access</CardTitle>
             <CardDescription>
@@ -378,7 +378,7 @@ export default async function ClinicDetailPage({
         </Card>
       </div>
 
-      <Card id="staff" className="scroll-mt-24">
+      <Card id="staff" className="scroll-mt-32">
         <CardHeader>
           <CardTitle>Staff</CardTitle>
           <CardDescription>
@@ -464,7 +464,7 @@ export default async function ClinicDetailPage({
         </CardContent>
       </Card>
 
-      <Card id="danger" className="scroll-mt-24 border-destructive/40">
+      <Card id="danger" className="scroll-mt-32 border-destructive/40">
         <CardHeader>
           <CardTitle className="text-destructive">Danger zone</CardTitle>
           <CardDescription>

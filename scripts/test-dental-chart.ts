@@ -54,8 +54,10 @@ check(
   "diff reports status changes, sorted by tooth",
   diffTeeth({ "16": t("filled") }, { "16": t("root_canal"), "21": t("caries") }),
   [
-    { tooth: "16", from: "filled", to: "root_canal", endoFrom: false, endoTo: true },
-    { tooth: "21", from: null, to: "caries", endoFrom: false, endoTo: false },
+    // Read in the current shape (2026-10-15): a legacy root_canal status is sound +
+    // root treated, a caries status is sound + the caries condition.
+    { tooth: "16", from: "filled", to: "sound", endoFrom: false, endoTo: true, labelFrom: "Filled", labelTo: "Root canal", conditionsChanged: false },
+    { tooth: "21", from: null, to: "sound", endoFrom: false, endoTo: false, labelFrom: "Sound", labelTo: "Caries", conditionsChanged: true },
   ],
 );
 
@@ -67,7 +69,7 @@ check("diff of identical charts = no changes", diffTeeth({ "16": t("filled") }, 
 check(
   "diff catches a root canal that changes no status",
   diffTeeth({ "16": t("crown") }, { "16": { status: "crown", endo: true } }),
-  [{ tooth: "16", from: "crown", to: "crown", endoFrom: false, endoTo: true }],
+  [{ tooth: "16", from: "crown", to: "crown", endoFrom: false, endoTo: true, labelFrom: "Crown", labelTo: "Crown + root canal", conditionsChanged: false }],
 );
 
 check(

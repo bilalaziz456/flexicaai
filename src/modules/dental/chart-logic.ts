@@ -11,7 +11,7 @@
  * after an edit/void is just re-running this over the live records.
  */
 import type { ChartTeeth, ChartTooth, ToothStatus } from "@/modules/dental/db/schema";
-import { isRootTreated } from "@/modules/dental/tooth-status";
+import { isRootTreated, normalizeTooth, toothConditions, toothLabel } from "@/modules/dental/tooth-status";
 
 /** A record as far as the fold cares — its snapshot + ordering key. */
 export type ChartFrame = {
@@ -81,7 +81,8 @@ export function toothHistory(frames: ChartFrame[], tooth: string): ToothHistoryE
 function sameTooth(a: ChartTooth | null, b: ChartTooth | null): boolean {
   if (!a || !b) return a === b;
   return (
-    a.status === b.status &&
+    normalizeTooth(a).status === normalizeTooth(b).status &&
+    toothConditions(a).join() === toothConditions(b).join() &&
     isRootTreated(a) === isRootTreated(b) &&
     (a.note ?? "") === (b.note ?? "") &&
     [...(a.surfaces ?? [])].sort().join("") === [...(b.surfaces ?? [])].sort().join("")
@@ -104,7 +105,7 @@ export function orderFrames<T extends ChartFrame>(frames: T[]): T[] {
  * what an amendment writes when it reverts the very first entry a tooth ever had.
  */
 export function isBlankTooth(t: ChartTooth | null | undefined): boolean {
-  return !t || (t.status === "sound" && !t.surfaces?.length && !t.note && !t.endo);
+  return !t || (t.status === "sound" && !t.surfaces?.length && !t.note && !t.endo && !t.conditions?.length);
 }
 
 /** Fold ordered record snapshots into the current living chart. */
@@ -127,6 +128,11 @@ export type ToothChange = {
   /** Root-treated before/after. Tracked separately because it is its own axis. */
   endoFrom: boolean;
   endoTo: boolean;
+  /** The whole tooth in words before/after ("Crown + caries"), for the timeline line. */
+  labelFrom: string;
+  labelTo: string;
+  /** Did the conditions change (they can move with no status change at all)? */
+  conditionsChanged: boolean;
 };
 
 /**
@@ -143,11 +149,23 @@ export function diffTeeth(before: ChartTeeth, after: ChartTeeth): ToothChange[] 
   const teeth = new Set([...Object.keys(before), ...Object.keys(after)]);
   const changes: ToothChange[] = [];
   for (const t of teeth) {
-    const b = before[t]?.status ?? null;
-    const a = after[t]?.status ?? null;
+    const b = before[t] ? normalizeTooth(before[t]).status : null;
+    const a = after[t] ? normalizeTooth(after[t]).status : null;
     const eb = isRootTreated(before[t]);
     const ea = isRootTreated(after[t]);
-    if (b !== a || eb !== ea) changes.push({ tooth: t, from: b, to: a, endoFrom: eb, endoTo: ea });
+    const conditionsChanged = toothConditions(before[t]).join() !== toothConditions(after[t]).join();
+    if (b !== a || eb !== ea || conditionsChanged) {
+      changes.push({
+        tooth: t,
+        from: b,
+        to: a,
+        endoFrom: eb,
+        endoTo: ea,
+        labelFrom: toothLabel(before[t]),
+        labelTo: toothLabel(after[t]),
+        conditionsChanged,
+      });
+    }
   }
   return changes.sort((x, y) => x.tooth.localeCompare(y.tooth));
 }

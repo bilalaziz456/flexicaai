@@ -322,7 +322,7 @@ export async function PatientDetail({
       ? [{ id: "medical-history", label: "Medical history", group: "Overview" }]
       : []),
     ...(canViewClinical
-      ? [{ id: "clinical-history", label: "Visits", group: "Clinical" }]
+      ? [{ id: "clinical-history", label: "Clinical history", group: "Clinical" }]
       : []),
     ...(canViewPrescriptions
       ? [{ id: "prescriptions", label: "Prescriptions", group: "Clinical" }]
@@ -407,7 +407,7 @@ export async function PatientDetail({
         <SectionRail sections={railSections} />
         <div className="min-w-0 space-y-6">
       {account ? (
-        <Card id="account" className="scroll-mt-24">
+        <Card id="account" className="scroll-mt-32">
           <CardHeader>
             <CardTitle>Account</CardTitle>
             <CardDescription>
@@ -528,7 +528,7 @@ export async function PatientDetail({
         </Card>
       ) : null}
 
-      <Card id="details" className="scroll-mt-24">
+      <Card id="details" className="scroll-mt-32">
         <CardHeader>
           <CardTitle>Details</CardTitle>
           <CardDescription>
@@ -582,7 +582,7 @@ export async function PatientDetail({
       </Card>
 
       {canViewClinical && medHistory ? (
-        <Card id="medical-history" className="scroll-mt-24">
+        <Card id="medical-history" className="scroll-mt-32">
           <CardHeader>
             <CardTitle>Medical history</CardTitle>
             <CardDescription>
@@ -610,7 +610,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewClinical ? (
-        <Card id="clinical-history" className="scroll-mt-24">
+        <Card id="clinical-history" className="scroll-mt-32">
           <CardHeader>
             <CardTitle>Clinical history</CardTitle>
             <CardDescription>
@@ -749,7 +749,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewPrescriptions ? (
-        <Card id="prescriptions" className="scroll-mt-24">
+        <Card id="prescriptions" className="scroll-mt-32">
           <CardHeader>
             <CardTitle>Prescriptions</CardTitle>
             <CardDescription>
@@ -803,7 +803,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewClinical && clinicalRecord ? (
-        <Card id="odontogram" className="scroll-mt-24">
+        <Card id="odontogram" className="scroll-mt-32">
           <CardHeader>
             <CardTitle>Odontogram</CardTitle>
             <CardDescription>The patient&apos;s current tooth chart.</CardDescription>
@@ -827,7 +827,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewClinical && clinicalRecord?.perio ? (
-        <Card id="perio" className="scroll-mt-24">
+        <Card id="perio" className="scroll-mt-32">
           <CardHeader>
             <CardTitle>Periodontal chart</CardTitle>
             <CardDescription>
@@ -851,7 +851,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewAttachments ? (
-        <Card id="imaging" className="scroll-mt-24">
+        <Card id="imaging" className="scroll-mt-32">
           <CardHeader>
             <CardTitle>Imaging &amp; documents</CardTitle>
             <CardDescription>X-rays, clinical photos, documents and consent forms.</CardDescription>
@@ -869,7 +869,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewPlans ? (
-        <Card id="treatment-plans" className="scroll-mt-24">
+        <Card id="treatment-plans" className="scroll-mt-32">
           <CardHeader>
             <CardTitle>Treatment plans</CardTitle>
             <CardDescription>
@@ -892,7 +892,7 @@ export async function PatientDetail({
       ) : null}
 
       {canViewLab && labBundle ? (
-        <Card id="lab-cases" className="scroll-mt-24">
+        <Card id="lab-cases" className="scroll-mt-32">
           <CardHeader>
             <CardTitle>Lab cases</CardTitle>
             <CardDescription>Crowns, dentures &amp; appliances. Status → &ldquo;ready&rdquo; WhatsApp.</CardDescription>
@@ -911,7 +911,7 @@ export async function PatientDetail({
         </Card>
       ) : null}
 
-      <Card id="appointments" className="scroll-mt-24">
+      <Card id="appointments" className="scroll-mt-32">
         <CardHeader>
           <CardTitle>Appointments</CardTitle>
           <CardDescription>
@@ -951,7 +951,7 @@ export async function PatientDetail({
       </Card>
 
       {canDelete ? (
-        <Card id="danger" className="border-destructive/40 scroll-mt-24">
+        <Card id="danger" className="border-destructive/40 scroll-mt-32">
           <CardHeader>
             <CardTitle className="text-destructive">Danger zone</CardTitle>
             <CardDescription>

@@ -1046,6 +1046,14 @@ these for churn-risk + usage/cost anomaly flags.
   vocabulary lives in jsonb, which cannot carry a foreign key, so `tooth-status.ts`
   stays the source and a compile-time exhaustiveness check keeps it in step with the
   `ToothStatus` union.
+  **Since 2026-10-15 a tooth is ONE status plus SEVERAL conditions** — `ChartTooth`
+  gained `conditions` (caries / fractured / to_extract / watch) beside `endo`, so a
+  crown can also carry caries and be root treated. Those four codes used to be
+  statuses; charts written before still hold them there and `tooth-status.ts#normalizeTooth`
+  reads them as sound + that condition (and `root_canal` as sound + root treated)
+  rather than rewriting anyone's clinical data. The rules (`toothRuleError`: nothing on
+  an absent tooth; no root treatment or caries on an implant) are applied by the
+  editor, the three tooth write paths and `dentalChartSchema`.
 - Migration **`0095`** adds `clinics.cancel_cutoff_hours` (int, default 4) — how many
   hours before an appointment a PATIENT may still cancel it themselves over WhatsApp
   (`whatsapp_cancel` feature). Later than that the request goes to the front desk:

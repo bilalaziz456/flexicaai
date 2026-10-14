@@ -79,6 +79,11 @@ export interface PatientChartProps {
   onSelectItem?: (itemKey: string) => void;
   /** The item whose history is open, so the chart can highlight it. */
   selectedItem?: string | null;
+  /**
+   * Several items picked at once ("record the same treatment on 48, 31 and 45"), all
+   * highlighted. Used instead of `selectedItem` while several are being selected.
+   */
+  selectedItems?: readonly string[];
 }
 
 /**

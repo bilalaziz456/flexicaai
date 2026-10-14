@@ -58,9 +58,23 @@ export type ToothStatus =
   | "unerupted"
   | "watch";
 
+/**
+ * Things a tooth can have ON TOP of what it is — several at once (owner's call,
+ * 2026-10-15): a crowned tooth with caries at its margin that is being watched.
+ * Before this they were statuses, so recording one erased the restoration.
+ */
+export type ToothCondition = "caries" | "fractured" | "to_extract" | "watch";
+
 /** One tooth's current state in the living chart. */
 export type ChartTooth = {
+  /**
+   * What the tooth IS (sound, filled, crown, implant, missing…). Charts written before
+   * conditions existed may hold a condition or `root_canal` here; `normalizeTooth`
+   * reads those as sound + that condition / root treated, so nothing is rewritten.
+   */
   status: ToothStatus;
+  /** Conditions on the tooth, any number of them. Absent = none. */
+  conditions?: ToothCondition[];
   surfaces?: string[];
   /**
    * Root-treated. Deliberately NOT a `status`, because endodontic and restorative

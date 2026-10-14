@@ -50,6 +50,9 @@ export function SectionRail({
      */
     const measure = () => {
       frame = 0;
+      // Must stay larger than the sections' `scroll-mt-32` (128px — the tab bar plus
+      // the top bar, ~107px, with a little air), or a clicked section would land just
+      // short of the line and the rail would highlight the one above it.
       const threshold = 140;
       let current: string | null = ids[0] ?? null;
       for (const id of ids) {

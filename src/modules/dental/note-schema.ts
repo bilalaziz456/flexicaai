@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { TOOTH_STATUSES } from "@/modules/dental/tooth-status";
-import type { ToothStatus } from "@/modules/dental/db/schema";
+import { TOOTH_STATUSES, toothRuleError } from "@/modules/dental/tooth-status";
+import type { ChartTooth, ToothStatus } from "@/modules/dental/db/schema";
 
 /**
  * Dental note + chart shapes — MODULE-owned, and deliberately the counterpart to
@@ -68,12 +68,19 @@ export const dentalNoteSchema = z
 const chartToothSchema = z
   .object({
     status: z.enum(STATUS_VALUES),
+    conditions: z.array(z.enum(["caries", "fractured", "to_extract", "watch"])).max(4).optional(),
     surfaces: z.array(z.string().max(8)).max(8).optional(),
     endo: z.boolean().optional(),
     note: z.string().max(2000).nullish(),
     updatedVisitId: z.string().nullish(),
   })
-  .loose();
+  .loose()
+  // The same rules the editor applies (no root treatment on an implant, nothing on a
+  // missing tooth) — so a visit's chart cannot store an impossible tooth either.
+  .superRefine((t, ctx) => {
+    const problem = toothRuleError(t as ChartTooth);
+    if (problem) ctx.addIssue({ code: "custom", message: problem });
+  });
 
 /**
  * FDI tooth number → state. The KEY is validated as well as the value: the chart is

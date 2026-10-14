@@ -3,7 +3,7 @@
  * so both the client odontogram and the server fold logic share one source of truth.
  * FDI ("ISO 3950") is the PK/GCC norm and matches the scribe prompt.
  */
-import type { ChartTeeth, ChartTooth, ToothStatus } from "@/modules/dental/db/schema";
+import type { ChartTeeth, ChartTooth, ToothCondition, ToothStatus } from "@/modules/dental/db/schema";
 
 /**
  * Is this tooth root-treated?
@@ -100,6 +100,135 @@ export const STATUS_BY_VALUE: Record<ToothStatus, (typeof TOOTH_STATUSES)[number
     ToothStatus,
     (typeof TOOTH_STATUSES)[number]
   >;
+
+// ─── One state + several conditions (owner's call, 2026-10-15) ───────────────
+
+/** Conditions, in picker order. Each was a status before; the codes are unchanged. */
+export const TOOTH_CONDITIONS: readonly { value: ToothCondition; label: string }[] = [
+  { value: "caries", label: "Caries" },
+  { value: "fractured", label: "Fractured" },
+  { value: "to_extract", label: "To extract" },
+  { value: "watch", label: "Watch" },
+];
+
+/**
+ * The root canal tick's name, everywhere it is shown (panel, legend, history). The
+ * data field is `endo`; the words are what the front desk says (owner's call,
+ * 2026-10-15) — "root treated" read as jargon.
+ */
+export const ROOT_CANAL_LABEL = "Root canal (RCT)";
+
+/**
+ * One line in plain words for each choice, shown under it in the tooth panel so
+ * somebody who is not a dentist can still pick the right one.
+ */
+export const TOOTH_HINTS: Record<string, string> = {
+  sound: "Healthy, nothing done",
+  filled: "Has a filling",
+  crown: "Capped",
+  veneer: "Thin cover on the front",
+  sealant: "Protective coat on the biting surface",
+  bridge_abutment: "Holds one end of a bridge",
+  bridge_pontic: "The false tooth in a bridge",
+  implant: "Artificial tooth on a screw",
+  missing: "Gone — removed or lost",
+  exfoliated: "Baby tooth that fell out by itself",
+  unerupted: "Not come through yet",
+  caries: "Decay / a cavity",
+  fractured: "Cracked or broken",
+  to_extract: "Needs to be taken out",
+  watch: "Keep an eye on it",
+  endo: "Root canal treatment done",
+};
+const CONDITION_SET = new Set<string>(TOOTH_CONDITIONS.map((c) => c.value));
+
+export function isToothCondition(v: unknown): v is ToothCondition {
+  return typeof v === "string" && CONDITION_SET.has(v);
+}
+
+/**
+ * What a tooth can BE — the single choice. Conditions and the legacy `root_canal`
+ * status are not here: root treated is its own tick, and the conditions are ticks.
+ */
+export const MAIN_TOOTH_STATUSES = TOOTH_STATUSES.filter(
+  (s) => !CONDITION_SET.has(s.value) && s.value !== "root_canal",
+);
+
+/** No tooth there — nothing can be ON it, and there is nothing to treat. */
+export const ABSENT_STATUSES: ReadonlySet<ToothStatus> = new Set(["missing", "exfoliated", "unerupted"]);
+
+/**
+ * A tooth in the current model: a main status, its conditions, root treated.
+ *
+ * Reads charts recorded before conditions existed WITHOUT rewriting them: a tooth
+ * whose status is a condition ("caries") is sound with that condition, and the legacy
+ * `root_canal` status is sound and root treated. Every reader goes through this, so
+ * old and new teeth look and compare the same.
+ */
+export function normalizeTooth(t: ChartTooth): ChartTooth {
+  const conditions = new Set<ToothCondition>((t.conditions ?? []).filter(isToothCondition));
+  let status: ToothStatus = t.status;
+  let endo = t.endo === true;
+  if (isToothCondition(status)) {
+    conditions.add(status);
+    status = "sound";
+  } else if (status === "root_canal") {
+    status = "sound";
+    endo = true;
+  }
+  const out: ChartTooth = { ...t, status };
+  const ordered = TOOTH_CONDITIONS.map((c) => c.value).filter((c) => conditions.has(c));
+  if (ordered.length) out.conditions = ordered;
+  else delete out.conditions;
+  if (endo) out.endo = true;
+  else delete out.endo;
+  return out;
+}
+
+/** The tooth's conditions, normalised (legacy status included). */
+export function toothConditions(t?: ChartTooth | null): ToothCondition[] {
+  return t ? (normalizeTooth(t).conditions ?? []) : [];
+}
+
+/**
+ * The rules that stop an impossible tooth being saved. Null = fine.
+ *  - missing / exfoliated / unerupted: nothing can be on a tooth that is not there;
+ *  - implant: there is no natural root to treat and no enamel to decay.
+ */
+export function toothRuleError(t: ChartTooth): string | null {
+  const n = normalizeTooth(t);
+  const label = statusLabel(n.status);
+  if (ABSENT_STATUSES.has(n.status)) {
+    if (n.conditions?.length || n.endo || n.surfaces?.length) {
+      return `A tooth that is ${label.toLowerCase()} can't have conditions, surfaces or a root treatment.`;
+    }
+  }
+  if (n.status === "implant") {
+    if (n.endo) return "An implant has no natural root, so it can't have a root canal.";
+    if (n.conditions?.includes("caries")) return "An implant can't decay, so it can't have caries.";
+  }
+  return null;
+}
+
+/** Can this condition (or root treated, as "endo") be ticked on a tooth with this status? */
+export function allowedOn(status: ToothStatus, what: ToothCondition | "endo"): boolean {
+  if (ABSENT_STATUSES.has(status)) return false;
+  if (status === "implant") return what !== "endo" && what !== "caries";
+  return true;
+}
+
+/** "Crown + caries, watch, root treated" — a tooth in words, for history and Trash. */
+export function toothLabel(t?: ChartTooth | null): string {
+  if (!t) return "Sound";
+  const n = normalizeTooth(t);
+  const extras = [
+    ...(n.conditions ?? []).map((c) => statusLabel(c).toLowerCase()),
+    ...(n.endo ? ["root canal"] : []),
+  ];
+  const main = statusLabel(n.status);
+  if (!extras.length) return main;
+  return n.status === "sound" ? `${extras[0][0].toUpperCase()}${extras[0].slice(1)}${extras.length > 1 ? `, ${extras.slice(1).join(", ")}` : ""}` : `${main} + ${extras.join(", ")}`;
+}
 
 /** Label for a status value (fallback to the raw value). */
 export function statusLabel(v: string): string {

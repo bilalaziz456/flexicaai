@@ -19,7 +19,7 @@ import {
   toothHistory,
 } from "@/modules/dental/chart-logic";
 import { seedFromNote } from "@/modules/dental/seed-from-note";
-import { isRootTreated, isToothNumber, statusLabel } from "@/modules/dental/tooth-status";
+import { isToothNumber, normalizeTooth, toothConditions, toothLabel, toothRuleError } from "@/modules/dental/tooth-status";
 import type { ChartItemHistoryEntry, ModuleTrash } from "@/core/types/module";
 import { patients } from "@/core/db/schema";
 
@@ -281,16 +281,9 @@ export async function visitChanges(
       out[r.visitId] = diffTeeth(prev, after).map((c) => {
         // A visit can change the status, the root-treated state, or both — a root
         // canal on an already-crowned tooth moves no status at all.
-        const parts: string[] = [];
-        if (c.from !== c.to) {
-          parts.push(
-            `${c.from ? statusLabel(c.from) : "sound"} → ${c.to ? statusLabel(c.to) : "sound"}`,
-          );
-        }
-        if (c.endoFrom !== c.endoTo) {
-          parts.push(c.endoTo ? "root treated" : "root treatment cleared");
-        }
-        return `${c.tooth}: ${parts.join(", ")}`;
+        // The whole tooth before and after, so a condition added to a crown reads
+        // "Crown → Crown + caries" rather than nothing at all.
+        return `${c.tooth}: ${c.labelFrom} → ${c.labelTo}`;
       });
     }
     prev = after;
@@ -369,8 +362,13 @@ export async function editToothRecord(
   state: unknown,
 ): Promise<{ ok: true } | { error: string }> {
   if (!isToothNumber(tooth)) return { error: "That isn't a tooth." };
-  const next = (state && typeof state === "object" ? state : null) as ChartTooth | null;
-  if (!next?.status) return { error: "Choose what was done to the tooth." };
+  const raw = (state && typeof state === "object" ? state : null) as ChartTooth | null;
+  if (!raw?.status) return { error: "Choose what was done to the tooth." };
+  // Stored in the current shape (status + conditions), and refused if impossible —
+  // the editor already stops these, but it is not the only thing that could write.
+  const next = normalizeTooth(raw);
+  const ruleError = toothRuleError(next);
+  if (ruleError) return { error: ruleError };
 
   const [row] = await db
     .select({ id: dentalRecords.id, chartAfter: dentalRecords.chartAfter, visitId: dentalRecords.visitId, isBaseline: dentalRecords.isBaseline })
@@ -485,8 +483,13 @@ export async function recordToothTreatment(
   state: unknown,
 ): Promise<{ ok: true } | { error: string }> {
   if (!isToothNumber(tooth)) return { error: "That isn't a tooth." };
-  const next = (state && typeof state === "object" ? state : null) as ChartTooth | null;
-  if (!next?.status) return { error: "Choose what was done to the tooth." };
+  const raw = (state && typeof state === "object" ? state : null) as ChartTooth | null;
+  if (!raw?.status) return { error: "Choose what was done to the tooth." };
+  // Stored in the current shape (status + conditions), and refused if impossible —
+  // the editor already stops these, but it is not the only thing that could write.
+  const next = normalizeTooth(raw);
+  const ruleError = toothRuleError(next);
+  if (ruleError) return { error: ruleError };
 
   const current = (await getPatientChart(clinicId, patientId))[tooth] ?? null;
   // Nothing changed — don't write a record that would read as a treatment.
@@ -505,9 +508,12 @@ export async function recordToothTreatment(
 /** Whole-tooth equality, so a no-op save cannot become a history entry. */
 function sameToothState(a: ChartTooth | null, b: ChartTooth | null): boolean {
   if (!a || !b) return isBlankTooth(a) && isBlankTooth(b);
+  const na = normalizeTooth(a);
+  const nb = normalizeTooth(b);
   return (
-    a.status === b.status &&
-    isRootTreated(a) === isRootTreated(b) &&
+    na.status === nb.status &&
+    toothConditions(a).join() === toothConditions(b).join() &&
+    !!na.endo === !!nb.endo &&
     (a.note ?? "") === (b.note ?? "") &&
     [...(a.surfaces ?? [])].sort().join("") === [...(b.surfaces ?? [])].sort().join("")
   );
@@ -515,11 +521,8 @@ function sameToothState(a: ChartTooth | null, b: ChartTooth | null): boolean {
 
 /** "Filled → Crown, root treated" — the human line for one history entry. */
 function describeToothChange(before: ChartTooth | null, after: ChartTooth | null): string {
-  const name = (t: ChartTooth | null) => (t && !isBlankTooth(t) ? statusLabel(t.status) : "Sound");
+  const name = (t: ChartTooth | null) => (t && !isBlankTooth(t) ? toothLabel(t) : "Sound");
   const parts = [`${name(before)} → ${name(after)}`];
-  const endoBefore = isRootTreated(before ?? undefined);
-  const endoAfter = isRootTreated(after ?? undefined);
-  if (endoBefore !== endoAfter) parts.push(endoAfter ? "root treated" : "root treatment cleared");
   const surfaces = after?.surfaces?.length ? after.surfaces.join("") : null;
   if (surfaces) parts.push(`surfaces ${surfaces}`);
   if ((after?.note ?? "") !== (before?.note ?? "") && after?.note?.trim()) {
@@ -644,7 +647,7 @@ function describeTrashedRecord(chart: ChartTeeth): string | null {
   const states = Object.values(chart);
   if (!states.length) return null;
   return states
-    .map((t) => `${statusLabel(t.status)}${isRootTreated(t) ? ", root treated" : ""}`)
+    .map((t) => toothLabel(t))
     .join("; ");
 }
 
@@ -666,8 +669,13 @@ export async function setToothBaseline(
   state: unknown,
 ): Promise<{ ok: true } | { error: string }> {
   if (!isToothNumber(tooth)) return { error: "That isn't a tooth." };
-  const next = (state && typeof state === "object" ? state : null) as ChartTooth | null;
-  if (!next?.status) return { error: "Choose what was found on the tooth." };
+  const raw = (state && typeof state === "object" ? state : null) as ChartTooth | null;
+  if (!raw?.status) return { error: "Choose what was found on the tooth." };
+  // Stored in the current shape (status + conditions), and refused if impossible —
+  // the editor already stops these, but it is not the only thing that could write.
+  const next = normalizeTooth(raw);
+  const ruleError = toothRuleError(next);
+  if (ruleError) return { error: ruleError };
 
   const [existing] = await db
     .select({ chartAfter: dentalRecords.chartAfter })

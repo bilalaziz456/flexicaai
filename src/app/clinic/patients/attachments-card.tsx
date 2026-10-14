@@ -6,7 +6,7 @@ import { SelectField } from "@/core/ui/select-field";
 import { EmptyState } from "@/core/ui/empty-state";
 
 import { useRef, useState, useTransition } from "react";
-import { Upload, Paperclip } from "lucide-react";
+import { Upload, Paperclip, ShieldAlert, ShieldCheck } from "lucide-react";
 import { AttachmentGallery } from "./attachment-gallery";
 import { FilePicker } from "./file-picker";
 import { shrinkForUpload } from "./shrink-upload";
@@ -114,13 +114,35 @@ export function AttachmentsCard({
 
   return (
     <div className="space-y-4">
-      {/* Photo-consent state */}
+      {/* Photo consent is RECOMMENDED for every patient (owner's call, 2026-10-15), so
+          until it is given it is a visible prompt to ask, not a quiet checkbox. It is
+          never ticked by default: the tick records that the patient said yes, and a
+          default would record a yes nobody gave — the one thing consent exists to
+          prevent. */}
       {canUpload ? (
-        <label className="flex min-h-6 items-center gap-2 text-sm">
-          <Checkbox checked={photoConsent} onCheckedChange={toggleConsent} disabled={pending} />
-          Patient consents to clinical photos
-          {!photoConsent ? <span className="text-xs text-muted-foreground">(required to upload photos)</span> : null}
-        </label>
+        photoConsent ? (
+          <label className="flex min-h-6 items-center gap-2 text-sm">
+            <Checkbox checked onCheckedChange={toggleConsent} disabled={pending} />
+            <ShieldCheck className="size-4 text-success-text" aria-hidden="true" />
+            Patient has consented to clinical photos
+            <span className="text-xs text-muted-foreground">(untick if they withdraw it)</span>
+          </label>
+        ) : (
+          <div className="flex items-start gap-2.5 rounded-lg border border-amber-400/60 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-100">
+            <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <p>
+                <span className="font-semibold">Recommended: ask the patient for photo consent.</span>{" "}
+                Without it, clinical photos can&apos;t be uploaded or viewed for this patient.
+                X-rays and documents don&apos;t need it.
+              </p>
+              <label className="flex min-h-6 items-center gap-2 font-medium">
+                <Checkbox checked={false} onCheckedChange={toggleConsent} disabled={pending} />
+                The patient agrees to clinical photos
+              </label>
+            </div>
+          </div>
+        )
       ) : null}
 
       {/* Gallery */}

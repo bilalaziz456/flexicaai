@@ -59,8 +59,9 @@ async function main() {
     const h = await toothHistoryFor(clinic.id, pid, "18");
     check("every treatment is its own entry", h.length, 4);
     check("newest is on top", h.map((e) => e.label), [
-      "Filled → Crown",
-      "Filled → Filled, root treated",
+      // The whole tooth before and after (2026-10-15), conditions and root included.
+      "Filled + root canal → Crown + root canal",
+      "Filled → Filled + root canal",
       "Caries → Filled",
       "Sound → Caries",
     ]);
@@ -76,7 +77,7 @@ async function main() {
     const crown = h[0];
     check("edit succeeds", await editToothRecord(clinic.id, pid, "18", crown.recordId!, { status: "veneer", endo: true }), { ok: true });
     const afterEdit = await toothHistoryFor(clinic.id, pid, "18");
-    check("the entry now reads the corrected treatment", afterEdit[0].label, "Filled → Veneer");
+    check("the entry now reads the corrected treatment", afterEdit[0].label, "Filled + root canal → Veneer + root canal");
     check("no extra entry was created", afterEdit.length, 4);
     check("the chart follows the edit", (await getPatientChart(clinic.id, pid))["18"], { status: "veneer", endo: true });
 
@@ -147,7 +148,7 @@ async function main() {
         check("deleting it works", await deleteToothRecord(clinic.id, p4.id, "18", h4[0].recordId!, p4.id), { ok: true });
         check("the entry is gone", (await toothHistoryFor(clinic.id, p4.id, "18")).length, 0);
         check("and so is the tooth", (await getPatientChart(clinic.id, p4.id))["18"] ?? null, null);
-        check("other intake teeth are untouched", (await getPatientChart(clinic.id, p4.id))["26"], { status: "root_canal" });
+        check("other intake teeth are untouched", (await getPatientChart(clinic.id, p4.id))["26"], { status: "sound", endo: true });
       } finally {
         await db.delete(dentalRecords).where(eq(dentalRecords.patientId, p4.id));
         await db.delete(dentalCharts).where(eq(dentalCharts.patientId, p4.id));

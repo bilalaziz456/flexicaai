@@ -15,25 +15,21 @@ import {
   PRIMARY_LOWER,
   PRIMARY_UPPER,
   STATUS_BY_VALUE,
-  isRootTreated,
+  TOOTH_CONDITIONS,
   TOOTH_STATUSES,
-  statusLabel,
+  normalizeTooth,
+  ROOT_CANAL_LABEL,
+  TOOTH_HINTS,
+  toothLabel,
 } from "@/modules/dental/tooth-status";
 import { ToothEditor } from "@/modules/dental/components/tooth-editor";
-
-/** Semantic tone → colour classes (light + dark). */
-const TONE_CLASS: Record<string, string> = {
-  neutral: "border-input bg-[var(--input-bg)] text-foreground",
-  danger: "border-red-300 bg-red-100 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300",
-  info: "border-blue-300 bg-blue-100 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300",
-  success: "border-emerald-300 bg-emerald-100 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
-  warning: "border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300",
-  muted: "border-dashed border-muted-foreground/50 bg-muted text-muted-foreground",
-};
+import { CONDITION_DOT, ENDO_BAR, SOUND_CLASS, STATUS_CLASS } from "@/modules/dental/components/tooth-colors";
 
 function toneFor(status?: ToothStatus): string {
-  return TONE_CLASS[(status && STATUS_BY_VALUE[status]?.tone) || "neutral"];
+  if (status === "sound") return SOUND_CLASS;
+  return (status && STATUS_CLASS[status]) || SOUND_CLASS;
 }
+
 
 function ToothCell({
   n,
@@ -46,27 +42,29 @@ function ToothCell({
   selected: boolean;
   onClick?: () => void;
 }) {
-  const status = tooth?.status;
-  const abbr = status ? STATUS_BY_VALUE[status]?.abbr : "";
-  const endo = isRootTreated(tooth);
+  // Older charts store a condition as the status; read them in the current shape.
+  const t = tooth ? normalizeTooth(tooth) : undefined;
+  const status = t?.status;
+  const endo = Boolean(t?.endo);
+  // A tooth whose only mark is a root canal still says so in words — the violet bar
+  // alone was easy to miss, and "RCT" is what was printed before.
+  const abbr = status && status !== "sound" ? STATUS_BY_VALUE[status]?.abbr : endo ? "RCT" : "";
+  const conditions = t?.conditions ?? [];
   // Root canal reads as a bar under the crown — the root, marked the way a paper
   // chart marks it. A glyph would have to share an 8px-wide cell with the status
   // abbreviation and the note dot, and a bar survives a mono thermal print where a
   // colour would not.
-  const endoMark = endo ? "border-b-[3px] border-b-current" : "";
+  const endoMark = endo ? ENDO_BAR : "";
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={!onClick}
-      aria-label={`Tooth ${n}${status ? `: ${statusLabel(status)}` : ""}${
-        endo ? ". Root treated" : ""
-      }${tooth?.note?.trim() ? `. Note: ${tooth.note.trim()}` : ""}`}
+      aria-label={`Tooth ${n}${t ? `: ${toothLabel(t)}` : ""}${
+        tooth?.note?.trim() ? `. Note: ${tooth.note.trim()}` : ""
+      }`}
       title={
-        (status
-          ? `${n}: ${statusLabel(status)}${tooth?.surfaces?.length ? ` (${tooth.surfaces.join("")})` : ""}`
-          : n) +
-        (endo ? "\nRoot treated" : "") +
+        (t ? `${n}: ${toothLabel(t)}${t.surfaces?.length ? ` (${t.surfaces.join("")})` : ""}` : n) +
         (tooth?.note?.trim() ? `\n${tooth.note.trim()}` : "")
       }
       className={cn(
@@ -84,6 +82,15 @@ function ToothCell({
             read without the note needing to fit in an 8px-wide cell. */}
         {tooth?.note?.trim() ? <span aria-hidden="true"> ·</span> : null}
       </span>
+      {/* One dot per condition — several can sit on one tooth (a crown with caries
+          that is being watched). Coloured by condition, keyed in the legend. */}
+      {conditions.length ? (
+        <span className="flex gap-0.5 pt-0.5" aria-hidden="true">
+          {conditions.map((c) => (
+            <span key={c} className={cn("size-1.5 rounded-full", CONDITION_DOT[c])} />
+          ))}
+        </span>
+      ) : null}
     </button>
   );
 }
@@ -113,9 +120,11 @@ function ArchRow({
   left: string[];
   right: string[];
   teeth: ChartTeeth;
-  selected: string | null;
+  /** One selected tooth, or several (selecting a group to record on together). */
+  selected: string | null | ReadonlySet<string>;
   onSelect?: (n: string) => void;
 }) {
+  const isSel = (n: string) => (typeof selected === "string" ? selected === n : Boolean(selected?.has(n)));
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5">
       {/* The quadrants wrap internally too. A quadrant is 270px and the narrowest
@@ -124,12 +133,12 @@ function ArchRow({
           row awkwardly beats losing a molar on some future narrower stationery. */}
       <div className="flex flex-wrap justify-center gap-0.5">
         {left.map((n) => (
-          <ToothCell key={n} n={n} tooth={teeth[n]} selected={selected === n} onClick={onSelect ? () => onSelect(n) : undefined} />
+          <ToothCell key={n} n={n} tooth={teeth[n]} selected={isSel(n)} onClick={onSelect ? () => onSelect(n) : undefined} />
         ))}
       </div>
       <div className="flex flex-wrap justify-center gap-0.5">
         {right.map((n) => (
-          <ToothCell key={n} n={n} tooth={teeth[n]} selected={selected === n} onClick={onSelect ? () => onSelect(n) : undefined} />
+          <ToothCell key={n} n={n} tooth={teeth[n]} selected={isSel(n)} onClick={onSelect ? () => onSelect(n) : undefined} />
         ))}
       </div>
     </div>
@@ -146,6 +155,7 @@ export function ToothChart({
   onChange,
   onSelectTooth,
   selectedTooth = null,
+  selectedTeeth,
 }: {
   value: ChartTeeth;
   onChange?: (next: ChartTeeth) => void;
@@ -156,7 +166,10 @@ export function ToothChart({
    */
   onSelectTooth?: (tooth: string) => void;
   selectedTooth?: string | null;
+  /** Several teeth selected at once (read-only chart only); wins over `selectedTooth`. */
+  selectedTeeth?: readonly string[];
 }) {
+  const readSelection: string | null | ReadonlySet<string> = selectedTeeth ? new Set(selectedTeeth) : selectedTooth;
   const readOnly = !onChange;
   const [showPrimary, setShowPrimary] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -184,13 +197,12 @@ export function ToothChart({
   const setTooth = (n: string, patch: Partial<ChartTooth> & { status: ToothStatus }) => {
     if (!onChange) return;
     const next = { ...value };
-    // Decide on the MERGED tooth, not on the patch. The status buttons send only
-    // status/surfaces/note, so judging the patch alone would read a root-treated
-    // tooth as carrying nothing and delete it the moment someone set the status back
-    // to sound — losing the root canal. "Sound and nothing else" is still not worth
-    // an entry, but root-treated counts as something else.
-    const merged = { ...next[n], ...patch };
-    if (merged.status === "sound" && !merged.surfaces?.length && !merged.note && !merged.endo) {
+    // The editor sends the WHOLE tooth, so it replaces rather than merges: merging
+    // would keep a condition or root treatment the user had just unticked (the editor
+    // drops empty fields). "Sound and nothing else" is not worth an entry; a
+    // condition or root treatment on a sound tooth is.
+    const merged = { ...patch, ...(next[n]?.updatedVisitId ? { updatedVisitId: next[n].updatedVisitId } : {}) };
+    if (merged.status === "sound" && !merged.surfaces?.length && !merged.note && !merged.endo && !merged.conditions?.length) {
       delete next[n];
     } else {
       next[n] = merged;
@@ -253,15 +265,15 @@ export function ToothChart({
         {showsPermanent ? (
           <>
             {captionDentitions ? <DentitionLabel>Permanent</DentitionLabel> : null}
-            <ArchRow left={uL} right={uR} teeth={value} selected={readOnly ? selectedTooth : selected} onSelect={readOnly ? onSelectTooth : setSelected} />
-            <ArchRow left={lL} right={lR} teeth={value} selected={readOnly ? selectedTooth : selected} onSelect={readOnly ? onSelectTooth : setSelected} />
+            <ArchRow left={uL} right={uR} teeth={value} selected={readOnly ? readSelection : selected} onSelect={readOnly ? onSelectTooth : setSelected} />
+            <ArchRow left={lL} right={lR} teeth={value} selected={readOnly ? readSelection : selected} onSelect={readOnly ? onSelectTooth : setSelected} />
           </>
         ) : null}
         {showsPrimary ? (
           <>
             {captionDentitions ? <DentitionLabel>Primary</DentitionLabel> : null}
-            <ArchRow left={pUL} right={pUR} teeth={value} selected={selectedTooth} onSelect={onSelectTooth} />
-            <ArchRow left={pLL} right={pLR} teeth={value} selected={selectedTooth} onSelect={onSelectTooth} />
+            <ArchRow left={pUL} right={pUR} teeth={value} selected={readSelection} onSelect={onSelectTooth} />
+            <ArchRow left={pLL} right={pLR} teeth={value} selected={readSelection} onSelect={onSelectTooth} />
           </>
         ) : null}
       </div>
@@ -332,29 +344,36 @@ function ChartNotes({ teeth }: { teeth: ChartTeeth }) {
 
 /** Compact legend of the statuses actually present (keeps the chart readable). */
 function Legend({ teeth }: { teeth: ChartTeeth }) {
-  const present = new Set(Object.values(teeth).map((t) => t.status));
-  const items = TOOTH_STATUSES.filter((s) => present.has(s.value));
-  // The root-canal bar is the one mark on the chart that is not a colour, so it has
-  // to be spelled out or it reads as a styling accident.
-  const anyEndo = Object.values(teeth).some((t) => isRootTreated(t));
-  if (items.length === 0 && !anyEndo) {
+  // Read in the current shape: what each tooth IS (a fill) and its conditions (dots).
+  const all = Object.values(teeth).map((t) => normalizeTooth(t));
+  const present = new Set(all.map((t) => t.status));
+  const items = TOOTH_STATUSES.filter((s) => s.value !== "sound" && present.has(s.value));
+  const conditionsPresent = new Set(all.flatMap((t) => t.conditions ?? []));
+  const conditions = TOOTH_CONDITIONS.filter((c) => conditionsPresent.has(c.value));
+  // The root-canal bar is the one mark on the chart that is not a fill or a dot, so it
+  // has to be spelled out or it reads as a styling accident.
+  const anyEndo = all.some((t) => t.endo);
+  if (items.length === 0 && conditions.length === 0 && !anyEndo) {
     return <p className="text-xs text-muted-foreground">No conditions charted. All teeth sound.</p>;
   }
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
       {items.map((s) => (
-        <span key={s.value} className="inline-flex items-center gap-1">
+        <span key={s.value} className="inline-flex items-center gap-1" title={TOOTH_HINTS[s.value]}>
           <span className={cn("inline-block size-3 rounded-sm border", toneFor(s.value))} aria-hidden="true" />
           {s.label}
         </span>
       ))}
+      {conditions.map((c) => (
+        <span key={c.value} className="inline-flex items-center gap-1" title={TOOTH_HINTS[c.value]}>
+          <span className={cn("inline-block size-2 rounded-full", CONDITION_DOT[c.value])} aria-hidden="true" />
+          {c.label}
+        </span>
+      ))}
       {anyEndo ? (
         <span className="inline-flex items-center gap-1">
-          <span
-            className="inline-block size-3 rounded-sm border border-b-[3px] border-b-current"
-            aria-hidden="true"
-          />
-          Root treated
+          <span className={cn("inline-block size-3 rounded-sm border bg-violet-100 dark:bg-violet-950", ENDO_BAR)} aria-hidden="true" />
+          {ROOT_CANAL_LABEL}
         </span>
       ) : null}
     </div>
@@ -380,12 +399,13 @@ export function DentalVisitEditor({ value, onChange }: ClinicalVisitEditorProps)
  * component WITHOUT it, so the printed chart has no clickable teeth and no history,
  * which is how history stays off paper.
  */
-export function DentalPatientChart({ chart, onSelectItem, selectedItem }: PatientChartProps) {
+export function DentalPatientChart({ chart, onSelectItem, selectedItem, selectedItems }: PatientChartProps) {
   return (
     <ToothChart
       value={(chart ?? {}) as ChartTeeth}
       onSelectTooth={onSelectItem}
       selectedTooth={selectedItem ?? null}
+      selectedTeeth={selectedItems}
     />
   );
 }

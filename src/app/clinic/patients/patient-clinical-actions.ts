@@ -186,6 +186,60 @@ export async function setItemBaselineAction(
   return { ok: true };
 }
 
+/**
+ * Records the SAME treatment (or existing condition) on several charted items at once —
+ * "extraction on 48, 31 and 45" in one save rather than three (owner's ask,
+ * 2026-10-15). Each item gets its own dated entry, exactly as if it had been recorded
+ * alone, so every tooth's history stays right. An item already in that state is
+ * skipped, not an error — on a group that is expected, not a mistake.
+ */
+export async function recordItemsAction(
+  patientId: string,
+  itemKeys: string[],
+  state: unknown,
+  kind: "treatment" | "existing",
+): Promise<
+  { ok: true; recorded: string[]; skipped: string[]; failed: { key: string; error: string }[] } | { error: string }
+> {
+  const user = await requireRole(["clinic_admin", "doctor", "manager"]);
+  if (!user.clinicId) return { error: "No clinic access." };
+  if (!can(user, "clinical", "edit")) {
+    return { error: "You don't have permission to edit clinical records." };
+  }
+  const keys = [...new Set((Array.isArray(itemKeys) ? itemKeys : []).filter((k) => typeof k === "string" && k.length <= 10))];
+  if (keys.length === 0) return { error: "Select at least one tooth." };
+  if (keys.length > 52) return { error: "Too many selected." };
+
+  const clinicalRecord = await clinicalRecordForUser(user.clinicId);
+  if (!clinicalRecord) return { error: "This clinic has no clinical chart." };
+
+  const recorded: string[] = [];
+  const skipped: string[] = [];
+  const failed: { key: string; error: string }[] = [];
+  for (const key of keys) {
+    const r =
+      kind === "existing"
+        ? await clinicalRecord.setItemBaseline(user.clinicId, patientId, key, state)
+        : await clinicalRecord.recordItemTreatment(user.clinicId, patientId, key, state);
+    if (!("error" in r)) recorded.push(key);
+    else if (/already/i.test(r.error)) skipped.push(key);
+    else failed.push({ key, error: r.error });
+  }
+
+  if (recorded.length > 0) {
+    await logActivity({
+      action: "update",
+      entity: "patient",
+      entityId: patientId,
+      summary: `Recorded ${kind === "existing" ? "an existing condition" : "a treatment"} on ${recorded.join(", ")}`,
+      metadata: { itemKeys: recorded },
+    });
+    revalidatePath(`/clinic/patients/${patientId}`);
+    revalidatePath(`/doctor/patients/${patientId}`);
+  }
+  return { ok: true, recorded, skipped, failed };
+}
+
 /** The enabled module's clinical-record bundle for this clinic, or null. */
 async function clinicalRecordForUser(clinicId: string) {
   const clinicRow = await getClinic(clinicId);
