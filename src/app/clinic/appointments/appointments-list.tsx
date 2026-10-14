@@ -3,7 +3,7 @@ import { ActionMenu } from "@/core/ui/action-menu";
 import { listAppointmentCreators } from "@/core/appointments/list-query";
 import { TableCard } from "@/core/ui/table-card";
 import Link from "next/link";
-import { Download, CalendarSearch, Printer } from "lucide-react";
+import { Download, CalendarSearch } from "lucide-react";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicHasFeature } from "@/core/lib/features";
 import { Badge } from "@/core/ui/badge";
@@ -48,6 +48,7 @@ import { AppointmentActions } from "@/app/clinic/appointments/appointment-action
 import { APPOINTMENT_STATUS_VARIANT } from "@/core/appointments/status";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 import { DownloadLink } from "@/core/ui/download-link";
+import { PrintLinks } from "@/core/ui/print-links";
 
 export type AppointmentsListSearchParams = {
   created?: string;
@@ -409,14 +410,12 @@ export async function AppointmentsList({
         </div>
         {total > 0 ? (
           <span className="inline-flex items-center gap-2">
-          <a
+          <PrintLinks
             href={`${listPath}/print?${exportParams.toString()}`}
-            target="_blank"
-            rel="noopener"
+            papers={["a4"]}
+            single="Print (A4)"
             className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-          >
-            <Printer className="size-4" aria-hidden="true" /> Print (A4)
-          </a>
+          />
           <DownloadLink
             href={`${listPath}/print?${exportParams.toString()}`}
             label="Download (A4)"

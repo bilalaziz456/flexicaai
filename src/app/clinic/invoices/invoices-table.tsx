@@ -3,10 +3,11 @@
 import { paymentStatusBadge, visitPaymentStatus } from "@/core/billing/payment-status";
 import { Badge } from "@/core/ui/badge";
 import Link from "next/link";
-import { Pencil, Printer } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { DeleteInvoiceButton } from "@/app/clinic/invoices/delete-invoice-button";
 import { DataTable, type Column } from "@/core/ui/data-table";
 import { DownloadLink } from "@/core/ui/download-link";
+import { PrintLinks } from "@/core/ui/print-links";
 
 const money = new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
 const dayFmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -45,11 +46,14 @@ export function InvoicesTable({
   empty,
   canEdit,
   canDelete,
+  papers,
 }: {
   rows: Row[];
   empty: string;
   canEdit: boolean;
   canDelete: boolean;
+  /** Paper sizes the clinic prints on (one Print button each). */
+  papers: string[];
 }) {
   const columns: Column<Row>[] = [
     {
@@ -109,12 +113,7 @@ export function InvoicesTable({
       align: "right",
       cell: (r) => (
         <div className="flex items-center justify-end gap-3">
-          <Link
-            href={`/clinic/invoices/${r.appointmentId}/print`}
-            className="inline-flex min-h-6 items-center gap-1 text-muted-foreground underline underline-offset-4 hover:text-foreground"
-          >
-            <Printer className="size-3.5" aria-hidden="true" /> Print
-          </Link>
+          <PrintLinks href={`/clinic/invoices/${r.appointmentId}/print`} papers={papers} className="min-h-6 gap-1 font-normal text-muted-foreground underline hover:text-foreground" />
           <DownloadLink href={`/clinic/invoices/${r.appointmentId}/print`} className="min-h-6 gap-1 font-normal text-muted-foreground underline hover:text-foreground" />
           {canEdit && !r.voided ? (
             <Link

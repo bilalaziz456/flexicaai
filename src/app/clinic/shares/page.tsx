@@ -24,6 +24,7 @@ import { SettlementForm, VoidSettlementButton } from "./settlement-ui";
 import { BalancesTable, PayoutsTable } from "./shares-tables";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 import { DownloadLink } from "@/core/ui/download-link";
+import { PrintLinks } from "@/core/ui/print-links";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -126,6 +127,14 @@ export default async function ClinicSharesPage({
             >
               View statement
             </Link>
+          ) : null}
+          {singleDoctor ? (
+            <PrintLinks
+              href={selfOnly ? "/clinic/shares/statement" : `/clinic/shares/statement?doctorId=${doctorId}`}
+              papers={["a4"]}
+              single="Print statement"
+              className="h-8 rounded-lg border px-3 hover:bg-accent hover:no-underline"
+            />
           ) : null}
           {singleDoctor ? (
             <DownloadLink

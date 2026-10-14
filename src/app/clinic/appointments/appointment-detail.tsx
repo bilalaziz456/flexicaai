@@ -41,6 +41,7 @@ import { DeleteAppointmentButton } from "@/app/clinic/appointments/edit-appointm
 import { NewAppointmentForm } from "@/app/clinic/appointments/new-appointment-form";
 import { APPOINTMENT_STATUS_VARIANT } from "@/core/appointments/status";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
+import { offeredPapers } from "@/core/lib/print-papers";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -352,6 +353,7 @@ export async function AppointmentDetail({
               canSendWhatsapp={Boolean(currentUser && can(currentUser, "whatsapp", "create"))}
               invoiceLabel={invoice ? (invoice.voided ? `${invoice.label} (void)` : invoice.label) : null}
               invoiceHref={`/clinic/appointments/${appt.id}/invoice`}
+              papers={offeredPapers(clinicRow?.invoicePapersEnabled)}
             />
           </CardContent>
         </Card>

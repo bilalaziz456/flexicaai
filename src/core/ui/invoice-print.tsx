@@ -1,13 +1,16 @@
 "use client";
 
 import { PrintFileName } from "@/core/ui/print-file-name";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { DownloadPdfButton } from "@/core/ui/download-pdf-button";
-import { inPdfMode, PDF_PAPER, sendPdfToParent } from "@/core/ui/download-pdf";
+import { inPdfMode, PDF_PAPER, printInFrame, printModePaper, sendPdfToParent } from "@/core/ui/download-pdf";
 import { Printer } from "lucide-react";
 import { Button } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
+
+/** The URL never changes while a print page is open, so there is nothing to subscribe to. */
+const noSubscribe = () => () => {};
 
 /** Paper formats: browser `@page` size + on-screen sheet width/scale + logo height. */
 const FORMATS = {
@@ -55,7 +58,12 @@ export function InvoicePrintFrame({
     const wanted = defaultFormat as Fmt;
     return offered.includes(wanted) ? wanted : offered[0];
   });
-  const f = FORMATS[offered.includes(fmt) ? fmt : offered[0]];
+  // The size a "Print A4 / Print thermal" button asked for (`?print=`), read as an
+  // external value rather than copied into state: the server renders without it, the
+  // browser re-renders with it, and nothing is set inside an effect.
+  const printParam = useSyncExternalStore(noSubscribe, printModePaper, () => null);
+  const printPaper = printParam && offered.includes(printParam as Fmt) ? (printParam as Fmt) : null;
+  const f = FORMATS[printPaper ?? (offered.includes(fmt) ? fmt : offered[0])];
   const sheetRef = useRef<HTMLDivElement>(null);
   // Loaded by a Download link: make this sheet's PDF at the opening paper size and
   // hand it back. Runs once; the page is thrown away afterwards.
@@ -65,6 +73,16 @@ export function InvoicePrintFrame({
     void sendPdfToParent(() => sheetRef.current, { paper: PDF_PAPER[paperKey], includesMargin: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, at the size the page opened at
   }, []);
+
+  // Loaded by a "Print A4 / Print thermal" button: open the print dialog. The size it
+  // asked for is already the one drawn (`printPaper` above), so the @page rule matches.
+  const printed = useRef(false);
+  useEffect(() => {
+    // `printed` guards React's development double-run: one dialog, not two.
+    if (!printPaper || printed.current) return;
+    printed.current = true;
+    void printInFrame();
+  }, [printPaper]);
   const css = `@media print {
   @page { size: ${f.page}; margin: ${f.margin}; }
   aside, header { display: none !important; }

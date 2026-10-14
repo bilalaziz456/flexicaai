@@ -3,7 +3,7 @@
 import { Printer } from "lucide-react";
 import { useEffect } from "react";
 import { Button } from "@/core/ui/button";
-import { inPdfMode, PDF_PAPER, sendPdfToParent } from "@/core/ui/download-pdf";
+import { inPdfMode, PDF_PAPER, printInFrame, printModePaper, sendPdfToParent } from "@/core/ui/download-pdf";
 import { DownloadPdfButton } from "@/core/ui/download-pdf-button";
 
 /**
@@ -24,6 +24,8 @@ export function PrintButton({ label = "Print" }: { label?: string }) {
   // Loaded by a Download link: make the page's PDF and hand it back.
   useEffect(() => {
     if (inPdfMode()) void sendPdfToParent(() => document.querySelector("main"), { paper: PDF_PAPER.a4 });
+    // Loaded by a Print button elsewhere: these pages print on A4 only.
+    else if (printModePaper()) void printInFrame();
   }, []);
   // One group, so Print and Download stay side by side however the page lays out its
   // toolbar (a `justify-between` row would otherwise push them apart).

@@ -85,6 +85,12 @@ note above it; obvious logic gets none.
   the title becomes "Invoice INV-… - 11 Oct 2026 03-58 PM" on `beforeprint` (so Ctrl+P
   too) and is restored on `afterprint`. The shell names any other page after its
   section at a lower priority. A specialty names its own chart (`chartName`).
+- **A Print link is one button per paper size the clinic uses** (`PrintLinks` +
+  `offeredPapers(clinic.invoicePapersEnabled)` from the pure `core/lib/print-papers.ts`, so a server page may call it): "Print A4", "Print thermal", or a single
+  "Print" when only one size is on. It prints without opening the print page — the page
+  loads in a hidden frame with `?print=<size>`, draws at that size and opens the dialog
+  itself. The browser's dialog cannot be skipped from a website; reception PCs can skip
+  it with Chrome's kiosk printing (`docs/front-desk-printing.md`).
 - **Every Print LINK has a Download beside it** (`DownloadLink`), which saves the
   PDF without opening the print page: it loads the page in a hidden frame with
   `?pdf=1`, the page's `InvoicePrintFrame` / `PrintButton` makes its own PDF and posts

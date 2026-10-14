@@ -152,3 +152,34 @@ export async function sendPdfToParent(target: () => HTMLElement | null, opts: Pd
     window.parent.postMessage(msg, window.location.origin);
   }
 }
+
+// ─── Print straight from a list or a record, without opening the print page ────
+
+/** The query flag that tells a print page to print itself at this paper size. */
+export const PRINT_MODE_PARAM = "print";
+
+/** In a Print button's hidden frame: the paper to print at (browser only), else null. */
+export function printModePaper(): string | null {
+  if (typeof window === "undefined" || window.self === window.top) return null;
+  return new URLSearchParams(window.location.search).get(PRINT_MODE_PARAM);
+}
+
+/** What the hidden page tells the page holding the Print button. */
+export type PrintMessage = { type: "flexica-print"; stage: "opened" | "done" };
+
+/**
+ * In the hidden frame: open the print dialog for this page once it has painted, and
+ * tell the parent when the dialog opened and when it closed, so the parent can drop
+ * the frame. The dialog is the browser's own — no website may print without it.
+ */
+export async function printInFrame(): Promise<void> {
+  const tell = (stage: PrintMessage["stage"]) => {
+    const msg: PrintMessage = { type: "flexica-print", stage };
+    window.parent.postMessage(msg, window.location.origin);
+  };
+  await document.fonts?.ready;
+  await new Promise((r) => setTimeout(r, 300));
+  window.addEventListener("afterprint", () => tell("done"), { once: true });
+  tell("opened");
+  window.print();
+}

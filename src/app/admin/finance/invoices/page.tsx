@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { FileText, Printer } from "lucide-react";
+import { FileText } from "lucide-react";
 import { listClinicOptionsWithPrice } from "@/core/clinics/options";
 
 import { requireAdminCapability } from "@/core/auth/user";
@@ -33,6 +32,7 @@ import {
 import { InvoiceFilters } from "./invoice-filters";
 import { IssueInvoiceForm, InvoiceRowActions } from "./invoice-ui";
 import { DownloadLink } from "@/core/ui/download-link";
+import { PrintLinks } from "@/core/ui/print-links";
 
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 const fmtDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -178,9 +178,7 @@ export default async function ClinicInvoicesPage({
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-3">
                         {!r.deleted ? (
-                          <Link href={`/admin/finance/invoices/${r.id}/print`} className="inline-flex min-h-6 items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground" prefetch={false}>
-                            <Printer className="size-3.5" aria-hidden="true" /> Print
-                          </Link>
+                          <PrintLinks href={`/admin/finance/invoices/${r.id}/print`} papers={["a4"]} className="min-h-6 gap-1 text-xs font-normal text-muted-foreground underline hover:text-foreground" />
                         ) : null}
                         {!r.deleted ? (
                           <DownloadLink href={`/admin/finance/invoices/${r.id}/print`} className="min-h-6 gap-1 text-xs font-normal text-muted-foreground underline hover:text-foreground" />

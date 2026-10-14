@@ -88,7 +88,7 @@ export function DownloadLink({
       onClick={run}
       disabled={busy}
       className={cn(
-        "inline-flex items-center gap-1.5 text-sm font-medium underline-offset-4 hover:underline disabled:opacity-60",
+        "inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium underline-offset-4 hover:underline disabled:opacity-60",
         className,
       )}
     >

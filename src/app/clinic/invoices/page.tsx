@@ -24,6 +24,7 @@ import { InvoicesTable } from "./invoices-table";
 import { Pagination } from "@/core/ui/pagination";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { StatCard } from "@/core/ui/charts/stat-card";
+import { offeredPapers } from "@/core/lib/print-papers";
 
 const INVOICES_HEADER_SENTINEL_ID = "invoices-header-end";
 
@@ -174,6 +175,7 @@ export default async function InvoicesPage({
             empty={q ? "No invoices match your search." : "No invoices issued yet."}
             canEdit={can(user, "appointments", "edit")}
             canDelete={can(user, "billing", "delete")}
+            papers={offeredPapers(clinic?.invoicePapersEnabled)}
           />
         </CardContent>
       </Card>

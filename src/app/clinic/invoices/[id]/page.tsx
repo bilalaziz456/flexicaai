@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Printer } from "lucide-react";
+
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { getClinic } from "@/core/clinics/get-clinic";
@@ -25,6 +25,8 @@ import { doctorDayAvailability } from "@/app/clinic/appointments/actions";
 import { PaymentPanel } from "@/app/clinic/payments/payment-panel";
 import { DeleteInvoiceButton } from "@/app/clinic/invoices/delete-invoice-button";
 import { DownloadLink } from "@/core/ui/download-link";
+import { PrintLinks } from "@/core/ui/print-links";
+import { offeredPapers } from "@/core/lib/print-papers";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const whenFmt = (d: Date) =>
@@ -90,7 +92,7 @@ export default async function InvoicePage({
 
   return (
     <div className="space-y-6">
-      <TabTitle title={invoice.label} />
+      <TabTitle title={`Invoice · ${invoice.label}`} />
       <FlashToast message={created ? `Invoice ${invoice.label} created.` : null} params={["created"]} />
       <div>
         <BackLink href="/clinic/invoices">Back to invoices</BackLink>
@@ -114,9 +116,12 @@ export default async function InvoicePage({
           <div className="flex flex-wrap items-center gap-2">
             {/* Always here: on a new invoice, and after every save. */}
             <span className="inline-flex items-center gap-2">
-            <Link href={`/clinic/invoices/${id}/print`} className={buttonVariants()}>
-              <Printer aria-hidden="true" /> Print invoice
-            </Link>
+            <PrintLinks
+              href={`/clinic/invoices/${id}/print`}
+              papers={offeredPapers(clinic?.invoicePapersEnabled)}
+              single="Print invoice"
+              className={buttonVariants()}
+            />
             <DownloadLink
               href={`/clinic/invoices/${id}/print`}
               label="Download invoice"
@@ -247,6 +252,7 @@ export default async function InvoicePage({
             canSendWhatsapp={can(user, "whatsapp", "create")}
             invoiceLabel={invoice.voided ? `${invoice.label} (void)` : invoice.label}
             invoiceHref={`/clinic/invoices/${id}/print`}
+            papers={offeredPapers(clinic?.invoicePapersEnabled)}
           />
         </CardContent>
       </Card>

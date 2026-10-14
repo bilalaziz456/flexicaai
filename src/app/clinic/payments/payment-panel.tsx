@@ -2,7 +2,6 @@
 
 import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Printer, Undo2 } from "lucide-react";
 import {
@@ -24,6 +23,7 @@ import { MessageCircle } from "lucide-react";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 import { labelFrom, useVocabulary } from "@/core/ui/vocabulary-provider";
 import { DownloadLink } from "@/core/ui/download-link";
+import { PrintLinks } from "@/core/ui/print-links";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -69,6 +69,7 @@ export function PaymentPanel({
   canSendWhatsapp,
   invoiceLabel,
   invoiceHref,
+  papers = ["a4"],
   extra = 0,
   canKeepAsCredit = false,
 }: {
@@ -88,6 +89,8 @@ export function PaymentPanel({
   invoiceLabel: string | null;
   /** Reserved for the printable invoice link (next step). */
   invoiceHref?: string;
+  /** Paper sizes the clinic prints on (one Print button each). */
+  papers?: string[];
   /** Money held beyond the bill — a deposit bigger than the final charges, or all of
    *  it on a cancelled visit. Settled by a refund or by keeping it as credit. */
   extra?: number;
@@ -374,12 +377,12 @@ export function PaymentPanel({
           ) : null}
           {invoiceHref ? (
             <span className="inline-flex items-center gap-2">
-            <Link
+            <PrintLinks
               href={invoiceHref}
+              papers={papers}
+              single="Print invoice"
               className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-            >
-              <Printer className="size-3.5" aria-hidden="true" /> Print invoice
-            </Link>
+            />
             <DownloadLink
               href={invoiceHref}
               label="Download invoice"

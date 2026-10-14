@@ -3,8 +3,7 @@
 import { useState, useTransition } from "react";
 import { SelectField } from "@/core/ui/select-field";
 import { EmptyState } from "@/core/ui/empty-state";
-import Link from "next/link";
-import { Plus, Printer, Trash2, ClipboardList, Pencil } from "lucide-react";
+import { Plus, Trash2, ClipboardList, Pencil } from "lucide-react";
 import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { DownloadLink } from "@/core/ui/download-link";
 import { Button } from "@/core/ui/button";
@@ -26,6 +25,7 @@ import {
   TREATMENT_ITEM_STATUS_ROWS,
   TREATMENT_PLAN_STATUS_ROWS,
 } from "@/core/db/vocabulary-seed";
+import { PrintLinks } from "@/core/ui/print-links";
 
 export type PlanItemRow = { id: string; name: string; tooth: string | null; quantity: number; unitPrice: number; status: string };
 export type PlanRow = { id: string; title: string; status: string; note: string | null; items: PlanItemRow[] };
@@ -43,6 +43,7 @@ export function TreatmentPlansCard({
   templates,
   patientId,
   estimateBase,
+  papers = ["a4"],
   canCreate,
   canEdit,
   canDelete,
@@ -53,6 +54,8 @@ export function TreatmentPlansCard({
   patientId: string;
   /** Base path for a plan's printable estimate, e.g. "/clinic/patients/{id}/estimate". */
   estimateBase?: string;
+  /** Paper sizes the clinic prints on (one Print button each). */
+  papers?: string[];
   canCreate: boolean;
   canEdit: boolean;
   canDelete: boolean;
@@ -110,24 +113,15 @@ export function TreatmentPlansCard({
                       {p.note ? <p className="text-xs text-muted-foreground">{p.note}</p> : null}
                     </div>
                   )}
-                  <div className="flex items-center gap-2">
+                  {/* Two rows (owner's report): the plan's own controls here, the estimate's
+                      Print / Download on a row of their own below — in one row the status
+                      dropdown took every spare pixel and stacked the print buttons. */}
+                  <div className="flex shrink-0 items-center gap-2">
                     {canEdit && editingPlan !== p.id ? (
                       <Button size="sm" variant="outline" disabled={pending} onClick={() => setEditingPlan(p.id)}>
                         <Pencil className="size-3.5" aria-hidden="true" /> Edit
                         <span className="sr-only"> plan {p.title}</span>
                       </Button>
-                    ) : null}
-                    {estimateBase && p.items.length > 0 ? (
-                      <span className="inline-flex items-center gap-3">
-                      <Link href={`${estimateBase}/${p.id}`} className="inline-flex items-center gap-1 text-xs font-medium underline underline-offset-4">
-                        <Printer className="size-3.5" aria-hidden="true" /> Estimate
-                      </Link>
-                      <DownloadLink
-                        href={`${estimateBase}/${p.id}`}
-                        label="Download"
-                        className="gap-1 text-xs underline"
-                      />
-                      </span>
                     ) : null}
                     {canEdit ? (
                       <SelectField
@@ -135,8 +129,8 @@ export function TreatmentPlansCard({
                         onValueChange={(next) => run(() => setPlanStatusAction(p.id, patientId, next), "Plan updated.")}
                         disabled={pending}
                         options={[...PLAN_STATUSES.map((s) => ({ value: s, label: s.replace("_", " ") }))]}
-                        ariaLabel="Select"
-                        className="h-8 w-full"
+                        ariaLabel={`Status of ${p.title}`}
+                        className="h-8 w-36 capitalize"
                       />
                     ) : (
                       <Badge variant={PLAN_VARIANT[p.status] ?? "secondary"}>{p.status}</Badge>
@@ -162,6 +156,14 @@ export function TreatmentPlansCard({
                     ) : null}
                   </div>
                 </div>
+
+                {estimateBase && p.items.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                    <span className="text-muted-foreground">Estimate:</span>
+                    <PrintLinks href={`${estimateBase}/${p.id}`} papers={papers} single="Print" className="gap-1 text-xs" />
+                    <DownloadLink href={`${estimateBase}/${p.id}`} label="Download" className="gap-1 text-xs" />
+                  </div>
+                ) : null}
 
                 {p.items.length > 0 ? (
                   <table className="w-full text-sm">
@@ -201,8 +203,8 @@ export function TreatmentPlansCard({
                                 onValueChange={(next) => run(() => updatePlanItemAction(it.id, patientId, { status: next }), "Item updated.")}
                                 disabled={pending}
                                 options={[...ITEM_STATUSES.map((s) => ({ value: s, label: s.replace("_", " ") }))]}
-                                ariaLabel="Select"
-                                className="h-8 w-full h-7"
+                                ariaLabel={`Status of ${it.name}`}
+                                className="h-7 w-32 capitalize"
                               />
                             ) : (
                               <Badge variant="outline">{it.status.replace("_", " ")}</Badge>

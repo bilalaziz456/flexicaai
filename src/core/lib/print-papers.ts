@@ -1,0 +1,22 @@
+/**
+ * The paper sizes a clinic prints on, as Print-button keys. PURE (no "use client"),
+ * because server pages compute it and hand it to the client `PrintLinks` — calling a
+ * function exported from a client module on the server is an error in Next.
+ */
+
+/** The paper sizes, in the order Print buttons appear. Keys match the print frame's. */
+export const PRINT_PAPERS = [
+  { key: "a4", label: "A4" },
+  { key: "a5", label: "A5" },
+  { key: "thermal", label: "thermal" },
+] as const;
+
+/**
+ * The clinic's switched-on sizes (`clinics.invoice_papers_enabled`). An unknown or
+ * empty list falls back to all of them, like the print frame — a misconfigured clinic
+ * must still be able to print.
+ */
+export function offeredPapers(enabled: readonly string[] | null | undefined): string[] {
+  const picked = PRINT_PAPERS.map((p) => p.key).filter((k) => enabled?.includes(k));
+  return picked.length ? picked : PRINT_PAPERS.map((p) => p.key);
+}

@@ -10,7 +10,7 @@ import { getPatientPaymentsPage } from "@/core/billing/account";
 import Link from "next/link";
 import { TabTitle } from "@/core/ui/app-tabs";
 import { notFound } from "next/navigation";
-import { CalendarDays, CalendarPlus, ClipboardList, Printer, ReceiptText } from "lucide-react";
+import { CalendarDays, CalendarPlus, ClipboardList, ReceiptText } from "lucide-react";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicalRecordFor, getClinicWorkspace } from "@/config/modules";
 import { listPrescriptionAppointmentOptions, listPrescriptions } from "@/core/patients/prescriptions";
@@ -51,6 +51,8 @@ import { PerioChartCard } from "./perio-chart-card";
 import { OpeningBalanceForm } from "./opening-balance-form";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 import { DownloadLink } from "@/core/ui/download-link";
+import { PrintLinks } from "@/core/ui/print-links";
+import { offeredPapers } from "@/core/lib/print-papers";
 
 /**
  * Shared patient detail — used by the clinic-admin panel and any panel that
@@ -227,6 +229,8 @@ export async function PatientDetail({
   // The clinic's enabled modules — drives every module-agnostic clinical section
   // (chart / perio / plans / lab), resolved via the contract (core never knows dental).
   const clinicModulesRow = await getClinic(clinicId);
+  // The paper sizes this clinic prints on — one Print button per size.
+  const papers = offeredPapers(clinicModulesRow?.invoicePapersEnabled);
   const modulesEnabled: string[] = clinicModulesRow?.modulesEnabled ?? [];
   const mrnLabel = patient.mrnLabel;
 
@@ -436,13 +440,12 @@ export async function PatientDetail({
             </CardDescription>
             {/* Print and Download on one row: a card header stacks its children. */}
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-            <Link
+            <PrintLinks
               href={`/clinic/patients/${patient.id}/statement`}
-              className="inline-flex min-h-7 items-center gap-1.5 text-sm font-medium underline-offset-4 transition-colors hover:underline"
-            >
-              <Printer className="size-3.5 shrink-0" aria-hidden="true" />
-              Print statement
-            </Link>
+              papers={papers}
+              single="Print statement"
+              className="min-h-7"
+            />
             <DownloadLink href={`/clinic/patients/${patient.id}/statement`} label="Download statement" className="min-h-7" />
             </div>
           </CardHeader>
@@ -833,13 +836,12 @@ export async function PatientDetail({
             <CardTitle>Odontogram</CardTitle>
             <CardDescription>The patient&apos;s current tooth chart.</CardDescription>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-            <Link
+            <PrintLinks
               href={`${backHref}/${patient.id}/chart-print`}
-              className="inline-flex min-h-7 items-center gap-1.5 text-sm font-medium underline-offset-4 transition-colors hover:underline"
-            >
-              <Printer className="size-3.5 shrink-0" aria-hidden="true" />
-              Print chart
-            </Link>
+              papers={papers}
+              single="Print chart"
+              className="min-h-7"
+            />
             <DownloadLink href={`${backHref}/${patient.id}/chart-print`} label="Download chart" className="min-h-7" />
             </div>
           </CardHeader>
@@ -911,6 +913,7 @@ export async function PatientDetail({
               templates={planTemplates}
               patientId={patient.id}
               estimateBase={`${backHref}/${patient.id}/estimate`}
+              papers={papers}
               canCreate={canCreatePlans}
               canEdit={canEditPlans}
               canDelete={canDeletePlans}

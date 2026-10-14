@@ -19,6 +19,7 @@ import { PaymentsTable } from "./payments-table";
 import { Pagination } from "@/core/ui/pagination";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { StatCard } from "@/core/ui/charts/stat-card";
+import { offeredPapers } from "@/core/lib/print-papers";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -149,7 +150,7 @@ export default async function PaymentsPage({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <PaymentsTable rows={ledger.rows} empty="No payments in this period." />
+          <PaymentsTable rows={ledger.rows} empty="No payments in this period." papers={offeredPapers(clinic?.invoicePapersEnabled)} />
         </CardContent>
       </Card>
     </div>
