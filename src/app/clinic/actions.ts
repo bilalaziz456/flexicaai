@@ -276,7 +276,7 @@ export async function setStaffActive(
     action: "update",
     entity: "staff",
     entityId: userId,
-    summary: isActive ? "Reactivated a staff account" : "Suspended a staff account",
+    summary: isActive ? "Reactivated a team member account" : "Suspended a team member account",
   });
   // "layout" scope refreshes both the list and the staff detail page.
   revalidatePath("/clinic/staff", "layout");
@@ -314,7 +314,7 @@ export async function deleteStaff(
     action: "delete",
     entity: "staff",
     entityId: userId,
-    summary: "Moved a staff member to Trash",
+    summary: "Moved a team member to Trash",
   });
   revalidatePath("/clinic/staff");
   redirect("/clinic/staff");
@@ -346,7 +346,7 @@ export async function resetStaffPassword(
     action: "update",
     entity: "staff",
     entityId: userId,
-    summary: "Reset a staff member's password",
+    summary: "Reset a team member's password",
   });
   revalidatePath("/clinic/staff");
   return { saved: true };
@@ -392,7 +392,7 @@ export async function updateStaffProfile(
   // Fetch the (clinic-scoped, editable) member so we know whether to also save a
   // doctor schedule from the same form.
   const member = await findEditableStaff(clinicId, userId);
-  if (!member) return { error: "Staff member not found." };
+  if (!member) return { error: "Team member not found." };
 
   // Only doctors carry a schedule; a bad schedule blocks the whole save (same as
   // the create form).
@@ -420,7 +420,7 @@ export async function updateStaffProfile(
       username: parsed.data.username,
       ...(scheduleValues ?? {}),
     });
-    if (!saved) return { error: "Staff member not found." };
+    if (!saved) return { error: "Team member not found." };
   } catch (err) {
     if (isUniqueViolation(err)) {
       return { error: "That username is already in use." };
@@ -432,7 +432,7 @@ export async function updateStaffProfile(
     action: "update",
     entity: "staff",
     entityId: userId,
-    summary: `Edited staff ${parsed.data.fullName} (@${parsed.data.username})`,
+    summary: `Edited team member ${parsed.data.fullName} (@${parsed.data.username})`,
   });
   revalidatePath("/clinic/staff");
   revalidatePath(`/clinic/staff/${userId}`);
@@ -459,7 +459,7 @@ export async function updateStaffPermissions(
   const permissions = sanitizePermissions(formData.getAll("perm").map(String));
 
   const member = await findEditableStaff(clinicId, userId);
-  if (!member) return { error: "Staff member not found." };
+  if (!member) return { error: "Team member not found." };
 
   await setClinicStaffPermissions(clinicId, userId, permissions);
 
@@ -484,7 +484,7 @@ export async function resetStaffPermissions(
   const { clinicId } = await requireClinicAdmin();
 
   const member = await setClinicStaffPermissions(clinicId, userId, null);
-  if (!member) return { error: "Staff member not found." };
+  if (!member) return { error: "Team member not found." };
 
   await logActivity({
     action: "update",

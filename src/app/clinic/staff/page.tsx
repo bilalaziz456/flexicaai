@@ -44,9 +44,9 @@ export default async function ClinicStaffPage({
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
   const toastMessage = sp.created
-    ? "Staff member added."
+    ? "Team member added."
     : sp.updated
-      ? "Staff member updated."
+      ? "Team member updated."
       : null;
 
   // Search + role filter + paging live in core, shared with the CSV export (ADR-014).
@@ -60,7 +60,7 @@ export default async function ClinicStaffPage({
       <FlashToast message={toastMessage} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Staff</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Team</h1>
           <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             {total} staff member{total === 1 ? "" : "s"}
             {query ? ` matching “${query}”` : ""}.
@@ -81,7 +81,7 @@ export default async function ClinicStaffPage({
               href="/clinic/staff/new"
               className={cn(buttonVariants(), "hidden sm:inline-flex")}
             >
-              Add staff
+              Add team member
             </Link>
           ) : null}
         </div>
@@ -95,13 +95,13 @@ export default async function ClinicStaffPage({
         total={total}
         basePath="/clinic/staff"
         searchParams={sp}
-        unit="staff member"
+        unit="team member"
       />
 
       {staff.length === 0 ? (
         <EmptyState
           icon={UserPlus}
-          title={query ? "No matching staff" : "No staff yet"}
+          title={query ? "No matching team members" : "No team members yet"}
           description={
             query
               ? `Nothing matches “${query}”. Try a name or a username.`
@@ -198,11 +198,11 @@ export default async function ClinicStaffPage({
         </TableCard>
       )}
 
-      {/* Mobile: floating "+" to add staff (replaces the header button). */}
+      {/* Mobile: floating "+" to add a team member (replaces the header button). */}
       {canCreate ? (
         <Link
           href="/clinic/staff/new"
-          aria-label="Add staff"
+          aria-label="Add team member"
           className={cn(
             buttonVariants({ size: "icon" }),
             "fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg sm:hidden",

@@ -56,6 +56,8 @@ export type PanelSearch = {
   invoiceBase?: string;
   /** e.g. "/clinic/invoices/new" — "Create invoice" on a patient hit. */
   newInvoiceHref?: string;
+  /** e.g. "/clinic/staff" — a team-member hit opens `/<id>`. Omitted = none. */
+  teamBase?: string;
 };
 
 export type PanelNav = {

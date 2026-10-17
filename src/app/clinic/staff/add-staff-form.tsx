@@ -121,7 +121,7 @@ export function AddStaffForm({ resources }: { resources: PermResource[] }) {
         type="submit"
         disabled={pending || (role === "doctor" && !scheduleValid)}
       >
-        {pending ? "Adding…" : "Add staff"}
+        {pending ? "Adding…" : "Add team member"}
       </Button>
     </ActionForm>
   );

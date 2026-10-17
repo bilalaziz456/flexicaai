@@ -126,7 +126,7 @@ export default async function StaffDetailPage({
       />
       <div>
         <BackLink href="/clinic/staff">
-          Back to staff
+          Back to team
         </BackLink>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">{label}</h1>
@@ -304,7 +304,7 @@ export default async function StaffDetailPage({
           <CardTitle>Account access</CardTitle>
           <CardDescription>
             {isLastAdmin
-              ? "This is the clinic's only active admin. Add another admin before suspending or deleting this account — otherwise nobody can reach staff or settings."
+              ? "This is the clinic's only active admin. Add another admin before suspending or deleting this account — otherwise nobody can reach the team or settings."
               : member.isActive
                 ? "Suspend to block sign-in and end active sessions immediately."
                 : "This account is suspended. Reactivate to restore access."}

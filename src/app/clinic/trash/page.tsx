@@ -22,7 +22,7 @@ const TYPE_OPTIONS = [
   { value: "prescription", label: "Prescription" },
   { value: "treatment_plan", label: "Treatment plan" },
   { value: "leave", label: "Doctor leave" },
-  { value: "staff", label: "Staff" },
+  { value: "staff", label: "Team" },
 ];
 
 /**

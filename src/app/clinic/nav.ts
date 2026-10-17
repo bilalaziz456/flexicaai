@@ -47,6 +47,7 @@ export const CLINIC_NAV: PanelNav = {
     newAppointmentHref: "/clinic/appointments/new",
     invoiceBase: "/clinic/invoices",
     newInvoiceHref: "/clinic/invoices/new",
+    teamBase: "/clinic/staff",
   },
   // Top-level items stay flat; the rest are grouped under collapsible parents.
   nodes: [
@@ -95,7 +96,7 @@ export const CLINIC_NAV: PanelNav = {
       group: "Admin",
       Icon: Users,
       items: [
-        { href: "/clinic/staff", label: "Staff", Icon: Users, resource: "staff" },
+        { href: "/clinic/staff", label: "Team", Icon: Users, resource: "staff" },
         { href: "/clinic/settings", label: "Settings", Icon: Settings },
         { href: "/clinic/trash", label: "Trash", Icon: Trash2, resource: "trash" },
         // Only when the super admin granted this clinic log access.

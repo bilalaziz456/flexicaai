@@ -91,7 +91,7 @@ export default async function ClinicDashboard() {
   // in place, then it hides itself (no manual dismiss needed).
   const onboardingSteps = isAdmin
     ? [
-        { label: "Add your team", description: "Invite doctors and receptionists.", href: "/clinic/staff", cta: "Add staff", done: counts.staff > 0 },
+        { label: "Add your team", description: "Invite doctors and receptionists.", href: "/clinic/staff", cta: "Add team member", done: counts.staff > 0 },
         { label: "Add your first patient", description: "Register a patient to start booking.", href: "/clinic/patients", cta: "Add patient", done: counts.patients > 0 },
         { label: "Book the first appointment", description: "Schedule a visit for a patient.", href: "/clinic/appointments/new", cta: "Book", done: counts.appointmentsEver > 0 },
       ]
@@ -209,7 +209,7 @@ export default async function ClinicDashboard() {
         ]
       : []),
     { title: "Patients", value: counts.patients, note: "Registered", href: "/clinic/patients" },
-    { title: "Staff", value: counts.staff, note: clinicStaffSummary(), href: "/clinic/staff" },
+    { title: "Team", value: counts.staff, note: clinicStaffSummary(), href: "/clinic/staff" },
   ];
 
   return (

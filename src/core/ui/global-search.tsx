@@ -44,6 +44,7 @@ export function GlobalSearch({
   newAppointmentHref,
   invoiceBase,
   newInvoiceHref,
+  teamBase,
   className,
 }: {
   navItems: SearchNavItem[];
@@ -60,6 +61,8 @@ export function GlobalSearch({
   invoiceBase?: string;
   /** e.g. "/clinic/invoices/new" — "Create invoice" on a patient hit. */
   newInvoiceHref?: string;
+  /** e.g. "/clinic/staff" — a team-member hit opens their record. */
+  teamBase?: string;
   className?: string;
 }) {
   const router = useRouter();
@@ -182,6 +185,15 @@ export function GlobalSearch({
       }
       return { key: `patient-${h.id}`, label: h.label, detail: h.detail, badge: "Patient", actions };
     }
+    if (h.kind === "team") {
+      return {
+        key: `team-${h.id}`,
+        label: h.label,
+        detail: h.detail,
+        badge: "Team",
+        actions: teamBase ? [{ label: "Open team member", href: `${teamBase}/${h.id}` }] : [],
+      };
+    }
     // With invoice pages, an invoice opens its print screen (View) or its own page
     // (Edit), both under Invoices.
     if (invoiceBase) {
@@ -248,7 +260,7 @@ export function GlobalSearch({
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          placeholder="Search patients, invoices, pages…"
+          placeholder={teamBase ? "Search patients, team, invoices, pages…" : "Search patients, invoices, pages…"}
           aria-label="Search"
           aria-keyshortcuts="Alt+S"
           data-shortcut="search"

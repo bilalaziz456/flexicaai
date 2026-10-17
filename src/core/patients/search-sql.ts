@@ -1,6 +1,7 @@
 import "server-only";
 
 import { eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { patients } from "@/core/db/schema";
 import { phoneSearchTerm } from "@/core/lib/phone";
 
@@ -12,18 +13,26 @@ import { phoneSearchTerm } from "@/core/lib/phone";
  * number the others miss. The raw match stays for numbers stored before E.164.
  */
 export function patientPhoneMatchSql(term: string): SQL {
+  return phoneMatchSql(patients.phone, term);
+}
+
+/**
+ * The same phone rule on any E.164 phone column — a team member's (`users.phone`) as
+ * well as a patient's — so "0345…" finds a stored "+92345…" wherever it is typed.
+ */
+export function phoneMatchSql(column: AnyPgColumn, term: string): SQL {
   const t = term.trim();
-  const raw = ilike(patients.phone, `%${t}%`);
+  const raw = ilike(column, `%${t}%`);
   const p = phoneSearchTerm(t);
   if (!p) return raw;
   // `digits` is digits only (phoneSearchTerm strips everything else), so it is safe
   // to place in a pattern; it still travels as a bound parameter.
   const shaped =
     p.anchor === "national"
-      ? sql`${patients.phone} ~ ${String.raw`^\+[0-9]{1,3}` + p.digits}`
+      ? sql`${column} ~ ${String.raw`^\+[0-9]{1,3}` + p.digits}`
       : p.anchor === "international"
-        ? ilike(patients.phone, `+${p.digits}%`)
-        : ilike(patients.phone, `%${p.digits}%`);
+        ? ilike(column, `+${p.digits}%`)
+        : ilike(column, `%${p.digits}%`);
   return or(raw, shaped)!;
 }
 

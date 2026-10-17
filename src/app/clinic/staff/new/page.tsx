@@ -21,14 +21,14 @@ export default async function NewStaffPage() {
     <div className="space-y-6">
       <div>
         <BackLink href="/clinic/staff">
-          Back to staff
+          Back to team
         </BackLink>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em]">Add staff</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em]">Add team member</h1>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>New staff member</CardTitle>
+          <CardTitle>New team member</CardTitle>
           <CardDescription>
             Create a doctor, receptionist, manager, or another clinic admin with the
             same access as you. They log in with the username and temporary password

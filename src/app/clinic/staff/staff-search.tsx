@@ -41,7 +41,7 @@ export function StaffSearch({ initial }: { initial: string }) {
         placeholder="Search name or username…"
         value={value}
         onChange={(e) => onType(e.target.value)}
-        aria-label="Search staff"
+        aria-label="Search team"
       />
     </div>
   );

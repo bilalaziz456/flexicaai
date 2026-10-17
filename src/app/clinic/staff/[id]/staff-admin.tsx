@@ -57,7 +57,7 @@ export function EditStaffForm({
   // Both outcomes toast in place — the save no longer bounces to the staff list.
   // The hook keys on the state object's identity, so a second identical save still
   // announces itself rather than falling silent.
-  useActionToast(state, { saved: "Staff member updated.", error: true });
+  useActionToast(state, { saved: "Team member updated.", error: true });
   const isDoctor = role === "doctor";
   const [scheduleValid, setScheduleValid] = useState(true);
 
@@ -335,10 +335,10 @@ export function DeleteStaffButton({
 }) {
   return (
     <ConfirmDeleteDialog
-      triggerLabel="Delete staff member"
+      triggerLabel="Delete team member"
       triggerVariant="destructive"
       triggerIcon={<Trash2 className="size-4" aria-hidden="true" />}
-      title="Delete staff member"
+      title="Delete team member"
       description={`Permanently delete ${label}. Their sessions end immediately; visit history is kept.`}
       warning={
         openDrafts > 0

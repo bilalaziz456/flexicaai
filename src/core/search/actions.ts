@@ -5,12 +5,14 @@ import { parseDocNumber } from "@/core/billing/doc-number";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { clinics, invoices, patients } from "@/core/db/schema";
+import { clinics, invoices, patients, users } from "@/core/db/schema";
 import { getCurrentUser } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { formatInvoiceNo } from "@/core/billing/invoice";
 import { mrnMatchesSql } from "@/core/patients/mrn";
-import { patientPhoneMatchSql } from "@/core/patients/search-sql";
+import { patientPhoneMatchSql, phoneMatchSql } from "@/core/patients/search-sql";
+import { displayStaffName } from "@/core/types/auth";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 /**
  * Global search — the top-bar box, reachable from every panel.
@@ -42,6 +44,16 @@ export type SearchHit =
       appointmentId: string;
       /** Printable number, e.g. "INV-100005". */
       label: string;
+      detail: string;
+    }
+  | {
+      // A team member (owner's call, 2026-10-18) — behind `staff:view`, the Team
+      // page's own permission, so the box finds nobody the page would not show.
+      kind: "team";
+      id: string;
+      /** "Dr. Sana Ali" */
+      label: string;
+      /** Role · phone */
       detail: string;
     };
 
@@ -87,10 +99,12 @@ export async function globalSearch(query: string): Promise<SearchResult> {
 
   const canPatients = can(user, "patients", "view");
   const canBilling = can(user, "billing", "view");
+  const canTeam = can(user, "staff", "view");
 
-  const [patientRows, invoiceRows] = await Promise.all([
+  const [patientRows, invoiceRows, teamRows] = await Promise.all([
     canPatients ? searchPatients(clinicId, q) : Promise.resolve([]),
     canBilling && doc ? searchInvoices(clinicId, doc) : Promise.resolve([]),
+    canTeam ? searchTeam(clinicId, q) : Promise.resolve([]),
   ]);
 
   const hits: SearchHit[] = [];
@@ -109,6 +123,14 @@ export async function globalSearch(query: string): Promise<SearchResult> {
       appointmentId: r.appointmentId,
       label: formatInvoiceNo(clinic?.invoicePrefix, r.no),
       detail: r.patientName,
+    });
+  }
+  for (const t of teamRows) {
+    hits.push({
+      kind: "team",
+      id: t.id,
+      label: displayStaffName(t.prefix, t.fullName, t.username),
+      detail: [vocabularyLabel("user_roles", t.role), t.phone, t.isActive ? null : "Suspended"].filter(Boolean).join(" · "),
     });
   }
   return {
@@ -146,6 +168,31 @@ function searchPatients(clinicId: string, q: string) {
       byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt), or(...conds)),
     )
     .orderBy(desc(patients.createdAt))
+    .limit(LIMIT);
+}
+
+/** A team member by name, username or phone (the app-wide phone rule). */
+function searchTeam(clinicId: string, q: string) {
+  return db
+    .select({
+      id: users.id,
+      prefix: users.prefix,
+      fullName: users.fullName,
+      username: users.username,
+      role: users.role,
+      phone: users.phone,
+      isActive: users.isActive,
+    })
+    .from(users)
+    .where(
+      byClinic(
+        users.clinicId,
+        clinicId,
+        notDeleted(users.deletedAt),
+        or(ilike(users.fullName, `%${q}%`), ilike(users.username, `%${q}%`), phoneMatchSql(users.phone, q)),
+      ),
+    )
+    .orderBy(users.fullName)
     .limit(LIMIT);
 }
 

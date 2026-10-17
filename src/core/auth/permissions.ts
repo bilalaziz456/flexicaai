@@ -118,7 +118,7 @@ export const PERM_RESOURCES: PermResource[] = [
   // staff authority, and the ACL should not be the thing that quietly widens it.
   { id: "schedule", label: "Doctor schedule", actions: ["view", "edit"] },
   { id: "leave", label: "Doctor leave", actions: ["view", "create", "edit", "delete"] },
-  { id: "staff", label: "Staff", actions: ["view", "create", "edit", "delete"] },
+  { id: "staff", label: "Team", actions: ["view", "create", "edit", "delete"] },
   { id: "settings", label: "Settings", actions: ["view", "edit"] },
   // Expenses (Finance feature) — owner-level; clinic admin holds it by default,
   // grantable to a manager. `delete` soft-deletes (recoverable).
