@@ -5,6 +5,7 @@ import {
   formatPkr,
 } from "@/core/appointments/fee";
 import { displayStaffName } from "@/core/types/auth";
+import { formatDateTime12h } from "@/core/lib/date-time";
 import {
   paymentStatusBadge,
   visitPaymentStatus,
@@ -18,13 +19,8 @@ import {
  */
 export type AppointmentRow = Awaited<ReturnType<typeof listClinicAppointments>>["rows"][number];
 
-export const formatWhen = (d: Date) =>
-  d.toLocaleString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+/** "17 Oct, 12:55 AM" — 12-hour with AM/PM, on the list and its print alike. */
+export const formatWhen = (d: Date) => formatDateTime12h(d, { year: false });
 
 export const appointmentDoctorLabel = (a: AppointmentRow) =>
   a.doctorName || a.doctorUsername

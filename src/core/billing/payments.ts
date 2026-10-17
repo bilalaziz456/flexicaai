@@ -463,7 +463,14 @@ export async function voidPayment(
       .update(patientPayments)
       .set(softDeleteValues(actor.id, newDeleteGroup()))
       .where(byClinic(patientPayments.clinicId, clinicId, inArray(patientPayments.id, ids)));
-    if (visitId) await recomputeCollected(tx, clinicId, visitId);
+    if (visitId) {
+      await recomputeCollected(tx, clinicId, visitId);
+      // Cancelling a payment edits the invoice it was on — printed as "Edited:".
+      await tx
+        .update(appointments)
+        .set({ editedAt: new Date() })
+        .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, visitId)));
+    }
   });
   if (visitId) await recordSaleForAppointment(clinicId, visitId);
   return { ok: true };

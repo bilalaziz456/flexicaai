@@ -1,4 +1,5 @@
 import { requireWorkspace } from "@/core/auth/user";
+import { formatDateTime12h } from "@/core/lib/date-time";
 import { displayStaffName } from "@/core/types/auth";
 import { listAppointmentCreators } from "@/core/appointments/list-query";
 import { PrintFileName } from "@/core/ui/print-file-name";
@@ -147,7 +148,7 @@ export default async function PrintAppointmentsPage({
             appointment{total === 1 ? "" : "s"}
           </p>
           <p>
-            Printed {new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+            Printed {formatDateTime12h(new Date())}
           </p>
           <p>Printed by {displayStaffName(user.prefix, user.fullName, user.username)}</p>
         </div>

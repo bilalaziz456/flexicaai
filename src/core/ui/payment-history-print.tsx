@@ -1,4 +1,5 @@
 import { formatPkr } from "@/core/appointments/fee";
+import { formatDateTime12h } from "@/core/lib/date-time";
 
 /** One money movement on a visit, already labelled by the caller (the method label
  *  comes from the vocabulary cache, which this presentational file must not read). */
@@ -19,8 +20,7 @@ const KIND_LABEL: Record<string, string> = {
   opening: "Opening balance",
 };
 
-const when = (d: Date) =>
-  d.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const when = (d: Date) => formatDateTime12h(d);
 
 /**
  * The complete payment history on a printed invoice or receipt (owner's call,

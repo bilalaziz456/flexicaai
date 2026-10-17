@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatTime12h } from "@/core/lib/date-time";
 import type { QueueSession } from "@/core/appointments/queue";
 import { cn } from "@/core/lib/utils";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
@@ -85,7 +86,7 @@ export function QueueSummary({
                   return (
                     <li
                       key={it.appointmentId}
-                      title={`#${it.number} · ${it.scheduledAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} · ${it.patientName} · ${vocabularyLabel("appointment_statuses", it.status)}`}
+                      title={`#${it.number} · ${formatTime12h(it.scheduledAt)} · ${it.patientName} · ${vocabularyLabel("appointment_statuses", it.status)}`}
                       className={cn(
                         "inline-flex min-w-6 items-center justify-center rounded-md border px-1.5 py-0.5 text-xs",
                         inRoom && "border-primary bg-primary font-semibold text-primary-foreground",

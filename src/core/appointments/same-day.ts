@@ -1,4 +1,5 @@
 import "server-only";
+import { formatTime12h } from "@/core/lib/date-time";
 
 import { and, asc, eq, gte, inArray, lt, ne } from "drizzle-orm";
 import { db } from "@/core/db";
@@ -69,7 +70,7 @@ export function describeSameDay(list: SameDayAppointment[]): string {
   return list
     .map(
       (a) =>
-        `${a.scheduledAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}${a.doctorName ? ` with ${a.doctorName}` : ""}`,
+        `${formatTime12h(a.scheduledAt)}${a.doctorName ? ` with ${a.doctorName}` : ""}`,
     )
     .join(", ");
 }

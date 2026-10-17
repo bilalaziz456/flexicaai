@@ -14,7 +14,10 @@ const noSubscribe = () => () => {};
 
 /** Paper formats: browser `@page` size + on-screen sheet width/scale + logo height. */
 const FORMATS = {
-  thermal: { label: "Thermal", page: "80mm auto", margin: "3mm", width: "80mm", font: "11px", logoH: "40px" },
+  // Thermal's page LENGTH is the receipt's own, measured at print time (thermalPage
+  // below): `size: 80mm auto` is invalid CSS — Chrome drops the whole rule and prints
+  // on its default A4 instead, which is exactly the bug the desk saw (2026-10-18).
+  thermal: { label: "Thermal", page: "80mm 297mm", margin: "3mm", width: "80mm", font: "11px", logoH: "40px" },
   a5: { label: "A5", page: "A5", margin: "10mm", width: "148mm", font: "12px", logoH: "52px" },
   a4: { label: "A4", page: "A4", margin: "14mm", width: "210mm", font: "13px", logoH: "64px" },
 } as const;
@@ -65,6 +68,16 @@ export function InvoicePrintFrame({
   const printPaper = printParam && offered.includes(printParam as Fmt) ? (printParam as Fmt) : null;
   const f = FORMATS[printPaper ?? (offered.includes(fmt) ? fmt : offered[0])];
   const sheetRef = useRef<HTMLDivElement>(null);
+  // The sheet's height, so a thermal receipt prints as ONE page exactly as long as it
+  // is. The sheet's padding is the page margin, so its height is the page's.
+  const [sheetMm, setSheetMm] = useState<number | null>(null);
+  useEffect(() => {
+    const el = sheetRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setSheetMm((el.offsetHeight * 25.4) / 96));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   // Loaded by a Download link: make this sheet's PDF at the opening paper size and
   // hand it back. Runs once; the page is thrown away afterwards.
   const paperKey = offered.includes(fmt) ? fmt : offered[0];
@@ -84,7 +97,7 @@ export function InvoicePrintFrame({
     void printInFrame();
   }, [printPaper]);
   const css = `@media print {
-  @page { size: ${f.page}; margin: ${f.margin}; }
+  @page { size: ${f === FORMATS.thermal && sheetMm ? `80mm ${Math.ceil(sheetMm) + 4}mm` : f.page}; margin: ${f.margin}; }
   aside, header { display: none !important; }
   main { padding: 0 !important; max-width: none !important; }
   .no-print { display: none !important; }

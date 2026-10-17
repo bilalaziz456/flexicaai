@@ -1,6 +1,7 @@
 "use server";
 
 import { clinicHasFeature } from "@/core/lib/features";
+import { formatTime12h } from "@/core/lib/date-time";
 import { report } from "@/core/observability";
 import type { PaymentMethodCode } from "@/core/db/vocabulary-seed";
 import { PAYMENT_METHODS } from "@/core/finance/payment-methods";
@@ -232,7 +233,7 @@ async function sameDayWarning(
     date: when.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }),
     existing: sameDay.map(
       (a) =>
-        `${a.scheduledAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}${a.doctorName ? ` with ${a.doctorName}` : ""}`,
+        `${formatTime12h(a.scheduledAt)}${a.doctorName ? ` with ${a.doctorName}` : ""}`,
     ),
   };
 }
@@ -652,6 +653,7 @@ export async function updateAppointment(
     chargeConsultation: formData.get("chargeConsultation") !== "0",
     customTime: editCustomTime,
     reminderSentAt: null, // time may have changed → re-send the reminder
+    editedAt: new Date(), // printed as "Edited:" on the invoice
     updatedAt: new Date(),
   };
 

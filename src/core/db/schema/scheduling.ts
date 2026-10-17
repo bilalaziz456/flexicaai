@@ -132,6 +132,11 @@ export const appointments = pgTable(
     // agreement, so it needs no approval (owner's call, 2026-10-18). Cleared the moment
     // anyone edits the discount, which makes it an ordinary discount again.
     discountFromPlan: boolean("discount_from_plan").notNull().default(false),
+    // When the invoice was last EDITED (owner's call, 2026-10-18): the visit saved from
+    // its edit form, or a payment on it cancelled. Printed as "Edited:" on the invoice.
+    // Not `updated_at`, which a reminder, a status change or a cache write also bumps.
+    // NULL = never edited; deliberately not backfilled — it dates an event (ADR-033).
+    editedAt: timestamp("edited_at", { withTimezone: true }),
     // Whether the doctor's consultation fee is charged for this visit. A patient
     // who comes only for a procedure has no consultation fee → set false and the
     // bill/sale count only the procedures. Default true (charge, as before).

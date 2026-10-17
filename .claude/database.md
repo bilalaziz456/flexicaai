@@ -1399,6 +1399,12 @@ these for churn-risk + usage/cost anomaly flags.
   pre-printed paper): `core/lib/letterhead-pdf.ts` now opens every letterhead document
   through one `openLetterhead` (background, margins box, plain header, paging), shared by
   the prescription and `generateLetterheadEstimatePdf`.
+- Migration **`0131`** adds `appointments.edited_at` — when the INVOICE was last edited:
+  the visit saved from its edit form (`updateAppointment`) or a payment on it cancelled
+  (`voidPayment`). The invoice prints it as "Edited:" under the appointment date, when it
+  is later than the invoice's issue date, so a copy handed over earlier is visibly not the
+  latest. Deliberately NOT `updated_at`, which reminders, status changes and the
+  collected-amount cache also bump; and NOT backfilled — it dates an event (ADR-033).
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

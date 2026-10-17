@@ -1,4 +1,5 @@
 import { Fragment } from "react";
+import { formatDateTime12h } from "@/core/lib/date-time";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 import { listAppointmentPayments } from "@/core/billing/payments";
 import { PaymentHistoryPrint } from "@/core/ui/payment-history-print";
@@ -89,8 +90,7 @@ export default async function InvoicePage({
     row.doctorName || row.doctorUsername
       ? displayStaffName(row.doctorPrefix, row.doctorName, row.doctorUsername ?? "")
       : null;
-  const fmtDateTime = (d: Date) =>
-    d.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const fmtDateTime = (d: Date) => formatDateTime12h(d);
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -130,6 +130,15 @@ export default async function InvoicePage({
               <span className="opacity-70">Appointment: </span>
               {fmtDateTime(row.scheduledAt)}
             </div>
+            {/* Changed after it was issued — the visit edited, or a payment on it
+                cancelled (appointments.edited_at). A copy handed over earlier is then
+                visibly not the latest. */}
+            {row.editedAt && (!invoice || row.editedAt > invoice.issuedAt) ? (
+              <div>
+                <span className="opacity-70">Edited: </span>
+                {fmtDateTime(row.editedAt)}
+              </div>
+            ) : null}
             {/* The appointment's own number (its queue token), on its own labelled
                 line, and only when it has one — a visit without a doctor gets none. */}
             {row.queueNumber != null ? (

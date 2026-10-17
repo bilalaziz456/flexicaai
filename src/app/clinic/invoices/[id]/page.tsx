@@ -27,10 +27,10 @@ import { DeleteInvoiceButton } from "@/app/clinic/invoices/delete-invoice-button
 import { DownloadLink } from "@/core/ui/download-link";
 import { PrintLinks } from "@/core/ui/print-links";
 import { offeredPapers } from "@/core/lib/print-papers";
+import { formatDateTime12h } from "@/core/lib/date-time";
 
 const pad = (n: number) => String(n).padStart(2, "0");
-const whenFmt = (d: Date) =>
-  d.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const whenFmt = (d: Date) => formatDateTime12h(d);
 
 /**
  * One invoice: edit what it bills (doctor, date & time, procedures, discount — the

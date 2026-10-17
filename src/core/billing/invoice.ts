@@ -437,6 +437,7 @@ export async function getAppointmentForDocument(clinicId: string, appointmentId:
     .select({
       status: appointments.status,
       scheduledAt: appointments.scheduledAt,
+      editedAt: appointments.editedAt,
       queueNumber: appointments.queueNumber,
       receiptNo: appointments.receiptNo,
       receiptYear: appointments.receiptYear,
