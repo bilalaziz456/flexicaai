@@ -98,10 +98,14 @@ export function InvoicePrintFrame({
   }, [printPaper]);
   const css = `@media print {
   @page { size: ${f === FORMATS.thermal && sheetMm ? `80mm ${Math.ceil(sheetMm) + 4}mm` : f.page}; margin: ${f.margin}; }
-  aside, header { display: none !important; }
+  /* The app's own chrome only — never a header or aside INSIDE the document, which a
+     bare "header" selector hid (the invoice lost its clinic name and number, 2026-10-18). */
+  aside:not(.invoice-sheet *), header:not(.invoice-sheet *) { display: none !important; }
   main { padding: 0 !important; max-width: none !important; }
   .no-print { display: none !important; }
   .invoice-sheet { width: auto !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+  /* Filled bars and stamps print as drawn — browsers drop backgrounds by default. */
+  .invoice-sheet, .invoice-sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }`;
 
   return (
@@ -141,7 +145,10 @@ export function InvoicePrintFrame({
 
       <div
         ref={sheetRef}
-        className="invoice-sheet mx-auto rounded-md border bg-white text-black shadow-sm"
+        // The paper it is drawn for, so a document can lay itself out per size —
+        // `group-data-[paper=thermal]/sheet:…` (an 80mm receipt stacks what A4 spreads).
+        data-paper={printPaper ?? paperKey}
+        className="invoice-sheet group/sheet mx-auto rounded-md border bg-white text-black shadow-sm"
         style={{
           width: `min(100%, ${f.width})`,
           // The sheet's padding IS the page margin. A flat 20px made the preview

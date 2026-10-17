@@ -20,8 +20,6 @@ const KIND_LABEL: Record<string, string> = {
   opening: "Opening balance",
 };
 
-const when = (d: Date) => formatDateTime12h(d);
-
 /**
  * The complete payment history on a printed invoice or receipt (owner's call,
  * 2026-10-12): every payment and refund in the order it happened, with what was still
@@ -29,6 +27,11 @@ const when = (d: Date) => formatDateTime12h(d);
  * 1,000 → 1,000 · paid 1,000 → 0". The running figure is worked out from the bill and
  * the entries themselves, so the last line always equals the Due/Outstanding total
  * printed under it.
+ *
+ * Two lines per entry rather than a four-column table (owner's report, 2026-10-18):
+ * on an 80mm receipt the table squeezed the date into the details ("3:24 AMRefund")
+ * and broke amounts across lines ("−Rs / 29,700"). What it is and how much on the
+ * first line, when and what was left due on the second, fits every paper size.
  */
 export function PaymentHistoryPrint({ bill, entries }: { bill: number; entries: PaymentHistoryEntry[] }) {
   if (entries.length === 0) return null;
@@ -40,45 +43,38 @@ export function PaymentHistoryPrint({ bill, entries }: { bill: number; entries: 
     return acc;
   }, []);
   return (
-    <>
-      <div className="mt-3 text-[0.9em] font-semibold opacity-80">Payment history</div>
-      <table className="mt-1 w-full border-collapse text-[0.95em]">
-        <thead>
-          <tr className="border-y border-black/20 text-left">
-            <th className="py-1 font-normal opacity-70">Date</th>
-            <th className="py-1 font-normal opacity-70">Details</th>
-            <th className="py-1 text-right font-normal opacity-70">Amount</th>
-            <th className="py-1 text-right font-normal opacity-70">Balance due</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td className="py-1" colSpan={2}>
-              Bill
-            </td>
-            <td className="py-1 text-right tabular-nums">{formatPkr(bill)}</td>
-            <td className="py-1 text-right tabular-nums">{formatPkr(bill)}</td>
-          </tr>
-          {ordered.map((e, i) => {
-            const out = e.kind === "refund";
-            return (
-              <tr key={e.id} className="align-top">
-                <td className="py-1 whitespace-nowrap">{when(e.occurredAt)}</td>
-                <td className="py-1">
-                  {KIND_LABEL[e.kind] ?? e.kind}
-                  {e.methodLabel ? <span className="opacity-70"> · {e.methodLabel}</span> : null}
-                  {e.note ? <span className="block text-[0.9em] opacity-70">{e.note}</span> : null}
-                </td>
-                <td className="py-1 text-right tabular-nums">
+    <section className="mt-4 break-inside-avoid-page">
+      <h3 className="mb-1 text-[0.72em] font-semibold tracking-[0.14em] uppercase opacity-60">Payment history</h3>
+      <ol className="border-t border-black/15">
+        <li className="flex items-baseline justify-between gap-3 border-b border-black/10 py-1.5">
+          <span className="font-medium">Bill</span>
+          <span className="whitespace-nowrap tabular-nums">{formatPkr(bill)}</span>
+        </li>
+        {ordered.map((e, i) => {
+          const out = e.kind === "refund";
+          return (
+            // The last row has no rule of its own: the footer's line follows it, and two
+            // lines one above the other read as a mistake.
+            <li key={e.id} className="border-b border-black/10 py-1.5 last:border-b-0">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="min-w-0">
+                  <span className="font-medium">{KIND_LABEL[e.kind] ?? e.kind}</span>
+                  {e.methodLabel ? <span className="opacity-60"> · {e.methodLabel}</span> : null}
+                </span>
+                <span className={`whitespace-nowrap tabular-nums ${out ? "" : "font-medium"}`}>
                   {out ? "−" : ""}
                   {formatPkr(e.amount)}
-                </td>
-                <td className="py-1 text-right tabular-nums">{formatPkr(Math.max(0, dueAfter[i]))}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </>
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3 text-[0.85em] opacity-60">
+                <span className="whitespace-nowrap">{formatDateTime12h(e.occurredAt)}</span>
+                <span className="whitespace-nowrap tabular-nums">Due {formatPkr(Math.max(0, dueAfter[i]))}</span>
+              </div>
+              {e.note ? <div className="text-[0.85em] opacity-60">{e.note}</div> : null}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }
