@@ -39,51 +39,10 @@ export function PrintLinks({
   const run = (paper: string) => {
     if (busy) return;
     setBusy(paper);
-    const frame = document.createElement("iframe");
-    // Inside the viewport and invisible — Chrome pauses a frame it treats as out of
-    // view, which stops the page from finishing (see download-link.tsx).
-    Object.assign(frame.style, {
-      position: "fixed",
-      left: "0",
-      top: "0",
-      width: "1200px",
-      height: "1600px",
-      border: "0",
-      opacity: "0",
-      pointerEvents: "none",
-      zIndex: "-1",
+    printDocument(href, paper, {
+      onOpened: () => setBusy(null),
+      onDone: () => setBusy(null),
     });
-    frame.setAttribute("aria-hidden", "true");
-    frame.tabIndex = -1;
-
-    let opened = false;
-    const cleanup = () => {
-      window.removeEventListener("message", onMessage);
-      clearTimeout(timer);
-      // A moment's grace: some browsers are still handing the job to the printer.
-      setTimeout(() => frame.remove(), 1000);
-      setBusy(null);
-    };
-    const onMessage = (e: MessageEvent<PrintMessage>) => {
-      if (e.origin !== window.location.origin || e.source !== frame.contentWindow) return;
-      if (e.data?.type !== "flexica-print") return;
-      if (e.data.stage === "opened") {
-        opened = true;
-        setBusy(null);
-      } else cleanup();
-    };
-    // Only for a page that never got as far as opening the dialog.
-    const timer = setTimeout(() => {
-      if (opened) return;
-      cleanup();
-      toast.error("The print didn't open (the page did not finish loading). Try again, or open the print page.");
-    }, 60_000);
-    window.addEventListener("message", onMessage);
-
-    const url = new URL(href, window.location.href);
-    url.searchParams.set(PRINT_MODE_PARAM, paper);
-    frame.src = url.pathname + url.search;
-    document.body.appendChild(frame);
   };
 
   const list = PAPERS.filter((p) => papers.includes(p.key));
@@ -111,4 +70,65 @@ export function PrintLinks({
       ))}
     </span>
   );
+}
+
+/**
+ * Print a document page at one paper size WITHOUT opening it — the mechanism behind
+ * every Print button, exported so a form can save and then print ("Save & print A4").
+ *
+ * The print page loads in an invisible same-origin frame with `?print=<size>`; the page
+ * sets that size and opens the dialog for itself, then says when it closed so the frame
+ * can go. The frame belongs to the document, not to the caller, so it outlives a form
+ * that re-renders or closes after saving. Same framing rules as `DownloadLink`.
+ */
+export function printDocument(
+  href: string,
+  paper: string,
+  on: { onOpened?: () => void; onDone?: () => void } = {},
+): void {
+  const frame = document.createElement("iframe");
+  // Inside the viewport and invisible — Chrome pauses a frame it treats as out of
+  // view, which stops the page from finishing (see download-link.tsx).
+  Object.assign(frame.style, {
+    position: "fixed",
+    left: "0",
+    top: "0",
+    width: "1200px",
+    height: "1600px",
+    border: "0",
+    opacity: "0",
+    pointerEvents: "none",
+    zIndex: "-1",
+  });
+  frame.setAttribute("aria-hidden", "true");
+  frame.tabIndex = -1;
+
+  let opened = false;
+  const cleanup = () => {
+    window.removeEventListener("message", onMessage);
+    clearTimeout(timer);
+    // A moment's grace: some browsers are still handing the job to the printer.
+    setTimeout(() => frame.remove(), 1000);
+    on.onDone?.();
+  };
+  const onMessage = (e: MessageEvent<PrintMessage>) => {
+    if (e.origin !== window.location.origin || e.source !== frame.contentWindow) return;
+    if (e.data?.type !== "flexica-print") return;
+    if (e.data.stage === "opened") {
+      opened = true;
+      on.onOpened?.();
+    } else cleanup();
+  };
+  // Only for a page that never got as far as opening the dialog.
+  const timer = setTimeout(() => {
+    if (opened) return;
+    cleanup();
+    toast.error("The print didn't open (the page did not finish loading). Try again, or open the print page.");
+  }, 60_000);
+  window.addEventListener("message", onMessage);
+
+  const url = new URL(href, window.location.href);
+  url.searchParams.set(PRINT_MODE_PARAM, paper);
+  frame.src = url.pathname + url.search;
+  document.body.appendChild(frame);
 }

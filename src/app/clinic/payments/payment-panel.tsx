@@ -2,7 +2,6 @@
 
 import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Printer, Undo2 } from "lucide-react";
 import {
   collectPayment,
@@ -17,13 +16,17 @@ import {
 import { SelectField } from "@/core/ui/select-field";
 import { Button, buttonVariants } from "@/core/ui/button";
 import { ConfirmDialog } from "@/core/ui/confirm-dialog";
-import { Toast, toast, useActionToast } from "@/core/ui/toast";
+import { Toast, useActionToast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import { MessageCircle } from "lucide-react";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 import { labelFrom, useVocabulary } from "@/core/ui/vocabulary-provider";
 import { DownloadLink } from "@/core/ui/download-link";
-import { PrintLinks } from "@/core/ui/print-links";
+import { PrintLinks, printDocument } from "@/core/ui/print-links";
+
+/** The save-and-print buttons, in the order the desk reaches for them. */
+const SAVE_PRINT_ORDER = ["thermal", "a4", "a5"] as const;
+const PAPER_LABEL: Record<(typeof SAVE_PRINT_ORDER)[number], string> = { thermal: "thermal", a4: "A4", a5: "A5" };
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -102,21 +105,16 @@ export function PaymentPanel({
   const kindLabels = useVocabulary("payment_kinds");
   // Methods come from the database (ADR-027): active only, in its own order.
   const methodOptions = useTenderOptions();
-  const router = useRouter();
-  // Two submit buttons share this form; the one that says `then=print` goes on to
-  // the bill once the money is recorded. That happens HERE, in the action, so it
-  // follows the save rather than an effect watching for it (conventions §5) — and
-  // only on success, so a rejected amount never sends anyone to print a bill.
+  // Several submit buttons share this form: Save, and one "Save & print <size>" per
+  // paper the clinic uses (owner's call, 2026-10-18). A print button saves, then prints
+  // the invoice at that size straight away — no trip to the print page. That happens
+  // HERE, in the action, so it follows the save rather than an effect watching for it
+  // (conventions §5) — and only on success, so a rejected amount never prints a bill.
   const [state, formAction, pending] = useActionState<BillingActionState, FormData>(
     async (prev, fd) => {
       const res = await collectPayment(appointmentId, prev, fd);
-      if (res.saved && fd.get("then") === "print" && invoiceHref) {
-        // Toasted here rather than via `useActionToast`, whose component is about to
-        // unmount; the toast host lives in the root layout, so it survives the move.
-        toast.success(res.confirmed ? "Payment received · appointment confirmed." : "Payment received.");
-        router.push(invoiceHref);
-        return {};
-      }
+      const paper = String(fd.get("then") ?? "").replace(/^print:/, "");
+      if (res.saved && invoiceHref && paper && papers.includes(paper)) printDocument(invoiceHref, paper);
       return res;
     },
     {},
@@ -251,19 +249,15 @@ export function PaymentPanel({
           <input type="text" name="note" aria-label="Note for this payment" placeholder="Note (optional)" className={inputCls} />
           <div className="flex flex-wrap items-center gap-2">
             <Button type="submit" size="sm" variant="outline" disabled={pending}>
-              {pending ? "Saving…" : "Save payment"}
+              {pending ? "Saving…" : "Save"}
             </Button>
-            {invoiceHref ? (
-              <Button
-                type="submit"
-                name="then"
-                value="print"
-                size="sm"
-                disabled={pending}
-              >
-                <Printer className="size-3.5" aria-hidden="true" /> Save &amp; print invoice
-              </Button>
-            ) : null}
+            {invoiceHref
+              ? SAVE_PRINT_ORDER.filter((k) => papers.includes(k)).map((k) => (
+                  <Button key={k} type="submit" name="then" value={`print:${k}`} size="sm" disabled={pending}>
+                    <Printer className="size-3.5" aria-hidden="true" /> Save &amp; print {PAPER_LABEL[k]}
+                  </Button>
+                ))
+              : null}
             {credit > 0 ? (
               <Button type="button" size="sm" variant="outline" disabled={busy} onClick={applyCredit}>
                 Apply {money.format(Math.min(credit, outstanding))} credit
