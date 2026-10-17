@@ -8,6 +8,7 @@ import {
   DURATION_UNITS,
   MEDICATION_FORMS,
   MEDICATION_FREQUENCIES,
+  MEDICATION_INSTRUCTIONS,
   type Medication,
 } from "@/core/lib/medical-history";
 
@@ -26,6 +27,7 @@ export function MedicineRow({
   suggestionsId,
   namePlaceholder = "Name, e.g. Warfarin",
   showNote = false,
+  showInstruction = false,
   invalid = false,
 }: {
   value: Medication;
@@ -35,8 +37,10 @@ export function MedicineRow({
   warning?: string | null;
   suggestionsId?: string;
   namePlaceholder?: string;
-  /** A short note for this medicine ("after meals") — on prescriptions. */
+  /** A short note for this medicine ("with plenty of water") — on prescriptions. */
   showNote?: boolean;
+  /** Before / after which meal ("After meal", or None) — on prescriptions. */
+  showInstruction?: boolean;
   /** Mark the row as failing a check (red border; the message comes as `warning`). */
   invalid?: boolean;
 }) {
@@ -75,6 +79,18 @@ export function MedicineRow({
           ariaLabel="Medication frequency"
           className="h-8 w-auto"
         />
+        {showInstruction ? (
+          <SelectField
+            value={m.instruction ?? ""}
+            onValueChange={(v) => patch({ instruction: (v || undefined) as Medication["instruction"] })}
+            options={[
+              ...MEDICATION_INSTRUCTIONS.map((o) => ({ value: o.value, label: o.label })),
+              { value: "", label: "None" },
+            ]}
+            ariaLabel="When to take it"
+            className="h-8 w-auto"
+          />
+        ) : null}
         {m.frequency === "other" ? (
           <Input
             className="h-8 w-32"
@@ -119,7 +135,7 @@ export function MedicineRow({
         <Input
           className="h-8 w-full"
           aria-label="Note for this medicine"
-          placeholder="Note, e.g. after meals · with water"
+          placeholder="Note, e.g. with plenty of water"
           maxLength={300}
           value={m.note ?? ""}
           onChange={(e) => patch({ note: e.target.value })}

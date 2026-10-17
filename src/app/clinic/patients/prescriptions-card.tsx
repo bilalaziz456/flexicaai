@@ -13,7 +13,12 @@ import { Label } from "@/core/ui/label";
 import { SelectField } from "@/core/ui/select-field";
 import { toast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
-import { allergyConflicts, type Allergy, type Medication } from "@/core/lib/medical-history";
+import {
+  allergyConflicts,
+  DEFAULT_MEDICATION_INSTRUCTION,
+  type Allergy,
+  type Medication,
+} from "@/core/lib/medical-history";
 import { checkPrescription, describePrescriptionItem, type PrescriptionItem, type RxProblem } from "@/core/lib/prescription-items";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 import { MedicineRow } from "./medicine-row";
@@ -41,7 +46,8 @@ export type GeneratedPrescription = {
 
 type Option = { value: string; label: string };
 
-const emptyItem = (): Medication => ({ name: "" });
+// A new line starts at "After meal" (owner's call); the desk picks None to drop it.
+const emptyItem = (): Medication => ({ name: "", instruction: DEFAULT_MEDICATION_INSTRUCTION });
 
 /**
  * The patient's prescriptions: ones TYPED at the desk from what the doctor wrote
@@ -378,6 +384,7 @@ function PrescriptionDialog({
                 key={i}
                 value={m}
                 showNote
+                showInstruction
                 invalid={Boolean(problem)}
                 suggestionsId={listId}
                 namePlaceholder="Medicine, e.g. Augmentin"

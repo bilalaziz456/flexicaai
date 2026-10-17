@@ -41,6 +41,25 @@ export const MEDICATION_FREQUENCIES = [
 ] as const;
 export type MedicationFrequency = (typeof MEDICATION_FREQUENCIES)[number]["value"];
 
+/**
+ * When to take it relative to food — on a prescription (owner's call, 2026-10-18). A
+ * NEW prescription line starts at "after_meal", the usual instruction; "None" is an
+ * unset field, so lines saved before this existed (and the medical history, which
+ * never shows it) simply print nothing.
+ */
+export const MEDICATION_INSTRUCTIONS = [
+  { value: "after_meal", label: "After meal" },
+  { value: "before_meal", label: "Before meal" },
+  { value: "after_breakfast", label: "After breakfast" },
+  { value: "before_breakfast", label: "Before breakfast" },
+  { value: "after_lunch", label: "After lunch" },
+  { value: "before_lunch", label: "Before lunch" },
+  { value: "after_dinner", label: "After dinner" },
+  { value: "before_dinner", label: "Before dinner" },
+] as const;
+export type MedicationInstruction = (typeof MEDICATION_INSTRUCTIONS)[number]["value"];
+export const DEFAULT_MEDICATION_INSTRUCTION: MedicationInstruction = "after_meal";
+
 export const DURATION_UNITS = [
   { value: "days", label: "days" },
   { value: "weeks", label: "weeks" },
@@ -65,6 +84,8 @@ export type Medication = {
   frequency?: MedicationFrequency;
   /** The pattern typed when `frequency` is "other" ("2-2-2", "0-0-2"). */
   frequencyOther?: string;
+  /** Before / after which meal; unset = no instruction. */
+  instruction?: MedicationInstruction;
   /** How long it has been / was taken: `durationValue` `durationUnit` ("2 years"). */
   durationValue?: number;
   durationUnit?: DurationUnit;
@@ -74,7 +95,7 @@ export type Medication = {
 const labelOf = <T extends { value: string; label: string }>(list: readonly T[], v: string | undefined) =>
   list.find((o) => o.value === v)?.label;
 
-/** "Tablet / capsule (oral) · Twice daily (1-0-1) · for 2 years" — the details after the name. */
+/** "Tablet / capsule (oral) · Twice daily (1-0-1) · After meal · for 2 years" — the details after the name. */
 export function describeMedication(m: Medication): string {
   const parts: string[] = [];
   const form = labelOf(MEDICATION_FORMS, m.form);
@@ -86,6 +107,8 @@ export function describeMedication(m: Medication): string {
     const freq = labelOf(MEDICATION_FREQUENCIES, m.frequency);
     if (freq) parts.push(freq);
   }
+  const instruction = labelOf(MEDICATION_INSTRUCTIONS, m.instruction);
+  if (instruction) parts.push(instruction);
   if (m.durationValue && m.durationUnit) {
     const unit = m.durationValue === 1 ? m.durationUnit.replace(/s$/, "") : m.durationUnit;
     parts.push(`for ${m.durationValue} ${unit}`);
@@ -184,6 +207,7 @@ export function asMedication(v: unknown): Medication | null {
     form: oneOf(MEDICATION_FORMS, o.form),
     frequency: oneOf(MEDICATION_FREQUENCIES, o.frequency),
     frequencyOther: o.frequency === "other" ? str(o.frequencyOther, 30) : undefined,
+    instruction: oneOf(MEDICATION_INSTRUCTIONS, o.instruction),
     durationValue,
     durationUnit: durationValue ? oneOf(DURATION_UNITS, o.durationUnit) : undefined,
     ongoing: o.ongoing === true ? true : undefined,

@@ -2,7 +2,7 @@
  * Unit tests for the medical-history allergy gate (pure, no DB).
  * Run: `npm run test:unit` (chained) or `tsx scripts/test-medical-history.ts`.
  */
-import { allergyConflicts, asMedicalHistory, describeMedication } from "../src/core/lib/medical-history";
+import { allergyConflicts, asMedicalHistory, asMedication, describeMedication } from "../src/core/lib/medical-history";
 import type { Allergy } from "../src/core/lib/medical-history";
 
 let failures = 0;
@@ -56,6 +56,12 @@ check(
 );
 check("lists are capped at 50", asMedicalHistory({ medications: Array.from({ length: 80 }, () => ({ name: "m" })) }).medications.length, 50);
 check("long text is cut", asMedicalHistory({ notes: "n".repeat(5000) }).notes?.length, 2000);
+
+console.log("\nInstruction (before / after meal):");
+check("a known instruction is kept", asMedication({ name: "x", instruction: "before_dinner" })?.instruction, "before_dinner");
+check("an unknown one is dropped", asMedication({ name: "x", instruction: "with_tea" })?.instruction, undefined);
+check("it reads after the frequency", describeMedication({ name: "x", frequency: "bd", instruction: "after_meal", durationValue: 5, durationUnit: "days" }), "Twice daily (1-0-1) · After meal · for 5 days");
+check("None prints nothing", describeMedication({ name: "x", frequency: "bd" }), "Twice daily (1-0-1)");
 
 console.log(failures === 0 ? "\nALL PASSED" : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);
