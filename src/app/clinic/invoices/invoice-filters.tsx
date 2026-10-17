@@ -29,7 +29,8 @@ const PAYMENT_OPTIONS = [
   ...VISIT_PAYMENT_STATUSES.map((s) => ({ value: s, label: VISIT_PAYMENT_STATUS_LABEL[s] })),
 ];
 
-/** Filter bar for the Invoices register: period (default All time) + range, payment, search. */
+/** Filter bar for the Invoices register: period (default All time) + range, status, payment,
+ *  what the invoice is for (a procedure or service), search. */
 export function InvoiceFilters({
   period,
   from,
@@ -37,6 +38,8 @@ export function InvoiceFilters({
   q,
   payment,
   state,
+  procedure,
+  forOptions,
 }: {
   period: string;
   from: string;
@@ -44,6 +47,9 @@ export function InvoiceFilters({
   q: string;
   payment: string;
   state: string;
+  /** The "For" filter: a procedure or service id ("" = any). */
+  procedure: string;
+  forOptions: { value: string; label: string }[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -53,14 +59,18 @@ export function InvoiceFilters({
   const [qV, setQV] = useState(q);
   const [payV, setPayV] = useState(payment);
   const [stateV, setStateV] = useState(state);
+  const [procV, setProcV] = useState(procedure);
 
-  function push(next: Partial<{ period: string; from: string; to: string; q: string; payment: string; state: string }>) {
+  function push(
+    next: Partial<{ period: string; from: string; to: string; q: string; payment: string; state: string; procedure: string }>,
+  ) {
     const pr = next.period ?? periodV;
     const f = next.from ?? fromD;
     const t = next.to ?? toD;
     const query = next.q ?? qV;
     const pay = next.payment ?? payV;
     const st = next.state ?? stateV;
+    const proc = next.procedure ?? procV;
     const params = new URLSearchParams();
     if (pr && pr !== "all") params.set("period", pr);
     if (pr === "custom") {
@@ -70,6 +80,7 @@ export function InvoiceFilters({
     if (query.trim()) params.set("q", query.trim());
     if (pay) params.set("payment", pay);
     if (st) params.set("state", st);
+    if (proc) params.set("procedure", proc);
     router.replace(params.toString() ? `${pathname}?${params.toString()}` : pathname, { scroll: false });
   }
 
@@ -102,6 +113,18 @@ export function InvoiceFilters({
           push({ payment: v });
         }}
       />
+      {forOptions.length > 0 ? (
+        <FilterSelect
+          label="For"
+          ariaLabel="Filter by procedure or service"
+          value={procV}
+          options={[{ value: "", label: "Any procedure or service" }, ...forOptions]}
+          onChange={(v) => {
+            setProcV(v);
+            push({ procedure: v });
+          }}
+        />
+      ) : null}
       <div className={filterFieldCls}>
         <Label htmlFor="inv-q" className={filterLabelCls}>Search</Label>
         <input

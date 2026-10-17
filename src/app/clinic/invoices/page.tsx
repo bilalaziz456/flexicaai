@@ -20,6 +20,7 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { InvoiceFilters } from "./invoice-filters";
+import { listProcedureCatalog } from "@/core/appointments/procedures";
 import { InvoicesTable } from "./invoices-table";
 import { Pagination } from "@/core/ui/pagination";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
@@ -50,6 +51,7 @@ export default async function InvoicesPage({
     q?: string;
     payment?: string;
     state?: string;
+    procedure?: string;
     page?: string;
     size?: string;
   }>;
@@ -65,6 +67,17 @@ export default async function InvoicesPage({
   const q = sp.q?.trim() || "";
   const payment = asVisitPaymentStatus(sp.payment);
   const state = asInvoiceState(sp.state);
+  // The "For" filter: the clinic's procedures AND services, retired ones too (old
+  // invoices still carry them). An id that is not this clinic's is dropped, so a stale
+  // link shows every invoice rather than none.
+  const [procCatalog, svcCatalog] = await Promise.all([
+    listProcedureCatalog(clinicId, "procedure"),
+    listProcedureCatalog(clinicId, "service"),
+  ]);
+  const forOptions = [...procCatalog, ...svcCatalog]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((p) => ({ value: p.id, label: `${p.name}${p.isActive ? "" : " (retired)"}` }));
+  const procedureId = forOptions.find((o) => o.value === sp.procedure)?.value;
 
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
@@ -75,6 +88,7 @@ export default async function InvoicesPage({
     q: q || undefined,
     payment,
     state,
+    procedureId,
     offset: pageOffset(page, pageSize),
     limit: pageSize,
   });
@@ -91,6 +105,7 @@ export default async function InvoicesPage({
   if (q) exportParams.set("q", q);
   if (payment) exportParams.set("payment", payment);
   if (state) exportParams.set("state", state);
+  if (procedureId) exportParams.set("procedure", procedureId);
 
   return (
     <div className="space-y-6">
@@ -127,7 +142,16 @@ export default async function InvoicesPage({
         </div>
       </div>
 
-      <InvoiceFilters period={range?.period ?? "all"} from={range?.from ?? ""} to={range?.to ?? ""} q={q} payment={payment ?? ""} state={state ?? ""} />
+      <InvoiceFilters
+        period={range?.period ?? "all"}
+        from={range?.from ?? ""}
+        to={range?.to ?? ""}
+        q={q}
+        payment={payment ?? ""}
+        state={state ?? ""}
+        procedure={procedureId ?? ""}
+        forOptions={forOptions}
+      />
 
       {/* Two rows of three: what was BILLED and what is owed on top, the MONEY that
           actually moved underneath. */}
@@ -161,7 +185,7 @@ export default async function InvoicesPage({
         pageSize={pageSize}
         total={list.count}
         basePath="/clinic/invoices"
-        searchParams={{ period: sp.period, from: sp.from, to: sp.to, q, payment, state, size: sp.size }}
+        searchParams={{ period: sp.period, from: sp.from, to: sp.to, q, payment, state, procedure: procedureId, size: sp.size }}
         unit="invoice"
       />
 
@@ -172,7 +196,7 @@ export default async function InvoicesPage({
         <CardContent>
           <InvoicesTable
             rows={list.rows}
-            empty={q ? "No invoices match your search." : "No invoices issued yet."}
+            empty={q || procedureId ? "No invoices match your search." : "No invoices issued yet."}
             canEdit={can(user, "appointments", "edit")}
             canDelete={can(user, "billing", "delete")}
             papers={offeredPapers(clinic?.invoicePapersEnabled)}

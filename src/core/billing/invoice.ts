@@ -9,10 +9,10 @@ import type { Executor } from "@/core/db/tx";
 import { clinicHasFeature } from "@/core/lib/features";
 import { report } from "@/core/observability";
 import { byClinic, notDeleted } from "@/core/db/tenant";
-import { appointments, clinics, invoices, patients, users } from "@/core/db/schema";
+import { appointmentProcedures, appointments, clinics, invoices, patients, users } from "@/core/db/schema";
 import { appointmentNetSql } from "@/core/appointments/bill-sql";
 import { patientSearchSql } from "@/core/patients/search-sql";
-import { procedureTotals } from "@/core/appointments/procedures";
+import { appointmentHasProcedureSql, procedureTotals } from "@/core/appointments/procedures";
 
 /**
  * Invoices — CORE (Finance). One live invoice per appointment. The number is a
@@ -171,6 +171,8 @@ export type InvoiceListRow = {
   collected: number;
   refunded: number;
   visitStatus: string;
+  /** What it is for — "Consultation, Composite filling, Room (per day)"; "" when nothing. */
+  forText: string;
 };
 /** `rows` is ONE PAGE; `count` and `totalBilled` describe the whole filtered set. */
 export type InvoiceList = {
@@ -201,6 +203,9 @@ export type InvoiceListFilters = {
   /** active = not void · deleted = deleted by a person · void = voided by a
    *  cancellation / no-show. */
   state?: InvoiceState;
+  /** Only invoices carrying this catalog procedure or service (by id, so a renamed
+   *  one still finds the visits booked under its old name). */
+  procedureId?: string;
   limit?: number;
   offset?: number;
 };
@@ -247,6 +252,7 @@ export async function getInvoicesList(
   if (filters.state === "active") conds.push(isNull(invoices.voidedAt));
   if (filters.state === "deleted") conds.push(and(isNotNull(invoices.voidedAt), isNotNull(invoices.voidedBy))!);
   if (filters.state === "void") conds.push(and(isNotNull(invoices.voidedAt), isNull(invoices.voidedBy))!);
+  if (filters.procedureId) conds.push(appointmentHasProcedureSql(filters.procedureId));
   const where = byClinic(invoices.clinicId, clinicId, and(...conds));
 
   // THE SUMMARY IS AGGREGATED OVER THE WHOLE FILTERED SET, NOT OVER THE PAGE.
@@ -304,6 +310,15 @@ export async function getInvoicesList(
       collected: appointments.amountCollected,
       visitStatus: appointments.status,
       refunded: sql<number>`${refundedSql()}::int`,
+      // WHAT the invoice is for — "Consultation, Composite filling, Room (per day)"
+      // (owner's call, 2026-10-18): procedures first, then services, by name.
+      // Correlated, which is right here: it runs for the page of rows only (ADR-030).
+      forText: sql<string | null>`concat_ws(', ',
+        case when ${appointments.chargeConsultation} and coalesce(${users.consultationFee}, 0) > 0 then 'Consultation' end,
+        (select string_agg(${appointmentProcedures.name}, ', ' order by ${appointmentProcedures.isService}, ${appointmentProcedures.name})
+           from ${appointmentProcedures}
+          where ${appointmentProcedures.appointmentId} = ${appointments.id}
+            and ${appointmentProcedures.clinicId} = ${clinicId}))`,
     })
     .from(invoices)
     .innerJoin(appointments, eq(appointments.id, invoices.appointmentId))
@@ -334,6 +349,7 @@ export async function getInvoicesList(
     collected: r.collected,
     refunded: Number(r.refunded),
     visitStatus: r.visitStatus,
+    forText: r.forText || "",
   }));
   return {
     rows: list,

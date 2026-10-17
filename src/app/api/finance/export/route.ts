@@ -151,13 +151,15 @@ export async function GET(req: Request) {
       q: url.searchParams.get("q") || undefined,
       payment: asVisitPaymentStatus(url.searchParams.get("payment")),
       state: asInvoiceState(url.searchParams.get("state")),
+      // The core query matches by id within this clinic, so a foreign id finds nothing.
+      procedureId: url.searchParams.get("procedure") || undefined,
       // The register pages at 100 by default; an export is the WHOLE filtered set.
       // (It used to export only the first 100 invoices.)
       limit: 100_000,
     });
     name = range ? `invoices-${range.from}_to_${range.to}` : "invoices-all";
     csv = toCsv(
-      ["Invoice", "Date", "Patient", "Phone", "Issued by", "Amount", "Collected", "Outstanding", "Payment"],
+      ["Invoice", "Date", "Patient", "Phone", "For", "Issued by", "Amount", "Collected", "Outstanding", "Payment"],
       list.rows.map((r) => {
         const status = visitPaymentStatus({ bill: r.amount, collected: r.collected, refunded: r.refunded, visitStatus: r.visitStatus });
         return [
@@ -165,6 +167,7 @@ export async function GET(req: Request) {
           ymd(r.issuedAt),
           r.patientName,
           r.patientPhone ?? "",
+          r.forText,
           r.issuedByName ?? "",
           r.amount,
           r.collected,

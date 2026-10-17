@@ -19,6 +19,8 @@ import { cn } from "@/core/lib/utils";
  */
 export type ActionMenuSection =
   | { kind: "links"; label?: string; items: { label: string; href: string }[] }
+  // Things to DO rather than places to go — print, download (the invoice register).
+  | { kind: "actions"; label?: string; items: { label: string; onSelect: () => void; icon?: React.ReactNode }[] }
   | {
       kind: "choice";
       label?: string;
@@ -34,18 +36,25 @@ const itemCls =
 export function ActionMenu({
   label,
   sections,
+  trigger,
 }: {
   /** Accessible name of the trigger, e.g. "More actions for test patient". */
   label: string;
   sections: ActionMenuSection[];
+  /** A labelled trigger ("Print ▾") instead of the "⋯" icon — its own styling. */
+  trigger?: { content: React.ReactNode; className?: string };
 }) {
   return (
     <Menu.Root>
       <Menu.Trigger
         aria-label={label}
-        className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-8")}
+        className={
+          trigger
+            ? cn(buttonVariants({ variant: "outline", size: "sm" }), trigger.className)
+            : cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-8")
+        }
       >
-        <MoreHorizontal className="size-4" aria-hidden="true" />
+        {trigger ? trigger.content : <MoreHorizontal className="size-4" aria-hidden="true" />}
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner side="bottom" align="end" sideOffset={4} className="z-[110]">
@@ -53,7 +62,19 @@ export function ActionMenu({
             {sections.map((s, i) => (
               <div key={i}>
                 {i > 0 ? <div className="my-1 h-px bg-border/70" role="separator" /> : null}
-                {s.kind === "links" ? (
+                {s.kind === "actions" ? (
+                  <Menu.Group>
+                    {s.label ? (
+                      <Menu.GroupLabel className="px-2 pt-1 pb-0.5 text-xs text-muted-foreground">{s.label}</Menu.GroupLabel>
+                    ) : null}
+                    {s.items.map((it) => (
+                      <Menu.Item key={it.label} className={itemCls} onClick={it.onSelect}>
+                        {it.icon}
+                        {it.label}
+                      </Menu.Item>
+                    ))}
+                  </Menu.Group>
+                ) : s.kind === "links" ? (
                   <Menu.Group>
                     {s.label ? (
                       <Menu.GroupLabel className="px-2 pt-1 pb-0.5 text-xs text-muted-foreground">{s.label}</Menu.GroupLabel>

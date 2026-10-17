@@ -27,6 +27,8 @@ export function DeleteInvoiceButton({
       triggerLabel="Delete"
       triggerIcon={compact ? <Trash2 className="size-3.5" aria-hidden="true" /> : undefined}
       triggerVariant={compact ? "ghost" : "destructive"}
+      // Icon-only in a table row (the label stays as its accessible name).
+      triggerClassName={compact ? "size-8 p-0 text-muted-foreground hover:text-destructive-text [&>span]:hidden" : undefined}
       title={`Delete invoice ${label}?`}
       description="The invoice is kept on the register marked Deleted (its number is never reused), and its visit is cancelled. The patient is not messaged."
       warning={
