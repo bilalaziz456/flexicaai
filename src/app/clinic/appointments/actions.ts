@@ -57,6 +57,7 @@ import {
 import { syncDiscountApprovals } from "@/core/appointments/approvals";
 import { planDiscountForItems, scheduleItemsOnAppointment } from "@/core/patients/treatment-plans";
 import { isPlanDiscount } from "@/core/patients/plan-bill";
+import { AUTO_PRINT_PARAM } from "@/core/lib/print-papers";
 import { revalidateFinance } from "@/app/clinic/finance-revalidate";
 import {
   recordSaleForAppointment,
@@ -504,20 +505,24 @@ export async function createAppointment(
     summary: `Scheduled an appointment for ${when.toLocaleString("en-GB")}`,
   });
   revalidatePath(home);
+  // "Save & print thermal / A4 / A5" (owner's call, 2026-10-18): the size rides along
+  // to the page the save lands on, which prints the invoice at it (core/ui/print-on-arrival).
+  const then = String(formData.get("then") ?? "");
+  const paper = /^print:(thermal|a4|a5)$/.exec(then)?.[1];
+  const printQuery = paper ? `&${AUTO_PRINT_PARAM}=${paper}` : "";
   if (asInvoice) {
     revalidatePath("/clinic/invoices");
     revalidateFinance();
-    // "Save & print" goes straight to the invoice's print screen; "Save" opens the
-    // invoice's own page, where Print invoice is at the top.
-    if (formData.get("then") === "print") {
+    // The older single "Save & print" still goes to the print screen.
+    if (then === "print") {
       redirect(`/clinic/invoices/${created.id}/print?created=1`);
     }
-    redirect(`/clinic/invoices/${created.id}?created=1`);
+    redirect(`/clinic/invoices/${created.id}?created=1${printQuery}`);
   }
   // Land on the NEW appointment's detail page — the payment panel + "Print bill /
   // receipt" are there, so staff can collect the fee and print right away instead of
   // going back to the list to find the appointment they just created.
-  redirect(`${home}/${created.id}?created=1`);
+  redirect(`${home}/${created.id}?created=1${printQuery}`);
 }
 
 const updateSchema = z.object({

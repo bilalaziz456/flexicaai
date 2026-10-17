@@ -29,3 +29,13 @@ export function offeredPapers(enabled: readonly string[] | null | undefined): st
  * prints still follow `offeredPapers`.
  */
 export const PATIENT_DOCUMENT_PAPERS: readonly string[] = ["a4"];
+
+/**
+ * The query parameter a "Save & print <size>" redirect carries to the page it lands
+ * on, which then prints at that size (core/ui/print-on-arrival). Declared HERE, in a
+ * pure module, because the server action builds the URL: imported from the client
+ * component, a server file receives a client-module REFERENCE instead of the string,
+ * and the redirect header it produced was refused ("Invalid character in header
+ * content", 2026-10-18).
+ */
+export const AUTO_PRINT_PARAM = "printPaper";

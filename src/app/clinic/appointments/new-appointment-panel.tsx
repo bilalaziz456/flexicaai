@@ -1,4 +1,5 @@
 import { clinicHasFeature } from "@/core/lib/features";
+import { offeredPapers } from "@/core/lib/print-papers";
 import { BackLink } from "@/core/ui/back-link";
 import { getPatientForPicker, listRecentPatients } from "@/core/patients/list";
 import { getClinic } from "@/core/clinics/get-clinic";
@@ -91,6 +92,7 @@ export async function NewAppointmentPanel({
         <CardContent>
           <NewAppointmentForm
             clinicName={clinic?.name}
+            papers={offeredPapers(clinic?.invoicePapersEnabled)}
             initialPatients={recentPatients}
             doctors={doctors}
             procedures={bookingProcedures}

@@ -28,6 +28,7 @@ import { DownloadLink } from "@/core/ui/download-link";
 import { PrintLinks } from "@/core/ui/print-links";
 import { offeredPapers } from "@/core/lib/print-papers";
 import { formatDateTime12h } from "@/core/lib/date-time";
+import { PrintOnArrival } from "@/core/ui/print-on-arrival";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const whenFmt = (d: Date) => formatDateTime12h(d);
@@ -42,14 +43,14 @@ export default async function InvoicePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string }>;
+  searchParams: Promise<{ created?: string; printPaper?: string }>;
 }) {
   const user = await requireWorkspace("billing");
   const { clinicId } = user;
   const clinic = await getClinic(clinicId);
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales")) notFound();
   const { id } = await params;
-  const { created } = await searchParams;
+  const { created, printPaper } = await searchParams;
 
   const appt = await getAppointmentDetail(clinicId, id);
   if (!appt) notFound();
@@ -94,6 +95,8 @@ export default async function InvoicePage({
     <div className="space-y-6">
       <TabTitle title={`Invoice · ${invoice.label}`} />
       <FlashToast message={created ? `Invoice ${invoice.label} created.` : null} params={["created"]} />
+      {/* "Save & print <size>" on the New invoice form: print it now. */}
+      <PrintOnArrival href={`/clinic/invoices/${id}/print`} paper={printPaper} />
       <div>
         <BackLink href="/clinic/invoices">Back to invoices</BackLink>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">

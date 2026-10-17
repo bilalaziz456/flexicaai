@@ -93,6 +93,7 @@ export function NewAppointmentForm({
   preselectedDate,
   preselectedTime,
   planItems = [],
+  papers = [],
   initial,
   initialSlots,
   invoiceMode = false,
@@ -112,6 +113,8 @@ export function NewAppointmentForm({
   /** Unscheduled treatment-plan items for the (preselected) patient — booking-from-plan. */
   /** The patient's bookable plan items, with their offer and plan discount. */
   planItems?: BookablePlanItem[];
+  /** The paper sizes the clinic prints on — one "Save & print <size>" button each. */
+  papers?: readonly string[];
   appointmentId?: string;
   fixedPatient?: { id: string; fullName: string };
   /** Create mode: start with this patient chosen (from "Book" on a patient row),
@@ -421,6 +424,23 @@ export function NewAppointmentForm({
   // Which save button was pressed (Save vs Save & print). The same-day question
   // resubmits from the form itself, which has no submitter — so remember it.
   const thenRef = useRef("");
+  // "Save & print thermal / A4 / A5" — only the sizes the clinic prints on, in the
+  // order the desk reaches for them.
+  const printPapers = (["thermal", "a4", "a5"] as const).filter((k) => papers.includes(k));
+  // A function, called where the buttons render: it reads `scheduledAt`, which is
+  // declared further down this component.
+  const printButtons = () => printPapers.map((k) => (
+    <Button
+      key={k}
+      type="submit"
+      name="then"
+      value={`print:${k}`}
+      disabled={pending || !scheduledAt}
+      onClick={() => (thenRef.current = `print:${k}`)}
+    >
+      <Printer aria-hidden="true" /> {pending ? "Saving…" : `Save & print ${k === "thermal" ? "thermal" : k.toUpperCase()}`}
+    </Button>
+  ));
   function bookAnyway() {
     if (!formRef.current) return;
     const fd = new FormData(formRef.current);
@@ -1310,7 +1330,8 @@ export function NewAppointmentForm({
       ) : null}
 
       {newInvoice ? (
-        // Save opens the invoice; Save & print goes straight to its print screen.
+        // Save opens the invoice; each Save & print <size> opens it AND prints it at
+        // that size (core/ui/print-on-arrival).
         <div className="flex flex-wrap items-center gap-3">
           <Button
             type="submit"
@@ -1320,15 +1341,20 @@ export function NewAppointmentForm({
           >
             {pending ? "Saving…" : "Save"}
           </Button>
+          {printButtons()}
+        </div>
+      ) : !isEdit && chargesEnabled && printPapers.length > 0 ? (
+        // A new appointment can be booked and its invoice printed in one go too.
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             type="submit"
-            name="then"
-            value="print"
+            variant="outline"
             disabled={pending || !scheduledAt}
-            onClick={() => (thenRef.current = "print")}
+            onClick={() => (thenRef.current = "")}
           >
-            <Printer aria-hidden="true" /> {pending ? "Saving…" : "Save & print"}
+            {pending ? "Scheduling…" : "Schedule appointment"}
           </Button>
+          {printButtons()}
         </div>
       ) : (
         <div className="flex items-center gap-3">
