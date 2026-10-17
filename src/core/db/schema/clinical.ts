@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   date,
   index,
   integer,
@@ -26,6 +27,11 @@ import {
   type TreatmentPlanStatusCode,
   type TreatmentItemStatusCode,
   type AttachmentKindCode,
+  DISCOUNT_TYPE_ROWS,
+  DISCOUNT_BEARER_ROWS,
+  discountTypeId,
+  type DiscountTypeCode,
+  type DiscountBearerCode,
 } from "@/core/db/vocabulary-seed";
 import {
   visitStatuses,
@@ -33,6 +39,8 @@ import {
   treatmentPlanStatuses,
   treatmentItemStatuses,
   attachmentKinds,
+  discountTypes,
+  discountBearers,
 } from "@/core/db/schema/vocabulary";
 
 /**
@@ -224,6 +232,27 @@ export const treatmentPlans = pgTable(
       .default("proposed")
       .references(() => treatmentPlanStatuses.id),
     note: text("note"),
+    // The plan's doctor — optional; names who gives a doctor discount ("Discount by
+    // Dr X" on the estimate). The visit it is booked onto keeps its own doctor.
+    doctorId: uuid("doctor_id").references(() => users.id, { onDelete: "set null" }),
+    // The OVERALL discount on the plan's subtotal (after each item's own discount).
+    discountType: vocabularyRef<DiscountTypeCode>(DISCOUNT_TYPE_ROWS, "discount_type_id")
+      .notNull()
+      .default("amount")
+      .references(() => discountTypes.id),
+    discountValue: integer("discount_value").notNull().default(0),
+    // Who gives the plan's discounts — item and overall alike, chosen once per plan:
+    // clinic, doctor, or split (the doctor's part as % or Rs of the total). Carried
+    // onto a visit booked from the plan as that visit's "Discount borne by".
+    discountBorneBy: vocabularyRef<DiscountBearerCode>(DISCOUNT_BEARER_ROWS, "discount_borne_by_id")
+      .notNull()
+      .default("clinic")
+      .references(() => discountBearers.id),
+    discountSplitType: vocabularyRef<DiscountTypeCode>(DISCOUNT_TYPE_ROWS, "discount_split_type_id")
+      .notNull()
+      .default("percent")
+      .references(() => discountTypes.id),
+    discountSplitValue: integer("discount_split_value").notNull().default(0),
     createdBy: uuid("created_by"),
     createdByName: text("created_by_name"),
     ...softDeleteColumns(),
@@ -232,6 +261,15 @@ export const treatmentPlans = pgTable(
   },
   (t) => [
     index("treatment_plans_patient_idx").on(t.clinicId, t.patientId),
+    // ADR-021: a percentage over 100 is a typo, never a bigger discount.
+    check(
+      "treatment_plans_percent_discount_max",
+      sql`${t.discountType} <> ${sql.raw(String(discountTypeId("percent")))} or ${t.discountValue} between 0 and 100`,
+    ),
+    check(
+      "treatment_plans_percent_split_max",
+      sql`${t.discountSplitType} <> ${sql.raw(String(discountTypeId("percent")))} or ${t.discountSplitValue} between 0 and 100`,
+    ),
     index("treatment_plans_deleted_idx")
       .on(t.clinicId, t.deletedAt)
       .where(sql`${t.deletedAt} is not null`),
@@ -260,6 +298,21 @@ export const treatmentPlanItems = pgTable(
     unitPrice: integer("unit_price").notNull().default(0), // snapshot, PKR
     tooth: text("tooth"), // FDI, nullable
     quantity: integer("quantity").notNull().default(1),
+    // The clinic OFFER on this procedure, SNAPSHOTTED when the item was added — the
+    // estimate is a promise, so an offer ending later does not re-price it. 0 = none
+    // (never had one, or "Remove offer"). Booked onto a visit as that line's discount,
+    // exactly as an offer is on any booking.
+    offerType: vocabularyRef<DiscountTypeCode>(DISCOUNT_TYPE_ROWS, "offer_type_id")
+      .notNull()
+      .default("amount")
+      .references(() => discountTypes.id),
+    offerValue: integer("offer_value").notNull().default(0),
+    // This item's own plan discount, taken off its price AFTER the offer.
+    discountType: vocabularyRef<DiscountTypeCode>(DISCOUNT_TYPE_ROWS, "discount_type_id")
+      .notNull()
+      .default("amount")
+      .references(() => discountTypes.id),
+    discountValue: integer("discount_value").notNull().default(0),
     status: vocabularyRef<TreatmentItemStatusCode>(TREATMENT_ITEM_STATUS_ROWS, "status")
       .notNull()
       .default("planned")
@@ -273,6 +326,14 @@ export const treatmentPlanItems = pgTable(
     index("treatment_plan_items_plan_idx").on(t.planId),
     index("treatment_plan_items_clinic_idx").on(t.clinicId),
     index("treatment_plan_items_appt_idx").on(t.appointmentId),
+    check(
+      "treatment_plan_items_percent_offer_max",
+      sql`${t.offerType} <> ${sql.raw(String(discountTypeId("percent")))} or ${t.offerValue} between 0 and 100`,
+    ),
+    check(
+      "treatment_plan_items_percent_discount_max",
+      sql`${t.discountType} <> ${sql.raw(String(discountTypeId("percent")))} or ${t.discountValue} between 0 and 100`,
+    ),
   ],
 );
 

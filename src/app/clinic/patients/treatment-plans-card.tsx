@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { SelectField } from "@/core/ui/select-field";
 import { EmptyState } from "@/core/ui/empty-state";
-import { Plus, Trash2, ClipboardList, Pencil } from "lucide-react";
+import { Plus, Trash2, ClipboardList, Pencil, FileText, Printer } from "lucide-react";
 import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { DownloadLink } from "@/core/ui/download-link";
 import { Button } from "@/core/ui/button";
@@ -20,16 +20,47 @@ import {
   setPlanStatusAction,
   updatePlanAction,
   updatePlanItemAction,
+  updatePlanTermsAction,
 } from "./treatment-plan-actions";
+import { computePlanBill, discountByLabel, type PlanBearer } from "@/core/patients/plan-bill";
+import { MAX_DISCOUNT_PERCENT, type DiscountType } from "@/core/appointments/fee";
+import { describeOfferAmount, offerLabel } from "@/core/appointments/procedure-offer";
 import {
   TREATMENT_ITEM_STATUS_ROWS,
   TREATMENT_PLAN_STATUS_ROWS,
 } from "@/core/db/vocabulary-seed";
 import { PrintLinks } from "@/core/ui/print-links";
 
-export type PlanItemRow = { id: string; name: string; tooth: string | null; quantity: number; unitPrice: number; status: string };
-export type PlanRow = { id: string; title: string; status: string; note: string | null; items: PlanItemRow[] };
+export type PlanItemRow = {
+  id: string;
+  name: string;
+  tooth: string | null;
+  quantity: number;
+  unitPrice: number;
+  status: string;
+  /** The clinic offer snapshotted when the item was added (0 = none). */
+  offerType: DiscountType;
+  offerValue: number;
+  /** The item's own plan discount. */
+  discountType: DiscountType;
+  discountValue: number;
+};
+export type PlanRow = {
+  id: string;
+  title: string;
+  status: string;
+  note: string | null;
+  doctorId: string | null;
+  /** The overall discount, and who gives the plan's discounts. */
+  discountType: DiscountType;
+  discountValue: number;
+  borneBy: PlanBearer;
+  splitType: DiscountType;
+  splitValue: number;
+  items: PlanItemRow[];
+};
 type Proc = { id: string; name: string; price: number };
+type Option = { value: string; label: string };
 
 const money = (n: number) => new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 }).format(n);
 const PLAN_STATUSES = TREATMENT_PLAN_STATUS_ROWS.map((r) => r.code);
@@ -40,6 +71,8 @@ const PLAN_VARIANT: Record<string, "default" | "secondary" | "destructive" | "ou
 export function TreatmentPlansCard({
   plans,
   procedures,
+  doctors = [],
+  clinicName = null,
   templates,
   patientId,
   estimateBase,
@@ -50,6 +83,10 @@ export function TreatmentPlansCard({
 }: {
   plans: PlanRow[];
   procedures: Proc[];
+  /** The clinic's doctors, for the plan's optional doctor. */
+  doctors?: Option[];
+  /** Names the clinic's offer and a clinic discount ("Smile Dental offer"). */
+  clinicName?: string | null;
   templates: string[];
   patientId: string;
   /** Base path for a plan's printable estimate, e.g. "/clinic/patients/{id}/estimate". */
@@ -68,6 +105,7 @@ export function TreatmentPlansCard({
   // One plan and one item can be in edit mode at a time.
   const [editingPlan, setEditingPlan] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [editingTerms, setEditingTerms] = useState<string | null>(null);
   const run = (fn: () => Promise<{ ok?: true; error?: string }>, okText: string) =>
     start(async () => {
       const r = await fn();
@@ -87,7 +125,12 @@ export function TreatmentPlansCard({
       ) : (
         <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
           {plans.map((p) => {
-            const total = p.items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+            const bill = computePlanBill(
+              p.items.map((i) => ({ ...i, cancelled: i.status === "cancelled" })),
+              { type: p.discountType, value: p.discountValue },
+            );
+            const doctorName = doctors.find((d) => d.value === p.doctorId)?.label ?? null;
+            const discountBy = discountByLabel(p.borneBy, doctorName, clinicName);
             return (
               <li key={p.id} className="space-y-2 p-3">
                 {editingPlan === p.id ? (
@@ -162,13 +205,33 @@ export function TreatmentPlansCard({
                     <span className="text-muted-foreground">Estimate:</span>
                     <PrintLinks href={`${estimateBase}/${p.id}`} papers={papers} single="Print" className="gap-1 text-xs" />
                     <DownloadLink href={`${estimateBase}/${p.id}`} label="Download" className="gap-1 text-xs" />
+                    {/* On the clinic's letterhead, like a typed prescription — and the
+                        same two papers: plain (letterhead printed too) or pre-printed. */}
+                    <a
+                      href={`/api/estimate/${p.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="For plain white paper: the clinic letterhead is printed with the estimate"
+                      className="inline-flex items-center gap-1 text-primary hover:underline"
+                    >
+                      <FileText className="size-3.5" aria-hidden="true" /> Print with letterhead
+                    </a>
+                    <a
+                      href={`/api/estimate/${p.id}?pad=1`}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="For paper that already has your letterhead printed on it: only the estimate is printed, in the right place"
+                      className="inline-flex items-center gap-1 text-primary hover:underline"
+                    >
+                      <Printer className="size-3.5" aria-hidden="true" /> Print without letterhead
+                    </a>
                   </div>
                 ) : null}
 
                 {p.items.length > 0 ? (
                   <table className="w-full text-sm">
                     <tbody>
-                      {p.items.map((it) =>
+                      {p.items.map((it, idx) =>
                         editingItem === it.id ? (
                           <tr key={it.id} className="border-b last:border-0">
                             <td colSpan={5} className="py-1.5">
@@ -193,9 +256,34 @@ export function TreatmentPlansCard({
                             {it.tooth ? (
                               <span className="text-muted-foreground"> · {it.tooth.includes(",") ? "teeth" : "tooth"} {it.tooth}</span>
                             ) : null}
+                            {bill.items[idx].offer > 0 ? (
+                              <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                                {offerLabel(clinicName)}: {describeOfferAmount(it.offerType, it.offerValue)} (−{money(bill.items[idx].offer)})
+                                {canEdit ? (
+                                  <button
+                                    type="button"
+                                    disabled={pending}
+                                    onClick={() => run(() => updatePlanItemAction(it.id, patientId, { removeOffer: true }), "Offer removed.")}
+                                    className="text-destructive-text underline-offset-2 hover:underline"
+                                  >
+                                    Remove offer
+                                  </button>
+                                ) : null}
+                              </span>
+                            ) : null}
+                            {bill.items[idx].discount > 0 ? (
+                              <span className="block text-xs text-muted-foreground">
+                                Discount: {describeOfferAmount(it.discountType, it.discountValue)} (−{money(bill.items[idx].discount)})
+                              </span>
+                            ) : null}
                           </td>
                           <td className="py-1 text-center text-muted-foreground">×{it.quantity}</td>
-                          <td className="py-1 text-right tabular-nums">{money(it.unitPrice * it.quantity)}</td>
+                          <td className="py-1 text-right tabular-nums">
+                            {bill.items[idx].net !== bill.items[idx].gross ? (
+                              <span className="block text-xs text-muted-foreground line-through">{money(bill.items[idx].gross)}</span>
+                            ) : null}
+                            {money(it.status === "cancelled" ? it.unitPrice * it.quantity : bill.items[idx].net)}
+                          </td>
                           <td className="py-1 pl-2">
                             {canEdit ? (
                               <SelectField
@@ -249,10 +337,33 @@ export function TreatmentPlansCard({
                   </table>
                 ) : <p className="text-xs text-muted-foreground">No items yet.</p>}
 
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Total</span>
-                  <span className="font-medium tabular-nums">{money(total)}</span>
-                </div>
+                <PlanTotals bill={bill} discountBy={discountBy} offerName={offerLabel(clinicName)} />
+
+                {editingTerms === p.id ? (
+                  <TermsForm
+                    plan={p}
+                    doctors={doctors}
+                    pending={pending}
+                    onCancel={() => setEditingTerms(null)}
+                    onSave={(terms) =>
+                      run(async () => {
+                        const r = await updatePlanTermsAction(p.id, patientId, terms);
+                        if (r.ok) setEditingTerms(null);
+                        return r;
+                      }, "Plan discount saved.")
+                    }
+                  />
+                ) : (
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span>Doctor: {doctorName ?? "—"}</span>
+                    {bill.planDiscount > 0 ? <span>Discount by {discountBy}</span> : null}
+                    {canEdit ? (
+                      <Button size="xs" variant="outline" disabled={pending} onClick={() => setEditingTerms(p.id)}>
+                        <Pencil className="size-3" aria-hidden="true" /> Doctor &amp; discount
+                      </Button>
+                    ) : null}
+                  </div>
+                )}
 
                 {canEdit ? <AddItem planId={p.id} patientId={patientId} procedures={procedures} pending={pending} onRun={run} /> : null}
               </li>
@@ -388,7 +499,7 @@ function EditPlanForm({
   );
 }
 
-/** Change one item's teeth, quantity or price, in place. */
+/** Change one item's teeth, quantity, price or discount, in place. */
 function EditItemForm({
   item,
   pending,
@@ -397,12 +508,19 @@ function EditItemForm({
 }: {
   item: PlanItemRow;
   pending: boolean;
-  onSave: (patch: { tooth: string | null; quantity: number; unitPrice: number }) => void;
+  onSave: (patch: {
+    tooth: string | null;
+    quantity: number;
+    unitPrice: number;
+    discount: { type: DiscountType; value: number };
+  }) => void;
   onCancel: () => void;
 }) {
   const [tooth, setTooth] = useState(item.tooth ?? "");
   const [qty, setQty] = useState(String(item.quantity));
   const [price, setPrice] = useState(String(item.unitPrice));
+  const [discountType, setDiscountType] = useState<DiscountType>(item.discountType);
+  const [discountValue, setDiscountValue] = useState(item.discountValue ? String(item.discountValue) : "");
   // Quantity follows the teeth while the two are in step — removing 42 from
   // "47, 42, 46" at quantity 3 makes it 2 (owner's report). A quantity somebody set
   // on purpose (2 sittings for one tooth) no longer matches the count, so it is kept.
@@ -425,14 +543,201 @@ function EditItemForm({
         <span className="block text-xs text-muted-foreground">Price each (Rs)</span>
         <Input value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d]/g, ""))} className="h-8 w-24" />
       </label>
+      <DiscountInput label="Discount" type={discountType} value={discountValue} onType={setDiscountType} onValue={setDiscountValue} />
       <Button
         size="sm"
         disabled={pending}
-        onClick={() => onSave({ tooth: tooth.trim() || null, quantity: Number(qty) || 1, unitPrice: Number(price) || 0 })}
+        onClick={() =>
+          onSave({
+            tooth: tooth.trim() || null,
+            quantity: Number(qty) || 1,
+            unitPrice: Number(price) || 0,
+            discount: { type: discountType, value: Number(discountValue) || 0 },
+          })
+        }
       >
         {pending ? "Saving…" : "Save"}
       </Button>
       <Button size="sm" variant="outline" disabled={pending} onClick={onCancel}>Cancel</Button>
+    </div>
+  );
+}
+
+/** Subtotal → offers → discounts → total, showing only the lines that apply. */
+function PlanTotals({
+  bill,
+  discountBy,
+  offerName,
+}: {
+  bill: ReturnType<typeof computePlanBill>;
+  discountBy: string;
+  offerName: string;
+}) {
+  const row = (label: string, value: string, strong = false) => (
+    <div className="flex justify-between gap-3">
+      <span className={strong ? "font-medium" : "text-muted-foreground"}>{label}</span>
+      <span className={`tabular-nums ${strong ? "font-medium" : ""}`}>{value}</span>
+    </div>
+  );
+  const discounted = bill.offers > 0 || bill.planDiscount > 0;
+  return (
+    <div className="space-y-0.5 text-sm">
+      {discounted ? row("Subtotal", money(bill.gross)) : null}
+      {bill.offers > 0 ? row(offerName, `−${money(bill.offers)}`) : null}
+      {bill.itemDiscounts > 0 ? row(`Treatment discounts (by ${discountBy})`, `−${money(bill.itemDiscounts)}`) : null}
+      {bill.overallDiscount > 0 ? row(`Overall discount (by ${discountBy})`, `−${money(bill.overallDiscount)}`) : null}
+      {row("Total", money(bill.total), true)}
+    </div>
+  );
+}
+
+/** A discount: amount or percentage, and its figure. */
+function DiscountInput({
+  label,
+  type,
+  value,
+  onType,
+  onValue,
+}: {
+  label: string;
+  type: DiscountType;
+  value: string;
+  onType: (t: DiscountType) => void;
+  onValue: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <span className="block text-xs text-muted-foreground">{label}</span>
+      <div className="flex gap-1">
+        <SelectField
+          value={type}
+          onValueChange={(v) => onType(v === "percent" ? "percent" : "amount")}
+          options={[
+            { value: "amount", label: "Rs" },
+            { value: "percent", label: "%" },
+          ]}
+          ariaLabel={`${label} type`}
+          className="h-8 w-16"
+        />
+        <Input
+          value={value}
+          inputMode="numeric"
+          aria-label={label}
+          placeholder="0"
+          onChange={(e) => {
+            const digits = e.target.value.replace(/[^\d]/g, "");
+            // A percentage over 100 is a typo, never a bigger discount (ADR-021).
+            onValue(type === "percent" && digits ? String(Math.min(Number(digits), MAX_DISCOUNT_PERCENT)) : digits);
+          }}
+          className="h-8 w-24"
+        />
+      </div>
+    </div>
+  );
+}
+
+const BEARERS: { value: PlanBearer; label: string }[] = [
+  { value: "clinic", label: "Clinic" },
+  { value: "doctor", label: "Doctor" },
+  { value: "split", label: "Both" },
+];
+
+/**
+ * The plan's doctor and discount: the overall discount, and who gives the plan's
+ * discounts — chosen ONCE for the plan, covering each treatment's discount too. No
+ * approval: the plan is the agreement with the patient (owner's call, 2026-10-18).
+ */
+function TermsForm({
+  plan,
+  doctors,
+  pending,
+  onSave,
+  onCancel,
+}: {
+  plan: PlanRow;
+  doctors: Option[];
+  pending: boolean;
+  onSave: (terms: {
+    doctorId: string | null;
+    discountType: DiscountType;
+    discountValue: number;
+    borneBy: PlanBearer;
+    splitType: DiscountType;
+    splitValue: number;
+  }) => void;
+  onCancel: () => void;
+}) {
+  const [doctorId, setDoctorId] = useState(plan.doctorId ?? "");
+  const [type, setType] = useState<DiscountType>(plan.discountType);
+  const [value, setValue] = useState(plan.discountValue ? String(plan.discountValue) : "");
+  const [borneBy, setBorneBy] = useState<PlanBearer>(plan.borneBy);
+  const [splitType, setSplitType] = useState<DiscountType>(plan.splitType);
+  const [splitValue, setSplitValue] = useState(plan.splitValue ? String(plan.splitValue) : "");
+  const needsDoctor = borneBy !== "clinic" && !doctorId;
+  return (
+    <div className="space-y-3 rounded-md border well p-2.5">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="space-y-1">
+          <span className="block text-xs text-muted-foreground">Doctor (optional)</span>
+          <SearchableSelect
+            ariaLabel="Plan doctor"
+            value={doctorId}
+            onChange={setDoctorId}
+            options={[{ value: "", label: "None" }, ...doctors]}
+            placeholder="None"
+            searchPlaceholder="Search doctors…"
+            className="h-8 w-48"
+          />
+        </div>
+        <DiscountInput label="Overall discount" type={type} value={value} onType={setType} onValue={setValue} />
+      </div>
+      <div className="space-y-1">
+        <span className="block text-xs text-muted-foreground">Discount by</span>
+        <div className="flex flex-wrap items-end gap-2" role="radiogroup" aria-label="Discount by">
+          {BEARERS.map((b) => (
+            <Button
+              key={b.value}
+              type="button"
+              size="sm"
+              role="radio"
+              aria-checked={borneBy === b.value}
+              variant={borneBy === b.value ? "default" : "outline"}
+              onClick={() => setBorneBy(b.value)}
+            >
+              {b.label}
+            </Button>
+          ))}
+          {borneBy === "split" ? (
+            <DiscountInput label="Doctor's part" type={splitType} value={splitValue} onType={setSplitType} onValue={setSplitValue} />
+          ) : null}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Covers each treatment&apos;s discount and the overall one. It comes out of that side&apos;s share when the
+          visit is billed, and needs no approval.
+        </p>
+        {needsDoctor ? <p className="text-xs text-destructive-text">Choose the doctor giving the discount.</p> : null}
+      </div>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          disabled={pending || needsDoctor}
+          onClick={() =>
+            onSave({
+              doctorId: doctorId || null,
+              discountType: type,
+              discountValue: Number(value) || 0,
+              borneBy,
+              splitType,
+              splitValue: Number(splitValue) || 0,
+            })
+          }
+        >
+          {pending ? "Saving…" : "Save"}
+        </Button>
+        <Button size="sm" variant="outline" disabled={pending} onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
     </div>
   );
 }

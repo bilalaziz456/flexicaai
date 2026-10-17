@@ -312,6 +312,38 @@ export async function applyClinicOffers(
 }
 
 /**
+ * The clinic offer each procedure carries on `date` ("YYYY-MM-DD"), by id; a
+ * procedure with none running is absent. Used to SNAPSHOT an offer onto a treatment
+ * plan item when it is added — the same `offerForVisit` rule a booking applies.
+ */
+export async function activeOffersOn(
+  clinicId: string,
+  procedureIds: string[],
+  date: string,
+): Promise<Map<string, { type: DiscountType; value: number }>> {
+  const ids = [...new Set(procedureIds.filter(Boolean))];
+  const out = new Map<string, { type: DiscountType; value: number }>();
+  if (ids.length === 0) return out;
+  const rows = await db
+    .select({ id: procedures.id, ...offerColumns })
+    .from(procedures)
+    .where(
+      byClinic(
+        procedures.clinicId,
+        clinicId,
+        notDeleted(procedures.deletedAt),
+        inArray(procedures.id, ids),
+        kindCondition("procedure"),
+      ),
+    );
+  for (const r of rows) {
+    const applied = offerForVisit(toOffer(r), date);
+    if (applied && applied.value > 0) out.set(r.id, applied);
+  }
+  return out;
+}
+
+/**
  * Sets (or, with `offer` null, removes) the clinic offer on the given procedures —
  * one or many, so "apply to all" is one statement. Clinic-scoped; ids that are not
  * this clinic's are ignored. Returns how many procedures changed. Never touches an

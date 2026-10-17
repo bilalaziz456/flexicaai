@@ -12,7 +12,7 @@ import {
 import { NewAppointmentForm } from "@/app/clinic/appointments/new-appointment-form";
 import { getBookingProcedures } from "@/core/appointments/procedures";
 import { listClinicDoctors } from "@/core/appointments/doctors";
-import { getUnscheduledItems } from "@/core/patients/treatment-plans";
+import { getBookablePlanItems } from "@/core/patients/treatment-plans";
 
 /**
  * The "schedule a new appointment" panel — shared by any panel that can create
@@ -102,14 +102,7 @@ export async function NewAppointmentPanel({
             canTakePayment={canTakePayment}
             planItems={
               preselectedPatientId
-                ? (await getUnscheduledItems(clinicId, preselectedPatientId)).map((i) => ({
-                    id: i.id,
-                    name: i.name,
-                    tooth: i.tooth,
-                    unitPrice: i.unitPrice,
-                    quantity: i.quantity,
-                    planTitle: i.planTitle,
-                  }))
+                ? await getBookablePlanItems(clinicId, preselectedPatientId)
                 : []
             }
           />

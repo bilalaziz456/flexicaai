@@ -1373,6 +1373,32 @@ these for churn-risk + usage/cost anomaly flags.
   who took this crown is the one to call. `lab_cases.tooth` stays text but may now hold
   a LIST ("47, 48, 53" — a bridge or a set of crowns is one case), checked and tidied
   by `modules/dental/tooth-status.ts#parseToothList`. `scripts/test-lab-cases.ts`.
+- Migration **`0130`** adds **treatment-plan discounts** (owner's call, 2026-10-18).
+  `treatment_plans` gains an optional `doctor_id` (→ users, `set null`), an OVERALL
+  discount (`discount_type_id` + `discount_value`) and who gives the plan's discounts —
+  `discount_borne_by_id` (clinic / doctor / split) with `discount_split_type_id` +
+  `discount_split_value` (the doctor's part), chosen ONCE per plan.
+  `treatment_plan_items` gains `offer_type_id`/`offer_value` — the clinic offer
+  SNAPSHOTTED when the item was added (the estimate is a promise; "Remove offer" zeroes
+  it) — and its own `discount_type_id`/`discount_value`. All percent columns carry the
+  ADR-021 CHECKs; the vocabulary defaults were hand-corrected to ids (ADR-027).
+  **The money is one pure module**, `core/patients/plan-bill.ts`: per item, price →
+  offer → item discount; the overall discount on the subtotal; and the overall discount
+  ALLOCATED back to the items (largest remainder, exact to the rupee).
+  **Booking items from the plan** books each line with the visit's doctor (it used to
+  have none, so the doctor earned no share) and the item's offer as the line discount;
+  the items' plan discounts become the appointment's PATIENT discount, with the plan's
+  "Discount by" as its "Discount borne by", so it comes out of that side's share. The
+  form fills it in (`visitPlanDiscount`, shared with the server). `appointments.discount_from_plan`
+  marks it as the plan's, unchanged: such a discount needs NO approval
+  (`syncDiscountApprovals` clears it), and any edit to the discount clears the flag.
+  Items from plans whose discounts are given differently are refused on one visit.
+  `scripts/test-plan-bill.ts` (incl. 300 random plans: a booked visit bills exactly what
+  the plan promised) and `scripts/test-plan-discounts.ts`.
+  The estimate prints on the clinic's LETTERHEAD too (`GET /api/estimate/[id]`, `?pad=1` for
+  pre-printed paper): `core/lib/letterhead-pdf.ts` now opens every letterhead document
+  through one `openLetterhead` (background, margins box, plain header, paging), shared by
+  the prescription and `generateLetterheadEstimatePdf`.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

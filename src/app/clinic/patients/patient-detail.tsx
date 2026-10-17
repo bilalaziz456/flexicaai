@@ -278,13 +278,35 @@ export async function PatientDetail({
   // Treatment plans — gated by `plans:view`. Procedures + templates power the builder.
   const planRows = canViewPlans ? await listPlans(clinicId, patientId) : [];
   const planProcedures = canViewPlans ? await getBookingProcedures(clinicId) : [];
+  // The plan's optional doctor — the clinic's active doctors (the one already on a
+  // plan stays readable through its name even if they have since left).
+  const planDoctors = canViewPlans
+    ? (await listClinicDoctors(clinicId)).filter((d) => d.isActive).map((d) => ({ value: d.id, label: d.name }))
+    : [];
   const planTemplates = canViewPlans ? treatmentTemplatesFor(modulesEnabled).map((t) => t.name) : [];
   const plans: PlanRow[] = planRows.map((p) => ({
     id: p.id,
     title: p.title,
     status: p.status,
     note: p.note,
-    items: p.items.map((i) => ({ id: i.id, name: i.name, tooth: i.tooth, quantity: i.quantity, unitPrice: i.unitPrice, status: i.status })),
+    doctorId: p.doctorId,
+    discountType: p.discountType,
+    discountValue: p.discountValue,
+    borneBy: p.discountBorneBy,
+    splitType: p.discountSplitType,
+    splitValue: p.discountSplitValue,
+    items: p.items.map((i) => ({
+      id: i.id,
+      name: i.name,
+      tooth: i.tooth,
+      quantity: i.quantity,
+      unitPrice: i.unitPrice,
+      status: i.status,
+      offerType: i.offerType,
+      offerValue: i.offerValue,
+      discountType: i.discountType,
+      discountValue: i.discountValue,
+    })),
   }));
 
   // Lab cases (dental) — module-agnostic via the clinicalRecord `lab` bundle.
@@ -907,6 +929,8 @@ export async function PatientDetail({
             <TreatmentPlansCard
               plans={plans}
               procedures={planProcedures}
+              doctors={planDoctors}
+              clinicName={clinicModulesRow?.name ?? null}
               templates={planTemplates}
               patientId={patient.id}
               estimateBase={`${backHref}/${patient.id}/estimate`}

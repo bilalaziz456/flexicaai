@@ -1,6 +1,8 @@
 import { getClinic } from "@/core/clinics/get-clinic";
 import { getPatientHeader } from "@/core/patients/list";
-import { getTreatmentPlan, listTreatmentPlanItems } from "@/core/patients/treatment-plans";
+import { getTreatmentPlan, listTreatmentPlanItems, planBillOf } from "@/core/patients/treatment-plans";
+import { discountByLabel } from "@/core/patients/plan-bill";
+import { describeOfferAmount, offerLabel } from "@/core/appointments/procedure-offer";
 import { notFound } from "next/navigation";
 import { formatPkr } from "@/core/appointments/fee";
 import { BackLink } from "@/core/ui/back-link";
@@ -10,7 +12,8 @@ import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 /**
  * Printable treatment-plan ESTIMATE (a patient-facing quote). Thermal/A5/A4 via the
- * shared print frame. Lists the plan's items (tooth, qty, price) + total. Gated by
+ * shared print frame. Lists the plan's items (tooth, qty, price, offer, discount), then
+ * the subtotal, the plan's discounts with WHO gives them, and the total. Gated by
  * the caller (`plans:view`); clinic-scoped. Prices are the plan-item snapshots.
  */
 export async function TreatmentEstimate({
@@ -35,7 +38,10 @@ export async function TreatmentEstimate({
 
   const items = await listTreatmentPlanItems(clinicId, planId);
 
-  const total = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+  const bill = planBillOf(plan, items);
+  const discountBy = discountByLabel(plan.discountBorneBy, plan.doctorName, clinic?.name);
+  const offerName = offerLabel(clinic?.name);
+  const discounted = bill.offers > 0 || bill.planDiscount > 0;
   const fmtDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
   return (
@@ -88,13 +94,28 @@ export async function TreatmentEstimate({
               </tr>
             </thead>
             <tbody>
-              {items.map((it) => (
+              {items.map((it, i) => (
                 <tr key={it.id} className="border-b border-black/10">
-                  <td className="py-1">{it.name}</td>
+                  <td className="py-1">
+                    {it.name}
+                    {bill.items[i].offer > 0 ? (
+                      <div className="text-[0.85em] opacity-70">
+                        {offerName}: {describeOfferAmount(it.offerType, it.offerValue)} (−{formatPkr(bill.items[i].offer)})
+                      </div>
+                    ) : null}
+                    {bill.items[i].discount > 0 ? (
+                      <div className="text-[0.85em] opacity-70">
+                        Discount: {describeOfferAmount(it.discountType, it.discountValue)} (−{formatPkr(bill.items[i].discount)})
+                      </div>
+                    ) : null}
+                  </td>
                   <td className="py-1 text-center">{it.tooth ?? "—"}</td>
                   <td className="py-1 text-center">{vocabularyLabel("treatment_item_statuses", it.status)}</td>
                   <td className="py-1 text-right">{it.quantity}</td>
-                  <td className="py-1 text-right tabular-nums">{formatPkr(it.unitPrice * it.quantity)}</td>
+                  <td className="py-1 text-right tabular-nums">
+                    {/* A cancelled item shows its price but costs nothing (computePlanBill). */}
+                    {formatPkr(it.status === "cancelled" ? it.unitPrice * it.quantity : bill.items[i].net)}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -103,9 +124,44 @@ export async function TreatmentEstimate({
           <p className="mt-3 text-[0.9em] opacity-70">No items on this plan.</p>
         )}
 
+        {discounted ? (
+          <div className="mt-2 space-y-0.5 text-[0.95em]">
+            <div className="flex justify-between">
+              <span className="opacity-70">Subtotal</span>
+              <span className="tabular-nums">{formatPkr(bill.gross)}</span>
+            </div>
+            {bill.offers > 0 ? (
+              <div className="flex justify-between">
+                <span className="opacity-70">{offerName}</span>
+                <span className="tabular-nums">−{formatPkr(bill.offers)}</span>
+              </div>
+            ) : null}
+            {bill.itemDiscounts > 0 ? (
+              <div className="flex justify-between">
+                <span className="opacity-70">Treatment discounts</span>
+                <span className="tabular-nums">−{formatPkr(bill.itemDiscounts)}</span>
+              </div>
+            ) : null}
+            {bill.overallDiscount > 0 ? (
+              <div className="flex justify-between">
+                <span className="opacity-70">
+                  Overall discount
+                  {plan.discountType === "percent" ? ` (${plan.discountValue}%)` : ""}
+                </span>
+                <span className="tabular-nums">−{formatPkr(bill.overallDiscount)}</span>
+              </div>
+            ) : null}
+            {/* Who gives it — the doctor, the clinic, or both (owner's call, 2026-10-18).
+                The clinic's own offer is named on its own line above. */}
+            {bill.planDiscount > 0 ? (
+              <div className="text-[0.9em] font-medium">Discount by {discountBy}</div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="mt-2 flex justify-between border-t border-black/20 pt-1 text-[1.05em] font-bold">
           <span>Estimated total</span>
-          <span className="tabular-nums">{formatPkr(total)}</span>
+          <span className="tabular-nums">{formatPkr(bill.total)}</span>
         </div>
 
         {plan.note ? <p className="mt-2 text-[0.9em] opacity-80">{plan.note}</p> : null}

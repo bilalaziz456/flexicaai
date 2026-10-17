@@ -27,6 +27,13 @@ export async function findAppointmentForEdit(clinicId: string, appointmentId: st
       status: appointments.status,
       patientId: appointments.patientId,
       scheduledAt: appointments.scheduledAt,
+      // So an edit can tell whether a plan's discount was left as it was.
+      discountFromPlan: appointments.discountFromPlan,
+      discountType: appointments.discountType,
+      discountValue: appointments.discountValue,
+      discountBorneBy: appointments.discountBorneBy,
+      discountSplitType: appointments.discountSplitType,
+      discountSplitValue: appointments.discountSplitValue,
     })
     .from(appointments)
     .where(

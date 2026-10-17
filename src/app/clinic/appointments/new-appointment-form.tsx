@@ -24,6 +24,8 @@ import { TimeSelect } from "@/core/ui/time-select";
 import { useActionToast } from "@/core/ui/toast";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 import { syncChecked } from "@/core/ui/checkbox-sync";
+import { discountByLabel, isPlanDiscount, visitPlanDiscount } from "@/core/patients/plan-bill";
+import type { BookablePlanItem } from "@/core/patients/treatment-plans";
 import {
   MAX_DISCOUNT_PERCENT,
   computeBill,
@@ -108,7 +110,8 @@ export function NewAppointmentForm({
   /** Names the offer on a procedure line ("Clinic002 offer · 10% discount"). */
   clinicName?: string | null;
   /** Unscheduled treatment-plan items for the (preselected) patient — booking-from-plan. */
-  planItems?: { id: string; name: string; tooth: string | null; unitPrice: number; quantity: number; planTitle: string }[];
+  /** The patient's bookable plan items, with their offer and plan discount. */
+  planItems?: BookablePlanItem[];
   appointmentId?: string;
   fixedPatient?: { id: string; fullName: string };
   /** Create mode: start with this patient chosen (from "Book" on a patient row),
@@ -349,7 +352,48 @@ export function NewAppointmentForm({
     })),
   ];
   const otherChargesTotal = otherBillLines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
-  const billLines = [...procedureBillLines, ...otherBillLines];
+  // Plan items ticked below bill as procedure lines with their snapshotted offer —
+  // exactly how the server books them (scheduleItemsOnAppointment). Left out, the
+  // total on screen was lower than the one saved.
+  const selectedPlanItems = planItems.filter((it) => planItemSel.has(it.id));
+  const planBillLines = selectedPlanItems.map((it) => ({
+    unitPrice: it.unitPrice,
+    quantity: it.quantity,
+    discountType: it.offerType,
+    discountValue: it.offerValue,
+  }));
+  const billLines = [...procedureBillLines, ...planBillLines, ...otherBillLines];
+  // The discount the ticked items bring from their plan, and whether the form still
+  // holds exactly that one (then it needs no approval — the server checks the same).
+  const planTerms = visitPlanDiscount(selectedPlanItems);
+  const planDiscount = planTerms && !("error" in planTerms) ? planTerms : null;
+  const discountIsPlan = isPlanDiscount(planDiscount, {
+    discountType,
+    discountValue: discountNumber,
+    borneBy,
+    splitType,
+    splitValue: borneBy === "split" ? splitNumber : 0,
+  });
+  const planDoctorName = selectedPlanItems.find((it) => it.planDiscount > 0)?.doctorName ?? null;
+
+  // Ticking a plan item fills the discount in from the plan. Only while the discount
+  // still is the plan's (or empty): one the desk typed is theirs and is left alone.
+  const togglePlanItem = (id: string) => {
+    const next = new Set(planItemSel);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setPlanItemSel(next);
+    if (!discountIsPlan && discountNumber > 0) return;
+    const terms = visitPlanDiscount(planItems.filter((it) => next.has(it.id)));
+    if (terms && "error" in terms) return;
+    setDiscountType("amount");
+    setDiscountValue(terms ? String(terms.amount) : "");
+    setBorneBy(terms ? terms.borneBy : "clinic");
+    if (terms?.borneBy === "split") {
+      setSplitType(terms.split.type);
+      setSplitValue(String(terms.split.value));
+    }
+  };
   // Seeded by the server when editing, so the picker is constrained on the first
   // paint. It used to be null with an effect that fetched the same thing on mount:
   // a round trip after hydration, and a moment where the form offered times the
@@ -739,8 +783,12 @@ export function NewAppointmentForm({
           <div className="space-y-2 sm:col-span-2 rounded-lg border border-primary/40 bg-accent/30 p-3">
             <Label>From treatment plan</Label>
             <p className="text-xs text-muted-foreground">
-              Tick items to schedule onto this visit. They bill like procedures.
+              Tick items to schedule onto this visit. They bill like procedures, and bring the plan&apos;s
+              discount with them.
             </p>
+            {planTerms && "error" in planTerms ? (
+              <p className="text-xs text-destructive-text">{planTerms.error}</p>
+            ) : null}
             {[...planItemSel].map((id) => (
               <input key={id} type="hidden" name="planItemId" value={id} />
             ))}
@@ -752,19 +800,15 @@ export function NewAppointmentForm({
                     <Checkbox
                       checked={checked}
                       ref={syncChecked(checked)}
-                      onCheckedChange={() =>
-                        setPlanItemSel((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(it.id)) next.delete(it.id);
-                          else next.add(it.id);
-                          return next;
-                        })
-                      }
+                      onCheckedChange={() => togglePlanItem(it.id)}
                     />
                     <span>
                       {it.name}
                       {it.tooth ? <span className="text-muted-foreground"> · {it.tooth}</span> : null}
                       <span className="text-muted-foreground"> · {it.planTitle}</span>
+                      {it.planDiscount > 0 ? (
+                        <span className="text-muted-foreground"> · plan discount {formatPkr(it.planDiscount)}</span>
+                      ) : null}
                     </span>
                   </label>
                 );
@@ -1076,6 +1120,20 @@ export function NewAppointmentForm({
               Pick a doctor or procedures to see the total.
             </p>
           )}
+
+          {planDiscount ? (
+            discountIsPlan ? (
+              <p className="text-xs text-muted-foreground">
+                From the treatment plan · discount by {discountByLabel(planDiscount.borneBy, planDoctorName, clinicName)}. Agreed
+                in the plan, so it needs no approval.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                The plan gives {formatPkr(planDiscount.amount)}. A discount changed from the plan&apos;s follows the
+                usual approval rules.
+              </p>
+            )
+          ) : null}
 
           {/* Who absorbs the discount in the doctor/clinic revenue split. Only
               relevant once a discount is entered. Submitted always so an edit that

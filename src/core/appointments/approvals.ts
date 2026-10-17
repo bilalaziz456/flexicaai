@@ -44,6 +44,14 @@ export async function syncDiscountApprovals(
   if (!ctx.found || discount <= 0) {
     return clearApprovals(clinicId, appointmentId);
   }
+  // A treatment plan's discount, booked unchanged, was agreed when the plan was made —
+  // it needs no approval (owner's call, 2026-10-18). Editing it clears the flag.
+  const [origin] = await db
+    .select({ fromPlan: appointments.discountFromPlan })
+    .from(appointments)
+    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
+    .limit(1);
+  if (origin?.fromPlan) return clearApprovals(clinicId, appointmentId);
 
   // Who actually BEARS the discount (positive portion), per the no-spill split.
   const { clinicBorne, doctorBorne } = discountBorneSplit(discount, ctx.borneBy, {

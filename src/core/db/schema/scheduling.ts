@@ -128,6 +128,10 @@ export const appointments = pgTable(
       .references(() => discountTypes.id),
     discountSplitValue: integer("discount_split_value").notNull().default(0),
     discountSplitStale: boolean("discount_split_stale").notNull().default(false),
+    // The patient discount came from a TREATMENT PLAN, unchanged — the plan was the
+    // agreement, so it needs no approval (owner's call, 2026-10-18). Cleared the moment
+    // anyone edits the discount, which makes it an ordinary discount again.
+    discountFromPlan: boolean("discount_from_plan").notNull().default(false),
     // Whether the doctor's consultation fee is charged for this visit. A patient
     // who comes only for a procedure has no consultation fee → set false and the
     // bill/sale count only the procedures. Default true (charge, as before).

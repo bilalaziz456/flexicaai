@@ -54,7 +54,8 @@ import {
   type ProcedureSelection,
 } from "@/core/appointments/procedures";
 import { syncDiscountApprovals } from "@/core/appointments/approvals";
-import { scheduleItemsOnAppointment } from "@/core/patients/treatment-plans";
+import { planDiscountForItems, scheduleItemsOnAppointment } from "@/core/patients/treatment-plans";
+import { isPlanDiscount } from "@/core/patients/plan-bill";
 import { revalidateFinance } from "@/app/clinic/finance-revalidate";
 import {
   recordSaleForAppointment,
@@ -316,6 +317,26 @@ export async function createAppointment(
   const when = new Date(parsed.data.scheduledAt);
   if (Number.isNaN(when.getTime())) return { error: "Invalid date & time." };
 
+  // Booking-from-plan: the items' plan discount. When the discount on the form is
+  // exactly that one, it is the plan's agreed discount and needs no approval (owner's
+  // call, 2026-10-18); a discount the desk changed is an ordinary one.
+  const planItemIds = formData
+    .getAll("planItemId")
+    .filter((v): v is string => typeof v === "string" && v.length > 0);
+  const bookPlanItems = planItemIds.length > 0 && can(user, "plans", "edit");
+  let discountFromPlan = false;
+  if (bookPlanItems) {
+    const fromPlan = await planDiscountForItems(clinicId, planItemIds);
+    if (fromPlan && "error" in fromPlan) return { error: fromPlan.error };
+    discountFromPlan = isPlanDiscount(fromPlan, {
+      discountType: parsed.data.discountType,
+      discountValue: parsed.data.discountValue,
+      borneBy: parsed.data.discountBorneBy,
+      splitType: parsed.data.discountSplitType,
+      splitValue: parsed.data.discountSplitValue,
+    });
+  }
+
   // Procedure-only visits don't charge the consultation fee (checkbox off → "0").
   const chargeConsultation = formData.get("chargeConsultation") !== "0";
   // Booked deliberately outside the doctor's windows (a 6pm procedure when they
@@ -389,6 +410,7 @@ export async function createAppointment(
           discountBorneBy: parsed.data.discountBorneBy,
     discountSplitType: parsed.data.discountSplitType,
     discountSplitValue: parsed.data.discountSplitValue,
+          discountFromPlan,
           chargeConsultation,
           customTime,
           // Who booked it — shown as "Created by" on the appointments list.
@@ -409,10 +431,7 @@ export async function createAppointment(
 
   // Booking-from-plan: schedule any selected treatment-plan items onto this
   // appointment — mints their appointment_procedures lines + marks them in progress.
-  const planItemIds = formData
-    .getAll("planItemId")
-    .filter((v): v is string => typeof v === "string" && v.length > 0);
-  if (planItemIds.length > 0 && can(user, "plans", "edit")) {
+  if (bookPlanItems) {
     await scheduleItemsOnAppointment(clinicId, created.id, planItemIds);
   }
 
@@ -621,6 +640,15 @@ export async function updateAppointment(
     discountBorneBy: parsed.data.discountBorneBy,
     discountSplitType: parsed.data.discountSplitType,
     discountSplitValue: parsed.data.discountSplitValue,
+    // A plan's discount stays the plan's only while nobody changes it; any edit to
+    // the discount makes it an ordinary one, which follows the approval rules.
+    discountFromPlan:
+      appt.discountFromPlan &&
+      appt.discountType === parsed.data.discountType &&
+      appt.discountValue === parsed.data.discountValue &&
+      appt.discountBorneBy === parsed.data.discountBorneBy &&
+      appt.discountSplitType === parsed.data.discountSplitType &&
+      appt.discountSplitValue === parsed.data.discountSplitValue,
     chargeConsultation: formData.get("chargeConsultation") !== "0",
     customTime: editCustomTime,
     reminderSentAt: null, // time may have changed → re-send the reminder

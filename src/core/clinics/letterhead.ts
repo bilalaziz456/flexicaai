@@ -10,12 +10,19 @@ import { ageFromDob } from "@/core/lib/age";
 import { displayStaffName } from "@/core/types/auth";
 import { describePrescriptionItem, type PrescriptionItem } from "@/core/lib/prescription-items";
 import {
+  generateLetterheadEstimatePdf,
   generateLetterheadPrescriptionPdf,
   type LetterheadSource,
   type Margins,
   type RxPrintLine,
 } from "@/core/lib/letterhead-pdf";
 import { getPrescriptionForPrint } from "@/core/patients/prescriptions";
+import { getTreatmentPlan, listTreatmentPlanItems, planBillOf } from "@/core/patients/treatment-plans";
+import { getPatientHeader } from "@/core/patients/list";
+import { discountByLabel } from "@/core/patients/plan-bill";
+import { describeOfferAmount, offerLabel } from "@/core/appointments/procedure-offer";
+import { formatPkr } from "@/core/appointments/fee";
+import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 
 /**
  * The clinic's LETTERHEAD (owner's call, 2026-10-14): a blank A4 page, uploaded by the
@@ -140,4 +147,78 @@ export async function buildLetterheadPreviewPdf(clinicId: string, margins: Margi
     ]),
     notes: "Take after meals. Review in one week.",
   });
+}
+
+/**
+ * A treatment plan's ESTIMATE as a PDF on the clinic's letterhead (owner's call,
+ * 2026-10-18), or for its pre-printed pad — the same figures as the on-screen estimate,
+ * both from `planBillOf`. Clinic-scoped: the plan and its patient must be this clinic's.
+ */
+export async function buildLetterheadEstimatePdf(
+  clinicId: string,
+  planId: string,
+  opts: { pad?: boolean } = {},
+): Promise<{ pdf: Uint8Array; filename: string } | null> {
+  const [plan, settings] = await Promise.all([getTreatmentPlan(clinicId, planId), getLetterheadSettings(clinicId)]);
+  if (!plan || !settings) return null;
+  const [items, patient] = await Promise.all([
+    listTreatmentPlanItems(clinicId, planId),
+    getPatientHeader(clinicId, plan.patientId),
+  ]);
+  if (!patient) return null;
+
+  const bill = planBillOf(plan, items);
+  const offerName = offerLabel(settings.clinicName);
+  const lines = items.map((it, i) => {
+    const b = bill.items[i];
+    const cancelled = it.status === "cancelled";
+    return {
+      name: it.name,
+      detail:
+        [
+          it.tooth ? `${it.tooth.includes(",") ? "Teeth" : "Tooth"} ${it.tooth}` : null,
+          vocabularyLabel("treatment_item_statuses", it.status),
+        ]
+          .filter(Boolean)
+          .join(" · ") || null,
+      adjustments: [
+        b.offer > 0 ? `${offerName}: ${describeOfferAmount(it.offerType, it.offerValue)} (−${formatPkr(b.offer)})` : null,
+        b.discount > 0 ? `Discount: ${describeOfferAmount(it.discountType, it.discountValue)} (−${formatPkr(b.discount)})` : null,
+      ].filter((v): v is string => Boolean(v)),
+      quantity: it.quantity,
+      // A cancelled item shows its price but costs nothing (computePlanBill).
+      amount: formatPkr(cancelled ? it.unitPrice * it.quantity : b.net),
+      gross: !cancelled && b.net !== b.gross ? formatPkr(b.gross) : null,
+    };
+  });
+  const discounted = bill.offers > 0 || bill.planDiscount > 0;
+  const totals: [string, string][] = [];
+  if (discounted) totals.push(["Subtotal", formatPkr(bill.gross)]);
+  if (bill.offers > 0) totals.push([offerName, `−${formatPkr(bill.offers)}`]);
+  if (bill.itemDiscounts > 0) totals.push(["Treatment discounts", `−${formatPkr(bill.itemDiscounts)}`]);
+  if (bill.overallDiscount > 0) {
+    totals.push([
+      `Overall discount${plan.discountType === "percent" ? ` (${plan.discountValue}%)` : ""}`,
+      `−${formatPkr(bill.overallDiscount)}`,
+    ]);
+  }
+
+  const pdf = await generateLetterheadEstimatePdf({
+    letterhead: opts.pad ? null : await loadLetterhead(clinicId, settings.key),
+    margins: settings.margins,
+    pad: opts.pad,
+    clinic: { name: settings.clinicName, address: settings.address, phone: settings.phone },
+    patient: { name: patient.fullName, mrn: patient.mrnLabel },
+    date: plan.createdAt,
+    title: plan.title,
+    lines,
+    totals,
+    discountBy:
+      bill.planDiscount > 0
+        ? `Discount by ${discountByLabel(plan.discountBorneBy, plan.doctorName, settings.clinicName)}`
+        : null,
+    total: formatPkr(bill.total),
+    note: plan.note,
+  });
+  return { pdf, filename: `${patientFileName(patient.fullName, "Treatment estimate")}.pdf` };
 }

@@ -17,7 +17,9 @@ import {
   softDeletePlan,
   updatePlan,
   updatePlanItem,
+  updatePlanTerms,
 } from "@/core/patients/treatment-plans";
+import { discountError, normalizeDiscountType } from "@/core/appointments/fee";
 import { logActivity } from "@/core/audit/log";
 import {
   asCode,
@@ -82,10 +84,24 @@ export async function addPlanItemAction(
 export async function updatePlanItemAction(
   itemId: string,
   patientId: string,
-  patch: { status?: string; tooth?: string | null; quantity?: number; unitPrice?: number },
+  patch: {
+    status?: string;
+    tooth?: string | null;
+    quantity?: number;
+    unitPrice?: number;
+    discount?: { type: string; value: number };
+    removeOffer?: boolean;
+  },
 ): Promise<State> {
   const g = await guard("edit");
   if ("error" in g) return g;
+  const discount = patch.discount
+    ? { type: normalizeDiscountType(patch.discount.type), value: Number(patch.discount.value) || 0 }
+    : undefined;
+  if (discount) {
+    const e = discountError(discount.type, discount.value);
+    if (e) return { error: e };
+  }
   let tooth: string | null | undefined = undefined;
   if (patch.tooth !== undefined) {
     const t = await tidyTeeth(g.clinicId, patch.tooth);
@@ -94,6 +110,8 @@ export async function updatePlanItemAction(
   }
   await updatePlanItem(g.clinicId, itemId, {
     ...patch,
+    discount,
+    removeOffer: patch.removeOffer === true,
     tooth,
     status: asCode<TreatmentItemStatusCode>(TREATMENT_ITEM_STATUS_ROWS, patch.status),
   });
@@ -107,6 +125,38 @@ export async function updatePlanAction(planId: string, patientId: string, title:
   const ok = await updatePlan(g.clinicId, planId, { title: title.trim(), note: note.trim() || null });
   if (!ok) return { error: "That plan no longer exists." };
   await logActivity({ action: "update", entity: "patient", entityId: patientId, summary: `Edited treatment plan "${title.trim()}"` });
+  return done(patientId);
+}
+
+/**
+ * A plan's doctor and discount: the overall discount, and who gives it (the clinic,
+ * the doctor, or both with the doctor's part). No approval — the plan IS the agreement
+ * with the patient (owner's call, 2026-10-18).
+ */
+export async function updatePlanTermsAction(
+  planId: string,
+  patientId: string,
+  input: { doctorId: string | null; discountType: string; discountValue: number; borneBy: string; splitType: string; splitValue: number },
+): Promise<State> {
+  const g = await guard("edit");
+  if ("error" in g) return g;
+  const discountType = normalizeDiscountType(input.discountType);
+  const splitType = normalizeDiscountType(input.splitType);
+  const borneBy = input.borneBy === "doctor" || input.borneBy === "split" ? input.borneBy : "clinic";
+  const discountValue = Number(input.discountValue) || 0;
+  const splitValue = Number(input.splitValue) || 0;
+  const e = discountError(discountType, discountValue) ?? (borneBy === "split" ? discountError(splitType, splitValue) : null);
+  if (e) return { error: e };
+  const r = await updatePlanTerms(g.clinicId, planId, {
+    doctorId: input.doctorId || null,
+    discountType,
+    discountValue,
+    borneBy,
+    splitType,
+    splitValue,
+  });
+  if ("error" in r) return r;
+  await logActivity({ action: "update", entity: "patient", entityId: patientId, summary: "Changed a treatment plan's doctor or discount" });
   return done(patientId);
 }
 

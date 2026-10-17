@@ -492,6 +492,15 @@ are in `.env.example`.
   only the writing for pre-printed pads. **ACL:** receptionist and manager now hold
   `prescriptions` view/create/edit/delete by default.
 
+- **Treatment-plan discounts** (`0130`) — per treatment and overall, with an optional plan
+  doctor and "Discount by" clinic / doctor / both (a split), chosen once per plan and
+  printed on the estimate ("Discount by Dr X and <clinic>"). A procedure's clinic offer is
+  snapshotted onto the item and can be removed. Booking items from the plan carries their
+  share of the plan discount onto the visit as its patient discount, borne as the plan
+  says, with **no approval** while it is left unchanged (`appointments.discount_from_plan`).
+  Math in `core/patients/plan-bill.ts`. The estimate also prints on the clinic's letterhead
+  (`/api/estimate/[id]`, with or without the letterhead, like a typed prescription).
+
 Still NOT to build without instruction (§11/§12 unchanged): derma, hair, mobile apps,
 advanced analytics.
 
