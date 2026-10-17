@@ -52,7 +52,7 @@ import { OpeningBalanceForm } from "./opening-balance-form";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 import { DownloadLink } from "@/core/ui/download-link";
 import { PrintLinks } from "@/core/ui/print-links";
-import { offeredPapers } from "@/core/lib/print-papers";
+import { PATIENT_DOCUMENT_PAPERS } from "@/core/lib/print-papers";
 
 /**
  * Shared patient detail — used by the clinic-admin panel and any panel that
@@ -215,22 +215,21 @@ export async function PatientDetail({
   const dateLabel = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   const localYmd = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const [typedRx, rxDoctors, rxAppointments, rxClinic] = canViewPrescriptions
+  const [typedRx, rxDoctors, rxAppointments] = canViewPrescriptions
     ? await Promise.all([
         listPrescriptions(clinicId, patientId),
         listClinicDoctors(clinicId),
         listPrescriptionAppointmentOptions(clinicId, patientId),
-        getClinic(clinicId),
       ])
-    : [[], [], [], null];
+    : [[], [], []];
   const todayYmd = localYmd(new Date());
   const todaysAppt = rxAppointments.find((a) => localYmd(a.scheduledAt) === todayYmd) ?? null;
 
   // The clinic's enabled modules — drives every module-agnostic clinical section
   // (chart / perio / plans / lab), resolved via the contract (core never knows dental).
   const clinicModulesRow = await getClinic(clinicId);
-  // The paper sizes this clinic prints on — one Print button per size.
-  const papers = offeredPapers(clinicModulesRow?.invoicePapersEnabled);
+  // Patient documents print on A4 only, so each gets a single Print button.
+  const papers = PATIENT_DOCUMENT_PAPERS;
   const modulesEnabled: string[] = clinicModulesRow?.modulesEnabled ?? [];
   const mrnLabel = patient.mrnLabel;
 
@@ -796,7 +795,6 @@ export async function PatientDetail({
                 appointmentId: t.appointmentId,
                 items: t.items,
                 notes: t.notes,
-                printDoctorName: t.printDoctorName,
                 createdByName: t.createdByName,
               }))}
               generated={prescriptionVisits.map((g) => ({
@@ -816,7 +814,6 @@ export async function PatientDetail({
                 date: todayYmd,
                 appointmentId: todaysAppt?.id ?? null,
                 doctorId: todaysAppt?.doctorId ?? null,
-                printDoctorName: rxClinic?.rxPrintDoctorName ?? true,
               }}
               allergies={allergies}
               formularyNames={[

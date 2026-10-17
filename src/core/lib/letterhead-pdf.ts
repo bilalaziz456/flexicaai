@@ -149,8 +149,8 @@ export async function generateLetterheadPrescriptionPdf(input: LetterheadPrescri
     }
     page.drawLine({ start: { x: left, y: top + 8 }, end: { x: right, y: top + 8 }, thickness: 1, color: INK });
   }
-  // Room for the signature block, kept free at the foot of the LAST page.
-  const signatureSpace = input.doctorName ? 52 : 0;
+  // Room for the "By Dr. …" line, kept free at the foot of the LAST page.
+  const signatureSpace = input.doctorName ? 28 : 0;
   const need = (h: number) => {
     if (y - h < bottom) newPage();
   };
@@ -212,13 +212,12 @@ export async function generateLetterheadPrescriptionPdf(input: LetterheadPrescri
     }
   }
 
-  // ---- Doctor's name + signature, at the foot of the box ----
+  // ---- "By Dr. …", at the foot of the box ----
+  // A credit, not a signature line (owner's call, 2026-10-18): a typed prescription is
+  // entered at the desk, so a "Signature" line asked for one nobody was going to add.
   if (input.doctorName) {
     if (y - signatureSpace < bottom) newPage();
-    const sy = bottom + 22;
-    page!.drawLine({ start: { x: right - 170, y: sy + 14 }, end: { x: right, y: sy + 14 }, thickness: 0.75, color: MUTED });
-    rightText(input.doctorName, sy, { font: bold, size: 10.5 });
-    rightText("Signature", sy - 12, { size: 8.5, color: MUTED });
+    rightText(`By ${input.doctorName}`, bottom + 10, { font: bold, size: 10.5 });
   }
 
   return doc.save();

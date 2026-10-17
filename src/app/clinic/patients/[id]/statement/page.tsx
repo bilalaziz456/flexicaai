@@ -9,6 +9,7 @@ import { getPatientAccount } from "@/core/billing/account";
 import { formatPkr } from "@/core/appointments/fee";
 import { BackLink } from "@/core/ui/back-link";
 import { InvoicePrintFrame } from "@/core/ui/invoice-print";
+import { PATIENT_DOCUMENT_PAPERS } from "@/core/lib/print-papers";
 
 /**
  * Printable patient statement (Finance) — the patient's account on one sheet:
@@ -56,8 +57,8 @@ export default async function PatientStatementPage({
       </div>
 
       <InvoicePrintFrame
-        defaultFormat={clinic?.invoicePaper ?? "a4"}
-        allowed={clinic?.invoicePapersEnabled}
+        defaultFormat="a4"
+        allowed={PATIENT_DOCUMENT_PAPERS}
       >
         {/* Header */}
         <div className="flex items-start justify-between gap-3 border-b border-black/20 pb-2">

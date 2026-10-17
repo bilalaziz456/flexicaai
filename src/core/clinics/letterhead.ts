@@ -34,7 +34,6 @@ export const MAX_LETTERHEAD_BYTES = 5 * 1024 * 1024;
 export type LetterheadSettings = {
   key: string | null;
   margins: Margins;
-  printDoctorName: boolean;
   clinicName: string;
   address: string | null;
   phone: string | null;
@@ -48,7 +47,6 @@ export async function getLetterheadSettings(clinicId: string): Promise<Letterhea
       bottom: clinics.letterheadBottomMm,
       left: clinics.letterheadLeftMm,
       right: clinics.letterheadRightMm,
-      printDoctorName: clinics.rxPrintDoctorName,
       name: clinics.name,
       address: clinics.publicAddress,
       phone: clinics.whatsappDisplayNumber,
@@ -60,7 +58,6 @@ export async function getLetterheadSettings(clinicId: string): Promise<Letterhea
   return {
     key: c.key,
     margins: { topMm: c.top, bottomMm: c.bottom, leftMm: c.left, rightMm: c.right },
-    printDoctorName: c.printDoctorName,
     clinicName: c.name,
     address: c.address,
     phone: c.phone,
@@ -112,7 +109,10 @@ export async function buildLetterheadPrescriptionPdf(
     clinic: { name: settings.clinicName, address: settings.address, phone: settings.phone },
     patient: { name: row.patientName, mrn: row.patientMrn, ageGender },
     date: new Date(`${p.prescribedOn}T12:00:00`),
-    doctorName: p.printDoctorName && p.doctorName ? displayStaffName(row.doctorPrefix, p.doctorName) : null,
+    // Always "By Dr. …" when a doctor is chosen (owner's call, 2026-10-18). It used to be a
+    // per-prescription tick defaulting to a clinic setting, and an unticked box printed a
+    // prescription with no doctor on it at all. The `print_doctor_name` columns are no longer read.
+    doctorName: p.doctorName ? displayStaffName(row.doctorPrefix, p.doctorName) : null,
     items: rxLines(p.items),
     notes: p.notes,
   });

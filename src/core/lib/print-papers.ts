@@ -20,3 +20,12 @@ export function offeredPapers(enabled: readonly string[] | null | undefined): st
   const picked = PRINT_PAPERS.map((p) => p.key).filter((k) => enabled?.includes(k));
   return picked.length ? picked : PRINT_PAPERS.map((p) => p.key);
 }
+
+/**
+ * A patient's own documents — the account statement, the clinical chart, a treatment
+ * estimate — print on A4 only, whatever the clinic's receipt printer (owner's call,
+ * 2026-10-18). They are pages a patient keeps or takes elsewhere, not till slips, and a
+ * thermal or A5 button beside them only invited the wrong one. Invoices and payment
+ * prints still follow `offeredPapers`.
+ */
+export const PATIENT_DOCUMENT_PAPERS: readonly string[] = ["a4"];

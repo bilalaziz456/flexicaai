@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { clinicalRecordFor } from "@/config/modules";
 import { BackLink } from "@/core/ui/back-link";
 import { InvoicePrintFrame } from "@/core/ui/invoice-print";
+import { PATIENT_DOCUMENT_PAPERS } from "@/core/lib/print-papers";
 
 /**
  * Printable clinical chart — the patient's current odontogram + latest perio summary,
@@ -44,8 +45,8 @@ export async function ClinicalChartPrint({
 
       <InvoicePrintFrame
         fileName={`${patient.fullName} - ${clinicalRecord.chartName ?? "Clinical chart"}`}
-        defaultFormat={clinic?.invoicePaper ?? "a4"}
-        allowed={clinic?.invoicePapersEnabled}
+        defaultFormat="a4"
+        allowed={PATIENT_DOCUMENT_PAPERS}
       >
         <div className="flex items-start justify-between gap-3 border-b border-black/20 pb-2">
           <div>

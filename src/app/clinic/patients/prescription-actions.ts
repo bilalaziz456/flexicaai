@@ -22,7 +22,6 @@ const schema = z.object({
   doctorId: z.string().uuid({ message: "Choose the doctor who prescribed it." }),
   prescribedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick the date."),
   notes: z.string().max(MAX_PRESCRIPTION_NOTES, "Notes are too long.").nullable(),
-  printDoctorName: z.boolean(),
 });
 
 /**
@@ -42,7 +41,6 @@ export async function savePrescriptionAction(id: string | null, raw: unknown): P
     doctorId: o.doctorId,
     prescribedOn: o.prescribedOn,
     notes: typeof o.notes === "string" && o.notes.trim() ? o.notes.trim() : null,
-    printDoctorName: o.printDoctorName === true,
   });
   if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
   // The same checks the form ran, again here — a form is not a guarantee.

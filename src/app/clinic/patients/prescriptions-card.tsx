@@ -4,7 +4,6 @@ import { useId, useState, useTransition } from "react";
 import { Download, FileText, Pencil, Pill, Plus, Printer, Trash2 } from "lucide-react";
 import { Badge } from "@/core/ui/badge";
 import { Button, buttonVariants } from "@/core/ui/button";
-import { Checkbox } from "@/core/ui/checkbox";
 import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { DatePicker } from "@/core/ui/date-picker";
 import { Dialog } from "@/core/ui/dialog";
@@ -33,7 +32,6 @@ export type TypedPrescription = {
   appointmentId: string | null;
   items: PrescriptionItem[];
   notes: string | null;
-  printDoctorName: boolean;
   createdByName: string | null;
 };
 export type GeneratedPrescription = {
@@ -71,8 +69,8 @@ export function PrescriptionsCard({
   generated: GeneratedPrescription[];
   doctors: Option[];
   appointments: (Option & { doctorId: string | null })[];
-  /** Today's date, today's appointment and its doctor, and the clinic's print-name default. */
-  defaults: { date: string; appointmentId: string | null; doctorId: string | null; printDoctorName: boolean };
+  /** Today's date, and today's appointment and its doctor. */
+  defaults: { date: string; appointmentId: string | null; doctorId: string | null };
   allergies: Allergy[];
   formularyNames: string[];
   can: { create: boolean; edit: boolean; delete: boolean };
@@ -239,7 +237,7 @@ function PrescriptionDialog({
   existing: TypedPrescription | null;
   doctors: Option[];
   appointments: (Option & { doctorId: string | null })[];
-  defaults: { date: string; appointmentId: string | null; doctorId: string | null; printDoctorName: boolean };
+  defaults: { date: string; appointmentId: string | null; doctorId: string | null };
   allergies: Allergy[];
   formularyNames: string[];
   onClose: () => void;
@@ -250,7 +248,6 @@ function PrescriptionDialog({
   const [appointmentId, setAppointmentId] = useState(existing ? (existing.appointmentId ?? "") : (defaults.appointmentId ?? ""));
   const [items, setItems] = useState<Medication[]>(existing?.items.length ? existing.items : [emptyItem()]);
   const [notes, setNotes] = useState(existing?.notes ?? "");
-  const [printName, setPrintName] = useState(existing?.printDoctorName ?? defaults.printDoctorName);
   const [pending, start] = useTransition();
   const [problems, setProblems] = useState<RxProblem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -282,7 +279,6 @@ function PrescriptionDialog({
         prescribedOn: date,
         items,
         notes,
-        printDoctorName: printName,
       });
       if ("error" in r) {
         win?.close();
@@ -421,10 +417,7 @@ function PrescriptionDialog({
           {fieldProblem("notes") ? <p className="text-xs text-destructive-text">{fieldProblem("notes")}</p> : null}
         </div>
 
-        <label className="flex min-h-6 items-center gap-2 text-sm">
-          <Checkbox checked={printName} onCheckedChange={(on) => setPrintName(on === true)} />
-          Print the doctor&apos;s name on the prescription
-        </label>
+        <p className="text-xs text-muted-foreground">The doctor&apos;s name prints at the foot of the prescription: &ldquo;By Dr. …&rdquo;.</p>
 
         {problems.length > 0 ? (
           <p role="alert" className="text-sm font-medium text-destructive-text">

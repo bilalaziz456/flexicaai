@@ -91,6 +91,9 @@ note above it; obvious logic gets none.
   loads in a hidden frame with `?print=<size>`, draws at that size and opens the dialog
   itself. The browser's dialog cannot be skipped from a website; reception PCs can skip
   it with Chrome's kiosk printing (`docs/front-desk-printing.md`).
+  **Except a patient's own documents** — statement, clinical chart, treatment estimate —
+  which are A4 only (`PATIENT_DOCUMENT_PAPERS`, owner's call 2026-10-18): pass it as
+  both the buttons' `papers` and the print frame's `allowed`, so neither offers another size.
 - **Every Print LINK has a Download beside it** (`DownloadLink`), which saves the
   PDF without opening the print page: it loads the page in a hidden frame with
   `?pdf=1`, the page's `InvoicePrintFrame` / `PrintButton` makes its own PDF and posts

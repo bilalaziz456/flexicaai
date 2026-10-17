@@ -20,7 +20,6 @@ export type PrescriptionInput = {
   prescribedOn: string; // YYYY-MM-DD
   items: PrescriptionItem[];
   notes: string | null;
-  printDoctorName: boolean;
 };
 
 /** A patient's live prescriptions, newest first. */
@@ -123,7 +122,6 @@ export async function createPrescription(
       prescribedOn: input.prescribedOn,
       items: input.items,
       notes: input.notes,
-      printDoctorName: input.printDoctorName,
       createdBy: actor.id,
       createdByName: actor.name,
     })
@@ -147,7 +145,6 @@ export async function updatePrescription(
       prescribedOn: input.prescribedOn,
       items: input.items,
       notes: input.notes,
-      printDoctorName: input.printDoctorName,
       updatedAt: new Date(),
     })
     .where(

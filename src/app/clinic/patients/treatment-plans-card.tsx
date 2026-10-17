@@ -55,7 +55,7 @@ export function TreatmentPlansCard({
   /** Base path for a plan's printable estimate, e.g. "/clinic/patients/{id}/estimate". */
   estimateBase?: string;
   /** Paper sizes the clinic prints on (one Print button each). */
-  papers?: string[];
+  papers?: readonly string[];
   canCreate: boolean;
   canEdit: boolean;
   canDelete: boolean;

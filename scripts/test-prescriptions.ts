@@ -112,7 +112,6 @@ async function main() {
         prescribedOn: "2026-10-14",
         items,
         notes: "After meals.",
-        printDoctorName: true,
       };
 
       console.log("\nThe record:");
@@ -124,9 +123,9 @@ async function main() {
       let list = await listPrescriptions(cid, pt.id);
       ok("it is listed, with the doctor's name and who typed it", list.length === 1 && list[0].doctorName === "Rx Doc" && list[0].createdByName === "Front Desk");
       ok("…and not for another clinic", (await listPrescriptions(other.id, pt.id)).length === 0);
-      await updatePrescription(cid, id, { ...input, notes: "Review in a week.", printDoctorName: false });
+      await updatePrescription(cid, id, { ...input, notes: "Review in a week." });
       list = await listPrescriptions(cid, pt.id);
-      ok("an edit is saved", list[0].notes === "Review in a week." && list[0].printDoctorName === false);
+      ok("an edit is saved", list[0].notes === "Review in a week.");
 
       const pdf = await buildLetterheadPrescriptionPdf(cid, id);
       ok("the PDF builds from the record (no letterhead yet)", Boolean(pdf && pdf.pdf.length > 500 && pdf.filename.includes("Rx Patient")));

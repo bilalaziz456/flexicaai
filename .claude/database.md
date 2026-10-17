@@ -1362,8 +1362,11 @@ these for churn-risk + usage/cost anomaly flags.
   by the account manager) and four margins in mm (`letterhead_top/bottom/left/right_mm`)
   saying where the writing goes — every clinic's design differs, so the page itself is
   the template (`core/lib/letterhead-pdf.ts`, `core/clinics/letterhead.ts`); and
-  `rx_print_doctor_name`, the clinic admin's default for a new prescription's "Print the
-  doctor's name". `scripts/test-prescriptions.ts`.
+  `rx_print_doctor_name`, once the default for a per-prescription "Print the doctor's name"
+  tick. **Both `print_doctor_name` columns are no longer read** (owner's call, 2026-10-18):
+  the PDF always ends "By Dr. …" when a doctor is chosen, because an unticked box printed
+  prescriptions naming no doctor at all. Left in place rather than dropped — nothing reads
+  them, and dropping is a migration for no gain. `scripts/test-prescriptions.ts`.
 - Migration **`0129`** adds the lab's point of contact to `lab_cases` (dental module):
   `lab_contact_name` and `lab_contact_phone` (E.164, the app-wide phone rule), both
   optional and per CASE rather than per lab — labs rotate technicians, and the person
