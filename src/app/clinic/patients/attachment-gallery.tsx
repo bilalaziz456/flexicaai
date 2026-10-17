@@ -1,7 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  ExternalLink,
+  FileText,
+  Maximize2,
+  Trash2,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { Badge } from "@/core/ui/badge";
 import { Button, buttonVariants } from "@/core/ui/button";
 import { ConfirmDialog } from "@/core/ui/confirm-dialog";
@@ -16,7 +26,7 @@ const isPdf = (a: AttachmentRow) => a.mime === "application/pdf";
 /**
  * A patient's clinical files as a grid of tiles — shared by Imaging & documents and
  * the Medical history documents. A tile opens the file in a VIEWER dialog (an image,
- * or the PDF itself) with Prev / Next through the set, open-in-new-tab and download;
+ * or the PDF itself) with zoom, Prev / Next through the set, open-in-new-tab and download;
  * deleting always asks first. The file is served by the authorised route, which our
  * own pages alone may frame (src/proxy.ts) — that is what lets a PDF show here.
  */
@@ -159,21 +169,9 @@ export function AttachmentGallery({
             </>
           }
         >
-          {isImage(current) ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={current.id}
-              src={fileUrl(current.id)}
-              alt={current.caption ?? labelOf(current)}
-              className="mx-auto max-h-[65vh] w-auto max-w-full rounded-md object-contain"
-            />
-          ) : isPdf(current) ? (
-            <iframe
-              key={current.id}
-              src={fileUrl(current.id)}
-              title={current.caption ?? labelOf(current)}
-              className="h-[65vh] w-full rounded-md border"
-            />
+          {isImage(current) || isPdf(current) ? (
+            // Keyed on the file so Prev / Next starts the next one back at Fit.
+            <ZoomableFile key={current.id} attachment={current} title={current.caption ?? labelOf(current)} />
           ) : (
             <p className="py-10 text-center text-muted-foreground">
               This file can&apos;t be previewed. Use Download to open it.
@@ -182,5 +180,134 @@ export function AttachmentGallery({
         </Dialog>
       ) : null}
     </>
+  );
+}
+
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 4;
+const ZOOM_STEP = 0.25;
+
+/**
+ * An image or PDF with one set of zoom controls, so the two kinds of file behave the
+ * same in the viewer. It opens at FIT — the whole page or picture visible — and zooming
+ * in scrolls inside the frame, which is what reading a small scanned report needs.
+ *
+ * The two are zoomed differently because only one of them is ours to draw:
+ * - an IMAGE is sized in pixels from its natural size × the fit scale × the zoom.
+ *   Sized, not `transform: scale()`, because a transform does not grow the scroll
+ *   area to the left, so a zoomed picture could not be scrolled back to its left edge.
+ * - a PDF is drawn by the browser's own viewer, which reads `#zoom=` from the URL
+ *   (`#view=FitH` for fit). The frame is re-mounted per level, since a viewer does
+ *   not reliably react to the fragment changing; the file is cached, so it is quick.
+ */
+function ZoomableFile({ attachment, title }: { attachment: AttachmentRow; title: string }) {
+  const [zoom, setZoom] = useState(1);
+  const frameRef = useRef<HTMLDivElement>(null);
+  // The picture's size at Fit, measured once it has loaded.
+  const [fitSize, setFitSize] = useState<{ w: number; h: number } | null>(null);
+
+  const zoomBy = (delta: number) =>
+    setZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round((z + delta) * 100) / 100)));
+
+  function measureFit(img: HTMLImageElement) {
+    const frame = frameRef.current;
+    if (!frame || !img.naturalWidth || !img.naturalHeight) return;
+    // Never enlarge a small picture to fit — 100% stays its real size then.
+    const scale = Math.min(
+      frame.clientWidth / img.naturalWidth,
+      frame.clientHeight / img.naturalHeight,
+      1,
+    );
+    setFitSize({ w: img.naturalWidth * scale, h: img.naturalHeight * scale });
+  }
+
+  const pdfSrc = `${fileUrl(attachment.id)}#${zoom === 1 ? "view=FitH" : `zoom=${Math.round(zoom * 100)}`}`;
+  // "Fit", not "100%": the browser's PDF viewer prints its own real percentage, and at
+  // fit that is rarely 100 — two different numbers for one view would read as a bug.
+  const zoomLabel = zoom === 1 ? "Fit" : `${Math.round(zoom * 100)}%`;
+
+  return (
+    <div
+      className="space-y-2"
+      // + / - / 0 while the viewer has focus, like a browser's own zoom keys.
+      onKeyDown={(e) => {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (e.key === "+" || e.key === "=") zoomBy(ZOOM_STEP);
+        else if (e.key === "-") zoomBy(-ZOOM_STEP);
+        else if (e.key === "0") setZoom(1);
+        else return;
+        e.preventDefault();
+      }}
+    >
+      <div className="flex items-center justify-center gap-1" role="group" aria-label="Zoom">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          onClick={() => zoomBy(-ZOOM_STEP)}
+          disabled={zoom <= ZOOM_MIN}
+          aria-label="Zoom out"
+          title="Zoom out (-)"
+        >
+          <ZoomOut className="size-4" aria-hidden="true" />
+        </Button>
+        <span className="w-14 text-center text-xs tabular-nums text-muted-foreground" aria-live="polite">
+          {zoomLabel}
+        </span>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          onClick={() => zoomBy(ZOOM_STEP)}
+          disabled={zoom >= ZOOM_MAX}
+          aria-label="Zoom in"
+          title="Zoom in (+)"
+        >
+          <ZoomIn className="size-4" aria-hidden="true" />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setZoom(1)}
+          disabled={zoom === 1}
+          title="Fit to the window (0)"
+        >
+          <Maximize2 className="size-3.5" aria-hidden="true" /> Fit
+        </Button>
+      </div>
+
+      {isPdf(attachment) ? (
+        <iframe
+          key={zoom}
+          src={pdfSrc}
+          title={title}
+          className="h-[min(65vh,calc(90vh-15rem))] w-full rounded-md border"
+        />
+      ) : (
+        <div
+          ref={frameRef}
+          // Flex + `m-auto` on the picture centres it while it is smaller than the
+          // frame, and — unlike justify-center — still lets every edge scroll into
+          // view once it is larger.
+          className="flex h-[min(65vh,calc(90vh-15rem))] w-full overflow-auto rounded-md"
+          tabIndex={0}
+          aria-label={`${title}, ${zoomLabel}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={fileUrl(attachment.id)}
+            alt={title}
+            onLoad={(e) => measureFit(e.currentTarget)}
+            style={
+              fitSize
+                ? { width: fitSize.w * zoom, height: fitSize.h * zoom, maxWidth: "none" }
+                : undefined
+            }
+            className={cn("m-auto shrink-0 rounded-md", !fitSize && "max-h-full max-w-full object-contain")}
+          />
+        </div>
+      )}
+    </div>
   );
 }
