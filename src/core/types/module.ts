@@ -213,6 +213,8 @@ export interface ModuleLab {
     input: LabCaseInput,
     actor: { id: string; name: string },
   ) => Promise<void | { error: string }>;
+  /** Correct a case's details (lab, contact, item, teeth, shade, due, cost, note). */
+  updateCase: (clinicId: string, caseId: string, input: LabCaseInput) => Promise<void | { error: string }>;
   updateStatus: (clinicId: string, caseId: string, status: string) => Promise<void>;
   deleteCase: (clinicId: string, caseId: string, actorId: string) => Promise<void>;
 }

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, notInArray } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
@@ -66,14 +66,18 @@ export async function listPlans(clinicId: string, patientId: string): Promise<Pl
 /** Create an empty plan. */
 export async function createPlan(
   clinicId: string,
-  input: { patientId: string; module: string; title: string; note?: string | null },
+  input: { patientId: string; module: string; title: string; note?: string | null; doctorId?: string | null },
   actor: Actor,
 ): Promise<{ id: string }> {
+  // Only one of this clinic's doctors can be the plan's; anything else is dropped
+  // rather than refusing the plan (the doctor is optional).
+  const doctorId = input.doctorId && (await isClinicDoctor(clinicId, input.doctorId)) ? input.doctorId : null;
   const [row] = await db
     .insert(treatmentPlans)
     .values({
       clinicId,
       patientId: input.patientId,
+      doctorId,
       module: input.module || "",
       title: input.title.slice(0, 160) || "Treatment plan",
       note: input.note?.slice(0, 1000) ?? null,
@@ -90,7 +94,7 @@ export async function createPlan(
  */
 export async function createPlanFromTemplate(
   clinicId: string,
-  input: { patientId: string; module: string; template: TreatmentTemplate },
+  input: { patientId: string; module: string; template: TreatmentTemplate; doctorId?: string | null },
   actor: Actor,
 ): Promise<{ id: string }> {
   const catalog = await db
@@ -102,7 +106,7 @@ export async function createPlanFromTemplate(
 
   const { id } = await createPlan(
     clinicId,
-    { patientId: input.patientId, module: input.module, title: input.template.name },
+    { patientId: input.patientId, module: input.module, title: input.template.name, doctorId: input.doctorId },
     actor,
   );
   const rows = input.template.items.map((name, i) => {
@@ -488,3 +492,54 @@ export async function getBookablePlanItems(clinicId: string, patientId: string) 
   });
 }
 export type BookablePlanItem = Awaited<ReturnType<typeof getBookablePlanItems>>[number];
+
+async function isClinicDoctor(clinicId: string, userId: string): Promise<boolean> {
+  const [u] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(byClinic(users.clinicId, clinicId, notDeleted(users.deletedAt), eq(users.id, userId)))
+    .limit(1);
+  return Boolean(u);
+}
+
+/**
+ * Who a NEW plan's doctor probably is, to pre-fill the choice (owner's call,
+ * 2026-10-18 — asked when the plan is made, not later behind its discount): the person
+ * making it when they are one of the clinic's doctors; else the doctor of the
+ * patient's visit today; else of their most recent visit; else nobody. Only a
+ * suggestion — it can be changed or cleared.
+ */
+export async function suggestPlanDoctorId(
+  clinicId: string,
+  patientId: string,
+  viewer: { id: string; isDoctor: boolean } | null,
+): Promise<string | null> {
+  if (viewer?.isDoctor) return viewer.id;
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  const base = (when: ReturnType<typeof and>) =>
+    db
+      .select({ doctorId: appointments.doctorId })
+      .from(appointments)
+      .where(
+        byClinic(
+          appointments.clinicId,
+          clinicId,
+          notDeleted(appointments.deletedAt),
+          eq(appointments.patientId, patientId),
+          isNotNull(appointments.doctorId),
+          notInArray(appointments.status, ["cancelled", "no_show"]),
+          when,
+        ),
+      );
+  const [today] = await base(and(gte(appointments.scheduledAt, start), lt(appointments.scheduledAt, end)))
+    .orderBy(asc(appointments.scheduledAt))
+    .limit(1);
+  if (today?.doctorId) return today.doctorId;
+  const [latest] = await base(and(lte(appointments.scheduledAt, new Date())))
+    .orderBy(desc(appointments.scheduledAt))
+    .limit(1);
+  return latest?.doctorId ?? null;
+}

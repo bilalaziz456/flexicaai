@@ -37,7 +37,7 @@ import { getPatientAccount } from "@/core/billing/account";
 import { getMedicalHistory, getPatientAllergies } from "@/core/patients/medical-history";
 import type { MedicalHistoryData } from "@/core/lib/medical-history";
 import { listAttachments, getPhotoConsent } from "@/core/patients/attachments";
-import { listPlans } from "@/core/patients/treatment-plans";
+import { listPlans, suggestPlanDoctorId } from "@/core/patients/treatment-plans";
 import { getBookingProcedures } from "@/core/appointments/procedures";
 import { treatmentTemplatesFor } from "@/config/modules";
 import { MedicalHistoryCard } from "./medical-history-card";
@@ -283,6 +283,9 @@ export async function PatientDetail({
   const planDoctors = canViewPlans
     ? (await listClinicDoctors(clinicId)).filter((d) => d.isActive).map((d) => ({ value: d.id, label: d.name }))
     : [];
+  const planDefaultDoctorId = canCreatePlans
+    ? await suggestPlanDoctorId(clinicId, patientId, viewerId ? { id: viewerId, isDoctor: planDoctors.some((d) => d.value === viewerId) } : null)
+    : null;
   const planTemplates = canViewPlans ? treatmentTemplatesFor(modulesEnabled).map((t) => t.name) : [];
   const plans: PlanRow[] = planRows.map((p) => ({
     id: p.id,
@@ -322,6 +325,8 @@ export async function PatientDetail({
       id: c.id, labName: c.labName, labContactName: c.labContactName, labContactPhone: c.labContactPhone,
       item: c.item, tooth: c.tooth, shade: c.shade,
       status: c.status, dueAt: d(c.dueAt), cost: c.cost, createdAt: d(c.createdAt) ?? "",
+      // The editable values the row's Edit form starts from.
+      dueYmd: c.dueAt ? localYmd(c.dueAt) : "", note: c.note,
     }));
   }
 
@@ -930,6 +935,7 @@ export async function PatientDetail({
               plans={plans}
               procedures={planProcedures}
               doctors={planDoctors}
+              defaultDoctorId={planDefaultDoctorId}
               clinicName={clinicModulesRow?.name ?? null}
               templates={planTemplates}
               patientId={patient.id}

@@ -7,6 +7,7 @@
  * Seeds its own clinic and removes it. Run:
  * `tsx --env-file=.env.local --tsconfig scripts/_seed/tsconfig.json scripts/test-lab-cases.ts`
  */
+import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { unscoped } from "@/core/db/tenant-guard";
@@ -74,6 +75,18 @@ async function main() {
       ok("…and neither wrote a case", (await dentalLab.loadCases(c.id, pt.id)).length === 1);
       const noContact = await dentalLab.saveCase(c.id, pt.id, { item: "crown", tooth: "11" }, actor);
       ok("the contact is optional", !(noContact && "error" in noContact));
+
+      // Editing a case (2026-10-18): the same checks as adding one, and the status stays.
+      const editRow = (await dentalLab.loadCases(c.id, pt.id)).find((x) => x.tooth === "11")!;
+      await dentalLab.updateStatus(c.id, editRow.id, "in_lab");
+      const labEdited = await dentalLab.updateCase(c.id, editRow.id, { item: "bridge", tooth: "21 22", shade: "A2", note: "rush" });
+      ok("an edit saves", !(labEdited && "error" in labEdited), JSON.stringify(labEdited));
+      const afterEdit = (await dentalLab.loadCases(c.id, pt.id)).find((x) => x.id === editRow.id);
+      ok("…with the teeth tidied and the status kept", afterEdit?.item === "bridge" && afterEdit?.tooth === "21, 22" && afterEdit?.status === "in_lab", JSON.stringify(afterEdit));
+      const badEdit = await dentalLab.updateCase(c.id, editRow.id, { item: "bridge", tooth: "99" });
+      ok("an edit with a wrong tooth is refused", Boolean(badEdit && "error" in badEdit));
+      const otherClinic = await dentalLab.updateCase(randomUUID(), editRow.id, { item: "crown" });
+      ok("another clinic cannot edit it", Boolean(otherClinic && "error" in otherClinic));
 
       console.log("\nA deleted lab case can be restored:");
       const [toDelete] = await dentalLab.loadCases(c.id, pt.id);

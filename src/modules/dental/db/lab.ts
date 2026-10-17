@@ -56,11 +56,13 @@ async function listLabCases(clinicId: string, patientId: string): Promise<LabCas
   return rows.map(toData);
 }
 
-async function saveLabCase(
-  clinicId: string,
-  patientId: string,
-  input: LabCaseInput,
-): Promise<void | { error: string }> {
+/**
+ * What the desk typed, checked and tidied into the stored columns — ONE rule for a new
+ * case and for correcting one, so an edit cannot store what adding would refuse.
+ */
+type LabCaseFields = Omit<typeof labCases.$inferInsert, "clinicId" | "patientId">;
+
+function labCaseFields(input: LabCaseInput): { error: string } | { fields: LabCaseFields } {
   // Narrowed at the module's own boundary: the core `ModuleLab` contract types this
   // as `string` (core cannot know a dental code exists), so an unrecognised value is
   // refused here rather than stored.
@@ -71,21 +73,41 @@ async function saveLabCase(
   // Same phone rule as everywhere else (conventions: Phone numbers), stored E.164.
   const contactPhone = toE164(input.labContactPhone ?? "");
   if (!contactPhone.valid) return { error: `Lab contact number: ${PHONE_ERROR}` };
-  await db.insert(labCases).values({
-    clinicId,
-    patientId,
-    labName: input.labName?.trim().slice(0, 120) || null,
-    labContactName: input.labContactName?.trim().slice(0, 120) || null,
-    labContactPhone: contactPhone.phone,
-    item: itemCode,
-    tooth: teeth.teeth.length ? teeth.teeth.join(", ") : null,
-    shade: input.shade?.slice(0, 20) || null,
-    status: "sent",
-    sentAt: new Date(),
-    dueAt: input.dueAt ? new Date(input.dueAt) : null,
-    cost: input.cost != null ? Math.max(0, Math.round(input.cost)) : null,
-    note: input.note?.slice(0, 500) || null,
-  });
+  return {
+    fields: {
+      labName: input.labName?.trim().slice(0, 120) || null,
+      labContactName: input.labContactName?.trim().slice(0, 120) || null,
+      labContactPhone: contactPhone.phone,
+      item: itemCode,
+      tooth: teeth.teeth.length ? teeth.teeth.join(", ") : null,
+      shade: input.shade?.slice(0, 20) || null,
+      dueAt: input.dueAt ? new Date(input.dueAt) : null,
+      cost: input.cost != null ? Math.max(0, Math.round(input.cost)) : null,
+      note: input.note?.slice(0, 500) || null,
+    },
+  };
+}
+
+async function saveLabCase(
+  clinicId: string,
+  patientId: string,
+  input: LabCaseInput,
+): Promise<void | { error: string }> {
+  const checked = labCaseFields(input);
+  if ("error" in checked) return checked;
+  await db.insert(labCases).values({ clinicId, patientId, ...checked.fields, status: "sent", sentAt: new Date() });
+}
+
+/** Correct a case's details. Its status and dates sent/received are left alone. */
+async function updateLabCase(clinicId: string, caseId: string, input: LabCaseInput): Promise<void | { error: string }> {
+  const checked = labCaseFields(input);
+  if ("error" in checked) return checked;
+  const res = await db
+    .update(labCases)
+    .set({ ...checked.fields, updatedAt: new Date() })
+    .where(byClinic(labCases.clinicId, clinicId, notDeleted(labCases.deletedAt), eq(labCases.id, caseId)))
+    .returning({ id: labCases.id });
+  if (res.length === 0) return { error: "That lab case no longer exists." };
 }
 
 /** "Your crown is ready" — best-effort WhatsApp when a case comes back from the lab. */
@@ -141,6 +163,7 @@ export const dentalLab: ModuleLab = {
   itemTypes: ITEM_TYPES,
   loadCases: listLabCases,
   saveCase: (clinicId, patientId, input) => saveLabCase(clinicId, patientId, input),
+  updateCase: updateLabCase,
   updateStatus: updateLabStatus,
   deleteCase: deleteLabCase,
 };

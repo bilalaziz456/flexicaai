@@ -48,21 +48,29 @@ async function clinicModule(clinicId: string): Promise<string> {
   return c?.modulesEnabled?.[0] ?? "";
 }
 
-export async function createPlanAction(patientId: string, title: string, note?: string): Promise<State> {
+export async function createPlanAction(patientId: string, title: string, doctorId?: string | null): Promise<State> {
   const g = await guard("create");
   if ("error" in g) return g;
   if (!title.trim()) return { error: "Enter a plan title." };
-  await createPlan(g.clinicId, { patientId, module: await clinicModule(g.clinicId), title: title.trim(), note: note || null }, actorOf(g.user));
+  await createPlan(
+    g.clinicId,
+    { patientId, module: await clinicModule(g.clinicId), title: title.trim(), doctorId: doctorId || null },
+    actorOf(g.user),
+  );
   await logActivity({ action: "create", entity: "patient", entityId: patientId, summary: `Created treatment plan "${title.trim()}"` });
   return done(patientId);
 }
 
-export async function createPlanFromTemplateAction(patientId: string, templateName: string): Promise<State> {
+export async function createPlanFromTemplateAction(patientId: string, templateName: string, doctorId?: string | null): Promise<State> {
   const g = await guard("create");
   if ("error" in g) return g;
   const template = treatmentTemplatesFor(await moduleList(g.clinicId)).find((t) => t.name === templateName);
   if (!template) return { error: "Template not found." };
-  await createPlanFromTemplate(g.clinicId, { patientId, module: await clinicModule(g.clinicId), template }, actorOf(g.user));
+  await createPlanFromTemplate(
+    g.clinicId,
+    { patientId, module: await clinicModule(g.clinicId), template, doctorId: doctorId || null },
+    actorOf(g.user),
+  );
   await logActivity({ action: "create", entity: "patient", entityId: patientId, summary: `Created treatment plan from "${templateName}"` });
   return done(patientId);
 }

@@ -347,6 +347,17 @@ export async function saveLabCaseAction(
   return labDone(patientId);
 }
 
+/** Correct a lab case's details (a mistyped tooth, a new due date). `lab:edit`. */
+export async function updateLabCaseAction(caseId: string, patientId: string, input: LabCaseInput): Promise<State> {
+  const g = await labGuard("edit");
+  if ("error" in g) return g;
+  if (!input.item?.trim()) return { error: "Choose an item type." };
+  const r = await g.lab.updateCase(g.clinicId, caseId, input);
+  if (r && "error" in r) return r;
+  await logActivity({ action: "update", entity: "patient", entityId: patientId, summary: `Edited a lab case (${input.item})` });
+  return labDone(patientId);
+}
+
 export async function updateLabStatusAction(caseId: string, patientId: string, status: string): Promise<State> {
   const g = await labGuard("edit");
   if ("error" in g) return g;

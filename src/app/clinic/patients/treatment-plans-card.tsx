@@ -3,9 +3,8 @@
 import { useState, useTransition } from "react";
 import { SelectField } from "@/core/ui/select-field";
 import { EmptyState } from "@/core/ui/empty-state";
-import { Plus, Trash2, ClipboardList, Pencil, FileText, Printer } from "lucide-react";
+import { Plus, Trash2, ClipboardList, Pencil, FileText, Printer, Download } from "lucide-react";
 import { ConfirmDialog } from "@/core/ui/confirm-dialog";
-import { DownloadLink } from "@/core/ui/download-link";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import { Badge } from "@/core/ui/badge";
@@ -71,6 +70,7 @@ export function TreatmentPlansCard({
   plans,
   procedures,
   doctors = [],
+  defaultDoctorId = null,
   clinicName = null,
   templates,
   patientId,
@@ -83,6 +83,8 @@ export function TreatmentPlansCard({
   procedures: Proc[];
   /** The clinic's doctors, for the plan's optional doctor. */
   doctors?: Option[];
+  /** Pre-fills a new plan's doctor (suggestPlanDoctorId). */
+  defaultDoctorId?: string | null;
   /** Names the clinic's offer and a clinic discount ("Smile Dental offer"). */
   clinicName?: string | null;
   templates: string[];
@@ -95,6 +97,9 @@ export function TreatmentPlansCard({
 }) {
   const [title, setTitle] = useState("");
   const [tmpl, setTmpl] = useState("");
+  // Asked when the plan is made (owner's call, 2026-10-18), pre-filled with the likely
+  // doctor; optional — a plan may be drafted before anyone is assigned.
+  const [newDoctorId, setNewDoctorId] = useState(defaultDoctorId ?? "");
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null);
   const [nonce, setNonce] = useState(0);
@@ -199,9 +204,18 @@ export function TreatmentPlansCard({
                 {estimateBase && p.items.length > 0 ? (
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                     <span className="text-muted-foreground">Estimate:</span>
-                    <DownloadLink href={`${estimateBase}/${p.id}`} label="Download" className="gap-1 text-xs" />
                     {/* On the clinic's letterhead, like a typed prescription — and the
-                        same two papers: plain (letterhead printed too) or pre-printed. */}
+                        same two papers: pre-printed (writing only) or plain (letterhead
+                        printed too). Each can also be saved as a PDF. */}
+                    <a
+                      href={`/api/estimate/${p.id}?pad=1`}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="For paper that already has your letterhead printed on it: only the estimate is printed, in the right place"
+                      className="inline-flex items-center gap-1 text-foreground hover:underline"
+                    >
+                      <Printer className="size-3.5" aria-hidden="true" /> Print without letterhead
+                    </a>
                     <a
                       href={`/api/estimate/${p.id}`}
                       target="_blank"
@@ -212,13 +226,18 @@ export function TreatmentPlansCard({
                       <FileText className="size-3.5" aria-hidden="true" /> Print with letterhead
                     </a>
                     <a
-                      href={`/api/estimate/${p.id}?pad=1`}
-                      target="_blank"
-                      rel="noreferrer"
-                      title="For paper that already has your letterhead printed on it: only the estimate is printed, in the right place"
+                      href={`/api/estimate/${p.id}?pad=1&download=1`}
+                      title="Save the PDF without the letterhead"
                       className="inline-flex items-center gap-1 text-foreground hover:underline"
                     >
-                      <Printer className="size-3.5" aria-hidden="true" /> Print without letterhead
+                      <Download className="size-3.5" aria-hidden="true" /> Download without letterhead
+                    </a>
+                    <a
+                      href={`/api/estimate/${p.id}?download=1`}
+                      title="Save the PDF with the letterhead, e.g. to send on WhatsApp"
+                      className="inline-flex items-center gap-1 text-foreground hover:underline"
+                    >
+                      <Download className="size-3.5" aria-hidden="true" /> Download with letterhead
                     </a>
                   </div>
                 ) : null}
@@ -374,7 +393,21 @@ export function TreatmentPlansCard({
             <span className="block text-xs text-muted-foreground">New plan</span>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Plan title" className="h-8 w-48" />
           </label>
-          <Button size="sm" disabled={pending || !title.trim()} onClick={() => run(async () => { const r = await createPlanAction(patientId, title); if (r.ok) setTitle(""); return r; }, "Plan created.")}>
+          {doctors.length > 0 ? (
+            <div className="space-y-1">
+              <span className="block text-xs text-muted-foreground">Doctor (optional)</span>
+              <SearchableSelect
+                ariaLabel="New plan's doctor"
+                value={newDoctorId}
+                onChange={setNewDoctorId}
+                options={[{ value: "", label: "None" }, ...doctors]}
+                placeholder="None"
+                searchPlaceholder="Search doctors…"
+                className="h-8 w-48"
+              />
+            </div>
+          ) : null}
+          <Button size="sm" disabled={pending || !title.trim()} onClick={() => run(async () => { const r = await createPlanAction(patientId, title, newDoctorId || null); if (r.ok) setTitle(""); return r; }, "Plan created.")}>
             <Plus className="size-4" /> Create
           </Button>
           {templates.length > 0 ? (
@@ -390,7 +423,7 @@ export function TreatmentPlansCard({
                   className="h-8 w-48"
                 />
               </div>
-              <Button size="sm" variant="outline" disabled={pending || !tmpl} onClick={() => run(async () => { const r = await createPlanFromTemplateAction(patientId, tmpl); if (r.ok) setTmpl(""); return r; }, "Plan created.")}>
+              <Button size="sm" variant="outline" disabled={pending || !tmpl} onClick={() => run(async () => { const r = await createPlanFromTemplateAction(patientId, tmpl, newDoctorId || null); if (r.ok) setTmpl(""); return r; }, "Plan created.")}>
                 Add
               </Button>
             </div>
