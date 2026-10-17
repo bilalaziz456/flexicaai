@@ -57,7 +57,8 @@ import {
 import { syncDiscountApprovals } from "@/core/appointments/approvals";
 import { planDiscountForItems, scheduleItemsOnAppointment } from "@/core/patients/treatment-plans";
 import { isPlanDiscount } from "@/core/patients/plan-bill";
-import { AUTO_PRINT_PARAM } from "@/core/lib/print-papers";
+import { AUTO_PRINT_ID_PARAM, AUTO_PRINT_PARAM } from "@/core/lib/print-papers";
+import { randomUUID } from "node:crypto";
 import { revalidateFinance } from "@/app/clinic/finance-revalidate";
 import {
   recordSaleForAppointment,
@@ -511,7 +512,8 @@ export async function createAppointment(
   // to the page the save lands on, which prints the invoice at it (core/ui/print-on-arrival).
   const then = String(formData.get("then") ?? "");
   const paper = /^print:(thermal|a4|a5)$/.exec(then)?.[1];
-  const printQuery = paper ? `&${AUTO_PRINT_PARAM}=${paper}` : "";
+  // A one-time id rides with it, so the page prints this request once only.
+  const printQuery = paper ? `&${AUTO_PRINT_PARAM}=${paper}&${AUTO_PRINT_ID_PARAM}=${randomUUID()}` : "";
   if (asInvoice) {
     revalidatePath("/clinic/invoices");
     revalidateFinance();

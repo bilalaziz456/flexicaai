@@ -39,3 +39,6 @@ export const PATIENT_DOCUMENT_PAPERS: readonly string[] = ["a4"];
  * content", 2026-10-18).
  */
 export const AUTO_PRINT_PARAM = "printPaper";
+
+/** The one-time id beside it, so a request prints once however its page is revisited. */
+export const AUTO_PRINT_ID_PARAM = "printId";

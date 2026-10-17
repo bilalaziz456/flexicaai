@@ -9,7 +9,7 @@ export default async function ClinicAppointmentDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string; printPaper?: string }>;
+  searchParams: Promise<{ created?: string; printPaper?: string; printId?: string }>;
 }) {
   const { clinicId } = await requireWorkspace("appointments");
   const { id } = await params;
@@ -25,7 +25,7 @@ export default async function ClinicAppointmentDetailPage({
           staff can collect the fee / print straight away). */}
       <FlashToast message={sp.created ? "Appointment scheduled." : null} />
       {/* "Save & print <size>" on the booking form: print its invoice now. */}
-      <PrintOnArrival href={`/clinic/appointments/${id}/invoice`} paper={sp.printPaper} />
+      <PrintOnArrival href={`/clinic/appointments/${id}/invoice`} paper={sp.printPaper} printId={sp.printId} />
     </>
   );
 }

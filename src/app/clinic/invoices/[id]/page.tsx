@@ -43,14 +43,14 @@ export default async function InvoicePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string; printPaper?: string }>;
+  searchParams: Promise<{ created?: string; printPaper?: string; printId?: string }>;
 }) {
   const user = await requireWorkspace("billing");
   const { clinicId } = user;
   const clinic = await getClinic(clinicId);
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales")) notFound();
   const { id } = await params;
-  const { created, printPaper } = await searchParams;
+  const { created, printPaper, printId } = await searchParams;
 
   const appt = await getAppointmentDetail(clinicId, id);
   if (!appt) notFound();
@@ -96,7 +96,7 @@ export default async function InvoicePage({
       <TabTitle title={`Invoice · ${invoice.label}`} />
       <FlashToast message={created ? `Invoice ${invoice.label} created.` : null} params={["created"]} />
       {/* "Save & print <size>" on the New invoice form: print it now. */}
-      <PrintOnArrival href={`/clinic/invoices/${id}/print`} paper={printPaper} />
+      <PrintOnArrival href={`/clinic/invoices/${id}/print`} paper={printPaper} printId={printId} />
       <div>
         <BackLink href="/clinic/invoices">Back to invoices</BackLink>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
