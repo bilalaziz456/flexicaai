@@ -140,11 +140,11 @@ export default async function InvoicePage({
           </div>
         </header>
 
-        {/* ── When: the invoice and the visit are two moments (billed in advance, or
-            invoiced after the fact); "Edited" only when it changed after issue. ── */}
+        {/* ── When: the invoice date; "Edited" only when it changed after issue. ── */}
         <dl className="mt-3 grid grid-cols-4 gap-x-3 gap-y-2 border-y border-black/15 py-2 group-data-[paper=a5]/sheet:grid-cols-2 group-data-[paper=thermal]/sheet:grid-cols-2">
           {invoice ? <Meta label="Invoice date" value={fmtDateTime(invoice.issuedAt)} /> : null}
-          <Meta label="Appointment" value={fmtDateTime(row.scheduledAt)} />
+          {/* No appointment date and time on the invoice (owner's call, 2026-10-18) —
+              the invoice date is the one the patient's paper carries. */}
           {row.editedAt && (!invoice || row.editedAt > invoice.issuedAt) ? (
             <Meta label="Edited" value={fmtDateTime(row.editedAt)} />
           ) : null}
