@@ -29,7 +29,6 @@ import {
   TREATMENT_ITEM_STATUS_ROWS,
   TREATMENT_PLAN_STATUS_ROWS,
 } from "@/core/db/vocabulary-seed";
-import { PrintLinks } from "@/core/ui/print-links";
 
 export type PlanItemRow = {
   id: string;
@@ -76,7 +75,6 @@ export function TreatmentPlansCard({
   templates,
   patientId,
   estimateBase,
-  papers = ["a4"],
   canCreate,
   canEdit,
   canDelete,
@@ -91,8 +89,6 @@ export function TreatmentPlansCard({
   patientId: string;
   /** Base path for a plan's printable estimate, e.g. "/clinic/patients/{id}/estimate". */
   estimateBase?: string;
-  /** Paper sizes the clinic prints on (one Print button each). */
-  papers?: readonly string[];
   canCreate: boolean;
   canEdit: boolean;
   canDelete: boolean;
@@ -203,7 +199,6 @@ export function TreatmentPlansCard({
                 {estimateBase && p.items.length > 0 ? (
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                     <span className="text-muted-foreground">Estimate:</span>
-                    <PrintLinks href={`${estimateBase}/${p.id}`} papers={papers} single="Print" className="gap-1 text-xs" />
                     <DownloadLink href={`${estimateBase}/${p.id}`} label="Download" className="gap-1 text-xs" />
                     {/* On the clinic's letterhead, like a typed prescription — and the
                         same two papers: plain (letterhead printed too) or pre-printed. */}
@@ -221,7 +216,7 @@ export function TreatmentPlansCard({
                       target="_blank"
                       rel="noreferrer"
                       title="For paper that already has your letterhead printed on it: only the estimate is printed, in the right place"
-                      className="inline-flex items-center gap-1 text-primary hover:underline"
+                      className="inline-flex items-center gap-1 text-foreground hover:underline"
                     >
                       <Printer className="size-3.5" aria-hidden="true" /> Print without letterhead
                     </a>
