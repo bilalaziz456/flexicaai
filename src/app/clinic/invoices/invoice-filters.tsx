@@ -5,6 +5,7 @@ import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Label } from "@/core/ui/label";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
+import { SearchableSelect } from "@/core/ui/searchable-select";
 import {
   FilterSelect,
   PeriodTabs,
@@ -114,16 +115,23 @@ export function InvoiceFilters({
         }}
       />
       {forOptions.length > 0 ? (
-        <FilterSelect
-          label="For"
-          ariaLabel="Filter by procedure or service"
-          value={procV}
-          options={[{ value: "", label: "Any procedure or service" }, ...forOptions]}
-          onChange={(v) => {
-            setProcV(v);
-            push({ procedure: v });
-          }}
-        />
+        // Searchable (owner's call, 2026-10-18): the list is every procedure and
+        // service the clinic has ever billed, too long to scroll for one name.
+        <div className={filterFieldCls}>
+          <Label className={filterLabelCls}>For</Label>
+          <SearchableSelect
+            ariaLabel="Filter by procedure or service"
+            value={procV}
+            options={[{ value: "", label: "Any procedure or service" }, ...forOptions]}
+            onChange={(v) => {
+              setProcV(v);
+              push({ procedure: v });
+            }}
+            placeholder="Any procedure or service"
+            searchPlaceholder="Search procedures & services…"
+            className="h-8 w-56"
+          />
+        </div>
       ) : null}
       <div className={filterFieldCls}>
         <Label htmlFor="inv-q" className={filterLabelCls}>Search</Label>
