@@ -339,13 +339,20 @@ export function NewAppointmentForm({
         discountValue: d?.value ?? 0,
       };
     });
-  // Services and one-off charges carry no discount of their own (no offers).
+  // A service takes its clinic offer exactly as a procedure does (2026-10-18) — on the
+  // price as billed, which the desk may have changed. One-off charges carry none.
   const otherBillLines = [
     ...services
       .filter((p) => svcSel.has(p.id))
       .map((p) => {
         const s = svcSel.get(p.id)!;
-        return { unitPrice: priceOf(s.price), quantity: s.quantity, discountType: "amount" as DiscountType, discountValue: 0 };
+        const d = lineDiscount(p);
+        return {
+          unitPrice: priceOf(s.price),
+          quantity: s.quantity,
+          discountType: d?.type ?? ("amount" as DiscountType),
+          discountValue: d?.value ?? 0,
+        };
       }),
     ...liveCharges.map((c) => ({
       unitPrice: priceOf(c.price),
@@ -354,7 +361,11 @@ export function NewAppointmentForm({
       discountValue: 0,
     })),
   ];
-  const otherChargesTotal = otherBillLines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
+  // After each line's offer, so "procedures + other charges" still adds up to the subtotal.
+  const otherChargesTotal = otherBillLines.reduce(
+    (sum, l) => sum + l.unitPrice * l.quantity - computeFee(l.unitPrice * l.quantity, l.discountType, l.discountValue).discount,
+    0,
+  );
   // Plan items ticked below bill as procedure lines with their snapshotted offer —
   // exactly how the server books them (scheduleItemsOnAppointment). Left out, the
   // total on screen was lower than the one saved.
@@ -1004,9 +1015,19 @@ export function NewAppointmentForm({
                             value={s.price}
                             onChange={(v) => patchSvc(p.id, { price: v })}
                           />
-                          <span className="w-24 text-right font-medium tabular-nums">
-                            {formatPkr(priceOf(s.price) * s.quantity)}
-                          </span>
+                          {(() => {
+                            const gross = priceOf(s.price) * s.quantity;
+                            const d = lineDiscount(p);
+                            const off = d ? computeFee(gross, d.type, d.value).discount : 0;
+                            return (
+                              <span className="w-28 text-right tabular-nums">
+                                {off > 0 ? (
+                                  <span className="block text-xs text-muted-foreground line-through">{formatPkr(gross)}</span>
+                                ) : null}
+                                <span className="font-medium">{formatPkr(gross - off)}</span>
+                              </span>
+                            );
+                          })()}
                         </div>
                       </li>
                     );

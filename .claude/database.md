@@ -1322,7 +1322,9 @@ these for churn-risk + usage/cost anomaly flags.
   dressing, medicines — lives in the SAME table as procedures so the bill formula,
   invoice, payments and revenue need no second rule; what differs is enforced on the
   flag: **no doctor share** (`share-context.ts` gives a service line no doctor and 0%),
-  **no clinic offer** (`applyClinicOffers`/`setProcedureOffer` skip services), and the
+  **a clinic offer like a procedure's** (since 2026-10-18 — "no offer" until the owner
+  asked; `setProcedureOffer` takes the list's kind so each screen sets only its own, and
+  `applyClinicOffers` applies it to a service line on the price as billed), and the
   **price may be typed on the bill** (`saveAppointmentProcedures` honours a typed price
   for a service only). A one-off **other charge** ("Medicines Rs 2,000") is a service
   line with `procedure_id` NULL. The line flag is a SNAPSHOT, like the name and price.

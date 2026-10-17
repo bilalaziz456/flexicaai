@@ -12,25 +12,14 @@ import {
   updateProcedure,
   type ProcedureActionState,
 } from "@/app/clinic/procedures/procedure-actions";
-import {
-  describeOffer,
-  offerForVisit,
-  offerStatus,
-  type ProcedureOffer,
-} from "@/core/appointments/procedure-offer";
-import { computeFee, formatPkr } from "@/core/appointments/fee";
-import { Badge } from "@/core/ui/badge";
+import { offerStatus, type ProcedureOffer } from "@/core/appointments/procedure-offer";
+import { OfferBulkBar, OfferDialog, OfferStatusLine, type OfferTarget } from "@/app/clinic/procedures/offer-controls";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Button } from "@/core/ui/button";
 import { Card, CardContent } from "@/core/ui/card";
-import { DatePicker } from "@/core/ui/date-picker";
-import { ConfirmDialog } from "@/core/ui/confirm-dialog";
-import { Dialog } from "@/core/ui/dialog";
-import { Field } from "@/core/ui/field";
 import { EmptyState } from "@/core/ui/empty-state";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
-import { SelectField } from "@/core/ui/select-field";
 import { toast, useActionToast } from "@/core/ui/toast";
 
 export type ProcedureItem = {
@@ -45,8 +34,6 @@ const fmtPkr = (n: number) => `Rs ${new Intl.NumberFormat("en-PK").format(n)}`;
 
 type ProcedurePerms = { create: boolean; edit: boolean; delete: boolean };
 
-/** Which procedures the offer dialog is for, or null when it is closed. */
-type OfferTarget = { ids: string[]; title: string; current: ProcedureOffer | null } | null;
 
 /** CRUD for the clinic's procedure catalog, gated by the user's permissions. */
 export function ProceduresManager({
@@ -67,10 +54,6 @@ export function ProceduresManager({
   const [removing, startRemove] = useTransition();
   // Rows that left the list (deleted) must not linger in the selection.
   const picked = procedures.filter((p) => selected.has(p.id)).map((p) => p.id);
-  const allPicked = procedures.length > 0 && picked.length === procedures.length;
-  // Every procedure carrying an offer, whether running, upcoming or ended — "Remove
-  // all offers" clears them all, so none can come back into force by surprise.
-  const withOffer = procedures.filter((p) => p.offer.value > 0).map((p) => p.id);
 
   const toggle = (id: string, on: boolean) =>
     setSelected((prev) => {
@@ -118,84 +101,16 @@ export function ProceduresManager({
           {/* Clinic offers in bulk. Selecting is only offered to someone who may set an
               offer — there is nothing else to do with a selection. */}
           {perms.edit ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed border-border/80 px-2 py-1.5 text-sm">
-              <label className="flex min-h-6 items-center gap-2">
-                <Checkbox
-                  checked={allPicked}
-                  indeterminate={picked.length > 0 && !allPicked}
-                  onCheckedChange={(on) =>
-                    setSelected(on ? new Set(procedures.map((p) => p.id)) : new Set())
-                  }
-                  aria-label="Select all procedures"
-                />
-                {picked.length > 0 ? `${picked.length} selected` : "Select"}
-              </label>
-              <span className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
-              <BadgePercent className="size-4 text-primary-text" aria-hidden="true" />
-              <span className="text-muted-foreground">Clinic offer:</span>
-              {picked.length > 0 ? (
-                <>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      setTarget({
-                        ids: picked,
-                        title: `Set an offer on ${picked.length} procedure${picked.length === 1 ? "" : "s"}`,
-                        current: null,
-                      })
-                    }
-                  >
-                    Set offer on selected
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    disabled={removing}
-                    onClick={() => removeOffers(picked)}
-                  >
-                    Remove offer from selected
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      setTarget({
-                        ids: procedures.map((p) => p.id),
-                        title: `Set an offer on all ${procedures.length} procedures`,
-                        current: null,
-                      })
-                    }
-                  >
-                    Set offer on all procedures
-                  </Button>
-                  {withOffer.length > 0 ? (
-                    <ConfirmDialog
-                      triggerLabel="Remove all offers"
-                      triggerVariant="ghost"
-                      triggerClassName="text-destructive hover:text-destructive"
-                      triggerDisabled={removing}
-                      title={`Remove the offer from ${withOffer.length} procedure${withOffer.length === 1 ? "" : "s"}?`}
-                      description="New bookings go back to full price. Appointments already booked keep the discount they were booked with."
-                      confirmLabel="Remove all offers"
-                      confirmVariant="destructive"
-                      cancelLabel="Keep offers"
-                      onConfirm={async () => {
-                        const r = await removeProcedureOfferAction(withOffer);
-                        if (r.error) return { error: r.error };
-                        toast.success(`Offer removed from ${withOffer.length} procedure${withOffer.length === 1 ? "" : "s"}.`);
-                      }}
-                    />
-                  ) : null}
-                </>
-              )}
-            </div>
+            <OfferBulkBar
+              items={procedures}
+              picked={picked}
+              noun="procedure"
+              removing={removing}
+              onSelectAll={(on) => setSelected(on ? new Set(procedures.map((p) => p.id)) : new Set())}
+              onSetOffer={setTarget}
+              onRemove={removeOffers}
+              removeAction={removeProcedureOfferAction}
+            />
           ) : null}
 
           {procedures.map((p) => (
@@ -226,6 +141,8 @@ export function ProceduresManager({
           key={target.ids.join(",")}
           target={target}
           today={today}
+          noun="procedure"
+          saveAction={setProcedureOfferAction}
           onClose={() => setTarget(null)}
           onSaved={() => {
             setTarget(null);
@@ -291,12 +208,6 @@ function AddProcedureForm({ templatesAvailable }: { templatesAvailable: boolean 
   );
 }
 
-const STATUS_BADGE = {
-  active: { label: "Offer running", variant: "default" },
-  scheduled: { label: "Offer starts later", variant: "secondary" },
-  ended: { label: "Offer ended", variant: "outline" },
-} as const;
-
 function ProcedureRow({
   procedure,
   perms,
@@ -326,12 +237,6 @@ function ProcedureRow({
   const [deleting, startDelete] = useTransition();
 
   const status = offerStatus(procedure.offer, today);
-  // What a patient booked today pays — shown beside the badge so "20% off" is never
-  // left for the reader to work out.
-  const todayOffer = offerForVisit(procedure.offer, today);
-  const offerPrice = todayOffer
-    ? procedure.price - computeFee(procedure.price, todayOffer.type, todayOffer.value).discount
-    : null;
 
   return (
     <div className="space-y-1.5 rounded-md border well p-2">
@@ -410,153 +315,14 @@ function ProcedureRow({
         <span className="sr-only">{fmtPkr(procedure.price)}</span>
       </ActionForm>
 
-      {status !== "none" ? (
-        <div className="flex flex-wrap items-center gap-2 pl-1 text-xs">
-          <Badge variant={STATUS_BADGE[status].variant}>{STATUS_BADGE[status].label}</Badge>
-          <span className="text-muted-foreground">{describeOffer(procedure.offer)}</span>
-          {offerPrice !== null ? (
-            <span>
-              <span className="text-muted-foreground line-through">{formatPkr(procedure.price)}</span>{" "}
-              <span className="font-medium">{formatPkr(offerPrice)}</span> today
-            </span>
-          ) : null}
-          {perms.edit ? (
-            <button
-              type="button"
-              disabled={removing}
-              onClick={onRemoveOffer}
-              className="inline-flex min-h-6 items-center text-destructive-text underline-offset-4 hover:underline disabled:opacity-50"
-            >
-              Remove offer
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+      <OfferStatusLine
+        offer={procedure.offer}
+        price={procedure.price}
+        today={today}
+        canEdit={perms.edit}
+        removing={removing}
+        onRemove={onRemoveOffer}
+      />
     </div>
-  );
-}
-
-const OFFER_TYPES = [
-  { value: "percent", label: "% off" },
-  { value: "amount", label: "Rs off" },
-] as const;
-
-/** Set / edit the clinic offer on one procedure or many. */
-function OfferDialog({
-  target,
-  today,
-  onClose,
-  onSaved,
-}: {
-  target: NonNullable<OfferTarget>;
-  today: string;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const cur = target.current;
-  const [type, setType] = useState<"amount" | "percent">(cur?.type ?? "percent");
-  const [value, setValue] = useState(cur ? String(cur.value) : "");
-  const [startsOn, setStartsOn] = useState(cur?.startsOn ?? today);
-  const [endsOn, setEndsOn] = useState(cur?.endsOn ?? "");
-  const [noEnd, setNoEnd] = useState(cur ? cur.endsOn === null : false);
-
-  const action = setProcedureOfferAction.bind(null, target.ids);
-  // Closing on success is part of the action (conventions §5), not an effect on state.
-  const [state, formAction, pending] = useActionState<ProcedureActionState, FormData>(
-    async (prev, fd) => {
-      const r = await action(prev, fd);
-      if (r.saved) {
-        toast.success(
-          target.ids.length === 1 ? "Offer saved." : `Offer saved on ${target.ids.length} procedures.`,
-        );
-        onSaved();
-      }
-      return r;
-    },
-    {},
-  );
-
-  return (
-    <Dialog
-      open
-      onOpenChange={(next) => {
-        if (!next && !pending) onClose();
-      }}
-      title={target.title}
-      description="Every patient booked for a visit within these dates gets this discount automatically, with no approval needed. Appointments already booked are not changed."
-      size="md"
-      footer={
-        <>
-          <Button type="button" variant="ghost" onClick={onClose} disabled={pending}>
-            Close
-          </Button>
-          {/* Outside the <form> (the footer is its own strip), so it names it. */}
-          <Button type="submit" form="offer-form" disabled={pending}>
-            {pending ? "Saving…" : "Save offer"}
-          </Button>
-        </>
-      }
-    >
-      {/* A two-column grid of standard Fields: every control gets the same height and
-          a full column to itself. The date picker has a minimum width (min-w-48), so
-          squeezing it into a fixed narrower box made it spill over its neighbours. */}
-      <ActionForm id="offer-form" action={formAction} state={state} className="grid gap-4 sm:grid-cols-2">
-        <Field label="Discount type" htmlFor="offer-type">
-          <SelectField
-            id="offer-type"
-            ariaLabel="Discount type"
-            value={type}
-            onValueChange={(v) => setType(v)}
-            options={OFFER_TYPES}
-            className="w-full"
-          />
-          <input type="hidden" name="offerType" value={type} />
-        </Field>
-        <Field label={type === "percent" ? "Percent" : "Amount (Rs)"} htmlFor="offer-value" required>
-          <Input
-            id="offer-value"
-            name="offerValue"
-            type="number"
-            min={1}
-            max={type === "percent" ? 100 : undefined}
-            step={type === "percent" ? 1 : 50}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder={type === "percent" ? "e.g. 10" : "e.g. 500"}
-            required
-          />
-        </Field>
-        <Field label="Start date" htmlFor="offer-start" required>
-          <DatePicker id="offer-start" ariaLabel="Offer start date" value={startsOn} onChange={setStartsOn} />
-          <input type="hidden" name="offerStartsOn" value={startsOn} />
-        </Field>
-        <Field
-          label="End date"
-          htmlFor="offer-end"
-          required={!noEnd}
-          hint={noEnd ? "Runs until you remove it." : undefined}
-        >
-          <DatePicker
-            id="offer-end"
-            ariaLabel="Offer end date"
-            value={noEnd ? "" : endsOn}
-            onChange={setEndsOn}
-            min={startsOn || today}
-            disabled={noEnd}
-          />
-          <label className="mt-1 flex min-h-6 items-center gap-2 text-sm">
-            <Checkbox name="offerNoEnd" checked={noEnd} onCheckedChange={(on) => setNoEnd(Boolean(on))} />
-            No end date
-          </label>
-          <input type="hidden" name="offerEndsOn" value={noEnd ? "" : endsOn} />
-        </Field>
-
-        {state.error ? (
-          <p className="text-sm text-destructive-text sm:col-span-2" role="alert">
-            {state.error}
-          </p>
-        ) : null}
-      </ActionForm>
-    </Dialog>
   );
 }

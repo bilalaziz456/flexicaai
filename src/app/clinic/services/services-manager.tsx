@@ -2,13 +2,18 @@
 
 import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState, useTransition } from "react";
-import { ConciergeBell, Trash2 } from "lucide-react";
+import { BadgePercent, ConciergeBell, Trash2 } from "lucide-react";
 import {
   createService,
   deleteService,
+  removeServiceOfferAction,
+  setServiceOfferAction,
   updateService,
   type ServiceActionState,
 } from "@/app/clinic/services/service-actions";
+import { offerStatus, type ProcedureOffer } from "@/core/appointments/procedure-offer";
+import { OfferBulkBar, OfferDialog, OfferStatusLine, type OfferTarget } from "@/app/clinic/procedures/offer-controls";
+import { toast } from "@/core/ui/toast";
 import { Button } from "@/core/ui/button";
 import { Card, CardContent } from "@/core/ui/card";
 import { Checkbox } from "@/core/ui/checkbox";
@@ -17,11 +22,38 @@ import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { useActionToast } from "@/core/ui/toast";
 
-type ServiceItem = { id: string; name: string; price: number; isActive: boolean };
+type ServiceItem = { id: string; name: string; price: number; isActive: boolean; offer: ProcedureOffer };
 type ServicePerms = { create: boolean; edit: boolean; delete: boolean };
 
-/** Add, edit and remove the clinic's services. Same shape as the procedures list, without offers. */
-export function ServicesManager({ services, perms }: { services: ServiceItem[]; perms: ServicePerms }) {
+/**
+ * Add, edit and remove the clinic's services, and set clinic offers on them — the same
+ * list and the same offer controls as Procedures (services gained offers 2026-10-18).
+ */
+export function ServicesManager({
+  services,
+  perms,
+  today,
+}: {
+  services: ServiceItem[];
+  perms: ServicePerms;
+  /** "YYYY-MM-DD" from the server, so an offer's status matches the server's day. */
+  today: string;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [target, setTarget] = useState<OfferTarget>(null);
+  const [removing, startRemove] = useTransition();
+  // Rows that left the list (deleted) must not linger in the selection.
+  const picked = services.filter((s) => selected.has(s.id)).map((s) => s.id);
+  function removeOffers(ids: string[]) {
+    startRemove(async () => {
+      const r = await removeServiceOfferAction(ids);
+      if (r.error) toast.error(r.error);
+      else {
+        toast.success(ids.length === 1 ? "Offer removed." : `Offer removed from ${ids.length} services.`);
+        setSelected(new Set());
+      }
+    });
+  }
   return (
     <div className="space-y-6">
       {perms.create ? <AddServiceForm /> : null}
@@ -41,11 +73,58 @@ export function ServicesManager({ services, perms }: { services: ServiceItem[]; 
         </Card>
       ) : (
         <div className="space-y-2">
+          {perms.edit ? (
+            <OfferBulkBar
+              items={services}
+              picked={picked}
+              noun="service"
+              removing={removing}
+              onSelectAll={(on) => setSelected(on ? new Set(services.map((s) => s.id)) : new Set())}
+              onSetOffer={setTarget}
+              onRemove={removeOffers}
+              removeAction={removeServiceOfferAction}
+            />
+          ) : null}
           {services.map((s) => (
-            <ServiceRow key={s.id} service={s} perms={perms} />
+            <ServiceRow
+              key={s.id}
+              service={s}
+              perms={perms}
+              today={today}
+              selected={selected.has(s.id)}
+              onSelect={(on) =>
+                setSelected((prev) => {
+                  const next = new Set(prev);
+                  if (on) next.add(s.id);
+                  else next.delete(s.id);
+                  return next;
+                })
+              }
+              onOffer={() =>
+                setTarget({ ids: [s.id], title: `Offer on ${s.name}`, current: s.offer.value > 0 ? s.offer : null })
+              }
+              onRemoveOffer={() => removeOffers([s.id])}
+              removing={removing}
+            />
           ))}
         </div>
       )}
+
+      {target ? (
+        <OfferDialog
+          // Remounted per target, so the fields start from THAT service's offer.
+          key={target.ids.join(",")}
+          target={target}
+          today={today}
+          noun="service"
+          saveAction={setServiceOfferAction}
+          onClose={() => setTarget(null)}
+          onSaved={() => {
+            setTarget(null);
+            setSelected(new Set());
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -81,7 +160,25 @@ function AddServiceForm() {
   );
 }
 
-function ServiceRow({ service, perms }: { service: ServiceItem; perms: ServicePerms }) {
+function ServiceRow({
+  service,
+  perms,
+  today,
+  selected,
+  onSelect,
+  onOffer,
+  onRemoveOffer,
+  removing,
+}: {
+  service: ServiceItem;
+  perms: ServicePerms;
+  today: string;
+  selected: boolean;
+  onSelect: (on: boolean) => void;
+  onOffer: () => void;
+  onRemoveOffer: () => void;
+  removing: boolean;
+}) {
   const [state, formAction, pending] = useActionState<ServiceActionState, FormData>(
     updateService.bind(null, service.id),
     {},
@@ -91,8 +188,11 @@ function ServiceRow({ service, perms }: { service: ServiceItem; perms: ServicePe
   const [deleting, startDelete] = useTransition();
 
   return (
-    <div className="rounded-md border well p-2">
+    <div className="space-y-1.5 rounded-md border well p-2">
       <ActionForm action={formAction} state={state} className="flex flex-wrap items-center gap-2">
+        {perms.edit ? (
+          <Checkbox checked={selected} onCheckedChange={(on) => onSelect(Boolean(on))} aria-label={`Select ${service.name}`} />
+        ) : null}
         <Input
           key={`n-${service.name}`}
           name="name"
@@ -124,6 +224,12 @@ function ServiceRow({ service, perms }: { service: ServiceItem; perms: ServicePe
             {pending ? "Saving…" : "Save"}
           </Button>
         ) : null}
+        {perms.edit ? (
+          <Button type="button" variant="ghost" size="sm" onClick={onOffer}>
+            <BadgePercent className="size-4" aria-hidden="true" />
+            {offerStatus(service.offer, today) === "none" ? "Set offer" : "Edit offer"}
+          </Button>
+        ) : null}
         {perms.delete ? (
           confirming ? (
             <Button
@@ -142,6 +248,14 @@ function ServiceRow({ service, perms }: { service: ServiceItem; perms: ServicePe
           )
         ) : null}
       </ActionForm>
+      <OfferStatusLine
+        offer={service.offer}
+        price={service.price}
+        today={today}
+        canEdit={perms.edit}
+        removing={removing}
+        onRemove={onRemoveOffer}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import {
   createProcedure as createCatalogItem,
+  setProcedureOffer,
   softDeleteProcedure,
   updateProcedure as updateCatalogItem,
 } from "@/core/appointments/procedures";
@@ -14,6 +15,8 @@ import type { PermAction } from "@/core/auth/permissions";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicHasFeature } from "@/core/lib/features";
 import { logActivity } from "@/core/audit/log";
+import { parseOfferForm } from "@/core/appointments/offer-form";
+import { describeOffer } from "@/core/appointments/procedure-offer";
 
 export type ServiceActionState = { error?: string; saved?: boolean };
 
@@ -92,4 +95,48 @@ export async function deleteService(serviceId: string): Promise<void> {
     summary: "Moved a service to Trash",
   });
   revalidatePath("/clinic/services");
+}
+
+/**
+ * Sets the clinic offer on one service or many — the same offer as on procedures
+ * (owner's call, 2026-10-18): no approval, applied at booking to a visit inside its
+ * dates, never re-pricing one already booked. Applies to the service's price as billed,
+ * including a price changed on the bill.
+ */
+export async function setServiceOfferAction(
+  serviceIds: string[],
+  _prev: ServiceActionState,
+  formData: FormData,
+): Promise<ServiceActionState> {
+  const { clinicId } = await requireServiceAccess("edit");
+  const ids = z.array(z.string().uuid()).max(1000).safeParse(serviceIds);
+  if (!ids.success || ids.data.length === 0) return { error: "Pick at least one service." };
+  const parsed = parseOfferForm(formData);
+  if ("error" in parsed) return parsed;
+  const changed = await setProcedureOffer(clinicId, ids.data, parsed.offer, "service");
+  if (changed === 0) return { error: "Service not found." };
+  await logActivity({
+    action: "update",
+    entity: "procedure",
+    entityId: changed === 1 ? ids.data[0] : null,
+    summary: `Set a clinic offer (${describeOffer(parsed.offer)}) on ${changed} service${changed === 1 ? "" : "s"}`,
+  });
+  revalidatePath("/clinic/services");
+  return { saved: true };
+}
+
+/** Removes the clinic offer from one service or many. Bookings already made keep theirs. */
+export async function removeServiceOfferAction(serviceIds: string[]): Promise<ServiceActionState> {
+  const { clinicId } = await requireServiceAccess("edit");
+  const ids = z.array(z.string().uuid()).max(1000).safeParse(serviceIds);
+  if (!ids.success || ids.data.length === 0) return { error: "Pick at least one service." };
+  const changed = await setProcedureOffer(clinicId, ids.data, null, "service");
+  await logActivity({
+    action: "update",
+    entity: "procedure",
+    entityId: changed === 1 ? ids.data[0] : null,
+    summary: `Removed the clinic offer from ${changed} service${changed === 1 ? "" : "s"}`,
+  });
+  revalidatePath("/clinic/services");
+  return { saved: true };
 }

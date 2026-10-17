@@ -475,8 +475,8 @@ are in `.env.example`.
   told it has nobody.
 
 - **Services & other charges, deposits** (`0125`, ADR-036) — a Services price list
-  beside Procedures (room, X-ray, medicines: no doctor share, no offer, price editable on
-  the bill; **ACL: `services`**, clinic admin by default, scoped per clinic by the super
+  beside Procedures (room, X-ray, medicines: no doctor share, price editable on the bill,
+  and — since 2026-10-18 — a clinic offer like a procedure's; **ACL: `services`**, clinic admin by default, scoped per clinic by the super
   admin / account manager), one-off "other charges" on any bill, and a deposit held on
   the visit until it is settled by a refund or **Keep as credit**.
 

@@ -19,9 +19,11 @@ import { appointments, clinics, patientPayments, patients, procedures, users } f
 import {
   createProcedure,
   getAppointmentProcedureItems,
+  applyClinicOffers,
   getBookingProcedures,
   listProcedureCatalog,
   saveAppointmentProcedures,
+  setProcedureOffer,
   updateProcedure,
 } from "@/core/appointments/procedures";
 import { getAppointmentBill } from "@/core/billing/bill";
@@ -85,6 +87,19 @@ async function main() {
       ok("Services lists only services", svcs.length === 1 && svcs[0].name === "Room (per day)");
       ok("plans / share overrides see procedures only", (await getBookingProcedures(clinicId)).every((p) => !p.isService));
       ok("the bill forms see both", (await getBookingProcedures(clinicId, { includeServices: true })).length === 2);
+
+      // Offers on services (2026-10-18): set from the Services screen only, applied at
+      // booking to the price as billed, then removed so the rest of this test is unchanged.
+      const today = new Date().toISOString().slice(0, 10);
+      const tenPct = { type: "percent" as const, value: 10, startsOn: today, endsOn: null };
+      ok("the Procedures screen can't put an offer on a service", (await setProcedureOffer(clinicId, [roomId], tenPct)) === 0);
+      ok("the Services screen can", (await setProcedureOffer(clinicId, [roomId], tenPct, "service")) === 1);
+      ok("…and can't put one on a procedure", (await setProcedureOffer(clinicId, [scalingId], tenPct, "service")) === 0);
+      const offered = await applyClinicOffers(clinicId, [{ procedureId: roomId, quantity: 1, unitPrice: 1200, discountType: "amount", discountValue: 0 }], today);
+      ok("booking gives the service line its offer, on the typed price", offered[0].discountType === "percent" && offered[0].discountValue === 10 && offered[0].unitPrice === 1200, JSON.stringify(offered));
+      const svcOffer = (await getBookingProcedures(clinicId, { includeServices: true })).find((p) => p.id === roomId)?.offer;
+      ok("the booking form sees the service's offer", svcOffer?.value === 10, JSON.stringify(svcOffer));
+      await setProcedureOffer(clinicId, [roomId], null, "service");
       ok(
         "the Services screen can't edit a procedure",
         !(await updateProcedure(clinicId, scalingId, { name: "X", price: 1, isActive: true }, "service")),

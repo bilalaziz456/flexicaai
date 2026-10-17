@@ -20,7 +20,7 @@ export type BookingProcedure = {
   name: string;
   price: number;
   offer: ProcedureOffer;
-  /** A service (room, X-ray, medicines…): no doctor share, no offer, price editable on the bill. */
+  /** A service (room, X-ray, medicines…): no doctor share, price editable on the bill; may carry a clinic offer like a procedure. */
   isService: boolean;
 };
 
@@ -258,8 +258,8 @@ export async function getBookingProcedures(
     id: r.id,
     name: r.name,
     price: r.price,
-    // A service never carries an offer, whatever its columns say.
-    offer: r.isService ? { type: "amount", value: 0, startsOn: null, endsOn: null } : toOffer(r),
+    // Services carry offers too (owner's call, 2026-10-18), exactly like procedures.
+    offer: toOffer(r),
     isService: r.isService,
   }));
 }
@@ -292,8 +292,8 @@ export async function applyClinicOffers(
         clinicId,
         notDeleted(procedures.deletedAt),
         inArray(procedures.id, ids),
-        // A service has no offer; its line keeps no discount of its own.
-        kindCondition("procedure"),
+        // Procedures AND services: both may carry a clinic offer (2026-10-18). A
+        // one-off "other charge" has no id, so it never matches and keeps no discount.
       ),
     );
   const offers = new Map(rows.map((r) => [r.id, toOffer(r)]));
@@ -353,6 +353,9 @@ export async function setProcedureOffer(
   clinicId: string,
   procedureIds: string[],
   offer: ProcedureOffer | null,
+  // Each screen sets offers on its own list only: the Procedures page cannot touch a
+  // service, nor the Services page a procedure.
+  kind: CatalogKind = "procedure",
 ): Promise<number> {
   if (procedureIds.length === 0) return 0;
   const values = offer
@@ -372,7 +375,7 @@ export async function setProcedureOffer(
         clinicId,
         notDeleted(procedures.deletedAt),
         inArray(procedures.id, procedureIds),
-        kindCondition("procedure"),
+        kindCondition(kind),
       ),
     )
     .returning({ id: procedures.id });
@@ -408,7 +411,7 @@ export async function saveAppointmentProcedures(
     byId.set(s.procedureId, s);
   }
   // One-off "other charges": no list item behind them, so the description and price
-  // come from the bill itself. Always a service — no doctor share, no offer.
+  // come from the bill itself. Always a service — no doctor share, and no offer (nothing in the list to carry one).
   const otherCharges = selections
     .filter((s) => !s.procedureId)
     .map((s) => ({

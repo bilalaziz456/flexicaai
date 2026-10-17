@@ -169,7 +169,8 @@ function parseProcedureSelections(formData: FormData): ProcedureSelection[] {
 /**
  * The services and one-off "other charges" on the bill. A service is
  * "<id>:<qty>:<price>"; a one-off charge is JSON {n, p, q}. Neither carries a
- * discount (no offers) nor a doctor (no share) — `saveAppointmentProcedures` also
+ * discount from the form — a listed service gets its clinic offer from
+ * `applyClinicOffers`, as a procedure does — nor a doctor (no share) — `saveAppointmentProcedures` also
  * refuses a typed price on anything that is not really a service, and clamps.
  */
 function parseServiceSelections(formData: FormData): ProcedureSelection[] {
@@ -428,7 +429,8 @@ export async function createAppointment(
   // appointment's doctor.
   await saveAppointmentProcedures(clinicId, created.id, [
     ...withApptDoctor(procedureSelections, parsed.data.doctorId ?? null),
-    ...parseServiceSelections(formData),
+    // Services take their clinic offer too (2026-10-18), the same way.
+    ...(await applyClinicOffers(clinicId, parseServiceSelections(formData), localDateStr(when))),
   ]);
 
   // Booking-from-plan: schedule any selected treatment-plan items onto this
@@ -608,15 +610,16 @@ export async function updateAppointment(
   // Lines the visit already had keep the discount they were booked with; a procedure
   // added now takes the clinic offer running on the visit date.
   const bookedLines = await getAppointmentProcedureItems(clinicId, appointmentId);
+  const keepBooked = new Map(
+    bookedLines
+      .filter((l): l is typeof l & { procedureId: string } => Boolean(l.procedureId))
+      .map((l) => [l.procedureId, { discountType: l.discountType, discountValue: l.discountValue }]),
+  );
   const procedureSelections = await applyClinicOffers(
     clinicId,
     parseProcedureSelections(formData),
     localDateStr(when),
-    new Map(
-      bookedLines
-        .filter((l): l is typeof l & { procedureId: string } => Boolean(l.procedureId))
-        .map((l) => [l.procedureId, { discountType: l.discountType, discountValue: l.discountValue }]),
-    ),
+    keepBooked,
   );
   // Unticking this on an edit re-imposes the doctor's hours, so a visit moved back
   // into normal time stops being an exception. Same normalisation as create: the
@@ -714,7 +717,9 @@ export async function updateAppointment(
   // each line's performing doctor = the appointment's doctor.
   await saveAppointmentProcedures(clinicId, appointmentId, [
     ...withApptDoctor(procedureSelections, parsed.data.doctorId ?? null),
-    ...parseServiceSelections(formData),
+    // A service already on the visit keeps the discount it was booked with; one added
+    // now takes the offer running on the visit date — the procedures' rule.
+    ...(await applyClinicOffers(clinicId, parseServiceSelections(formData), localDateStr(when), keepBooked)),
   ]);
 
   // Recompute approvals AFTER the procedures/discount are saved (editing a discount
