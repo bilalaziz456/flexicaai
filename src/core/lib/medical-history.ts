@@ -119,7 +119,7 @@ export function describeMedication(m: Medication): string {
 /** The medical-history payload (jsonb-shaped). */
 export type MedicalHistoryData = {
   allergies: Allergy[];
-  /** Checked conditions from `MEDICAL_CONDITIONS` (by label). */
+  /** Conditions: those ticked from `MEDICAL_CONDITIONS` (by label), plus any typed in. */
   conditions: string[];
   medications: Medication[];
   smoking?: string;
@@ -142,6 +142,23 @@ export const MEDICAL_CONDITIONS: string[] = [
   "Pregnancy",
   "Immunocompromised",
 ];
+
+/** The longest condition that can be typed in. */
+export const MAX_CONDITION_LENGTH = 80;
+
+/**
+ * Add a condition typed in by hand (owner's call, 2026-10-18 — the list cannot hold
+ * every condition). Tidied, and never a duplicate: typing a listed condition ("diabetes")
+ * ticks the listed one, and one already recorded is not added twice.
+ */
+export function addCondition(list: string[], typed: string): string[] {
+  const value = typed.replace(/\s+/g, " ").trim().slice(0, MAX_CONDITION_LENGTH);
+  if (!value) return list;
+  const key = value.toLowerCase();
+  if (list.some((c) => c.toLowerCase() === key)) return list;
+  const listed = MEDICAL_CONDITIONS.find((c) => c.toLowerCase() === key);
+  return [...list, listed ?? value];
+}
 
 /**
  * Drug-class links: an allergy substance matching `match` conflicts with any drug
@@ -226,7 +243,10 @@ export function asMedicalHistory(v: unknown): MedicalHistoryData {
   const list = (x: unknown) => (Array.isArray(x) ? x.slice(0, MAX_ITEMS) : []);
   return {
     allergies: list(o.allergies).map(asAllergy).filter((a): a is Allergy => a !== null),
-    conditions: list(o.conditions).filter((c): c is string => typeof c === "string").map((c) => c.slice(0, 80)),
+    // Through addCondition: trimmed, bounded and de-duplicated, as the form adds them.
+    conditions: list(o.conditions)
+      .filter((c): c is string => typeof c === "string")
+      .reduce<string[]>((acc, c) => addCondition(acc, c), []),
     medications: list(o.medications).map(asMedication).filter((m): m is Medication => m !== null),
     smoking: str(o.smoking, 120) ?? "",
     alcohol: str(o.alcohol, 120) ?? "",

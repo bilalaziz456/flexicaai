@@ -2,7 +2,7 @@
  * Unit tests for the medical-history allergy gate (pure, no DB).
  * Run: `npm run test:unit` (chained) or `tsx scripts/test-medical-history.ts`.
  */
-import { allergyConflicts, asMedicalHistory, asMedication, describeMedication } from "../src/core/lib/medical-history";
+import { addCondition, allergyConflicts, asMedicalHistory, asMedication, describeMedication } from "../src/core/lib/medical-history";
 import type { Allergy } from "../src/core/lib/medical-history";
 
 let failures = 0;
@@ -62,6 +62,13 @@ check("a known instruction is kept", asMedication({ name: "x", instruction: "bef
 check("an unknown one is dropped", asMedication({ name: "x", instruction: "with_tea" })?.instruction, undefined);
 check("it reads after the frequency", describeMedication({ name: "x", frequency: "bd", instruction: "after_meal", durationValue: 5, durationUnit: "days" }), "Twice daily (1-0-1) · After meal · for 5 days");
 check("None prints nothing", describeMedication({ name: "x", frequency: "bd" }), "Twice daily (1-0-1)");
+
+console.log("\nConditions typed in:");
+check("a new one is added, tidied", addCondition(["Diabetes"], "  anaemia   (mild) "), ["Diabetes", "anaemia (mild)"]);
+check("a listed one typed in ticks the listed label", addCondition([], "diabetes"), ["Diabetes"]);
+check("one already there is not added twice", addCondition(["Anaemia"], "ANAEMIA"), ["Anaemia"]);
+check("blank adds nothing", addCondition(["Diabetes"], "   "), ["Diabetes"]);
+check("saved conditions are de-duplicated and trimmed", asMedicalHistory({ conditions: ["Anaemia", " anaemia ", "", "Diabetes"] }).conditions, ["Anaemia", "Diabetes"]);
 
 console.log(failures === 0 ? "\nALL PASSED" : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

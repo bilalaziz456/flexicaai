@@ -10,6 +10,8 @@ import { Badge } from "@/core/ui/badge";
 import { Toast } from "@/core/ui/toast";
 import {
   MEDICAL_CONDITIONS,
+  MAX_CONDITION_LENGTH,
+  addCondition,
   asMedicalHistory,
   describeMedication,
   type Allergy,
@@ -170,20 +172,41 @@ export function MedicalHistoryCard({
 
       {/* Conditions */}
       <Field label="Conditions">
-        <div className="flex flex-wrap gap-2">
-          {MEDICAL_CONDITIONS.map((c) => {
-            const on = data.conditions.includes(c);
-            return (
-              <button
-                key={c}
-                type="button"
-                onClick={() => set("conditions", on ? data.conditions.filter((x) => x !== c) : [...data.conditions, c])}
-                className={`rounded-md border px-2 py-1 text-xs transition-colors ${on ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent"}`}
-              >
-                {c}
-              </button>
-            );
-          })}
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            {MEDICAL_CONDITIONS.map((c) => {
+              const on = data.conditions.includes(c);
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => set("conditions", on ? data.conditions.filter((x) => x !== c) : [...data.conditions, c])}
+                  className={`rounded-md border px-2 py-1 text-xs transition-colors ${on ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent"}`}
+                >
+                  {c}
+                </button>
+              );
+            })}
+            {/* Conditions typed in, not on the list — shown selected, removed with ×. */}
+            {data.conditions
+              .filter((c) => !MEDICAL_CONDITIONS.includes(c))
+              .map((c) => (
+                <span
+                  key={c}
+                  className="inline-flex items-center gap-1 rounded-md border border-primary bg-primary px-2 py-1 text-xs text-primary-foreground"
+                >
+                  {c}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${c}`}
+                    onClick={() => set("conditions", data.conditions.filter((x) => x !== c))}
+                  >
+                    <X className="size-3" aria-hidden="true" />
+                  </button>
+                </span>
+              ))}
+          </div>
+          <AddCondition onAdd={(c) => set("conditions", addCondition(data.conditions, c))} />
         </div>
       </Field>
 
@@ -246,6 +269,36 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div role="group" aria-label={label} className="space-y-1.5">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       {children}
+    </div>
+  );
+}
+/** Type a condition that is not on the list; Enter or Add puts it on the history. */
+function AddCondition({ onAdd }: { onAdd: (condition: string) => void }) {
+  const [value, setValue] = useState("");
+  const add = () => {
+    if (!value.trim()) return;
+    onAdd(value);
+    setValue("");
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Input
+        className="h-8 w-56"
+        aria-label="Another condition"
+        placeholder="Another condition, e.g. Anaemia"
+        maxLength={MAX_CONDITION_LENGTH}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            add();
+          }
+        }}
+      />
+      <Button type="button" size="sm" variant="outline" disabled={!value.trim()} onClick={add}>
+        <Plus className="size-4" /> Condition
+      </Button>
     </div>
   );
 }
