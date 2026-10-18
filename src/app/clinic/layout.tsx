@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { headers } from "next/headers";
+import { PRINT_FRAME_HEADER } from "@/core/lib/print-papers";
 import { reportsFor } from "@/app/clinic/reports/catalog";
 import { Megaphone, ShieldAlert, UserRound } from "lucide-react";
 import { PaymentNoticePill } from "@/core/ui/payment-notice-pill";
@@ -27,6 +29,13 @@ export default async function ClinicLayout({
   children: ReactNode;
 }) {
   const user = await requireWorkspace();
+  // A print page in a Print / Download button's hidden frame: the page alone. Nobody
+  // sees the sidebar there, and starting it was most of the wait before the print
+  // dialog opened (src/proxy.ts sets the header). Sign-in is still checked above, and
+  // each print page checks its own permission as before.
+  if ((await headers()).get(PRINT_FRAME_HEADER) === "1") {
+    return <div className="app-root min-h-screen">{children}</div>;
+  }
   // ONE wave, not four. These are independent of each other and every one of them runs
   // on EVERY page in the workspace, so awaiting them in sequence spent four round trips
   // of latency before the page even started. getClinic is request-cached, so the page

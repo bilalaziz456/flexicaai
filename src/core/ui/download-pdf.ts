@@ -178,7 +178,11 @@ export async function printInFrame(): Promise<void> {
     window.parent.postMessage(msg, window.location.origin);
   };
   await document.fonts?.ready;
-  await new Promise((r) => setTimeout(r, 300));
+  // A beat for the sheet to settle in its fonts — printing lays the page out afresh, so
+  // it need not be long (was 300ms, a large share of a Save & print's wait). NOT
+  // requestAnimationFrame: Chrome throttles it in this invisible frame to ~1.5s
+  // (measured 2026-10-18).
+  await new Promise((r) => setTimeout(r, 50));
   window.addEventListener("afterprint", () => tell("done"), { once: true });
   tell("opened");
   window.print();

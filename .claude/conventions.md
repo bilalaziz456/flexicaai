@@ -100,6 +100,11 @@ note above it; obvious logic gets none.
   the bytes back, and the opener saves them. A new print page must be added to
   `PRINT_PAGES` in BOTH `src/proxy.ts` and `next.config.ts`, or its Download is
   refused by the browser. Pages in a frame do not touch the tab bar or auto-print.
+  **In that frame the clinic layout renders the page alone** — no sidebar, search, tabs
+  or notices: the proxy marks a print page requested with `?print=` or `?pdf=1`
+  (`PRINT_FRAME_HEADER`). Starting the whole workspace just to print one sheet was
+  most of a Save & print's wait (2026-10-18). A print page must therefore not rely on
+  anything the shell provides; providers it needs live in the root layout.
 - **Every Print has a Download PDF beside it** (owner's call, 2026-10-15). Use
   `InvoicePrintFrame` or `PrintButton`, which both carry one; a hand-rolled print
   button gets a `DownloadPdfButton` (`core/ui/download-pdf-button.tsx`) next to it. The

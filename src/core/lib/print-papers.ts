@@ -42,3 +42,9 @@ export const AUTO_PRINT_PARAM = "printPaper";
 
 /** The one-time id beside it, so a request prints once however its page is revisited. */
 export const AUTO_PRINT_ID_PARAM = "printId";
+
+/**
+ * Set by the proxy (never by the browser) on a print page loaded in a Print / Download
+ * button's hidden frame, so the panel layout renders just the page (src/proxy.ts).
+ */
+export const PRINT_FRAME_HEADER = "x-print-frame";

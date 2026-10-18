@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE_NAME } from "@/core/auth/constants";
 import { THEME_SCRIPT } from "@/core/theme/theme-script";
 import { matchProtectedPrefix } from "@/core/types/auth";
+import { PRINT_FRAME_HEADER } from "@/core/lib/print-papers";
 
 /**
  * Coarse auth gate + CSP (Next.js 16 "proxy" convention). Runs in the EDGE runtime,
@@ -172,6 +173,18 @@ export async function proxy(request: NextRequest) {
   // path, and the two must agree or the browser obeys the stricter one.
   if (isFrameableByUs(pathname)) {
     policy = policy.replace("frame-ancestors 'none'", "frame-ancestors 'self'");
+  }
+
+  // A print page loaded only to print or make a PDF (a Print / Download / Save & print
+  // button's hidden frame — `?print=<size>` or `?pdf=1`) is rendered WITHOUT the
+  // workspace around it (src/app/clinic/layout.tsx). Booting the sidebar, search, tabs
+  // and notices just to print one sheet cost ~2s of the frame's start-up, on the same
+  // thread as the page that asked for the print (owner's report, 2026-10-18). Only the
+  // proxy may say so: a value the browser sent is dropped, never trusted.
+  requestHeaders.delete(PRINT_FRAME_HEADER);
+  const search = request.nextUrl.searchParams;
+  if (PRINT_PAGES.some((re) => re.test(pathname)) && (search.has("print") || search.get("pdf") === "1")) {
+    requestHeaders.set(PRINT_FRAME_HEADER, "1");
   }
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
