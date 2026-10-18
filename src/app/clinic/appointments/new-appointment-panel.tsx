@@ -80,12 +80,13 @@ export async function NewAppointmentPanel({
         </h1>
       </div>
 
-      <Card>
+      {/* Not clipped on an invoice, so the total + Save bar can stick to the screen. */}
+      <Card className={invoiceMode ? "overflow-visible" : undefined}>
         <CardHeader>
           <CardTitle>{invoiceMode ? "Invoice" : "Schedule"}</CardTitle>
           <CardDescription>
             {invoiceMode
-              ? "Patient, doctor, date & time, procedures and the payment received. The visit is created with its invoice number."
+              ? "Patient, doctor, date, what was done and the payment received. The visit is created with its invoice number."
               : "Pick a patient and a date & time."}
           </CardDescription>
         </CardHeader>

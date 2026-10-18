@@ -301,7 +301,9 @@ export async function createAppointment(
     doctorId: formData.get("doctorId"),
     scheduledAt: formData.get("scheduledAt"),
     durationMinutes: formData.get("durationMinutes"),
-    reason: formData.get("reason"),
+    // `?? undefined`: a form without the field (New invoice has no Reason) posts
+    // nothing, and `get` answers null, which "optional" does not accept.
+    reason: formData.get("reason") ?? undefined,
     discountType: formData.get("discountType") ?? undefined,
     discountValue: formData.get("discountValue"),
     discountBorneBy: formData.get("discountBorneBy") ?? undefined,
@@ -571,7 +573,7 @@ export async function updateAppointment(
     doctorId: formData.get("doctorId"),
     scheduledAt: formData.get("scheduledAt"),
     durationMinutes: formData.get("durationMinutes"),
-    reason: formData.get("reason"),
+    reason: formData.get("reason") ?? undefined,
     discountType: formData.get("discountType") ?? undefined,
     discountValue: formData.get("discountValue"),
     discountBorneBy: formData.get("discountBorneBy") ?? undefined,

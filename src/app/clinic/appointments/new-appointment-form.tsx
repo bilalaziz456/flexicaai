@@ -492,7 +492,10 @@ export function NewAppointmentForm({
   // A custom time frees the picker exactly as a flexible doctor does — the server
   // applies the same relaxation (checkDoctorSlot's `customTime`), so the form can
   // never offer a time the action would then refuse.
-  const freeTime = !doctorId || Boolean(selectedDoctor?.flexibleHours) || customTime;
+  // A NEW INVOICE has no time to choose (owner's call, 2026-10-18 — it is billing,
+  // not booking): it takes the time the page opened at, and is never held to the
+  // doctor's visiting hours, so it is "free" and is sent as a custom time below.
+  const freeTime = newInvoice || !doctorId || Boolean(selectedDoctor?.flexibleHours) || customTime;
   const onLeaveBlock = Boolean(doctorId) && Boolean(date) && Boolean(slots?.onLeave);
 
   // Whether this visit carries procedures decides which windows the SERVER will
@@ -559,7 +562,7 @@ export function NewAppointmentForm({
         value={isEdit ? (fixedPatient?.id ?? "") : (patient?.id ?? "")}
       />
       <input type="hidden" name="scheduledAt" value={scheduledAt} />
-      <input type="hidden" name="customTime" value={customTime ? "1" : "0"} />
+      <input type="hidden" name="customTime" value={customTime || newInvoice ? "1" : "0"} />
       {newInvoice ? <input type="hidden" name="asInvoice" value="1" /> : null}
 
       <div className="space-y-2">
@@ -587,6 +590,9 @@ export function NewAppointmentForm({
                 aria-label="Search patients"
               />
             </div>
+            {/* A new invoice lists matches only once something is typed (owner's call,
+                2026-10-18) — the recent-patients list pushed the bill below the fold. */}
+            {newInvoice && !query.trim() ? null : (
             <ul className="max-h-48 divide-y divide-border/60 overflow-y-auto rounded-md border border-border/60">
               {results.length === 0 ? (
                 <li className="p-3 text-sm text-muted-foreground">
@@ -612,6 +618,7 @@ export function NewAppointmentForm({
                 ))
               )}
             </ul>
+            )}
           </div>
         )}
       </div>
@@ -632,19 +639,23 @@ export function NewAppointmentForm({
             className="w-full"
           />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="durationMinutes">Duration (minutes)</Label>
-          <Input
-            id="durationMinutes"
-            name="durationMinutes"
-            type="number"
-            min={5}
-            max={480}
-            step={5}
-            value={duration}
-            onChange={(e) => setDuration(Number(e.target.value))}
-          />
-        </div>
+        {newInvoice ? (
+          <input type="hidden" name="durationMinutes" value={duration} />
+        ) : (
+          <div className="space-y-2">
+            <Label htmlFor="durationMinutes">Duration (minutes)</Label>
+            <Input
+              id="durationMinutes"
+              name="durationMinutes"
+              type="number"
+              min={5}
+              max={480}
+              step={5}
+              value={duration}
+              onChange={(e) => setDuration(Number(e.target.value))}
+            />
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="date">Date</Label>
@@ -659,6 +670,11 @@ export function NewAppointmentForm({
           />
         </div>
 
+        {newInvoice ? (
+          onLeaveBlock ? (
+            <p className="self-end text-sm text-destructive">Doctor is on leave that day. Pick another date.</p>
+          ) : null
+        ) : (
         <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <Label>{freeTime ? "Time" : "Available times"}</Label>
@@ -758,17 +774,21 @@ export function NewAppointmentForm({
             </div>
           )}
         </div>
+        )}
 
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="reason">Reason (optional)</Label>
-          <Input
-            id="reason"
-            name="reason"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="e.g. Cleaning"
-          />
-        </div>
+        {/* Reason: a booking's note. An invoice says what it is for in its lines. */}
+        {newInvoice ? null : (
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="reason">Reason (optional)</Label>
+            <Input
+              id="reason"
+              name="reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. Cleaning"
+            />
+          </div>
+        )}
 
         {/* Consultation fee — its OWN section, separate from procedures. It comes
             from the doctor's set fee (staff → doctor), so it appears the moment a
@@ -779,33 +799,26 @@ export function NewAppointmentForm({
           name="chargeConsultation"
           value={chargeConsultation ? "1" : "0"}
         />
+        {/* One line (owner's call, 2026-10-18): tick to charge it, the amount beside —
+            untick for a procedure-only visit. */}
         {selectedDoctor ? (
-          <div className="space-y-2 rounded-lg border well p-3 sm:col-span-2">
-            <div className="flex items-center justify-between gap-3">
-              <Label className="font-medium">Consultation fee</Label>
-              <span className="text-sm font-semibold">
-                {consultationFee > 0 ? formatPkr(consultationFee) : "Not set"}
-              </span>
-            </div>
-            {consultationFee > 0 ? (
-              <>
-                <label className="flex min-h-6 items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={chargeConsultation}
-                    ref={syncChecked(chargeConsultation)}
-                    onCheckedChange={setChargeConsultation} />
-                  Charge this consultation fee
-                </label>
-                <p className="text-xs text-muted-foreground">
-                  Uncheck if the patient is coming only for a procedure.
-                </p>
-              </>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                This doctor has no consultation fee set. Add it under Staff.
-              </p>
-            )}
-          </div>
+          consultationFee > 0 ? (
+            <label
+              className="flex min-h-9 items-center gap-2 rounded-lg border well px-3 text-sm sm:col-span-2"
+              title="Untick if the patient came only for a procedure"
+            >
+              <Checkbox
+                checked={chargeConsultation}
+                ref={syncChecked(chargeConsultation)}
+                onCheckedChange={setChargeConsultation} />
+              Consultation fee
+              <span className="ml-auto font-semibold tabular-nums">{formatPkr(consultationFee)}</span>
+            </label>
+          ) : (
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              This doctor has no consultation fee set (add it under Team).
+            </p>
+          )
         ) : null}
 
         {/* Procedures the patient is booked for — priced line items that add to
@@ -1276,7 +1289,7 @@ export function NewAppointmentForm({
       </div>
 
       {/* Doctor's hours + remaining capacity for the chosen day. */}
-      {slots && slots.available ? (
+      {slots && slots.available && !newInvoice ? (
         <p className="text-xs text-muted-foreground">
           {slots.flexible
             ? "Flexible: book any time."
@@ -1295,7 +1308,7 @@ export function NewAppointmentForm({
           <p className="text-sm font-medium">
             Payment received{newInvoice ? "" : <span className="font-normal text-muted-foreground"> (optional)</span>}
           </p>
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1">
               <Label htmlFor="inv-pay-amount" className="text-xs text-muted-foreground">
                 Amount (Rs)
@@ -1335,12 +1348,12 @@ export function NewAppointmentForm({
               </Label>
               <Input id="inv-pay-ref" name="payReference" placeholder="Optional" />
             </div>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="inv-pay-note" className="text-xs text-muted-foreground">
-              Reason (optional)
-            </Label>
-            <Input id="inv-pay-note" name="payNote" maxLength={500} placeholder="e.g. part payment, balance next visit" />
+            <div className="space-y-1">
+              <Label htmlFor="inv-pay-note" className="text-xs text-muted-foreground">
+                Reason (optional)
+              </Label>
+              <Input id="inv-pay-note" name="payNote" maxLength={500} placeholder="e.g. part payment" />
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">
             {newInvoice
@@ -1352,8 +1365,13 @@ export function NewAppointmentForm({
 
       {newInvoice ? (
         // Save opens the invoice; each Save & print <size> opens it AND prints it at
-        // that size (core/ui/print-on-arrival).
-        <div className="flex flex-wrap items-center gap-3">
+        // that size (core/ui/print-on-arrival). Stuck to the bottom of the screen with
+        // the total, so a long bill never means scrolling down to save it.
+        <div className="sticky bottom-0 z-20 -mx-4 flex flex-wrap items-center gap-3 border-t border-border/70 bg-card/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+          <div className="mr-auto">
+            <div className="text-xs text-muted-foreground">Total</div>
+            <div className="text-lg font-semibold tabular-nums">{formatPkr(bill.net)}</div>
+          </div>
           <Button
             type="submit"
             variant="outline"
