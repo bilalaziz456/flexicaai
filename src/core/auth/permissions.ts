@@ -378,6 +378,30 @@ export function resourcesForClinic(featuresEnabled: string[] | null | undefined)
   return PERM_RESOURCES.filter((r) => !r.feature || features.has(r.feature));
 }
 
+/**
+ * What a clinic admin may GRANT on a team member's access grid: the clinic's
+ * resources, each narrowed to the actions the super admin allows this clinic, and
+ * a module with none left dropped entirely (owner's call, 2026-10-18 — Recalls was
+ * removed from a clinic and gone from the nav, but still offered on every profile,
+ * where ticking it did nothing). The narrowed actions show as "—", like an action
+ * a module never had.
+ *
+ * Only the OFFER narrows. Ticks a person already holds for a hidden module stay
+ * stored (the grid re-posts them), so when the super admin turns it back on, each
+ * person gets back exactly what they had — rather than everyone losing it in
+ * silence (ADR-033). Effective access needs no help: `can()` applies the clinic tier.
+ * Not for the super admin's own capability editor, which must show everything.
+ */
+export function grantableResourcesForClinic(
+  featuresEnabled: string[] | null | undefined,
+  capabilities: readonly string[] | null | undefined,
+): PermResource[] {
+  return resourcesForClinic(featuresEnabled).flatMap((r) => {
+    const actions = r.actions.filter((a) => clinicAllows(capabilities, r.id, a));
+    return actions.length > 0 ? [{ ...r, actions }] : [];
+  });
+}
+
 /** Resource ids the user can access (any action) — drives nav visibility. */
 export function accessibleResourceIds(user: PermUser): string[] {
   return PERM_RESOURCES.filter((r) => canAccess(user, r.id)).map((r) => r.id);

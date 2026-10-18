@@ -2,7 +2,7 @@ import { BackLink } from "@/core/ui/back-link";
 import { getClinic } from "@/core/clinics/get-clinic";
 
 import { requireClinicAdmin } from "@/core/auth/user";
-import { resourcesForClinic } from "@/core/auth/permissions";
+import { grantableResourcesForClinic } from "@/core/auth/permissions";
 import {
   Card,
   CardContent,
@@ -16,7 +16,7 @@ import { AddStaffForm } from "../add-staff-form";
 export default async function NewStaffPage() {
   const { clinicId } = await requireClinicAdmin();
   const clinic = await getClinic(clinicId);
-  const permResources = resourcesForClinic(clinic?.featuresEnabled);
+  const permResources = grantableResourcesForClinic(clinic?.featuresEnabled, clinic?.capabilities);
   return (
     <div className="space-y-6">
       <div>

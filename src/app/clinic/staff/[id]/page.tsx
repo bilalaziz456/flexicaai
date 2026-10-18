@@ -16,7 +16,7 @@ import { getDoctorProcedureOverrides } from "@/core/appointments/share-config";
 import { CLINIC_STAFF_ROLES } from "@/core/types/auth";
 import {
   defaultPermissionsForRole,
-  resourcesForClinic,
+  grantableResourcesForClinic,
 } from "@/core/auth/permissions";
 import { PermissionsGrid } from "./permissions-grid";
 import { BackLink } from "@/core/ui/back-link";
@@ -76,7 +76,7 @@ export default async function StaffDetailPage({
   // Permission grid inputs: the resources this clinic can use, and the member's
   // effective permissions (their overrides, or the role defaults when unset).
   const clinic = await getClinic(clinicId);
-  const permResources = resourcesForClinic(clinic?.featuresEnabled);
+  const permResources = grantableResourcesForClinic(clinic?.featuresEnabled, clinic?.capabilities);
   const roleDefaults = defaultPermissionsForRole(member.role);
   const effectivePermissions = member.permissions ?? roleDefaults;
 

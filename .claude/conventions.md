@@ -395,6 +395,11 @@ throw — use it in tests.
 
 - Two-tier: **clinic capability ∩ user permission** (ADR-008). Both are checked by
   `can()`.
+- **A team member's access grid offers only what the clinic has**
+  (`grantableResourcesForClinic`): a module the super admin removed entirely is not
+  listed, and an action removed on its own shows "—". Ticks already stored for a hidden
+  module are kept, so turning it back on restores them. The super admin's capability
+  editor keeps `resourcesForClinic`, which shows everything.
 - A receptionist must not see clinical notes unless the clinic grants it. Defaults
   live in `core/auth/permissions.ts#ROLE_DEFAULTS`.
 - Super-admin impersonation is **read-only** — capabilities are intersected down to
