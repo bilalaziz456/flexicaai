@@ -1407,6 +1407,25 @@ these for churn-risk + usage/cost anomaly flags.
   is later than the invoice's issue date, so a copy handed over earlier is visibly not the
   latest. Deliberately NOT `updated_at`, which reminders, status changes and the
   collected-amount cache also bump; and NOT backfilled — it dates an event (ADR-033).
+- Migration **`0132`** adds **medicines** (owner's call, 2026-10-19). `medicines` is the
+  company MASTER list — no `clinic_id`, so the tenant guard ignores it: `name` (unique
+  case-insensitively), `brands` text[], `form`, `strength`, `specialties` text[] (module
+  ids as plain TEXT tags, like `module` — data, so a new specialty needs no schema
+  change; a clinic with that module sees the medicine first), `is_active` (RETIRED, never
+  deleted: prescriptions name it). `clinic_medicines` is a clinic's OWN list (`clinic_id`,
+  same fields minus specialties, soft-delete, unique per clinic among live rows); a name
+  the master list already has is refused there. Seeded with the dental formulary's nine
+  medicines. Two ACL backfills ride along (ADR-033): a team member holding every admin
+  permission gets `medicines:*` — `canManageTeam` requires ALL of them, so a new admin
+  resource would otherwise quietly demote every full super admin — and a scoped clinic
+  gets `medicines:view` / `:create,:edit,:delete` where it holds `prescriptions:view` /
+  `:create`. No doses are stored: picking a medicine fills its name only.
+- Migration **`0133`** is data-only: a starting list of 196 common medicines in Pakistan
+  (pain, antibiotics, antifungals, allergy, gut, steroids, skin, hair, vitamins, mouth and
+  dental incl. local anaesthetics, heart, diabetes, thyroid, breathing, nerves), each with
+  local brands, form, a common strength and its specialty tags. `ON CONFLICT DO NOTHING`,
+  so a name already on the list is skipped, never overwritten. Names only — still to be
+  read through by a doctor (brands and strengths), and edited at `/admin/medicines`.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

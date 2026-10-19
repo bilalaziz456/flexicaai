@@ -28,10 +28,13 @@ export function MedicalHistoryCard({
   history,
   patientId,
   canEdit,
+  medicineSuggestions,
 }: {
   history: MedicalHistoryData;
   patientId: string;
   canEdit: boolean;
+  /** The same names a prescription suggests (2026-10-19). */
+  medicineSuggestions: readonly { value: string; label: string }[];
 }) {
   const [editing, setEditing] = useState(false);
   const [data, setData] = useState<MedicalHistoryData>(asMedicalHistory(history));
@@ -220,6 +223,7 @@ export function MedicalHistoryCard({
               onChange={(next) => set("medications", replace(data.medications, i, next))}
               onRemove={() => set("medications", remove(data.medications, i))}
               showOngoing
+              suggestions={medicineSuggestions}
             />
           ))}
           <Button size="sm" variant="outline" onClick={() => set("medications", [...data.medications, { name: "" } as Medication])}>

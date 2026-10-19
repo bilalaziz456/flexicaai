@@ -501,6 +501,16 @@ are in `.env.example`.
   Math in `core/patients/plan-bill.ts`. The estimate also prints on the clinic's letterhead
   (`/api/estimate/[id]`, with or without the letterhead, like a typed prescription).
 
+- **Medicines** (`0132`, owner's call 2026-10-19) — a company MASTER list
+  (`medicines`, no clinic_id, `/admin/medicines`, admin ACL **`medicines`**) that every
+  clinic's prescription and medical-history medicine lines suggest from, plus each
+  clinic's OWN list (`clinic_medicines`, `/clinic/medicines`, clinic ACL **`medicines`**,
+  clinic admin manages, others view) that only that clinic sees and that never reaches
+  the master list by itself — the super admin sees what clinics added and copies a
+  useful one in. Names only: picking a medicine fills the name, no dose, no warning.
+  A medicine's `specialties` (module ids as text) put it first for clinics of that
+  specialty. `core/clinical/medicines.ts`, `scripts/test-medicines.ts`.
+
 Still NOT to build without instruction (§11/§12 unchanged): derma, hair, mobile apps,
 advanced analytics.
 

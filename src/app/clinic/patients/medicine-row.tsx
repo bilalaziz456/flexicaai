@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { Checkbox } from "@/core/ui/checkbox";
 import { Input } from "@/core/ui/input";
 import { SelectField } from "@/core/ui/select-field";
+import { SuggestInput, type Suggestion } from "@/core/ui/suggest-input";
 import {
   DURATION_UNITS,
   MEDICATION_FORMS,
@@ -16,7 +17,8 @@ import {
  * One medicine: name, dose, type, frequency (or a typed "2-2-2"), duration — and, in
  * the medical history only, Ongoing. Shared by the medical history and typed
  * prescriptions so a medicine is entered the same way in both places. `warning` shows
- * under the row (an allergy clash); `suggestionsId` points the name at a <datalist>.
+ * under the row (an allergy clash); `suggestions` are the medicine names the name field
+ * offers as you type (the clinic's own, then the master list — core/clinical/medicines.ts).
  */
 export function MedicineRow({
   value: m,
@@ -24,7 +26,7 @@ export function MedicineRow({
   onRemove,
   showOngoing = false,
   warning,
-  suggestionsId,
+  suggestions,
   namePlaceholder = "Name, e.g. Warfarin",
   showNote = false,
   showInstruction = false,
@@ -35,7 +37,7 @@ export function MedicineRow({
   onRemove: () => void;
   showOngoing?: boolean;
   warning?: string | null;
-  suggestionsId?: string;
+  suggestions?: readonly Suggestion[];
   namePlaceholder?: string;
   /** A short note for this medicine ("with plenty of water") — on prescriptions. */
   showNote?: boolean;
@@ -49,15 +51,18 @@ export function MedicineRow({
     // One box per medicine; the fields wrap onto a second line on a tablet.
     <div className={`space-y-1.5 rounded-lg border well p-2 ${invalid ? "border-destructive/60" : ""}`}>
       <div className="flex flex-wrap items-center gap-2">
-        <Input
-          className="h-8 w-44"
-          aria-label="Medication name"
-          placeholder={namePlaceholder}
-          value={m.name}
-          list={suggestionsId}
-          aria-invalid={invalid && !m.name.trim() ? true : undefined}
-          onChange={(e) => patch({ name: e.target.value })}
-        />
+        {/* Picking a suggestion fills the name only (owner's call, 2026-10-19). */}
+        <div className="w-44">
+          <SuggestInput
+            className="h-8"
+            ariaLabel="Medication name"
+            placeholder={namePlaceholder}
+            value={m.name}
+            suggestions={suggestions ?? []}
+            invalid={invalid && !m.name.trim()}
+            onChange={(name) => patch({ name })}
+          />
+        </div>
         <Input
           className="h-8 w-36"
           aria-label="Medication dose"
@@ -149,3 +154,4 @@ export function MedicineRow({
     </div>
   );
 }
+

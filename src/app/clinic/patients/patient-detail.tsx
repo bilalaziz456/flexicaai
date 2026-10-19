@@ -12,7 +12,8 @@ import { TabTitle } from "@/core/ui/app-tabs";
 import { notFound } from "next/navigation";
 import { CalendarDays, CalendarPlus, ClipboardList, ReceiptText } from "lucide-react";
 import { getClinic } from "@/core/clinics/get-clinic";
-import { clinicalRecordFor, getClinicWorkspace } from "@/config/modules";
+import { clinicalRecordFor } from "@/config/modules";
+import { medicineSuggestions } from "@/core/clinical/medicines";
 import { listPrescriptionAppointmentOptions, listPrescriptions } from "@/core/patients/prescriptions";
 import { listClinicDoctors } from "@/core/appointments/doctors";
 import { PrescriptionsCard } from "./prescriptions-card";
@@ -231,6 +232,9 @@ export async function PatientDetail({
   // Patient documents print on A4 only, so each gets a single Print button.
   const papers = PATIENT_DOCUMENT_PAPERS;
   const modulesEnabled: string[] = clinicModulesRow?.modulesEnabled ?? [];
+  // What medicine fields suggest: the clinic's own, then the master list with this
+  // clinic's specialties first. One read for the prescription and history forms.
+  const medicineList = await medicineSuggestions(clinicId, modulesEnabled);
   const mrnLabel = patient.mrnLabel;
 
   let clinicalRecord: ReturnType<typeof clinicalRecordFor> = undefined;
@@ -648,6 +652,7 @@ export async function PatientDetail({
               history={medHistory}
               patientId={patient.id}
               canEdit={canEditClinical}
+              medicineSuggestions={medicineList}
             />
             {canViewAttachments ? (
               <div className="mt-6 border-t pt-5">
@@ -843,11 +848,7 @@ export async function PatientDetail({
                 doctorId: todaysAppt?.doctorId ?? null,
               }}
               allergies={allergies}
-              formularyNames={[
-                ...new Set(
-                  getClinicWorkspace(modulesEnabled).drugFormulary.flatMap((d) => [d.name, ...d.brands]),
-                ),
-              ]}
+              medicineSuggestions={medicineList}
               can={{ create: canCreatePrescriptions, edit: canEditPrescriptions, delete: canDeletePrescriptions }}
             />
           </CardContent>

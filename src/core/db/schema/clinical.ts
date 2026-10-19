@@ -381,6 +381,75 @@ export const prescriptions = pgTable(
 
 export type Prescription = typeof prescriptions.$inferSelect;
 
+/**
+ * The MASTER medicine list (owner's call, 2026-10-19) — company-wide, no clinic_id,
+ * managed by the super admin at /admin/medicines and suggested on every clinic's
+ * prescription and medical-history medicine lines. Names only: picking one fills the
+ * medicine field, nothing else, so there is no dose or caution here to review.
+ *
+ * `specialties` holds module ids as plain TEXT tags ("dental"), like the `module`
+ * column elsewhere — data, not code, so a new specialty needs no schema change. A
+ * clinic whose enabled modules match sees those medicines first.
+ *
+ * Retired, never deleted (`is_active`): a prescription that names it still reads
+ * the same, it is just no longer suggested.
+ */
+export const medicines = pgTable(
+  "medicines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Generic name, e.g. "Amoxicillin + Clavulanic acid". */
+    name: text("name").notNull(),
+    /** Local brands, e.g. {Augmentin, Calamox}. */
+    brands: text("brands").array().notNull().default(sql`'{}'::text[]`),
+    form: text("form"),
+    strength: text("strength"),
+    specialties: text("specialties").array().notNull().default(sql`'{}'::text[]`),
+    isActive: boolean("is_active").notNull().default(true),
+    createdBy: uuid("created_by"),
+    createdByName: text("created_by_name"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("medicines_name_unique").on(sql`lower(${t.name})`)],
+);
+
+export type Medicine = typeof medicines.$inferSelect;
+
+/**
+ * A clinic's OWN medicines — brands the master list does not have, kept for that
+ * clinic only and never copied into the master list by itself. The super admin can
+ * see them (read-only) and add a useful one to the master list by hand.
+ */
+export const clinicMedicines = pgTable(
+  "clinic_medicines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    brands: text("brands").array().notNull().default(sql`'{}'::text[]`),
+    form: text("form"),
+    strength: text("strength"),
+    createdBy: uuid("created_by"),
+    createdByName: text("created_by_name"),
+    ...softDeleteColumns(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("clinic_medicines_name_unique")
+      .on(t.clinicId, sql`lower(${t.name})`)
+      .where(sql`${t.deletedAt} is null`),
+    index("clinic_medicines_deleted_idx")
+      .on(t.clinicId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
+  ],
+);
+
+export type ClinicMedicine = typeof clinicMedicines.$inferSelect;
+
 export type TreatmentPlan = typeof treatmentPlans.$inferSelect;
 
 export type TreatmentPlanItem = typeof treatmentPlanItems.$inferSelect;

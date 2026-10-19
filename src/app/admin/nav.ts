@@ -3,6 +3,7 @@ import {
   FileText,
   LayoutDashboard,
   Megaphone,
+  Pill,
   Receipt,
   ScrollText,
   ShieldCheck,
@@ -32,6 +33,7 @@ export const ADMIN_NAV: PanelNav = {
     { href: "/admin", label: "Clinics", Icon: Building2, exact: true, cap: "clinics:view" },
     { href: "/admin/logs", label: "Activity log", Icon: ScrollText },
     { href: "/admin/announcements", label: "Announcements", Icon: Megaphone, cap: "announcements:view" },
+    { href: "/admin/medicines", label: "Medicines", Icon: Pill, cap: "medicines:view" },
     { href: "/admin/team", label: "Team", Icon: Users, cap: "team:view" },
     {
       group: "Company finance",

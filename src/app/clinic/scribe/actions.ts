@@ -1,5 +1,6 @@
 "use server";
 
+import { medicineFormulary } from "@/core/clinical/medicines";
 import { revalidatePath } from "next/cache";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
@@ -119,9 +120,14 @@ export async function loadDraft(visitId: string): Promise<{
   // or an allergy recorded after the dictation, has to show before this is approved.
   const clinicRow = await getClinic(user.clinicId);
   const allergies = await getPatientAllergies(user.clinicId, row.patientId);
+  // The module's formulary plus the medicine lists (2026-10-19), so a medicine the
+  // super admin or this clinic has listed is not flagged as unknown.
   const { drugWarnings, allergyWarnings } = noteWarnings(
     note,
-    getClinicWorkspace(clinicRow?.modulesEnabled ?? []).drugFormulary,
+    [
+      ...getClinicWorkspace(clinicRow?.modulesEnabled ?? []).drugFormulary,
+      ...(await medicineFormulary(user.clinicId)),
+    ],
     allergies,
   );
 

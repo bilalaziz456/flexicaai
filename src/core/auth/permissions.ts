@@ -67,6 +67,11 @@ export const PERM_RESOURCES: PermResource[] = [
   // crown back yet?") — its own slug, no clinical grant. Doctor + admin manage.
   { id: "lab", label: "Lab cases", actions: ["view", "create", "edit", "delete"] },
   { id: "prescriptions", label: "Prescriptions", actions: ["view", "create", "edit", "delete"] },
+  // The clinic's OWN medicines (/clinic/medicines) — brands the master list lacks,
+  // suggested on this clinic's prescriptions only. Writing a prescription never needs
+  // it: the suggestions come with `prescriptions`. Clinic admin manages; everyone else
+  // views by default (2026-10-19).
+  { id: "medicines", label: "Medicines", actions: ["view", "create", "edit", "delete"] },
   { id: "recalls", label: "Recalls", actions: ["view", "create", "edit", "delete"] },
   { id: "whatsapp", label: "WhatsApp", actions: ["view", "create"], createLabel: "Send" },
   { id: "procedures", label: "Procedures", actions: ["view", "create", "edit", "delete"], feature: "sales" },
@@ -242,6 +247,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     // The desk TYPES what the doctor wrote and prints it on the letterhead (owner's
     // call, 2026-10-14), and may correct or delete it.
     prescriptions: [V, C, E, D],
+    // Sees the clinic's own medicine list; adding to it is the clinic admin's call.
+    medicines: [V],
     // Trash: view + restore on by default (C = "Restore"); purge stays super-admin.
     trash: [V, C],
     // staff / settings management stays clinic-admin-only for now.
@@ -257,6 +264,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     // Lab cases — a doctor sends/tracks crowns & dentures.
     lab: [V, C, E, D],
     prescriptions: [V, C, E, D],
+    // Sees the clinic's own medicine list; adding to it is the clinic admin's call.
+    medicines: [V],
     patients: [V],
     appointments: [V],
     recalls: [V],
@@ -292,6 +301,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     // Front desk types the doctor's prescription, prints it on the letterhead, and may
     // correct or delete it (owner's call, 2026-10-14).
     prescriptions: [V, C, E, D],
+    // Sees the clinic's own medicine list; adding to it is the clinic admin's call.
+    medicines: [V],
     // Front desk sees treatment plans to schedule their items onto appointments.
     plans: [V],
     // Front desk tracks lab cases for handoffs ("is the crown back?").

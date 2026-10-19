@@ -6,6 +6,7 @@ import { useActionState, useState } from "react";
 import { updateClinicContact, type AdminActionState } from "@/app/admin/actions";
 import { SelectField } from "@/core/ui/select-field";
 import { Button } from "@/core/ui/button";
+import { SuggestInput } from "@/core/ui/suggest-input";
 import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { ActionToast } from "@/core/ui/toast";
@@ -131,12 +132,13 @@ export function ClinicContactForm({
               50k people, and plenty of clinics are in smaller ones. Typing a new name
               creates the city; the suggestions make sure everyone in Lahore picks the
               same row rather than inventing a second spelling. */}
-          <Input id="city" name="city" list="city-options" value={f.city} onChange={on("city")} autoComplete="off" />
-          <datalist id="city-options">
-            {suggestions.map((c) => (
-              <option key={c.id} value={c.name} />
-            ))}
-          </datalist>
+          <SuggestInput
+            id="city"
+            name="city"
+            value={f.city}
+            onChange={(city) => setF((s) => ({ ...s, city }))}
+            suggestions={suggestions.map((c) => ({ value: c.name }))}
+          />
           <p className="text-xs text-muted-foreground">
             {province
               ? "Pick from the list, or type a town that isn't there yet."

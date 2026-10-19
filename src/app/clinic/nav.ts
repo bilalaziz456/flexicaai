@@ -16,6 +16,7 @@ import {
   MessageCircle,
   Mic,
   PieChart,
+  Pill,
   Receipt,
   ScrollText,
   Settings,
@@ -86,6 +87,7 @@ export const CLINIC_NAV: PanelNav = {
       items: [
         { href: "/clinic/procedures", label: "Procedures", Icon: ClipboardList, resource: "procedures", feature: "sales" },
         { href: "/clinic/services", label: "Services", Icon: ConciergeBell, resource: "services", feature: "sales" },
+        { href: "/clinic/medicines", label: "Medicines", Icon: Pill, resource: "medicines" },
         { href: "/clinic/schedule", label: "Doctor schedule", Icon: CalendarRange, resource: "schedule" },
         { href: "/clinic/no-shows", label: "No-shows", Icon: CalendarX2, resource: "appointments" },
         { href: "/clinic/whatsapp", label: "WhatsApp", Icon: MessageCircle, resource: "whatsapp" },

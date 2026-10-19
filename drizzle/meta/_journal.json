@@ -925,6 +925,20 @@
       "when": 1792275764615,
       "tag": "0131_invoice_edited_at",
       "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1792435997408,
+      "tag": "0132_medicines",
+      "breakpoints": true
+    },
+    {
+      "idx": 133,
+      "version": "7",
+      "when": 1792438665499,
+      "tag": "0133_medicines_starter_list",
+      "breakpoints": true
     }
   ]
 }

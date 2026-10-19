@@ -61,7 +61,7 @@ export function PrescriptionsCard({
   appointments,
   defaults,
   allergies,
-  formularyNames,
+  medicineSuggestions,
   can,
 }: {
   patientId: string;
@@ -72,7 +72,7 @@ export function PrescriptionsCard({
   /** Today's date, and today's appointment and its doctor. */
   defaults: { date: string; appointmentId: string | null; doctorId: string | null };
   allergies: Allergy[];
-  formularyNames: string[];
+  medicineSuggestions: readonly { value: string; label: string }[];
   can: { create: boolean; edit: boolean; delete: boolean };
 }) {
   const [editing, setEditing] = useState<TypedPrescription | "new" | null>(null);
@@ -215,7 +215,7 @@ export function PrescriptionsCard({
           appointments={appointments}
           defaults={defaults}
           allergies={allergies}
-          formularyNames={formularyNames}
+          medicineSuggestions={medicineSuggestions}
           onClose={() => setEditing(null)}
         />
       ) : null}
@@ -230,7 +230,7 @@ function PrescriptionDialog({
   appointments,
   defaults,
   allergies,
-  formularyNames,
+  medicineSuggestions,
   onClose,
 }: {
   patientId: string;
@@ -239,7 +239,7 @@ function PrescriptionDialog({
   appointments: (Option & { doctorId: string | null })[];
   defaults: { date: string; appointmentId: string | null; doctorId: string | null };
   allergies: Allergy[];
-  formularyNames: string[];
+  medicineSuggestions: readonly { value: string; label: string }[];
   onClose: () => void;
 }) {
   const listId = useId();
@@ -382,7 +382,7 @@ function PrescriptionDialog({
                 showNote
                 showInstruction
                 invalid={Boolean(problem)}
-                suggestionsId={listId}
+                suggestions={medicineSuggestions}
                 namePlaceholder="Medicine, e.g. Augmentin"
                 warning={problem ?? (clash.length ? `Allergy: the patient is recorded as allergic to ${clash.join(", ")}.` : null)}
                 onChange={(next) => {
@@ -393,11 +393,6 @@ function PrescriptionDialog({
               />
             );
           })}
-          <datalist id={listId}>
-            {formularyNames.map((n) => (
-              <option key={n} value={n} />
-            ))}
-          </datalist>
           {fieldProblem("items") ? <p className="text-xs text-destructive-text">{fieldProblem("items")}</p> : null}
           <Button type="button" size="sm" variant="outline" onClick={() => setItems((prev) => [...prev, emptyItem()])}>
             <Plus className="size-4" aria-hidden="true" /> Medicine

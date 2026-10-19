@@ -227,6 +227,10 @@ note above it; obvious logic gets none.
   done for you) · `Dialog` · `Tooltip` · `Tabs` · `DataTable` · `EmptyState` ·
   `Card` · the `charts/` set. Reach for the primitive; if it does not fit, change the
   primitive.
+  **A text field that suggests as you type is a `SuggestInput`** (`core/ui/suggest-input.tsx`,
+  Base UI Autocomplete), never a `<datalist>`: the browser draws a datalist in its own
+  style, which cannot be themed and looked like part of another program (owner's report,
+  2026-10-20). Any text is still accepted; a suggestion's `label` is shown and searched.
   **`Checkbox` vs `Switch` is not cosmetic**: a checkbox is a value you are about to
   SUBMIT, a switch is a state you are CHANGING now. Twenty raw `<input type="checkbox">`
   elements were styled with `accent-color`, which cannot carry a focus ring, an

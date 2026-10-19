@@ -41,6 +41,11 @@ export const ADMIN_RESOURCES: PermResource[] = [
   { id: "expenses", label: "Operating expenses", actions: ["view", "create", "edit", "delete"] }, // /admin/finance/expenses
   { id: "sub_invoices", label: "Subscription invoices", actions: ["view", "create", "delete"] }, // /admin/finance/invoices; create=issue, delete=void
   { id: "purge", label: "Data purge", actions: ["delete"] }, // delete = may legal-purge
+  // The MASTER medicine list every clinic's prescriptions suggest from (/admin/medicines,
+  // 2026-10-19). delete = retire (a medicine is never removed: old prescriptions name it).
+  // Migration 0132 gave it to every member who held all the rest, or adding it would
+  // have quietly demoted each full super admin to "custom" (canManageTeam).
+  { id: "medicines", label: "Medicines", actions: ["view", "create", "edit", "delete"] },
 ];
 
 export const ADMIN_CAPABILITY_IDS: string[] = ADMIN_RESOURCES.flatMap((r) =>
