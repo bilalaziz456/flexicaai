@@ -132,6 +132,8 @@ export async function createScribeRun(input: {
   doctorId: string;
   module: string;
   audioKey: string;
+  /** What the doctor said they dictate in; null = let speech-to-text detect it. */
+  scribeLanguage?: string | null;
 }): Promise<string> {
   const [visit] = await db
     .insert(visits)
@@ -262,4 +264,28 @@ export async function getVisitForPrescription(clinicId: string, visitId: string)
     .where(byClinic(visits.clinicId, clinicId, notDeleted(visits.deletedAt), eq(visits.id, visitId)))
     .limit(1);
   return row ?? null;
+}
+
+/**
+ * The recording behind a visit, for the player (owner's call, 2026-10-20) — the
+ * doctor listens back when the text looks wrong. Who may hear it is who may READ the
+ * note: an APPROVED visit's recording for anyone with clinical view, a draft's (or a
+ * run still being written, or one that failed) only for the doctor who dictated it —
+ * the same rule as the clinical timeline (core/patients/manage.ts#listPatientVisits).
+ * Null when there is nothing this viewer may play.
+ */
+export async function getVisitAudio(clinicId: string, visitId: string, viewerId: string) {
+  const [row] = await db
+    .select({ audioKey: visits.audioKey, patientId: visits.patientId, createdAt: visits.createdAt })
+    .from(visits)
+    .where(
+      byClinic(
+        visits.clinicId,
+        clinicId,
+        notDeleted(visits.deletedAt),
+        eq(visits.id, visitId),
+        or(eq(visits.status, "approved"), eq(visits.doctorId, viewerId)),
+      ),
+    );
+  return row?.audioKey ? { ...row, audioKey: row.audioKey } : null;
 }

@@ -244,6 +244,8 @@ export async function listPatientVisits(
       approvedByName: approver.fullName,
       approvedByPrefix: approver.prefix,
       approvedById: visits.approvedBy,
+      // Whether a dictation was kept — the timeline offers a player then (2026-10-20).
+      hasAudio: sql<boolean>`${visits.audioKey} is not null`,
     })
     .from(visits)
     .leftJoin(users, eq(visits.doctorId, users.id))

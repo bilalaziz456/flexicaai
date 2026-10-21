@@ -1,3 +1,4 @@
+import { DictationPlayer } from "@/core/ui/dictation-player";
 import {
   getPatient,
   getPatientAppointmentsPage,
@@ -755,6 +756,9 @@ export async function PatientDetail({
                           <Badge variant="warning">Scribe failed</Badge>
                         ) : null}
                       </div>
+                      {v.hasAudio && !note.imported ? (
+                        <DictationPlayer src={`/api/clinical/visit-audio/${v.id}`} className="mb-1.5" />
+                      ) : null}
                       {note.imported && note.summary ? (
                         <p className="whitespace-pre-line">{note.summary}</p>
                       ) : null}

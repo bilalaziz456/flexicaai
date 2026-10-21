@@ -40,7 +40,9 @@ When writing any feature, always ask: "Would a dentist, dermatologist, and hair 
   `core/integrations/storage`, so an S3-compatible store can be swapped in later
   by changing that one module. (Was Supabase Storage.)
 - **AI reasoning:** Anthropic Claude API (scribe, chat)
-- **Voice transcription:** OpenAI Whisper API
+- **Voice transcription:** OpenAI Whisper API — or any OpenAI-compatible server via
+  `WHISPER_BASE_URL` (a self-hosted Speaches keeps patient audio on our machine; tested
+  2026-10-20, server deployment not yet decided)
 - **WhatsApp:** AiSensy (WhatsApp Business API provider)
 - **Background jobs:** system **cron / systemd timers** on the server calling the
   `/api/cron/*` endpoints with the `CRON_SECRET`; add BullMQ + Redis only when needed
@@ -494,7 +496,8 @@ are in `.env.example`.
 
 - **Treatment-plan discounts** (`0130`) — per treatment and overall, with an optional plan
   doctor and "Discount by" clinic / doctor / both (a split), chosen once per plan and
-  printed on the estimate ("Discount by Dr X and <clinic>"). A procedure's clinic offer is
+  shown on the plan's card — NOT printed on the estimate (owner's call, 2026-10-21: who
+  gives the discount is between the clinic and its doctor). A procedure's clinic offer is
   snapshotted onto the item and can be removed. Booking items from the plan carries their
   share of the plan discount onto the visit as its patient discount, borne as the plan
   says, with **no approval** while it is left unchanged (`appointments.discount_from_plan`).

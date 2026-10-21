@@ -24,6 +24,9 @@ export type ScribeUsage = { audioSeconds: number; claude: ClaudeUsage };
  */
 const WHISPER_TIMEOUT_MS = 120_000;
 
+/** OpenAI's Whisper, unless WHISPER_BASE_URL points at a self-hosted one (Speaches). */
+const OPENAI_WHISPER_URL = "https://api.openai.com/v1";
+
 /**
  * Scribe engine — CORE and GENERIC (CLAUDE.md §8). It turns audio into a
  * structured note in two provider-specific steps:
@@ -41,27 +44,37 @@ export { MissingApiKeyError, AiTimeoutError } from "@/core/ai/prompt-runner";
 export async function transcribeAudio(
   audio: Buffer,
   filename: string,
+  /** `language`: what the doctor said they dictate in (null = detect). `prompt`: words
+   *  likely to be spoken — Whisper's documented way to steer spelling of names and
+   *  terms (core/ai/scribe-vocabulary.ts). Both fields are honoured by OpenAI's Whisper
+   *  and by Speaches alike. */
+  opts: { language?: string | null; prompt?: string | null } = {},
 ): Promise<{ text: string; durationSeconds: number }> {
-  if (!serverEnv.OPENAI_API_KEY) {
+  // A self-hosted server (WHISPER_BASE_URL) needs no OpenAI key; OpenAI itself does.
+  const selfHosted = Boolean(serverEnv.WHISPER_BASE_URL);
+  if (!selfHosted && !serverEnv.OPENAI_API_KEY) {
     throw new MissingApiKeyError(
       "OPENAI_API_KEY is not set. Add it to .env.local to transcribe audio.",
     );
   }
+  const baseUrl = (serverEnv.WHISPER_BASE_URL ?? OPENAI_WHISPER_URL).replace(/\/+$/, "");
 
   const form = new FormData();
   // Node Buffer -> Blob for multipart upload.
   form.append("file", new Blob([new Uint8Array(audio)]), filename);
-  form.append("model", "whisper-1");
+  form.append("model", serverEnv.WHISPER_MODEL ?? "whisper-1");
   // verbose_json so the response carries `duration` (audio seconds) for metering.
   form.append("response_format", "verbose_json");
+  if (opts.language) form.append("language", opts.language);
+  if (opts.prompt) form.append("prompt", opts.prompt);
 
   let res: Response;
   try {
-    res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    res = await fetch(`${baseUrl}/audio/transcriptions`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${serverEnv.OPENAI_API_KEY}` },
+      headers: serverEnv.OPENAI_API_KEY && !selfHosted ? { Authorization: `Bearer ${serverEnv.OPENAI_API_KEY}` } : {},
       body: form,
-      signal: AbortSignal.timeout(WHISPER_TIMEOUT_MS),
+      signal: AbortSignal.timeout(serverEnv.WHISPER_TIMEOUT_MS ?? WHISPER_TIMEOUT_MS),
     });
   } catch (e) {
     // AbortSignal.timeout() rejects with a TimeoutError DOMException; anything else
@@ -99,8 +112,14 @@ export async function runScribe(args: {
   audio: Buffer;
   filename: string;
   scribePrompt: string;
+  language?: string | null;
+  /** The vocabulary hint for speech-to-text (not the note prompt). */
+  vocabulary?: string | null;
 }): Promise<{ transcript: string; note: Record<string, unknown>; raw: string; usage: ScribeUsage }> {
-  const { text: transcript, durationSeconds } = await transcribeAudio(args.audio, args.filename);
+  const { text: transcript, durationSeconds } = await transcribeAudio(args.audio, args.filename, {
+    language: args.language,
+    prompt: args.vocabulary,
+  });
   if (!transcript) {
     throw new Error("Transcription was empty. Please record again.");
   }

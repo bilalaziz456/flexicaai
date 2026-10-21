@@ -1,6 +1,19 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { SelectField } from "@/core/ui/select-field";
+import { DictationPlayer } from "@/core/ui/dictation-player";
+import { SCRIBE_LANGUAGES, asScribeLanguage } from "@/core/ai/scribe-language";
+
+const LANGUAGE_KEY = "flexica-scribe-language";
+const noSubscribe = () => () => {};
+function readSavedLanguage(): string {
+  try {
+    return asScribeLanguage(localStorage.getItem(LANGUAGE_KEY)) ?? "";
+  } catch {
+    return "";
+  }
+}
 import { FileClock, Loader2, Mic, Square, UserX } from "lucide-react";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
@@ -60,6 +73,19 @@ export function ScribeWorkspace({
   const [query, setQuery] = useState("");
 
   const [recording, setRecording] = useState(false);
+  // The dictation language, remembered per device: read as an external value (the
+  // server renders without it) and overridden by a choice made in this session.
+  const savedLanguage = useSyncExternalStore(noSubscribe, readSavedLanguage, () => "");
+  const [pickedLanguage, setPickedLanguage] = useState<string | null>(null);
+  const language = pickedLanguage ?? savedLanguage;
+  const chooseLanguage = (v: string) => {
+    setPickedLanguage(v);
+    try {
+      localStorage.setItem(LANGUAGE_KEY, v);
+    } catch {
+      // Storage blocked: the choice still holds for this session.
+    }
+  };
   const [processing, setProcessing] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [note, setNote] = useState<Record<string, unknown>>({});
@@ -101,11 +127,24 @@ export function ScribeWorkspace({
   async function startRecording() {
     setError(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime = MediaRecorder.isTypeSupported("audio/webm")
-        ? "audio/webm"
-        : "";
-      const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      // Dictation, not a call (2026-10-20). With `{ audio: true }` the browser applied
+      // its call settings — echo cancellation and noise suppression — which strip the
+      // consonants speech-to-text tells words apart by; a test recording reached
+      // Whisper with nothing above 3.4 kHz and came back as nonsense. Gain control
+      // stays on, so a doctor further from the microphone is still heard; one channel
+      // and a higher bitrate keep what the microphone actually caught.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true, channelCount: 1 },
+      });
+      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+          ? "audio/webm"
+          : "";
+      const recorder = new MediaRecorder(stream, {
+        ...(mime ? { mimeType: mime } : {}),
+        audioBitsPerSecond: 128_000,
+      });
       chunksRef.current = [];
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
@@ -139,6 +178,7 @@ export function ScribeWorkspace({
       const form = new FormData();
       form.append("audio", blob, `recording.${ext}`);
       form.append("patientId", patient.id);
+      if (language) form.append("language", language);
       const res = await fetch("/api/ai/scribe", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) {
@@ -279,6 +319,9 @@ export function ScribeWorkspace({
             </div>
           )}
 
+          {/* Listen back when the text looks wrong (2026-10-20). */}
+          <DictationPlayer src={`/api/clinical/visit-audio/${draft.visitId}`} />
+
           <details className="rounded-md border well p-3 text-sm">
             <summary className="cursor-pointer font-medium">Transcript</summary>
             <p className="mt-2 whitespace-pre-wrap text-muted-foreground">
@@ -400,10 +443,24 @@ export function ScribeWorkspace({
                   Stop & generate
                 </Button>
               ) : (
-                <Button onClick={startRecording}>
-                  <Mic className="size-4" aria-hidden="true" />
-                  Start recording
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button onClick={startRecording}>
+                    <Mic className="size-4" aria-hidden="true" />
+                    Start recording
+                  </Button>
+                  {/* Telling speech-to-text the language beats letting it guess
+                      (core/ai/scribe-language.ts); remembered on this device. */}
+                  <SelectField
+                    value={language}
+                    onValueChange={(v) => chooseLanguage(v ?? "")}
+                    options={[
+                      { value: "", label: "Language: detect" },
+                      ...SCRIBE_LANGUAGES.map((l) => ({ value: l.code, label: `Language: ${l.label}` })),
+                    ]}
+                    ariaLabel="Dictation language"
+                    className="h-9 w-auto"
+                  />
+                </div>
               )}
 
               {error && <p className="text-sm text-destructive">{error}</p>}

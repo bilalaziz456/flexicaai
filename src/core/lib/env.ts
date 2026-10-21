@@ -22,6 +22,16 @@ const serverSchema = z.object({
   // fails with a clear message if a call is attempted and its key is missing.
   ANTHROPIC_API_KEY: z.string().optional(), // Claude (note generation)
   OPENAI_API_KEY: z.string().optional(), // Whisper (transcription) — separate provider
+  // WHERE speech-to-text goes (2026-10-20). Unset = OpenAI's Whisper, exactly as before.
+  // Set to an OpenAI-compatible server — a self-hosted Speaches, e.g.
+  // http://127.0.0.1:8000/v1 — to keep patient audio on our own machine; then no
+  // OpenAI key is needed. WHISPER_MODEL names the model that server should use.
+  WHISPER_BASE_URL: z.string().url().optional(),
+  WHISPER_MODEL: z.string().min(1).optional(),
+  // How long to wait for a transcript. A self-hosted model on a CPU is far slower than
+  // OpenAI's. CAPPED at 12 minutes so it stays inside the scribe's 15-minute stall
+  // sweep (core/ai/scribe-job.ts), which would otherwise fail a run still working.
+  WHISPER_TIMEOUT_MS: z.coerce.number().int().min(10_000).max(720_000).optional(),
   // Where uploaded files live on the server's PERSISTENT disk (audio, attachments,
   // avatars, clinic logos). Relative to the project root, gitignored. On the Linux
   // deployment point this at a durable path outside the deploy directory (e.g.
@@ -129,6 +139,9 @@ export const serverEnv = serverSchema.parse({
   NODE_ENV: process.env.NODE_ENV,
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  WHISPER_BASE_URL: process.env.WHISPER_BASE_URL || undefined,
+  WHISPER_MODEL: process.env.WHISPER_MODEL || undefined,
+  WHISPER_TIMEOUT_MS: process.env.WHISPER_TIMEOUT_MS || undefined,
   STORAGE_DIR: process.env.STORAGE_DIR,
   APP_URL: process.env.APP_URL,
   AISENSY_API_KEY: process.env.AISENSY_API_KEY,

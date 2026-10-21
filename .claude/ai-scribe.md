@@ -107,6 +107,33 @@ it is validated against in `modules/dental/drug-formulary.ts`.
 
 ---
 
+## 3b. Getting a good transcript (2026-10-20)
+
+A test recording came back as "Hola, hola, hola" and nonsense. The model was fine; the
+audio and the setup were not. Four things now hold that up:
+
+- **The recorder asks for dictation, not a call** (`scribe-workspace.tsx`): echo
+  cancellation and noise suppression OFF (they stripped everything above 3.4 kHz —
+  the consonants words are told apart by), gain control on, mono, 128 kbps opus.
+- **The doctor can say the language** (Detect / English / Urdu, remembered per device),
+  stored on the visit as `visits.scribe_language` so a retry or the recovery sweep
+  transcribes it the same way (`core/ai/scribe-language.ts`). Unset = Whisper detects,
+  which fails on short or muffled clips.
+- **A vocabulary hint** (Whisper's `prompt`), LAYERED and specialty-agnostic in core:
+  core's general clinical words, then the module's `scribeVocabulary`, then medicine
+  names — the clinic's MOST PRESCRIBED first (from its own prescriptions), then its
+  own list and its specialty's. Each layer has its own share of the budget, because
+  Whisper reads only ~224 tokens and drops the START of a longer hint; measured with
+  its tokenizer, the hint is ~200 tokens. Building it is best-effort — a failure is
+  reported and the recording is transcribed without it.
+- **The recording can be played back** (`/api/clinical/visit-audio/[id]`, Range-aware,
+  `no-store`, each listen logged as a view): on the draft review beside the transcript,
+  and on each visit in the clinical history. Same rule as reading the note — approved
+  for anyone with `clinical:view`, a draft only for its author.
+
+Where speech-to-text goes is a setting: `WHISPER_BASE_URL` (+ `WHISPER_MODEL`,
+`WHISPER_TIMEOUT_MS` ≤ 12 min, inside the 15-minute stall sweep). Unset = OpenAI.
+
 ## 4. Providers, models, and cost
 
 Two **different vendors**, deliberately: OpenAI Whisper transcribes, Anthropic Claude

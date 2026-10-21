@@ -1426,6 +1426,11 @@ these for churn-risk + usage/cost anomaly flags.
   local brands, form, a common strength and its specialty tags. `ON CONFLICT DO NOTHING`,
   so a name already on the list is skipped, never overwritten. Names only — still to be
   read through by a doctor (brands and strengths), and edited at `/admin/medicines`.
+- Migration **`0134`** adds `visits.scribe_language` (text, nullable) — the language
+  the doctor said they dictated in ("en" / "ur"; NULL = let speech-to-text detect),
+  stored so a retry and the recovery sweep transcribe the recording the same way.
+  Text, not a lookup table: a bad value costs a worse transcript the doctor reviews,
+  never a figure (ADR-027's test). See `.claude/ai-scribe.md` §3b.
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

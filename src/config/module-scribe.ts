@@ -1,6 +1,7 @@
 import "server-only";
 
-import { clinicalSchemasFor, getClinicWorkspace } from "@/config/modules";
+import { clinicalSchemasFor, getClinicWorkspace, getModule } from "@/config/modules";
+import type { ModuleId } from "@/core/types/module";
 import type { ScribeConfigResolver } from "@/core/types/module";
 
 /**
@@ -21,5 +22,9 @@ export const scribeModuleConfig: ScribeConfigResolver = (modulesEnabled, moduleI
   if (!moduleId) return null;
   const scribePrompt = getClinicWorkspace(modulesEnabled).scribePrompts[moduleId];
   if (!scribePrompt) return null;
-  return { scribePrompt, noteSchema: clinicalSchemasFor(modulesEnabled).noteSchema };
+  return {
+    scribePrompt,
+    noteSchema: clinicalSchemasFor(modulesEnabled).noteSchema,
+    vocabulary: getModule(moduleId as ModuleId)?.scribeVocabulary,
+  };
 };

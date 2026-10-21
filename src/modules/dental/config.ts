@@ -1,3 +1,4 @@
+import { dentalScribeVocabulary } from "@/modules/dental/prompts/vocabulary";
 import type { ModuleDefinition } from "@/core/types/module";
 import { dentalScribePrompt } from "@/modules/dental/prompts/scribe";
 import { dentalChartSchema, dentalNoteSchema } from "@/modules/dental/note-schema";
@@ -38,6 +39,7 @@ export const dentalModule: ModuleDefinition = {
   id: "dental",
   name: "Dental",
   scribePrompt: dentalScribePrompt,
+  scribeVocabulary: dentalScribeVocabulary,
   // What the prompt above asks for, as a check on what actually came back — and on
   // what the dentist edits it into before it becomes the record.
   noteSchema: dentalNoteSchema,

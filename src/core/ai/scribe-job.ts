@@ -13,6 +13,8 @@ import { MissingApiKeyError, AiParseError } from "@/core/ai/prompt-runner";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { report, reportEvent } from "@/core/observability";
 import type { ScribeConfigResolver } from "@/core/types/module";
+import { buildScribeVocabulary } from "@/core/ai/scribe-vocabulary";
+import { asScribeLanguage } from "@/core/ai/scribe-language";
 
 /**
  * The scribe run, as a JOB rather than a request (delta D-08 / ADR-020).
@@ -70,6 +72,7 @@ export async function runScribeJob(
         patientId: visits.patientId,
         audioKey: visits.audioKey,
         module: visits.module,
+        scribeLanguage: visits.scribeLanguage,
       });
     return row ?? null;
   });
@@ -85,6 +88,7 @@ type ClaimedRun = {
   patientId: string;
   audioKey: string | null;
   module: string | null;
+  scribeLanguage: string | null;
 };
 
 async function finishScribeRun(
@@ -104,10 +108,22 @@ async function finishScribeRun(
     const audio = await readFileByKey(run.audioKey);
     const ext = run.audioKey.split(".").pop()?.toLowerCase() || "webm";
 
+    // Words this dictation is likely to contain (core's, the module's, the clinic's
+    // medicines). An aid, not a requirement: if it cannot be built the recording is
+    // still transcribed, just without the hint — reported, never silent.
+    let vocabulary: string | null = null;
+    try {
+      vocabulary = await buildScribeVocabulary(run.clinicId, clinic?.modulesEnabled ?? [], moduleConfig.vocabulary);
+    } catch (e) {
+      report(e, { op: "ai.scribeJob.vocabulary", clinicId: run.clinicId, ids: { visitId: run.id } });
+    }
+
     const { transcript, note, usage } = await runScribe({
       audio: Buffer.from(audio),
       filename: `recording.${ext}`,
       scribePrompt: moduleConfig.scribePrompt,
+      language: asScribeLanguage(run.scribeLanguage),
+      vocabulary,
     });
 
     // The model is an untrusted producer: it returns free-form JSON the prompt only

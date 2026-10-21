@@ -5,6 +5,7 @@ import { getClinic } from "@/core/clinics/get-clinic";
 import { createScribeRun, patientBelongsToClinic } from "@/core/clinical/scribe";
 import { saveClinicFile } from "@/core/integrations/storage";
 import { runScribeJob } from "@/core/ai/scribe-job";
+import { asScribeLanguage } from "@/core/ai/scribe-language";
 import { scribeModuleConfig } from "@/config/module-scribe";
 import { report } from "@/core/observability";
 import { aiScribeByUser, throttle, tooManyRequests } from "@/core/security/rate-limit";
@@ -68,6 +69,8 @@ export async function POST(request: Request) {
   const form = await request.formData();
   const audio = form.get("audio");
   const patientId = form.get("patientId");
+  // Optional: "en" / "ur", anything else = detect (core/ai/scribe-language.ts).
+  const scribeLanguage = asScribeLanguage(form.get("language"));
   if (!(audio instanceof File) || typeof patientId !== "string") {
     return NextResponse.json(
       { error: "audio file and patientId are required." },
@@ -118,6 +121,7 @@ export async function POST(request: Request) {
       doctorId: user.id,
       module: moduleId,
       audioKey,
+      scribeLanguage,
     });
 
     // `after` runs the callback once the response is flushed (Next 16, sanctioned for

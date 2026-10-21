@@ -342,6 +342,14 @@ export interface ModuleDefinition {
   /** Specialty system prompt fed to the AI scribe engine. */
   scribePrompt: string;
   /**
+   * Words this specialty's dictations use that speech-to-text tends to mishear —
+   * terms, abbreviations, how numbers are spoken. Handed to Whisper as its vocabulary
+   * hint, AFTER core's own general clinical words and medicine names
+   * (core/ai/scribe-vocabulary.ts), so keep it to the specialty's own: a few dozen
+   * at most, because Whisper reads only ~224 tokens of hint in all.
+   */
+  scribeVocabulary?: readonly string[];
+  /**
    * Shape of the clinical note this specialty produces — the counterpart to
    * `scribePrompt`, which ASKS for that shape. Applied to both the AI's output and
    * the clinician's edited version before either reaches `visits.note` (ADR-007).
@@ -414,6 +422,8 @@ export interface SpecialtyCatalogEntry {
 export interface ScribeModuleConfig {
   scribePrompt: string;
   noteSchema?: ModuleDefinition["noteSchema"];
+  /** The module's speech-to-text vocabulary (see ModuleDefinition.scribeVocabulary). */
+  vocabulary?: readonly string[];
 }
 
 /**

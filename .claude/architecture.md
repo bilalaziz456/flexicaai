@@ -129,7 +129,9 @@ don't special-case the module.**
 ## 4. The module contract
 
 A specialty is a `ModuleDefinition` (`core/types/module.ts`) registered in
-`config/modules.ts`. It contributes: a scribe prompt, drug formulary, recall rules,
+`config/modules.ts`. It contributes: a scribe prompt, a speech-to-text vocabulary
+(`scribeVocabulary` — the specialty's own terms; core adds general clinical words and
+medicine names before it, `core/ai/scribe-vocabulary.ts`), drug formulary, recall rules,
 procedure and treatment templates, an optional structured clinical record (chart UI +
 `saveRecord` + trash provider), **its own closed vocabularies** (ADR-028), and nav items.
 

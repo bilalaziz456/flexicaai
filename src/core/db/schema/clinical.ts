@@ -94,6 +94,13 @@ export const visits = pgTable(
     // Why a run failed, shown to the doctor so "try again" is an informed choice
     // rather than a guess. Never carries provider payloads — just the reason.
     transcribeError: text("transcribe_error"),
+    // The language the doctor dictated in ("en", "ur"), passed to speech-to-text so it
+    // does not have to guess — guessing read a 4-second Urdu clip as Spanish
+    // (2026-10-20). NULL = let it detect. Stored, not passed through, so a retry and
+    // the recovery sweep transcribe the recording the same way. Validated against
+    // SCRIBE_LANGUAGES (core/ai/scribe-language.ts); text, not a lookup table — a bad
+    // value costs a worse transcript the doctor reviews anyway, never a figure.
+    scribeLanguage: text("scribe_language"),
     // True when this note was IMPORTED from a clinic's old system (not authored in
     // FlexicaAI) — freeform text lives in `note.summary`, shown as "Imported" in the
     // clinical timeline. See docs/import-plan.md (Phase 2).

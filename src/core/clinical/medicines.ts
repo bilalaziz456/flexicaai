@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
-import { clinicMedicines, clinics, medicines } from "@/core/db/schema";
+import { clinicMedicines, clinics, medicines, prescriptions } from "@/core/db/schema";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { unscoped } from "@/core/db/tenant-guard";
 import type { Drug } from "@/core/types/module";
@@ -335,4 +335,31 @@ export async function medicineFormulary(clinicId: string): Promise<Drug[]> {
     db.select().from(medicines).where(eq(medicines.isActive, true)),
   ]);
   return [...own, ...master].map((m) => ({ name: m.name, brands: m.brands, form: m.form ?? "" }));
+}
+
+/**
+ * The medicine names this clinic has written most on typed prescriptions in the last
+ * six months, most-written first — what its doctors are likeliest to DICTATE, so the
+ * scribe's vocabulary hint leads with them (core/ai/scribe-vocabulary.ts). Learned
+ * from the clinic's own records rather than declared by a specialty, so it needs no
+ * list to keep up to date.
+ */
+export async function mostPrescribedMedicineNames(clinicId: string, limit = 25): Promise<string[]> {
+  const rows = await db
+    .select({ name: sql<string>`min(i.item->>'name')` })
+    .from(sql`${prescriptions}, jsonb_array_elements(${prescriptions.items}) as i(item)`)
+    .where(
+      byClinic(
+        prescriptions.clinicId,
+        clinicId,
+        notDeleted(prescriptions.deletedAt),
+        sql`${prescriptions.prescribedOn} >= current_date - 180`,
+        // A name under three letters is a typo or an abbreviation, not a medicine.
+        sql`length(coalesce(i.item->>'name', '')) >= 3`,
+      ),
+    )
+    .groupBy(sql`lower(i.item->>'name')`)
+    .orderBy(sql`count(*) desc`)
+    .limit(limit);
+  return rows.map((r) => r.name);
 }
