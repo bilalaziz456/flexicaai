@@ -4,6 +4,7 @@ import { can } from "@/core/auth/permissions";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { sanitisePhoneInput } from "@/core/lib/phone";
 import { NewPatientPanel } from "../new-patient-panel";
+import { nextMrnLabel } from "@/core/patients/mrn-series";
 
 /**
  * Clinic workspace: register a patient (needs `patients:create`).
@@ -30,6 +31,7 @@ export default async function NewPatientPage({
         fullName: name?.trim().slice(0, 120) || undefined,
       }}
       thenBook={then === "book"}
+      nextMrn={clinic ? nextMrnLabel(clinic) : null}
       canBook={can(user, "appointments", "create")}
       canInvoice={
         clinicHasFeature(clinic?.featuresEnabled, "sales") &&
