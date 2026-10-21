@@ -43,9 +43,8 @@ export type MedicationFrequency = (typeof MEDICATION_FREQUENCIES)[number]["value
 
 /**
  * When to take it relative to food — on a prescription (owner's call, 2026-10-18). A
- * NEW prescription line starts at "after_meal", the usual instruction; "None" is an
- * unset field, so lines saved before this existed (and the medical history, which
- * never shows it) simply print nothing.
+ * NEW prescription line starts at "None" (owner's call, 2026-10-21 — it used to start
+ * at "After meal"); "None" is an unset field, so it prints nothing.
  */
 export const MEDICATION_INSTRUCTIONS = [
   { value: "after_meal", label: "After meal" },
@@ -58,7 +57,26 @@ export const MEDICATION_INSTRUCTIONS = [
   { value: "before_dinner", label: "Before dinner" },
 ] as const;
 export type MedicationInstruction = (typeof MEDICATION_INSTRUCTIONS)[number]["value"];
-export const DEFAULT_MEDICATION_INSTRUCTION: MedicationInstruction = "after_meal";
+
+/**
+ * The prescription Type for a medicine list's free-text form ("tablet", "cream"), so
+ * picking a medicine can fill the Type too (owner's call, 2026-10-21). Undefined when
+ * no Type says it honestly — a mouthwash or a shampoo is left for the person to choose.
+ */
+export function medicationFormFor(form: string | null | undefined): MedicationForm | undefined {
+  const f = form?.trim().toLowerCase() ?? "";
+  if (!f) return undefined;
+  if (/tablet|capsule|sachet|lozenge/.test(f)) return "oral";
+  if (/syrup|suspension|elixir/.test(f)) return "syrup";
+  if (/injection|vial|ampoule/.test(f)) return "injection";
+  if (/inhaler/.test(f)) return "inhaler";
+  // Whole words: "toothpaste" contains "paste" and is not a cream.
+  if (/\b(cream|ointment|gel|lotion|paste)\b/.test(f)) return "topical";
+  if (/drop/.test(f)) return "drops";
+  if (/nasal/.test(f)) return "nasal";
+  if (/patch/.test(f)) return "patch";
+  return undefined;
+}
 
 export const DURATION_UNITS = [
   { value: "days", label: "days" },

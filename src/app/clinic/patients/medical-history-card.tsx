@@ -19,7 +19,7 @@ import {
   type MedicalHistoryData,
 } from "@/core/lib/medical-history";
 import { saveMedicalHistoryAction } from "./patient-clinical-actions";
-import { MedicineRow } from "./medicine-row";
+import { MedicineRow, type MedicineOption } from "./medicine-row";
 
 const SEVERITIES = ["", "mild", "moderate", "severe"];
 
@@ -34,7 +34,7 @@ export function MedicalHistoryCard({
   patientId: string;
   canEdit: boolean;
   /** The same names a prescription suggests (2026-10-19). */
-  medicineSuggestions: readonly { value: string; label: string }[];
+  medicineSuggestions: readonly MedicineOption[];
 }) {
   const [editing, setEditing] = useState(false);
   const [data, setData] = useState<MedicalHistoryData>(asMedicalHistory(history));

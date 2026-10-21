@@ -10,8 +10,12 @@ import {
   MEDICATION_FORMS,
   MEDICATION_FREQUENCIES,
   MEDICATION_INSTRUCTIONS,
+  medicationFormFor,
   type Medication,
 } from "@/core/lib/medical-history";
+
+/** A suggested medicine: its name, the grey line, and what picking it fills in. */
+export type MedicineOption = Suggestion & { form?: string | null; strength?: string | null };
 
 /**
  * One medicine: name, dose, type, frequency (or a typed "2-2-2"), duration — and, in
@@ -37,7 +41,7 @@ export function MedicineRow({
   onRemove: () => void;
   showOngoing?: boolean;
   warning?: string | null;
-  suggestions?: readonly Suggestion[];
+  suggestions?: readonly MedicineOption[];
   namePlaceholder?: string;
   /** A short note for this medicine ("with plenty of water") — on prescriptions. */
   showNote?: boolean;
@@ -47,6 +51,24 @@ export function MedicineRow({
   invalid?: boolean;
 }) {
   const patch = (p: Partial<Medication>) => onChange({ ...m, ...p });
+
+  // Picking a listed medicine fills its strength into Dose and its form into Type
+  // (owner's call, 2026-10-21) — but only where the field is empty or still holds what
+  // the PREVIOUS pick filled in, so nothing the person typed is ever overwritten.
+  const findOption = (name: string) => {
+    const key = name.trim().toLowerCase();
+    return key ? suggestions?.find((s) => s.value.toLowerCase() === key) : undefined;
+  };
+  const changeName = (name: string) => {
+    const picked = findOption(name);
+    if (!picked) return patch({ name });
+    const before = findOption(m.name);
+    const next: Partial<Medication> = { name };
+    if (picked.strength && (!m.dose?.trim() || m.dose === before?.strength)) next.dose = picked.strength;
+    const form = medicationFormFor(picked.form);
+    if (form && (!m.form || m.form === medicationFormFor(before?.form))) next.form = form;
+    patch(next);
+  };
   return (
     // One box per medicine; the fields wrap onto a second line on a tablet.
     <div className={`space-y-1.5 rounded-lg border well p-2 ${invalid ? "border-destructive/60" : ""}`}>
@@ -60,7 +82,7 @@ export function MedicineRow({
             value={m.name}
             suggestions={suggestions ?? []}
             invalid={invalid && !m.name.trim()}
-            onChange={(name) => patch({ name })}
+            onChange={changeName}
           />
         </div>
         <Input

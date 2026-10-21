@@ -1356,7 +1356,7 @@ these for churn-risk + usage/cost anomaly flags.
   call, 2026-10-14). `prescriptions` (`clinic_id`, `patient_id`, optional
   `appointment_id`, `doctor_id` + `doctor_name` snapshot = the PRESCRIBING doctor,
   `prescribed_on` date, `items` jsonb of medicine lines in the medical history's shape —
-  name, dose, type, frequency or a typed "2-2-2", when to take it (after meal by default, before/after a named meal, or none — added 2026-10-18, no migration: it is a key in the jsonb), duration — checked and bounded by
+  name, dose, type, frequency or a typed "2-2-2", when to take it (none by default since 2026-10-21, else after/before a meal or a named meal — added 2026-10-18, no migration: it is a key in the jsonb); picking a listed medicine fills its dose and type, duration — checked and bounded by
   `core/lib/prescription-items.ts`, `notes`, `print_doctor_name`, `created_by(+name)` =
   who TYPED it, soft-delete → Trash). Distinct from the prescriptions inside an approved
   scribe note (`visits.note`), which stay where they are; both are listed together.

@@ -14,13 +14,12 @@ import { toast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import {
   allergyConflicts,
-  DEFAULT_MEDICATION_INSTRUCTION,
   type Allergy,
   type Medication,
 } from "@/core/lib/medical-history";
 import { checkPrescription, describePrescriptionItem, type PrescriptionItem, type RxProblem } from "@/core/lib/prescription-items";
 import { SearchableSelect } from "@/core/ui/searchable-select";
-import { MedicineRow } from "./medicine-row";
+import { MedicineRow, type MedicineOption } from "./medicine-row";
 import { deletePrescriptionAction, savePrescriptionAction } from "./prescription-actions";
 
 export type TypedPrescription = {
@@ -45,7 +44,8 @@ export type GeneratedPrescription = {
 type Option = { value: string; label: string };
 
 // A new line starts at "After meal" (owner's call); the desk picks None to drop it.
-const emptyItem = (): Medication => ({ name: "", instruction: DEFAULT_MEDICATION_INSTRUCTION });
+// Meal timing starts at None (owner's call, 2026-10-21).
+const emptyItem = (): Medication => ({ name: "" });
 
 /**
  * The patient's prescriptions: ones TYPED at the desk from what the doctor wrote
@@ -72,7 +72,7 @@ export function PrescriptionsCard({
   /** Today's date, and today's appointment and its doctor. */
   defaults: { date: string; appointmentId: string | null; doctorId: string | null };
   allergies: Allergy[];
-  medicineSuggestions: readonly { value: string; label: string }[];
+  medicineSuggestions: readonly MedicineOption[];
   can: { create: boolean; edit: boolean; delete: boolean };
 }) {
   const [editing, setEditing] = useState<TypedPrescription | "new" | null>(null);
@@ -239,7 +239,7 @@ function PrescriptionDialog({
   appointments: (Option & { doctorId: string | null })[];
   defaults: { date: string; appointmentId: string | null; doctorId: string | null };
   allergies: Allergy[];
-  medicineSuggestions: readonly { value: string; label: string }[];
+  medicineSuggestions: readonly MedicineOption[];
   onClose: () => void;
 }) {
   const listId = useId();

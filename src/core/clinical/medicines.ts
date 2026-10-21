@@ -289,7 +289,8 @@ export async function copyClinicMedicineToMaster(
 
 // ---- What the forms suggest -----------------------------------------------------
 
-export type MedicineSuggestion = { value: string; label: string };
+/** `form` / `strength` let picking a suggestion fill the line's Type and Dose too. */
+export type MedicineSuggestion = { value: string; label: string; form: string | null; strength: string | null };
 
 const describe = (form: string | null, strength: string | null) =>
   [form, strength].filter(Boolean).join(" ");
@@ -314,16 +315,16 @@ export async function medicineSuggestions(
 
   const out: MedicineSuggestion[] = [];
   const seen = new Set<string>();
-  const push = (value: string, label: string) => {
+  const push = (value: string, label: string, m: { form: string | null; strength: string | null }) => {
     const key = value.toLowerCase();
     if (seen.has(key)) return;
     seen.add(key);
-    out.push({ value, label });
+    out.push({ value, label, form: m.form, strength: m.strength });
   };
   for (const m of [...own, ...usual, ...rest]) {
     const what = describe(m.form, m.strength);
-    push(m.name, [what, m.brands.join(", ")].filter(Boolean).join(" · "));
-    for (const b of m.brands) push(b, [m.name, what].filter(Boolean).join(" · "));
+    push(m.name, [what, m.brands.join(", ")].filter(Boolean).join(" · "), m);
+    for (const b of m.brands) push(b, [m.name, what].filter(Boolean).join(" · "), m);
   }
   return out;
 }
