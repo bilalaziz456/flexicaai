@@ -19,7 +19,6 @@ import {
 import { getPrescriptionForPrint } from "@/core/patients/prescriptions";
 import { getTreatmentPlan, listTreatmentPlanItems, planBillOf } from "@/core/patients/treatment-plans";
 import { getPatientHeader } from "@/core/patients/list";
-import { discountByLabel } from "@/core/patients/plan-bill";
 import { describeOfferAmount, offerLabel } from "@/core/appointments/procedure-offer";
 import { formatPkr } from "@/core/appointments/fee";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
@@ -213,10 +212,9 @@ export async function buildLetterheadEstimatePdf(
     title: plan.title,
     lines,
     totals,
-    discountBy:
-      bill.planDiscount > 0
-        ? `Discount by ${discountByLabel(plan.discountBorneBy, plan.doctorName, settings.clinicName)}`
-        : null,
+    // Who gives the discount is not printed (owner's call, 2026-10-21) — the same rule
+    // as the plain estimate print.
+    discountBy: null,
     total: formatPkr(bill.total),
     note: plan.note,
   });

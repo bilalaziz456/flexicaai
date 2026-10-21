@@ -1,7 +1,6 @@
 import { getClinic } from "@/core/clinics/get-clinic";
 import { getPatientHeader } from "@/core/patients/list";
 import { getTreatmentPlan, listTreatmentPlanItems, planBillOf } from "@/core/patients/treatment-plans";
-import { discountByLabel } from "@/core/patients/plan-bill";
 import { describeOfferAmount, offerLabel } from "@/core/appointments/procedure-offer";
 import { notFound } from "next/navigation";
 import { formatPkr } from "@/core/appointments/fee";
@@ -39,7 +38,6 @@ export async function TreatmentEstimate({
   const items = await listTreatmentPlanItems(clinicId, planId);
 
   const bill = planBillOf(plan, items);
-  const discountBy = discountByLabel(plan.discountBorneBy, plan.doctorName, clinic?.name);
   const offerName = offerLabel(clinic?.name);
   const discounted = bill.offers > 0 || bill.planDiscount > 0;
   const fmtDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -151,11 +149,9 @@ export async function TreatmentEstimate({
                 <span className="tabular-nums">−{formatPkr(bill.overallDiscount)}</span>
               </div>
             ) : null}
-            {/* Who gives it — the doctor, the clinic, or both (owner's call, 2026-10-18).
-                The clinic's own offer is named on its own line above. */}
-            {bill.planDiscount > 0 ? (
-              <div className="text-[0.9em] font-medium">Discount by {discountBy}</div>
-            ) : null}
+            {/* Who GIVES the discount (doctor / clinic / both) is not printed (owner's
+                call, 2026-10-21): it is between the clinic and its doctor, not the
+                patient's business. The plan's card in the workspace still shows it. */}
           </div>
         ) : null}
 
