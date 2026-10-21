@@ -106,7 +106,22 @@ export function InvoicePrintFrame({
   .invoice-sheet { width: auto !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
   /* Filled bars and stamps print as drawn — browsers drop backgrounds by default. */
   .invoice-sheet, .invoice-sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-}`;
+}
+/* THERMAL: solid black and heavier type (owner's call, 2026-10-22). A thermal head
+   prints dots or nothing — there is no grey — so the soft labels (55–65% opacity) and
+   15% dividers that read well on A4 came out faint or not at all. Not inside @media
+   print, so the on-screen preview and the downloaded PDF show what the paper will. */
+.invoice-sheet[data-paper="thermal"] { font-weight: 600; }
+.invoice-sheet[data-paper="thermal"] * {
+  opacity: 1 !important;
+  color: #000 !important;
+  border-color: #000 !important;
+}
+.invoice-sheet[data-paper="thermal"] :is(.font-medium, .font-semibold, .font-bold, b, strong, th, h1, h2, h3) {
+  font-weight: 800 !important;
+}
+/* …except text on a black fill (the Total bar), which stays white. */
+.invoice-sheet[data-paper="thermal"] :is(.bg-black, .bg-black *) { color: #fff !important; }`;
 
   return (
     <div>

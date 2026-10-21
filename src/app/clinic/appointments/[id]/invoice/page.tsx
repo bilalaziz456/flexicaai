@@ -158,7 +158,7 @@ export default async function InvoicePage({
             <Caption>Billed to</Caption>
             <div className="text-[1.1em] font-semibold">{row.patientName}</div>
             <div className="text-[0.88em] opacity-65">
-              {[row.patientPhone, mrnLabel ? `MRN ${mrnLabel}` : null].filter(Boolean).join(" · ")}
+              {[row.patientPhone, mrnLabel ? `MRN: ${mrnLabel}` : null].filter(Boolean).join(" · ")}
             </div>
           </div>
           {doctor ? (
