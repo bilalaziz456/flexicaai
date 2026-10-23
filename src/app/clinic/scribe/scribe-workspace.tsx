@@ -89,9 +89,13 @@ export function ScribeWorkspace({
   const [processing, setProcessing] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [note, setNote] = useState<Record<string, unknown>>({});
-  // The specialty chart the doctor confirms (e.g. odontogram). Seeded once from the
-  // current chart + the note's suggested edits when the draft arrives.
+  // The specialty chart the doctor confirms (e.g. odontogram). It starts as the
+  // patient's CURRENT chart and is saved only if the doctor changes it (owner's call,
+  // 2026-10-24) — a misheard dictation must not quietly re-mark a tooth. What the note
+  // suggests is offered as one click instead (`chartSuggestion`), never pre-applied.
   const [chart, setChart] = useState<unknown>(null);
+  const [chartBaseline, setChartBaseline] = useState<string>("null");
+  const [chartSuggestion, setChartSuggestion] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resuming, setResuming] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -103,6 +107,8 @@ export function ScribeWorkspace({
     setDraft(null);
     setNote({});
     setChart(null);
+    setChartBaseline("null");
+    setChartSuggestion(null);
     setError(null);
   }
 
@@ -115,7 +121,10 @@ export function ScribeWorkspace({
     if (!clinicalUi) return;
     const current = (await loadPatientChart(patientId)) as Record<string, unknown> | null;
     const seeded = clinicalUi.seedFromNote(forNote) as Record<string, unknown>;
-    setChart({ ...(current ?? {}), ...(seeded ?? {}) });
+    const start = current ?? {};
+    setChart(start);
+    setChartBaseline(JSON.stringify(start));
+    setChartSuggestion(seeded && Object.keys(seeded).length > 0 ? seeded : null);
   }
 
   async function runSearch(q: string) {
@@ -272,7 +281,10 @@ export function ScribeWorkspace({
     if (!draft) return;
     setError(null);
     startTransition(async () => {
-      const r = await approveVisit(draft.visitId, note, clinicalUi ? chart : undefined);
+      // The chart goes with the approval only when the doctor changed it; otherwise
+      // the patient's chart is left exactly as it was.
+      const chartChanged = clinicalUi && JSON.stringify(chart) !== chartBaseline;
+      const r = await approveVisit(draft.visitId, note, chartChanged ? chart : undefined);
       if ("error" in r) setError(r.error);
       else {
         reset();
@@ -335,9 +347,25 @@ export function ScribeWorkspace({
             <div className="space-y-2 rounded-lg border well p-3">
               <p className="text-sm font-medium">Tooth chart</p>
               <p className="text-xs text-muted-foreground">
-                Pre-filled from the note. Adjust any tooth. It saves with the visit and
-                updates the patient&apos;s odontogram on approval.
+                The patient&apos;s current chart. It is updated on approval only if you
+                change it here.
               </p>
+              {chartSuggestion ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed px-3 py-2 text-xs">
+                  <span>The note suggests chart changes for this visit.</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setChart((c: unknown) => ({ ...((c as Record<string, unknown>) ?? {}), ...chartSuggestion }));
+                      setChartSuggestion(null);
+                    }}
+                  >
+                    Apply the note&apos;s suggestions
+                  </Button>
+                </div>
+              ) : null}
               <clinicalUi.VisitEditor value={chart} onChange={setChart} />
             </div>
           ) : null}

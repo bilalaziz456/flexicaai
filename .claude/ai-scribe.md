@@ -82,7 +82,9 @@ approveVisit()                                app/doctor/actions.ts
    ├─ can(clinical:create) + author-only            re-checked server-side
    ├─ parseClinicalNote / parseClinicalChart        the EDITED note is untrusted too
    ├─ UPDATE visits SET status='approved', approved_by, note = the EDITED note
-   ├─ module.saveRecord()                      specialty chart (best-effort, rebuildable)
+   ├─ module.saveRecord()                      specialty chart — changed ONLY if the doctor
+   │                                           edited it in the review (2026-10-24); the
+   │                                           note's suggestions are a one-click offer
    └─ scheduleRecall() from note.nextVisit     { reason, afterDays }
 ```
 

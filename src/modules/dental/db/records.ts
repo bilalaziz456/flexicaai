@@ -19,7 +19,6 @@ import {
   reduceChart,
   toothHistory,
 } from "@/modules/dental/chart-logic";
-import { seedFromNote } from "@/modules/dental/seed-from-note";
 import { isToothNumber, normalizeTooth, toothConditions, toothLabel, toothRuleError } from "@/modules/dental/tooth-status";
 import type { ChartItemHistoryEntry, ModuleTrash } from "@/core/types/module";
 import { patients } from "@/core/db/schema";
@@ -214,9 +213,8 @@ export async function saveDentalRecord(
 /**
  * Persist a visit's dental record on approval and fold the chart — the module's
  * `clinicalRecord.saveRecord`. Core calls this after approving a visit (it never
- * imports a dental table). `chart` is the doctor's confirmed odontogram when the
- * in-visit editor was used; otherwise the chart is auto-derived from the note
- * (current chart overlaid with the scribe's suggested edits). Findings/procedures
+ * imports a dental table). `chart` is the doctor's odontogram when they changed it in
+ * the review; otherwise the patient's chart is kept exactly as it was. Findings/procedures
  * are snapshotted from the note for the timeline.
  */
 export async function saveRecordOnApprove(
@@ -237,13 +235,15 @@ export async function saveRecordOnApprove(
     (p) => ({ tooth: null, procedure: p }),
   );
 
-  let chartAfter: ChartTeeth;
-  if (input.chart && typeof input.chart === "object") {
-    chartAfter = input.chart as ChartTeeth;
-  } else {
-    const current = await getPatientChart(clinicId, input.patientId);
-    chartAfter = { ...current, ...seedFromNote(input.note) };
-  }
+  // The chart changes ONLY when the dentist changed it in the review (owner's call,
+  // 2026-10-24). With no chart sent, the visit records the patient's chart as it
+  // already was — it used to be derived from the note here, so a misheard dictation
+  // re-marked teeth nobody had chosen. The note's suggestions are offered in the
+  // review as one click ("Apply the note's suggestions") instead.
+  const chartAfter: ChartTeeth =
+    input.chart && typeof input.chart === "object"
+      ? (input.chart as ChartTeeth)
+      : await getPatientChart(clinicId, input.patientId);
 
   await saveDentalRecord(clinicId, {
     patientId: input.patientId,
