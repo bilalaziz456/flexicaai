@@ -3,6 +3,7 @@
 import { useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { SelectField } from "@/core/ui/select-field";
 import { DictationPlayer } from "@/core/ui/dictation-player";
+import { RecordingIndicator } from "@/app/clinic/scribe/recording-indicator";
 import { SCRIBE_LANGUAGES, asScribeLanguage } from "@/core/ai/scribe-language";
 
 const LANGUAGE_KEY = "flexica-scribe-language";
@@ -73,6 +74,8 @@ export function ScribeWorkspace({
   const [query, setQuery] = useState("");
 
   const [recording, setRecording] = useState(false);
+  // The microphone stream while recording, for the live level display.
+  const [liveStream, setLiveStream] = useState<MediaStream | null>(null);
   // The dictation language, remembered per device: read as an external value (the
   // server renders without it) and overridden by a choice made in this session.
   const savedLanguage = useSyncExternalStore(noSubscribe, readSavedLanguage, () => "");
@@ -159,6 +162,7 @@ export function ScribeWorkspace({
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       recorder.onstop = () => {
+        setLiveStream(null);
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunksRef.current, {
           type: mime || "audio/webm",
@@ -167,6 +171,7 @@ export function ScribeWorkspace({
       };
       recorderRef.current = recorder;
       recorder.start();
+      setLiveStream(stream);
       setRecording(true);
     } catch {
       setError("Microphone access was denied or is unavailable.");
@@ -466,10 +471,13 @@ export function ScribeWorkspace({
                   Transcribing and drafting the note…
                 </div>
               ) : recording ? (
-                <Button variant="destructive" onClick={stopRecording}>
-                  <Square className="size-4" aria-hidden="true" />
-                  Stop & generate
-                </Button>
+                <div className="space-y-3">
+                  {liveStream ? <RecordingIndicator stream={liveStream} /> : null}
+                  <Button variant="destructive" onClick={stopRecording}>
+                    <Square className="size-4" aria-hidden="true" />
+                    Stop & generate
+                  </Button>
+                </div>
               ) : (
                 <div className="flex flex-wrap items-center gap-2">
                   <Button onClick={startRecording}>
