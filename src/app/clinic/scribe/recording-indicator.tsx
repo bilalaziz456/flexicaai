@@ -8,6 +8,20 @@ const BARS = 16;
 const HEARD = 0.06;
 
 /**
+ * The microphone-quality check (owner's call, 2026-10-24): what share of the sound,
+ * while someone is SPEAKING, lies above 3,400 Hz — where the consonants speech-to-text
+ * tells words apart by live. Phone-quality microphones (a wired handsfree on the
+ * headphone socket, Bluetooth in call mode) carry almost none; Urdu from one came back
+ * as loops. Calibrated on this project's recordings: handsfree 0.37–0.58%, a clean
+ * recording 2.80%; the line sits between them. Judged on all speech so far, and only
+ * once there is enough of it (~2 s), so a pause or one cough cannot trigger it.
+ * ("How high does it reach" was tried first and flagged the clean recording too.)
+ */
+const PHONE_QUALITY_SHARE = 0.012;
+const SPLIT_HZ = 3_400;
+const MIN_SPEECH_MOMENTS = 30;
+
+/**
  * Shows that the scribe IS recording (owner's call, 2026-10-24): a pulsing red dot,
  * the running time, and a live level bar from the very stream being recorded. The
  * bar is the useful part — it answers "is the microphone actually hearing me?" while
@@ -20,6 +34,8 @@ export function RecordingIndicator({ stream }: { stream: MediaStream }) {
   const [level, setLevel] = useState(0);
   const [heard, setHeard] = useState(false);
   const heardRef = useRef(false);
+  // null = not enough speech yet to judge; true = the microphone sounds phone-quality.
+  const [phoneQuality, setPhoneQuality] = useState<boolean | null>(null);
 
   useEffect(() => {
     const started = Date.now();
@@ -31,9 +47,18 @@ export function RecordingIndicator({ stream }: { stream: MediaStream }) {
     const ctx = new AudioContext();
     const source = ctx.createMediaStreamSource(stream);
     const analyser = ctx.createAnalyser();
-    analyser.fftSize = 1024;
+    analyser.fftSize = 2048;
+    // Unsmoothed, so each reading is the moment it describes.
+    analyser.smoothingTimeConstant = 0;
     source.connect(analyser);
     const samples = new Float32Array(analyser.fftSize);
+    const spectrum = new Float32Array(analyser.frequencyBinCount);
+    const hzPerBin = ctx.sampleRate / analyser.fftSize;
+    const splitBin = Math.ceil(SPLIT_HZ / hzPerBin);
+    let highPower = 0;
+    let totalPower = 0;
+    let speechMoments = 0;
+    let verdict: boolean | null = null;
     let frame = 0;
     let last = 0;
     const tick = (t: number) => {
@@ -49,6 +74,23 @@ export function RecordingIndicator({ stream }: { stream: MediaStream }) {
         if (value > HEARD && !heardRef.current) {
           heardRef.current = true;
           setHeard(true);
+        }
+        // How much of this moment of speech lies above 3.4 kHz (only while speaking).
+        if (value > HEARD) {
+          analyser.getFloatFrequencyData(spectrum);
+          for (let i = 1; i < spectrum.length; i++) {
+            const power = 10 ** (spectrum[i] / 10);
+            totalPower += power;
+            if (i >= splitBin) highPower += power;
+          }
+          speechMoments++;
+          if (speechMoments >= MIN_SPEECH_MOMENTS && totalPower > 0) {
+            const next = highPower / totalPower < PHONE_QUALITY_SHARE;
+            if (next !== verdict) {
+              verdict = next;
+              setPhoneQuality(next);
+            }
+          }
         }
       }
       frame = requestAnimationFrame(tick);
@@ -94,6 +136,13 @@ export function RecordingIndicator({ stream }: { stream: MediaStream }) {
         <p className="text-xs">
           <span className="text-muted-foreground">Microphone: </span>
           <span className="font-medium">{micName}</span>
+        </p>
+      ) : null}
+      {phoneQuality ? (
+        <p role="alert" className="rounded-md border border-warning/50 bg-warning/15 px-2.5 py-1.5 text-xs text-warning-text">
+          <span className="font-semibold">This microphone records phone-quality sound.</span> Transcription will be
+          poor, especially in Urdu. Use the laptop or tablet&apos;s own microphone, or a USB headset (not a
+          handsfree on the headphone socket or Bluetooth earbuds).
         </p>
       ) : null}
       <p className="text-xs text-muted-foreground">
