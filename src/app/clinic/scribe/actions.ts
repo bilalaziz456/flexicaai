@@ -28,6 +28,8 @@ import { parseClinicalChart, parseClinicalNote } from "@/core/clinical/note-sche
 import { getPatientAllergies } from "@/core/patients/medical-history";
 import { noteWarnings } from "@/core/ai/note-warnings";
 import { report } from "@/core/observability";
+import { createPrescriptionFromVisit } from "@/core/patients/prescriptions";
+import { displayStaffName } from "@/core/types/auth";
 
 /**
  * Scribe actions — CLAUDE.md §8: AI output is a DRAFT until a clinician approves it.
@@ -204,8 +206,8 @@ export async function approveVisit(
         visitId,
         patientId: updated.patientId,
         note: parsedNote.value,
-        // The doctor's confirmed chart from the in-scribe editor (else the module
-        // derives it from the note). Validated above.
+        // The doctor's chart from the in-scribe editor, sent only when they changed
+        // it; without it the module keeps the patient's chart as it was. Validated above.
         chart: parsedChart.value,
       });
     }
@@ -218,6 +220,19 @@ export async function approveVisit(
       userId: user.id,
       ids: { visitId, patientId: updated.patientId, module: updated.module },
     });
+  }
+
+  // The note's medicines become a prescription the desk can print (with or without
+  // the letterhead), download, edit and delete — the signed note is not touched
+  // (owner's call, 2026-10-24). Best-effort: a failure here must not undo an approval,
+  // but a doctor would look for that prescription, so it is reported.
+  try {
+    await createPrescriptionFromVisit(user.clinicId, visitId, {
+      id: user.id,
+      name: displayStaffName(user.prefix, user.fullName, user.username),
+    });
+  } catch (e) {
+    report(e, { op: "clinical.prescriptionFromNote", clinicId: user.clinicId, ids: { visitId } });
   }
 
   // Capture a recall from the note's nextVisit ({ reason, afterDays }) — the

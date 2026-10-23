@@ -492,7 +492,9 @@ are in `.env.example`.
   optional appointment); downloaded or printed as A4 on the clinic's own letterhead, which
   the account manager uploads with four margins and a live preview. "Print without letterhead" (was "Print on pad") prints
   only the writing for pre-printed pads. **ACL:** receptionist and manager now hold
-  `prescriptions` view/create/edit/delete by default.
+  `prescriptions` view/create/edit/delete by default. An APPROVED scribe note's
+  medicines become one of these on approval (`0135`), so they get every option too;
+  the signed note itself is never changed.
 
 - **Treatment-plan discounts** (`0130`) — per treatment and overall, with an optional plan
   doctor and "Discount by" clinic / doctor / both (a split), chosen once per plan and

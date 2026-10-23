@@ -32,6 +32,8 @@ export type TypedPrescription = {
   items: PrescriptionItem[];
   notes: string | null;
   createdByName: string | null;
+  /** Made from an approved scribe note's medicines (2026-10-24). */
+  fromVisitNote?: boolean;
 };
 export type GeneratedPrescription = {
   visitId: string;
@@ -116,6 +118,12 @@ export function PrescriptionsCard({
                   <span className="font-medium">
                     {r.t.dateLabel}
                     {r.t.doctorName ? <span className="text-muted-foreground"> · {r.t.doctorName}</span> : null}
+                    {r.t.fromVisitNote ? (
+                      <>
+                        {" "}
+                        <Badge variant="secondary">From visit note</Badge>
+                      </>
+                    ) : null}
                   </span>
                   <div className="flex flex-wrap items-center gap-1.5">
                     {/* Named by WHAT COMES OUT (owner's call, 2026-10-15). "Print on pad",

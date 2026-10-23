@@ -1431,6 +1431,16 @@ these for churn-risk + usage/cost anomaly flags.
   stored so a retry and the recovery sweep transcribe the recording the same way.
   Text, not a lookup table: a bad value costs a worse transcript the doctor reviews,
   never a figure (ADR-027's test). See `.claude/ai-scribe.md` §3b.
+- Migration **`0135`** adds `prescriptions.visit_id` (→ visits, `set null`, UNIQUE
+  where set): an APPROVED scribe note's medicines become a real prescription (owner's
+  call, 2026-10-24), so they print with/without the letterhead, download, edit and
+  delete like a typed one — the signed note is never changed. Created on approval
+  (`core/patients/prescriptions.ts#createPrescriptionFromVisit`, idempotent), and the
+  migration converted notes approved before, by the same rule as
+  `core/lib/prescription-items.ts#noteDrugToItem` (drug → name, dosage → dose,
+  "5 days" → duration, other duration wording → the line's note). A deleted one still
+  counts, so the note's copy does not come back; the list shows each note once. An
+  unapproved draft never becomes a prescription (CLAUDE.md §8).
 - Migration **`0082`** makes the scribe ASYNC (delta D-08 / ADR-020). Adds
   `transcribing` and `failed` to the `visit_status` enum, plus
   `visits.transcribe_started_at` (timestamptz) and `visits.transcribe_error` (text).

@@ -4,8 +4,9 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
-import { appointments, patients, prescriptions, users, type Prescription } from "@/core/db/schema";
-import type { PrescriptionItem } from "@/core/lib/prescription-items";
+import { appointments, patients, prescriptions, users, visits, type Prescription } from "@/core/db/schema";
+import { MAX_PRESCRIPTION_ITEMS, noteDrugToItem, type PrescriptionItem } from "@/core/lib/prescription-items";
+import { localDateStr } from "@/core/appointments/availability";
 
 /**
  * Typed prescriptions — CORE, specialty-agnostic (owner's call, 2026-10-14). The desk
@@ -184,4 +185,72 @@ export async function listPrescriptionAppointmentOptions(clinicId: string, patie
     )
     .orderBy(desc(appointments.scheduledAt))
     .limit(30);
+}
+
+/**
+ * Makes an APPROVED scribe note's medicines into a prescription (owner's call,
+ * 2026-10-24), so they print with or without the letterhead, download, edit and
+ * delete like a typed one — the approved note itself is never changed. Called when a
+ * note is approved; migration 0135 did the same for notes approved before.
+ *
+ * APPROVED only: an unapproved draft is the AI's unchecked output, and AI output never
+ * becomes a prescription before a clinician signs it (CLAUDE.md §8). Idempotent — one
+ * prescription per visit (`prescriptions_visit_unique`), so a second call does nothing.
+ * Null when the note has no medicines.
+ */
+export async function createPrescriptionFromVisit(
+  clinicId: string,
+  visitId: string,
+  actor: { id: string; name: string },
+): Promise<{ id: string } | null> {
+  const [v] = await db
+    .select({
+      patientId: visits.patientId,
+      appointmentId: visits.appointmentId,
+      doctorId: visits.doctorId,
+      visitDate: visits.visitDate,
+      note: visits.note,
+      doctorFullName: users.fullName,
+      doctorUsername: users.username,
+    })
+    .from(visits)
+    .leftJoin(users, eq(users.id, visits.doctorId))
+    .where(byClinic(visits.clinicId, clinicId, notDeleted(visits.deletedAt), eq(visits.id, visitId), eq(visits.status, "approved")))
+    .limit(1);
+  if (!v) return null;
+  const drugs = (v.note as { prescriptions?: unknown } | null)?.prescriptions;
+  const items = (Array.isArray(drugs) ? drugs : [])
+    .map(noteDrugToItem)
+    .filter((i): i is PrescriptionItem => i !== null)
+    .slice(0, MAX_PRESCRIPTION_ITEMS);
+  if (items.length === 0) return null;
+
+  const [row] = await db
+    .insert(prescriptions)
+    .values({
+      clinicId,
+      patientId: v.patientId,
+      appointmentId: v.appointmentId,
+      visitId,
+      doctorId: v.doctorId,
+      doctorName: v.doctorFullName ?? v.doctorUsername ?? null,
+      prescribedOn: localDateStr(v.visitDate ?? new Date()),
+      items,
+      notes: null,
+      createdBy: actor.id,
+      createdByName: actor.name,
+    })
+    .onConflictDoNothing()
+    .returning({ id: prescriptions.id });
+  return row ?? null;
+}
+
+/** Which of these visits already have a prescription made from their note (live or deleted). */
+export async function visitsWithPrescription(clinicId: string, visitIds: string[]): Promise<Set<string>> {
+  if (visitIds.length === 0) return new Set();
+  const rows = await db
+    .select({ visitId: prescriptions.visitId })
+    .from(prescriptions)
+    .where(byClinic(prescriptions.clinicId, clinicId, inArray(prescriptions.visitId, visitIds)));
+  return new Set(rows.map((r) => r.visitId).filter((id): id is string => id !== null));
 }

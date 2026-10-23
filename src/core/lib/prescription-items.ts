@@ -89,3 +89,27 @@ export function checkPrescription(
   if ((input.notes ?? "").length > MAX_PRESCRIPTION_NOTES) problems.push({ field: "notes", message: "The notes are too long." });
   return problems;
 }
+
+/**
+ * A scribe note's medicine line (`{ drug, dosage, duration }`) as a prescription line,
+ * so an approved note's medicines become a prescription that prints, downloads, edits
+ * and deletes like a typed one (owner's call, 2026-10-24). "5 days" / "1 week" fill
+ * the duration; any other duration wording is kept as the line's note rather than
+ * lost. Migration 0135 applies the same rule to notes approved before this existed.
+ */
+export function noteDrugToItem(raw: unknown): PrescriptionItem | null {
+  const d = (raw && typeof raw === "object" ? raw : {}) as { drug?: unknown; dosage?: unknown; duration?: unknown };
+  const name = typeof d.drug === "string" ? d.drug.trim().slice(0, 120) : "";
+  if (!name) return null;
+  const item: PrescriptionItem = { name };
+  if (typeof d.dosage === "string" && d.dosage.trim()) item.dose = d.dosage.trim().slice(0, 120);
+  const duration = typeof d.duration === "string" ? d.duration.trim() : "";
+  const m = /^(\d{1,3})\s*(day|week|month|year)s?$/i.exec(duration);
+  if (m) {
+    item.durationValue = Number(m[1]);
+    item.durationUnit = `${m[2].toLowerCase()}s` as PrescriptionItem["durationUnit"];
+  } else if (duration) {
+    item.note = duration.slice(0, 200);
+  }
+  return item;
+}

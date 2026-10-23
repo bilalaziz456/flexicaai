@@ -365,6 +365,11 @@ export const prescriptions = pgTable(
       .notNull()
       .references(() => patients.id, { onDelete: "cascade" }),
     appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: "set null" }),
+    // Set when this prescription was made from an APPROVED scribe note's medicines
+    // (owner's call, 2026-10-24), so it prints, downloads, edits and deletes like any
+    // typed one. The signed note itself is never changed. Unique: one per visit, and a
+    // deleted one still counts, so deleting it does not bring the note's copy back.
+    visitId: uuid("visit_id").references(() => visits.id, { onDelete: "set null" }),
     // The PRESCRIBING doctor (whoever typed it is `created_by`).
     doctorId: uuid("doctor_id").references(() => users.id, { onDelete: "set null" }),
     doctorName: text("doctor_name"), // snapshot
@@ -380,6 +385,7 @@ export const prescriptions = pgTable(
   },
   (t) => [
     index("prescriptions_patient_idx").on(t.clinicId, t.patientId),
+    uniqueIndex("prescriptions_visit_unique").on(t.visitId).where(sql`${t.visitId} is not null`),
     index("prescriptions_deleted_idx")
       .on(t.clinicId, t.deletedAt)
       .where(sql`${t.deletedAt} is not null`),

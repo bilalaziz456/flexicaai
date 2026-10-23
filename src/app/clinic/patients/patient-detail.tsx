@@ -15,7 +15,7 @@ import { CalendarDays, CalendarPlus, ClipboardList, ReceiptText } from "lucide-r
 import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicalRecordFor } from "@/config/modules";
 import { medicineSuggestions } from "@/core/clinical/medicines";
-import { listPrescriptionAppointmentOptions, listPrescriptions } from "@/core/patients/prescriptions";
+import { listPrescriptionAppointmentOptions, listPrescriptions, visitsWithPrescription } from "@/core/patients/prescriptions";
 import { listClinicDoctors } from "@/core/appointments/doctors";
 import { PrescriptionsCard } from "./prescriptions-card";
 import { BackLink } from "@/core/ui/back-link";
@@ -226,6 +226,7 @@ export async function PatientDetail({
     : [[], [], []];
   const todayYmd = localYmd(new Date());
   const todaysAppt = rxAppointments.find((a) => localYmd(a.scheduledAt) === todayYmd) ?? null;
+  const convertedVisits = await visitsWithPrescription(clinicId, prescriptionVisits.map((g) => g.visitId));
 
   // The clinic's enabled modules — drives every module-agnostic clinical section
   // (chart / perio / plans / lab), resolved via the contract (core never knows dental).
@@ -832,8 +833,11 @@ export async function PatientDetail({
                 items: t.items,
                 notes: t.notes,
                 createdByName: t.createdByName,
+                fromVisitNote: Boolean(t.visitId),
               }))}
-              generated={prescriptionVisits.map((g) => ({
+              // A note whose medicines became a prescription is listed once, as that
+              // prescription (with every option) — not again here (2026-10-24).
+              generated={prescriptionVisits.filter((g) => !convertedVisits.has(g.visitId)).map((g) => ({
                 visitId: g.visitId,
                 dateLabel: g.date ? dayFmt(g.date) : "—",
                 sortKey: g.date ? localYmd(g.date) : "0000-00-00",
