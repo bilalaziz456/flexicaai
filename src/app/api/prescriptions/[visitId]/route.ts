@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiRequireWorkspace } from "@/core/auth/user";
-import { buildPrescriptionPdf } from "@/core/patients/prescription-build";
+import { buildVisitPrescriptionPdf } from "@/core/patients/prescription-build";
 import { contentDisposition } from "@/core/lib/file-name";
 
 /**
@@ -9,7 +9,7 @@ import { contentDisposition } from "@/core/lib/file-name";
  * (Patients receive it via a signed public link over WhatsApp — see /p/rx.)
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ visitId: string }> },
 ) {
   const { visitId } = await params;
@@ -19,7 +19,10 @@ export async function GET(
   if (!auth.ok) return auth.response;
   const { user } = auth;
 
-  const result = await buildPrescriptionPdf(visitId);
+  // The same two options as /api/rx/[id]: `?pad=1` prints without the letterhead,
+  // `?download=1` saves it instead of opening it (owner's call, 2026-10-24).
+  const url = new URL(request.url);
+  const result = await buildVisitPrescriptionPdf(visitId, { pad: url.searchParams.get("pad") === "1" });
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
@@ -31,7 +34,7 @@ export async function GET(
   return new Response(Buffer.from(result.pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": contentDisposition("inline", result.filename),
+      "Content-Disposition": contentDisposition(url.searchParams.get("download") === "1" ? "attachment" : "inline", result.filename),
       "Cache-Control": "private, no-store",
     },
   });

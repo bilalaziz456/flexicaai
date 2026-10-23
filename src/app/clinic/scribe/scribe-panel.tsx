@@ -16,7 +16,7 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { ScribeWorkspace } from "@/app/clinic/scribe/scribe-workspace";
-import { FileText, Stethoscope } from "lucide-react";
+import { Download, FileText, Printer, Stethoscope } from "lucide-react";
 import { buttonVariants } from "@/core/ui/button";
 import { EmptyState } from "@/core/ui/empty-state";
 import { cn } from "@/core/lib/utils";
@@ -107,19 +107,40 @@ export async function ScribePanel({
                     <span className="min-w-0 flex-1 truncate font-medium">
                       {v.patientName}
                     </span>
-                    <span className="flex items-center gap-3 text-muted-foreground">
+                    <span className="flex flex-wrap items-center justify-end gap-1.5 text-muted-foreground">
                       {v.status === "approved" ? (
                         <>
+                          {/* The same three as a prescription on the patient's page
+                              (owner's call, 2026-10-24) — and they print the prescription
+                              as last edited, not the note (buildVisitPrescriptionPdf). */}
                           {canViewRx ? (
-                            <a
-                              href={`/api/prescriptions/${v.id}`}
-                              target="_blank"
-                              rel="noopener"
-                              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-                            >
-                              <FileText aria-hidden="true" />
-                              Prescription
-                            </a>
+                            <>
+                              <a
+                                href={`/api/prescriptions/${v.id}`}
+                                target="_blank"
+                                rel="noopener"
+                                title="For plain white paper: the clinic letterhead is printed with the prescription"
+                                className={cn(buttonVariants({ size: "sm" }))}
+                              >
+                                <FileText className="size-3.5" aria-hidden="true" /> Print with letterhead
+                              </a>
+                              <a
+                                href={`/api/prescriptions/${v.id}?pad=1`}
+                                target="_blank"
+                                rel="noopener"
+                                title="For paper that already has your letterhead printed on it: only the prescription is printed, in the right place"
+                                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                              >
+                                <Printer className="size-3.5" aria-hidden="true" /> Print without letterhead
+                              </a>
+                              <a
+                                href={`/api/prescriptions/${v.id}?download=1`}
+                                title="Save the PDF with the letterhead, e.g. to send on WhatsApp"
+                                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                              >
+                                <Download className="size-3.5" aria-hidden="true" /> Download
+                              </a>
+                            </>
                           ) : null}
                           {canSendRx ? <SendRxWhatsApp visitId={v.id} /> : null}
                         </>

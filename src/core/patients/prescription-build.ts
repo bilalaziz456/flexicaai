@@ -4,7 +4,9 @@ import { patientFileName } from "@/core/lib/file-name";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/core/db";
 import { notDeleted } from "@/core/db/tenant";
-import { clinics, patients, users, visits } from "@/core/db/schema";
+import { clinics, patients, prescriptions, users, visits } from "@/core/db/schema";
+import { unscoped } from "@/core/db/tenant-guard";
+import { buildLetterheadPrescriptionPdf } from "@/core/clinics/letterhead";
 import {
   generatePrescriptionPdf,
   type RxItem,
@@ -89,4 +91,39 @@ export async function buildPrescriptionPdf(
   const filename = `${patientFileName(row.patientName, "Prescription")}.pdf`;
 
   return { ok: true, pdf, filename, clinicId: row.clinicId };
+}
+
+/**
+ * A visit's prescription as it stands NOW (owner's report, 2026-10-24): when the
+ * note's medicines became a prescription (migration 0135) and someone edited it, the
+ * Voice scribe's Prescription button and the WhatsApp link were still rebuilding the
+ * PDF from the signed note, so the edit never printed. Now:
+ *   - a linked prescription → that one, with every edit, on the clinic's letterhead
+ *     (the same PDF as Print with letterhead on the patient's page);
+ *   - a linked one that was DELETED → refused, never the note's copy in its place;
+ *   - none (a note older than any prescription) → the note's PDF, as before.
+ * Not clinic-scoped by itself — the WhatsApp link has no session, so the callers check
+ * the clinic (the staff route compares it; the public token IS the authorization).
+ */
+export async function buildVisitPrescriptionPdf(
+  visitId: string,
+  /** `pad`: only the writing, for paper with the letterhead already printed on it. */
+  opts: { pad?: boolean } = {},
+): Promise<
+  | { ok: true; pdf: Uint8Array; filename: string; clinicId: string }
+  | { ok: false; status: number; error: string }
+> {
+  const linked = await unscoped("a visit's prescription, for staff or a signed link", () =>
+    db
+      .select({ id: prescriptions.id, clinicId: prescriptions.clinicId, deletedAt: prescriptions.deletedAt })
+      .from(prescriptions)
+      .where(eq(prescriptions.visitId, visitId))
+      .limit(1),
+  );
+  const rx = linked[0];
+  if (!rx) return buildPrescriptionPdf(visitId);
+  if (rx.deletedAt) return { ok: false, status: 404, error: "This prescription was deleted." };
+  const out = await buildLetterheadPrescriptionPdf(rx.clinicId, rx.id, { pad: opts.pad });
+  if (!out) return { ok: false, status: 404, error: "Not found." };
+  return { ok: true, pdf: out.pdf, filename: out.filename, clinicId: rx.clinicId };
 }

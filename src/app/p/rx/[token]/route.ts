@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyToken } from "@/core/lib/signed-link";
-import { buildPrescriptionPdf } from "@/core/patients/prescription-build";
+import { buildVisitPrescriptionPdf } from "@/core/patients/prescription-build";
 import { contentDisposition } from "@/core/lib/file-name";
 
 /**
@@ -23,7 +23,7 @@ export async function GET(
     );
   }
 
-  const result = await buildPrescriptionPdf(visitId);
+  const result = await buildVisitPrescriptionPdf(visitId);
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
