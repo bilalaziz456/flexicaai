@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { DictationPlayer } from "@/core/ui/dictation-player";
 import { RecordingIndicator } from "@/app/clinic/scribe/recording-indicator";
-import { FileClock, Loader2, Mic, Square, UserX } from "lucide-react";
+import { FileClock, Loader2, Mic, Square, UserX, X } from "lucide-react";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import {
@@ -80,6 +80,12 @@ export function ScribeWorkspace({
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  // Cancel (owner's call, 2026-10-24): while recording it drops the audio unsent; once
+  // sent, it discards the run. Refs, not state, because the recorder's onstop and the
+  // polling loop read them after the render that set them.
+  const cancelRecordingRef = useRef(false);
+  const cancelledRunRef = useRef(false);
+  const runIdRef = useRef<string | null>(null);
 
   function reset() {
     setDraft(null);
@@ -139,12 +145,17 @@ export function ScribeWorkspace({
       recorder.onstop = () => {
         setLiveStream(null);
         stream.getTracks().forEach((t) => t.stop());
+        if (cancelRecordingRef.current) {
+          chunksRef.current = [];
+          return; // cancelled: nothing is uploaded
+        }
         const blob = new Blob(chunksRef.current, {
           type: mime || "audio/webm",
         });
         void submitAudio(blob);
       };
       recorderRef.current = recorder;
+      cancelRecordingRef.current = false;
       recorder.start();
       setLiveStream(stream);
       setRecording(true);
@@ -158,8 +169,29 @@ export function ScribeWorkspace({
     setRecording(false);
   }
 
+  /** Stop and throw the recording away — nothing is sent, no note is made. */
+  function cancelRecording() {
+    cancelRecordingRef.current = true;
+    recorderRef.current?.stop();
+    setRecording(false);
+  }
+
+  /** Stop waiting for the note and discard this run (it goes to Trash). */
+  async function cancelRun() {
+    cancelledRunRef.current = true;
+    setProcessing(false);
+    const id = runIdRef.current;
+    // Still uploading: submitAudio discards it the moment the server answers.
+    if (!id) return;
+    runIdRef.current = null;
+    const r = await discardDraft(id);
+    if ("error" in r) setError(r.error);
+  }
+
   async function submitAudio(blob: Blob) {
     if (!patient) return;
+    cancelledRunRef.current = false;
+    runIdRef.current = null;
     setProcessing(true);
     setError(null);
     try {
@@ -175,7 +207,14 @@ export function ScribeWorkspace({
       }
       // The route now ACCEPTS the recording and returns 202 (delta D-08): the audio is
       // stored and the visit exists, but the note is still being written. Wait for it.
-      await waitForDraft(data.visitId as string);
+      const visitId = data.visitId as string;
+      if (cancelledRunRef.current) {
+        // Cancel was pressed while this was still uploading.
+        await discardDraft(visitId);
+        return;
+      }
+      runIdRef.current = visitId;
+      await waitForDraft(visitId);
     } catch {
       setError("Could not reach the scribe. Check your connection.");
     } finally {
@@ -199,7 +238,9 @@ export function ScribeWorkspace({
     const deadline = Date.now() + 6 * 60_000; // beyond the provider budget
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 2000));
+      if (cancelledRunRef.current) return;
       const s = await getScribeStatus(visitId);
+      if (cancelledRunRef.current) return;
       if (!s) break;
       if (s.status === "failed") {
         setError(s.error ?? "The scribe failed. Your recording was kept — try again.");
@@ -440,17 +481,28 @@ export function ScribeWorkspace({
               </div>
 
               {processing ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                  Transcribing and drafting the note…
+                <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    Transcribing and drafting the note…
+                  </span>
+                  <Button type="button" size="sm" variant="outline" onClick={() => void cancelRun()}>
+                    <X className="size-3.5" aria-hidden="true" /> Cancel
+                  </Button>
                 </div>
               ) : recording ? (
                 <div className="space-y-3">
                   {liveStream ? <RecordingIndicator stream={liveStream} /> : null}
-                  <Button variant="destructive" onClick={stopRecording}>
-                    <Square className="size-4" aria-hidden="true" />
-                    Stop & generate
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button variant="destructive" onClick={stopRecording}>
+                      <Square className="size-4" aria-hidden="true" />
+                      Stop & generate
+                    </Button>
+                    {/* Throws the recording away: nothing is sent, no note is made. */}
+                    <Button type="button" variant="outline" onClick={cancelRecording}>
+                      <X className="size-4" aria-hidden="true" /> Cancel
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="flex flex-wrap items-center gap-2">

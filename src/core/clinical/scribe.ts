@@ -250,7 +250,10 @@ export async function discardDraftRow(
         clinicId,
         notDeleted(visits.deletedAt),
         eq(visits.id, visitId),
-        inArray(visits.status, ["draft", "failed"]),
+        // `transcribing` too: the doctor may cancel a run while its note is still being
+        // written (owner's call, 2026-10-24). It goes to Trash like a discarded draft;
+        // the job finishing later writes to a row nobody sees.
+        inArray(visits.status, ["draft", "failed", "transcribing"]),
         draftAccessCondition(userId, canHandover),
       ),
     )
