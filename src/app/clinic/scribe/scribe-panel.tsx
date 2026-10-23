@@ -18,6 +18,8 @@ import {
 import { ScribeWorkspace } from "@/app/clinic/scribe/scribe-workspace";
 import { Download, FileText, Printer, Stethoscope } from "lucide-react";
 import { buttonVariants } from "@/core/ui/button";
+import { Pagination } from "@/core/ui/pagination";
+import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
 import { EmptyState } from "@/core/ui/empty-state";
 import { cn } from "@/core/lib/utils";
 import { SendRxWhatsApp } from "@/app/clinic/scribe/send-rx-whatsapp";
@@ -30,10 +32,15 @@ import { SendRxWhatsApp } from "@/app/clinic/scribe/send-rx-whatsapp";
 export async function ScribePanel({
   user,
   clinicId,
+  searchParams = {},
 }: {
   user: CurrentUser;
   clinicId: string;
+  /** `page` / `size` for Recent notes (20 / 50 / 100). */
+  searchParams?: Record<string, string | undefined>;
 }) {
+  const page = parsePage(searchParams.page);
+  const pageSize = parsePageSize(searchParams.size);
   const canCreateClinical = can(user, "clinical", "create");
   // Drafts nobody can reach any more (D-18). Only fetched for a holder of the
   // `handover` grant — for everyone else the list stays empty and the card never
@@ -45,14 +52,16 @@ export async function ScribePanel({
 
   const clinicRow = await getClinic(clinicId);
 
-  const [recentPatients, recentVisits, pendingDrafts, queue, strandedDrafts, scribeRuns] = await Promise.all([
+  const [recentPatients, recentPage, pendingDrafts, queue, strandedDrafts, scribeRuns] = await Promise.all([
     listScribePatients(clinicId),
-    listRecentVisits(clinicId, user.id),
+    listRecentVisits(clinicId, user.id, { limit: pageSize, offset: pageOffset(page, pageSize) }),
     listOwnDrafts(clinicId, user.id),
     getDayQueue(clinicId, new Date(), { doctorId: user.id }),
     canSeeStranded ? listStrandedDrafts(clinicId) : Promise.resolve([]),
     canCreateClinical ? listScribeRuns(clinicId, user.id) : Promise.resolve([]),
   ]);
+
+  const recentVisits = recentPage.rows;
 
   return (
     <div className="space-y-6">
@@ -92,7 +101,16 @@ export async function ScribePanel({
             <CardTitle>Recent notes</CardTitle>
             <CardDescription>Your clinic&apos;s latest visits.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
+            {/* Above the list, like every paged list here (owner's call, 2026-10-20). */}
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              total={recentPage.total}
+              basePath="/clinic/scribe"
+              searchParams={searchParams}
+              unit="note"
+            />
             {recentVisits.length === 0 ? (
               <EmptyState
                 compact

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, ilike, inArray, or } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { appointments, patients, visits } from "@/core/db/schema";
 import { byClinic, notDeleted } from "@/core/db/tenant";
@@ -51,26 +51,35 @@ export async function searchScribePatients(clinicId: string, q: string, limit = 
  * drafts — the same rule the patient timeline follows, so a doctor never sees a
  * colleague's unsigned work anywhere.
  */
-export async function listRecentVisits(clinicId: string, userId: string, limit = 10) {
-  return db
-    .select({
-      id: visits.id,
-      status: visits.status,
-      visitDate: visits.visitDate,
-      patientName: patients.fullName,
-    })
-    .from(visits)
-    .innerJoin(patients, eq(visits.patientId, patients.id))
-    .where(
-      byClinic(
-        visits.clinicId,
-        clinicId,
-        notDeleted(visits.deletedAt),
-        or(eq(visits.status, "approved"), eq(visits.doctorId, userId)),
-      ),
-    )
-    .orderBy(desc(visits.visitDate))
-    .limit(limit);
+/** One page of the scribe's Recent notes, and how many there are in all (2026-10-24). */
+export async function listRecentVisits(clinicId: string, userId: string, page: { limit: number; offset: number }) {
+  const where = byClinic(
+    visits.clinicId,
+    clinicId,
+    notDeleted(visits.deletedAt),
+    or(eq(visits.status, "approved"), eq(visits.doctorId, userId)),
+  );
+  const [rows, [count]] = await Promise.all([
+    db
+      .select({
+        id: visits.id,
+        status: visits.status,
+        visitDate: visits.visitDate,
+        patientName: patients.fullName,
+      })
+      .from(visits)
+      .innerJoin(patients, eq(visits.patientId, patients.id))
+      .where(where)
+      .orderBy(desc(visits.visitDate))
+      .limit(page.limit)
+      .offset(page.offset),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(visits)
+      .innerJoin(patients, eq(visits.patientId, patients.id))
+      .where(where),
+  ]);
+  return { rows, total: count?.n ?? 0 };
 }
 
 /** Drafts this user started and never approved. Oldest first — the one left longest
