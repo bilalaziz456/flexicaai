@@ -1,20 +1,8 @@
 "use client";
 
-import { useRef, useState, useSyncExternalStore, useTransition } from "react";
-import { SelectField } from "@/core/ui/select-field";
+import { useRef, useState, useTransition } from "react";
 import { DictationPlayer } from "@/core/ui/dictation-player";
 import { RecordingIndicator } from "@/app/clinic/scribe/recording-indicator";
-import { SCRIBE_LANGUAGES, asScribeLanguage } from "@/core/ai/scribe-language";
-
-const LANGUAGE_KEY = "flexica-scribe-language";
-const noSubscribe = () => () => {};
-function readSavedLanguage(): string {
-  try {
-    return asScribeLanguage(localStorage.getItem(LANGUAGE_KEY)) ?? "";
-  } catch {
-    return "";
-  }
-}
 import { FileClock, Loader2, Mic, Square, UserX } from "lucide-react";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
@@ -76,19 +64,6 @@ export function ScribeWorkspace({
   const [recording, setRecording] = useState(false);
   // The microphone stream while recording, for the live level display.
   const [liveStream, setLiveStream] = useState<MediaStream | null>(null);
-  // The dictation language, remembered per device: read as an external value (the
-  // server renders without it) and overridden by a choice made in this session.
-  const savedLanguage = useSyncExternalStore(noSubscribe, readSavedLanguage, () => "");
-  const [pickedLanguage, setPickedLanguage] = useState<string | null>(null);
-  const language = pickedLanguage ?? savedLanguage;
-  const chooseLanguage = (v: string) => {
-    setPickedLanguage(v);
-    try {
-      localStorage.setItem(LANGUAGE_KEY, v);
-    } catch {
-      // Storage blocked: the choice still holds for this session.
-    }
-  };
   const [processing, setProcessing] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [note, setNote] = useState<Record<string, unknown>>({});
@@ -192,7 +167,6 @@ export function ScribeWorkspace({
       const form = new FormData();
       form.append("audio", blob, `recording.${ext}`);
       form.append("patientId", patient.id);
-      if (language) form.append("language", language);
       const res = await fetch("/api/ai/scribe", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) {
@@ -484,18 +458,11 @@ export function ScribeWorkspace({
                     <Mic className="size-4" aria-hidden="true" />
                     Start recording
                   </Button>
-                  {/* Telling speech-to-text the language beats letting it guess
-                      (core/ai/scribe-language.ts); remembered on this device. */}
-                  <SelectField
-                    value={language}
-                    onValueChange={(v) => chooseLanguage(v ?? "")}
-                    options={[
-                      { value: "", label: "Language: detect" },
-                      ...SCRIBE_LANGUAGES.map((l) => ({ value: l.code, label: `Language: ${l.label}` })),
-                    ]}
-                    ariaLabel="Dictation language"
-                    className="h-9 w-auto"
-                  />
+                  {/* No language to choose (owner's call, 2026-10-24): the server works out
+                      Urdu, English or a mix of both (core/ai/scribe-engine, AUTO). */}
+                  <span className="text-xs text-muted-foreground">
+                    Speak in Urdu, English or both. The language is detected automatically.
+                  </span>
                 </div>
               )}
 

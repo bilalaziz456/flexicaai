@@ -20,3 +20,12 @@ export type ScribeLanguage = (typeof SCRIBE_LANGUAGES)[number]["code"];
 export function asScribeLanguage(raw: unknown): ScribeLanguage | null {
   return SCRIBE_LANGUAGES.some((l) => l.code === raw) ? (raw as ScribeLanguage) : null;
 }
+
+/**
+ * What AUTO falls back to when Whisper's own detection cannot be trusted
+ * (core/ai/scribe-engine — transcribeAudio). Urdu: doctors here dictate Urdu, English or
+ * both in one sentence, and transcribing as Urdu handled the mixed speech detection got
+ * wrong (2026-10-24). One constant for now; a GCC clinic will want Arabic, at which point
+ * this becomes a per-clinic setting rather than a second constant.
+ */
+export const SCRIBE_AUTO_FALLBACK: ScribeLanguage = "ur";

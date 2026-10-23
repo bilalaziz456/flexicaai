@@ -117,11 +117,20 @@ audio and the setup were not. Four things now hold that up:
 - **The recorder asks for dictation, not a call** (`scribe-workspace.tsx`): echo
   cancellation and noise suppression OFF (they stripped everything above 3.4 kHz —
   the consonants words are told apart by), gain control on, mono, 128 kbps opus.
-- **The doctor can say the language** (Detect / English / Urdu, remembered per device),
-  stored on the visit as `visits.scribe_language` so a retry or the recovery sweep
-  transcribes it the same way (`core/ai/scribe-language.ts`). Unset = Whisper detects,
-  which fails on short or muffled clips.
-- **A vocabulary hint** (Whisper's `prompt`), LAYERED and specialty-agnostic in core:
+- **The language is AUTOMATIC** (owner's call, 2026-10-24 — there is no picker; doctors
+  dictate Urdu, English or both in one sentence). Whisper detects; the result is kept
+  only if it came back in the fallback language (Urdu) or confidently in English —
+  length-weighted average log-probability ≥ -0.5 and no segment with compression ratio
+  > 2.4. Otherwise it is transcribed again in Urdu. Measured: clean English scored
+  -0.03, every failure (invented English for Urdu speech, loops) -0.78 or lower. One
+  time budget covers both requests. `visits.scribe_language` remains for a fixed
+  language if one is ever offered again (`core/ai/scribe-language.ts`).
+- **The recording display names the microphone.** A headset on the headphone socket
+  (and Bluetooth in call mode) delivers nothing above ~4 kHz; Urdu from it came back as
+  loops or "music music". The laptop's own microphone array captured up to ~12 kHz.
+- **A vocabulary hint** (Whisper's `prompt`) — for ENGLISH dictations only: the words
+  are English, and an Urdu dictation given them drifted into invented English
+  ("…the state of New York City…", 2026-10-24). LAYERED and specialty-agnostic in core:
   core's general clinical words, then the module's `scribeVocabulary`, then medicine
   names — the clinic's MOST PRESCRIBED first (from its own prescriptions), then its
   own list and its specialty's. Each layer has its own share of the budget, because

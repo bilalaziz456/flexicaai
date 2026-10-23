@@ -14,7 +14,7 @@ import { getClinic } from "@/core/clinics/get-clinic";
 import { report, reportEvent } from "@/core/observability";
 import type { ScribeConfigResolver } from "@/core/types/module";
 import { buildScribeVocabulary } from "@/core/ai/scribe-vocabulary";
-import { asScribeLanguage } from "@/core/ai/scribe-language";
+import { SCRIBE_AUTO_FALLBACK, asScribeLanguage } from "@/core/ai/scribe-language";
 
 /**
  * The scribe run, as a JOB rather than a request (delta D-08 / ADR-020).
@@ -111,9 +111,18 @@ async function finishScribeRun(
     // Words this dictation is likely to contain (core's, the module's, the clinic's
     // medicines). An aid, not a requirement: if it cannot be built the recording is
     // still transcribed, just without the hint — reported, never silent.
+    //
+    // ENGLISH ONLY. The hint is English words, and Whisper told "this is Urdu" (or left
+    // to detect) but handed English text drifts INTO English and loops — real Urdu
+    // dictations came back as "We have been in the state of New York City…" with it and
+    // as plain Urdu-model output without it (2026-10-24). So only an English dictation
+    // gets the hint.
+    const language = asScribeLanguage(run.scribeLanguage);
     let vocabulary: string | null = null;
     try {
-      vocabulary = await buildScribeVocabulary(run.clinicId, clinic?.modulesEnabled ?? [], moduleConfig.vocabulary);
+      if (language === "en") {
+        vocabulary = await buildScribeVocabulary(run.clinicId, clinic?.modulesEnabled ?? [], moduleConfig.vocabulary);
+      }
     } catch (e) {
       report(e, { op: "ai.scribeJob.vocabulary", clinicId: run.clinicId, ids: { visitId: run.id } });
     }
@@ -122,8 +131,9 @@ async function finishScribeRun(
       audio: Buffer.from(audio),
       filename: `recording.${ext}`,
       scribePrompt: moduleConfig.scribePrompt,
-      language: asScribeLanguage(run.scribeLanguage),
+      language,
       vocabulary,
+      autoFallback: SCRIBE_AUTO_FALLBACK,
     });
 
     // The model is an untrusted producer: it returns free-form JSON the prompt only

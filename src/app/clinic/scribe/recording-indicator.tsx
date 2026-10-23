@@ -62,6 +62,10 @@ export function RecordingIndicator({ stream }: { stream: MediaStream }) {
   }, [stream]);
 
   const lit = Math.round(level * BARS);
+  // Which microphone the browser chose. A Bluetooth headset records at phone quality
+  // (nothing above 3.4 kHz) and Urdu came back as nonsense from one (2026-10-24) — so
+  // the doctor sees the name and can switch before dictating, not after.
+  const micName = stream.getAudioTracks()[0]?.label || "";
   const time = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
   return (
@@ -86,6 +90,12 @@ export function RecordingIndicator({ stream }: { stream: MediaStream }) {
           ))}
         </div>
       </div>
+      {micName ? (
+        <p className="text-xs">
+          <span className="text-muted-foreground">Microphone: </span>
+          <span className="font-medium">{micName}</span>
+        </p>
+      ) : null}
       <p className="text-xs text-muted-foreground">
         {!heard && seconds >= 3
           ? "We can't hear you yet. Check the microphone, or move closer to it."
