@@ -14,10 +14,15 @@ const noSubscribe = () => () => {};
 
 /** Paper formats: browser `@page` size + on-screen sheet width/scale + logo height. */
 const FORMATS = {
-  // Thermal's page LENGTH is the receipt's own, measured at print time (thermalPage
-  // below): `size: 80mm auto` is invalid CSS — Chrome drops the whole rule and prints
-  // on its default A4 instead, which is exactly the bug the desk saw (2026-10-18).
-  thermal: { label: "Thermal", page: "80mm 297mm", margin: "3mm", width: "80mm", font: "11px", logoH: "40px" },
+  // Thermal names NO page size (`page: null`, owner's report 2026-10-24). Any size we
+  // name, Chrome CENTRES on the receipt printer's own paper — a POS-80 driver defaults
+  // to an 80 x 3276 mm roll, so the receipt printed in the middle of three metres of
+  // blank paper. Without a size the receipt starts at the top of whatever paper the
+  // printer has, fills its printable width (58 mm or 80 mm rolls alike), and the
+  // printer stops feeding where the content ends. The cost, accepted: "Print thermal"
+  // to an A4 printer or Save as PDF gives a strip at the top of an A4 page; Download
+  // still makes a proper receipt-sized PDF.
+  thermal: { label: "Thermal", page: null, margin: "2mm", width: "80mm", font: "11px", logoH: "40px" },
   a5: { label: "A5", page: "A5", margin: "10mm", width: "148mm", font: "12px", logoH: "52px" },
   a4: { label: "A4", page: "A4", margin: "14mm", width: "210mm", font: "13px", logoH: "64px" },
 } as const;
@@ -68,16 +73,6 @@ export function InvoicePrintFrame({
   const printPaper = printParam && offered.includes(printParam as Fmt) ? (printParam as Fmt) : null;
   const f = FORMATS[printPaper ?? (offered.includes(fmt) ? fmt : offered[0])];
   const sheetRef = useRef<HTMLDivElement>(null);
-  // The sheet's height, so a thermal receipt prints as ONE page exactly as long as it
-  // is. The sheet's padding is the page margin, so its height is the page's.
-  const [sheetMm, setSheetMm] = useState<number | null>(null);
-  useEffect(() => {
-    const el = sheetRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => setSheetMm((el.offsetHeight * 25.4) / 96));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
   // Loaded by a Download link: make this sheet's PDF at the opening paper size and
   // hand it back. Runs once; the page is thrown away afterwards.
   const paperKey = offered.includes(fmt) ? fmt : offered[0];
@@ -97,7 +92,7 @@ export function InvoicePrintFrame({
     void printInFrame();
   }, [printPaper]);
   const css = `@media print {
-  @page { size: ${f === FORMATS.thermal && sheetMm ? `80mm ${Math.ceil(sheetMm) + 4}mm` : f.page}; margin: ${f.margin}; }
+  @page { ${f.page ? `size: ${f.page}; ` : ""}margin: ${f.margin}; }
   /* The app's own chrome only — never a header or aside INSIDE the document, which a
      bare "header" selector hid (the invoice lost its clinic name and number, 2026-10-18). */
   aside:not(.invoice-sheet *), header:not(.invoice-sheet *) { display: none !important; }
