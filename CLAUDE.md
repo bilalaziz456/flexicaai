@@ -41,8 +41,10 @@ When writing any feature, always ask: "Would a dentist, dermatologist, and hair 
   by changing that one module. (Was Supabase Storage.)
 - **AI reasoning:** Anthropic Claude API (scribe, chat)
 - **Voice transcription:** OpenAI Whisper API — or any OpenAI-compatible server via
-  `WHISPER_BASE_URL` (a self-hosted Speaches keeps patient audio on our machine; tested
-  2026-10-20, server deployment not yet decided)
+  `WHISPER_BASE_URL`. A self-hosted **Speaches** (faster-whisper, large-v3-turbo) runs
+  on the server for the TEST site since 2026-10-26, so patient audio stays on our
+  machine; production still points at OpenAI until the owner says otherwise
+  (`.claude/architecture.md` §7).
 - **WhatsApp:** AiSensy (WhatsApp Business API provider)
 - **Background jobs:** system **cron / systemd timers** on the server calling the
   `/api/cron/*` endpoints with the `CRON_SECRET`; add BullMQ + Redis only when needed

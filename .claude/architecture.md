@@ -1315,6 +1315,17 @@ and ADR-011. Do not add a second app instance casually; two things break *silent
 | Job runtimes overlap their schedule | Overlapping cron runs | BullMQ + Redis (`CLAUDE.md` §2) |
 | A second region (GCC) | Availability + "tomorrow" reminders read server-local time | Per-clinic IANA timezone (D-14) |
 
+**A second process now runs beside the app: Speaches** (self-hosted Whisper, 2026-10-26,
+test site only so far). It lives in `~/speaches` (uv venv, ~8 GB with bundled GPU libs
+the CPU ignores), runs under **PM2 as `speaches`** from `~/speaches/run.sh` (so the
+existing PM2 boot unit starts it), and listens on **127.0.0.1:8000 only** — never via
+nginx; the app reaches it through `WHISPER_BASE_URL`. Its settings: test UI off, model
+kept loaded (`STT_MODEL_TTL=-1`), 6 of 8 cores, `nice 10`, full precision. Measured
+there: a 35 s dictation transcribed in ~21 s, ~22 s including Claude's note. One job at
+a time — two doctors dictating together queue. Its model is downloadable again, so it
+needs no backup. It is single-node like everything else here: a second app instance
+would need it reachable from both (§ first row).
+
 **What the ceiling actually is, measured (2026-09-03).** Load-tested on the production
 build against a local Postgres, so treat these as shape rather than absolute numbers:
 
