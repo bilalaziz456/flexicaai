@@ -219,7 +219,8 @@ export default async function PrintAppointmentsPage({
         </p>
       ) : null}
 
-      <p className="pt-2 text-center text-xs text-muted-foreground">{BRAND_POWERED_BY}</p>
+      {/* Full black and semibold, like the invoice's (owner's call, 2026-10-31). */}
+      <p className="border-t-2 border-foreground pt-2 text-center text-sm font-semibold text-foreground">{BRAND_POWERED_BY}</p>
     </div>
   );
 }

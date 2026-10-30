@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/core/db";
 import { clinics } from "@/core/db/schema";
 import { notDeleted } from "@/core/db/tenant";
+import sharp from "sharp";
 import { readFileByKey } from "@/core/integrations/storage";
 import { report } from "@/core/observability";
 
@@ -32,6 +33,44 @@ export async function getClinicLogoDataUri(logoKey: string | null | undefined): 
     // clinic branding — visible to patients, invisible to us until now.
     report(e, { op: "clinics.getLogoDataUri", severity: "warn", ids: { logoKey } });
     return null; // missing file → show nothing
+  }
+}
+
+/**
+ * The logo as a THERMAL printer should get it: pure black on white, empty margins
+ * trimmed, at most 900 px wide (owner's call, 2026-10-31 — clinics just upload their
+ * logo, in colour, and the receipt must still come out clean). A thermal head has no
+ * grey, so left to the printer a coloured logo was dithered into faint speckles. Every
+ * pixel darker than light grey becomes black; lighter ones become paper. The ORIGINAL
+ * is untouched and still prints on A4/A5.
+ *
+ * Cached per storage key: a new upload gets a new key, and converting on every receipt
+ * would cost a decode for the same answer. Any failure falls back to the original.
+ */
+const thermalCache = new Map<string, string>();
+const THERMAL_CACHE_MAX = 200;
+
+export async function getClinicThermalLogoDataUri(logoKey: string | null | undefined): Promise<string | null> {
+  if (!logoKey) return null;
+  const hit = thermalCache.get(logoKey);
+  if (hit) return hit;
+  try {
+    const data = await readFileByKey(logoKey);
+    const png = await sharp(data)
+      .flatten({ background: "#ffffff" }) // transparent areas are paper
+      .grayscale()
+      .threshold(200)
+      .trim({ background: "#ffffff" })
+      .resize({ width: 900, withoutEnlargement: true })
+      .png({ palette: true, colours: 2 })
+      .toBuffer();
+    const uri = `data:image/png;base64,${png.toString("base64")}`;
+    if (thermalCache.size >= THERMAL_CACHE_MAX) thermalCache.clear();
+    thermalCache.set(logoKey, uri);
+    return uri;
+  } catch (e) {
+    report(e, { op: "clinics.getThermalLogo", severity: "warn", ids: { logoKey } });
+    return getClinicLogoDataUri(logoKey);
   }
 }
 

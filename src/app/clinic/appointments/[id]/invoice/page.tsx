@@ -20,7 +20,7 @@ import {
   normalizeDiscountType,
 } from "@/core/appointments/fee";
 import { displayStaffName } from "@/core/types/auth";
-import { getClinicLogoDataUri } from "@/core/clinics/logo";
+import { getClinicLogoDataUri, getClinicThermalLogoDataUri } from "@/core/clinics/logo";
 import { BackLink } from "@/core/ui/back-link";
 import { InvoicePrintFrame } from "@/core/ui/invoice-print";
 
@@ -52,7 +52,10 @@ export default async function InvoicePage({
     notFound();
   }
   const mrnLabel = row.patientMrnLabel;
-  const logo = await getClinicLogoDataUri(clinic?.logoKey);
+  const [logo, thermalLogo] = await Promise.all([
+    getClinicLogoDataUri(clinic?.logoKey),
+    getClinicThermalLogoDataUri(clinic?.logoKey),
+  ]);
 
   const [items, aBill, invoice, ledger] = await Promise.all([
     getAppointmentProcedureItems(clinicId, id),
@@ -92,10 +95,19 @@ export default async function InvoicePage({
       : null;
   const fmtDateTime = (d: Date) => formatDateTime12h(d);
   // Where the bill stands, stamped on the invoice. A void invoice says so above all.
-  const stamp: { label: string; dashed?: boolean } | null = invoice?.voided
+  // A PAID stamp carries the day the bill was settled: the last money in.
+  const lastMoneyIn = history
+    .filter((e) => e.kind !== "refund")
+    .reduce<Date | null>((latest, e) => (!latest || e.occurredAt > latest ? e.occurredAt : latest), null);
+  const stamp: { label: string; dashed?: boolean; date?: string } | null = invoice?.voided
     ? { label: "Void", dashed: true }
     : aBill.paymentStatus === "paid" && aBill.billTotal > 0
-      ? { label: "Paid" }
+      ? {
+          label: "Paid",
+          date: lastMoneyIn
+            ? lastMoneyIn.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+            : undefined,
+        }
       : aBill.paymentStatus === "partial"
         ? { label: "Partly paid", dashed: true }
         : aBill.paymentStatus === "unpaid"
@@ -119,6 +131,7 @@ export default async function InvoicePage({
         defaultFormat={clinic?.invoicePaper ?? "a4"}
         allowed={clinic?.invoicePapersEnabled}
         logo={logo}
+        thermalLogo={thermalLogo}
       >
         {/* ── Header: the clinic, and the document's number as the boldest mark on it. ── */}
         <header className="flex items-start justify-between gap-4 group-data-[paper=thermal]/sheet:flex-col group-data-[paper=thermal]/sheet:items-center group-data-[paper=thermal]/sheet:gap-2 group-data-[paper=thermal]/sheet:text-center">
@@ -178,7 +191,9 @@ export default async function InvoicePage({
               <th className="py-1 text-right font-semibold">Amount</th>
             </tr>
           </thead>
-          <tbody>
+          {/* On thermal the Total below opens with its own heavy rule, so the last
+              item's divider would draw a second line just above it. */}
+          <tbody className="group-data-[paper=thermal]/sheet:[&>tr:last-child]:border-b-0">
             {bill.consultation > 0 ? (
               <tr className="border-b border-black/10">
                 <td className="py-1.5">Consultation</td>
@@ -242,19 +257,32 @@ export default async function InvoicePage({
           </div>
           <div className="mt-2 space-y-0.5">
             <SumRow label="Paid" value={formatPkr(aBill.collected)} />
-            <SumRow label="Outstanding" value={formatPkr(aBill.outstanding)} strong />
+            {/* Nothing owed → no line saying "Rs 0"; the PAID stamp says it (owner's call, 2026-10-31). */}
+            {aBill.outstanding > 0 ? (
+              <SumRow label="Outstanding" value={formatPkr(aBill.outstanding)} strong />
+            ) : null}
           </div>
         </div>
 
         {/* A stamp says where the bill stands at a glance — the first thing the
             patient (or their insurer) looks for. */}
+        {/* Drawn like a rubber stamp (owner's call, 2026-10-31): tilted, a heavy ring
+            around a fine one, and — on PAID — the date it was settled, as a real
+            stamp carries. Tilted on thermal too: the browser rasterises the page, so
+            the head prints a rotated stamp as cleanly as a straight one. */}
         {stamp ? (
-          <div className="mt-3 flex justify-start group-data-[paper=thermal]/sheet:justify-center">
-            <span
-              className={`inline-block -rotate-3 rounded-md border-2 border-black px-3 py-0.5 text-[0.85em] font-bold tracking-[0.3em] uppercase group-data-[paper=thermal]/sheet:rotate-0 ${stamp.dashed ? "border-dashed" : ""}`}
-            >
-              {stamp.label}
-            </span>
+          <div className="mt-4 flex justify-start pl-2 group-data-[paper=thermal]/sheet:justify-center group-data-[paper=thermal]/sheet:pl-0">
+            <div className={`-rotate-[8deg] rounded-lg border-[3px] border-black p-[3px] ${stamp.dashed ? "border-dashed" : ""}`}>
+              <div className="rounded-[5px] border border-black px-4 py-1 text-center">
+                {/* The extra left padding balances the tracking added after the last letter. */}
+                <div className="pl-[0.25em] text-[1.5em] leading-tight font-black tracking-[0.25em] uppercase">
+                  {stamp.label}
+                </div>
+                {stamp.date ? (
+                  <div className="text-[0.7em] font-bold tracking-[0.15em] uppercase">{stamp.date}</div>
+                ) : null}
+              </div>
+            </div>
           </div>
         ) : null}
 

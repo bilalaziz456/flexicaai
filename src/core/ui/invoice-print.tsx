@@ -22,7 +22,9 @@ const FORMATS = {
   // printer stops feeding where the content ends. The cost, accepted: "Print thermal"
   // to an A4 printer or Save as PDF gives a strip at the top of an A4 page; Download
   // still makes a proper receipt-sized PDF.
-  thermal: { label: "Thermal", page: null, margin: "2mm", width: "80mm", font: "11px", logoH: "40px" },
+  // Thermal logo 15 mm tall (owner's call, 2026-10-31) — at 40px (~10.5 mm) a square
+  // logo printed barely 10 mm across on an 80 mm receipt.
+  thermal: { label: "Thermal", page: null, margin: "2mm", width: "80mm", font: "11px", logoH: "15mm" },
   a5: { label: "A5", page: "A5", margin: "10mm", width: "148mm", font: "12px", logoH: "52px" },
   a4: { label: "A4", page: "A4", margin: "14mm", width: "210mm", font: "13px", logoH: "64px" },
 } as const;
@@ -38,6 +40,7 @@ export function InvoicePrintFrame({
   defaultFormat = "a4",
   allowed,
   logo = null,
+  thermalLogo = null,
   fileName,
   children,
 }: {
@@ -51,6 +54,8 @@ export function InvoicePrintFrame({
   allowed?: readonly string[];
   /** Clinic logo as a `data:` URI (server-inlined). Printed in B&W at the top; null = none. */
   logo?: string | null;
+  /** The same logo in pure black and white, used on thermal paper; null = use `logo`. */
+  thermalLogo?: string | null;
   /** What a saved PDF is called, before the date and time ("Invoice INV-…"). */
   fileName?: string;
   children: React.ReactNode;
@@ -73,6 +78,7 @@ export function InvoicePrintFrame({
   const printPaper = printParam && offered.includes(printParam as Fmt) ? (printParam as Fmt) : null;
   const f = FORMATS[printPaper ?? (offered.includes(fmt) ? fmt : offered[0])];
   const sheetRef = useRef<HTMLDivElement>(null);
+  const paperShown: Fmt = printPaper ?? (offered.includes(fmt) ? fmt : offered[0]);
   // Loaded by a Download link: make this sheet's PDF at the opening paper size and
   // hand it back. Runs once; the page is thrown away afterwards.
   const paperKey = offered.includes(fmt) ? fmt : offered[0];
@@ -115,8 +121,19 @@ export function InvoicePrintFrame({
 .invoice-sheet[data-paper="thermal"] :is(.font-medium, .font-semibold, .font-bold, b, strong, th, h1, h2, h3) {
   font-weight: 800 !important;
 }
-/* …except text on a black fill (the Total bar), which stays white. */
-.invoice-sheet[data-paper="thermal"] :is(.bg-black, .bg-black *) { color: #fff !important; }`;
+/* A black FILL (the Total bar) is drawn as thick rules instead (owner's report,
+   2026-10-31). A solid band heats every dot in it at once; the head cannot keep up, so
+   it came out streaky grey with the white figures breaking up — the one line on the
+   receipt that must be read. Black text between two heavy lines stays as prominent and
+   prints cleanly. A4/A5 keep the bar: ink and toner print it fine. */
+.invoice-sheet[data-paper="thermal"] .bg-black {
+  background: transparent !important;
+  border-top: 2px solid #000 !important;
+  border-bottom: 2px solid #000 !important;
+  border-radius: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}`;
 
   return (
     <div>
@@ -170,11 +187,11 @@ export function InvoicePrintFrame({
         }}
       >
         {/* Clinic logo — always black & white; sized to the paper format. */}
-        {logo ? (
+        {(paperShown === "thermal" ? (thermalLogo ?? logo) : logo) ? (
           <div className="mb-2 flex justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={logo}
+              src={(paperShown === "thermal" ? (thermalLogo ?? logo) : logo) ?? undefined}
               alt=""
               className="object-contain"
               style={{
@@ -191,8 +208,10 @@ export function InvoicePrintFrame({
           </div>
         ) : null}
         {children}
-        {/* Brand credit — printed at the foot of every document that uses this frame. */}
-        <div className="mt-4 border-t border-black/10 pt-2 text-center text-[0.7em] opacity-60">
+        {/* Brand credit — printed at the foot of every document that uses this frame.
+            Full black and semibold (owner's call, 2026-10-31): at 70% size and 60%
+            opacity it all but vanished, on thermal paper above all. */}
+        <div className="mt-4 border-t-2 border-black pt-2 text-center text-[0.85em] font-semibold">
           {BRAND_POWERED_BY}
         </div>
       </div>
