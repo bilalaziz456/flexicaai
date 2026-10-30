@@ -953,6 +953,20 @@
       "when": 1792786919801,
       "tag": "0135_prescriptions_from_visit_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "7",
+      "when": 1793301950148,
+      "tag": "0136_medicines_essential_list",
+      "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "7",
+      "when": 1793302995544,
+      "tag": "0137_medicines_essential_list_all_clinics",
+      "breakpoints": true
     }
   ]
 }

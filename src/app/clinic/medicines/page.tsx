@@ -1,4 +1,3 @@
-import { Search } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { listClinicMedicinesPage, listMasterMedicines } from "@/core/clinical/medicines";
@@ -7,7 +6,7 @@ import { MedicineManager } from "@/core/ui/medicine-manager";
 import { PageHeader } from "@/core/ui/page-header";
 import { Pagination } from "@/core/ui/pagination";
 import { TableCard } from "@/core/ui/table-card";
-import { Input } from "@/core/ui/input";
+import { LiveSearchInput } from "@/core/ui/live-search-input";
 import { removeClinicMedicine, saveClinicMedicine } from "./actions";
 
 /**
@@ -48,12 +47,12 @@ export default async function ClinicMedicinesPage({
         title="Medicines"
         description="Medicines your prescriptions and medical history suggest. Add a brand the list below doesn't have; it is kept for your clinic only."
         actions={
-          <form method="get" className="relative w-full sm:w-72">
-            {sp.size ? <input type="hidden" name="size" value={sp.size} /> : null}
-            {sp.mSize ? <input type="hidden" name="mSize" value={sp.mSize} /> : null}
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-            <Input name="q" defaultValue={q} placeholder="Search name or brand" aria-label="Search medicines" className="pl-8" />
-          </form>
+          <LiveSearchInput
+            initial={q}
+            placeholder="Search name or brand"
+            ariaLabel="Search medicines"
+            resetParams={["page", "mPage"]}
+          />
         }
       />
 

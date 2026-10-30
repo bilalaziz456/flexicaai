@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Search } from "lucide-react";
 import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin } from "@/core/auth/admin-permissions";
 import {
@@ -11,7 +10,7 @@ import { SPECIALTY_CATALOG } from "@/config/modules";
 import { MedicineManager } from "@/core/ui/medicine-manager";
 import { PageHeader } from "@/core/ui/page-header";
 import { TableCard } from "@/core/ui/table-card";
-import { Input } from "@/core/ui/input";
+import { LiveSearchInput } from "@/core/ui/live-search-input";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
@@ -78,18 +77,12 @@ export default async function AdminMedicinesPage({
           {tab("retired", `Retired (${counts.retired})`)}
           {tab("clinics", "Added by clinics")}
         </div>
-        <form method="get" className="relative w-full sm:w-72">
-          {view !== "list" ? <input type="hidden" name="view" value={view} /> : null}
-          {sp.size ? <input type="hidden" name="size" value={sp.size} /> : null}
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <Input
-            name="q"
-            defaultValue={q}
-            placeholder={view === "clinics" ? "Search medicine or clinic" : "Search name or brand"}
-            aria-label="Search medicines"
-            className="pl-8"
-          />
-        </form>
+        <LiveSearchInput
+          key={view}
+          initial={q}
+          placeholder={view === "clinics" ? "Search medicine or clinic" : "Search name or brand"}
+          ariaLabel="Search medicines"
+        />
       </div>
 
       {/* Above the list (owner's call, 2026-10-20): the count and the page size are

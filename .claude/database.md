@@ -1426,6 +1426,31 @@ these for churn-risk + usage/cost anomaly flags.
   local brands, form, a common strength and its specialty tags. `ON CONFLICT DO NOTHING`,
   so a name already on the list is skipped, never overwritten. Names only — still to be
   read through by a doctor (brands and strengths), and edited at `/admin/medicines`.
+- Migration **`0136`** is data-only: 91 more medicines from Pakistan's **National
+  Essential Medicines List 2025** (the Ministry of NHS's gazette adoption of the WHO
+  Model List, 24th list, notified 20 Oct 2025) — the ones a dental, skin or hair clinic
+  prescribes or meets in a medical history and that `0132`/`0133` did not have.
+  Hospital and programme medicines (cancer, HIV, TB, vaccines, IV fluids, anaesthesia
+  gases) were left out, and so were four found not to be sold in Pakistan. Brands are
+  the main ones on Pakistani listings (drugsinfo.pk and pharmacy sites), veterinary
+  products excluded; an empty `brands` means it is sold under its generic name. Same
+  rules as `0133`: `ON CONFLICT DO NOTHING`, names only, still to be read through by a
+  doctor.
+- Migration **`0137`** is data-only: the other 144 medicines on that list, judged for
+  EVERY clinic on the platform — heart, ENT, children's, gynae, chest, general — since
+  the master list is company-wide and `0136` had judged only dental/skin/hair. Children's
+  vaccines, TB first-line, HIV and hepatitis tablets, antimalarials, cancer and hormone
+  tablets, gynae, eye drops, psychiatry, clinic injections. Still out: anaesthesia, IV
+  fluids, blood products, ICU and labour-ward drugs, drip chemotherapy, reserve
+  antibiotics, devices, disinfectants, and anything with no Pakistani listing. **A brand
+  sits under the ONE medicine it is, never under each ingredient** — every generic AND
+  every brand is its own suggestion, de-duplicated by text, so a brand under two medicines
+  is labelled with whichever comes first. Combination vaccines are therefore their own
+  entries (MMR → Priorix, 6-in-1 → Infanrix Hexa/Hexaxim, 5-in-1 → Easyfive-TT) and the
+  single-disease vaccines carry no combination brand. An empty `brands` usually means
+  programme supply (HIV, TB). No specialty tag except six
+  skin medicines — there is no heart/ENT/children's module, so `specialties` (module ids)
+  has nothing to name.
 - Migration **`0134`** adds `visits.scribe_language` (text, nullable) — the language
   the doctor said they dictated in ("en" / "ur"; NULL = let speech-to-text detect),
   stored so a retry and the recovery sweep transcribe the recording the same way.
