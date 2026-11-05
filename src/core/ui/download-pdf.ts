@@ -35,6 +35,124 @@ function keep(node: HTMLElement): boolean {
 
 type PdfOpts = { paper: PdfPaper; fileName?: string; includesMargin?: boolean };
 
+/**
+ * Open out every scroll box inside `el` for the duration of the capture, and return
+ * the function that puts them back.
+ *
+ * WHY: a picture of a scroll box is a picture of its scrollbars. The P&L's By-period
+ * table sits in an `overflow-x-auto` wrapper (which makes the Y axis scrollable too —
+ * CSS will not let one axis stay `visible`), and in the copy html-to-image draws, the
+ * content came out a hair larger than the box: the PDF showed both scrollbars, the
+ * Profit column cut off and the last rows missing (owner's report, 2026-11-06). Paper
+ * has no scrolling, so the file must show everything the box holds. Done on the LIVE
+ * element because html-to-image copies computed styles from it; the change lasts only
+ * as long as the capture.
+ */
+function expandScrollAreas(el: HTMLElement): () => void {
+  const changed: {
+    node: HTMLElement;
+    overflow: string;
+    maxHeight: string;
+    height: string;
+    top: number;
+    left: number;
+  }[] = [];
+  const scrolls = (v: string) => v === "auto" || v === "scroll";
+  for (const node of [el, ...el.querySelectorAll<HTMLElement>("*")]) {
+    const cs = getComputedStyle(node);
+    if (!scrolls(cs.overflowX) && !scrolls(cs.overflowY)) continue;
+    changed.push({
+      node,
+      overflow: node.style.overflow,
+      maxHeight: node.style.maxHeight,
+      height: node.style.height,
+      // Opening a box out resets its scroll; the reader should not lose their place.
+      top: node.scrollTop,
+      left: node.scrollLeft,
+    });
+    node.style.overflow = "visible";
+    node.style.maxHeight = "none";
+    if (scrolls(cs.overflowY)) node.style.height = "auto";
+  }
+  return () => {
+    for (const c of changed) {
+      c.node.style.overflow = c.overflow;
+      c.node.style.maxHeight = c.maxHeight;
+      c.node.style.height = c.height;
+      c.node.scrollTop = c.top;
+      c.node.scrollLeft = c.left;
+    }
+  };
+}
+
+/**
+ * Hide the screen controls on the LIVE page for the duration of the capture.
+ *
+ * WHY: `keep` already leaves them out of the drawn copy, but the page breaks below are
+ * measured on the live page — and with the filter bar still in place there, every
+ * measurement would sit that much lower than the same thing in the picture, putting
+ * the breaks in the wrong place. Hiding them here makes the two layouts identical.
+ * Only the outermost marked node is touched; its children go with it.
+ */
+function hideScreenControls(el: HTMLElement): () => void {
+  const hidden: { node: HTMLElement; display: string }[] = [];
+  for (const node of el.querySelectorAll<HTMLElement>(".no-print, [data-no-pdf]")) {
+    if (node.parentElement?.closest(".no-print, [data-no-pdf]")) continue;
+    hidden.push({ node, display: node.style.display });
+    node.style.display = "none";
+  }
+  return () => {
+    for (const h of hidden) h.node.style.display = h.display;
+  };
+}
+
+/** Blocks a page break should not cut through, if they fit on a page at all. */
+const KEEP_TOGETHER = '[data-slot="card"], [data-pdf-keep], tr, li, p, h1, h2, h3, h4, svg';
+
+/**
+ * The vertical extent of every keep-together block, in CSS px from the top of `el`.
+ * Measured on the live page in the same state the capture sees.
+ */
+function measureBlocks(el: HTMLElement): { top: number; bottom: number }[] {
+  const origin = el.getBoundingClientRect().top;
+  const out: { top: number; bottom: number }[] = [];
+  for (const node of el.querySelectorAll<HTMLElement>(KEEP_TOGETHER)) {
+    const r = node.getBoundingClientRect();
+    if (r.height <= 0) continue;
+    out.push({ top: r.top - origin, bottom: r.bottom - origin });
+  }
+  return out;
+}
+
+/**
+ * Where to end the page that starts at `top`, given room for `sliceH`.
+ *
+ * WHY: the PDF is one tall picture cut into pages, and cutting at a fixed height went
+ * straight through the P&L's "Expenses by category" and "Doctor shares" cards — half a
+ * donut on one page, half on the next (owner's report, 2026-11-06). So the cut moves UP
+ * to the top of any block it would split, provided that block fits on a page by itself
+ * (a block taller than a page has to be split somewhere; then its rows, which are
+ * blocks too, keep the cut between two rows). Repeated until nothing is split, since
+ * moving up can land inside another block. Never moves back to `top`, or a page would
+ * be empty and the loop would not advance.
+ */
+function pageBreak(top: number, sliceH: number, fullH: number, blocks: { top: number; bottom: number }[]): number {
+  if (top + sliceH >= fullH) return fullH;
+  let cut = top + sliceH;
+  for (let moved = true; moved; ) {
+    moved = false;
+    for (const b of blocks) {
+      const fits = b.bottom - b.top <= sliceH;
+      if (fits && b.top > top && b.top < cut && b.bottom > cut) {
+        cut = b.top;
+        moved = true;
+      }
+    }
+  }
+  // Leave a little room so a cut exactly on a border does not shave a pixel off it.
+  return cut > top + 1 ? cut : top + sliceH;
+}
+
 /** Make the PDF of an element: its bytes and the file name it should be saved as. */
 export async function buildElementPdf(el: HTMLElement, opts: PdfOpts): Promise<{ bytes: Uint8Array; name: string }> {
   const { paper } = opts;
@@ -42,14 +160,27 @@ export async function buildElementPdf(el: HTMLElement, opts: PdfOpts): Promise<{
   // still a few hundred KB a page as JPEG.
   // The on-screen sheet's border, rounding and shadow are screen decoration — paper
   // has none — so the copy that is drawn drops them (the original is untouched).
-  const dataUrl = await toJpeg(el, {
-    pixelRatio: 2,
-    quality: 0.92,
-    backgroundColor: "#ffffff",
-    filter: keep,
-    cacheBust: true,
-    style: { border: "none", borderRadius: "0", boxShadow: "none" },
-  });
+  const restoreControls = hideScreenControls(el);
+  const restoreScroll = expandScrollAreas(el);
+  let dataUrl: string;
+  // Block positions in CSS px, and the element's width to convert them to the PDF's.
+  let blocks: { top: number; bottom: number }[] = [];
+  let cssWidth = 1;
+  try {
+    blocks = measureBlocks(el);
+    cssWidth = el.getBoundingClientRect().width || 1;
+    dataUrl = await toJpeg(el, {
+      pixelRatio: 2,
+      quality: 0.92,
+      backgroundColor: "#ffffff",
+      filter: keep,
+      cacheBust: true,
+      style: { border: "none", borderRadius: "0", boxShadow: "none" },
+    });
+  } finally {
+    restoreScroll();
+    restoreControls();
+  }
   const pdf = await PDFDocument.create();
   // The data URI goes to pdf-lib AS IS. Reading it back with `fetch(dataUrl)` was the
   // obvious move and broke every download: the panels' CSP allows `connect-src 'self'`
@@ -71,16 +202,20 @@ export async function buildElementPdf(el: HTMLElement, opts: PdfOpts): Promise<{
   } else {
     const pageH = paper.heightMm * PT_PER_MM;
     const sliceH = pageH - margin * 2;
-    // Each page shows the next band of the image; the band is placed so only it falls
-    // inside the page, and the margin is painted white over any overflow.
-    for (let top = 0; top < fullH; top += sliceH) {
+    // Block positions in the PDF's units (points), the same scale as the picture.
+    const ptPerCss = contentW / cssWidth;
+    const ptBlocks = blocks.map((b) => ({ top: b.top * ptPerCss, bottom: b.bottom * ptPerCss }));
+    const white = { color: rgb(1, 1, 1) };
+    // Each page shows the next band of the image, from `top` to the break chosen for
+    // it; the band is placed so it starts at the top margin, and everything outside it
+    // — the margins, and the next band showing below a short one — is painted white.
+    for (let top = 0; top < fullH - 0.5; ) {
+      const bottom = pageBreak(top, sliceH, fullH, ptBlocks);
       const page = pdf.addPage([pageW, pageH]);
       page.drawImage(jpg, { x: margin, y: pageH - margin - fullH + top, width: contentW, height: fullH });
-      if (margin > 0) {
-        const white = { color: rgb(1, 1, 1) };
-        page.drawRectangle({ x: 0, y: pageH - margin, width: pageW, height: margin, ...white });
-        page.drawRectangle({ x: 0, y: 0, width: pageW, height: margin, ...white });
-      }
+      page.drawRectangle({ x: 0, y: pageH - margin, width: pageW, height: margin, ...white });
+      page.drawRectangle({ x: 0, y: 0, width: pageW, height: pageH - margin - (bottom - top), ...white });
+      top = bottom;
     }
   }
 

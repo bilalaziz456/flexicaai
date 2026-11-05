@@ -201,8 +201,8 @@ export async function GET(req: Request) {
       ],
     );
     const byPeriod = toCsv(
-      ["Period", "Revenue", "Costs", "Profit"],
-      pl.plBuckets.map((b) => [b.label, b.revenue, b.share + b.expense, b.profit]),
+      ["Period", "Revenue", "Doctor shares", "Expenses", "Profit"],
+      pl.plBuckets.map((b) => [b.label, b.revenue, b.share, b.expense, b.profit]),
     );
     csv = `Profit & Loss,${range.from} to ${range.to}\r\n\r\n${summary}\r\n\r\nBy period\r\n${byPeriod}`;
   } else if (type === "history") {

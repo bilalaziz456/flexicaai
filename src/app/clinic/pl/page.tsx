@@ -1,4 +1,6 @@
+import { Fragment } from "react";
 import { notFound } from "next/navigation";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/core/ui/table";
 import { EmptyState } from "@/core/ui/empty-state";
 import { buttonVariants } from "@/core/ui/button";
 import { cn } from "@/core/lib/utils";
@@ -9,7 +11,8 @@ import { requireWorkspace } from "@/core/auth/user";
 import { clinicHasFeature } from "@/core/lib/features";
 import Link from "next/link";
 import { precedingRange, resolveSalesRange } from "@/core/sales/report";
-import { getProfitAndLoss } from "@/core/finance/pl";
+import { getProfitAndLoss, listPlExpenseNotes, PL_EXPENSE_NOTES_LIMIT } from "@/core/finance/pl";
+import { can } from "@/core/auth/permissions";
 import { getOutstandingTotal } from "@/core/finance/receivables";
 import {
   Card,
@@ -28,6 +31,8 @@ import {
   streakInsight,
 } from "@/core/ui/charts/insights";
 import { SalesFilters } from "@/core/ui/report-filters";
+import { PrintFileName } from "@/core/ui/print-file-name";
+import { PlDownloadPdf } from "./pl-download";
 import { PlByPeriodTable } from "./pl-tables";
 
 const money = new Intl.NumberFormat("en-PK", {
@@ -35,6 +40,14 @@ const money = new Intl.NumberFormat("en-PK", {
   currency: "PKR",
   maximumFractionDigits: 0,
 });
+const dayFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
+// Same print rules as the other report pages: no app chrome, no screen controls.
+const PRINT_CSS = `
+@media print {
+  aside, header, .no-print { display: none !important; }
+  main { padding: 0 !important; max-width: none !important; }
+}`;
 
 /**
  * Profit & Loss (Finance) — collected revenue − doctor shares − expenses = net
@@ -54,13 +67,23 @@ export default async function ProfitLossPage({
 
   const sp = await searchParams;
   const range = resolveSalesRange(sp.period, sp.from, sp.to, clinic?.createdAt);
-  const [pl, outstanding] = await Promise.all([
+  // Notes say what the money was FOR ("salary – Ayesha"), which is more than the P&L
+  // grant implies, so they are shown only to someone who may read the Expenses page.
+  const showExpenseNotes = can(user, "expenses", "view");
+  const [pl, outstanding, expenseNotes] = await Promise.all([
     // The preceding window comes back from the same aggregation (ADR-031), so the
     // deltas on the cards below cost no extra queries.
     getProfitAndLoss(clinicId, range, { comparedTo: precedingRange(range) }),
     // All-time (point-in-time) receivable — a memo, deliberately NOT in the P&L math.
     getOutstandingTotal(clinicId),
+    showExpenseNotes ? listPlExpenseNotes(clinicId, range) : null,
   ]);
+  // In the donut's order (largest category first), so the list reads alongside it.
+  const notesByCategory = expenseNotes
+    ? pl.byExpenseCategory
+        .map((c) => ({ name: c.name, items: expenseNotes.byCategory.find((g) => g.name === c.name)?.items ?? [] }))
+        .filter((c) => c.items.length > 0)
+    : [];
 
   // Preserve the active period on the CSV export link.
   const exportParams = new URLSearchParams({ type: "pl", period: range.period });
@@ -68,6 +91,14 @@ export default async function ProfitLossPage({
     exportParams.set("from", range.from);
     exportParams.set("to", range.to);
   }
+
+  // The period filter is a screen control and stays out of the print/PDF, so the
+  // period is spelled out under the title — a P&L that does not say WHEN is useless.
+  const lastDay = new Date(range.end.getTime() - 1);
+  const rangeLabel =
+    dayFmt.format(range.start) === dayFmt.format(lastDay)
+      ? dayFmt.format(range.start)
+      : `${dayFmt.format(range.start)} – ${dayFmt.format(lastDay)}`;
 
   const loss = pl.netProfit < 0;
   // Every card's sparkline is a series the chart below already draws — one figure,
@@ -139,29 +170,38 @@ export default async function ProfitLossPage({
 
   return (
     <div className="space-y-6">
+      <PrintFileName name={`Profit & Loss ${rangeLabel}`} />
+      <style dangerouslySetInnerHTML={{ __html: PRINT_CSS }} />
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Profit &amp; Loss</h1>
           <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
-            What the clinic kept after doctor shares and expenses. On collected revenue.
+            What the clinic kept after doctor shares and expenses. On collected revenue ·{" "}
+            <span className="whitespace-nowrap font-medium text-foreground">{rangeLabel}</span>
           </p>
         </div>
-        <a
-          href={`/api/finance/export?${exportParams.toString()}`}
-          className={cn(buttonVariants({ variant: "outline" }))}
-        >
-          <Download aria-hidden="true" /> CSV
-        </a>
+        <div className="no-print flex flex-wrap items-center gap-2">
+          <a
+            href={`/api/finance/export?${exportParams.toString()}`}
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+          >
+            <Download aria-hidden="true" /> CSV
+          </a>
+          <PlDownloadPdf />
+        </div>
       </div>
 
-      <SalesFilters
-        period={range.period}
-        from={range.from}
-        to={range.to}
-        doctorId=""
-        doctors={[]}
-        showDoctor={false}
-      />
+      <div className="no-print">
+        <SalesFilters
+          period={range.period}
+          from={range.from}
+          to={range.to}
+          doctorId=""
+          doctors={[]}
+          showDoctor={false}
+        />
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((c) => (
@@ -232,7 +272,7 @@ export default async function ProfitLossPage({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">By period</CardTitle>
-          <CardDescription>Revenue, costs (shares + expenses) and profit.</CardDescription>
+          <CardDescription>Revenue, doctor shares, expenses and profit.</CardDescription>
         </CardHeader>
         <CardContent>
           <PlByPeriodTable rows={pl.plBuckets} />
@@ -286,6 +326,71 @@ export default async function ProfitLossPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Expense notes — a card of its own, full width, rather than inside the
+          category card: there it made that card several times taller than the
+          doctor-shares card beside it, which then sat mostly empty. */}
+      {notesByCategory.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Expense notes</CardTitle>
+            <CardDescription>What the money in each category above was for.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* One table, grouped by category, rather than a column per category:
+                categories are rarely the same size (eight notes beside one), and side-by-
+                side columns then end at different heights with a hole beside the long
+                one. Rows line the dates and amounts up across every category. Bounded
+                by PL_EXPENSE_NOTES_LIMIT, so it never needs its own scroll box. */}
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Note</TableHead>
+                  <TableHead className="w-32">Date</TableHead>
+                  <TableHead className="hidden w-48 md:table-cell">Vendor</TableHead>
+                  <TableHead className="w-28 text-right">Amount</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {notesByCategory.map((c) => (
+                  <Fragment key={c.name}>
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={4} className="pt-5 pb-1.5">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {c.name}
+                        </span>
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {c.items.length} {c.items.length === 1 ? "note" : "notes"}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                    {c.items.map((e) => (
+                      <TableRow key={e.id}>
+                        <TableCell className="whitespace-normal break-words">{e.note}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {dayFmt.format(new Date(`${e.incurredOn}T12:00:00`))}
+                        </TableCell>
+                        <TableCell className="hidden text-muted-foreground md:table-cell">
+                          {e.vendor ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{money.format(e.amount)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </Fragment>
+                ))}
+              </TableBody>
+            </Table>
+            {expenseNotes?.truncated ? (
+              <p className="text-xs text-muted-foreground">
+                Showing the latest {PL_EXPENSE_NOTES_LIMIT} noted expenses.{" "}
+                <Link href="/clinic/expenses" className="underline underline-offset-4">
+                  See all on Expenses
+                </Link>
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

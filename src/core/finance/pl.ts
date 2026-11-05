@@ -320,3 +320,64 @@ function mergeByName(
     .map(([name, amount]) => ({ name, amount }))
     .sort((x, y) => y.amount - x.amount);
 }
+
+/** One noted expense, as the P&L's "Expenses by category" card lists it. */
+export type PlExpenseNote = {
+  id: string;
+  incurredOn: string;
+  amount: number;
+  vendor: string | null;
+  note: string;
+};
+
+/** The P&L lists at most this many noted expenses; the Expenses page has the rest. */
+export const PL_EXPENSE_NOTES_LIMIT = 200;
+
+/**
+ * The NOTED expenses in `range`, grouped by category — what the money in each slice
+ * of the P&L's expense donut was actually for. Only rows with a note: a list of bare
+ * amounts would repeat the donut without explaining it.
+ *
+ * Kept out of `getProfitAndLoss` deliberately: that function also feeds the
+ * dashboard, which shows no notes and should not pay for this query. Bounded by
+ * `PL_EXPENSE_NOTES_LIMIT` (newest and largest first) so a busy year cannot pull
+ * every expense into a report page; `truncated` says when the bound was hit.
+ */
+export async function listPlExpenseNotes(
+  clinicId: string,
+  range: ResolvedRange,
+): Promise<{ byCategory: { name: string; items: PlExpenseNote[] }[]; truncated: boolean }> {
+  const rows = await db
+    .select({
+      id: expenses.id,
+      category: expenseCategories.name,
+      incurredOn: expenses.incurredOn,
+      amount: expenses.amount,
+      vendor: expenses.vendor,
+      note: expenses.note,
+    })
+    .from(expenses)
+    .leftJoin(expenseCategories, eq(expenseCategories.id, expenses.categoryId))
+    .where(
+      byClinic(
+        expenses.clinicId,
+        clinicId,
+        notDeleted(expenses.deletedAt),
+        and(gte(expenses.incurredOn, isoDate(range.start)), lt(expenses.incurredOn, isoDate(range.end))),
+        sql`nullif(btrim(${expenses.note}), '') is not null`,
+      ),
+    )
+    .orderBy(desc(expenses.incurredOn), desc(expenses.amount))
+    .limit(PL_EXPENSE_NOTES_LIMIT + 1);
+
+  const truncated = rows.length > PL_EXPENSE_NOTES_LIMIT;
+  const groups = new Map<string, PlExpenseNote[]>();
+  for (const r of rows.slice(0, PL_EXPENSE_NOTES_LIMIT)) {
+    // Same fallback name as `byExpenseCategory`, so the page can match the two up.
+    const name = r.category ?? "Uncategorized";
+    const list = groups.get(name) ?? [];
+    list.push({ id: r.id, incurredOn: r.incurredOn, amount: r.amount, vendor: r.vendor, note: (r.note ?? "").trim() });
+    groups.set(name, list);
+  }
+  return { byCategory: [...groups.entries()].map(([name, items]) => ({ name, items })), truncated };
+}
