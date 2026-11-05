@@ -96,7 +96,13 @@ export default async function InvoicePage({
       <TabTitle title={`Invoice · ${invoice.label}`} />
       <FlashToast message={created ? `Invoice ${invoice.label} created.` : null} params={["created"]} />
       {/* "Save & print <size>" on the New invoice form: print it now. */}
-      <PrintOnArrival href={`/clinic/invoices/${id}/print`} paper={printPaper} printId={printId} />
+      {/* After any print here, back to the list (owner's call, 2026-11-06). */}
+      <PrintOnArrival
+        href={`/clinic/invoices/${id}/print`}
+        paper={printPaper}
+        printId={printId}
+        afterPrintHref="/clinic/invoices"
+      />
       <div>
         <BackLink href="/clinic/invoices">Back to invoices</BackLink>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
@@ -122,6 +128,7 @@ export default async function InvoicePage({
             <PrintLinks
               href={`/clinic/invoices/${id}/print`}
               papers={offeredPapers(clinic?.invoicePapersEnabled)}
+              afterPrintHref="/clinic/invoices"
               single="Print invoice"
               className={buttonVariants()}
             />
@@ -221,6 +228,7 @@ export default async function InvoicePage({
         </CardHeader>
         <CardContent>
           <PaymentPanel
+            afterPrintHref="/clinic/invoices"
             appointmentId={id}
             billTotal={aBill.billTotal}
             collected={aBill.collected}

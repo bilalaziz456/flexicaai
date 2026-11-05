@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, Printer } from "lucide-react";
 import { toast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
@@ -25,6 +26,7 @@ export function PrintLinks({
   papers,
   className,
   single = "Print",
+  afterPrintHref,
 }: {
   /** The print page, exactly as its own link opens it. */
   href: string;
@@ -33,7 +35,11 @@ export function PrintLinks({
   className?: string;
   /** The label when only one size is offered. */
   single?: string;
+  /** Where to go once the print dialog closes — the list the document belongs to
+   *  (owner's call, 2026-11-06: a printed invoice or appointment is finished with). */
+  afterPrintHref?: string;
 }) {
+  const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
 
   const run = (paper: string) => {
@@ -42,6 +48,7 @@ export function PrintLinks({
     printDocument(href, paper, {
       onOpened: () => setBusy(null),
       onDone: () => setBusy(null),
+      onPrinted: afterPrintHref ? () => router.push(afterPrintHref) : undefined,
     });
   };
 
@@ -84,7 +91,14 @@ export function PrintLinks({
 export function printDocument(
   href: string,
   paper: string,
-  on: { onOpened?: () => void; onDone?: () => void } = {},
+  on: {
+    onOpened?: () => void;
+    onDone?: () => void;
+    /** The dialog opened and has now closed. NOT called when it never opened. The
+     *  browser does not say whether the person printed or pressed Cancel, so this
+     *  runs after either. */
+    onPrinted?: () => void;
+  } = {},
 ): void {
   const frame = document.createElement("iframe");
   // Inside the viewport and invisible — Chrome pauses a frame it treats as out of
@@ -117,7 +131,10 @@ export function printDocument(
     if (e.data.stage === "opened") {
       opened = true;
       on.onOpened?.();
-    } else cleanup();
+    } else {
+      cleanup();
+      if (opened) on.onPrinted?.();
+    }
   };
   // Only for a page that never got as far as opening the dialog.
   const timer = setTimeout(() => {

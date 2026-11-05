@@ -318,6 +318,8 @@ export async function AppointmentDetail({
           </CardHeader>
           <CardContent>
             <PaymentPanel
+              // After printing the visit's invoice, back to where this page came from.
+              afterPrintHref={backHref}
               appointmentId={appt.id}
               billTotal={aBill.billTotal}
               collected={aBill.collected}

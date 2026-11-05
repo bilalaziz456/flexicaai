@@ -2,6 +2,7 @@
 
 import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Printer, Undo2 } from "lucide-react";
 import {
   collectPayment,
@@ -75,6 +76,7 @@ export function PaymentPanel({
   papers = ["a4"],
   extra = 0,
   canKeepAsCredit = false,
+  afterPrintHref,
 }: {
   appointmentId: string;
   billTotal: number;
@@ -99,7 +101,10 @@ export function PaymentPanel({
   extra?: number;
   /** May move the extra to the patient's credit (`billing:edit`). */
   canKeepAsCredit?: boolean;
+  /** Where to go once an invoice print dialog closes (see `PrintLinks`). */
+  afterPrintHref?: string;
 }) {
+  const router = useRouter();
   // Labels come from the database (ADR-027); read once, since a hook cannot run
   // inside a cell or map callback.
   const kindLabels = useVocabulary("payment_kinds");
@@ -114,7 +119,9 @@ export function PaymentPanel({
     async (prev, fd) => {
       const res = await collectPayment(appointmentId, prev, fd);
       const paper = String(fd.get("then") ?? "").replace(/^print:/, "");
-      if (res.saved && invoiceHref && paper && papers.includes(paper)) printDocument(invoiceHref, paper);
+      if (res.saved && invoiceHref && paper && papers.includes(paper)) printDocument(invoiceHref, paper, {
+          onPrinted: afterPrintHref ? () => router.push(afterPrintHref) : undefined,
+        });
       return res;
     },
     {},
@@ -374,6 +381,7 @@ export function PaymentPanel({
             <PrintLinks
               href={invoiceHref}
               papers={papers}
+              afterPrintHref={afterPrintHref}
               single="Print invoice"
               className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
             />

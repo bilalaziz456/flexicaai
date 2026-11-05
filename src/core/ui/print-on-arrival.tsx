@@ -46,10 +46,13 @@ export function PrintOnArrival({
   href,
   paper,
   printId,
+  afterPrintHref,
 }: {
   href: string;
   paper: string | null | undefined;
   printId: string | null | undefined;
+  /** Where to go once the print dialog closes (see `PrintLinks`). */
+  afterPrintHref?: string;
 }) {
   const router = useRouter();
   const done = useRef(false);
@@ -63,7 +66,9 @@ export function PrintOnArrival({
     router.replace(url.pathname + url.search + url.hash, { scroll: false });
     if (alreadyPrinted(printId)) return;
     markPrinted(printId);
-    printDocument(href, paper);
-  }, [href, paper, printId, router]);
+    printDocument(href, paper, {
+      onPrinted: afterPrintHref ? () => router.push(afterPrintHref) : undefined,
+    });
+  }, [href, paper, printId, router, afterPrintHref]);
   return null;
 }

@@ -25,7 +25,13 @@ export default async function ClinicAppointmentDetailPage({
           staff can collect the fee / print straight away). */}
       <FlashToast message={sp.created ? "Appointment scheduled." : null} />
       {/* "Save & print <size>" on the booking form: print its invoice now. */}
-      <PrintOnArrival href={`/clinic/appointments/${id}/invoice`} paper={sp.printPaper} printId={sp.printId} />
+      {/* Then back to the list, as after any print here (owner's call, 2026-11-06). */}
+      <PrintOnArrival
+        href={`/clinic/appointments/${id}/invoice`}
+        paper={sp.printPaper}
+        printId={sp.printId}
+        afterPrintHref="/clinic/appointments"
+      />
     </>
   );
 }
