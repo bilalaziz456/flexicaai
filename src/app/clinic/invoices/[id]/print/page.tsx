@@ -11,7 +11,7 @@ export default async function InvoicePrintPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string }>;
+  searchParams: Promise<{ created?: string; print?: string }>;
 }) {
   const sp = await searchParams;
   return AppointmentInvoicePrint({ params, searchParams: Promise.resolve({ ...sp, from: "invoice" }) });

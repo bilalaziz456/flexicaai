@@ -95,6 +95,12 @@ note above it; obvious logic gets none.
   closes (`afterPrintHref` on `PrintLinks` / `PrintOnArrival` / `PaymentPanel`; owner's
   call, 2026-11-06). The browser does not say whether the person printed or cancelled,
   so either one returns.
+  **An invoice prints before React starts** (`core/ui/early-print.tsx`, 2026-11-06): in
+  the hidden frame the server draws the sheet at the `?print=` size, and a nonce'd inline
+  script opens the dialog once it is in place, instead of waiting ~2s for hydration.
+  `printInFrame` stands down when it has (`__flexicaPrintStarted`). It nudges React's
+  streamed-content reveal (`$RV`), which is internal — if that is ever renamed it is
+  skipped, and printing is simply slower again.
   **Except a patient's own documents** — statement, clinical chart, treatment estimate —
   which are A4 only (`PATIENT_DOCUMENT_PAPERS`, owner's call 2026-10-18): pass it as
   both the buttons' `papers` and the print frame's `allowed`, so neither offers another size.

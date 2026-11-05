@@ -313,6 +313,11 @@ export type PrintMessage = { type: "flexica-print"; stage: "opened" | "done" };
  * the frame. The dialog is the browser's own — no website may print without it.
  */
 export async function printInFrame(): Promise<void> {
+  // An invoice may already have opened the dialog before React started (EarlyPrint);
+  // the flag also covers React's development double-run. One dialog, never two.
+  const w = window as Window & { __flexicaPrintStarted?: boolean };
+  if (w.__flexicaPrintStarted) return;
+  w.__flexicaPrintStarted = true;
   const tell = (stage: PrintMessage["stage"]) => {
     const msg: PrintMessage = { type: "flexica-print", stage };
     window.parent.postMessage(msg, window.location.origin);

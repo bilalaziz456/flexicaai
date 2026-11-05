@@ -23,6 +23,8 @@ import { displayStaffName } from "@/core/types/auth";
 import { getClinicLogoDataUri, getClinicThermalLogoDataUri } from "@/core/clinics/logo";
 import { BackLink } from "@/core/ui/back-link";
 import { InvoicePrintFrame } from "@/core/ui/invoice-print";
+import { EarlyPrint } from "@/core/ui/early-print";
+import { headers } from "next/headers";
 
 /**
  * Printable invoice for an appointment (Finance). Thermal / A5 / A4 via the print
@@ -36,12 +38,12 @@ export default async function InvoicePage({
   params: Promise<{ id: string }>;
   /** `from=invoice`: opened from the Invoices pages, so Back returns to the invoice
    *  rather than to the appointment. `created=1`: just saved with "Save & print". */
-  searchParams: Promise<{ from?: string; created?: string }>;
+  searchParams: Promise<{ from?: string; created?: string; print?: string }>;
 }) {
   const user = await requireWorkspace("billing");
   const { clinicId } = user;
   const { id } = await params;
-  const { from, created } = await searchParams;
+  const { from, created, print } = await searchParams;
   const fromInvoice = from === "invoice";
 
   const row = await getAppointmentForDocument(clinicId, id);
@@ -132,6 +134,7 @@ export default async function InvoicePage({
         allowed={clinic?.invoicePapersEnabled}
         logo={logo}
         thermalLogo={thermalLogo}
+        serverPrintPaper={print ?? null}
       >
         {/* ── Header: the clinic, and the document's number as the boldest mark on it. ── */}
         <header className="flex items-start justify-between gap-4 group-data-[paper=thermal]/sheet:flex-col group-data-[paper=thermal]/sheet:items-center group-data-[paper=thermal]/sheet:gap-2 group-data-[paper=thermal]/sheet:text-center">
@@ -299,6 +302,8 @@ export default async function InvoicePage({
           </div>
         </footer>
       </InvoicePrintFrame>
+      {/* A Print button's hidden frame: open the dialog without waiting for React. */}
+      {print ? <EarlyPrint nonce={(await headers()).get("x-nonce")} /> : null}
     </div>
   );
 }

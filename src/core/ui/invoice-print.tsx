@@ -42,9 +42,13 @@ export function InvoicePrintFrame({
   logo = null,
   thermalLogo = null,
   fileName,
+  serverPrintPaper = null,
   children,
 }: {
   defaultFormat?: string;
+  /** The `?print=` size, read by the server page, so the HTML is already drawn at it
+   *  and can be printed before React starts (`EarlyPrint`). */
+  serverPrintPaper?: string | null;
   /**
    * The sizes this clinic actually uses (`clinics.invoice_papers_enabled`). Omitted
    * means all of them, which is what the admin-side print screens want — FlexicaAI's
@@ -72,9 +76,10 @@ export function InvoicePrintFrame({
     return offered.includes(wanted) ? wanted : offered[0];
   });
   // The size a "Print A4 / Print thermal" button asked for (`?print=`), read as an
-  // external value rather than copied into state: the server renders without it, the
-  // browser re-renders with it, and nothing is set inside an effect.
-  const printParam = useSyncExternalStore(noSubscribe, printModePaper, () => null);
+  // external value rather than copied into state, so nothing is set inside an effect.
+  // The server draws at it too (`serverPrintPaper`), which is what lets `EarlyPrint`
+  // print the server's HTML before React starts.
+  const printParam = useSyncExternalStore(noSubscribe, printModePaper, () => serverPrintPaper);
   const printPaper = printParam && offered.includes(printParam as Fmt) ? (printParam as Fmt) : null;
   const f = FORMATS[printPaper ?? (offered.includes(fmt) ? fmt : offered[0])];
   const sheetRef = useRef<HTMLDivElement>(null);
