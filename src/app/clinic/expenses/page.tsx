@@ -26,6 +26,9 @@ import {
 import { Pagination } from "@/core/ui/pagination";
 import { parsePage, parsePageSize, pageOffset } from "@/core/lib/pagination";
 import { ExpenseFilters } from "./expenses-filters";
+import { PageDownloadPdf } from "@/core/ui/page-download-pdf";
+import { PrintFileName } from "@/core/ui/print-file-name";
+import { ReportPeriod, formatReportRange } from "@/core/ui/report-period";
 import { AddExpenseForm, CategoryManager } from "./expense-ui";
 import { ExpensesTable } from "./expenses-table";
 import { asPaymentMethodCode } from "@/core/db/vocabulary-seed";
@@ -90,12 +93,15 @@ export default async function ExpensesPage({
 
   return (
     <div className="space-y-6">
+      <PrintFileName
+        name={`${deleted ? "Deleted expenses" : "Expenses"} ${formatReportRange(range.start, range.end)}`}
+      />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Expenses</h1>
           <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">The clinic&apos;s costs. Feeds the P&amp;L.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="no-print flex flex-wrap items-center gap-2">
           {!deleted ? (
             <a
               href={`/api/finance/export?${new URLSearchParams({
@@ -132,6 +138,7 @@ export default async function ExpensesPage({
               </>
             )}
           </Link>
+          <PageDownloadPdf />
         </div>
       </div>
 
@@ -140,7 +147,7 @@ export default async function ExpensesPage({
       ) : (
         <>
           {canManage ? (
-            <Card>
+            <Card className="no-print">
               <CardHeader>
                 <CardTitle className="text-base">Add expense</CardTitle>
               </CardHeader>
@@ -150,15 +157,26 @@ export default async function ExpensesPage({
             </Card>
           ) : null}
 
-          <ExpenseFilters
-            period={range.period}
-            from={range.from}
-            to={range.to}
-            categoryId={sp.categoryId?.trim() || ""}
-            method={sp.method?.trim() || ""}
-            q={sp.q?.trim() || ""}
-            categories={activeCategories}
+          <ReportPeriod
+            range={range}
+            extra={[
+              categories.find((c) => c.id === sp.categoryId)?.name,
+              sp.q?.trim() && `Search: ${sp.q.trim()}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           />
+          <div className="no-print">
+            <ExpenseFilters
+              period={range.period}
+              from={range.from}
+              to={range.to}
+              categoryId={sp.categoryId?.trim() || ""}
+              method={sp.method?.trim() || ""}
+              q={sp.q?.trim() || ""}
+              categories={activeCategories}
+            />
+          </div>
 
           <StatCard label="Total this period" value={money.format(periodTotal)} />
         </>
@@ -179,7 +197,7 @@ export default async function ExpensesPage({
       </TableCard>
 
       {!deleted && canManage ? (
-        <Card>
+        <Card className="no-print">
           <CardHeader>
             <CardTitle className="text-base">Categories</CardTitle>
             <CardDescription>Add categories, or tap one to activate/deactivate it.</CardDescription>

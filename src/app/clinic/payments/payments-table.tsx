@@ -104,6 +104,7 @@ export function PaymentsTable({ rows, empty, papers }: { rows: Row[]; empty: str
       id: "print",
       header: "Print",
       align: "right",
+      screenOnly: true,
       // The patient's paper is the invoice (it lists every payment), so Print opens it.
       cell: (r) =>
         r.appointmentId && r.invoiceLabel ? (

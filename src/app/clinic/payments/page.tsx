@@ -15,6 +15,9 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { PaymentsFilters } from "./payments-filters";
+import { PageDownloadPdf } from "@/core/ui/page-download-pdf";
+import { PrintFileName } from "@/core/ui/print-file-name";
+import { ReportPeriod, formatReportRange } from "@/core/ui/report-period";
 import { PaymentsTable } from "./payments-table";
 import { Pagination } from "@/core/ui/pagination";
 import { pageOffset, parsePage, parsePageSize } from "@/core/lib/pagination";
@@ -89,6 +92,7 @@ export default async function PaymentsPage({
 
   return (
     <div className="space-y-6">
+      <PrintFileName name={`Payments ${formatReportRange(range.start, range.end)}`} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Payments</h1>
@@ -96,24 +100,33 @@ export default async function PaymentsPage({
             Every payment, advance, and refund. Money in and out of the clinic.
           </p>
         </div>
-        <a
-          href={`/api/finance/export?${exportParams.toString()}`}
-          className={cn(buttonVariants({ variant: "outline" }))}
-        >
-          <Download aria-hidden="true" /> CSV
-        </a>
+        <div className="no-print flex flex-wrap items-center gap-2">
+          <a
+            href={`/api/finance/export?${exportParams.toString()}`}
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+          >
+            <Download aria-hidden="true" /> CSV
+          </a>
+          <PageDownloadPdf />
+        </div>
       </div>
 
-      <PaymentsFilters
-        period={range.period}
-        from={range.from}
-        to={range.to}
-        doctorId={doctorId}
-        method={method}
-        kind={kind}
-        q={q}
-        doctors={doctors}
+      <ReportPeriod
+        range={range}
+        extra={[doctors.find((d) => d.id === doctorId)?.name, q && `Search: ${q}`].filter(Boolean).join(" · ")}
       />
+      <div className="no-print">
+        <PaymentsFilters
+          period={range.period}
+          from={range.from}
+          to={range.to}
+          doctorId={doctorId}
+          method={method}
+          kind={kind}
+          q={q}
+          doctors={doctors}
+        />
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
         {[

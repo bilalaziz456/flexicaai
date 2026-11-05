@@ -15,6 +15,9 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { DiscountFilters } from "./discounts-filters";
+import { PageDownloadPdf } from "@/core/ui/page-download-pdf";
+import { PrintFileName } from "@/core/ui/print-file-name";
+import { ReportPeriod, formatReportRange } from "@/core/ui/report-period";
 import { DiscountsTable } from "./discounts-table";
 import { StatCard } from "@/core/ui/charts/stat-card";
 
@@ -69,6 +72,7 @@ export default async function DiscountsPage({
 
   return (
     <div className="space-y-6">
+      <PrintFileName name={`Discounts ${formatReportRange(range.start, range.end)}`} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Discounts</h1>
@@ -76,25 +80,36 @@ export default async function DiscountsPage({
             Every discount given: who got it, who bears it, and whether it&apos;s applied.
           </p>
         </div>
-        {report.rows.length > 0 ? (
-          <a
-            href={`/api/finance/export?${exportParams.toString()}`}
-            className={cn(buttonVariants({ variant: "outline" }))}
-          >
-            <Download aria-hidden="true" /> CSV
-          </a>
-        ) : null}
+        <div className="no-print flex flex-wrap items-center gap-2">
+          {report.rows.length > 0 ? (
+            <a
+              href={`/api/finance/export?${exportParams.toString()}`}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
+              <Download aria-hidden="true" /> CSV
+            </a>
+          ) : null}
+          <PageDownloadPdf />
+        </div>
       </div>
 
-      <DiscountFilters
-        period={range.period}
-        from={range.from}
-        to={range.to}
-        doctorId={doctorId ?? ""}
-        borneBy={borneBy}
-        status={status}
-        doctors={doctors}
+      <ReportPeriod
+        range={range}
+        extra={[doctors.find((d) => d.id === doctorId)?.name, borneBy && `Borne by ${borneBy}`, status && `Status: ${status}`]
+          .filter(Boolean)
+          .join(" · ")}
       />
+      <div className="no-print">
+        <DiscountFilters
+          period={range.period}
+          from={range.from}
+          to={range.to}
+          doctorId={doctorId ?? ""}
+          borneBy={borneBy}
+          status={status}
+          doctors={doctors}
+        />
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
         {[

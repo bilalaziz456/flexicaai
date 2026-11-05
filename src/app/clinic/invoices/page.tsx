@@ -20,6 +20,9 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { InvoiceFilters } from "./invoice-filters";
+import { PageDownloadPdf } from "@/core/ui/page-download-pdf";
+import { PrintFileName } from "@/core/ui/print-file-name";
+import { ReportPeriod, formatReportRange } from "@/core/ui/report-period";
 import { listProcedureCatalog } from "@/core/appointments/procedures";
 import { InvoicesTable } from "./invoices-table";
 import { Pagination } from "@/core/ui/pagination";
@@ -113,6 +116,7 @@ export default async function InvoicesPage({
 
   return (
     <div className="space-y-6">
+      <PrintFileName name={`Invoices ${range ? formatReportRange(range.start, range.end) : "all time"}`} />
       {canCreate ? (
         <FloatingCreateButton href="/clinic/invoices/new" label="New invoice" sentinelId={INVOICES_HEADER_SENTINEL_ID} />
       ) : null}
@@ -128,7 +132,7 @@ export default async function InvoicesPage({
             number, and reprint any invoice.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="no-print flex flex-wrap items-center gap-2">
         {canCreate ? (
           // Hidden on a phone, where the floating button is the create action.
           <Link href="/clinic/invoices/new" data-shortcut="create" aria-keyshortcuts="Alt+C" title="New invoice (Alt+C)" className={cn(buttonVariants(), "hidden sm:inline-flex")}>
@@ -143,19 +147,23 @@ export default async function InvoicesPage({
             <Download aria-hidden="true" /> CSV
           </a>
         ) : null}
+        <PageDownloadPdf />
         </div>
       </div>
 
-      <InvoiceFilters
-        period={range?.period ?? "all"}
-        from={range?.from ?? ""}
-        to={range?.to ?? ""}
-        q={q}
-        payment={payment ?? ""}
-        state={state ?? ""}
-        procedure={procedureId ?? ""}
-        forOptions={forOptions}
-      />
+      <ReportPeriod range={range} extra={q ? `Search: ${q}` : undefined} />
+      <div className="no-print">
+        <InvoiceFilters
+          period={range?.period ?? "all"}
+          from={range?.from ?? ""}
+          to={range?.to ?? ""}
+          q={q}
+          payment={payment ?? ""}
+          state={state ?? ""}
+          procedure={procedureId ?? ""}
+          forOptions={forOptions}
+        />
+      </div>
 
       {/* Two rows of three: what was BILLED and what is owed on top, the MONEY that
           actually moved underneath. */}

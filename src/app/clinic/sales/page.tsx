@@ -29,6 +29,9 @@ import {
 } from "@/core/ui/charts/insights";
 import { LollipopChart } from "@/core/ui/charts/lollipop-chart";
 import { SalesFilters } from "@/core/ui/report-filters";
+import { PageDownloadPdf } from "@/core/ui/page-download-pdf";
+import { PrintFileName } from "@/core/ui/print-file-name";
+import { ReportPeriod, formatReportRange } from "@/core/ui/report-period";
 
 const money = new Intl.NumberFormat("en-PK", {
   style: "currency",
@@ -107,11 +110,12 @@ export default async function ClinicSalesPage({
 
   return (
     <div className="space-y-6">
+      <PrintFileName name={`Sales ${formatReportRange(range.start, range.end)}`} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Sales</h1>
           <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
-            Revenue <strong>collected</strong> from completed visits. Consultation +
+            Revenue <strong>collected</strong>{" "}from completed visits. Consultation +
             procedures, after discounts. A visit appears here once it&apos;s paid, and what
             patients still owe is in{" "}
             <Link href="/clinic/appointments?status=completed&payment=unpaid" className="underline underline-offset-4">
@@ -124,23 +128,29 @@ export default async function ClinicSalesPage({
             .
           </p>
         </div>
-        {report.count > 0 ? (
-          <a
-            href={`/api/finance/export?${exportParams.toString()}`}
-            className={cn(buttonVariants({ variant: "outline" }))}
-          >
-            <Download aria-hidden="true" /> CSV
-          </a>
-        ) : null}
+        <div className="no-print flex flex-wrap items-center gap-2">
+          {report.count > 0 ? (
+            <a
+              href={`/api/finance/export?${exportParams.toString()}`}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
+              <Download aria-hidden="true" /> CSV
+            </a>
+          ) : null}
+          <PageDownloadPdf />
+        </div>
       </div>
 
-      <SalesFilters
-        period={range.period}
-        from={range.from}
-        to={range.to}
-        doctorId={doctorId ?? ""}
-        doctors={doctors}
-      />
+      <ReportPeriod range={range} extra={doctors.find((d) => d.id === doctorId)?.name} />
+      <div className="no-print">
+        <SalesFilters
+          period={range.period}
+          from={range.from}
+          to={range.to}
+          doctorId={doctorId ?? ""}
+          doctors={doctors}
+        />
+      </div>
 
       {/* Summary cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

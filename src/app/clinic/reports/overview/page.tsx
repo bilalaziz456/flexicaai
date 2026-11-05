@@ -22,7 +22,7 @@ import { DonutChart } from "@/core/ui/charts/donut-chart";
 import { StatCard } from "@/core/ui/charts/stat-card";
 import { WaterfallChart } from "@/core/ui/charts/waterfall-chart";
 import { SalesFilters } from "@/core/ui/report-filters";
-import { PrintButton } from "@/core/ui/print-button";
+import { PageDownloadPdf } from "@/core/ui/page-download-pdf";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
 import { OverviewByDoctorTable, OverviewCashTable, OverviewDiscountsTable } from "./overview-tables";
 
@@ -88,7 +88,7 @@ export default async function OverviewPage({
           </p>
         </div>
         <div className="no-print">
-          <PrintButton />
+          <PageDownloadPdf />
         </div>
       </div>
 

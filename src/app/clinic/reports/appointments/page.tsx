@@ -11,7 +11,7 @@ import { vocabularyOptions } from "@/core/db/vocabulary-cache";
 import { APPOINTMENT_SOURCE_ROWS, APPOINTMENT_STATUS_ROWS } from "@/core/db/vocabulary-seed";
 import type { StatusFilter, VisitTypeFilter } from "@/core/appointments/list-filters";
 import { SalesFilters } from "@/core/ui/report-filters";
-import { PrintButton } from "@/core/ui/print-button";
+import { PageDownloadPdf } from "@/core/ui/page-download-pdf";
 import { PrintFileName } from "@/core/ui/print-file-name";
 import { BackLink } from "@/core/ui/back-link";
 import { buttonVariants } from "@/core/ui/button";
@@ -102,7 +102,7 @@ export default async function AppointmentsReportPage({ searchParams }: { searchP
           <a href={`/api/reports/export?${csv.toString()}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
             <Download className="size-4" aria-hidden="true" /> CSV
           </a>
-          <PrintButton />
+          <PageDownloadPdf />
         </div>
       </div>
 

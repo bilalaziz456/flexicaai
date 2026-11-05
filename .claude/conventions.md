@@ -114,6 +114,15 @@ note above it; obvious logic gets none.
   accepted trade. Anything marked `.no-print` or `data-no-pdf` is left out of the
   file, exactly as it is left off paper. The file takes the page's `PrintFileName`.
   `html2canvas` is the wrong tool here: it cannot parse the app's oklch colours.
+- **Every report downloads as a PDF, and has no Print button** (owner's call,
+  2026-11-06): `PageDownloadPdf` (`core/ui/page-download-pdf.tsx`) beside the CSV, on
+  each page the Reports hub lists. The page marks its screen controls `.no-print` —
+  header buttons, filter bar, add/record forms — and says its period with
+  `<ReportPeriod>` (`core/ui/report-period.tsx`, `data-pdf-only`: hidden on screen, in
+  the file), because the filter bar that says it on screen is left off. A DataTable
+  column with id `actions` (or `screenOnly: true`) and the pager's controls are left
+  off by the primitives themselves. The PDF builder opens scroll boxes out and breaks
+  pages between cards and rows, never through them, so a report needs nothing else.
 - **A controlled checkbox in a Server Action form needs `ref={syncChecked(v)}`**
   (`core/ui/checkbox-sync.ts`). React RESETS the form once the action completes, and a
   reset restores each checkbox to its `defaultChecked` — which React writes on the first

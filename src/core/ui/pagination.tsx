@@ -80,7 +80,9 @@ export function Pagination({
       <span className="text-muted-foreground">
         {beyondEnd ? "Showing 0" : `Showing ${from}–${to}`} of {total} {plural(unit, total)}
       </span>
-      <div className="flex items-center gap-2">
+      {/* The count stays on paper (it says a PDF is one page of a longer list); the
+          controls do not. */}
+      <div className="no-print flex items-center gap-2">
         {/* Rows-per-page — always available, even on a single page. */}
         <PageSizeSelect
           size={pageSize}

@@ -19,6 +19,9 @@ import {
 import { TrendChart } from "@/core/ui/charts/trend-chart";
 import { StatCard } from "@/core/ui/charts/stat-card";
 import { SalesFilters } from "@/core/ui/report-filters";
+import { PageDownloadPdf } from "@/core/ui/page-download-pdf";
+import { PrintFileName } from "@/core/ui/print-file-name";
+import { ReportPeriod, formatReportRange } from "@/core/ui/report-period";
 import { RecordPayoutForm } from "./payout-ui";
 import { SettlementForm, VoidSettlementButton } from "./settlement-ui";
 import { BalancesTable, PayoutsTable } from "./shares-tables";
@@ -100,8 +103,18 @@ export default async function ClinicSharesPage({
     },
   ];
 
+  // Named in the PDF's file name and period line when the view is one doctor's.
+  const pickedDoctorName = selfOnly
+    ? user.fullName
+    : doctorId
+      ? (doctors.find((d) => d.id === doctorId)?.name ?? null)
+      : null;
+
   return (
     <div className="space-y-6">
+      <PrintFileName
+        name={`Revenue shares${pickedDoctorName ? ` ${pickedDoctorName}` : ""} ${formatReportRange(range.start, range.end)}`}
+      />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Revenue shares</h1>
@@ -111,11 +124,11 @@ export default async function ClinicSharesPage({
               : "What each doctor has earned from completed visits, and what's owed."}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="no-print flex flex-wrap items-center gap-2">
           {balances.length > 0 ? (
             <a
               href={`/api/finance/export?${exportParams.toString()}`}
-              className={cn(buttonVariants({ variant: "outline" }))}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
             >
               <Download aria-hidden="true" /> CSV
             </a>
@@ -143,8 +156,12 @@ export default async function ClinicSharesPage({
               className="h-8 rounded-lg border px-3 hover:bg-accent hover:no-underline"
             />
           ) : null}
+          <PageDownloadPdf />
         </div>
       </div>
+      {/* The balances above are lifetime; the period below governs the charts and
+          the payments list. Named for paper, where the filter bar is left off. */}
+      <ReportPeriod range={range} extra={pickedDoctorName ?? undefined} />
 
       {/* Balance (lifetime) */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -161,7 +178,7 @@ export default async function ClinicSharesPage({
 
       {/* Record a payment — clinic admin, scoped to one doctor with a balance. */}
       {isAdmin && doctorId ? (
-        <Card>
+        <Card className="no-print">
           <CardHeader>
             <CardTitle className="text-base">Record payment</CardTitle>
             <CardDescription>
@@ -194,13 +211,15 @@ export default async function ClinicSharesPage({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <SettlementForm
-              key={scoped.outstanding}
-              doctorId={doctorId}
-              outstanding={scoped.outstanding}
-              canClinic={canWaive}
-              canDoctorWaive={canWaive || selfOnly}
-            />
+            <div className="no-print">
+              <SettlementForm
+                key={scoped.outstanding}
+                doctorId={doctorId}
+                outstanding={scoped.outstanding}
+                canClinic={canWaive}
+                canDoctorWaive={canWaive || selfOnly}
+              />
+            </div>
             {settlementActions.length > 0 ? (
               <ul className="divide-y divide-border/60 rounded-lg border border-border/60 text-sm">
                 {settlementActions.map((a) => (
@@ -215,7 +234,11 @@ export default async function ClinicSharesPage({
                         {a.note ? ` · ${a.note}` : ""}
                       </span>
                     </div>
-                    {canWaive ? <VoidSettlementButton actionId={a.id} /> : null}
+                    {canWaive ? (
+                      <div className="no-print">
+                        <VoidSettlementButton actionId={a.id} />
+                      </div>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -259,14 +282,16 @@ export default async function ClinicSharesPage({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <SalesFilters
-            period={range.period}
-            from={range.from}
-            to={range.to}
-            doctorId={selfOnly ? "" : (doctorId ?? "")}
-            doctors={doctors}
-            showDoctor={!selfOnly}
-          />
+          <div className="no-print">
+            <SalesFilters
+              period={range.period}
+              from={range.from}
+              to={range.to}
+              doctorId={selfOnly ? "" : (doctorId ?? "")}
+              doctors={doctors}
+              showDoctor={!selfOnly}
+            />
+          </div>
           {report.count === 0 && report.paidTotal === 0 ? (
             <p className="py-12 text-center text-sm text-muted-foreground">
               No earnings or payments in this period.

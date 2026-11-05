@@ -41,7 +41,13 @@ export type Column<T> = {
   cardTitle?: boolean;
   /** A totals-row cell for this column. If ANY column has one, a footer renders. */
   footer?: () => React.ReactNode;
+  /** Screen only: left off paper and out of a downloaded PDF (row buttons, menus).
+   *  A column with id "actions" is screen-only without saying so. */
+  screenOnly?: boolean;
 };
+
+/** Row buttons have no meaning on paper, so an "actions" column never reaches it. */
+const paperClass = <T,>(c: Column<T>) => (c.screenOnly || c.id === "actions" ? "no-print" : undefined);
 
 type SortState = { id: string; dir: "asc" | "desc" };
 
@@ -131,6 +137,7 @@ export function DataTable<T>({
                       stickyHeader && "sticky top-0 z-10 bg-background",
                       c.align && alignClass[c.align],
                       c.headerClassName,
+                      paperClass(c),
                     )}
                   >
                     {c.sortValue ? (
@@ -170,7 +177,7 @@ export function DataTable<T>({
           <tbody>
             {sorted.map((row, i) => {
               const cells = columns.map((c) => (
-                <td key={c.id} className={cn("py-3 align-middle", c.align && alignClass[c.align], c.cellClassName)}>
+                <td key={c.id} className={cn("py-3 align-middle", c.align && alignClass[c.align], c.cellClassName, paperClass(c))}>
                   {c.cell(row)}
                 </td>
               ));
@@ -197,7 +204,7 @@ export function DataTable<T>({
             <tfoot>
               <tr className="border-t font-medium">
                 {columns.map((c) => (
-                  <td key={c.id} className={cn("py-3 align-middle", c.align && alignClass[c.align], c.cellClassName)}>
+                  <td key={c.id} className={cn("py-3 align-middle", c.align && alignClass[c.align], c.cellClassName, paperClass(c))}>
                     {c.footer ? c.footer() : null}
                   </td>
                 ))}

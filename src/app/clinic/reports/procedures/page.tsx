@@ -9,7 +9,7 @@ import { listProcedureCatalog } from "@/core/appointments/procedures";
 import { getProcedureReport, type ProcedureReportScope } from "@/core/appointments/procedure-report";
 import { resolveSalesRange } from "@/core/sales/report";
 import { SalesFilters } from "@/core/ui/report-filters";
-import { PrintButton } from "@/core/ui/print-button";
+import { PageDownloadPdf } from "@/core/ui/page-download-pdf";
 import { PrintFileName } from "@/core/ui/print-file-name";
 import { BackLink } from "@/core/ui/back-link";
 import { buttonVariants } from "@/core/ui/button";
@@ -84,7 +84,7 @@ export default async function ProceduresReportPage({ searchParams }: { searchPar
           <a href={`/api/reports/export?${csv.toString()}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
             <Download className="size-4" aria-hidden="true" /> CSV
           </a>
-          <PrintButton />
+          <PageDownloadPdf />
         </div>
       </div>
 

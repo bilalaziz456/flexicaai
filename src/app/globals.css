@@ -2065,3 +2065,16 @@ select:-webkit-autofill {
     transform-origin: center;
   }
 }
+
+/* Paper-only content: lines a printout or a downloaded PDF needs but the screen does
+   not, such as a report's period, which the screen already shows in its filter bar
+   (left off paper). Hidden on screen; shown when printing, and revealed for the
+   duration of a PDF capture by core/ui/download-pdf.ts. */
+[data-pdf-only] {
+  display: none;
+}
+@media print {
+  [data-pdf-only] {
+    display: block;
+  }
+}

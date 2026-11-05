@@ -13,7 +13,7 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { BackLink } from "@/core/ui/back-link";
-import { PrintButton } from "@/core/ui/print-button";
+import { PageDownloadPdf } from "@/core/ui/page-download-pdf";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
 import { DayBookControls } from "./daybook-controls";
 import { DaybookTable } from "./daybook-table";
@@ -86,7 +86,7 @@ export default async function DayBookPage({
           >
             Export CSV
           </a>
-          <PrintButton />
+          <PageDownloadPdf />
         </div>
       </div>
 

@@ -32,7 +32,7 @@ import {
 } from "@/core/ui/charts/insights";
 import { SalesFilters } from "@/core/ui/report-filters";
 import { PrintFileName } from "@/core/ui/print-file-name";
-import { PlDownloadPdf } from "./pl-download";
+import { PageDownloadPdf } from "@/core/ui/page-download-pdf";
 import { PlByPeriodTable } from "./pl-tables";
 
 const money = new Intl.NumberFormat("en-PK", {
@@ -188,7 +188,7 @@ export default async function ProfitLossPage({
           >
             <Download aria-hidden="true" /> CSV
           </a>
-          <PlDownloadPdf />
+          <PageDownloadPdf />
         </div>
       </div>
 

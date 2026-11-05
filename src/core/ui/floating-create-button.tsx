@@ -81,7 +81,7 @@ export function FloatingCreateButton({
       data-shortcut="create"
       className={cn(
         buttonVariants({ size: "icon" }),
-        "fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg",
+        "no-print fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg",
         // `sm:hidden`, not an opacity fade: a button that is invisible but still
         // clickable and still in the tab order is worse than one that is not there.
         // The effect above removes this class once the header has scrolled away.

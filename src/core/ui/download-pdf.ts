@@ -101,6 +101,11 @@ function hideScreenControls(el: HTMLElement): () => void {
     hidden.push({ node, display: node.style.display });
     node.style.display = "none";
   }
+  // And the reverse: paper-only lines (a report's period, globals.css) appear in the file.
+  for (const node of el.querySelectorAll<HTMLElement>("[data-pdf-only]")) {
+    hidden.push({ node, display: node.style.display });
+    node.style.display = "block";
+  }
   return () => {
     for (const h of hidden) h.node.style.display = h.display;
   };
