@@ -746,6 +746,11 @@ export const appointmentProcedures = pgTable(
     // discount waits only for its own bearer (plan §6, decision b) — and so the SQL
     // bill can gate it from the line row alone. Kept by core/appointments/approvals.ts.
     patientDiscountHeld: boolean("patient_discount_held").notNull().default(false),
+    // The PRICE-LIST amount when the line was booked (docs/line-price-plan.md), kept
+    // beside `unit_price`, which is what was CHARGED and may have been changed at the
+    // desk. NULL on lines from before 0140 = "same as unit_price", so nothing old
+    // reads as changed. A one-off charge has no list price, and stays NULL.
+    listPrice: integer("list_price"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

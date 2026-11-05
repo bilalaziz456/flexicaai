@@ -486,6 +486,15 @@ are in `.env.example`.
   admin / account manager), one-off "other charges" on any bill, and a deposit held on
   the visit until it is settled by a refund or **Keep as credit**.
 
+- **Price changed on one bill** (`0140`, `docs/line-price-plan.md`, owner's call
+  2026-11-06) — a procedure's price, like a service's, can be changed on one booking
+  or invoice; not the consultation fee. A changed price is FINAL — the clinic offer
+  does not come off it (only "+ Discount" shows as a discount); the doctor's share
+  follows the charged price; the patient's invoice shows only that. A lower price is not a
+  discount and asks no approval (yet — §5 of the plan keeps room for it); the list
+  price is kept on the line (`list_price`) and every changed line is listed under
+  "Price changes" on the Discounts page.
+
 - **MRN series per clinic** (`0126`) — the super admin / account manager sets a
   clinic's starting MRN (`FA-100001`, `GS-00000001`; letters, numbers, `-`, 3–15 chars,
   ≥3 trailing digits). Each patient's MRN is STORED and never changes; changing the

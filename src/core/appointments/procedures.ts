@@ -76,8 +76,9 @@ export type ProcedureSelection = {
   discountType: DiscountType;
   discountValue: number;
   doctorId?: string | null;
-  /** The price typed on the bill. Honoured for SERVICES and one-off charges only —
-   *  a procedure always takes its list price (its offer is the only discount). */
+  /** The price typed on the bill — for a procedure, a service or a one-off charge
+   *  (docs/line-price-plan.md). Absent = the price the line was already booked at,
+   *  else the list price. A lower price is NOT a discount: no approval, no bearer. */
   unitPrice?: number;
   /** A one-off charge's description ("Medicines"). Ignored for list items. */
   name?: string;
@@ -100,6 +101,9 @@ export type AppointmentProcedureItem = {
   procedureId: string | null;
   name: string;
   unitPrice: number;
+  /** The price-list amount when booked; null = not recorded (before 0140) or a
+   *  one-off charge. Differs from `unitPrice` when the desk changed the price. */
+  listPrice: number | null;
   quantity: number;
   discountType: DiscountType;
   discountValue: number;
@@ -496,18 +500,51 @@ export async function setProcedureOffer(
   return updated.length;
 }
 
+/** A line whose charged price is not its list price, as `saveAppointmentProcedures`
+ *  reports it for the activity log: only lines NEW to this save or re-priced by it. */
+export type LinePriceChange = { name: string; listPrice: number; unitPrice: number };
+
 /**
  * Replaces an appointment's procedure line items with `selections`
- * (clinic-scoped). Snapshots each procedure's CURRENT name + price + the chosen
- * quantity + its per-line discount so later catalog edits never rewrite this
- * appointment. Deletes the existing items first, so it's used for both create and
- * edit. Duplicate ids collapse to the last selection; unknown/foreign ids drop.
+ * (clinic-scoped). Snapshots each procedure's name + price + the chosen quantity +
+ * its per-line discount so later catalog edits never rewrite this appointment.
+ * Deletes the existing items first, so it's used for both create and edit. Duplicate
+ * ids collapse to the last selection; unknown/foreign ids drop.
+ *
+ * The PRICE (docs/line-price-plan.md): what was typed, else what the line was already
+ * booked at — an edit no longer re-reads the price list, which used to re-price a
+ * visit when the list price had changed since booking — else the list price. The
+ * list price at FIRST booking is kept beside it (`list_price`). Returns the lines
+ * whose price this save set away from the list, for the activity log.
  */
 export async function saveAppointmentProcedures(
   clinicId: string,
   appointmentId: string,
   selections: ProcedureSelection[],
-): Promise<void> {
+): Promise<LinePriceChange[]> {
+  // What each list item was booked at before this save — read BEFORE the delete.
+  const before = new Map(
+    (
+      await db
+        .select({
+          procedureId: appointmentProcedures.procedureId,
+          unitPrice: appointmentProcedures.unitPrice,
+          listPrice: appointmentProcedures.listPrice,
+        })
+        .from(appointmentProcedures)
+        .where(
+          byClinic(
+            appointmentProcedures.clinicId,
+            clinicId,
+            eq(appointmentProcedures.appointmentId, appointmentId),
+          ),
+        )
+    )
+      .filter((r): r is typeof r & { procedureId: string } => r.procedureId !== null)
+      // A line from before 0140 has no list price recorded: it was billed at it.
+      .map((r) => [r.procedureId, { unitPrice: r.unitPrice, listPrice: r.listPrice ?? r.unitPrice }]),
+  );
+
   await db
     .delete(appointmentProcedures)
     .where(
@@ -556,7 +593,7 @@ export async function saveAppointmentProcedures(
     );
   }
   const ids = [...byId.keys()];
-  if (ids.length === 0) return;
+  if (ids.length === 0) return [];
 
   const rows = await db
     .select({
@@ -574,7 +611,7 @@ export async function saveAppointmentProcedures(
         inArray(procedures.id, ids),
       ),
     );
-  if (rows.length === 0) return;
+  if (rows.length === 0) return [];
 
   // Validate performing-doctor ids against THIS clinic's doctors (tenant isolation);
   // an unknown/foreign id is dropped to null (the clinic keeps that line's share).
@@ -597,9 +634,21 @@ export async function saveAppointmentProcedures(
     for (const d of drs) validDoctors.add(d.id);
   }
 
+  const changes: LinePriceChange[] = [];
   await db.insert(appointmentProcedures).values(
     rows.map((r) => {
       const s = byId.get(r.id)!;
+      const booked = before.get(r.id);
+      const listPrice = booked ? booked.listPrice : r.price;
+      const unitPrice = s.unitPrice !== undefined ? clampPrice(s.unitPrice) : (booked?.unitPrice ?? r.price);
+      if (unitPrice !== listPrice && unitPrice !== booked?.unitPrice) {
+        changes.push({ name: r.name, listPrice, unitPrice });
+      }
+      // A price typed by hand is FINAL: the clinic offer does not come off it as well
+      // (owner's call, 2026-11-06 — a room typed at Rs 1,000 printed "10% discount
+      // −Rs 100" and billed Rs 900). The offer is for the list price; a discount on top
+      // of a changed price is one the desk adds itself, and shows as a discount.
+      const offerApplies = unitPrice === listPrice;
       // A service earns no doctor share, so it has no performing doctor either.
       const doctorId =
         !r.isService && s.doctorId && validDoctors.has(s.doctorId) ? s.doctorId : null;
@@ -618,9 +667,8 @@ export async function saveAppointmentProcedures(
         procedureId: r.id,
         doctorId,
         name: r.name,
-        // A service may be priced at the counter (medicine varies); a procedure always
-        // bills its list price, so the only discount on it is the clinic offer.
-        unitPrice: r.isService && s.unitPrice !== undefined ? clampPrice(s.unitPrice) : r.price,
+        unitPrice,
+        listPrice,
         isService: r.isService,
         quantity: clampQty(s.quantity),
         // The literals are pinned: inside a .map() TypeScript widens the ternary to
@@ -630,13 +678,13 @@ export async function saveAppointmentProcedures(
         // procedure line, so a caller that skipped validation still can't store a
         // percentage above 100 (D-17). A flat amount stays unbounded — the bill
         // clamps it, and a large write-off is legitimate.
-        discountValue: clampDiscountValue(
-          s.discountType === "percent" ? "percent" : "amount",
-          s.discountValue,
-        ),
+        discountValue: offerApplies
+          ? clampDiscountValue(s.discountType === "percent" ? "percent" : "amount", s.discountValue)
+          : 0,
       };
     }),
   );
+  return changes;
 }
 
 /**
@@ -652,6 +700,7 @@ export async function getAppointmentProcedureItems(
       procedureId: appointmentProcedures.procedureId,
       name: appointmentProcedures.name,
       unitPrice: appointmentProcedures.unitPrice,
+      listPrice: appointmentProcedures.listPrice,
       quantity: appointmentProcedures.quantity,
       discountType: appointmentProcedures.discountType,
       discountValue: appointmentProcedures.discountValue,
@@ -682,6 +731,7 @@ export async function getAppointmentProcedureItems(
     procedureId: r.procedureId,
     name: r.name,
     unitPrice: r.unitPrice,
+    listPrice: r.listPrice,
     quantity: r.quantity,
     discountType: asType(r.discountType),
     discountValue: r.discountValue,

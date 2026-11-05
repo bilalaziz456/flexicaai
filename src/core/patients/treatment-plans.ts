@@ -281,6 +281,17 @@ export async function scheduleItemsOnAppointment(
     .from(treatmentPlanItems)
     .where(byClinic(treatmentPlanItems.clinicId, clinicId, inArray(treatmentPlanItems.id, itemIds)));
   const carry = await getPlanItemCarry(clinicId, itemIds);
+  const procIds = [...new Set(items.map((it) => it.procedureId).filter((v): v is string => Boolean(v)))];
+  const listPrices = new Map(
+    procIds.length > 0
+      ? (
+          await db
+            .select({ id: procedures.id, price: procedures.price })
+            .from(procedures)
+            .where(byClinic(procedures.clinicId, clinicId, inArray(procedures.id, procIds)))
+        ).map((r) => [r.id, r.price])
+      : [],
+  );
 
   await db.transaction(async (tx) => {
     for (const it of items) {
@@ -297,6 +308,9 @@ export async function scheduleItemsOnAppointment(
         doctorId: appt?.doctorId ?? null,
         discountType: it.offerType,
         discountValue: it.offerValue,
+        // The plan item's price is what is charged; the price list's, beside it, so a
+        // plan priced away from the list shows as a changed price (line-price-plan §3).
+        listPrice: it.procedureId ? (listPrices.get(it.procedureId) ?? it.unitPrice) : it.unitPrice,
         patientDiscountType: "amount",
         patientDiscountValue: planDiscount,
         // A line with no doctor has nobody but the clinic to bear it.

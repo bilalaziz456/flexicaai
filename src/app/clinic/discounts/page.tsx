@@ -8,6 +8,8 @@ import { requireWorkspace } from "@/core/auth/user";
 import { clinicHasFeature } from "@/core/lib/features";
 import { getSalesDoctors, resolveSalesRange } from "@/core/sales/report";
 import { getDiscountsReport } from "@/core/sales/discounts-report";
+import { getPriceChangesReport } from "@/core/sales/price-changes-report";
+import { PriceChangesTable } from "./price-changes-table";
 import {
   Card,
   CardContent,
@@ -56,8 +58,9 @@ export default async function DiscountsPage({
   const borneBy = sp.borneBy?.trim() || "";
   const status = sp.status?.trim() || "";
 
-  const [report, doctors] = await Promise.all([
+  const [report, priceChanges, doctors] = await Promise.all([
     getDiscountsReport(clinicId, range, { doctorId, borneBy, status }),
+    getPriceChangesReport(clinicId, range, { doctorId }),
     getSalesDoctors(clinicId),
   ]);
 
@@ -70,6 +73,10 @@ export default async function DiscountsPage({
   if (doctorId) exportParams.set("doctorId", doctorId);
   if (borneBy) exportParams.set("borneBy", borneBy);
   if (status) exportParams.set("status", status);
+  const priceExportParams = new URLSearchParams(exportParams);
+  priceExportParams.set("type", "price-changes");
+  priceExportParams.delete("borneBy");
+  priceExportParams.delete("status");
 
   return (
     <div className="space-y-6">
@@ -128,6 +135,35 @@ export default async function DiscountsPage({
         </CardHeader>
         <CardContent>
           <DiscountsTable rows={report.rows} />
+        </CardContent>
+      </Card>
+
+      {/* A price changed on one bill is not a discount (docs/line-price-plan.md), so it
+          has no place in the table above — but a lowered price takes money off a bill
+          just the same, so it is listed here, under the same eyes. Not filtered by
+          Borne by or Status: a price has neither. */}
+      <Card>
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
+          <div>
+            <CardTitle className="text-base">Price changes</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Procedures and services charged at a price other than the list price.
+              {priceChanges.count > 0
+                ? ` ${priceChanges.count} line${priceChanges.count === 1 ? "" : "s"}: raised ${money.format(priceChanges.raised)}, lowered ${money.format(priceChanges.lowered)}.`
+                : ""}
+            </p>
+          </div>
+          {priceChanges.count > 0 ? (
+            <a
+              href={`/api/finance/export?${priceExportParams.toString()}`}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "no-print")}
+            >
+              <Download aria-hidden="true" /> CSV
+            </a>
+          ) : null}
+        </CardHeader>
+        <CardContent>
+          <PriceChangesTable rows={priceChanges.rows} />
         </CardContent>
       </Card>
     </div>

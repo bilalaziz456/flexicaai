@@ -9,6 +9,7 @@ import { toCsv } from "@/core/lib/csv";
 import { streamCsvResponse } from "@/core/lib/csv-stream";
 import { iterateSalesRows, resolveSalesRange } from "@/core/sales/report";
 import { getDiscountsReport } from "@/core/sales/discounts-report";
+import { getPriceChangesReport } from "@/core/sales/price-changes-report";
 import { getDoctorBalances } from "@/core/sales/payouts";
 import { getProfitAndLoss } from "@/core/finance/pl";
 import { listExpenses } from "@/core/expenses";
@@ -122,6 +123,21 @@ export async function GET(req: Request) {
     csv = toCsv(
       ["Date", "Patient", "Doctor", "For", "Type", "Value", "Amount", "Borne by", "Clinic bears", "Doctor bears", "Status", "Approved by"],
       report.rows.map((r) => [ymd(r.scheduledAt), r.patientName ?? "", r.doctorName ?? "", r.label, r.type, r.value, r.amount, r.borneBy, r.clinicBears, r.doctorBears, r.status, r.approvedBy ?? ""]),
+    );
+  } else if (type === "price-changes") {
+    // Shown on the Discounts page, so it is behind the same permission.
+    if (!hasSales || !can(user, "discounts", "view")) return new Response("Forbidden", { status: 403 });
+    const range = resolveSalesRange(url.searchParams.get("period") ?? undefined, url.searchParams.get("from") ?? undefined, url.searchParams.get("to") ?? undefined);
+    const report = await getPriceChangesReport(
+      clinicId,
+      range,
+      { doctorId: url.searchParams.get("doctorId") || undefined },
+      { offset: 0, limit: 10000 },
+    );
+    name = `price-changes-${range.from}_to_${range.to}`;
+    csv = toCsv(
+      ["Date", "Patient", "Doctor", "Item", "Kind", "Quantity", "List price", "Charged", "Difference"],
+      report.rows.map((r) => [ymd(r.scheduledAt), r.patientName ?? "", r.doctorName ?? "", r.name, r.isService ? "service" : "procedure", r.quantity, r.listPrice, r.unitPrice, r.difference]),
     );
   } else if (type === "receivables") {
     if (!hasSales || !can(user, "receivables", "view")) return new Response("Forbidden", { status: 403 });

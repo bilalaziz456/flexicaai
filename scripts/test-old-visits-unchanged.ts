@@ -95,7 +95,10 @@ async function main() {
   }
 
   const ok = (name: string, cond: boolean) => console.log(`  ${cond ? "✓" : "✗"} ${name}`);
-  ok(`every visit is still version 1 (${v2} are not)`, v2 === 0);
+  // Not a check: visits saved since per-line discounts shipped are version 2 BY DESIGN
+  // (ADR-037). What matters is that every visit — either version — re-derives to the
+  // rows already stored, below.
+  console.log(`  · ${visits.length - v2} on version 1, ${v2} on version 2`);
   ok(`${same} of ${visits.length} visits re-derive to identical rows`, diffs.length === 0);
   ok(`…and the run had rows to compare (${withRows} visits carry sales/shares/settlements)`, withRows > 0);
   for (const d of diffs.slice(0, 10)) console.log(`      ✗ ${d}`);
@@ -107,7 +110,7 @@ async function main() {
   );
   console.log(`\n(sales rows after rollback: ${n})`);
 
-  const failed = v2 > 0 || diffs.length > 0 || withRows === 0;
+  const failed = diffs.length > 0 || withRows === 0;
   console.log(failed ? "\nFAILED" : "\nALL PASSED");
   process.exit(failed ? 1 : 0);
 }

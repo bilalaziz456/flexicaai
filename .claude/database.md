@@ -359,7 +359,12 @@ the default, which on a line with no doctor share is the clinic's.
 ### `appointment_procedures` — appointment line items (Sales feature, phase 2)
 `id`, `clinic_id` → clinics (`cascade`), `appointment_id` → appointments
 (`cascade`), `procedure_id` → procedures (`set null`), `name` + `unit_price`
-(**snapshots** — catalog edits never rewrite past appointments), `quantity`
+(**snapshots** — catalog edits never rewrite past appointments; since `0140` an edit
+keeps the booked price rather than re-reading the list), `list_price` int nullable
+(`0140`, docs/line-price-plan.md: the price-list amount at FIRST booking — `unit_price`
+is what was CHARGED and the desk may change it on a procedure or service; NULL on older
+lines and one-off charges = "same as unit_price"; read by the Price changes report and
+the "list Rs …" hint; a changed price is not a discount and asks no approval), `quantity`
 (user-set in the booking form, ≥ 1), `discount_type` (free-text, default 'amount')
 + `discount_value` int (default 0) — an **optional per-line discount** applied to
 THIS line's gross (`unit_price×quantity`) BEFORE the appointment-level discount —

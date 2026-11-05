@@ -981,6 +981,13 @@
       "when": 1793913057538,
       "tag": "0139_discount_held_flags",
       "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1793916235737,
+      "tag": "0140_line_list_price",
+      "breakpoints": true
     }
   ]
 }

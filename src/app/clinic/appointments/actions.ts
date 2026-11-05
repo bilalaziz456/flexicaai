@@ -12,7 +12,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { zodErrorMessage } from "@/core/lib/zod-error";
-import { MAX_DISCOUNT_PERCENT, discountError } from "@/core/appointments/fee";
+import { MAX_DISCOUNT_PERCENT, discountError, formatPkr } from "@/core/appointments/fee";
 import { requireRole } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import type { CurrentUser } from "@/core/types/auth";
@@ -52,6 +52,7 @@ import {
   applyClinicOffers,
   getAppointmentProcedureItems,
   saveAppointmentProcedures,
+  type LinePriceChange,
   type ProcedureSelection,
 } from "@/core/appointments/procedures";
 import { syncDiscountApprovals } from "@/core/appointments/approvals";
@@ -138,7 +139,9 @@ function validateDiscount(type: "amount" | "percent", value: number): string | n
 
 /**
  * The booking form submits one hidden `procedure` field per chosen procedure,
- * encoded `"<procedureId>:<quantity>:<amount|percent>:<discountValue>"`. The
+ * encoded `"<procedureId>:<quantity>:<price>:<amount|percent>:<discountValue>:…"`.
+ * The price is the one on THIS bill (docs/line-price-plan.md); empty = keep the
+ * booked price, else the list price. The
  * PERFORMING doctor is the appointment's own doctor (one doctor per appointment),
  * set by the caller via `withApptDoctor` — not encoded per line. The data layer
  * clamps + validates ids against the clinic's own records.
@@ -151,16 +154,18 @@ function parseProcedureSelections(formData: FormData): ProcedureSelection[] {
       // "<id>:<qty>:<offer type>:<offer value>:<patient type>:<patient value>:<bearer>:
       //  <split type>:<split value>" — the offer half is ignored (applyClinicOffers sets
       //  it), the patient half is the line's own discount (per-line-discount-plan §2).
-      const [procedureId, qty, dtype, dval, ...rest] = raw.split(":");
+      const [procedureId, qty, price, dtype, dval, ...rest] = raw.split(":");
       const discountType = dtype === "percent" ? ("percent" as const) : ("amount" as const);
       // Same ceiling as the appointment-level discount. This field is hand-parsed out
       // of an encoded hidden input rather than going through zod, so the rule is
       // applied directly — and by CLAMPING rather than rejecting, because a malformed
       // value here means a bug in our own form, not something to show a user.
       const rawValue = Math.max(0, Number(dval) || 0);
+      const typedPrice = price === "" || price === undefined ? NaN : Number(price);
       return {
         procedureId,
         quantity: Number(qty) || 1,
+        unitPrice: Number.isFinite(typedPrice) ? Math.max(0, typedPrice) : undefined,
         discountType,
         discountValue:
           discountType === "percent" ? Math.min(rawValue, MAX_DISCOUNT_PERCENT) : rawValue,
@@ -168,6 +173,12 @@ function parseProcedureSelections(formData: FormData): ProcedureSelection[] {
       };
     })
     .filter((s) => s.procedureId);
+}
+
+/** "; price changed: Root canal Rs 5,000 → Rs 4,000" for the activity log, or "". */
+function describePriceChanges(changes: LinePriceChange[]): string {
+  if (changes.length === 0) return "";
+  return `; price changed: ${changes.map((c) => `${c.name} ${formatPkr(c.listPrice)} → ${formatPkr(c.unitPrice)}`).join(", ")}`;
 }
 
 /**
@@ -496,7 +507,7 @@ export async function createAppointment(
   // Attach the selected procedures (snapshotted prices) before notifying, so the
   // confirmation quotes the full total. Each line's performing doctor = the
   // appointment's doctor.
-  await saveAppointmentProcedures(clinicId, created.id, [
+  const createdPriceChanges = await saveAppointmentProcedures(clinicId, created.id, [
     ...withApptDoctor(procedureSelections, parsed.data.doctorId ?? null),
     // Services take their clinic offer too (2026-10-18), the same way.
     ...(await applyClinicOffers(clinicId, parseServiceSelections(formData), localDateStr(when))),
@@ -573,7 +584,7 @@ export async function createAppointment(
     action: "create",
     entity: "appointment",
     entityId: created.id,
-    summary: `Scheduled an appointment for ${when.toLocaleString("en-GB")}`,
+    summary: `Scheduled an appointment for ${when.toLocaleString("en-GB")}${describePriceChanges(createdPriceChanges)}`,
   });
   revalidatePath(home);
   // "Save & print thermal / A4 / A5" (owner's call, 2026-10-18): the size rides along
@@ -817,7 +828,7 @@ export async function updateAppointment(
 
   // Replace the appointment's procedure line items with the current selection;
   // each line's performing doctor = the appointment's doctor.
-  await saveAppointmentProcedures(clinicId, appointmentId, [
+  const editPriceChanges = await saveAppointmentProcedures(clinicId, appointmentId, [
     ...withApptDoctor(procedureSelections, parsed.data.doctorId ?? null),
     // A service already on the visit keeps the discount it was booked with; one added
     // now takes the offer running on the visit date — the procedures' rule.
@@ -839,7 +850,7 @@ export async function updateAppointment(
     action: "update",
     entity: "appointment",
     entityId: appointmentId,
-    summary: `Edited an appointment (now ${when.toLocaleString("en-GB")})`,
+    summary: `Edited an appointment (now ${when.toLocaleString("en-GB")})${describePriceChanges(editPriceChanges)}`,
   });
   revalidatePath(home);
   revalidatePath(`/clinic/appointments/${appointmentId}`);

@@ -164,8 +164,10 @@ export function NewAppointmentForm({
       quantity: number;
       discountType?: DiscountType;
       discountValue?: number;
-      /** The price the line was billed at — a service keeps it on an edit. */
+      /** The price the line was billed at — kept on an edit. */
       unitPrice?: number;
+      /** The price-list amount when it was booked (null = not recorded). */
+      listPrice?: number | null;
       /** The line's own patient discount and its bearer (per-line-discount-plan §2). */
       patientDiscount?: {
         type: DiscountType;
@@ -251,14 +253,17 @@ export function NewAppointmentForm({
   const serviceIds = new Set(allOptions.filter((p) => p.isService).map((p) => p.id));
   const procedures = allOptions.filter((p) => !p.isService);
   const services = allOptions.filter((p) => p.isService);
-  // Selected procedures → { quantity (≥1) }. Missing key = unselected. A line's
-  // discount is not chosen here — it is the clinic offer (see `lineDiscount`).
-  type ProcState = { quantity: number };
+  // Selected procedures → { quantity (≥1), the price on THIS bill }. Missing key =
+  // unselected. The price starts at the list price, or what an edited visit was billed
+  // at, and may be changed for this bill only (docs/line-price-plan.md) — a lower price
+  // is not a discount. The line's offer is the clinic's (see `lineDiscount`).
+  type ProcState = { quantity: number; price: string };
   const [procSel, setProcSel] = useState<Map<string, ProcState>>(() => {
     const m = new Map<string, ProcState>();
     for (const it of initial?.procedures ?? []) {
       if (serviceIds.has(it.procedureId)) continue;
-      m.set(it.procedureId, { quantity: Math.max(1, it.quantity) });
+      const listPrice = allOptions.find((o) => o.id === it.procedureId)?.price ?? 0;
+      m.set(it.procedureId, { quantity: Math.max(1, it.quantity), price: String(it.unitPrice ?? listPrice) });
     }
     return m;
   });
@@ -274,7 +279,7 @@ export function NewAppointmentForm({
     setLineDisc((prev) => new Map(prev).set(id, d));
   const [consultDisc, setConsultDisc] = useState<LineDisc>(() => lineDiscFrom(initial?.consultationDiscount));
   // Selected services → quantity + the price on THIS bill (starts at the list price,
-  // or what an edited visit was billed at; the server honours it for services only).
+  // or what an edited visit was billed at).
   type SvcState = { quantity: number; price: string };
   const [svcSel, setSvcSel] = useState<Map<string, SvcState>>(() => {
     const m = new Map<string, SvcState>();
@@ -333,8 +338,19 @@ export function NewAppointmentForm({
           n.delete(id);
           return n;
         });
-      } else next.set(id, { quantity: 1 });
+      } else next.set(id, { quantity: 1, price: String(procedures.find((o) => o.id === id)?.price ?? 0) });
       return next;
+    });
+  // The list price a line is compared with: what it was booked at on an edit (the
+  // price list may have moved since), else today's.
+  const bookedListPrice = new Map(
+    (initial?.procedures ?? []).map((it) => [it.procedureId, it.listPrice ?? it.unitPrice ?? null]),
+  );
+  const listPriceOf = (p: { id: string; price: number }) => bookedListPrice.get(p.id) ?? p.price;
+  const setProcPrice = (id: string, price: string) =>
+    setProcSel((prev) => {
+      const cur = prev.get(id);
+      return cur ? new Map(prev).set(id, { ...cur, price }) : prev;
     });
   const setQty = (id: string, q: number) =>
     setProcSel((prev) => {
@@ -346,7 +362,7 @@ export function NewAppointmentForm({
       const cur = prev.get(id);
       if (!cur) return prev;
       const next = new Map(prev);
-      next.set(id, { quantity: Math.min(99, q) });
+      next.set(id, { ...cur, quantity: Math.min(99, q) });
       return next;
     });
   // A line's discount is never typed here: it is the CLINIC OFFER, which the server
@@ -361,6 +377,10 @@ export function NewAppointmentForm({
     ]),
   );
   const lineDiscount = (p: ProcedureOption): { type: DiscountType; value: number } | null => {
+    // A price changed by hand is final — no offer comes off it (the server's rule,
+    // `saveAppointmentProcedures`), so the preview shows what will be saved.
+    const typed = procSel.get(p.id)?.price ?? svcSel.get(p.id)?.price;
+    if (typed !== undefined && priceOf(typed) !== listPriceOf(p)) return null;
     const booked = bookedLineDiscount.get(p.id);
     if (booked) return booked.value > 0 ? booked : null;
     return p.offer && date ? offerForVisit(p.offer, date) : null;
@@ -371,7 +391,7 @@ export function NewAppointmentForm({
     const d = lineDiscount(p);
     const pd = discOf(p.id);
     const line = computeProcedureLine({
-      unitPrice: p.price,
+      unitPrice: priceOf(s.price),
       quantity: s.quantity,
       discountType: d?.type ?? "amount",
       discountValue: d?.value ?? 0,
@@ -392,7 +412,7 @@ export function NewAppointmentForm({
     .map((p) => {
       const d = lineDiscount(p);
       return {
-        unitPrice: p.price,
+        unitPrice: priceOf(procSel.get(p.id)!.price),
         quantity: procSel.get(p.id)!.quantity,
         discountType: d?.type ?? ("amount" as DiscountType),
         discountValue: d?.value ?? 0,
@@ -987,9 +1007,11 @@ export function NewAppointmentForm({
                       >
                         <span className="min-w-0 truncate font-medium">
                           {p.name}
+                          {/* The list price, named as such once this bill's differs —
+                              for staff; the invoice shows only the charged price. */}
                           <span className="font-normal text-muted-foreground">
                             {" "}
-                            · {formatPkr(p.price)}
+                            · {priceOf(s.price) !== listPriceOf(p) ? `list ${formatPkr(listPriceOf(p))}` : formatPkr(listPriceOf(p))}
                           </span>
                           {line.offer ? (
                             <span className="block text-xs font-normal text-primary-text">
@@ -1027,6 +1049,11 @@ export function NewAppointmentForm({
                               <Plus className="size-3.5" aria-hidden="true" />
                             </button>
                           </div>
+                          <PriceInput
+                            label={`${p.name} price`}
+                            value={s.price}
+                            onChange={(v) => setProcPrice(p.id, v)}
+                          />
                           <span className="w-24 text-right tabular-nums">
                             {line.net < line.gross ? (
                               <span className="block text-xs text-muted-foreground line-through">
@@ -1042,7 +1069,7 @@ export function NewAppointmentForm({
               </ul>
             ) : null}
 
-            {/* One hidden field per procedure: "<id>:<qty>:<offer>:<patient discount>".
+            {/* One hidden field per procedure: "<id>:<qty>:<price>:<offer>:<patient discount>".
                 The offer half is a placeholder — the server applies the clinic offer
                 itself; the performing doctor is the appointment's doctor (server-side). */}
             {[...procSel.entries()].map(([id, s]) => (
@@ -1050,7 +1077,7 @@ export function NewAppointmentForm({
                 key={id}
                 type="hidden"
                 name="procedure"
-                value={`${id}:${s.quantity}:amount:0:${encodeLineDisc(discOf(id))}`}
+                value={`${id}:${s.quantity}:${priceOf(s.price)}:amount:0:${encodeLineDisc(discOf(id))}`}
               />
             ))}
           </div>
@@ -1099,7 +1126,12 @@ export function NewAppointmentForm({
                     const s = svcSel.get(p.id)!;
                     return (
                       <li key={p.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2 text-sm">
-                        <span className="min-w-0 truncate font-medium">{p.name}</span>
+                        <span className="min-w-0 truncate font-medium">
+                          {p.name}
+                          {priceOf(s.price) !== listPriceOf(p) ? (
+                            <span className="font-normal text-muted-foreground"> · list {formatPkr(listPriceOf(p))}</span>
+                          ) : null}
+                        </span>
                         <div className="flex flex-wrap items-center gap-3">
                         {/* A service's discount is always the clinic's (decision 3). */}
                         <LineDiscountEditor

@@ -253,6 +253,11 @@ export async function AppointmentDetail({
                       {i.quantity > 1 ? (
                         <span> × {i.quantity} @ {formatPkr(i.unitPrice)}</span>
                       ) : null}
+                      {/* Priced away from the list on this bill (line-price-plan) — staff
+                          see both; the patient's invoice shows only the charged price. */}
+                      {i.listPrice !== null && i.listPrice !== i.unitPrice ? (
+                        <span className="text-xs"> · list {formatPkr(i.listPrice)}</span>
+                      ) : null}
                       {/* The clinic offer the line was booked with, then the patient's own
                           discount on top of it — each shown on its own (2026-11-06: one
                           combined figure hid the extra discount). */}

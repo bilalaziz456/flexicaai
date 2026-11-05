@@ -26,6 +26,7 @@ export function formInitialLines(
         discountType: i.discountType,
         discountValue: i.discountValue,
         unitPrice: i.unitPrice,
+        listPrice: i.listPrice,
         patientDiscount: {
           type: i.patientDiscountType,
           value: i.patientDiscountValue,

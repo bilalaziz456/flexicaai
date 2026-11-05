@@ -123,8 +123,9 @@ async function main() {
 
       console.log("\nCharges added: a procedure, a service at a counter price, a one-off charge:");
       await saveAppointmentProcedures(clinicId, id, [
-        // A typed price on a PROCEDURE is ignored — its list price stands.
-        { procedureId: scalingId, quantity: 1, discountType: "amount", discountValue: 0, doctorId: doctor.id, unitPrice: 1 },
+        // A procedure sent with no price takes its list price (a typed one is honoured
+        // since docs/line-price-plan.md — scripts/test-line-prices.ts covers that).
+        { procedureId: scalingId, quantity: 1, discountType: "amount", discountValue: 0, doctorId: doctor.id },
         { procedureId: roomId, quantity: 2, discountType: "amount", discountValue: 0, doctorId: doctor.id, unitPrice: 1200 },
         { procedureId: null, name: "Medicines", unitPrice: 800, quantity: 1, discountType: "amount", discountValue: 0 },
       ]);
