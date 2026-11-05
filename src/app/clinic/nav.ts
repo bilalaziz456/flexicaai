@@ -54,6 +54,9 @@ export const CLINIC_NAV: PanelNav = {
   nodes: [
     { href: "/clinic", label: "Dashboard", Icon: LayoutDashboard, exact: true },
     { href: "/clinic/appointments", label: "Appointments", Icon: CalendarClock, resource: "appointments", shortcut: "a" },
+    // Top level, beside Appointments (owner's call, 2026-11-06): the desk bills the
+    // visit it has just seen, so the two are used together all day.
+    { href: "/clinic/invoices", label: "Invoices", Icon: FileText, resource: "billing", feature: "sales", shortcut: "i" },
     { href: "/clinic/patients", label: "Patients", Icon: Contact, resource: "patients", shortcut: "p" },
     { href: "/clinic/scribe", label: "Voice scribe", Icon: Mic, resource: "clinical" },
     // Top level, not under Finance: it now holds appointment and procedure reports
@@ -66,7 +69,6 @@ export const CLINIC_NAV: PanelNav = {
       items: [
         { href: "/clinic/sales", label: "Sales", Icon: TrendingUp, resource: "sales", feature: "sales" },
         { href: "/clinic/payments", label: "Payments", Icon: HandCoins, resource: "billing", feature: "sales" },
-        { href: "/clinic/invoices", label: "Invoices", Icon: FileText, resource: "billing", feature: "sales", shortcut: "i" },
         { href: "/clinic/receivables", label: "Receivables", Icon: HandCoins, resource: "receivables", feature: "sales" },
         { href: "/clinic/discounts", label: "Discounts", Icon: TicketPercent, resource: "discounts", feature: "sales" },
         // NOT feature-gated: shares accrue from consultation fees even without Sales.
