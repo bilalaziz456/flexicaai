@@ -467,6 +467,11 @@ throw — use it in tests.
   and a relative window is remembered as a preset (`period=7d&dir=upcoming`, resolved
   against today by `core/appointments/period-window.ts`), never as two dates that go
   stale overnight. To add a page, add a row to `REMEMBERED_FILTER_PAGES`.
+  **Every Finance page opens on Today** (owner's call, 2026-11-06) — Payments,
+  Receivables, Discounts, Revenue shares, Expenses, Petty cash and P&L too, though only
+  the three above remember a change. Except History: it is imported records, all of
+  them older than today, so it opens on All. A link meaning "everything owed" says
+  `?period=all` (the P&L's Receivables link).
 
 ### Phone numbers
 

@@ -51,12 +51,13 @@ export default async function CashPage({
   // top of `cash` — the same pair recording it needs (`submitCashSpend`).
   const canSpend = can(user, "expenses", "create") && can(user, "expenses", "delete");
 
+  // Opens on Today (owner's call, 2026-11-06: every finance page does).
   // The range bounds the HISTORY ONLY — never `getDrawerState`. What should be in the
   // drawer is a fact about right now, reckoned from the newest count whenever that
   // was; filtering it would print a confident figure that answers no question anyone
   // has ("expected Rs 4,300 in September" says nothing about the box on the desk).
   const sp = await searchParams;
-  const range = resolveSalesRange(sp.period ?? "quarter", sp.from, sp.to, clinic?.createdAt);
+  const range = resolveSalesRange(sp.period || "today", sp.from, sp.to, clinic?.createdAt);
 
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);

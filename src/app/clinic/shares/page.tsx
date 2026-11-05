@@ -52,7 +52,8 @@ export default async function ClinicSharesPage({
   const isAdmin = user.role === "clinic_admin";
 
   const sp = await searchParams;
-  const range = resolveSalesRange(sp.period, sp.from, sp.to, (await getClinic(clinicId))?.createdAt);
+  // Opens on Today (owner's call, 2026-11-06: every finance page does).
+  const range = resolveSalesRange(sp.period || "today", sp.from, sp.to, (await getClinic(clinicId))?.createdAt);
   const doctorId = selfOnly ? user.id : sp.doctorId?.trim() || null;
   const singleDoctor = selfOnly || Boolean(doctorId);
 

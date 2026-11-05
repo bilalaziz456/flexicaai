@@ -66,7 +66,8 @@ export default async function ProfitLossPage({
   if (!clinicHasFeature(clinic?.featuresEnabled, "finance")) notFound();
 
   const sp = await searchParams;
-  const range = resolveSalesRange(sp.period, sp.from, sp.to, clinic?.createdAt);
+  // Opens on Today (owner's call, 2026-11-06: every finance page does).
+  const range = resolveSalesRange(sp.period || "today", sp.from, sp.to, clinic?.createdAt);
   // Notes say what the money was FOR ("salary – Ayesha"), which is more than the P&L
   // grant implies, so they are shown only to someone who may read the Expenses page.
   const showExpenseNotes = can(user, "expenses", "view");
@@ -227,7 +228,7 @@ export default async function ProfitLossPage({
           Memo: <span className="font-medium text-foreground">{money.format(outstanding)}</span>{" "}
           outstanding from patients is <strong>not</strong> in this profit. It counts only
           when collected.{" "}
-          <Link href="/clinic/receivables" className="underline underline-offset-4">
+          <Link href="/clinic/receivables?period=all" className="underline underline-offset-4">
             View receivables
           </Link>
         </p>

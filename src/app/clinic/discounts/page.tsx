@@ -50,7 +50,8 @@ export default async function DiscountsPage({
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales")) notFound();
 
   const sp = await searchParams;
-  const range = resolveSalesRange(sp.period, sp.from, sp.to, clinic?.createdAt);
+  // Opens on Today (owner's call, 2026-11-06: every finance page does).
+  const range = resolveSalesRange(sp.period || "today", sp.from, sp.to, clinic?.createdAt);
   const doctorId = sp.doctorId?.trim() || null;
   const borneBy = sp.borneBy?.trim() || "";
   const status = sp.status?.trim() || "";

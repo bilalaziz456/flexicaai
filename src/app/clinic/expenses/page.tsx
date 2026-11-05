@@ -69,7 +69,8 @@ export default async function ExpensesPage({
   await ensureDefaultCategories(clinicId);
 
   const sp = await searchParams;
-  const range = resolveSalesRange(sp.period, sp.from, sp.to, clinic?.createdAt);
+  // Opens on Today (owner's call, 2026-11-06: every finance page does).
+  const range = resolveSalesRange(sp.period || "today", sp.from, sp.to, clinic?.createdAt);
   const deleted = sp.deleted === "1";
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.size);
@@ -106,9 +107,8 @@ export default async function ExpensesPage({
             <a
               href={`/api/finance/export?${new URLSearchParams({
                 type: "expenses",
-                ...(sp.period ? { period: sp.period } : {}),
-                ...(sp.from ? { from: sp.from } : {}),
-                ...(sp.to ? { to: sp.to } : {}),
+                period: range.period,
+                ...(range.period === "custom" ? { from: range.from, to: range.to } : {}),
                 ...(sp.categoryId ? { categoryId: sp.categoryId } : {}),
                 ...(sp.method ? { method: sp.method } : {}),
                 ...(sp.q ? { q: sp.q } : {}),

@@ -45,7 +45,8 @@ export function ReceivablesFilters({
     const doc = next.doctorId ?? doctorV;
     const query = next.q ?? qV;
     const params = new URLSearchParams();
-    if (pr && pr !== "all") params.set("period", pr);
+    // Always written, "all" included: the page reads a missing period as Today.
+    params.set("period", pr || "all");
     if (pr === "custom") {
       if (f) params.set("from", f);
       if (t) params.set("to", t);

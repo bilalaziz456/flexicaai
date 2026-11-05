@@ -60,8 +60,11 @@ export default async function ReceivablesPage({
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales")) notFound();
 
   const sp = await searchParams;
-  const hasRange = Boolean(sp.period) && sp.period !== "all";
-  const range = hasRange ? resolveSalesRange(sp.period, sp.from, sp.to, clinic?.createdAt) : null;
+  // Opens on Today (owner's call, 2026-11-06: every finance page does); "All" is
+  // written into the URL by the filter bar, so a missing period means Today.
+  const period = sp.period || "today";
+  const hasRange = period !== "all";
+  const range = hasRange ? resolveSalesRange(period, sp.from, sp.to, clinic?.createdAt) : null;
   const doctorId = sp.doctorId?.trim() || "";
   const q = sp.q?.trim() || "";
   const page = parsePage(sp.page);
@@ -101,7 +104,7 @@ export default async function ReceivablesPage({
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Receivables</h1>
           <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
-            What patients owe on visits that have taken place (not cancelled or no-show). This total matches the dashboard&apos;s Outstanding.
+            What patients owe on visits that have taken place (not cancelled or no-show). On All, this total matches the dashboard&apos;s Outstanding.
           </p>
         </div>
         <div className="no-print flex flex-wrap items-center gap-2">
