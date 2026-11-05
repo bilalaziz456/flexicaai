@@ -34,8 +34,9 @@ import { discountStatusId, discountTypeId } from "@/core/db/vocabulary-seed";
  * you whether you changed both.** Change one without the other and it goes red.
  *
  * THE FORMULA (identical to `computeBill`, in the same order — order matters):
- *   1. each procedure line: net = gross − its own clamped discount
- *   2. subtotal = (consultation, if charged) + Σ line nets
+ *   1. each procedure line: net = gross − its offer − its patient discount (each clamped)
+ *      and the consultation: net = fee − its own discount (clamped)
+ *   2. subtotal = consultation net + Σ line nets
  *   3. appointment discount applies to that SUBTOTAL, not to the gross
  *   4. net = subtotal − that discount, clamped to [0, subtotal]
  * Applying step 3 to the gross instead is the classic way these drift, and it
@@ -72,14 +73,44 @@ function effectiveDiscountSql(): SQL {
   return sql`(case when ${appointments.discountStatus} in (${discountStatusId("pending")}, ${discountStatusId("rejected")}) then 0 else ${appointments.discountValue} end)`;
 }
 
+/**
+ * The appointment columns `fee.ts#effectiveConsultationDiscount` reads — spread into
+ * any select whose rows are turned into a bill in TS (`billFromTotals` /
+ * `computeBill`), so the TS bill keeps matching this SQL one.
+ */
+export const consultationDiscountColumns = {
+  consultationDiscountType: appointments.consultationDiscountType,
+  consultationDiscountValue: appointments.consultationDiscountValue,
+  consultationDiscountHeld: appointments.consultationDiscountHeld,
+};
+
 /** Consultation fee when charged, else 0 (a procedure-only visit). */
 function consultationSql(): SQL {
   return sql`(case when ${appointments.chargeConsultation} then coalesce(${users.consultationFee}, 0) else 0 end)`;
 }
 
-/** Step 2: consultation + Σ line nets — what the appointment discount applies to. */
+/**
+ * The consultation's OWN discount in rupees, clamped to the fee — 0 while it is held
+ * for approval (docs/per-line-discount-plan.md §2, §6). Mirrors the consultation step
+ * of `fee.ts#billFromTotals`; NUMERIC for the percent multiply (ADR-021).
+ */
+function consultationDiscountSql(): SQL {
+  const fee = consultationSql();
+  const v = sql`(case when ${appointments.consultationDiscountHeld} then 0 else ${appointments.consultationDiscountValue} end)`;
+  return sql`least(greatest(round(case when ${appointments.consultationDiscountType} = ${discountTypeId("percent")} then ${fee}::numeric * ${v} / 100.0 else ${v}::numeric end), 0), ${fee})`;
+}
+
+/** The consultation discount in rupees AS ENTERED (ignores the held gate) — for the
+ *  Discounts report, which shows a waiting discount at what it would take off. */
+export function consultationDiscountRawSql(): SQL<number> {
+  const fee = consultationSql();
+  const v = appointments.consultationDiscountValue;
+  return sql<number>`(least(greatest(round(case when ${appointments.consultationDiscountType} = ${discountTypeId("percent")} then ${fee}::numeric * ${v} / 100.0 else ${v}::numeric end), 0), ${fee}))::int`;
+}
+
+/** Step 2: consultation net + Σ line nets — what the appointment discount applies to. */
 export function appointmentSubtotalSql(totals?: ProcedureTotals): SQL<number> {
-  return sql<number>`(${consultationSql()} + ${proceduresNetSql(totals)})`;
+  return sql<number>`(${consultationSql()} - ${consultationDiscountSql()}::int + ${proceduresNetSql(totals)})`;
 }
 
 /**

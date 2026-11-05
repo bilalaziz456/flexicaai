@@ -55,6 +55,7 @@ import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 import { DownloadLink } from "@/core/ui/download-link";
 import { PrintLinks } from "@/core/ui/print-links";
 import { PATIENT_DOCUMENT_PAPERS } from "@/core/lib/print-papers";
+import { asPlanBearer } from "@/core/patients/plan-bill";
 
 /**
  * Shared patient detail — used by the clinic-admin panel and any panel that
@@ -301,7 +302,7 @@ export async function PatientDetail({
     doctorId: p.doctorId,
     discountType: p.discountType,
     discountValue: p.discountValue,
-    borneBy: p.discountBorneBy,
+    borneBy: asPlanBearer(p.discountBorneBy),
     splitType: p.discountSplitType,
     splitValue: p.discountSplitValue,
     items: p.items.map((i) => ({

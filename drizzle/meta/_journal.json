@@ -967,6 +967,20 @@
       "when": 1793302995544,
       "tag": "0137_medicines_essential_list_all_clinics",
       "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1793912973219,
+      "tag": "0138_per_line_discounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1793913057538,
+      "tag": "0139_discount_held_flags",
+      "breakpoints": true
     }
   ]
 }

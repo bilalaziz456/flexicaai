@@ -18,6 +18,7 @@ import {
   DISCOUNT_STATUS_ROWS,
   DISCOUNT_TYPE_ROWS,
   discountTypeId,
+  discountBearerId,
   type DiscountBearerCode,
   type DiscountStatusCode,
   type DiscountTypeCode,
@@ -132,6 +133,32 @@ export const appointments = pgTable(
     // agreement, so it needs no approval (owner's call, 2026-10-18). Cleared the moment
     // anyone edits the discount, which makes it an ordinary discount again.
     discountFromPlan: boolean("discount_from_plan").notNull().default(false),
+    // A discount on the CONSULTATION FEE alone, with its own bearer — the consultation
+    // treated as a line (docs/per-line-discount-plan.md §2, decision 2). Taken off the
+    // fee before the overall discount; gated by approval like the overall one. 0 = none.
+    consultationDiscountType: vocabularyRef<DiscountTypeCode>(DISCOUNT_TYPE_ROWS, "consultation_discount_type_id")
+      .notNull()
+      .default("amount")
+      .references(() => discountTypes.id),
+    consultationDiscountValue: integer("consultation_discount_value").notNull().default(0),
+    consultationBorneBy: vocabularyRef<DiscountBearerCode>(DISCOUNT_BEARER_ROWS, "consultation_borne_by_id")
+      .notNull()
+      .default("clinic")
+      .references(() => discountBearers.id),
+    consultationSplitType: vocabularyRef<DiscountTypeCode>(DISCOUNT_TYPE_ROWS, "consultation_split_type_id")
+      .notNull()
+      .default("percent")
+      .references(() => discountTypes.id),
+    consultationSplitValue: integer("consultation_split_value").notNull().default(0),
+    // TRUE while the consultation discount waits for approval or was declined (counts
+    // as 0) — gated on its own, like a line's (plan §6). Kept by approvals.ts.
+    consultationDiscountHeld: boolean("consultation_discount_held").notNull().default(false),
+    // Which rule shares this visit's discount (plan §3, decision 6). 1 = one bearer for
+    // the whole discount, spread over the visit's doctors — how every visit before
+    // 2026-11-06 was shared, and how they stay. 2 = per line: each discount borne by
+    // its own bearer and, when a doctor, by THAT line's doctor. Set to 2 only when a
+    // visit's discounts are saved under the new rule; never moved back.
+    bearingVersion: integer("bearing_version").notNull().default(1),
     // When the invoice was last EDITED (owner's call, 2026-10-18): the visit saved from
     // its edit form, or a payment on it cancelled. Printed as "Edited:" on the invoice.
     // Not `updated_at`, which a reminder, a status change or a cache write also bumps.
@@ -204,6 +231,20 @@ export const appointments = pgTable(
       "appointments_percent_split_max",
       sql`${t.discountSplitType} <> ${sql.raw(String(discountTypeId("percent")))} or ${t.discountSplitValue} between 0 and 100`,
     ),
+    check(
+      "appointments_percent_consultation_discount_max",
+      sql`${t.consultationDiscountType} <> ${sql.raw(String(discountTypeId("percent")))} or ${t.consultationDiscountValue} between 0 and 100`,
+    ),
+    check(
+      "appointments_percent_consultation_split_max",
+      sql`${t.consultationSplitType} <> ${sql.raw(String(discountTypeId("percent")))} or ${t.consultationSplitValue} between 0 and 100`,
+    ),
+    // "In proportion" describes a clinic OFFER; a visit's discounts always have a bearer.
+    check(
+      "appointments_bearers_not_proportional",
+      sql`${t.discountBorneBy} <> ${sql.raw(String(discountBearerId("proportional")))} and ${t.consultationBorneBy} <> ${sql.raw(String(discountBearerId("proportional")))}`,
+    ),
+    check("appointments_bearing_version_known", sql`${t.bearingVersion} in (1, 2)`),
     index("appointments_clinic_id_idx").on(t.clinicId),
     // Receipt numbers are unique per clinic per year (they reset each year).
     uniqueIndex("appointments_receipt_unique")

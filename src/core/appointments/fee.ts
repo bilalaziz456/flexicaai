@@ -65,6 +65,23 @@ export function discountError(type: DiscountType, value: number): string | null 
  * is computed — the bill/sale/split behave as if there were no discount until it's
  * approved. 'none' (the default) and 'approved' apply the discount in full. Pure.
  */
+/**
+ * The consultation's own discount as the bill takes it — 0 while it is HELD for
+ * approval or declined (docs/per-line-discount-plan.md §6). The counterpart of
+ * `bill-sql.ts#consultationDiscountSql`; read the columns with
+ * `bill-sql.ts#consultationDiscountColumns`.
+ */
+export function effectiveConsultationDiscount(row: {
+  consultationDiscountType: string;
+  consultationDiscountValue: number;
+  consultationDiscountHeld: boolean;
+}): ConsultationDiscount {
+  return {
+    type: normalizeDiscountType(row.consultationDiscountType),
+    value: row.consultationDiscountHeld ? 0 : row.consultationDiscountValue,
+  };
+}
+
 export function effectiveDiscountValue(
   discountStatus: string | null | undefined,
   discountValue: number,
@@ -113,38 +130,65 @@ export function formatPkr(n: number): string {
 export type ProcedureLineInput = {
   unitPrice: number;
   quantity: number;
+  /** The line's CLINIC OFFER (snapshotted from the price list). */
   discountType: DiscountType;
   discountValue: number;
+  /** The PATIENT discount on this line, given at the desk, taken off what is left
+   *  after the offer (docs/per-line-discount-plan.md §4). Absent = none. */
+  patientDiscountType?: DiscountType;
+  patientDiscountValue?: number;
 };
 
 export type ProcedureLineTotal = {
   gross: number; // unitPrice × quantity
-  discount: number; // clamped per-line discount
+  discount: number; // offer + patient discount, clamped to the line
   net: number; // gross − discount
+  offerDiscount: number; // the clinic offer's part of `discount`
+  patientDiscount: number; // the patient discount's part of `discount`
 };
 
 /**
- * A single procedure line's totals — its gross (unit × qty) less its own discount,
- * clamped to the line. Pure; the per-line discount is applied BEFORE the
- * appointment-level discount.
+ * A single procedure line's totals — its gross (unit × qty) less its clinic offer,
+ * then less its patient discount on what remains, each clamped so the line never goes
+ * below zero. Pure; both are applied BEFORE the appointment-level discount.
+ *
+ * Layered, not added: 10% off after a 10% offer is 19% off, not 20% — the same order
+ * the treatment-plan bill uses (core/patients/plan-bill.ts), so a plan item booked
+ * onto a visit costs what the estimate said.
  */
 export function computeProcedureLine(line: ProcedureLineInput): ProcedureLineTotal {
   const unit = Math.max(0, Math.round(line.unitPrice || 0));
   const qty = Math.max(0, Math.round(line.quantity || 0));
   const gross = unit * qty;
-  const { discount, net } = computeFee(gross, line.discountType, line.discountValue);
-  return { gross, discount, net };
+  const offer = computeFee(gross, line.discountType, line.discountValue);
+  const patient = computeFee(
+    offer.net,
+    line.patientDiscountType ?? "amount",
+    line.patientDiscountValue ?? 0,
+  );
+  const discount = offer.discount + patient.discount;
+  return {
+    gross,
+    discount,
+    net: gross - discount,
+    offerDiscount: offer.discount,
+    patientDiscount: patient.discount,
+  };
 }
 
+/** A discount on the consultation fee (docs/per-line-discount-plan.md §2, decision 2). */
+export type ConsultationDiscount = { type: DiscountType; value: number };
+
 export type BillTotals = {
-  consultation: number;
+  consultation: number; // the fee, before its own discount
+  consultationDiscount: number; // the consultation's own discount (0 = none)
   proceduresGross: number; // Σ line gross (pre any discount)
   proceduresDiscount: number; // Σ per-line discounts
   proceduresNet: number; // Σ line nets
-  subtotal: number; // consultation + proceduresNet
+  subtotal: number; // (consultation − its discount) + proceduresNet
   appointmentDiscount: number; // discount on the subtotal
   gross: number; // consultation + proceduresGross (true pre-discount)
-  discount: number; // proceduresDiscount + appointmentDiscount
+  discount: number; // proceduresDiscount + consultationDiscount + appointmentDiscount
   net: number; // what the patient pays
 };
 
@@ -161,7 +205,8 @@ export type BillTotal = BillTotals & { lines: ProcedureLineTotal[] };
  *
  * ORDER MATTERS, and it is the thing most easily got wrong:
  *   1. each line is discounted FIRST  → lineNet = gross − its own clamped discount
- *   2. subtotal = consultation + Σ lineNet
+ *      (and the consultation by its own discount, when it has one)
+ *   2. subtotal = consultation net + Σ lineNet
  *   3. the appointment discount applies to that SUBTOTAL, never to the gross
  *   4. net = subtotal − that discount, clamped so it can't go below zero
  *
@@ -181,15 +226,19 @@ export function billFromTotals(
   proceduresNet: number,
   appointmentDiscountType: DiscountType,
   appointmentDiscountValue: number,
+  consultationDiscount?: ConsultationDiscount,
 ): BillTotals {
   const consultation =
     consultationFee && consultationFee > 0 ? Math.round(consultationFee) : 0;
+  const cDisc = consultationDiscount
+    ? computeFee(consultation, consultationDiscount.type, consultationDiscount.value).discount
+    : 0;
   const pGross = Math.max(0, Math.round(proceduresGross || 0));
   // Net can never exceed gross; clamping here means a caller that passes them the
   // wrong way round gets a wrong-but-sane number instead of a negative discount.
   const pNet = Math.min(pGross, Math.max(0, Math.round(proceduresNet || 0)));
   const proceduresDiscount = pGross - pNet;
-  const subtotal = consultation + pNet;
+  const subtotal = consultation - cDisc + pNet;
   const { discount: appointmentDiscount } = computeFee(
     subtotal,
     appointmentDiscountType,
@@ -197,13 +246,14 @@ export function billFromTotals(
   );
   return {
     consultation,
+    consultationDiscount: cDisc,
     proceduresGross: pGross,
     proceduresDiscount,
     proceduresNet: pNet,
     subtotal,
     appointmentDiscount,
     gross: consultation + pGross,
-    discount: proceduresDiscount + appointmentDiscount,
+    discount: proceduresDiscount + cDisc + appointmentDiscount,
     net: subtotal - appointmentDiscount,
   };
 }
@@ -218,14 +268,16 @@ export function computeBill(
   lines: ProcedureLineInput[],
   appointmentDiscountType: DiscountType,
   appointmentDiscountValue: number,
+  consultationDiscount?: ConsultationDiscount,
 ): BillTotal {
-  const lineTotals = lines.map(computeProcedureLine);
+  const lineTotals = lines.map((l) => computeProcedureLine(l));
   const totals = billFromTotals(
     consultationFee,
     lineTotals.reduce((s, l) => s + l.gross, 0),
     lineTotals.reduce((s, l) => s + l.net, 0),
     appointmentDiscountType,
     appointmentDiscountValue,
+    consultationDiscount,
   );
   return { ...totals, lines: lineTotals };
 }
@@ -241,6 +293,7 @@ export function computeSaleAmounts(
   proceduresNet: number,
   appointmentDiscountType: DiscountType,
   appointmentDiscountValue: number,
+  consultationDiscount?: ConsultationDiscount,
 ): { gross: number; discount: number; net: number } {
   const { gross, discount, net } = billFromTotals(
     consultationFee,
@@ -248,6 +301,7 @@ export function computeSaleAmounts(
     proceduresNet,
     appointmentDiscountType,
     appointmentDiscountValue,
+    consultationDiscount,
   );
   return { gross, discount, net };
 }

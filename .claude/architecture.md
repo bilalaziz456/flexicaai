@@ -1242,6 +1242,33 @@ ADR-035 a deposit followed by added charges stayed at Rs 0 revenue until the nig
 reconcile. They now always re-derive; the ledger itself decides whether there is
 anything to book. `scripts/test-services-deposit.ts`.
 
+**ADR-037 — A discount is a PIECE with its own bearer and its own approval; a visit
+records which rule it was saved under** · *2026-11-06* · `Accepted` *(supersedes the
+one-bearer-per-visit rule of the discount-bearing design; refines ADR-015)*
+
+*Context.* A visit had ONE patient discount (on the subtotal) with ONE bearer, spread
+over all its doctors. A clinic giving Rs 1,000 off a root canal and asking the crown's
+doctor to give Rs 3,000 off the crown could not say so, and a doctor-borne discount on a
+two-doctor visit was charged to both. The owner asked for a discount on each line and
+the consultation, each with its own Borne by (docs/per-line-discount-plan.md).
+
+*Decision.* (1) The bill takes, in order: price → clinic offer → the line's patient
+discount; consultation fee → its discount; then the whole-visit discount on the
+subtotal — one order in `fee.ts` and in SQL, bound by `test-bill-parity.ts`. (2) Each
+discount is a bearing piece; a doctor-borne line piece is charged to THAT line's doctor.
+(3) `appointments.bearing_version` says which rule a visit was saved under: 1 (the old
+one bearer) for every visit before this, never re-derived differently; 2 for new ones.
+An edit moves a visit to 2 only when its discounts change. (4) Approval rows stay one
+per party per visit, but each discount waits only on ITS bearers; the gate is stored on
+the discount (`*_held`) so the SQL bill applies it row by row. (5) An offer may carry a
+bearer; the default "In proportion" is the old rule.
+
+*Consequences.* Old visits re-derive identically (`test-old-visits-unchanged.ts`,
+822/822). `discount_status` now gates only the whole-visit discount, so a reader wanting
+"is anything on this visit waiting?" asks the approval rows, not that column. Plan
+discounts travel per line and need no approval. The Discounts report lists one row per
+discount.
+
 ---
 
 ## 6. Deltas — where the code is not yet the architecture

@@ -20,7 +20,9 @@ import {
   SETTLEMENT_PARTY_ROWS,
   APPROVAL_STATUS_ROWS,
   DISCOUNT_TYPE_ROWS,
+  DISCOUNT_BEARER_ROWS,
   discountTypeId,
+  discountBearerId,
   settlementKindId,
   type PaymentKindCode,
   type PaymentMethodCode,
@@ -28,6 +30,7 @@ import {
   type SettlementPartyCode,
   type ApprovalStatusCode,
   type DiscountTypeCode,
+  type DiscountBearerCode,
   RECURRENCE_ROWS,
   type RecurrenceCode,
   CASH_TRANSFER_KIND_ROWS,
@@ -35,6 +38,7 @@ import {
 } from "@/core/db/vocabulary-seed";
 import {
   approvalStatuses,
+  discountBearers,
   discountTypes,
   paymentKinds,
   paymentMethods,
@@ -90,6 +94,20 @@ export const procedures = pgTable(
       .default("amount")
       .references(() => discountTypes.id),
     offerValue: integer("offer_value").notNull().default(0),
+    // Who bears the offer (docs/per-line-discount-plan.md §5): clinic / doctor / split,
+    // or "proportional" — the doctor's share is worked out on the offer price, so each
+    // side gives up its own % (the rule every offer followed before this column, and
+    // still the default). Snapshotted onto the line at booking, like the offer itself.
+    offerBorneBy: vocabularyRef<DiscountBearerCode>(DISCOUNT_BEARER_ROWS, "offer_borne_by_id")
+      .notNull()
+      .default("proportional")
+      .references(() => discountBearers.id),
+    // For a split offer, the DOCTOR side's portion (as on appointments).
+    offerSplitType: vocabularyRef<DiscountTypeCode>(DISCOUNT_TYPE_ROWS, "offer_split_type_id")
+      .notNull()
+      .default("percent")
+      .references(() => discountTypes.id),
+    offerSplitValue: integer("offer_split_value").notNull().default(0),
     // The visit dates the offer covers, inclusive. NULL start = from now on; NULL
     // end = "No end date" — runs until someone removes it.
     offerStartsOn: date("offer_starts_on"),
@@ -117,6 +135,10 @@ export const procedures = pgTable(
     check(
       "procedures_percent_offer_max",
       sql`${t.offerType} <> ${sql.raw(String(discountTypeId("percent")))} or ${t.offerValue} between 0 and 100`,
+    ),
+    check(
+      "procedures_percent_offer_split_max",
+      sql`${t.offerSplitType} <> ${sql.raw(String(discountTypeId("percent")))} or ${t.offerSplitValue} between 0 and 100`,
     ),
     check("procedures_offer_dates_order", sql`${t.offerEndsOn} is null or ${t.offerStartsOn} is null or ${t.offerEndsOn} >= ${t.offerStartsOn}`),
   ],
@@ -687,6 +709,43 @@ export const appointmentProcedures = pgTable(
       .default("amount")
       .references(() => discountTypes.id),
     discountValue: integer("discount_value").notNull().default(0),
+    // ↑ That discount is the line's CLINIC OFFER. Its bearer, snapshotted from the
+    // procedure at booking (docs/per-line-discount-plan.md §5).
+    offerBorneBy: vocabularyRef<DiscountBearerCode>(DISCOUNT_BEARER_ROWS, "offer_borne_by_id")
+      .notNull()
+      .default("proportional")
+      .references(() => discountBearers.id),
+    offerSplitType: vocabularyRef<DiscountTypeCode>(DISCOUNT_TYPE_ROWS, "offer_split_type_id")
+      .notNull()
+      .default("percent")
+      .references(() => discountTypes.id),
+    offerSplitValue: integer("offer_split_value").notNull().default(0),
+    // The PATIENT discount on this line — given at the desk (or carried from a
+    // treatment plan), taken off what is left after the offer, and borne by whoever
+    // is chosen HERE: the clinic, this line's doctor, or a split (plan §2–§4). Gated
+    // by approval like every patient discount. 0 = none.
+    patientDiscountType: vocabularyRef<DiscountTypeCode>(DISCOUNT_TYPE_ROWS, "patient_discount_type_id")
+      .notNull()
+      .default("amount")
+      .references(() => discountTypes.id),
+    patientDiscountValue: integer("patient_discount_value").notNull().default(0),
+    discountBorneBy: vocabularyRef<DiscountBearerCode>(DISCOUNT_BEARER_ROWS, "discount_borne_by_id")
+      .notNull()
+      .default("clinic")
+      .references(() => discountBearers.id),
+    discountSplitType: vocabularyRef<DiscountTypeCode>(DISCOUNT_TYPE_ROWS, "discount_split_type_id")
+      .notNull()
+      .default("percent")
+      .references(() => discountTypes.id),
+    discountSplitValue: integer("discount_split_value").notNull().default(0),
+    // The patient discount came from a treatment plan, unchanged (plan §7) — needs no
+    // approval. Cleared when anyone edits it, like `appointments.discount_from_plan`.
+    discountFromPlan: boolean("discount_from_plan").notNull().default(false),
+    // TRUE while this line's patient discount is waiting for approval or was declined:
+    // it then counts as 0 in the bill, the sale and the split. Per LINE, because each
+    // discount waits only for its own bearer (plan §6, decision b) — and so the SQL
+    // bill can gate it from the line row alone. Kept by core/appointments/approvals.ts.
+    patientDiscountHeld: boolean("patient_discount_held").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -706,6 +765,23 @@ export const appointmentProcedures = pgTable(
     check(
       "appt_procedures_percent_discount_max",
       sql`${t.discountType} <> ${sql.raw(String(discountTypeId("percent")))} or ${t.discountValue} between 0 and 100`,
+    ),
+    check(
+      "appt_procedures_percent_patient_discount_max",
+      sql`${t.patientDiscountType} <> ${sql.raw(String(discountTypeId("percent")))} or ${t.patientDiscountValue} between 0 and 100`,
+    ),
+    check(
+      "appt_procedures_percent_split_max",
+      sql`${t.discountSplitType} <> ${sql.raw(String(discountTypeId("percent")))} or ${t.discountSplitValue} between 0 and 100`,
+    ),
+    check(
+      "appt_procedures_percent_offer_split_max",
+      sql`${t.offerSplitType} <> ${sql.raw(String(discountTypeId("percent")))} or ${t.offerSplitValue} between 0 and 100`,
+    ),
+    // "In proportion" describes an OFFER; a patient discount always has a bearer.
+    check(
+      "appt_procedures_patient_bearer_not_proportional",
+      sql`${t.discountBorneBy} <> ${sql.raw(String(discountBearerId("proportional")))}`,
     ),
   ],
 );

@@ -143,6 +143,7 @@ export function ProceduresManager({
           today={today}
           noun="procedure"
           saveAction={setProcedureOfferAction}
+          bearerChoice
           onClose={() => setTarget(null)}
           onSaved={() => {
             setTarget(null);

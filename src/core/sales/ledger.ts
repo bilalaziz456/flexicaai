@@ -4,7 +4,7 @@ import { and, eq, gt, isNull, or } from "drizzle-orm";
 import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, sales, users } from "@/core/db/schema";
-import { computeSaleAmounts, effectiveDiscountValue } from "@/core/appointments/fee";
+import { computeSaleAmounts, effectiveDiscountValue, effectiveConsultationDiscount } from "@/core/appointments/fee";
 import {
   appointmentProceduresGrossSql,
   appointmentProceduresNetSql,
@@ -21,6 +21,7 @@ import { syncLineWaives } from "@/core/sales/appointment-lines";
 import { getMoneyDays } from "@/core/sales/money-days";
 import { report } from "@/core/observability";
 import type { Executor, Tx } from "@/core/db/tx";
+import { consultationDiscountColumns } from "@/core/appointments/bill-sql";
 
 /**
  * Derives an appointment's sale rows on a **collected, cash** basis: revenue = what
@@ -76,6 +77,7 @@ async function recordSaleInner(
       discountType: appointments.discountType,
       discountValue: appointments.discountValue,
       discountStatus: appointments.discountStatus,
+      ...consultationDiscountColumns,
       chargeConsultation: appointments.chargeConsultation,
       fee: users.consultationFee,
       doctorName: users.fullName,
@@ -107,6 +109,7 @@ async function recordSaleInner(
     Number(row.proceduresNet),
     row.discountType === "percent" ? "percent" : "amount",
     effectiveDiscountValue(row.discountStatus, row.discountValue),
+    effectiveConsultationDiscount(row),
   );
 
   // REVENUE COUNTS ON THE DAY MONEY IS RECEIVED, whatever the visit's status (owner's

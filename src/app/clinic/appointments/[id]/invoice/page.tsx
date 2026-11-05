@@ -10,12 +10,12 @@ import { notFound } from "next/navigation";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { clinicHasFeature } from "@/core/lib/features";
-import { getAppointmentProcedureItems } from "@/core/appointments/procedures";
+import { billLineOf, getAppointmentProcedureItems } from "@/core/appointments/procedures";
 import { getAppointmentBill } from "@/core/billing/bill";
 import { getInvoiceForAppointment } from "@/core/billing/invoice";
 import {
   computeBill,
-  effectiveDiscountValue,
+  effectiveDiscountValue, effectiveConsultationDiscount,
   formatPkr,
   normalizeDiscountType,
 } from "@/core/appointments/fee";
@@ -81,14 +81,10 @@ export default async function InvoicePage({
   const doctorFee = row.chargeConsultation ? (row.doctorFee ?? 0) : 0;
   const bill = computeBill(
     doctorFee,
-    items.map((i) => ({
-      unitPrice: i.unitPrice,
-      quantity: i.quantity,
-      discountType: i.discountType,
-      discountValue: i.discountValue,
-    })),
+    items.map(billLineOf),
     discountType,
     effectiveDiscountValue(row.discountStatus, row.discountValue),
+    effectiveConsultationDiscount(row),
   );
 
   const doctor =
@@ -198,10 +194,21 @@ export default async function InvoicePage({
               item's divider would draw a second line just above it. */}
           <tbody className="group-data-[paper=thermal]/sheet:[&>tr:last-child]:border-b-0">
             {bill.consultation > 0 ? (
-              <tr className="border-b border-black/10">
+              <tr className={bill.consultationDiscount > 0 ? "" : "border-b border-black/10"}>
                 <td className="py-1.5">Consultation</td>
                 <td className="py-1.5 text-right tabular-nums">1</td>
                 <td className="py-1.5 text-right whitespace-nowrap tabular-nums">{formatPkr(bill.consultation)}</td>
+              </tr>
+            ) : null}
+            {bill.consultation > 0 && bill.consultationDiscount > 0 ? (
+              // The consultation's own discount (per-line-discount-plan §2), under it like
+              // a line's, so the printed rows still add up to the total. Who bears it is
+              // never printed (§4).
+              <tr className="border-b border-black/10">
+                <td className="pb-1.5 pl-3 text-[0.85em] opacity-65" colSpan={2}>↳ Discount</td>
+                <td className="pb-1.5 text-right text-[0.85em] whitespace-nowrap tabular-nums opacity-65">
+                  −{formatPkr(bill.consultationDiscount)}
+                </td>
               </tr>
             ) : null}
             {items.map((it, idx) => {
@@ -226,18 +233,42 @@ export default async function InvoicePage({
                     <td className="py-1.5 text-right tabular-nums">{it.quantity}</td>
                     <td className="py-1.5 text-right whitespace-nowrap tabular-nums">{formatPkr(it.unitPrice * it.quantity)}</td>
                   </tr>
-                  {off > 0 ? (
-                    <tr className="border-b border-black/10">
-                      <td className="pb-1.5 pl-3 text-[0.85em] opacity-65" colSpan={2}>
-                        {/* The patient's wording (owner's call): "10% discount", not
-                            "Clinic offer" — what it is called internally is ours. */}
-                        ↳ {it.discountType === "percent" ? `${it.discountValue}% discount` : "Discount"}
-                      </td>
-                      <td className="pb-1.5 text-right text-[0.85em] whitespace-nowrap tabular-nums opacity-65">
-                        −{formatPkr(off)}
-                      </td>
-                    </tr>
-                  ) : null}
+                  {off > 0
+                    ? (() => {
+                        // The offer and the patient's own discount, each on its own line
+                        // (owner's report, 2026-11-06: one combined figure hid the extra
+                        // discount). The patient's wording: "10% discount", never "offer".
+                        const l = bill.lines[idx];
+                        const offerOff = l?.offerDiscount ?? 0;
+                        // "Extra" only beside an offer; on its own it is simply the discount.
+                        const extra = offerOff > 0 ? "Extra " : "";
+                        const parts = [
+                          {
+                            key: "offer",
+                            label: it.discountType === "percent" ? `${it.discountValue}% discount` : "Discount",
+                            amount: offerOff,
+                          },
+                          {
+                            key: "patient",
+                            label:
+                              it.patientDiscountType === "percent"
+                                ? `${extra}${it.patientDiscountValue}% discount`
+                                : `${extra}discount`.replace(/^d/, "D"),
+                            amount: l?.patientDiscount ?? 0,
+                          },
+                        ].filter((x) => x.amount > 0);
+                        return parts.map((x, n) => (
+                          <tr key={x.key} className={n === parts.length - 1 ? "border-b border-black/10" : ""}>
+                            <td className="pb-1.5 pl-3 text-[0.85em] opacity-65" colSpan={2}>
+                              ↳ {x.label}
+                            </td>
+                            <td className="pb-1.5 text-right text-[0.85em] whitespace-nowrap tabular-nums opacity-65">
+                              −{formatPkr(x.amount)}
+                            </td>
+                          </tr>
+                        ));
+                      })()
+                    : null}
                 </Fragment>
               );
             })}

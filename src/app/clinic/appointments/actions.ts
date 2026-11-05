@@ -55,8 +55,7 @@ import {
   type ProcedureSelection,
 } from "@/core/appointments/procedures";
 import { syncDiscountApprovals } from "@/core/appointments/approvals";
-import { planDiscountForItems, scheduleItemsOnAppointment } from "@/core/patients/treatment-plans";
-import { isPlanDiscount } from "@/core/patients/plan-bill";
+import { scheduleItemsOnAppointment } from "@/core/patients/treatment-plans";
 import { AUTO_PRINT_ID_PARAM, AUTO_PRINT_PARAM } from "@/core/lib/print-papers";
 import { randomUUID } from "node:crypto";
 import { revalidateFinance } from "@/app/clinic/finance-revalidate";
@@ -72,7 +71,7 @@ import { logActivity } from "@/core/audit/log";
 import { APPOINTMENT_STATUSES, type AppointmentStatus } from "@/core/appointments/status";
 import { applyAppointmentStatus, confirmAppointmentOnPayment } from "@/core/appointments/set-status";
 import { findSameDayAppointments } from "@/core/appointments/same-day";
-import { DISCOUNT_BEARER_CODES , DISCOUNT_TYPE_CODES } from "@/core/db/vocabulary-seed";
+import { PATIENT_DISCOUNT_BEARER_CODES, DISCOUNT_TYPE_CODES } from "@/core/db/vocabulary-seed";
 
 export type ReceptionActionState = {
   error?: string;
@@ -114,7 +113,7 @@ const createSchema = z.object({
   reason: z.string().trim().optional(),
   discountType: z.enum(DISCOUNT_TYPE_CODES).default("amount"),
   discountValue: z.coerce.number().int().min(0, "Discount can't be negative.").default(0),
-  discountBorneBy: z.enum(DISCOUNT_BEARER_CODES).default("clinic"),
+  discountBorneBy: z.enum(PATIENT_DISCOUNT_BEARER_CODES).default("clinic"),
   discountSplitType: z.enum(DISCOUNT_TYPE_CODES).default("percent"),
   discountSplitValue: z.coerce.number().int().min(0).default(0),
 })
@@ -149,7 +148,10 @@ function parseProcedureSelections(formData: FormData): ProcedureSelection[] {
     .getAll("procedure")
     .map(String)
     .map((raw) => {
-      const [procedureId, qty, dtype, dval] = raw.split(":");
+      // "<id>:<qty>:<offer type>:<offer value>:<patient type>:<patient value>:<bearer>:
+      //  <split type>:<split value>" — the offer half is ignored (applyClinicOffers sets
+      //  it), the patient half is the line's own discount (per-line-discount-plan §2).
+      const [procedureId, qty, dtype, dval, ...rest] = raw.split(":");
       const discountType = dtype === "percent" ? ("percent" as const) : ("amount" as const);
       // Same ceiling as the appointment-level discount. This field is hand-parsed out
       // of an encoded hidden input rather than going through zod, so the rule is
@@ -162,9 +164,73 @@ function parseProcedureSelections(formData: FormData): ProcedureSelection[] {
         discountType,
         discountValue:
           discountType === "percent" ? Math.min(rawValue, MAX_DISCOUNT_PERCENT) : rawValue,
+        ...parseLineDiscount(rest),
       };
     })
     .filter((s) => s.procedureId);
+}
+
+/**
+ * A line's PATIENT discount from its encoded tail: type, value, bearer, split type,
+ * split value. Clamped, never rejected — our own form wrote it; a malformed one is a
+ * bug, not something to show a user. `saveAppointmentProcedures` clamps again and
+ * makes a service's (or doctorless line's) the clinic's.
+ */
+function parseLineDiscount(parts: string[]): Pick<
+  ProcedureSelection,
+  "patientDiscountType" | "patientDiscountValue" | "discountBorneBy" | "discountSplit"
+> {
+  const [pt, pv, bearer, st, sv] = parts;
+  const type = pt === "percent" ? ("percent" as const) : ("amount" as const);
+  const value = Math.max(0, Math.round(Number(pv) || 0));
+  const borneBy = (PATIENT_DISCOUNT_BEARER_CODES as readonly string[]).includes(bearer ?? "")
+    ? (bearer as (typeof PATIENT_DISCOUNT_BEARER_CODES)[number])
+    : "clinic";
+  const splitType = st === "amount" ? ("amount" as const) : ("percent" as const);
+  return {
+    patientDiscountType: type,
+    patientDiscountValue: type === "percent" ? Math.min(value, MAX_DISCOUNT_PERCENT) : value,
+    discountBorneBy: borneBy,
+    discountSplit: { type: splitType, value: Math.max(0, Math.round(Number(sv) || 0)) },
+  };
+}
+
+/**
+ * The consultation discount from the form, and whether it is valid. Validated like the
+ * whole-visit one; a doctorless or uncharged consultation has nothing to discount.
+ */
+const consultationSchema = z
+  .object({
+    consultationDiscountType: z.enum(DISCOUNT_TYPE_CODES).default("amount"),
+    consultationDiscountValue: z.coerce.number().int().min(0, "Discount can't be negative.").default(0),
+    consultationBorneBy: z.enum(PATIENT_DISCOUNT_BEARER_CODES).default("clinic"),
+    consultationSplitType: z.enum(DISCOUNT_TYPE_CODES).default("percent"),
+    consultationSplitValue: z.coerce.number().int().min(0).default(0),
+  })
+  .superRefine((v, ctx) => {
+    const e = discountError(v.consultationDiscountType, v.consultationDiscountValue);
+    if (e) ctx.addIssue({ code: "custom", path: ["consultationDiscountValue"], message: `Consultation: ${e}` });
+    const se = discountError(v.consultationSplitType, v.consultationSplitValue);
+    if (se) ctx.addIssue({ code: "custom", path: ["consultationSplitValue"], message: se });
+  });
+
+function parseConsultationDiscount(formData: FormData) {
+  const r = consultationSchema.safeParse({
+    consultationDiscountType: formData.get("consultationDiscountType") ?? undefined,
+    consultationDiscountValue: formData.get("consultationDiscountValue") || undefined,
+    consultationBorneBy: formData.get("consultationBorneBy") ?? undefined,
+    consultationSplitType: formData.get("consultationSplitType") ?? undefined,
+    consultationSplitValue: formData.get("consultationSplitValue") || undefined,
+  });
+  if (!r.success) return { error: zodErrorMessage(r.error) } as const;
+  const d = r.data;
+  return {
+    consultationDiscountType: d.consultationDiscountType,
+    consultationDiscountValue: d.consultationDiscountValue,
+    consultationBorneBy: d.consultationDiscountValue > 0 ? d.consultationBorneBy : ("clinic" as const),
+    consultationSplitType: d.consultationSplitType,
+    consultationSplitValue: d.consultationBorneBy === "split" && d.consultationDiscountValue > 0 ? d.consultationSplitValue : 0,
+  };
 }
 
 /**
@@ -179,13 +245,16 @@ function parseServiceSelections(formData: FormData): ProcedureSelection[] {
     .getAll("service")
     .map(String)
     .map((raw) => {
-      const [procedureId, qty, price] = raw.split(":");
+      // "<id>:<qty>:<price>:<patient type>:<patient value>" — a service's discount is
+      // always the clinic's (decision 3), so it carries no bearer.
+      const [procedureId, qty, price, pt, pv] = raw.split(":");
       return {
         procedureId,
         quantity: Number(qty) || 1,
         unitPrice: Math.max(0, Number(price) || 0),
         discountType: "amount" as const,
         discountValue: 0,
+        ...parseLineDiscount([pt, pv]),
       };
     })
     .filter((s) => s.procedureId);
@@ -194,7 +263,7 @@ function parseServiceSelections(formData: FormData): ProcedureSelection[] {
     .map(String)
     .flatMap((raw): ProcedureSelection[] => {
       try {
-        const c = JSON.parse(raw) as { n?: unknown; p?: unknown; q?: unknown };
+        const c = JSON.parse(raw) as { n?: unknown; p?: unknown; q?: unknown; dt?: unknown; dv?: unknown };
         const name = typeof c.n === "string" ? c.n.trim() : "";
         if (!name) return [];
         return [
@@ -205,6 +274,7 @@ function parseServiceSelections(formData: FormData): ProcedureSelection[] {
             quantity: Number(c.q) || 1,
             discountType: "amount",
             discountValue: 0,
+            ...parseLineDiscount([String(c.dt ?? ""), String(c.dv ?? "")]),
           },
         ];
       } catch {
@@ -323,25 +393,18 @@ export async function createAppointment(
   const when = new Date(parsed.data.scheduledAt);
   if (Number.isNaN(when.getTime())) return { error: "Invalid date & time." };
 
-  // Booking-from-plan: the items' plan discount. When the discount on the form is
-  // exactly that one, it is the plan's agreed discount and needs no approval (owner's
-  // call, 2026-10-18); a discount the desk changed is an ordinary one.
+  // Booking-from-plan: each item's share of its plan discount goes on the item's OWN
+  // line, with the plan's "Discount by", and asks no approval while unchanged
+  // (`scheduleItemsOnAppointment`, per-line-discount-plan §7). The whole-visit
+  // discount on the form is an ordinary one.
   const planItemIds = formData
     .getAll("planItemId")
     .filter((v): v is string => typeof v === "string" && v.length > 0);
   const bookPlanItems = planItemIds.length > 0 && can(user, "plans", "edit");
-  let discountFromPlan = false;
-  if (bookPlanItems) {
-    const fromPlan = await planDiscountForItems(clinicId, planItemIds);
-    if (fromPlan && "error" in fromPlan) return { error: fromPlan.error };
-    discountFromPlan = isPlanDiscount(fromPlan, {
-      discountType: parsed.data.discountType,
-      discountValue: parsed.data.discountValue,
-      borneBy: parsed.data.discountBorneBy,
-      splitType: parsed.data.discountSplitType,
-      splitValue: parsed.data.discountSplitValue,
-    });
-  }
+  const discountFromPlan = false;
+
+  const consult = parseConsultationDiscount(formData);
+  if ("error" in consult) return { error: consult.error };
 
   // Procedure-only visits don't charge the consultation fee (checkbox off → "0").
   const chargeConsultation = formData.get("chargeConsultation") !== "0";
@@ -417,6 +480,9 @@ export async function createAppointment(
     discountSplitType: parsed.data.discountSplitType,
     discountSplitValue: parsed.data.discountSplitValue,
           discountFromPlan,
+          ...consult,
+          // Every visit saved from now on shares its discounts per line (decision 6).
+          bearingVersion: 2,
           chargeConsultation,
           customTime,
           // Who booked it — shown as "Created by" on the appointments list.
@@ -545,7 +611,7 @@ const updateSchema = z.object({
   reason: z.string().trim().optional(),
   discountType: z.enum(DISCOUNT_TYPE_CODES).default("amount"),
   discountValue: z.coerce.number().int().min(0, "Discount can't be negative.").default(0),
-  discountBorneBy: z.enum(DISCOUNT_BEARER_CODES).default("clinic"),
+  discountBorneBy: z.enum(PATIENT_DISCOUNT_BEARER_CODES).default("clinic"),
   discountSplitType: z.enum(DISCOUNT_TYPE_CODES).default("percent"),
   discountSplitValue: z.coerce.number().int().min(0).default(0),
 })
@@ -596,6 +662,9 @@ export async function updateAppointment(
   const appt = await findAppointmentForEdit(clinicId, appointmentId);
   if (!appt) return { error: "Appointment not found." };
 
+  const consult = parseConsultationDiscount(formData);
+  if ("error" in consult) return { error: consult.error };
+
   // Moving the visit onto a day the patient is already booked: same question as
   // booking. Only when the DAY changes — a pair that already exists would otherwise
   // re-ask on every save of an unrelated field (a reason, a discount), which teaches
@@ -614,17 +683,32 @@ export async function updateAppointment(
   // Lines the visit already had keep the discount they were booked with; a procedure
   // added now takes the clinic offer running on the visit date.
   const bookedLines = await getAppointmentProcedureItems(clinicId, appointmentId);
+  // A line keeps "from the plan" only while its discount is exactly what it was booked
+  // with (plan §7); anything the desk changed is an ordinary discount and may ask.
+  const bookedById = new Map(bookedLines.filter((l) => l.procedureId).map((l) => [l.procedureId!, l]));
+  const keepPlanFlag = (sel: ProcedureSelection): ProcedureSelection => {
+    const b = sel.procedureId ? bookedById.get(sel.procedureId) : undefined;
+    const same =
+      b &&
+      b.discountFromPlan &&
+      b.patientDiscountType === (sel.patientDiscountType ?? "amount") &&
+      b.patientDiscountValue === (sel.patientDiscountValue ?? 0) &&
+      b.discountBorneBy === (sel.discountBorneBy ?? "clinic") &&
+      (b.discountBorneBy !== "split" ||
+        (b.discountSplit.type === sel.discountSplit?.type && b.discountSplit.value === sel.discountSplit?.value));
+    return { ...sel, discountFromPlan: Boolean(same) };
+  };
   const keepBooked = new Map(
     bookedLines
       .filter((l): l is typeof l & { procedureId: string } => Boolean(l.procedureId))
-      .map((l) => [l.procedureId, { discountType: l.discountType, discountValue: l.discountValue }]),
+      .map((l) => [
+        l.procedureId,
+        { discountType: l.discountType, discountValue: l.discountValue, offerBorneBy: l.offerBorneBy, offerSplit: l.offerSplit },
+      ]),
   );
-  const procedureSelections = await applyClinicOffers(
-    clinicId,
-    parseProcedureSelections(formData),
-    localDateStr(when),
-    keepBooked,
-  );
+  const procedureSelections = (
+    await applyClinicOffers(clinicId, parseProcedureSelections(formData), localDateStr(when), keepBooked)
+  ).map(keepPlanFlag);
   // Unticking this on an edit re-imposes the doctor's hours, so a visit moved back
   // into normal time stops being an exception. Same normalisation as create: the
   // flag survives only if the chosen time actually needs it.
@@ -662,6 +746,20 @@ export async function updateAppointment(
       appt.discountBorneBy === parsed.data.discountBorneBy &&
       appt.discountSplitType === parsed.data.discountSplitType &&
       appt.discountSplitValue === parsed.data.discountSplitValue,
+    ...consult,
+    // An OLD visit moves to the per-line rule only when its discounts are edited
+    // (decision 6); one already on it stays.
+    bearingVersion:
+      appt.bearingVersion === 2 ||
+      appt.discountType !== parsed.data.discountType ||
+      appt.discountValue !== parsed.data.discountValue ||
+      appt.discountBorneBy !== parsed.data.discountBorneBy ||
+      appt.discountSplitType !== parsed.data.discountSplitType ||
+      appt.discountSplitValue !== parsed.data.discountSplitValue ||
+      consult.consultationDiscountValue > 0 ||
+      [...procedureSelections, ...parseServiceSelections(formData)].some((l) => (l.patientDiscountValue ?? 0) > 0)
+        ? 2
+        : 1,
     chargeConsultation: formData.get("chargeConsultation") !== "0",
     customTime: editCustomTime,
     reminderSentAt: null, // time may have changed → re-send the reminder

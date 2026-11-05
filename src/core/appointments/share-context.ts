@@ -19,6 +19,13 @@ import {
   type ShareInput,
 } from "@/core/appointments/shares";
 import { getDoctorShareRatesMany } from "@/core/appointments/share-config";
+import {
+  buildDiscountPieces,
+  type BearBorneBy,
+  type BearSplit,
+  type BearingPiece,
+  type OfferBorneBy,
+} from "@/core/appointments/discount-bearing";
 
 /**
  * Assembles everything the revenue SPLIT and the discount-APPROVAL workflow need
@@ -56,10 +63,48 @@ export type AppointmentShareContext = {
   netEffective: number;
   /** Doctors who earn a positive share here (before any discount). */
   earnerDoctorIds: string[];
+  /** Which rule bears this visit's discount (`appointments.bearing_version`):
+   *  1 = one bearer for the whole discount (`borneBy`, spread over the doctors);
+   *  2 = per line — `pieces` (docs/per-line-discount-plan.md §3). */
+  bearingVersion: 1 | 2;
+  /** Version 2 only (else []): each EFFECTIVE discount with its own bearer and, for
+   *  a doctor-borne part, whose share it comes from. A held discount is absent.
+   *  Σ amount = grossTotal − netEffective. */
+  pieces: BearingPiece[];
+  /** Every PATIENT discount as entered (approval ignored) — what approval is about
+   *  (docs/per-line-discount-plan.md §6). Clinic offers are never here. On a version-1
+   *  visit this is just the overall discount. */
+  requestedPieces: RequestedPiece[];
 };
 
-function toBorneBy(v: string | null | undefined): ShareBorneBy {
+/** One patient discount awaiting (or past) approval. */
+export type RequestedPiece = {
+  /** "overall" | "consultation" | an appointment_procedures id. */
+  key: string;
+  /** What the approver is told it is for: "Root canal", "Consultation", "Whole visit". */
+  label: string;
+  /** As entered: "amount" | "percent" and the raw figure (500, or 10 for 10%). */
+  type: DiscountType;
+  value: number;
+  amount: number;
+  borneBy: BearBorneBy;
+  split: BearSplit;
+  /** Whose share a doctor-borne part comes from; NULL = the visit's earning doctors. */
+  doctorId: string | null;
+  /** Carried unchanged from a treatment plan — agreed already, never asks (§7). */
+  fromPlan: boolean;
+};
+
+function toBorneBy(v: string | null | undefined): ShareBorneBy & BearBorneBy {
   return v === "doctor" || v === "split" ? v : "clinic";
+}
+
+function toOfferBorneBy(v: string | null | undefined): OfferBorneBy {
+  return v === "clinic" || v === "doctor" || v === "split" ? v : "proportional";
+}
+
+function toSplit(type: string, value: number): BearSplit {
+  return { type: type === "amount" ? "amount" : "percent", value };
 }
 
 export async function getAppointmentShareContext(
@@ -85,6 +130,9 @@ export async function getAppointmentShareContext(
     patientDiscount: 0,
     netEffective: 0,
     earnerDoctorIds: [],
+    bearingVersion: 1,
+    pieces: [],
+    requestedPieces: [],
   };
 
   const [appt] = await exec
@@ -98,6 +146,14 @@ export async function getAppointmentShareContext(
       discountStatus: appointments.discountStatus,
       discountSplitType: appointments.discountSplitType,
       discountSplitValue: appointments.discountSplitValue,
+      consultationDiscountType: appointments.consultationDiscountType,
+      consultationDiscountValue: appointments.consultationDiscountValue,
+      consultationDiscountHeld: appointments.consultationDiscountHeld,
+      consultationBorneBy: appointments.consultationBorneBy,
+      consultationSplitType: appointments.consultationSplitType,
+      consultationSplitValue: appointments.consultationSplitValue,
+      bearingVersion: appointments.bearingVersion,
+      discountFromPlan: appointments.discountFromPlan,
     })
     .from(appointments)
     .where(
@@ -138,6 +194,16 @@ export async function getAppointmentShareContext(
       discountValue: appointmentProcedures.discountValue,
       doctorId: appointmentProcedures.doctorId,
       isService: appointmentProcedures.isService,
+      offerBorneBy: appointmentProcedures.offerBorneBy,
+      offerSplitType: appointmentProcedures.offerSplitType,
+      offerSplitValue: appointmentProcedures.offerSplitValue,
+      patientDiscountType: appointmentProcedures.patientDiscountType,
+      patientDiscountValue: appointmentProcedures.patientDiscountValue,
+      patientDiscountHeld: appointmentProcedures.patientDiscountHeld,
+      discountBorneBy: appointmentProcedures.discountBorneBy,
+      discountSplitType: appointmentProcedures.discountSplitType,
+      discountSplitValue: appointmentProcedures.discountSplitValue,
+      discountFromPlan: appointmentProcedures.discountFromPlan,
     })
     .from(appointmentProcedures)
     .where(
@@ -184,6 +250,8 @@ export async function getAppointmentShareContext(
   const lines = procRows.map((r) => {
     const doctorId = r.isService ? null : r.doctorId;
     const rate = doctorId ? rates.get(doctorId) : undefined;
+    // The OFFER alone — a line's patient discount is a piece (version 2), never
+    // part of the share base.
     const line = computeProcedureLine({
       unitPrice: r.unitPrice,
       quantity: r.quantity,
@@ -199,22 +267,87 @@ export async function getAppointmentShareContext(
     };
   });
 
-  // The patient's net (both requested and approval-gated).
+  // The patient's net (both requested and approval-gated). EVERY discount column is
+  // read whatever the version, so this stays the bill the SQL computes
+  // (bill-sql.ts); on a version-1 visit the per-line ones are simply 0.
   const discountType = normalizeDiscountType(appt.discountType);
-  const lineInputs = procRows.map((r) => ({
-    unitPrice: r.unitPrice,
-    quantity: r.quantity,
-    discountType: normalizeDiscountType(r.discountType),
-    discountValue: r.discountValue,
-  }));
-  const requested = computeBill(consultFee, lineInputs, discountType, appt.discountValue);
-  const netRequested = requested.net;
-  const netEffective = computeBill(
+  const lineInputs = (gated: boolean) =>
+    procRows.map((r) => ({
+      unitPrice: r.unitPrice,
+      quantity: r.quantity,
+      discountType: normalizeDiscountType(r.discountType),
+      discountValue: r.discountValue,
+      patientDiscountType: normalizeDiscountType(r.patientDiscountType),
+      patientDiscountValue: gated && r.patientDiscountHeld ? 0 : r.patientDiscountValue,
+    }));
+  const consultationDiscount = (gated: boolean) => ({
+    type: normalizeDiscountType(appt.consultationDiscountType),
+    value: gated && appt.consultationDiscountHeld ? 0 : appt.consultationDiscountValue,
+  });
+  const requested = computeBill(
     consultFee,
-    lineInputs,
+    lineInputs(false),
+    discountType,
+    appt.discountValue,
+    consultationDiscount(false),
+  );
+  const netRequested = requested.net;
+  const effective = computeBill(
+    consultFee,
+    lineInputs(true),
     discountType,
     effectiveDiscountValue(appt.discountStatus, appt.discountValue),
-  ).net;
+    consultationDiscount(true),
+  );
+  const netEffective = effective.net;
+
+  // VERSION 2 — per line (docs/per-line-discount-plan.md §3). Each effective discount
+  // becomes a piece with its own bearer; an offer "in proportion" lowers its line's
+  // share base instead, exactly as every offer does under version 1.
+  const bearingVersion: 1 | 2 = appt.bearingVersion === 2 ? 2 : 1;
+  let pieces: BearingPiece[] = [];
+  if (bearingVersion === 2) {
+    const effLines = lineInputs(true).map((l) => computeProcedureLine(l));
+    const built = buildDiscountPieces({
+      consultation: consultation
+        ? {
+            ...consultation,
+            discount: {
+              amount: effective.consultationDiscount,
+              borneBy: toBorneBy(appt.consultationBorneBy),
+              split: toSplit(appt.consultationSplitType, appt.consultationSplitValue),
+            },
+          }
+        : null,
+      lines: procRows.map((r, i) => ({
+        doctorId: lines[i].doctorId,
+        isService: r.isService,
+        gross: effLines[i].gross,
+        pct: lines[i].pct,
+        offer: {
+          amount: effLines[i].offerDiscount,
+          borneBy: toOfferBorneBy(r.offerBorneBy),
+          split: toSplit(r.offerSplitType, r.offerSplitValue),
+        },
+        patient: {
+          amount: effLines[i].patientDiscount,
+          borneBy: toBorneBy(r.discountBorneBy),
+          split: toSplit(r.discountSplitType, r.discountSplitValue),
+        },
+      })),
+      overall: {
+        amount: effective.appointmentDiscount,
+        borneBy: toBorneBy(appt.discountBorneBy),
+        split: toSplit(appt.discountSplitType, appt.discountSplitValue),
+      },
+    });
+    // Share bases move (a borne offer no longer lowers its line's); refs and labels
+    // stay with their line.
+    built.lines.forEach((b, i) => {
+      lines[i].gross = b.gross;
+    });
+    pieces = built.pieces;
+  }
 
   const grossTotal =
     consultFee + lines.reduce((s, l) => s + l.gross, 0);
@@ -246,7 +379,55 @@ export async function getAppointmentShareContext(
     patientDiscount: requested.appointmentDiscount,
     netEffective,
     earnerDoctorIds,
+    bearingVersion,
+    pieces,
+    requestedPieces: requestedPiecesOf(),
   };
+
+  // The requested (ungated) patient discounts, in rupees. A line no doctor earns from
+  // is the clinic's, whatever was chosen — the same rule bearing applies.
+  function requestedPiecesOf(): RequestedPiece[] {
+    const out: RequestedPiece[] = [];
+    const reqLines = lineInputs(false).map((l) => computeProcedureLine(l));
+    const clinicOwned = (doctorId: string | null) => !doctorId || !earnerDoctorIds.includes(doctorId);
+    const piece = (
+      key: string,
+      label: string,
+      raw: { type: string; value: number },
+      amount: number,
+      doctorId: string | null,
+      bearer: string,
+      split: BearSplit,
+      fromPlan: boolean,
+      named: boolean,
+    ) => {
+      if (!(amount > 0)) return;
+      const toClinic = named && clinicOwned(doctorId);
+      out.push({
+        key,
+        label,
+        type: normalizeDiscountType(raw.type),
+        value: raw.value,
+        amount,
+        borneBy: toClinic ? "clinic" : toBorneBy(bearer),
+        split,
+        doctorId: named && !toClinic ? doctorId : null,
+        fromPlan,
+      });
+    };
+    if (consultation) {
+      piece("consultation", "Consultation",
+        { type: appt!.consultationDiscountType, value: appt!.consultationDiscountValue }, requested.consultationDiscount, consultation.doctorId,
+        appt!.consultationBorneBy, toSplit(appt!.consultationSplitType, appt!.consultationSplitValue), false, true);
+    }
+    procRows.forEach((r, i) => {
+      piece(r.id, r.name, { type: r.patientDiscountType, value: r.patientDiscountValue }, reqLines[i].patientDiscount, r.isService ? null : r.doctorId,
+        r.discountBorneBy, toSplit(r.discountSplitType, r.discountSplitValue), r.discountFromPlan, true);
+    });
+    piece("overall", "Whole visit", { type: appt!.discountType, value: appt!.discountValue }, requested.appointmentDiscount, null, appt!.discountBorneBy,
+      toSplit(appt!.discountSplitType, appt!.discountSplitValue), appt!.discountFromPlan, false);
+    return out;
+  }
 }
 
 /** Build the `computeShare` input from a context, using the approval-gated net. */

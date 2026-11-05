@@ -10,7 +10,7 @@ import { clinicHasFeature } from "@/core/lib/features";
 import { report } from "@/core/observability";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointmentProcedures, appointments, clinics, invoices, patients, users } from "@/core/db/schema";
-import { appointmentNetSql } from "@/core/appointments/bill-sql";
+import { appointmentNetSql, consultationDiscountColumns } from "@/core/appointments/bill-sql";
 import { patientSearchSql } from "@/core/patients/search-sql";
 import { appointmentHasProcedureSql, procedureTotals } from "@/core/appointments/procedures";
 
@@ -461,6 +461,7 @@ export async function getAppointmentForDocument(clinicId: string, appointmentId:
       discountType: appointments.discountType,
       discountValue: appointments.discountValue,
       discountStatus: appointments.discountStatus,
+      ...consultationDiscountColumns,
       patientName: patients.fullName,
       patientPhone: patients.phone,
       patientMrn: patients.mrn,

@@ -6,7 +6,7 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments } from "@/core/db/schema";
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
-import { billFromTotals, effectiveDiscountValue } from "@/core/appointments/fee";
+import { billFromTotals, effectiveDiscountValue, effectiveConsultationDiscount } from "@/core/appointments/fee";
 import {
   appointmentHasProceduresSql,
   appointmentProceduresGrossSql,
@@ -20,6 +20,7 @@ import { localDateStr } from "@/core/appointments/availability";
 import type { DayAvailability } from "@/core/lib/availability";
 import { report } from "@/core/observability";
 import { logPatientAction } from "@/core/audit/log";
+import { consultationDiscountColumns } from "@/core/appointments/bill-sql";
 
 /** "Mon 13 Jul, 15:00" for the reschedule confirmation. */
 function fmtWhen(d: Date): string {
@@ -101,6 +102,7 @@ export async function handleRescheduleReply(args: {
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
         discountStatus: appointments.discountStatus,
+        ...consultationDiscountColumns,
         chargeConsultation: appointments.chargeConsultation,
         proceduresGross: appointmentProceduresGrossSql(),
         proceduresTotal: appointmentProceduresNetSql(),
@@ -264,6 +266,7 @@ export async function handleRescheduleReply(args: {
       Number(appt.proceduresTotal),
       appt.discountType === "percent" ? "percent" : "amount",
       effectiveDiscountValue(appt.discountStatus, appt.discountValue),
+      effectiveConsultationDiscount(appt),
     );
     const feeStr =
       gross > 0 ? ` Total: Rs ${new Intl.NumberFormat("en-PK").format(net)}.` : "";

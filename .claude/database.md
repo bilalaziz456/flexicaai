@@ -83,7 +83,7 @@ is_active)`, company-global — no
 | `approval_statuses` | pending, approved, rejected | `appointment_discount_approvals.status` |
 | `discount_statuses` | none, pending, approved, rejected | `appointments.discount_status` |
 | `discount_types` | amount, percent | the three `discount_type` / `discount_split_type` columns |
-| `discount_bearers` | clinic, doctor, split | `appointments.discount_borne_by` |
+| `discount_bearers` | clinic, doctor, split, **proportional** ("In proportion", offers only — `0138`) | `appointments.discount_borne_by` + `consultation_borne_by`, `appointment_procedures.discount_borne_by` + `offer_borne_by`, `procedures.offer_borne_by`, `treatment_plans.discount_borne_by` |
 | `clinic_statuses` | trial, active, suspended, past_due, cancelled | `clinics.status` |
 | `billing_cycles` | monthly, 2m, quarter, half, annual | `clinics.billing_cycle` |
 | `invoice_papers` | thermal, a5, a4 | `clinics.invoice_paper` (the default) + `clinics.invoice_papers_enabled` (which are offered) |
@@ -229,6 +229,25 @@ Indexes: `clinic_id`; `patient_id`; (`clinic_id`,`scheduled_at`); `doctor_id`;
 (`clinic_id`,`queue_session`,`queue_number`) — token uniqueness + assignment lookup
 (NULLs distinct, so un-queued rows never collide).
 
+**Per-line discounts** (`0138`/`0139`, docs/per-line-discount-plan.md): the CONSULTATION
+as a line — `consultation_discount_type_id`/`_value` (taken off the fee before the
+overall discount), `consultation_borne_by_id` (+ `consultation_split_type_id`/`_value`),
+`consultation_discount_held` (pending/declined → counts as 0) — and **`bearing_version`**
+int (CHECK 1|2, default 1). Version 1 = the whole discount has ONE bearer
+(`discount_borne_by`), spread over the visit's doctors: every visit before 2026-11-06,
+and they stay 1. Version 2 = each discount is a piece with its own bearer, a doctor-borne
+piece charged to THAT line's doctor (`share-context.ts` → `computeBearingPieces`). The
+bill reads every column whatever the version (on a version-1 visit they are 0). Every
+NEW visit is saved as 2; an edit moves an old visit to 2 only when its discounts change.
+
+**Who writes the held flags:** only `approvals.ts#applyApprovalGates`, from the
+approval rows (still one per party per visit). Each discount is gated by the parties
+that BEAR it — a clinic-borne line by the clinic's row, a doctor-borne one by its
+doctor's — so approving one side releases its discounts and leaves the other's held.
+`appointments.discount_status` stays the gate for the WHOLE-VISIT discount alone (every
+bill reader already treats it that way); the visit summary the queue shows is derived
+from the rows. A plan's discount (`discount_from_plan`) asks nobody.
+
 ### `visits` — shared; stores the AI note
 `id`, `clinic_id` (`cascade`), `patient_id` (`cascade`), `appointment_id` → appts
 (`set null`), `doctor_id` → users (`set null`), `module`, `status` (→ `visit_statuses`, default
@@ -330,6 +349,13 @@ a 10% offer is Rs 90 and the clinic keeps Rs 810. `discount_borne_by` then place
 the PATIENT discount — it used to place the offer too, so the same visit could earn the
 doctor Rs 100, Rs 90 or nothing depending on that field.
 
+**Offer bearer** (`0138`): `offer_borne_by_id` (default **proportional** = the rule
+above) + `offer_split_type_id`/`_value`, snapshotted onto the line with the offer by
+`applyClinicOffers`. Clinic / doctor / split make the offer a bearing piece instead,
+with the share worked out on the full price — read only on a version-2 visit. Set from
+the price list's offer dialog (Procedures only); a Service's offer is always stored as
+the default, which on a line with no doctor share is the clinic's.
+
 ### `appointment_procedures` — appointment line items (Sales feature, phase 2)
 `id`, `clinic_id` → clinics (`cascade`), `appointment_id` → appointments
 (`cascade`), `procedure_id` → procedures (`set null`), `name` + `unit_price`
@@ -339,7 +365,13 @@ doctor Rs 100, Rs 90 or nothing depending on that field.
 THIS line's gross (`unit_price×quantity`) BEFORE the appointment-level discount —
 and `created_at`. The bill is **layered**: each line is discounted first (`lineNet
 = gross − line discount`), summed with the consultation fee into a **subtotal**,
-then the appointment's own discount applies to that subtotal. ONE formula does this
+then the appointment's own discount applies to that subtotal. **Since `0138` the line's
+`discount_*` is its clinic offer** and the line carries its own PATIENT discount after
+it: `patient_discount_type_id`/`_value`, borne by `discount_borne_by_id` (+
+`discount_split_type_id`/`_value`; CHECK never "proportional"), `discount_from_plan`, and
+`patient_discount_held` (`0139`; pending/declined → 0 in the bill). Plus the offer's
+`offer_borne_by_id` (+ split) snapshot. A service or doctorless line stores its bearers
+as the clinic's. One write path (`procedures.ts#saveAppointmentProcedures`). ONE formula does this
 (ADR-015): `core/appointments/fee.ts#billFromTotals`, with `computeBill` (from lines)
 and `computeSaleAmounts` (for the ledger snapshot) as projections of it. To keep the
 many callers a single fast aggregate (not N queries), the same formula is expressed in
@@ -1456,6 +1488,19 @@ these for churn-risk + usage/cost anomaly flags.
   stored so a retry and the recovery sweep transcribe the recording the same way.
   Text, not a lookup table: a bad value costs a worse transcript the doctor reviews,
   never a figure (ADR-027's test). See `.claude/ai-scribe.md` §3b.
+- Migrations **`0138`/`0139`** — **per-line discounts**, each with its own "Borne by"
+  (owner's decisions 2026-11-06, docs/per-line-discount-plan.md). ADDITIVE: every column
+  defaults to what the app already did, so no existing bill, share or settlement moves —
+  `scripts/test-old-visits-unchanged.ts` re-derives every visit's sales, shares and
+  settlements in a rolled-back transaction and asserts they match what is stored (822 of
+  822 on the dev database). Adds `discount_bearers` id 4 `proportional` (inserted FIRST,
+  since the new columns default to it), the columns described under `appointments`,
+  `procedures` and `appointment_procedures`, and CHECKs: percents 0–100 (ADR-021) and
+  "proportional" on offers only (`treatment_plans` included). drizzle-kit wrote the
+  vocabulary defaults as codes, which Postgres cannot cast to integer — the SQL carries
+  the ids, as `0117` does. `bill-sql.ts` gained the consultation discount and
+  `procedureRowNetSql` the patient line discount; `test-bill-parity.ts` covers both,
+  held and not.
 - Migration **`0135`** adds `prescriptions.visit_id` (→ visits, `set null`, UNIQUE
   where set): an APPROVED scribe note's medicines become a real prescription (owner's
   call, 2026-10-24), so they print with/without the letterhead, download, edit and

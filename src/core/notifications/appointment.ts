@@ -5,7 +5,7 @@ import { db } from "@/core/db";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { appointments, clinics, patients, users } from "@/core/db/schema";
 import { displayStaffName } from "@/core/types/auth";
-import { billFromTotals, effectiveDiscountValue } from "@/core/appointments/fee";
+import { billFromTotals, effectiveDiscountValue, effectiveConsultationDiscount } from "@/core/appointments/fee";
 import {
   appointmentProcedureNamesSql,
   appointmentProceduresGrossSql,
@@ -14,6 +14,7 @@ import {
 import { serverEnv } from "@/core/lib/env";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import { report } from "@/core/observability";
+import { consultationDiscountColumns } from "@/core/appointments/bill-sql";
 
 /** "Rs 1,500" or "Not specified" for a 0/absent fee. */
 function formatFee(fee: number | null): string {
@@ -132,6 +133,7 @@ export async function notifyAppointmentBooked(
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
         discountStatus: appointments.discountStatus,
+        ...consultationDiscountColumns,
         procedureNames: appointmentProcedureNamesSql(),
         proceduresGross: appointmentProceduresGrossSql(),
         proceduresTotal: appointmentProceduresNetSql(),
@@ -166,6 +168,7 @@ export async function notifyAppointmentBooked(
       Number(r.proceduresTotal),
       r.discountType === "percent" ? "percent" : "amount",
       effectiveDiscountValue(r.discountStatus, r.discountValue),
+      effectiveConsultationDiscount(r),
     );
     const fee = formatFee(gross > 0 ? net : null);
     // Queue token the patient should quote at the desk (only doctor bookings

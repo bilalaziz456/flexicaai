@@ -41,7 +41,7 @@ export function OverviewCashTable({ rows, totals }: { rows: CashRow[]; totals: C
   return <DataTable rows={rows} columns={columns} getRowKey={(r) => r.method} minWidthClassName="min-w-[32rem]" empty="No cash movement in this period." />;
 }
 
-type DiscountRow = { appointmentId: string; scheduledAt: Date; patientName: string | null; doctorName: string | null; borneBy: string; status: string; amount: number };
+type DiscountRow = { key: string; label: string; appointmentId: string; scheduledAt: Date; patientName: string | null; doctorName: string | null; borneBy: string; status: string; amount: number };
 
 /** Overview "discounts & waivers" (client) — sortable + mobile cards. */
 export function OverviewDiscountsTable({ rows }: { rows: DiscountRow[] }) {
@@ -60,6 +60,12 @@ export function OverviewDiscountsTable({ rows }: { rows: DiscountRow[] }) {
     { id: "patient", header: "Patient", cardTitle: true, sortValue: (r) => r.patientName ?? "", cell: (r) => r.patientName ?? "—" },
     { id: "doctor", header: "Doctor", sortValue: (r) => r.doctorName ?? "", cell: (r) => r.doctorName ?? "—" },
     {
+      id: "for",
+      header: "For",
+      sortValue: (r) => r.label,
+      cell: (r) => <span className="whitespace-nowrap">{r.label}</span>,
+    },
+    {
       id: "borne",
       header: "Borne by",
       sortValue: (r) => r.borneBy,
@@ -72,5 +78,5 @@ export function OverviewDiscountsTable({ rows }: { rows: DiscountRow[] }) {
     },
     { id: "discount", header: "Discount", align: "right", sortValue: (r) => r.amount, cell: (r) => <span className="font-medium tabular-nums">{money.format(r.amount)}</span> },
   ];
-  return <DataTable rows={rows} columns={columns} getRowKey={(r) => r.appointmentId} minWidthClassName="min-w-[30rem]" empty="No discounts in this period." />;
+  return <DataTable rows={rows} columns={columns} getRowKey={(r) => r.key} minWidthClassName="min-w-[36rem]" empty="No discounts in this period." />;
 }

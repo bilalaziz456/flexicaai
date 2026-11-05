@@ -11,9 +11,10 @@ import {
   users,
 } from "@/core/db/schema";
 import { clinicHasFeature } from "@/core/lib/features";
-import { clampDiscountValue, type DiscountType } from "@/core/appointments/fee";
+import { clampDiscountValue, type DiscountType, type ProcedureLineInput } from "@/core/appointments/fee";
+import type { BearBorneBy, BearSplit, OfferBorneBy } from "@/core/appointments/discount-bearing";
 import { offerForVisit, type ProcedureOffer } from "@/core/appointments/procedure-offer";
-import { discountTypeId, type DiscountTypeCode } from "@/core/db/vocabulary-seed";
+import { discountTypeId, type DiscountBearerCode, type DiscountTypeCode } from "@/core/db/vocabulary-seed";
 
 export type BookingProcedure = {
   id: string;
@@ -37,6 +38,9 @@ export const OTHER_CHARGE_PRICE_MAX = 10_000_000;
 const offerColumns = {
   offerType: procedures.offerType,
   offerValue: procedures.offerValue,
+  offerBorneBy: procedures.offerBorneBy,
+  offerSplitType: procedures.offerSplitType,
+  offerSplitValue: procedures.offerSplitValue,
   offerStartsOn: procedures.offerStartsOn,
   offerEndsOn: procedures.offerEndsOn,
 };
@@ -45,12 +49,17 @@ function toOffer(r: {
   offerValue: number;
   offerStartsOn: string | null;
   offerEndsOn: string | null;
+  offerBorneBy?: string;
+  offerSplitType?: string;
+  offerSplitValue?: number;
 }): ProcedureOffer {
   return {
     type: r.offerType === "percent" ? "percent" : "amount",
     value: r.offerValue,
     startsOn: r.offerStartsOn,
     endsOn: r.offerEndsOn,
+    borneBy: asOfferBearer(r.offerBorneBy),
+    split: asSplit(r.offerSplitType, r.offerSplitValue ?? 0),
   };
 }
 
@@ -72,6 +81,18 @@ export type ProcedureSelection = {
   unitPrice?: number;
   /** A one-off charge's description ("Medicines"). Ignored for list items. */
   name?: string;
+  /** Who bears the clinic offer — set by `applyClinicOffers` with the offer itself,
+   *  never by the browser. Absent = "proportional" (plan §5). */
+  offerBorneBy?: OfferBorneBy;
+  offerSplit?: BearSplit;
+  /** The line's PATIENT discount and its bearer (docs/per-line-discount-plan.md §2).
+   *  Absent = none. A service line's is always the clinic's, whatever is sent. */
+  patientDiscountType?: DiscountType;
+  patientDiscountValue?: number;
+  discountBorneBy?: BearBorneBy;
+  discountSplit?: BearSplit;
+  /** The patient discount is a treatment plan's, unchanged (plan §7). */
+  discountFromPlan?: boolean;
 };
 
 /** A saved appointment line item (snapshotted name + price + quantity + discount). */
@@ -85,6 +106,38 @@ export type AppointmentProcedureItem = {
   doctorId: string | null;
   /** A service or one-off charge — printed under "Other charges", no doctor share. */
   isService: boolean;
+  offerBorneBy: OfferBorneBy;
+  offerSplit: BearSplit;
+  patientDiscountType: DiscountType;
+  patientDiscountValue: number;
+  /** Waiting for approval or declined — counts as 0 in the bill (plan §6). */
+  patientDiscountHeld: boolean;
+  discountBorneBy: BearBorneBy;
+  discountSplit: BearSplit;
+  discountFromPlan: boolean;
+};
+
+/** A saved line as the bill takes it: its offer, then its patient discount, which
+ *  counts as 0 while held — the input `bill-sql.ts` sees, so the two stay equal. */
+export function billLineOf(i: AppointmentProcedureItem): ProcedureLineInput {
+  return {
+    unitPrice: i.unitPrice,
+    quantity: i.quantity,
+    discountType: i.discountType,
+    discountValue: i.discountValue,
+    patientDiscountType: i.patientDiscountType,
+    patientDiscountValue: i.patientDiscountHeld ? 0 : i.patientDiscountValue,
+  };
+}
+
+const asType = (v: string | null | undefined): DiscountType => (v === "percent" ? "percent" : "amount");
+const asBearer = (v: string | null | undefined): BearBorneBy =>
+  v === "doctor" || v === "split" ? v : "clinic";
+const asOfferBearer = (v: string | null | undefined): OfferBorneBy =>
+  v === "clinic" || v === "doctor" || v === "split" ? v : "proportional";
+const asSplit = (type: string | null | undefined, value: number): BearSplit => {
+  const t = asType(type);
+  return { type: t, value: clampDiscountValue(t, value) };
 };
 
 /** Clamp a typed price to a whole, non-negative rupee figure under the ceiling. */
@@ -124,7 +177,32 @@ const outerAppointmentId = sql`${sql.identifier("appointments")}.${sql.identifie
 
 export function procedureRowNetSql(): SQL<number> {
   const gross = sql`(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity})`;
-  return sql<number>`(${gross} - least(greatest(round(case when ${appointmentProcedures.discountType} = ${discountTypeId("percent")} then ${gross}::numeric * ${appointmentProcedures.discountValue} / 100.0 else ${appointmentProcedures.discountValue}::numeric end), 0), ${gross}))::int`;
+  // After the clinic offer (`discount_type/value`)…
+  const afterOffer = sql`(${gross} - least(greatest(round(case when ${appointmentProcedures.discountType} = ${discountTypeId("percent")} then ${gross}::numeric * ${appointmentProcedures.discountValue} / 100.0 else ${appointmentProcedures.discountValue}::numeric end), 0), ${gross}))`;
+  // …then the line's PATIENT discount on what is left — 0 while it is held for
+  // approval (docs/per-line-discount-plan.md §4, §6). Mirrors fee.ts#computeProcedureLine.
+  const pv = sql`(case when ${appointmentProcedures.patientDiscountHeld} then 0 else ${appointmentProcedures.patientDiscountValue} end)`;
+  return sql<number>`(${afterOffer} - least(greatest(round(case when ${appointmentProcedures.patientDiscountType} = ${discountTypeId("percent")} then ${afterOffer}::numeric * ${pv} / 100.0 else ${pv}::numeric end), 0), ${afterOffer}))::int`;
+}
+
+/** A row's PATIENT discount in rupees, as entered (ignores `patient_discount_held`) —
+ *  the step `procedureRowNetSql` takes after the offer. For the Discounts report. */
+function procedureRowPatientDiscountSql(): SQL<number> {
+  const gross = sql`(${appointmentProcedures.unitPrice} * ${appointmentProcedures.quantity})`;
+  const afterOffer = sql`(${gross} - least(greatest(round(case when ${appointmentProcedures.discountType} = ${discountTypeId("percent")} then ${gross}::numeric * ${appointmentProcedures.discountValue} / 100.0 else ${appointmentProcedures.discountValue}::numeric end), 0), ${gross}))`;
+  const pv = appointmentProcedures.patientDiscountValue;
+  return sql<number>`least(greatest(round(case when ${appointmentProcedures.patientDiscountType} = ${discountTypeId("percent")} then ${afterOffer}::numeric * ${pv} / 100.0 else ${pv}::numeric end), 0), ${afterOffer})`;
+}
+
+/** Correlated Σ of the OUTER appointment's line patient discounts, held or not. */
+export function appointmentLinesPatientDiscountSql(held: boolean): SQL<number> {
+  return sql<number>`coalesce((select sum(${procedureRowPatientDiscountSql()})::int from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${outerAppointmentId} and ${appointmentProcedures.patientDiscountHeld} = ${held}), 0)`;
+}
+
+/** Whether the OUTER appointment has any line carrying a patient discount, optionally
+ *  only those borne by `bearer` or performed by `doctorId`. */
+export function appointmentHasLineDiscountSql(opts: { bearerId?: number; doctorId?: string } = {}): SQL<boolean> {
+  return sql<boolean>`exists (select 1 from ${appointmentProcedures} where ${appointmentProcedures.appointmentId} = ${outerAppointmentId} and ${appointmentProcedures.patientDiscountValue} > 0${opts.bearerId !== undefined ? sql` and ${appointmentProcedures.discountBorneBy} = ${opts.bearerId}` : sql``}${opts.doctorId ? sql` and ${appointmentProcedures.doctorId} = ${opts.doctorId}` : sql``})`;
 }
 
 /** Correlated Σ of per-row NET for the OUTER `appointments.id` (0 when none). */
@@ -279,7 +357,10 @@ export async function applyClinicOffers(
   clinicId: string,
   selections: ProcedureSelection[],
   visitDate: string,
-  keep?: Map<string, { discountType: DiscountType; discountValue: number }>,
+  keep?: Map<
+    string,
+    { discountType: DiscountType; discountValue: number; offerBorneBy?: OfferBorneBy; offerSplit?: BearSplit }
+  >,
 ): Promise<ProcedureSelection[]> {
   const ids = [...new Set(selections.map((s) => s.procedureId).filter((v): v is string => Boolean(v)))];
   if (ids.length === 0) return selections;
@@ -297,16 +378,33 @@ export async function applyClinicOffers(
       ),
     );
   const offers = new Map(rows.map((r) => [r.id, toOffer(r)]));
+  // The offer's BEARER travels with the offer (plan §5): snapshotted here, never
+  // taken from the browser, and kept on an edit like the amount is.
+  const bearers = new Map(
+    rows.map((r) => [r.id, { borneBy: asOfferBearer(r.offerBorneBy), split: asSplit(r.offerSplitType, r.offerSplitValue) }]),
+  );
+  const none = { offerBorneBy: undefined, offerSplit: undefined };
   return selections.map((s) => {
-    if (!s.procedureId) return { ...s, discountType: "amount", discountValue: 0 };
+    if (!s.procedureId) return { ...s, ...none, discountType: "amount", discountValue: 0 };
     const kept = keep?.get(s.procedureId);
-    if (kept) return { ...s, discountType: kept.discountType, discountValue: kept.discountValue };
+    if (kept) {
+      return {
+        ...s,
+        discountType: kept.discountType,
+        discountValue: kept.discountValue,
+        offerBorneBy: kept.offerBorneBy,
+        offerSplit: kept.offerSplit,
+      };
+    }
     const offer = offers.get(s.procedureId);
     const applied = offer ? offerForVisit(offer, visitDate) : null;
+    const bearer = applied ? bearers.get(s.procedureId) : undefined;
     return {
       ...s,
       discountType: applied?.type ?? "amount",
       discountValue: applied?.value ?? 0,
+      offerBorneBy: bearer?.borneBy,
+      offerSplit: bearer?.split,
     };
   });
 }
@@ -364,8 +462,24 @@ export async function setProcedureOffer(
         offerValue: clampDiscountValue(offer.type, offer.value),
         offerStartsOn: offer.startsOn,
         offerEndsOn: offer.endsOn,
+        // A service's offer is the clinic's whatever is sent (decision 3); stored as
+        // the default, which is what a line with no doctor share bears anyway.
+        offerBorneBy: (kind === "service" ? "proportional" : (offer.borneBy ?? "proportional")) as DiscountBearerCode,
+        offerSplitType: (offer.split?.type ?? "percent") as DiscountTypeCode,
+        offerSplitValue:
+          kind !== "service" && offer.borneBy === "split" && offer.split
+            ? clampDiscountValue(offer.split.type, offer.split.value)
+            : 0,
       }
-    : { offerType: "amount" as const, offerValue: 0, offerStartsOn: null, offerEndsOn: null };
+    : {
+        offerType: "amount" as const,
+        offerValue: 0,
+        offerStartsOn: null,
+        offerEndsOn: null,
+        offerBorneBy: "proportional" as const,
+        offerSplitType: "percent" as const,
+        offerSplitValue: 0,
+      };
   const updated = await db
     .update(procedures)
     .set({ ...values, updatedAt: new Date() })
@@ -418,6 +532,7 @@ export async function saveAppointmentProcedures(
       name: (s.name ?? "").trim().slice(0, OTHER_CHARGE_NAME_MAX),
       unitPrice: clampPrice(s.unitPrice),
       quantity: clampQty(s.quantity),
+      ...patientDiscountFields(s, true),
     }))
     .filter((c) => c.name.length > 0);
   if (otherCharges.length > 0) {
@@ -431,6 +546,12 @@ export async function saveAppointmentProcedures(
         unitPrice: c.unitPrice,
         quantity: c.quantity,
         isService: true,
+        patientDiscountType: c.patientDiscountType,
+        patientDiscountValue: c.patientDiscountValue,
+        discountBorneBy: c.discountBorneBy,
+        discountSplitType: c.discountSplitType,
+        discountSplitValue: c.discountSplitValue,
+        discountFromPlan: c.discountFromPlan,
       })),
     );
   }
@@ -482,7 +603,16 @@ export async function saveAppointmentProcedures(
       // A service earns no doctor share, so it has no performing doctor either.
       const doctorId =
         !r.isService && s.doctorId && validDoctors.has(s.doctorId) ? s.doctorId : null;
+      const offerSplit = s.offerSplit ?? { type: "percent" as const, value: 0 };
       return {
+        // A service's offer and discounts are the clinic's (decision 3), and a line
+        // with no doctor has nobody else to bear them: stored as such, not as chosen.
+        ...patientDiscountFields(s, r.isService || doctorId === null),
+        offerBorneBy: (r.isService || doctorId === null
+          ? "proportional"
+          : (s.offerBorneBy ?? "proportional")) as DiscountBearerCode,
+        offerSplitType: offerSplit.type as DiscountTypeCode,
+        offerSplitValue: clampDiscountValue(offerSplit.type, offerSplit.value),
         clinicId,
         appointmentId,
         procedureId: r.id,
@@ -527,6 +657,16 @@ export async function getAppointmentProcedureItems(
       discountValue: appointmentProcedures.discountValue,
       doctorId: appointmentProcedures.doctorId,
       isService: appointmentProcedures.isService,
+      offerBorneBy: appointmentProcedures.offerBorneBy,
+      offerSplitType: appointmentProcedures.offerSplitType,
+      offerSplitValue: appointmentProcedures.offerSplitValue,
+      patientDiscountType: appointmentProcedures.patientDiscountType,
+      patientDiscountValue: appointmentProcedures.patientDiscountValue,
+      patientDiscountHeld: appointmentProcedures.patientDiscountHeld,
+      discountBorneBy: appointmentProcedures.discountBorneBy,
+      discountSplitType: appointmentProcedures.discountSplitType,
+      discountSplitValue: appointmentProcedures.discountSplitValue,
+      discountFromPlan: appointmentProcedures.discountFromPlan,
     })
     .from(appointmentProcedures)
     .where(
@@ -539,9 +679,43 @@ export async function getAppointmentProcedureItems(
     // Procedures first, then other charges — the order the bill prints them in.
     .orderBy(asc(appointmentProcedures.isService), asc(appointmentProcedures.name));
   return rows.map((r) => ({
-    ...r,
-    discountType: r.discountType === "percent" ? "percent" : "amount",
+    procedureId: r.procedureId,
+    name: r.name,
+    unitPrice: r.unitPrice,
+    quantity: r.quantity,
+    discountType: asType(r.discountType),
+    discountValue: r.discountValue,
+    doctorId: r.doctorId,
+    isService: r.isService,
+    offerBorneBy: asOfferBearer(r.offerBorneBy),
+    offerSplit: asSplit(r.offerSplitType, r.offerSplitValue),
+    patientDiscountType: asType(r.patientDiscountType),
+    patientDiscountValue: r.patientDiscountValue,
+    patientDiscountHeld: r.patientDiscountHeld,
+    discountBorneBy: asBearer(r.discountBorneBy),
+    discountSplit: asSplit(r.discountSplitType, r.discountSplitValue),
+    discountFromPlan: r.discountFromPlan,
   }));
+}
+
+/**
+ * A selection's patient discount as stored — clamped (ADR-021) and, for a line only
+ * the clinic can bear (a service, or no doctor), borne by the clinic whatever was
+ * sent. The ONE place a line's patient discount is shaped for the table.
+ */
+function patientDiscountFields(s: ProcedureSelection, clinicOnly: boolean) {
+  const type = asType(s.patientDiscountType);
+  const value = clampDiscountValue(type, s.patientDiscountValue ?? 0);
+  const borneBy: BearBorneBy = clinicOnly ? "clinic" : (s.discountBorneBy ?? "clinic");
+  const split = borneBy === "split" ? (s.discountSplit ?? { type: "percent" as const, value: 0 }) : { type: "percent" as const, value: 0 };
+  return {
+    patientDiscountType: type as DiscountTypeCode,
+    patientDiscountValue: value,
+    discountBorneBy: borneBy as DiscountBearerCode,
+    discountSplitType: split.type as DiscountTypeCode,
+    discountSplitValue: clampDiscountValue(split.type, split.value),
+    discountFromPlan: value > 0 && s.discountFromPlan === true,
+  };
 }
 
 /**
@@ -561,9 +735,9 @@ export async function listProcedureCatalog(clinicId: string, kind: CatalogKind =
     .where(byClinic(procedures.clinicId, clinicId, notDeleted(procedures.deletedAt), kindCondition(kind)))
     .orderBy(desc(procedures.createdAt))
     .then((rows) =>
-      rows.map(({ offerType, offerValue, offerStartsOn, offerEndsOn, ...p }) => ({
+      rows.map(({ offerType, offerValue, offerStartsOn, offerEndsOn, offerBorneBy, offerSplitType, offerSplitValue, ...p }) => ({
         ...p,
-        offer: toOffer({ offerType, offerValue, offerStartsOn, offerEndsOn }),
+        offer: toOffer({ offerType, offerValue, offerStartsOn, offerEndsOn, offerBorneBy, offerSplitType, offerSplitValue }),
       })),
     );
 }

@@ -99,6 +99,11 @@ export const DISCOUNT_BEARER_ROWS = [
   { id: 1, code: "clinic", label: "Clinic", sortOrder: 1 },
   { id: 2, code: "doctor", label: "Doctor", sortOrder: 2 },
   { id: 3, code: "split", label: "Split", sortOrder: 3 },
+  // CLINIC OFFERS only (docs/per-line-discount-plan.md §5): the doctor's share is
+  // worked out on the price after the offer, so each side gives up its own % — the
+  // rule every offer followed before offers had a bearer. CHECK constraints keep it
+  // off every patient-discount column (migration 0138).
+  { id: 4, code: "proportional", label: "In proportion", sortOrder: 4 },
 ] as const satisfies readonly VocabularyRow[];
 
 /**
@@ -595,6 +600,10 @@ export const SETTLEMENT_KIND_CODES = codesOf(SETTLEMENT_KIND_ROWS);
 export const DISCOUNT_TYPE_CODES = codesOf(DISCOUNT_TYPE_ROWS);
 export const CASH_TRANSFER_KIND_CODES = codesOf(CASH_TRANSFER_KIND_ROWS);
 export const DISCOUNT_BEARER_CODES = codesOf(DISCOUNT_BEARER_ROWS);
+/** Who may bear a PATIENT discount — every bearer but "proportional", which only a
+ *  clinic offer carries (a CHECK refuses it elsewhere, migration 0138). Validate
+ *  patient-discount input against THIS, or a crafted post becomes a 500. */
+export const PATIENT_DISCOUNT_BEARER_CODES = ["clinic", "doctor", "split"] as const satisfies readonly DiscountBearerCode[];
 export const BILLING_CYCLE_CODES = codesOf(BILLING_CYCLE_ROWS);
 export const CLINIC_STATUS_CODES = codesOf(CLINIC_STATUS_ROWS);
 export const INVOICE_PAPER_CODES = codesOf(INVOICE_PAPER_ROWS);

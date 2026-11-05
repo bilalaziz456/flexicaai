@@ -10,10 +10,11 @@ import {
 } from "@/core/appointments/procedures";
 import {
   billFromTotals,
-  effectiveDiscountValue,
+  effectiveDiscountValue, effectiveConsultationDiscount,
   normalizeDiscountType,
 } from "@/core/appointments/fee";
 import { getPatientCredit } from "@/core/billing/payments";
+import { consultationDiscountColumns } from "@/core/appointments/bill-sql";
 
 /**
  * A patient's account (Finance) — the per-visit bill/collected/outstanding across
@@ -69,6 +70,7 @@ export async function getPatientAccount(
       discountType: appointments.discountType,
       discountValue: appointments.discountValue,
       discountStatus: appointments.discountStatus,
+      ...consultationDiscountColumns,
       amountCollected: appointments.amountCollected,
       fee: users.consultationFee,
       proceduresGross: appointmentProceduresGrossSql(),
@@ -97,6 +99,7 @@ export async function getPatientAccount(
       Number(r.proceduresNet),
       normalizeDiscountType(r.discountType),
       effectiveDiscountValue(r.discountStatus, r.discountValue),
+      effectiveConsultationDiscount(r),
     ).net;
     const collected = r.amountCollected;
     return {

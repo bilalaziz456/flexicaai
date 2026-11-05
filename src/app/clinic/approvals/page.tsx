@@ -59,6 +59,7 @@ export default async function ApprovalsPage({
     appointmentId,
   });
 
+  const pkr = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
   const items: QueueItem[] = rows.map((r) => {
     const type = normalizeDiscountType(r.discountType);
     const amount =
@@ -74,7 +75,18 @@ export default async function ApprovalsPage({
         hour: "2-digit",
         minute: "2-digit",
       }),
-      discountLabel: `${amount} discount · borne by ${vocabularyLabel("discount_bearers", r.borneBy) ?? "Clinic"}`,
+      // Name each discount this approver is asked about — a line's, the consultation's,
+      // the whole visit's — and what they bear of it (per-line-discount-plan §6).
+      discountLabel:
+        r.items.length > 0
+          ? r.items
+              .map((it) =>
+                it.borne === null || it.borne === it.amount
+                  ? `${it.label}: ${pkr(it.amount)} off`
+                  : `${it.label}: ${pkr(it.amount)} off (you bear ${pkr(it.borne)})`,
+              )
+              .join(" · ")
+          : `${amount} discount · borne by ${vocabularyLabel("discount_bearers", r.borneBy) ?? "Clinic"}`,
       mine: r.approverKind === "doctor" && r.approverDoctorId === user.id,
     };
   });

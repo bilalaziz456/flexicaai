@@ -504,11 +504,19 @@ are in `.env.example`.
   doctor and "Discount by" clinic / doctor / both (a split), chosen once per plan and
   shown on the plan's card — NOT printed on the estimate (owner's call, 2026-10-21: who
   gives the discount is between the clinic and its doctor). A procedure's clinic offer is
-  snapshotted onto the item and can be removed. Booking items from the plan carries their
-  share of the plan discount onto the visit as its patient discount, borne as the plan
-  says, with **no approval** while it is left unchanged (`appointments.discount_from_plan`).
+  snapshotted onto the item and can be removed. Booking items from the plan puts each
+  item's share of the plan discount on ITS OWN line, borne as the plan says, with **no
+  approval** while it is left unchanged (`appointment_procedures.discount_from_plan`).
   Math in `core/patients/plan-bill.ts`. The estimate also prints on the clinic's letterhead
   (`/api/estimate/[id]`, with or without the letterhead, like a typed prescription).
+
+- **Per-line discounts** (`0138`/`0139`, ADR-037, `docs/per-line-discount-plan.md`) —
+  each procedure, service, other charge and the consultation can carry its own patient
+  discount, and a procedure's or the consultation's has its own Borne by (clinic /
+  doctor / split; a doctor-borne one is charged to THAT line's doctor). The whole-visit
+  discount stays. Each discount waits only on the approval of whoever bears it.
+  `appointments.bearing_version` keeps every older visit on the old one-bearer rule.
+  Offers gained a Borne by too (default "In proportion", the old rule).
 
 - **Medicines** (`0132`, owner's call 2026-10-19) — a company MASTER list
   (`medicines`, no clinic_id, `/admin/medicines`, admin ACL **`medicines`**) that every

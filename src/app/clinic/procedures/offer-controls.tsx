@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { BadgePercent } from "lucide-react";
 import {
   describeOffer,
+  describeOfferBearer,
   offerForVisit,
   offerStatus,
   type ProcedureOffer,
@@ -161,7 +162,10 @@ export function OfferStatusLine({
   return (
     <div className="flex flex-wrap items-center gap-2 pl-1 text-xs">
       <Badge variant={STATUS_BADGE[status].variant}>{STATUS_BADGE[status].label}</Badge>
-      <span className="text-muted-foreground">{describeOffer(offer)}</span>
+      <span className="text-muted-foreground">
+        {describeOffer(offer)}
+        {describeOfferBearer(offer) ? ` · ${describeOfferBearer(offer)}` : ""}
+      </span>
       {offerPrice !== null ? (
         <span>
           <span className="text-muted-foreground line-through">{formatPkr(price)}</span>{" "}
@@ -195,11 +199,15 @@ export function OfferDialog({
   saveAction,
   onClose,
   onSaved,
+  bearerChoice = false,
 }: {
   target: NonNullable<OfferTarget>;
   today: string;
   noun: string;
   saveAction: SetOfferAction;
+  /** Procedures only: who bears the offer (per-line-discount-plan §5). A service's
+   *  offer is always the clinic's, so its page leaves this off. */
+  bearerChoice?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -209,6 +217,9 @@ export function OfferDialog({
   const [startsOn, setStartsOn] = useState(cur?.startsOn ?? today);
   const [endsOn, setEndsOn] = useState(cur?.endsOn ?? "");
   const [noEnd, setNoEnd] = useState(cur ? cur.endsOn === null : false);
+  const [borneBy, setBorneBy] = useState<NonNullable<ProcedureOffer["borneBy"]>>(cur?.borneBy ?? "proportional");
+  const [splitType, setSplitType] = useState<"amount" | "percent">(cur?.split?.type ?? "percent");
+  const [splitValue, setSplitValue] = useState(cur?.split?.value ? String(cur.split.value) : "");
 
   // Closing on success is part of the action (conventions §5), not an effect on state.
   const [state, formAction, pending] = useActionState<ActionState, FormData>(async (prev, fd) => {
@@ -289,6 +300,64 @@ export function OfferDialog({
           </label>
           <input type="hidden" name="offerEndsOn" value={noEnd ? "" : endsOn} />
         </Field>
+
+        {bearerChoice ? (
+          <Field
+            label="Borne by"
+            htmlFor="offer-borne-by"
+            className="sm:col-span-2"
+            hint={
+              borneBy === "proportional"
+                ? "The doctor's share is worked out on the offer price, so the clinic and the doctor each give up their own %."
+                : borneBy === "clinic"
+                  ? "The doctor keeps their share of the full price; the clinic gives the whole offer."
+                  : borneBy === "doctor"
+                    ? "The offer comes out of the performing doctor's share."
+                    : "The doctor bears the part set here; the clinic the rest."
+            }
+          >
+            <SelectField
+              id="offer-borne-by"
+              ariaLabel="Offer borne by"
+              value={borneBy}
+              onValueChange={(v) => setBorneBy(v as typeof borneBy)}
+              options={[
+                { value: "proportional", label: "In proportion" },
+                { value: "clinic", label: "Clinic" },
+                { value: "doctor", label: "Doctor" },
+                { value: "split", label: "Split" },
+              ]}
+              className="w-full"
+            />
+            <input type="hidden" name="offerBorneBy" value={borneBy} />
+            {borneBy === "split" ? (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Doctor bears</span>
+                <SelectField
+                  ariaLabel="Doctor's part type"
+                  value={splitType}
+                  onValueChange={(v) => setSplitType(v as "amount" | "percent")}
+                  options={[
+                    { value: "percent", label: "%" },
+                    { value: "amount", label: "Rs" },
+                  ]}
+                  className="w-auto"
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  max={splitType === "percent" ? 100 : undefined}
+                  value={splitValue}
+                  onChange={(e) => setSplitValue(e.target.value)}
+                  aria-label="Doctor's part of the offer"
+                  className="w-28"
+                />
+                <input type="hidden" name="offerSplitType" value={splitType} />
+                <input type="hidden" name="offerSplitValue" value={splitValue || "0"} />
+              </div>
+            ) : null}
+          </Field>
+        ) : null}
 
         {state.error ? (
           <p className="text-sm text-destructive-text sm:col-span-2" role="alert">

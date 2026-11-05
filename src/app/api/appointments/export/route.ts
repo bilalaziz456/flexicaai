@@ -6,7 +6,7 @@ import { clinicHasFeature } from "@/core/lib/features";
 import { streamCsvResponse } from "@/core/lib/csv-stream";
 import {
   billFromTotals,
-  effectiveDiscountValue,
+  effectiveDiscountValue, effectiveConsultationDiscount,
 } from "@/core/appointments/fee";
 import { parseListFilters } from "@/core/appointments/list-filters";
 import { buildAppointmentConds } from "@/core/appointments/list-query";
@@ -75,6 +75,7 @@ export async function GET(req: Request) {
           Number(r.proceduresTotal),
           r.discountType === "percent" ? "percent" : "amount",
           effectiveDiscountValue(r.discountStatus, r.discountValue),
+          effectiveConsultationDiscount(r),
         );
         const doctor =
           r.doctorName || r.doctorUsername

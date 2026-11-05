@@ -12,7 +12,7 @@ import {
   appointmentProceduresGrossSql,
   appointmentProceduresNetSql,
 } from "@/core/appointments/procedures";
-import { appointmentNetSql } from "@/core/appointments/bill-sql";
+import { appointmentNetSql, consultationDiscountColumns } from "@/core/appointments/bill-sql";
 import { patientPhoneMatchSql } from "@/core/patients/search-sql";
 import type { StatusFilter, VisitTypeFilter } from "./list-filters";
 import { appointmentStatusId, paymentKindId } from "@/core/db/vocabulary-seed";
@@ -125,6 +125,10 @@ export async function getAppointmentDetail(clinicId: string, appointmentId: stri
       discountSplitType: appointments.discountSplitType,
       discountSplitValue: appointments.discountSplitValue,
       discountStatus: appointments.discountStatus,
+      ...consultationDiscountColumns,
+      consultationBorneBy: appointments.consultationBorneBy,
+      consultationSplitType: appointments.consultationSplitType,
+      consultationSplitValue: appointments.consultationSplitValue,
       chargeConsultation: appointments.chargeConsultation,
       customTime: appointments.customTime,
       patientId: patients.id,
@@ -179,6 +183,7 @@ export async function listClinicAppointments(
         discountType: appointments.discountType,
         discountValue: appointments.discountValue,
         discountStatus: appointments.discountStatus,
+        ...consultationDiscountColumns,
         chargeConsultation: appointments.chargeConsultation,
         amountCollected: appointments.amountCollected,
         queueNumber: appointments.queueNumber,
@@ -249,6 +254,7 @@ export async function listAppointmentExportBatch(
       discountType: appointments.discountType,
       discountValue: appointments.discountValue,
       discountStatus: appointments.discountStatus,
+      ...consultationDiscountColumns,
       chargeConsultation: appointments.chargeConsultation,
       amountCollected: appointments.amountCollected,
       queueNumber: appointments.queueNumber,

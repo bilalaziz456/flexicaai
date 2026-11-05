@@ -1,7 +1,7 @@
 import type { listClinicAppointments } from "@/core/appointments/list-query";
 import {
   billFromTotals,
-  effectiveDiscountValue,
+  effectiveDiscountValue, effectiveConsultationDiscount,
   formatPkr,
 } from "@/core/appointments/fee";
 import { displayStaffName } from "@/core/types/auth";
@@ -37,6 +37,7 @@ const billOf = (a: AppointmentRow) =>
     Number(a.proceduresTotal),
     a.discountType === "percent" ? "percent" : "amount",
     effectiveDiscountValue(a.discountStatus, a.discountValue),
+    effectiveConsultationDiscount(a),
   );
 
 export function appointmentFeeLabel(

@@ -32,8 +32,14 @@ const offerSchema = z
       .transform((v) => (v ? v : null))
       .refine((v) => v === null || YMD.test(v), { message: "Invalid end date." }),
     noEnd: z.boolean(),
+    borneBy: z.enum(["proportional", "clinic", "doctor", "split"]).default("proportional"),
+    splitType: z.enum(["amount", "percent"]).default("percent"),
+    splitValue: z.coerce.number().int("Whole numbers only.").min(0).default(0),
   })
   .superRefine((v, ctx) => {
+    if (v.borneBy === "split" && v.splitType === "percent" && v.splitValue > MAX_DISCOUNT_PERCENT) {
+      ctx.addIssue({ code: "custom", path: ["splitValue"], message: "The doctor's part can't be more than 100%." });
+    }
     if (v.type === "percent" && v.value > MAX_DISCOUNT_PERCENT) {
       ctx.addIssue({ code: "custom", path: ["value"], message: "A percentage offer can't be more than 100%." });
     }
@@ -57,6 +63,11 @@ export function parseOfferForm(formData: FormData): { offer: ProcedureOffer } | 
     startsOn: formData.get("offerStartsOn") ?? "",
     endsOn: formData.get("offerEndsOn") ?? "",
     noEnd: formData.get("offerNoEnd") === "on",
+    // A Service's offer has no bearer field: the clinic bears it (decision 3), which
+    // "proportional" already means on a line with no doctor share.
+    borneBy: formData.get("offerBorneBy") || undefined,
+    splitType: formData.get("offerSplitType") || undefined,
+    splitValue: formData.get("offerSplitValue") || undefined,
   });
   if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
   return {
@@ -65,6 +76,11 @@ export function parseOfferForm(formData: FormData): { offer: ProcedureOffer } | 
       value: parsed.data.value,
       startsOn: parsed.data.startsOn,
       endsOn: parsed.data.noEnd ? null : parsed.data.endsOn,
+      borneBy: parsed.data.borneBy,
+      split:
+        parsed.data.borneBy === "split"
+          ? { type: parsed.data.splitType, value: parsed.data.splitValue }
+          : { type: "percent", value: 0 },
     },
   };
 }

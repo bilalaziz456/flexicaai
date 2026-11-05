@@ -15,6 +15,8 @@ const STATUS: Record<string, { label: string; variant: "outline" | "secondary" |
 };
 
 type Row = {
+  key: string;
+  label: string;
   appointmentId: string;
   scheduledAt: Date;
   patientName: string | null;
@@ -49,6 +51,12 @@ export function DiscountsTable({ rows }: { rows: Row[] }) {
     { id: "patient", header: "Patient", cardTitle: true, sortValue: (r) => r.patientName ?? "", cell: (r) => r.patientName ?? "—" },
     { id: "doctor", header: "Doctor", sortValue: (r) => r.doctorName ?? "", cell: (r) => r.doctorName ?? "—" },
     {
+      id: "for",
+      header: "For",
+      sortValue: (r) => r.label,
+      cell: (r) => <span className="whitespace-nowrap">{r.label}</span>,
+    },
+    {
       id: "borne",
       header: "Borne by",
       sortValue: (r) => r.borneBy,
@@ -76,5 +84,5 @@ export function DiscountsTable({ rows }: { rows: Row[] }) {
     },
     { id: "discount", header: "Discount", align: "right", sortValue: (r) => r.amount, cell: (r) => <span className="font-medium tabular-nums">{discLabel(r)}</span> },
   ];
-  return <DataTable rows={rows} columns={columns} getRowKey={(r) => r.appointmentId} minWidthClassName="min-w-[44rem]" empty="No discounts in this period." />;
+  return <DataTable rows={rows} columns={columns} getRowKey={(r) => r.key} minWidthClassName="min-w-[50rem]" empty="No discounts in this period." />;
 }

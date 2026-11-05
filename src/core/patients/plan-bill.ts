@@ -20,6 +20,12 @@ import { computeFee, computeProcedureLine, type DiscountType } from "@/core/appo
 
 export type PlanBearer = "clinic" | "doctor" | "split";
 
+/** A stored bearer as a plan's. The shared vocabulary also holds "proportional",
+ *  which only a clinic offer may carry (a CHECK keeps it off plans), so anything
+ *  else reads as the default. */
+export const asPlanBearer = (code: string): PlanBearer =>
+  code === "doctor" || code === "split" ? code : "clinic";
+
 export type PlanItemInput = {
   unitPrice: number;
   quantity: number;

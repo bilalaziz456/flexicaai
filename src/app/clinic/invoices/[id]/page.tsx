@@ -8,6 +8,7 @@ import { clinicHasFeature } from "@/core/lib/features";
 import { getAppointmentDetail } from "@/core/appointments/list-query";
 import { listClinicDoctors } from "@/core/appointments/doctors";
 import { getAppointmentProcedureItems, getBookingProcedures } from "@/core/appointments/procedures";
+import { formInitialLines } from "@/app/clinic/appointments/form-initial";
 import { normalizeDiscountType, formatPkr } from "@/core/appointments/fee";
 import { getAppointmentBill } from "@/core/billing/bill";
 import { getPatientCredit, listAppointmentPayments } from "@/core/billing/payments";
@@ -202,19 +203,7 @@ export default async function InvoicePage({
                 discountSplitValue: appt.discountSplitValue,
                 chargeConsultation: appt.chargeConsultation,
                 customTime: appt.customTime,
-                procedures: items
-                  .filter((i): i is typeof i & { procedureId: string } => Boolean(i.procedureId))
-                  .map((i) => ({
-                    procedureId: i.procedureId,
-                    quantity: i.quantity,
-                    discountType: i.discountType,
-                    discountValue: i.discountValue,
-                    unitPrice: i.unitPrice,
-                  })),
-                // Kept on an edit: a one-off charge has no list item to re-select.
-                otherCharges: items
-                  .filter((i) => !i.procedureId && i.isService)
-                  .map((i) => ({ name: i.name, unitPrice: i.unitPrice, quantity: i.quantity })),
+                ...formInitialLines(items, appt),
               }}
             />
           </CardContent>

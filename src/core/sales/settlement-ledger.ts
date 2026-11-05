@@ -5,7 +5,7 @@ import { byClinic } from "@/core/db/tenant";
 import type { Executor } from "@/core/db/tx";
 import { discountSettlements, users } from "@/core/db/schema";
 import { computeShare } from "@/core/appointments/shares";
-import { computeBearing } from "@/core/appointments/discount-bearing";
+import { computeBearing, computeBearingPieces } from "@/core/appointments/discount-bearing";
 import { getAppointmentShareContext } from "@/core/appointments/share-context";
 import type { SettlementPartyCode } from "@/core/db/vocabulary-seed";
 
@@ -50,13 +50,19 @@ export async function recordDiscountSettlementForAppointment(
     const clinicGross = gross.clinic;
     const doctorGross = gross.doctors;
 
-    const bearing = computeBearing({
-      clinicGross,
-      doctorGross,
-      discount,
-      borneBy: ctx.borneBy,
-      split: { type: ctx.discountSplitType === "amount" ? "amount" : "percent", value: ctx.discountSplitValue },
-    });
+    // Version 2: each discount borne by its own bearer, a doctor-borne part by THAT
+    // line's doctor (docs/per-line-discount-plan.md §3). Version 1 — every visit saved
+    // before per-line discounts — keeps the single whole-visit bearer, unchanged.
+    const bearing =
+      ctx.bearingVersion === 2
+        ? computeBearingPieces({ clinicGross, doctorGross, pieces: ctx.pieces })
+        : computeBearing({
+            clinicGross,
+            doctorGross,
+            discount,
+            borneBy: ctx.borneBy,
+            split: { type: ctx.discountSplitType === "amount" ? "amount" : "percent", value: ctx.discountSplitValue },
+          });
 
     // Rows for every party that actually bears/receives something (Σ = 0).
     type Row = {

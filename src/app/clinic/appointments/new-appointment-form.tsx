@@ -24,12 +24,20 @@ import { TimeSelect } from "@/core/ui/time-select";
 import { useActionToast } from "@/core/ui/toast";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 import { syncChecked } from "@/core/ui/checkbox-sync";
-import { discountByLabel, isPlanDiscount, visitPlanDiscount } from "@/core/patients/plan-bill";
+import {
+  LineDiscountEditor,
+  NO_LINE_DISC,
+  encodeLineDisc,
+  lineDiscFrom,
+  lineDiscValue,
+  type LineDisc,
+} from "@/app/clinic/appointments/line-discount";
 import type { BookablePlanItem } from "@/core/patients/treatment-plans";
 import {
   MAX_DISCOUNT_PERCENT,
   computeBill,
   computeFee,
+  computeProcedureLine,
   formatPkr,
   type DiscountType,
 } from "@/core/appointments/fee";
@@ -57,7 +65,7 @@ type ProcedureOption = {
   isService?: boolean;
 };
 /** A one-off "other charge" typed on the bill — not on any price list. */
-type OtherCharge = { key: string; name: string; price: string; quantity: number };
+type OtherCharge = { key: string; name: string; price: string; quantity: number; disc: LineDisc };
 /** The longest description a one-off charge may carry (matches the server). */
 const OTHER_CHARGE_NAME_MAX = 80;
 
@@ -158,9 +166,30 @@ export function NewAppointmentForm({
       discountValue?: number;
       /** The price the line was billed at — a service keeps it on an edit. */
       unitPrice?: number;
+      /** The line's own patient discount and its bearer (per-line-discount-plan §2). */
+      patientDiscount?: {
+        type: DiscountType;
+        value: number;
+        borneBy: string;
+        split: { type: DiscountType; value: number };
+        fromPlan: boolean;
+      };
     }[];
     /** One-off charges already on the bill, so an edit keeps them. */
-    otherCharges?: { name: string; unitPrice: number; quantity: number }[];
+    otherCharges?: {
+      name: string;
+      unitPrice: number;
+      quantity: number;
+      discountType?: DiscountType;
+      discountValue?: number;
+    }[];
+    /** The consultation fee's own discount and bearer. */
+    consultationDiscount?: {
+      type: DiscountType;
+      value: number;
+      borneBy: string;
+      split: { type: DiscountType; value: number };
+    };
   };
 }) {
   const isEdit = Boolean(appointmentId);
@@ -233,6 +262,17 @@ export function NewAppointmentForm({
     }
     return m;
   });
+  // Each procedure's / service's OWN patient discount and who bears it, by id (plan
+  // §2). Kept apart from the selection so unticking and re-ticking a line forgets it.
+  const [lineDisc, setLineDisc] = useState<Map<string, LineDisc>>(() => {
+    const m = new Map<string, LineDisc>();
+    for (const it of initial?.procedures ?? []) m.set(it.procedureId, lineDiscFrom(it.patientDiscount));
+    return m;
+  });
+  const discOf = (id: string) => lineDisc.get(id) ?? NO_LINE_DISC;
+  const patchLineDisc = (id: string, d: LineDisc) =>
+    setLineDisc((prev) => new Map(prev).set(id, d));
+  const [consultDisc, setConsultDisc] = useState<LineDisc>(() => lineDiscFrom(initial?.consultationDiscount));
   // Selected services → quantity + the price on THIS bill (starts at the list price,
   // or what an edited visit was billed at; the server honours it for services only).
   type SvcState = { quantity: number; price: string };
@@ -272,10 +312,11 @@ export function NewAppointmentForm({
       name: c.name,
       price: String(c.unitPrice),
       quantity: Math.max(1, c.quantity),
+      disc: lineDiscFrom(c.discountValue ? { type: c.discountType ?? "amount", value: c.discountValue } : undefined),
     })),
   );
   const addCharge = () =>
-    setCharges((prev) => [...prev, { key: crypto.randomUUID(), name: "", price: "", quantity: 1 }]);
+    setCharges((prev) => [...prev, { key: crypto.randomUUID(), name: "", price: "", quantity: 1, disc: NO_LINE_DISC }]);
   const patchCharge = (key: string, patch: Partial<OtherCharge>) =>
     setCharges((prev) => prev.map((c) => (c.key === key ? { ...c, ...patch } : c)));
   const removeCharge = (key: string) => setCharges((prev) => prev.filter((c) => c.key !== key));
@@ -285,8 +326,14 @@ export function NewAppointmentForm({
   const toggleProc = (id: string) =>
     setProcSel((prev) => {
       const next = new Map(prev);
-      if (next.has(id)) next.delete(id);
-      else next.set(id, { quantity: 1 });
+      if (next.has(id)) {
+        next.delete(id);
+        setLineDisc((m) => {
+          const n = new Map(m);
+          n.delete(id);
+          return n;
+        });
+      } else next.set(id, { quantity: 1 });
       return next;
     });
   const setQty = (id: string, q: number) =>
@@ -321,10 +368,22 @@ export function NewAppointmentForm({
   const procLine = (p: ProcedureOption) => {
     const s = procSel.get(p.id);
     if (!s) return null;
-    const gross = p.price * s.quantity;
     const d = lineDiscount(p);
-    const off = d ? computeFee(gross, d.type, d.value).discount : 0;
-    return { gross, net: gross - off, offer: d && off > 0 ? d : null };
+    const pd = discOf(p.id);
+    const line = computeProcedureLine({
+      unitPrice: p.price,
+      quantity: s.quantity,
+      discountType: d?.type ?? "amount",
+      discountValue: d?.value ?? 0,
+      patientDiscountType: pd.type,
+      patientDiscountValue: lineDiscValue(pd),
+    });
+    return {
+      gross: line.gross,
+      afterOffer: line.gross - line.offerDiscount,
+      net: line.net,
+      offer: d && line.offerDiscount > 0 ? d : null,
+    };
   };
   // The selected lines, in the shape the shared bill takes — through `computeBill`,
   // so the preview uses the same formula as the invoice it will become.
@@ -337,6 +396,8 @@ export function NewAppointmentForm({
         quantity: procSel.get(p.id)!.quantity,
         discountType: d?.type ?? ("amount" as DiscountType),
         discountValue: d?.value ?? 0,
+        patientDiscountType: discOf(p.id).type,
+        patientDiscountValue: lineDiscValue(discOf(p.id)),
       };
     });
   // A service takes its clinic offer exactly as a procedure does (2026-10-18) — on the
@@ -352,6 +413,8 @@ export function NewAppointmentForm({
           quantity: s.quantity,
           discountType: d?.type ?? ("amount" as DiscountType),
           discountValue: d?.value ?? 0,
+          patientDiscountType: discOf(p.id).type,
+          patientDiscountValue: lineDiscValue(discOf(p.id)),
         };
       }),
     ...liveCharges.map((c) => ({
@@ -359,54 +422,33 @@ export function NewAppointmentForm({
       quantity: c.quantity,
       discountType: "amount" as DiscountType,
       discountValue: 0,
+      patientDiscountType: c.disc.type,
+      patientDiscountValue: lineDiscValue(c.disc),
     })),
   ];
-  // After each line's offer, so "procedures + other charges" still adds up to the subtotal.
-  const otherChargesTotal = otherBillLines.reduce(
-    (sum, l) => sum + l.unitPrice * l.quantity - computeFee(l.unitPrice * l.quantity, l.discountType, l.discountValue).discount,
-    0,
-  );
+  // After each line's own discounts, so "procedures + other charges" adds up to the subtotal.
+  const otherChargesTotal = otherBillLines.reduce((sum, l) => sum + computeProcedureLine(l).net, 0);
   // Plan items ticked below bill as procedure lines with their snapshotted offer —
   // exactly how the server books them (scheduleItemsOnAppointment). Left out, the
   // total on screen was lower than the one saved.
   const selectedPlanItems = planItems.filter((it) => planItemSel.has(it.id));
+  // Each item's plan discount comes off ITS OWN line, as the server books it
+  // (`scheduleItemsOnAppointment`, per-line-discount-plan §7).
   const planBillLines = selectedPlanItems.map((it) => ({
     unitPrice: it.unitPrice,
     quantity: it.quantity,
     discountType: it.offerType,
     discountValue: it.offerValue,
+    patientDiscountType: "amount" as DiscountType,
+    patientDiscountValue: Math.max(0, it.planDiscount),
   }));
   const billLines = [...procedureBillLines, ...planBillLines, ...otherBillLines];
-  // The discount the ticked items bring from their plan, and whether the form still
-  // holds exactly that one (then it needs no approval — the server checks the same).
-  const planTerms = visitPlanDiscount(selectedPlanItems);
-  const planDiscount = planTerms && !("error" in planTerms) ? planTerms : null;
-  const discountIsPlan = isPlanDiscount(planDiscount, {
-    discountType,
-    discountValue: discountNumber,
-    borneBy,
-    splitType,
-    splitValue: borneBy === "split" ? splitNumber : 0,
-  });
-  const planDoctorName = selectedPlanItems.find((it) => it.planDiscount > 0)?.doctorName ?? null;
-
-  // Ticking a plan item fills the discount in from the plan. Only while the discount
-  // still is the plan's (or empty): one the desk typed is theirs and is left alone.
+  // Ticking a plan item only books it: its plan discount travels on its own line.
   const togglePlanItem = (id: string) => {
     const next = new Set(planItemSel);
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setPlanItemSel(next);
-    if (!discountIsPlan && discountNumber > 0) return;
-    const terms = visitPlanDiscount(planItems.filter((it) => next.has(it.id)));
-    if (terms && "error" in terms) return;
-    setDiscountType("amount");
-    setDiscountValue(terms ? String(terms.amount) : "");
-    setBorneBy(terms ? terms.borneBy : "clinic");
-    if (terms?.borneBy === "split") {
-      setSplitType(terms.split.type);
-      setSplitValue(String(terms.split.value));
-    }
   };
   // Seeded by the server when editing, so the picker is constrained on the first
   // paint. It used to be null with an effect that fetched the same thing on mount:
@@ -488,6 +530,7 @@ export function NewAppointmentForm({
     billLines,
     discountType,
     discountNumber,
+    { type: consultDisc.type, value: lineDiscValue(consultDisc) },
   );
   // A custom time frees the picker exactly as a flexible doctor does — the server
   // applies the same relaxation (checkDoctorSlot's `customTime`), so the form can
@@ -803,23 +846,59 @@ export function NewAppointmentForm({
             untick for a procedure-only visit. */}
         {selectedDoctor ? (
           consultationFee > 0 ? (
-            <label
-              className="flex min-h-9 items-center gap-2 rounded-lg border well px-3 text-sm sm:col-span-2"
-              title="Untick if the patient came only for a procedure"
+            <div
+              className="flex min-h-9 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border well px-3 py-1 text-sm sm:col-span-2"
             >
-              <Checkbox
-                checked={chargeConsultation}
-                ref={syncChecked(chargeConsultation)}
-                onCheckedChange={setChargeConsultation} />
-              Consultation fee
-              <span className="ml-auto font-semibold tabular-nums">{formatPkr(consultationFee)}</span>
-            </label>
+              <label className="flex items-center gap-2" title="Untick if the patient came only for a procedure">
+                <Checkbox
+                  checked={chargeConsultation}
+                  ref={syncChecked(chargeConsultation)}
+                  onCheckedChange={setChargeConsultation} />
+                Consultation fee
+              </label>
+              <span className="ml-auto" />
+              {chargeConsultation ? (
+                <LineDiscountEditor
+                  label="Consultation"
+                  value={consultDisc}
+                  onChange={setConsultDisc}
+                  base={consultationFee}
+                  bearerChoice
+                />
+              ) : null}
+              <span className="font-semibold tabular-nums">
+                {bill.consultationDiscount > 0 ? (
+                  <span className="mr-2 text-xs font-normal text-muted-foreground line-through">
+                    {formatPkr(consultationFee)}
+                  </span>
+                ) : null}
+                {formatPkr(consultationFee - bill.consultationDiscount)}
+              </span>
+            </div>
           ) : (
             <p className="text-xs text-muted-foreground sm:col-span-2">
               This doctor has no consultation fee set (add it under Team).
             </p>
           )
         ) : null}
+        {(() => {
+          // Sent always, so an edit that clears it records "none".
+          const on = Boolean(selectedDoctor) && consultationFee > 0 && chargeConsultation;
+          const v = on ? lineDiscValue(consultDisc) : 0;
+          return (
+            <>
+              <input type="hidden" name="consultationDiscountType" value={consultDisc.type} />
+              <input type="hidden" name="consultationDiscountValue" value={String(v)} />
+              <input type="hidden" name="consultationBorneBy" value={v > 0 ? consultDisc.borneBy : "clinic"} />
+              <input type="hidden" name="consultationSplitType" value={consultDisc.splitType} />
+              <input
+                type="hidden"
+                name="consultationSplitValue"
+                value={v > 0 && consultDisc.borneBy === "split" ? String(Math.max(0, Math.round(Number(consultDisc.splitValue) || 0))) : "0"}
+              />
+            </>
+          );
+        })()}
 
         {/* Procedures the patient is booked for — priced line items that add to
             the appointment total. Only shown when the clinic has procedures. */}
@@ -827,12 +906,9 @@ export function NewAppointmentForm({
           <div className="space-y-2 sm:col-span-2 rounded-lg border border-primary/40 bg-accent/30 p-3">
             <Label>From treatment plan</Label>
             <p className="text-xs text-muted-foreground">
-              Tick items to schedule onto this visit. They bill like procedures, and bring the plan&apos;s
-              discount with them.
+              Tick items to schedule onto this visit. They bill like procedures, each with its share of the
+              plan&apos;s discount on its own line — agreed in the plan, so it needs no approval.
             </p>
-            {planTerms && "error" in planTerms ? (
-              <p className="text-xs text-destructive-text">{planTerms.error}</p>
-            ) : null}
             {[...planItemSel].map((id) => (
               <input key={id} type="hidden" name="planItemId" value={id} />
             ))}
@@ -922,6 +998,13 @@ export function NewAppointmentForm({
                           ) : null}
                         </span>
                         <div className="flex flex-wrap items-center gap-3">
+                        <LineDiscountEditor
+                          label={p.name}
+                          value={discOf(p.id)}
+                          onChange={(d) => patchLineDisc(p.id, d)}
+                          base={line.afterOffer}
+                          bearerChoice
+                        />
                           {/* quantity */}
                           <div className="flex items-center gap-1">
                             <button
@@ -945,7 +1028,7 @@ export function NewAppointmentForm({
                             </button>
                           </div>
                           <span className="w-24 text-right tabular-nums">
-                            {line.offer ? (
+                            {line.net < line.gross ? (
                               <span className="block text-xs text-muted-foreground line-through">
                                 {formatPkr(line.gross)}
                               </span>
@@ -959,15 +1042,15 @@ export function NewAppointmentForm({
               </ul>
             ) : null}
 
-            {/* One hidden field per procedure: "<id>:<qty>". No discount is sent — the
-                server applies the clinic offer itself; the performing doctor is the
-                appointment's doctor (set server-side). */}
+            {/* One hidden field per procedure: "<id>:<qty>:<offer>:<patient discount>".
+                The offer half is a placeholder — the server applies the clinic offer
+                itself; the performing doctor is the appointment's doctor (server-side). */}
             {[...procSel.entries()].map(([id, s]) => (
               <input
                 key={id}
                 type="hidden"
                 name="procedure"
-                value={`${id}:${s.quantity}`}
+                value={`${id}:${s.quantity}:amount:0:${encodeLineDisc(discOf(id))}`}
               />
             ))}
           </div>
@@ -1018,6 +1101,18 @@ export function NewAppointmentForm({
                       <li key={p.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2 text-sm">
                         <span className="min-w-0 truncate font-medium">{p.name}</span>
                         <div className="flex flex-wrap items-center gap-3">
+                        {/* A service's discount is always the clinic's (decision 3). */}
+                        <LineDiscountEditor
+                          label={p.name}
+                          value={discOf(p.id)}
+                          onChange={(d) => patchLineDisc(p.id, d)}
+                          base={(() => {
+                            const d = lineDiscount(p);
+                            const g = priceOf(s.price) * s.quantity;
+                            return g - (d ? computeFee(g, d.type, d.value).discount : 0);
+                          })()}
+                          bearerChoice={false}
+                        />
                           <QuantityStepper
                             label={p.name}
                             value={s.quantity}
@@ -1029,15 +1124,21 @@ export function NewAppointmentForm({
                             onChange={(v) => patchSvc(p.id, { price: v })}
                           />
                           {(() => {
-                            const gross = priceOf(s.price) * s.quantity;
                             const d = lineDiscount(p);
-                            const off = d ? computeFee(gross, d.type, d.value).discount : 0;
+                            const l = computeProcedureLine({
+                              unitPrice: priceOf(s.price),
+                              quantity: s.quantity,
+                              discountType: d?.type ?? "amount",
+                              discountValue: d?.value ?? 0,
+                              patientDiscountType: discOf(p.id).type,
+                              patientDiscountValue: lineDiscValue(discOf(p.id)),
+                            });
                             return (
                               <span className="w-28 text-right tabular-nums">
-                                {off > 0 ? (
-                                  <span className="block text-xs text-muted-foreground line-through">{formatPkr(gross)}</span>
+                                {l.discount > 0 ? (
+                                  <span className="block text-xs text-muted-foreground line-through">{formatPkr(l.gross)}</span>
                                 ) : null}
-                                <span className="font-medium">{formatPkr(gross - off)}</span>
+                                <span className="font-medium">{formatPkr(l.net)}</span>
                               </span>
                             );
                           })()}
@@ -1055,6 +1156,13 @@ export function NewAppointmentForm({
                       className="h-8 min-w-40 flex-1"
                     />
                     <div className="flex flex-wrap items-center gap-3">
+                    <LineDiscountEditor
+                      label={c.name || "Charge"}
+                      value={c.disc}
+                      onChange={(d) => patchCharge(c.key, { disc: d })}
+                      base={priceOf(c.price) * c.quantity}
+                      bearerChoice={false}
+                    />
                       <QuantityStepper
                         label={c.name || "charge"}
                         value={c.quantity}
@@ -1066,7 +1174,16 @@ export function NewAppointmentForm({
                         onChange={(v) => patchCharge(c.key, { price: v })}
                       />
                       <span className="w-24 text-right font-medium tabular-nums">
-                        {formatPkr(priceOf(c.price) * c.quantity)}
+                        {formatPkr(
+                          computeProcedureLine({
+                            unitPrice: priceOf(c.price),
+                            quantity: c.quantity,
+                            discountType: "amount",
+                            discountValue: 0,
+                            patientDiscountType: c.disc.type,
+                            patientDiscountValue: lineDiscValue(c.disc),
+                          }).net,
+                        )}
                       </span>
                       <button
                         type="button"
@@ -1086,16 +1203,21 @@ export function NewAppointmentForm({
               <Plus className="size-4" aria-hidden="true" /> Add other charge
             </Button>
 
-            {/* "<id>:<qty>:<price>" per service; one JSON field per one-off charge. */}
+            {/* "<id>:<qty>:<price>:<discount>" per service; one JSON field per one-off charge. */}
             {[...svcSel.entries()].map(([id, s]) => (
-              <input key={id} type="hidden" name="service" value={`${id}:${s.quantity}:${priceOf(s.price)}`} />
+              <input
+                key={id}
+                type="hidden"
+                name="service"
+                value={`${id}:${s.quantity}:${priceOf(s.price)}:${encodeLineDisc(discOf(id), false)}`}
+              />
             ))}
             {liveCharges.map((c) => (
               <input
                 key={c.key}
                 type="hidden"
                 name="charge"
-                value={JSON.stringify({ n: c.name.trim(), p: priceOf(c.price), q: c.quantity })}
+                value={JSON.stringify({ n: c.name.trim(), p: priceOf(c.price), q: c.quantity, dt: c.disc.type, dv: lineDiscValue(c.disc) })}
               />
             ))}
           </div>
@@ -1104,7 +1226,7 @@ export function NewAppointmentForm({
         {/* Discount off the whole bill (consultation fee + procedures). Default
             type is Amount (flat PKR); switch to Percent for a % of the total. */}
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="discountValue">Discount (optional)</Label>
+          <Label htmlFor="discountValue">Discount on the whole visit (optional)</Label>
           <div className="flex gap-2">
             <SelectField
               id="discountType"
@@ -1146,7 +1268,7 @@ export function NewAppointmentForm({
           {bill.gross > 0 ? (
             (() => {
               const parts: string[] = [];
-              if (bill.consultation > 0) parts.push(`${formatPkr(bill.consultation)} fee`);
+              if (bill.consultation > 0) parts.push(`${formatPkr(bill.consultation - bill.consultationDiscount)} fee`);
               const proceduresOnly = bill.proceduresNet - otherChargesTotal;
               if (proceduresOnly > 0) parts.push(`${formatPkr(proceduresOnly)} procedures`);
               if (otherChargesTotal > 0) parts.push(`${formatPkr(otherChargesTotal)} other charges`);
@@ -1174,20 +1296,6 @@ export function NewAppointmentForm({
               Pick a doctor or procedures to see the total.
             </p>
           )}
-
-          {planDiscount ? (
-            discountIsPlan ? (
-              <p className="text-xs text-muted-foreground">
-                From the treatment plan · discount by {discountByLabel(planDiscount.borneBy, planDoctorName, clinicName)}. Agreed
-                in the plan, so it needs no approval.
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                The plan gives {formatPkr(planDiscount.amount)}. A discount changed from the plan&apos;s follows the
-                usual approval rules.
-              </p>
-            )
-          ) : null}
 
           {/* Who absorbs the discount in the doctor/clinic revenue split. Only
               relevant once a discount is entered. Submitted always so an edit that

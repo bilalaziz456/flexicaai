@@ -30,6 +30,7 @@ import {
   DISCOUNT_TYPE_ROWS,
   DISCOUNT_BEARER_ROWS,
   discountTypeId,
+  discountBearerId,
   type DiscountTypeCode,
   type DiscountBearerCode,
 } from "@/core/db/vocabulary-seed";
@@ -276,6 +277,11 @@ export const treatmentPlans = pgTable(
     check(
       "treatment_plans_percent_split_max",
       sql`${t.discountSplitType} <> ${sql.raw(String(discountTypeId("percent")))} or ${t.discountSplitValue} between 0 and 100`,
+    ),
+    // "In proportion" describes a clinic OFFER; a plan's discount always has a bearer.
+    check(
+      "treatment_plans_bearer_not_proportional",
+      sql`${t.discountBorneBy} <> ${sql.raw(String(discountBearerId("proportional")))}`,
     ),
     index("treatment_plans_deleted_idx")
       .on(t.clinicId, t.deletedAt)

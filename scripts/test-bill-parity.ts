@@ -82,7 +82,21 @@ type Case = {
   discountType: DiscountType;
   discountValue: number;
   discountStatus: DiscountStatusCode;
-  lines: { procIdx: number; quantity: number; discountType: DiscountType; discountValue: number }[];
+  // The consultation's own discount (per-line-discount-plan §2); held = waiting for
+  // approval or declined, which counts as 0.
+  consultationDiscountType: DiscountType;
+  consultationDiscountValue: number;
+  consultationDiscountHeld: boolean;
+  lines: {
+    procIdx: number;
+    quantity: number;
+    discountType: DiscountType;
+    discountValue: number;
+    // The line's PATIENT discount, taken after the offer above (plan §4).
+    patientDiscountType: DiscountType;
+    patientDiscountValue: number;
+    patientDiscountHeld: boolean;
+  }[];
 };
 
 async function seedWorld() {
@@ -136,6 +150,9 @@ async function materialise(c: Case): Promise<string> {
       discountType: c.discountType,
       discountValue: c.discountValue,
       discountStatus: c.discountStatus,
+      consultationDiscountType: c.consultationDiscountType,
+      consultationDiscountValue: c.consultationDiscountValue,
+      consultationDiscountHeld: c.consultationDiscountHeld,
     })
     .returning({ id: appointments.id });
 
@@ -150,11 +167,21 @@ async function materialise(c: Case): Promise<string> {
         quantity: l.quantity,
         discountType: l.discountType,
         discountValue: l.discountValue,
+        patientDiscountType: l.patientDiscountType,
+        patientDiscountValue: l.patientDiscountValue,
+        patientDiscountHeld: l.patientDiscountHeld,
       })),
     );
   }
   return appt.id;
 }
+
+/** A line with no patient discount — what every line was before 0138. */
+const NO_PATIENT = {
+  patientDiscountType: "amount" as DiscountType,
+  patientDiscountValue: 0,
+  patientDiscountHeld: false,
+};
 
 /** What TS says this case costs. */
 function tsBill(c: Case) {
@@ -163,6 +190,9 @@ function tsBill(c: Case) {
     quantity: l.quantity,
     discountType: l.discountType,
     discountValue: l.discountValue,
+    // A held discount counts as 0 — the same input the SQL's CASE produces.
+    patientDiscountType: l.patientDiscountType,
+    patientDiscountValue: l.patientDiscountHeld ? 0 : l.patientDiscountValue,
   }));
   return computeBill(
     c.chargeConsultation ? c.fee : 0,
@@ -171,6 +201,10 @@ function tsBill(c: Case) {
     // The SQL zeroes a pending/rejected discount, so TS must be handed the same
     // input. `effectiveDiscountValue` is the shared gate both sides go through.
     effectiveDiscountValue(c.discountStatus, c.discountValue),
+    {
+      type: c.consultationDiscountType,
+      value: c.consultationDiscountHeld ? 0 : c.consultationDiscountValue,
+    },
   );
 }
 
@@ -237,19 +271,27 @@ function discountFor(type: DiscountType): number {
 function randomCase(): Case {
   const nLines = rnd(4); // 0–3
   const discountType = pick<DiscountType>(["amount", "percent"]);
+  const cType = pick<DiscountType>(["amount", "percent"]);
   return {
     fee: pick([0, 500, 1500, 2000, 7777]),
     chargeConsultation: rnd(4) > 0, // mostly true, sometimes a procedure-only visit
     discountType,
     discountValue: discountFor(discountType),
     discountStatus: pick(["none", "none", "none", "approved", "pending", "rejected"]),
+    consultationDiscountType: cType,
+    consultationDiscountValue: discountFor(cType),
+    consultationDiscountHeld: rnd(4) === 0,
     lines: Array.from({ length: nLines }, () => {
       const t = pick<DiscountType>(["amount", "percent"]);
+      const pt = pick<DiscountType>(["amount", "percent"]);
       return {
         procIdx: rnd(5),
         quantity: 1 + rnd(4),
         discountType: t,
         discountValue: discountFor(t),
+        patientDiscountType: pt,
+        patientDiscountValue: discountFor(pt),
+        patientDiscountHeld: rnd(4) === 0,
       };
     }),
   };
@@ -316,7 +358,10 @@ async function main() {
       discountType: "percent",
       discountValue: 10,
       discountStatus: "none",
-      lines: [{ procIdx: 0, quantity: 2, discountType: "amount", discountValue: 500 }], // 1500×2 = 3000 − 500
+      consultationDiscountType: "amount",
+      consultationDiscountValue: 0,
+      consultationDiscountHeld: false,
+      lines: [{ procIdx: 0, quantity: 2, discountType: "amount", discountValue: 500, ...NO_PATIENT }], // 1500×2 = 3000 − 500
     };
     const id = await materialise(c);
     const ts = tsBill(c);
@@ -327,6 +372,40 @@ async function main() {
     check("…and total discount is line + appointment", ts.discount, 4000 - 3150);
   }
 
+  console.log("\nPer-line discounts layer in the plan's order (per-line-discount-plan §4):");
+  {
+    // Line: 3333×1 → 10% offer (333) = 3000 → 10% patient discount (300) = 2700.
+    // Consultation 2000 → 25% (500) = 1500. Subtotal 4200 → overall 200 = 4000.
+    const c: Case = {
+      fee: 2000,
+      chargeConsultation: true,
+      discountType: "amount",
+      discountValue: 200,
+      discountStatus: "none",
+      consultationDiscountType: "percent",
+      consultationDiscountValue: 25,
+      consultationDiscountHeld: false,
+      lines: [{
+        procIdx: 2, quantity: 1, discountType: "percent", discountValue: 10,
+        patientDiscountType: "percent", patientDiscountValue: 10, patientDiscountHeld: false,
+      }],
+    };
+    const id = await materialise(c);
+    const ts = tsBill(c);
+    const pg = await sqlBill(id);
+    check("TS: offer → line discount → consultation → overall = 4000", ts.net, 4000);
+    check("SQL agrees", pg.net, ts.net);
+    // Held: both the line's and the consultation's discount count as 0.
+    const held: Case = {
+      ...c,
+      consultationDiscountHeld: true,
+      lines: [{ ...c.lines[0], patientDiscountHeld: true }],
+    };
+    const hid = await materialise(held);
+    check("held line + consultation discounts count as 0 (TS) → 4800", tsBill(held).net, 4800);
+    check("…SQL agrees", (await sqlBill(hid)).net, 4800);
+  }
+
   console.log("\nApproval gating is applied identically on both sides:");
   {
     const base = {
@@ -334,6 +413,9 @@ async function main() {
       chargeConsultation: true,
       discountType: "amount" as DiscountType,
       discountValue: 400,
+      consultationDiscountType: "amount" as DiscountType,
+      consultationDiscountValue: 0,
+      consultationDiscountHeld: false,
       lines: [],
     };
     for (const [status, expected] of [

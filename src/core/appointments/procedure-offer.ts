@@ -20,7 +20,29 @@ export type ProcedureOffer = {
   startsOn: string | null;
   /** "YYYY-MM-DD", inclusive. null = no end date. */
   endsOn: string | null;
+  /** Who bears it (docs/per-line-discount-plan.md §5). Absent = "proportional": the
+   *  doctor's share is worked out on the price after the offer, so each side gives up
+   *  its own % — the rule every offer followed before offers had a bearer. */
+  borneBy?: "proportional" | "clinic" | "doctor" | "split";
+  /** For a split offer, the doctor side's portion. */
+  split?: { type: DiscountType; value: number };
 };
+
+/** How an offer's bearer reads in the price list: "" for the default. */
+export function describeOfferBearer(offer: Pick<ProcedureOffer, "borneBy" | "split">): string {
+  switch (offer.borneBy) {
+    case "clinic":
+      return "borne by the clinic";
+    case "doctor":
+      return "borne by the doctor";
+    case "split":
+      return offer.split
+        ? `split · doctor bears ${offer.split.type === "percent" ? `${offer.split.value}%` : `Rs ${offer.split.value.toLocaleString("en-PK")}`}`
+        : "split";
+    default:
+      return "";
+  }
+}
 
 export type OfferStatus = "none" | "scheduled" | "active" | "ended";
 

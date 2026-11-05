@@ -5,12 +5,13 @@ import { db } from "@/core/db";
 import { byClinic } from "@/core/db/tenant";
 import {
   appointmentDiscountApprovals,
+  appointmentProcedures,
   appointments,
   clinics,
   patients,
   users,
 } from "@/core/db/schema";
-import { getAppointmentShareContext } from "@/core/appointments/share-context";
+import { getAppointmentShareContext, type RequestedPiece } from "@/core/appointments/share-context";
 import { discountBorneSplit } from "@/core/appointments/discount-bearing";
 import { notify, notifyUsersWithPermission } from "@/core/notifications/in-app";
 
@@ -18,59 +19,43 @@ import { notify, notifyUsersWithPermission } from "@/core/notifications/in-app";
 export type DiscountStatus = "none" | "pending" | "approved" | "rejected";
 
 /**
- * (Re)compute an appointment's discount approvals. Called after the discount /
- * borne-by / split / procedures change. Only the party that actually BEARS the
- * discount signs off (no spillover — the discount-bearing rule): clinic-borne → the
- * clinic; doctor-borne → the earning doctors; split → whichever side has a positive
- * portion. Of those bearers, the ones whose `discount_needs_approval` switch is ON
- * are required; it then replaces the approval rows and sets `discount_status`.
+ * (Re)compute an appointment's discount approvals. Called after any discount, bearer,
+ * split or line changes.
  *
- * With every default (borne-by = clinic, clinic switch off, doctor switches off)
- * nobody requires approval → status stays 'none' and the discount applies exactly
- * as before. The workflow only engages once a party opts in. Best-effort — a
- * failure here never blocks the booking (the caller ignores the result).
+ * PER DISCOUNT (docs/per-line-discount-plan.md §6): each patient discount — a line's,
+ * the consultation's, the whole visit's — is asked only of whoever BEARS it (no
+ * spillover): clinic-borne → the clinic; doctor-borne → THAT line's doctor (the
+ * overall discount: the earning doctors); split → each side with a positive portion.
+ * Of those, the ones whose `discount_needs_approval` switch is ON are asked. Rows are
+ * still one per party per visit; a party's decision covers everything it bears.
+ *
+ * Clinic offers never ask (the clinic's own standing decision), nor a treatment plan's
+ * discount carried unchanged (agreed when the plan was made, owner's call 2026-10-18).
+ *
+ * With every default (clinic-borne, all switches off) nobody is asked → status stays
+ * 'none' and every discount applies at once. Best-effort — the caller ignores failures.
+ * Returns the visit's SUMMARY status (pending while anyone is).
  */
 export async function syncDiscountApprovals(
   clinicId: string,
   appointmentId: string,
 ): Promise<DiscountStatus> {
   const ctx = await getAppointmentShareContext(clinicId, appointmentId);
+  const asking = ctx.found ? ctx.requestedPieces.filter((p) => !p.fromPlan) : [];
+  if (asking.length === 0) return clearApprovals(clinicId, appointmentId);
 
-  // Only the PATIENT discount is approved. A procedure line's discount is a clinic
-  // offer — the clinic's own standing decision — so it never asks; counting it here
-  // (gross − net, as this once did) would send every offer-priced visit for approval.
-  const discount = Math.max(0, ctx.patientDiscount);
-  // No discount → nothing to approve.
-  if (!ctx.found || discount <= 0) {
-    return clearApprovals(clinicId, appointmentId);
-  }
-  // A treatment plan's discount, booked unchanged, was agreed when the plan was made —
-  // it needs no approval (owner's call, 2026-10-18). Editing it clears the flag.
-  const [origin] = await db
-    .select({ fromPlan: appointments.discountFromPlan })
-    .from(appointments)
-    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
-    .limit(1);
-  if (origin?.fromPlan) return clearApprovals(clinicId, appointmentId);
-
-  // Who actually BEARS the discount (positive portion), per the no-spill split.
-  const { clinicBorne, doctorBorne } = discountBorneSplit(discount, ctx.borneBy, {
-    type: ctx.discountSplitType === "amount" ? "amount" : "percent",
-    value: ctx.discountSplitValue,
-  });
-  const clinicAffected = clinicBorne > 0;
-  const doctorsAffected = doctorBorne > 0 ? ctx.earnerDoctorIds : [];
-
-  // Of the affected parties, who requires approval?
+  // Each party that bears any asking discount, then the ones whose switch is on.
+  const bearers = new Set<string>();
+  for (const p of asking) for (const party of partiesBearing(p, ctx.earnerDoctorIds)) bearers.add(party);
   const [clinic] = await db
     .select({ needs: clinics.discountNeedsApproval })
     .from(clinics)
     .where(eq(clinics.id, clinicId))
     .limit(1);
-  const clinicRequires = clinicAffected && Boolean(clinic?.needs);
-
+  const clinicRequires = bearers.has(CLINIC_PARTY) && Boolean(clinic?.needs);
+  const doctorBearers = [...bearers].filter((b) => b !== CLINIC_PARTY);
   let requiringDoctorIds: string[] = [];
-  if (doctorsAffected.length > 0) {
+  if (doctorBearers.length > 0) {
     const rows = await db
       .select({ id: users.id })
       .from(users)
@@ -78,19 +63,29 @@ export async function syncDiscountApprovals(
         byClinic(
           users.clinicId,
           clinicId,
-          and(
-            inArray(users.id, doctorsAffected),
-            eq(users.discountNeedsApproval, true),
-          ),
+          and(inArray(users.id, doctorBearers), eq(users.discountNeedsApproval, true)),
         ),
       );
     requiringDoctorIds = rows.map((r) => r.id);
   }
 
-  // Nobody requires approval → the discount applies immediately.
+  // Nobody requires approval → every discount applies immediately.
   if (!clinicRequires && requiringDoctorIds.length === 0) {
     return clearApprovals(clinicId, appointmentId);
   }
+
+  // Whether anything was already waiting — so re-saving does not re-ping everyone.
+  const before = await db
+    .select({ status: appointmentDiscountApprovals.status })
+    .from(appointmentDiscountApprovals)
+    .where(
+      byClinic(
+        appointmentDiscountApprovals.clinicId,
+        clinicId,
+        eq(appointmentDiscountApprovals.appointmentId, appointmentId),
+      ),
+    );
+  const wasPending = before.some((r) => r.status === "pending");
 
   // Replace the approval rows with a fresh pending set (re-submitting a discount
   // resets the whole batch to pending).
@@ -103,41 +98,28 @@ export async function syncDiscountApprovals(
         eq(appointmentDiscountApprovals.appointmentId, appointmentId),
       ),
     );
-
   const rows: (typeof appointmentDiscountApprovals.$inferInsert)[] = [];
   if (clinicRequires) {
-    rows.push({
-      clinicId,
-      appointmentId,
-      approverKind: "clinic",
-      status: "pending",
-    });
+    rows.push({ clinicId, appointmentId, approverKind: "clinic", status: "pending" });
   }
   for (const doctorId of requiringDoctorIds) {
-    rows.push({
-      clinicId,
-      appointmentId,
-      approverKind: "doctor",
-      approverDoctorId: doctorId,
-      status: "pending",
-    });
+    rows.push({ clinicId, appointmentId, approverKind: "doctor", approverDoctorId: doctorId, status: "pending" });
   }
   await db.insert(appointmentDiscountApprovals).values(rows);
 
-  // Notify approvers only when the discount NEWLY needs approval — not on every edit
-  // of an already-pending appointment (so re-saving doesn't re-ping everyone).
-  const [prev] = await db
-    .select({ status: appointments.discountStatus, patientName: patients.fullName })
-    .from(appointments)
-    .leftJoin(patients, eq(patients.id, appointments.patientId))
-    .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
-    .limit(1);
-  await setStatus(clinicId, appointmentId, "pending");
-  if (prev?.status !== "pending") {
+  const status = await applyApprovalGates(clinicId, appointmentId);
+
+  if (!wasPending) {
+    const [appt] = await db
+      .select({ patientName: patients.fullName })
+      .from(appointments)
+      .leftJoin(patients, eq(patients.id, appointments.patientId))
+      .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)))
+      .limit(1);
     const payload = {
       type: "discount.approval_needed",
       title: "Discount needs approval",
-      body: prev?.patientName ? `${prev.patientName}. Review the discount.` : "Review a discount.",
+      body: appt?.patientName ? `${appt.patientName}. Review the discount.` : "Review a discount.",
       entity: "appointment",
       entityId: appointmentId,
       // The approvals queue NARROWED to this discount — the buttons live there, so
@@ -152,7 +134,111 @@ export async function syncDiscountApprovals(
       await notify(clinicId, doctorId, payload);
     }
   }
-  return "pending";
+  return status;
+}
+
+/** The clinic's approval party key; a doctor's is their user id. */
+const CLINIC_PARTY = "clinic";
+
+/**
+ * One discount's approval status from its visit's approval rows: the decisions of the
+ * parties that bear it (pending/rejected/approved), or "none" when nobody was asked.
+ * The rule `applyApprovalGates` applies, for readers (the Discounts report).
+ */
+export function pieceApprovalStatus(
+  p: RequestedPiece,
+  earnerDoctorIds: string[],
+  rows: { kind: string; doctorId: string | null; status: string }[],
+): DiscountStatus {
+  if (p.fromPlan) return "none";
+  const statusOf = new Map(rows.map((r) => [r.kind === "clinic" ? CLINIC_PARTY : (r.doctorId ?? ""), r.status]));
+  return deriveStatus(
+    partiesBearing(p, earnerDoctorIds).flatMap((party) => {
+      const st = statusOf.get(party);
+      return st ? [st] : [];
+    }),
+  );
+}
+
+/** Who bears a discount (positive portion), by party key. A doctor-borne part of
+ *  the whole-visit discount is the earning doctors'; of a line's, that line's doctor. */
+export function partiesBearing(p: RequestedPiece, earnerDoctorIds: string[]): string[] {
+  const { clinicBorne, doctorBorne } = discountBorneSplit(p.amount, p.borneBy, p.split);
+  const out: string[] = [];
+  if (clinicBorne > 0) out.push(CLINIC_PARTY);
+  if (doctorBorne > 0) out.push(...(p.doctorId ? [p.doctorId] : earnerDoctorIds));
+  return out;
+}
+
+/**
+ * Applies the approval rows to each discount: a discount whose bearers have not ALL
+ * approved counts as 0 — a line's or the consultation's through its `*_held` flag,
+ * the whole-visit one through `appointments.discount_status` (which every bill
+ * already reads as that discount's gate). So a doctor sitting on a request holds up
+ * only what that doctor bears (decision §10 b). Returns the SUMMARY over all rows.
+ */
+export async function applyApprovalGates(clinicId: string, appointmentId: string): Promise<DiscountStatus> {
+  const ctx = await getAppointmentShareContext(clinicId, appointmentId);
+  const rows = await db
+    .select({
+      kind: appointmentDiscountApprovals.approverKind,
+      doctorId: appointmentDiscountApprovals.approverDoctorId,
+      status: appointmentDiscountApprovals.status,
+    })
+    .from(appointmentDiscountApprovals)
+    .where(
+      byClinic(
+        appointmentDiscountApprovals.clinicId,
+        clinicId,
+        eq(appointmentDiscountApprovals.appointmentId, appointmentId),
+      ),
+    );
+  const statusOf = new Map(rows.map((r) => [r.kind === "clinic" ? CLINIC_PARTY : (r.doctorId ?? ""), r.status]));
+  const gateOf = (p: RequestedPiece): DiscountStatus =>
+    p.fromPlan
+      ? "none"
+      : deriveStatus(
+          partiesBearing(p, ctx.earnerDoctorIds)
+            .flatMap((party) => {
+              const st = statusOf.get(party);
+              return st ? [st] : [];
+            }),
+        );
+  const held = (st: DiscountStatus) => st === "pending" || st === "rejected";
+
+  const heldLines = new Set<string>();
+  let consultationHeld = false;
+  let overall: DiscountStatus = "none";
+  for (const p of ctx.requestedPieces) {
+    const st = gateOf(p);
+    if (p.key === "overall") overall = st;
+    else if (p.key === "consultation") consultationHeld = held(st);
+    else if (held(st)) heldLines.add(p.key);
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(appointmentProcedures)
+      .set({ patientDiscountHeld: false })
+      .where(byClinic(appointmentProcedures.clinicId, clinicId, eq(appointmentProcedures.appointmentId, appointmentId)));
+    if (heldLines.size > 0) {
+      await tx
+        .update(appointmentProcedures)
+        .set({ patientDiscountHeld: true })
+        .where(
+          byClinic(
+            appointmentProcedures.clinicId,
+            clinicId,
+            and(eq(appointmentProcedures.appointmentId, appointmentId), inArray(appointmentProcedures.id, [...heldLines])),
+          ),
+        );
+    }
+    await tx
+      .update(appointments)
+      .set({ discountStatus: overall, consultationDiscountHeld: consultationHeld, updatedAt: new Date() })
+      .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)));
+  });
+  return deriveStatus(rows.map((r) => r.status));
 }
 
 /** Delete any approval rows and mark the discount status 'none' (applies). */
@@ -170,6 +256,10 @@ async function clearApprovals(
       ),
     );
   await setStatus(clinicId, appointmentId, "none");
+  await db
+    .update(appointmentProcedures)
+    .set({ patientDiscountHeld: false })
+    .where(byClinic(appointmentProcedures.clinicId, clinicId, eq(appointmentProcedures.appointmentId, appointmentId)));
   return "none";
 }
 
@@ -180,7 +270,8 @@ async function setStatus(
 ): Promise<void> {
   await db
     .update(appointments)
-    .set({ discountStatus: status, updatedAt: new Date() })
+    // "none" releases the consultation's gate too; per-line gates are set with it.
+    .set({ discountStatus: status, ...(status === "none" ? { consultationDiscountHeld: false } : {}), updatedAt: new Date() })
     .where(byClinic(appointments.clinicId, clinicId, eq(appointments.id, appointmentId)));
 }
 
@@ -227,18 +318,9 @@ export async function decideDiscountApproval(
     .returning({ appointmentId: appointmentDiscountApprovals.appointmentId });
   if (!row) return { error: "Approval not found." };
 
-  const siblings = await db
-    .select({ status: appointmentDiscountApprovals.status })
-    .from(appointmentDiscountApprovals)
-    .where(
-      byClinic(
-        appointmentDiscountApprovals.clinicId,
-        clinicId,
-        eq(appointmentDiscountApprovals.appointmentId, row.appointmentId),
-      ),
-    );
-  const status = deriveStatus(siblings.map((s) => s.status));
-  await setStatus(clinicId, row.appointmentId, status);
+  // Each discount's gate follows its own bearers' decisions (§6); the returned status
+  // is the visit's summary over every row.
+  const status = await applyApprovalGates(clinicId, row.appointmentId);
 
   // Once the discount is fully decided (all approved, or any rejected), tell the front
   // desk — the bill just changed. Fire once (not per sibling); skip the decider.
@@ -279,6 +361,11 @@ export type PendingApproval = {
   discountValue: number;
   discountType: string;
   borneBy: string;
+  /** What THIS party is asked about — each discount it bears, with the part it bears
+   *  (plan §6: "each request names the line it is for"). */
+  /** `borne` is NULL where it is not one number yet: the whole-visit discount's
+   *  doctor side, spread over several doctors by their gross share. */
+  items: { label: string; amount: number; borne: number | null }[];
 };
 
 /**
@@ -329,11 +416,28 @@ export async function listPendingApprovalsForUser(
 
   // A clinic approver's list = clinic rows + their own doctor rows. We filtered to
   // pending above; narrow in JS so the SQL stays a simple index scan.
-  return rows.filter((r) =>
+  const mine = rows.filter((r) =>
     opts.isClinicApprover
       ? r.approverKind === "clinic" || r.approverDoctorId === opts.doctorId
       : true,
   );
+  // Each visit's discounts, once per visit (a queue is short; this is its detail).
+  const ctxs = new Map<string, Awaited<ReturnType<typeof getAppointmentShareContext>>>();
+  for (const id of new Set(mine.map((r) => r.appointmentId))) {
+    ctxs.set(id, await getAppointmentShareContext(clinicId, id));
+  }
+  return mine.map((r) => {
+    const ctx = ctxs.get(r.appointmentId);
+    const party = r.approverKind === "clinic" ? CLINIC_PARTY : (r.approverDoctorId ?? "");
+    const items = (ctx?.requestedPieces ?? [])
+      .filter((p) => !p.fromPlan && partiesBearing(p, ctx!.earnerDoctorIds).includes(party))
+      .map((p) => {
+        const part = discountBorneSplit(p.amount, p.borneBy, p.split);
+        const doctorShare = p.doctorId || ctx!.earnerDoctorIds.length <= 1 ? part.doctorBorne : null;
+        return { label: p.label, amount: p.amount, borne: party === CLINIC_PARTY ? part.clinicBorne : doctorShare };
+      });
+    return { ...r, items };
+  });
 }
 
 /**

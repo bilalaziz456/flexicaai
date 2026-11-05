@@ -26,12 +26,13 @@ import { ViewLogger } from "@/core/ui/view-logger";
 import { getCurrentUser } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import {
-  getAppointmentProcedureItems,
+  billLineOf, getAppointmentProcedureItems,
   getBookingProcedures,
 } from "@/core/appointments/procedures";
+import { formInitialLines } from "@/app/clinic/appointments/form-initial";
 import {
   computeBill,
-  effectiveDiscountValue,
+  effectiveDiscountValue, effectiveConsultationDiscount,
   formatPkr,
   normalizeDiscountType,
 } from "@/core/appointments/fee";
@@ -71,21 +72,6 @@ export async function AppointmentDetail({
 
   // Edit-form prefill: only the items that still map to a selectable procedure
   // (carry each line's quantity + its own discount).
-  const initialProcedures = procedureItems
-    .filter((i): i is typeof i & { procedureId: string } => Boolean(i.procedureId))
-    .map((i) => ({
-      procedureId: i.procedureId,
-      quantity: i.quantity,
-      discountType: i.discountType,
-      discountValue: i.discountValue,
-      unitPrice: i.unitPrice,
-    }));
-  // One-off charges have no list item, so they travel separately — without them an
-  // edit would silently drop "Medicines Rs 2,000" from the bill.
-  const initialOtherCharges = procedureItems
-    .filter((i) => !i.procedureId && i.isService)
-    .map((i) => ({ name: i.name, unitPrice: i.unitPrice, quantity: i.quantity }));
-
   // Read-only bill: consultation fee + line items (each with its own discount),
   // then the appointment-level discount on the subtotal. A procedure-only visit
   // doesn't charge the consultation fee (chargeConsultation).
@@ -99,14 +85,10 @@ export async function AppointmentDetail({
     appt.discountStatus === "pending" || appt.discountStatus === "rejected";
   const bill = computeBill(
     doctorFee,
-    procedureItems.map((i) => ({
-      unitPrice: i.unitPrice,
-      quantity: i.quantity,
-      discountType: i.discountType,
-      discountValue: i.discountValue,
-    })),
+    procedureItems.map(billLineOf),
     discountType,
     effectiveDiscountValue(appt.discountStatus, appt.discountValue),
+    effectiveConsultationDiscount(appt),
   );
 
   // Permission gates: hide the controls the current user can't use (the server
@@ -239,9 +221,19 @@ export async function AppointmentDetail({
           <CardContent>
             <dl className="space-y-2 text-sm">
               {bill.consultation > 0 ? (
-                <div className="flex items-center justify-between">
-                  <dt className="text-muted-foreground">Consultation fee</dt>
-                  <dd className="tabular-nums">{formatPkr(bill.consultation)}</dd>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="min-w-0 truncate text-muted-foreground">
+                    Consultation fee
+                    {bill.consultationDiscount > 0 ? (
+                      <span className="text-primary-text">
+                        {" "}· Discount −{formatPkr(bill.consultationDiscount)}
+                        {appt.consultationDiscountType === "percent" ? ` (${appt.consultationDiscountValue}%)` : ""}
+                      </span>
+                    ) : appt.consultationDiscountHeld && appt.consultationDiscountValue > 0 ? (
+                      <span className="text-warning-text"> · Discount awaiting approval</span>
+                    ) : null}
+                  </dt>
+                  <dd className="tabular-nums">{formatPkr(bill.consultation - bill.consultationDiscount)}</dd>
                 </div>
               ) : null}
               {procedureItems.map((i, idx) => {
@@ -261,12 +253,22 @@ export async function AppointmentDetail({
                       {i.quantity > 1 ? (
                         <span> × {i.quantity} @ {formatPkr(i.unitPrice)}</span>
                       ) : null}
-                      {/* A line's discount is the clinic offer it was booked with. */}
-                      {l.discount > 0 ? (
+                      {/* The clinic offer the line was booked with, then the patient's own
+                          discount on top of it — each shown on its own (2026-11-06: one
+                          combined figure hid the extra discount). */}
+                      {l.offerDiscount > 0 ? (
                         <span className="text-primary-text">
-                          {" "}· {offerLabel(clinicRow?.name)} −{formatPkr(l.discount)}
+                          {" "}· {offerLabel(clinicRow?.name)} −{formatPkr(l.offerDiscount)}
                           {i.discountType === "percent" ? ` (${describeOfferDiscount(i.discountType, i.discountValue)})` : ""}
                         </span>
+                      ) : null}
+                      {l.patientDiscount > 0 ? (
+                        <span className="text-primary-text">
+                          {" "}· Discount −{formatPkr(l.patientDiscount)}
+                          {i.patientDiscountType === "percent" ? ` (${i.patientDiscountValue}%)` : ""}
+                        </span>
+                      ) : i.patientDiscountHeld && i.patientDiscountValue > 0 ? (
+                        <span className="text-warning-text"> · Discount awaiting approval</span>
                       ) : null}
                     </dt>
                     <dd className="tabular-nums">{formatPkr(l.net)}</dd>
@@ -282,7 +284,7 @@ export async function AppointmentDetail({
                   </div>
                   <div className="flex items-center justify-between">
                     <dt className="text-muted-foreground">
-                      Appointment discount
+                      Discount on the whole visit
                       {discountType === "percent" ? ` (${appt.discountValue}%)` : ""}
                     </dt>
                     <dd className="tabular-nums text-destructive">
@@ -417,8 +419,7 @@ export async function AppointmentDetail({
                 discountSplitValue: appt.discountSplitValue,
                 chargeConsultation: appt.chargeConsultation,
                 customTime: appt.customTime,
-                procedures: initialProcedures,
-                otherCharges: initialOtherCharges,
+                ...formInitialLines(procedureItems, appt),
               }}
             />
           </CardContent>

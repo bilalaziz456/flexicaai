@@ -34,6 +34,7 @@ export async function findAppointmentForEdit(clinicId: string, appointmentId: st
       discountBorneBy: appointments.discountBorneBy,
       discountSplitType: appointments.discountSplitType,
       discountSplitValue: appointments.discountSplitValue,
+      bearingVersion: appointments.bearingVersion,
     })
     .from(appointments)
     .where(

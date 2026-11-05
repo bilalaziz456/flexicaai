@@ -17,7 +17,7 @@ import {
 import { activeOffersOn } from "@/core/appointments/procedures";
 import { localDateStr } from "@/core/appointments/availability";
 import { clampDiscountValue, type DiscountType } from "@/core/appointments/fee";
-import { computePlanBill, visitPlanDiscount, type PlanBearer, type VisitPlanDiscount } from "@/core/patients/plan-bill";
+import { asPlanBearer, computePlanBill, splitForVisit, visitPlanDiscount, type PlanBearer, type VisitPlanDiscount } from "@/core/patients/plan-bill";
 import { displayStaffName } from "@/core/types/auth";
 import type { TreatmentTemplate } from "@/core/types/module";
 import type { TreatmentItemStatusCode, TreatmentPlanStatusCode } from "@/core/db/vocabulary-seed";
@@ -257,9 +257,13 @@ export async function getUnscheduledItems(
  *
  * Each line carries what a procedure booked any other way carries: the visit's doctor
  * as the PERFORMING doctor (who earns its share — without it the clinic kept the whole
- * line), and the item's snapshotted clinic OFFER as the line discount. The plan's own
- * discount is not on the line: it is a patient discount, placed on the appointment by
- * the booking action (`planDiscountForItems`), where "Discount borne by" applies.
+ * line), and the item's snapshotted clinic OFFER as the line discount (borne "in
+ * proportion", the rule the estimate was priced under).
+ *
+ * The item's share of its PLAN discount goes on its OWN line as the patient discount,
+ * with the plan's "Discount by" — so a doctor-given plan discount comes out of THAT
+ * line's doctor's share (docs/per-line-discount-plan.md §7). Marked `discount_from_plan`,
+ * so it asks nobody's approval while unchanged.
  */
 export async function scheduleItemsOnAppointment(
   clinicId: string,
@@ -276,9 +280,13 @@ export async function scheduleItemsOnAppointment(
     .select()
     .from(treatmentPlanItems)
     .where(byClinic(treatmentPlanItems.clinicId, clinicId, inArray(treatmentPlanItems.id, itemIds)));
+  const carry = await getPlanItemCarry(clinicId, itemIds);
 
   await db.transaction(async (tx) => {
     for (const it of items) {
+      const c = carry.get(it.id);
+      const planDiscount = c && c.planDiscount > 0 ? c.planDiscount : 0;
+      const split = c && c.borneBy === "split" ? splitForVisit(c.split, c.planDiscountTotal, planDiscount) : null;
       await tx.insert(appointmentProcedures).values({
         clinicId,
         appointmentId,
@@ -289,6 +297,13 @@ export async function scheduleItemsOnAppointment(
         doctorId: appt?.doctorId ?? null,
         discountType: it.offerType,
         discountValue: it.offerValue,
+        patientDiscountType: "amount",
+        patientDiscountValue: planDiscount,
+        // A line with no doctor has nobody but the clinic to bear it.
+        discountBorneBy: planDiscount > 0 && appt?.doctorId ? c!.borneBy : "clinic",
+        discountSplitType: split?.type ?? "percent",
+        discountSplitValue: split ? clampDiscountValue(split.type, split.value) : 0,
+        discountFromPlan: planDiscount > 0,
       });
       await tx
         .update(treatmentPlanItems)
@@ -397,7 +412,7 @@ export async function getPlanItemCarry(clinicId: string, itemIds: string[]): Pro
         id: it.id,
         planId: plan.id,
         planDiscount: bill.items[i].planDiscount,
-        borneBy: plan.discountBorneBy,
+        borneBy: asPlanBearer(plan.discountBorneBy),
         split: { type: plan.discountSplitType, value: plan.discountSplitValue },
         planDiscountTotal: bill.planDiscount,
         doctorName: doctorName ? displayStaffName(doctorPrefix, doctorName) : null,
