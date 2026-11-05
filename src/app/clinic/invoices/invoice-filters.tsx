@@ -30,7 +30,7 @@ const PAYMENT_OPTIONS = [
   ...VISIT_PAYMENT_STATUSES.map((s) => ({ value: s, label: VISIT_PAYMENT_STATUS_LABEL[s] })),
 ];
 
-/** Filter bar for the Invoices register: period (default All time) + range, status, payment,
+/** Filter bar for the Invoices register: period (default Today) + range, status, payment,
  *  what the invoice is for (a procedure or service), search. */
 export function InvoiceFilters({
   period,
@@ -73,7 +73,9 @@ export function InvoiceFilters({
     const st = next.state ?? stateV;
     const proc = next.procedure ?? procV;
     const params = new URLSearchParams();
-    if (pr && pr !== "all") params.set("period", pr);
+    // Always written, "all" included: a URL with no period means "nothing chosen",
+    // which opens on Today (or the period remembered for this session).
+    params.set("period", pr || "today");
     if (pr === "custom") {
       if (f) params.set("from", f);
       if (t) params.set("to", t);

@@ -4,6 +4,7 @@ import { cache } from "react";
 import { after } from "next/server";
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
+import { REMEMBERED_FILTER_COOKIE_PREFIX } from "@/core/lib/remembered-filters";
 import { and, eq, gt, ne, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { sessions, users, type User } from "@/core/db/schema";
@@ -24,6 +25,20 @@ function hashToken(token: string): string {
 }
 
 /**
+ * Forget every remembered list filter (core/lib/remembered-filters.ts): each sign-in
+ * starts the lists back at Today. Path must match the one they were set on, or the
+ * browser keeps them.
+ */
+async function clearRememberedFilters(): Promise<void> {
+  const cookieStore = await cookies();
+  for (const c of cookieStore.getAll()) {
+    if (c.name.startsWith(REMEMBERED_FILTER_COOKIE_PREFIX)) {
+      cookieStore.delete({ name: c.name, path: "/clinic" });
+    }
+  }
+}
+
+/**
  * Creates a session for a user and sets the cookie. Call from Server Actions /
  * Route Handlers only (Server Components cannot write cookies).
  *
@@ -39,6 +54,7 @@ export async function createSession(userId: string): Promise<void> {
     expiresAt,
   });
 
+  await clearRememberedFilters();
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
@@ -164,6 +180,7 @@ export async function destroySession(): Promise<void> {
     await db.delete(sessions).where(eq(sessions.tokenHash, hashToken(token)));
   }
   cookieStore.delete(SESSION_COOKIE_NAME);
+  await clearRememberedFilters();
 }
 
 /**

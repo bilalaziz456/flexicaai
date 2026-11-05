@@ -55,6 +55,9 @@ export type AppointmentsListSearchParams = {
   updated?: string;
   from?: string;
   to?: string;
+  /** A period pill + direction ("7d" + "upcoming"); wins over from/to. */
+  period?: string;
+  dir?: string;
   q?: string;
   status?: string;
   type?: string;
@@ -129,7 +132,7 @@ export async function AppointmentsList({
       ? "Appointment updated."
       : null;
 
-  const { fromStr, toStr, today, q, status, type, doctor, procedure, createdBy, start, endExclusive } =
+  const { fromStr, toStr, today, q, status, type, doctor, procedure, createdBy, period, dir, start, endExclusive } =
     parseListFilters(sp);
 
   // The Doctor filter. A viewer with a SCOPE (a doctor) never sees it: their scope
@@ -269,6 +272,12 @@ export async function AppointmentsList({
     const params = new URLSearchParams();
     params.set("from", next.from ?? fromStr);
     params.set("to", next.to ?? toStr);
+    // A month step or a fold keeps the period pill (so a remembered "next 7 days" is
+    // not turned into fixed dates); picking a day replaces it.
+    if (!next.from && !next.to && period && dir) {
+      params.set("period", period);
+      params.set("dir", dir);
+    }
     if (q) params.set("q", q);
     if (status) params.set("status", status);
     if (type) params.set("type", type);

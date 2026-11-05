@@ -447,6 +447,18 @@ throw — use it in tests.
   expression reads — `appointmentNetSql` reads `users.consultation_fee`, so a summary
   selecting no user column still joins `users` or fails at runtime.
 
+- **Invoices, Appointments and Sales open on TODAY and remember the period picked,
+  until sign-out** (owner's call, 2026-11-06). The proxy does it (`src/proxy.ts`
+  `REMEMBERED_FILTER_PAGES`, mechanism in `core/lib/remembered-filters.ts`): a request
+  carrying the page's date params saves them to a `flx_rf_*` cookie, a request carrying
+  none is redirected to them. Only the DATE filter is remembered, never a search or
+  status. Cleared in `createSession` and `destroySession`. A prefetch never saves. Two
+  consequences for anyone editing these pages: a filter bar must ALWAYS write its
+  period into the URL ("All" included — a missing period now means "nothing chosen"),
+  and a relative window is remembered as a preset (`period=7d&dir=upcoming`, resolved
+  against today by `core/appointments/period-window.ts`), never as two dates that go
+  stale overnight. To add a page, add a row to `REMEMBERED_FILTER_PAGES`.
+
 ### Phone numbers
 
 - **Every phone / WhatsApp field is a `PhoneInput`** (`core/ui/phone-input.tsx`) and

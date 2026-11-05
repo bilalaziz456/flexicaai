@@ -3,6 +3,11 @@ import { SESSION_COOKIE_NAME } from "@/core/auth/constants";
 import { THEME_SCRIPT } from "@/core/theme/theme-script";
 import { matchProtectedPrefix } from "@/core/types/auth";
 import { PRINT_FRAME_HEADER } from "@/core/lib/print-papers";
+import {
+  rememberedFilterAction,
+  rememberedFilterCookie,
+  type RememberedFilterPage,
+} from "@/core/lib/remembered-filters";
 
 /**
  * Coarse auth gate + CSP (Next.js 16 "proxy" convention). Runs in the EDGE runtime,
@@ -127,6 +132,26 @@ const PRINT_PAGES = [
   /^\/admin\/finance\/invoices\/[^/]+\/print$/,
 ];
 
+/**
+ * List pages that open on Today and then remember the period the person picks, until
+ * they sign out (owner's call, 2026-11-06; mechanism in core/lib/remembered-filters.ts).
+ * Only the DATE filter is remembered — a search or a status narrowing is a question of
+ * the moment, and coming back to a list silently still filtered by it would hide rows.
+ */
+const REMEMBERED_FILTER_PAGES: readonly RememberedFilterPage[] = [
+  { key: "invoices", path: "/clinic/invoices", params: ["period", "from", "to"] },
+  { key: "sales", path: "/clinic/sales", params: ["period", "from", "to"] },
+  // `period` + `dir` name a relative window ("next 7 days") so it stays right on later
+  // days; `from`/`to` alone are the dates the person picked. A queue view (`session`)
+  // pins its own day and is neither saved nor restored.
+  {
+    key: "appointments",
+    path: "/clinic/appointments",
+    params: ["period", "dir", "from", "to"],
+    ignoreWhen: ["session"],
+  },
+];
+
 const isFrameableByUs = (path: string) =>
   path.startsWith("/api/clinical/attachment/") ||
   /^\/api\/admin\/clinics\/[^/]+\/letterhead-preview$/.test(path) ||
@@ -143,6 +168,33 @@ export async function proxy(request: NextRequest) {
     url.search = "";
     url.searchParams.set("redirectTo", pathname);
     return NextResponse.redirect(url);
+  }
+
+  // Remembered list filters: put back the period the person last chose on this page,
+  // or remember the one they just chose. A PREFETCH is never saved — Next loads links
+  // before they are clicked (a calendar day, a dashboard tile), and remembering one of
+  // those would change someone's filter without them doing anything.
+  const rememberPage = hasSessionCookie
+    ? REMEMBERED_FILTER_PAGES.find((p) => p.path === pathname)
+    : undefined;
+  let rememberValue: { name: string; value: string } | null = null;
+  if (rememberPage) {
+    const name = rememberedFilterCookie(rememberPage);
+    const action = rememberedFilterAction(
+      rememberPage,
+      request.nextUrl.searchParams,
+      request.cookies.get(name)?.value,
+    );
+    if (action?.kind === "restore") {
+      const url = request.nextUrl.clone();
+      url.search = action.params.toString();
+      return NextResponse.redirect(url);
+    }
+    const isPrefetch =
+      request.headers.has("next-router-prefetch") || request.headers.get("purpose") === "prefetch";
+    if (action?.kind === "save" && !isPrefetch && action.value !== request.cookies.get(name)?.value) {
+      rememberValue = { name, value: action.value };
+    }
   }
 
   const requestHeaders = new Headers(request.headers);
@@ -189,6 +241,16 @@ export async function proxy(request: NextRequest) {
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", policy);
+  if (rememberValue) {
+    // No expiry: it is cleared at sign-in and sign-out (core/auth/session.ts), and a
+    // browser-session cookie also goes when the browser closes, which is no loss.
+    response.cookies.set(rememberValue.name, rememberValue.value, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: !isDev,
+      path: "/clinic",
+    });
+  }
   return response;
 }
 

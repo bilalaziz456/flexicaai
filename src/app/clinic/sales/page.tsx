@@ -57,7 +57,9 @@ export default async function ClinicSalesPage({
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales")) notFound();
 
   const sp = await searchParams;
-  const range = resolveSalesRange(sp.period, sp.from, sp.to, clinic?.createdAt);
+  // Opens on TODAY (owner's call, 2026-11-06); a period picked here is remembered until
+  // sign-out by the proxy (core/lib/remembered-filters.ts).
+  const range = resolveSalesRange(sp.period || "today", sp.from, sp.to, clinic?.createdAt);
   const doctorId = sp.doctorId?.trim() || null;
 
   const [report, doctors] = await Promise.all([

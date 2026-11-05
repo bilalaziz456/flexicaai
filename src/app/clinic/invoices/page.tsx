@@ -62,8 +62,12 @@ export default async function InvoicesPage({
   if (!clinicHasFeature(clinic?.featuresEnabled, "sales")) notFound();
 
   const sp = await searchParams;
-  const hasRange = Boolean(sp.period) && sp.period !== "all";
-  const range = hasRange ? resolveSalesRange(sp.period, sp.from, sp.to, clinic?.createdAt) : null;
+  // Opens on TODAY (owner's call, 2026-11-06); a period picked here is remembered until
+  // sign-out by the proxy (core/lib/remembered-filters.ts). "All" is an explicit choice
+  // in the URL now, not the absence of one.
+  const period = sp.period || "today";
+  const hasRange = period !== "all";
+  const range = hasRange ? resolveSalesRange(period, sp.from, sp.to, clinic?.createdAt) : null;
   const q = sp.q?.trim() || "";
   const payment = asVisitPaymentStatus(sp.payment);
   const state = asInvoiceState(sp.state);

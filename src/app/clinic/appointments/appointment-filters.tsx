@@ -7,8 +7,8 @@ import { Input } from "@/core/ui/input";
 import { Label } from "@/core/ui/label";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 import { PeriodTabs } from "@/core/ui/report-filters";
+import { apptPeriodOf, apptWindow, type ApptDir } from "@/core/appointments/period-window";
 
-type ApptDir = "upcoming" | "past";
 // Direction toggle: the same period pills window FORWARD (the schedule ahead) or
 // BACKWARD (review the past). Reused as a PeriodTabs group.
 const APPT_DIRECTIONS = [
@@ -26,19 +26,6 @@ const APPT_PERIOD_PRESETS = [
   { value: "half", label: "6mo", title: "180 days" },
   { value: "year", label: "Year", title: "365 days" },
 ];
-const APPT_PERIOD_DAYS: Record<string, number> = {
-  today: 1, "7d": 7, "15d": 15, "30d": 30, quarter: 90, half: 180, year: 365,
-};
-const ymd = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-/** An inclusive N-day window from `today`, forward (upcoming) or backward (past). */
-function apptWindow(period: string, today: string, dir: ApptDir): { from: string; to: string } {
-  const [y, m, d] = today.split("-").map(Number);
-  const span = (APPT_PERIOD_DAYS[period] ?? 1) - 1;
-  const edge = new Date(y, m - 1, d);
-  edge.setDate(edge.getDate() + (dir === "past" ? -span : span));
-  return dir === "past" ? { from: ymd(edge), to: today } : { from: today, to: ymd(edge) };
-}
 /** Infer the toggle direction from an incoming range (a range ending today = past). */
 function dirFromRange(from: string, to: string, today: string): ApptDir {
   return to === today && from !== today ? "past" : "upcoming";
@@ -140,6 +127,7 @@ export function AppointmentFilters({
   const [createdByV, setCreatedByV] = useState(createdBy);
 
   function push(next: {
+    dir?: ApptDir;
     from?: string;
     to?: string;
     q?: string;
@@ -167,6 +155,13 @@ export function AppointmentFilters({
     } else {
       if (f) params.set("from", f);
       if (t) params.set("to", t);
+      // Name the pill too, so a remembered choice is "the next 7 days" from whatever
+      // day it is used, not the seven dates it happened to cover when it was picked.
+      const pill = f && t ? apptPeriodOf(f, t, today, next.dir ?? direction) : "";
+      if (pill) {
+        params.set("period", pill);
+        params.set("dir", next.dir ?? direction);
+      }
     }
     if (qq.trim()) params.set("q", qq.trim());
     if (st) params.set("status", st);
@@ -195,11 +190,7 @@ export function AppointmentFilters({
 
   // Which period pill is lit: the range matches one of the windows in the current
   // direction. A hand-edited range matches none (custom).
-  const activePeriod =
-    APPT_PERIOD_PRESETS.find((p) => {
-      const w = apptWindow(p.value, today, direction);
-      return w.from === fromD && w.to === toD;
-    })?.value ?? "";
+  const activePeriod = apptPeriodOf(fromD, toD, today, direction);
 
   const pickPeriod = (v: string) => {
     const w = apptWindow(v, today, direction);
@@ -216,7 +207,7 @@ export function AppointmentFilters({
       const w = apptWindow(activePeriod, today, dir);
       setFromD(w.from);
       setToD(w.to);
-      push({ from: w.from, to: w.to });
+      push({ from: w.from, to: w.to, dir });
     }
   };
 

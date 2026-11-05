@@ -1,6 +1,7 @@
 import "server-only";
 
 import { dateFromStr, localDateStr } from "./availability";
+import { apptWindow, isApptDir, isApptPeriod, type ApptDir } from "./period-window";
 import {
   APPOINTMENT_STATUS_ROWS,
   type AppointmentStatusCode,
@@ -31,6 +32,10 @@ const VISIT_TYPES: VisitTypeFilter[] = ["consultation", "procedure", "both"];
 export function parseListFilters(sp: {
   from?: string;
   to?: string;
+  /** A period pill ("7d") with its direction — resolved against TODAY, and wins over
+   *  `from`/`to`, so a remembered "next 7 days" stays the next 7 days (period-window.ts). */
+  period?: string;
+  dir?: string;
   q?: string;
   status?: string;
   type?: string;
@@ -52,12 +57,17 @@ export function parseListFilters(sp: {
   /** The Created by filter — "whatsapp" (patient self-bookings) or a staff user id
    *  ("" = anyone). */
   createdBy: string;
+  /** The period pill in force, or "" for a hand-picked range. */
+  period: string;
+  dir: ApptDir | "";
   start: Date;
   endExclusive: Date;
 } {
   const today = localDateStr(new Date());
-  let fromStr = sp.from && YMD.test(sp.from) ? sp.from : today;
-  let toStr = sp.to && YMD.test(sp.to) ? sp.to : today;
+  const preset = isApptPeriod(sp.period) && isApptDir(sp.dir) ? { period: sp.period, dir: sp.dir } : null;
+  const win = preset ? apptWindow(preset.period, today, preset.dir) : null;
+  let fromStr = win ? win.from : sp.from && YMD.test(sp.from) ? sp.from : today;
+  let toStr = win ? win.to : sp.to && YMD.test(sp.to) ? sp.to : today;
   if (fromStr > toStr) [fromStr, toStr] = [toStr, fromStr];
   const q = (sp.q ?? "").trim();
   const status: StatusFilter = STATUSES.includes(sp.status as StatusFilter)
@@ -73,5 +83,19 @@ export function parseListFilters(sp: {
   const start = dateFromStr(fromStr);
   const endExclusive = dateFromStr(toStr);
   endExclusive.setDate(endExclusive.getDate() + 1);
-  return { fromStr, toStr, today, q, status, type, doctor, procedure, createdBy, start, endExclusive };
+  return {
+    fromStr,
+    toStr,
+    today,
+    q,
+    status,
+    type,
+    doctor,
+    procedure,
+    createdBy,
+    period: preset?.period ?? "",
+    dir: preset?.dir ?? "",
+    start,
+    endExclusive,
+  };
 }
