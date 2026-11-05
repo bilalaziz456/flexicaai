@@ -112,8 +112,10 @@ Full detail, and the triggers that force each change: `.claude/architecture.md` 
 > alters a layer boundary, a dependency rule, the module contract, the deployment
 > shape, or an architectural decision, update it in the SAME commit** (its §0 defines
 > when). Ordinary features and fixes need no update.
-
-@.claude/architecture.md
+>
+> It is **not auto-imported** (it is ~94k chars and would push the always-loaded
+> instructions past Claude Code's 150k limit) — **open it with Read** before any
+> structural work, an ADR question, or touching deployment.
 
 ```
 /src
@@ -238,10 +240,10 @@ Design every table to support multiple specialties from day one. The
 
 **`src/core/db/schema/` is the source of truth** (split by domain behind a barrel —
 import from `@/core/db/schema`). The full table-by-table
-reference (columns, FK behaviours, enums, indexes) lives in the imported file
-below — read it before touching the schema:
-
-@.claude/database.md
+reference (columns, FK behaviours, enums, indexes) lives in
+**`.claude/database.md`** — **open it with Read before touching the schema or a
+migration**. It is not auto-imported (~115k chars; it would push the always-loaded
+instructions past Claude Code's 150k limit).
 
 ---
 
@@ -597,8 +599,8 @@ Keep the **always-true guardrails** in this root file. Move **reference detail**
 ```
 /CLAUDE.md                    # short: golden rules + imports + build order
 /.claude/
-  database.md                 # schema, multi-tenancy, RLS (section 5) — DONE (imported by §5)
-  architecture.md             # layers, dependency rules, DECISION LOG, deltas — DONE (imported by §3)
+  database.md                 # schema, multi-tenancy, RLS (section 5) — DONE (read on demand, §5)
+  architecture.md             # layers, dependency rules, DECISION LOG, deltas — DONE (read on demand, §3)
   ai-scribe.md                # scribe engine rules (section 8) — DONE (imported by §8)
   conventions.md              # coding style + security (sections 9-10) — DONE (imported by §9/§10)
   /modules/
@@ -606,10 +608,10 @@ Keep the **always-true guardrails** in this root file. Move **reference detail**
     derma.md                  # later
     hair.md                   # later
 ```
-**Status:** all four are split out and imported from the section each expands —
+**Status:** all four are split out and referenced from the section each expands —
 `architecture.md` (§3), `database.md` (§5), `ai-scribe.md` (§8), `conventions.md`
 (§9/§10). Root keeps the non-negotiables inline so they are impossible to miss; the
-imported file carries the working detail. The `/modules/*.md` specs are still to come.
+split file carries the working detail. The `/modules/*.md` specs are still to come.
 
 `architecture.md` went further than a §3/§4 extraction: it is the **living**
 architecture record — layer contracts, dependency rules, a numbered decision log
@@ -618,17 +620,23 @@ the intended design, and the triggers that would force a change. It is the one f
 to update when an architectural decision is made or reversed; its §0 states exactly
 when that is required.
 
-### How to reference imported files from root
-Use Claude Code's import syntax (`@` + path, on its own line) at the point in this
-file where the detail belongs, so it is pulled in automatically. Live imports today —
-each sits inside the section it expands, not in a list here:
+### How to reference split files from root
+Two ways, and the choice is forced by a budget: **Claude Code refuses more than 150k
+chars of always-loaded instructions** (root + every `@` import, recursively).
 
-- `@.claude/architecture.md` → imported by §3
-- `@.claude/database.md` → imported by §5
-- `@.claude/ai-scribe.md` → imported by §8
-- `@.claude/conventions.md` → imported by §9/§10
+- **`@` import** (`@` + path, on its own line) — pulled in every session. Only for
+  files small enough to afford it. Live imports today:
+  - `@.claude/ai-scribe.md` → §8 (~15k)
+  - `@.claude/conventions.md` → §9/§10 (~37k)
+- **Read on demand** — named in the section it expands, with an instruction to open
+  it before the relevant work. For the reference-heavy files:
+  - `.claude/architecture.md` → §3 (~94k)
+  - `.claude/database.md` → §5 (~115k)
 
-Do not add an import line for a file that does not exist yet.
+Keep the always-loaded total well under 150k (check with `wc -c CLAUDE.md AGENTS.md`
+plus each imported file). If an imported file grows past ~40k, move it to read-on-demand
+rather than letting the total creep up. Do not add an import line for a file that does
+not exist yet.
 
 ### Rule when splitting
 Moving content into a new file must not change its meaning. After splitting, verify the root still contains every non-negotiable guardrail, and that no rule was lost in a file Claude Code doesn't load. Split content, never dilute it.

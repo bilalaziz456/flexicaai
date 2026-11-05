@@ -2,7 +2,7 @@
 
 > **This file is the architectural source of truth.** `CLAUDE.md` holds the
 > always-true guardrails; this holds the *shape* of the system, the *decisions* that
-> produced it, and the *deltas* still outstanding. Imported by root `CLAUDE.md` §3/§4.
+> produced it, and the *deltas* still outstanding. Referenced (not auto-imported — too large) by root `CLAUDE.md` §3/§4.
 >
 > **Source of truth ordering.** Code wins over this document; this document wins over
 > `/docs/*-plan.md` (which are point-in-time feature plans, not the live contract).

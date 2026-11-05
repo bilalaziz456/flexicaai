@@ -10,7 +10,7 @@
 > hand-edit the database — change the schema and generate a migration. This document
 > is the human-readable reference; if the two disagree, the schema wins.
 >
-> Imported by root `CLAUDE.md` §5.
+> Referenced (not auto-imported — too large) by root `CLAUDE.md` §5.
 
 ---
 
