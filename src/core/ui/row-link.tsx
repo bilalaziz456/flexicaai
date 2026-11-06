@@ -37,13 +37,22 @@ export function RowLink({
     <Tag
       onClick={(e: React.MouseEvent) => {
         if (isInteractive(e.target)) return;
+        // React passes events up through PORTALS: a click inside a dialog opened from
+        // this row (Delete's confirm, say) reaches here though it is nowhere near the
+        // row on screen. Only a click that really landed in the row opens it.
+        if (!(e.target instanceof Node) || !e.currentTarget.contains(e.target)) return;
         // Ctrl/⌘-click a row opens it in a new in-app tab, like a link would. Falls
         // back to an ordinary navigation in a panel without tabs.
         if ((e.ctrlKey || e.metaKey) && openInAppTab(href)) return;
         router.push(href);
       }}
       onKeyDown={(e: React.KeyboardEvent) => {
-        if ((e.key === "Enter" || e.key === " ") && !isInteractive(e.target)) {
+        if (
+          (e.key === "Enter" || e.key === " ") &&
+          !isInteractive(e.target) &&
+          e.target instanceof Node &&
+          e.currentTarget.contains(e.target)
+        ) {
           e.preventDefault();
           router.push(href);
         }

@@ -207,5 +207,16 @@ export function InvoicesTable({
       },
     },
   ];
-  return <DataTable rows={rows} columns={columns} getRowKey={(r) => r.id} minWidthClassName="min-w-[56rem]" empty={empty} />;
+  // Click anywhere on a row to open the invoice (owner's call, 2026-11-07) — the same
+  // page its number and Edit link open. Its own buttons and links still work.
+  return (
+    <DataTable
+      rows={rows}
+      columns={columns}
+      getRowKey={(r) => r.id}
+      rowHref={(r) => `/clinic/invoices/${r.appointmentId}`}
+      minWidthClassName="min-w-[56rem]"
+      empty={empty}
+    />
+  );
 }
