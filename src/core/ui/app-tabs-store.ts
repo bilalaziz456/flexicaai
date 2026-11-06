@@ -19,8 +19,9 @@
 export type AppTab = { id: string; href: string; title: string };
 type TabsState = { tabs: AppTab[]; activeId: string | null };
 
-/** Enough to switch between; past this the strip stops being readable. */
-export const MAX_APP_TABS = 10;
+/** Enough to switch between (raised from 10 to 20, owner's call 2026-11-07); the strip
+ *  scrolls sideways past what fits. */
+export const MAX_APP_TABS = 20;
 
 const EMPTY: TabsState = Object.freeze({ tabs: [], activeId: null }) as TabsState;
 
@@ -228,6 +229,17 @@ export function closeAppTab(id: string): string | null {
   const next = tabs[Math.min(idx, tabs.length - 1)];
   set({ tabs, activeId: next.id });
   return next.href;
+}
+
+/**
+ * Closes every tab but the one showing (owner's call, 2026-11-07: "close all tabs").
+ * The page you are on stays — there is always a page showing, as `closeAppTab` keeps
+ * the last one — so nothing navigates.
+ */
+export function closeOtherAppTabs() {
+  const active = state.tabs.find((t) => t.id === state.activeId);
+  if (!active || state.tabs.length <= 1) return;
+  set({ tabs: [active], activeId: active.id });
 }
 
 /**

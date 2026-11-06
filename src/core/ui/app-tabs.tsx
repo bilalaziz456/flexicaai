@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, CopyX, X } from "lucide-react";
 import { cn } from "@/core/lib/utils";
 import { toast } from "@/core/ui/toast";
 import {
@@ -10,6 +10,7 @@ import {
   activateAppTab,
   appTabsEnabled,
   closeAppTab,
+  closeOtherAppTabs,
   findSectionTab,
   getActiveAppTabId,
   getAppTabs,
@@ -41,9 +42,10 @@ export function useOpenInAppTab() {
 }
 
 /**
- * The in-app tab strip. Generic: it knows no routes. `homeHref` is where "+" opens,
- * `currentTitle` names a page that has not named itself (the shell passes the nav
- * label), and `storageKey` keeps each user's tabs apart on a shared computer.
+ * The in-app tab strip. Generic: it knows no routes. There is no "+" (owner's call,
+ * 2026-11-07): a tab opens from a Ctrl/⌘-click or middle-click on a link. `homeHref`
+ * is the panel's own path prefix; `currentTitle` names a page that has not named
+ * itself (the shell passes the nav label), and `storageKey` keeps each user's tabs apart on a shared computer.
  *
  * Ctrl/⌘-click and middle-click on any link inside the panel open an IN-APP tab rather
  * than a browser tab (owner's call). Caught on the document in the CAPTURE phase so it
@@ -242,19 +244,15 @@ export function AppTabs({
           <ChevronRight className="size-4" aria-hidden="true" />
         </button>
       ) : null}
-      {tabs.length > 0 ? (
+      {tabs.length > 1 ? (
         <button
           type="button"
-          aria-label="Open a new tab"
-          title="New tab"
-          onClick={() => {
-            const r = openAppTab(homeHref);
-            if (r === "full") toast.error(FULL);
-            else if (r === "opened") router.push(homeHref);
-          }}
-          className="mb-1 inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-foreground/[0.06] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+          aria-label="Close all other tabs"
+          title="Close all tabs (keeps this page)"
+          onClick={closeOtherAppTabs}
+          className={arrowCls}
         >
-          <Plus className="size-4" aria-hidden="true" />
+          <CopyX className="size-4" aria-hidden="true" />
         </button>
       ) : null}
     </div>
