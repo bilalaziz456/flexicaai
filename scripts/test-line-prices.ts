@@ -7,7 +7,8 @@
  *  - re-pricing keeps the list price from first booking, and reports the change;
  *  - a lowered price is not a discount: no approval, nothing in the Discounts report,
  *    but a row in the Price changes report;
- *  - a line from before 0140 (no list price) never shows as changed.
+ *  - a line from before 0140 (no list price) never shows as changed;
+ *  - who may change a price: `bill_price:edit`, clinic admin only by default.
  * Seeds its own clinic and removes it. Run:
  * `tsx --env-file=.env.local --tsconfig scripts/_seed/tsconfig.json scripts/test-line-prices.ts`
  */
@@ -30,6 +31,7 @@ import { getAppointmentShareContext } from "@/core/appointments/share-context";
 import { getDiscountsReport } from "@/core/sales/discounts-report";
 import { getPriceChangesReport } from "@/core/sales/price-changes-report";
 import { resolveSalesRange } from "@/core/sales/report";
+import { can, defaultPermissionsForRole } from "@/core/auth/permissions";
 
 let pass = 0;
 let fail = 0;
@@ -43,7 +45,25 @@ function ok(label: string, cond: boolean, detail = "") {
   }
 }
 
+function permissionChecks() {
+  console.log("Who may change a price (bill_price:edit):");
+  ok("a clinic admin, by default", can({ role: "clinic_admin" }, "bill_price", "edit"));
+  for (const role of ["manager", "receptionist", "doctor"] as const) {
+    ok(`not a ${role}, by default`, !can({ role }, "bill_price", "edit"));
+  }
+  ok(
+    "a receptionist the admin ticked it for",
+    can({ role: "receptionist", permissions: [...defaultPermissionsForRole("receptionist"), "bill_price:edit"] }, "bill_price", "edit"),
+  );
+  ok(
+    "nobody, where the super admin took it from the clinic",
+    !can({ role: "clinic_admin", capabilities: ["appointments:create", "appointments:edit"] }, "bill_price", "edit"),
+  );
+  console.log("");
+}
+
 async function main() {
+  permissionChecks();
   await unscoped("behaviour test — seeds its own clinic", async () => {
     const [c] = await db
       .insert(clinics)

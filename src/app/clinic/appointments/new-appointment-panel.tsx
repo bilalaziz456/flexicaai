@@ -28,6 +28,7 @@ export async function NewAppointmentPanel({
   preselectedTime,
   invoiceMode = false,
   canTakePayment = false,
+  canChangePrice = false,
 }: {
   clinicId: string;
   backHref: string;
@@ -42,6 +43,8 @@ export async function NewAppointmentPanel({
   invoiceMode?: boolean;
   /** Offer an optional payment on a new appointment (see the form). */
   canTakePayment?: boolean;
+  /** Show the price boxes — `bill_price:edit` (see the form). */
+  canChangePrice?: boolean;
 }) {
   const clinic = await getClinic(clinicId);
   const toPatient = (p: {
@@ -92,6 +95,7 @@ export async function NewAppointmentPanel({
         </CardHeader>
         <CardContent>
           <NewAppointmentForm
+            canChangePrice={canChangePrice}
             clinicName={clinic?.name}
             papers={offeredPapers(clinic?.invoicePapersEnabled)}
             initialPatients={recentPatients}

@@ -34,6 +34,7 @@ export default async function NewInvoicePage({
       <FlashToast message={patientCreated ? "Patient added successfully." : null} params={["patientCreated"]} />
       <NewAppointmentPanel
       clinicId={user.clinicId}
+      canChangePrice={can(user, "bill_price", "edit")}
       backHref="/clinic/invoices"
       invoiceMode
       preselectedPatientId={patientId}

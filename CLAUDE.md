@@ -493,7 +493,10 @@ are in `.env.example`.
   follows the charged price; the patient's invoice shows only that. A lower price is not a
   discount and asks no approval (yet — §5 of the plan keeps room for it); the list
   price is kept on the line (`list_price`) and every changed line is listed under
-  "Price changes" on the Discounts page.
+  "Price changes" on the Discounts page. **ACL: `bill_price`** (edit only, covers
+  procedures AND services, not one-off charges) — clinic admin only by default; the
+  clinic admin ticks it per person (owner's call, 2026-11-07). Without it the price box
+  is hidden and the server drops a typed price (`actions.ts#withPricePermission`).
 
 - **MRN series per clinic** (`0126`) — the super admin / account manager sets a
   clinic's starting MRN (`FA-100001`, `GS-00000001`; letters, numbers, `-`, 3–15 chars,

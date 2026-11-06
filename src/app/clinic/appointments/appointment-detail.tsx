@@ -403,6 +403,7 @@ export async function AppointmentDetail({
           </CardHeader>
           <CardContent>
             <NewAppointmentForm
+              canChangePrice={Boolean(currentUser && can(currentUser, "bill_price", "edit"))}
               clinicName={clinicRow?.name}
               doctors={doctors}
               initialPatients={[]}

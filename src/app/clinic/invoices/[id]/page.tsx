@@ -181,6 +181,7 @@ export default async function InvoicePage({
           </CardHeader>
           <CardContent>
             <NewAppointmentForm
+              canChangePrice={can(user, "bill_price", "edit")}
               clinicName={clinic?.name}
               doctors={doctors}
               initialPatients={[]}

@@ -47,6 +47,15 @@
 6. **A lower price is not a discount.** It does not appear in the Discounts report,
    does not ask for approval, and does not create a discount settlement.
 
+7. **Who may change a price is the clinic admin's call** (owner, 2026-11-07): one
+   permission, `bill_price:edit` ("Change price on a bill"), covering procedures and
+   services (not one-off charges, which have no list price). **Clinic admin only by
+   default**; the admin ticks it for anyone else on their access grid. Without it the
+   price box is not shown and the server ignores a typed price, so the line keeps its
+   booked or list price. Migration `0141` adds it to any clinic whose capabilities the
+   super admin narrowed (so its admin is not locked out) and, on purpose, to nobody's
+   personal permissions.
+
 ## 3. Changes
 
 **Schema** — migration `0140`: `appointment_procedures.list_price int` (nullable) —

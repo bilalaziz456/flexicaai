@@ -91,6 +91,7 @@ const label12 = (hhmm: string) => {
  * fixed, the fields are prefilled, and it saves via updateAppointment.
  */
 export function NewAppointmentForm({
+  canChangePrice = false,
   initialPatients,
   doctors,
   procedures: allOptions = [],
@@ -108,6 +109,9 @@ export function NewAppointmentForm({
   canTakePayment = false,
   chargesEnabled = false,
 }: {
+  /** May change a procedure's or service's price on this bill (`bill_price:edit`).
+   *  Without it the price is shown, not editable; the server ignores a typed one too. */
+  canChangePrice?: boolean;
   initialPatients: Patient[];
   doctors: Doctor[];
   /** The clinic's active procedures AND services (empty unless the `sales` feature is
@@ -1049,11 +1053,13 @@ export function NewAppointmentForm({
                               <Plus className="size-3.5" aria-hidden="true" />
                             </button>
                           </div>
-                          <PriceInput
-                            label={`${p.name} price`}
-                            value={s.price}
-                            onChange={(v) => setProcPrice(p.id, v)}
-                          />
+                          {canChangePrice ? (
+                            <PriceInput
+                              label={`${p.name} price`}
+                              value={s.price}
+                              onChange={(v) => setProcPrice(p.id, v)}
+                            />
+                          ) : null}
                           <span className="w-24 text-right tabular-nums">
                             {line.net < line.gross ? (
                               <span className="block text-xs text-muted-foreground line-through">
@@ -1150,11 +1156,13 @@ export function NewAppointmentForm({
                             value={s.quantity}
                             onChange={(q) => patchSvc(p.id, { quantity: q })}
                           />
-                          <PriceInput
-                            label={`${p.name} price`}
-                            value={s.price}
-                            onChange={(v) => patchSvc(p.id, { price: v })}
-                          />
+                          {canChangePrice ? (
+                            <PriceInput
+                              label={`${p.name} price`}
+                              value={s.price}
+                              onChange={(v) => patchSvc(p.id, { price: v })}
+                            />
+                          ) : null}
                           {(() => {
                             const d = lineDiscount(p);
                             const l = computeProcedureLine({

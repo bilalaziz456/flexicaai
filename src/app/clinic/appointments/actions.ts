@@ -175,6 +175,18 @@ function parseProcedureSelections(formData: FormData): ProcedureSelection[] {
     .filter((s) => s.procedureId);
 }
 
+/**
+ * Drops the typed price from procedure and service lines for someone without
+ * `bill_price:edit` — the line then keeps its booked price, else its list price
+ * (`saveAppointmentProcedures`). Enforced HERE because hiding the price box is only
+ * the form; the encoded field still arrives. One-off charges keep theirs: they have
+ * no list price to fall back to.
+ */
+function withPricePermission<T extends ProcedureSelection>(selections: T[], user: CurrentUser): T[] {
+  if (can(user, "bill_price", "edit")) return selections;
+  return selections.map((s) => (s.procedureId ? { ...s, unitPrice: undefined } : s));
+}
+
 /** "; price changed: Root canal Rs 5,000 → Rs 4,000" for the activity log, or "". */
 function describePriceChanges(changes: LinePriceChange[]): string {
   if (changes.length === 0) return "";
@@ -446,7 +458,7 @@ export async function createAppointment(
   // says why the form never chooses one).
   const procedureSelections = await applyClinicOffers(
     clinicId,
-    parseProcedureSelections(formData),
+    withPricePermission(parseProcedureSelections(formData), user),
     localDateStr(when),
   );
   if (parsed.data.doctorId) {
@@ -510,7 +522,7 @@ export async function createAppointment(
   const createdPriceChanges = await saveAppointmentProcedures(clinicId, created.id, [
     ...withApptDoctor(procedureSelections, parsed.data.doctorId ?? null),
     // Services take their clinic offer too (2026-10-18), the same way.
-    ...(await applyClinicOffers(clinicId, parseServiceSelections(formData), localDateStr(when))),
+    ...(await applyClinicOffers(clinicId, withPricePermission(parseServiceSelections(formData), user), localDateStr(when))),
   ]);
 
   // Booking-from-plan: schedule any selected treatment-plan items onto this
@@ -718,7 +730,7 @@ export async function updateAppointment(
       ]),
   );
   const procedureSelections = (
-    await applyClinicOffers(clinicId, parseProcedureSelections(formData), localDateStr(when), keepBooked)
+    await applyClinicOffers(clinicId, withPricePermission(parseProcedureSelections(formData), user), localDateStr(when), keepBooked)
   ).map(keepPlanFlag);
   // Unticking this on an edit re-imposes the doctor's hours, so a visit moved back
   // into normal time stops being an exception. Same normalisation as create: the
@@ -832,7 +844,7 @@ export async function updateAppointment(
     ...withApptDoctor(procedureSelections, parsed.data.doctorId ?? null),
     // A service already on the visit keeps the discount it was booked with; one added
     // now takes the offer running on the visit date — the procedures' rule.
-    ...(await applyClinicOffers(clinicId, parseServiceSelections(formData), localDateStr(when), keepBooked)),
+    ...(await applyClinicOffers(clinicId, withPricePermission(parseServiceSelections(formData), user), localDateStr(when), keepBooked)),
   ]);
 
   // Recompute approvals AFTER the procedures/discount are saved (editing a discount

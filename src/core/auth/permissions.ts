@@ -84,6 +84,11 @@ export const PERM_RESOURCES: PermResource[] = [
   // or invoice, so the front desk can still charge for a service it cannot re-price
   // in the list.
   { id: "services", label: "Services", actions: ["view", "create", "edit", "delete"], feature: "sales" },
+  // Change a procedure's or service's price on ONE bill (docs/line-price-plan.md;
+  // owner's call, 2026-11-07: the clinic admin decides who may). Without it the line
+  // bills its list price, or the price it was booked at. A one-off "other charge" has
+  // no list price and is not covered. Clinic admin only by default.
+  { id: "bill_price", label: "Change price on a bill", actions: ["edit"], feature: "sales" },
   { id: "sales", label: "Sales report", actions: ["view"], feature: "sales" },
   // Discounts report — who got what discount, borne by whom, approval state.
   { id: "discounts", label: "Discounts report", actions: ["view"], feature: "sales" },

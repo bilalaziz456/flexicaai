@@ -44,6 +44,7 @@ export default async function ClinicNewAppointmentPage({
         preselectedPatientId={patientId}
         preselectedDate={date && YMD.test(date) ? date : undefined}
         canTakePayment={canTakePayment}
+        canChangePrice={can(user, "bill_price", "edit")}
       />
     </>
   );
