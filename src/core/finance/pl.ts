@@ -109,7 +109,22 @@ export async function getProfitAndLoss(
   // `date_trunc` on a timestamptz truncates in the session's timezone, which is the
   // server's — the same clock the TS side reads. That is the D-14 assumption, and it
   // is why this is safe today and must be revisited with per-clinic timezones.
-  const day = (col: PgColumn) => sql<string>`date_trunc('day', ${col})::date::text`;
+  //
+  // EXCEPT AT HOURLY GRANULARITY ("Today"), where a day is coarser than the bucket:
+  // grouping by day put the whole day's money in the one slot `dayDate` lands on
+  // (noon), so a payment taken at 2:30 AM showed at 12:00 (owner's report,
+  // 2026-11-08). Hourly grouping is still bounded — a "Today" range is 24 hours.
+  const hourly = granularity === "hour";
+  const day = (col: PgColumn) =>
+    hourly
+      ? sql<string>`to_char(date_trunc('hour', ${col}), 'YYYY-MM-DD"T"HH24:00:00')`
+      : sql<string>`date_trunc('day', ${col})::date::text`;
+  // An expense has a DATE, not a time. On the hourly view it goes in the hour it was
+  // RECORDED when it was recorded that day, else at noon (an expense typed in for an
+  // earlier date has no hour of its own).
+  const expenseHour = hourly
+    ? sql<number>`(case when ${expenses.createdAt}::date = ${expenses.incurredOn} then extract(hour from ${expenses.createdAt}) else 12 end)::int`
+    : sql<number>`12`;
 
   // EACH WINDOW IS ITS OWN FILTERED AGGREGATE, decided from the row's own timestamp
   // against that window's exact bounds. The grouping stays `by day` alone.
@@ -165,11 +180,14 @@ export async function getProfitAndLoss(
     db
       .select({
         incurredOn: expenses.incurredOn,
+        hour: expenseHour,
         cur: windowed(sql`${expenses.amount}`, expInCur),
         prev: windowed(sql`${expenses.amount}`, expInPrev),
       })
       .from(expenses)
-      .groupBy(expenses.incurredOn)
+      // Not grouped by the constant 12 on a daily view: Postgres reads a bare integer
+      // in GROUP BY as a column POSITION.
+      .groupBy(...(hourly ? [expenses.incurredOn, expenseHour] : [expenses.incurredOn]))
       .where(
         byClinic(
           expenses.clinicId,
@@ -221,8 +239,9 @@ export async function getProfitAndLoss(
       .groupBy(doctorSettlementActions.kind, doctorSettlementActions.doctorName, day(doctorSettlementActions.occurredAt)),
   ]);
 
-  /** A grouped day back to a local Date, so `startOfBucket` sees what it always saw. */
-  const dayDate = (d: string) => new Date(`${d}T12:00:00`);
+  /** A grouped day (or, hourly, "YYYY-MM-DDTHH:00:00") back to a LOCAL Date, so
+   *  `startOfBucket` sees what it always saw. A bare day is read at noon. */
+  const dayDate = (d: string) => new Date(d.includes("T") ? d : `${d}T12:00:00`);
 
   /** Which window's column to read. Every grouped row above carries both. */
   type Windowed = { cur: number; prev: number };
@@ -278,7 +297,7 @@ export async function getProfitAndLoss(
     if (b !== undefined) buckets[b].share += plActionEffect(r.kind, r.cur);
   }
   for (const r of expRows) {
-    const d = new Date(`${r.incurredOn}T12:00:00`);
+    const d = new Date(`${r.incurredOn}T${String(r.hour).padStart(2, "0")}:00:00`);
     const b = idx.get(startOfBucket(d, granularity).getTime());
     if (b !== undefined) buckets[b].expense += r.cur;
   }
