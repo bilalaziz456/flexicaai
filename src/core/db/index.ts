@@ -70,6 +70,9 @@ const globalForDb = globalThis as unknown as {
  */
 const POOL_MAX = 25;
 
+/** The Node process's IANA zone — the clock every TS day boundary reads. */
+const APP_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+
 const pool =
   globalForDb.__klenicPool ??
   new Pool({
@@ -82,6 +85,15 @@ const pool =
     // connection instead of letting it hang until nginx's 60s read timeout kills it
     // with nothing to show for the wait.
     connectionTimeoutMillis: 10_000,
+    // EVERY SESSION ON THE APP'S CLOCK (D-14). Day boundaries are decided twice: in
+    // TS (`startOfDay(new Date())`, the Node process's zone) and in SQL (`date_trunc`
+    // and `::date` on a timestamptz, the SESSION's zone). They must be one clock. A
+    // Postgres installed with its own default — America/Los_Angeles on a dev machine
+    // in Karachi (2026-11-08) — filed a payment taken at 2:30 AM on the 8th under the
+    // 7th, so the P&L's "Today" list and charts came out empty while its totals were
+    // right. Pinning the session to the process's zone makes the two agree wherever
+    // the database was installed.
+    options: `-c timezone=${APP_TIME_ZONE}`,
   });
 
 if (serverEnv.NODE_ENV !== "production") {
