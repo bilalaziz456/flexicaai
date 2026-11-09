@@ -133,6 +133,8 @@ note above it; obvious logic gets none.
   column with id `actions` (or `screenOnly: true`) and the pager's controls are left
   off by the primitives themselves. The PDF builder opens scroll boxes out and breaks
   pages between cards and rows, never through them, so a report needs nothing else.
+  Exception (2026-11-10): a table or list card taller than half a page may continue on
+  the next page between two rows, rather than move whole and leave a half-blank page.
 - **A controlled checkbox in a Server Action form needs `ref={syncChecked(v)}`**
   (`core/ui/checkbox-sync.ts`). React RESETS the form once the action completes, and a
   reset restores each checkbox to its `defaultChecked` — which React writes on the first

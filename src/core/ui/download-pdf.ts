@@ -118,16 +118,24 @@ const KEEP_TOGETHER = '[data-slot="card"], [data-pdf-keep], tr, li, p, h1, h2, h
  * The vertical extent of every keep-together block, in CSS px from the top of `el`.
  * Measured on the live page in the same state the capture sees.
  */
-function measureBlocks(el: HTMLElement): { top: number; bottom: number }[] {
+type Block = { top: number; bottom: number; rows: boolean };
+
+function measureBlocks(el: HTMLElement): Block[] {
   const origin = el.getBoundingClientRect().top;
-  const out: { top: number; bottom: number }[] = [];
+  const out: Block[] = [];
   for (const node of el.querySelectorAll<HTMLElement>(KEEP_TOGETHER)) {
     const r = node.getBoundingClientRect();
     if (r.height <= 0) continue;
-    out.push({ top: r.top - origin, bottom: r.bottom - origin });
+    // A block made of rows (a table or list card) can continue on the next page
+    // between two rows when it is big — see `pageBreak`.
+    const rows = node.matches('[data-slot="card"], [data-pdf-keep]') && node.querySelector("tr, li") !== null;
+    out.push({ top: r.top - origin, bottom: r.bottom - origin, rows });
   }
   return out;
 }
+
+/** A row-made block taller than this share of a page may be split between its rows. */
+const SPLIT_ROWS_ABOVE = 0.5;
 
 /**
  * Where to end the page that starts at `top`, given room for `sliceH`.
@@ -140,14 +148,21 @@ function measureBlocks(el: HTMLElement): { top: number; bottom: number }[] {
  * blocks too, keep the cut between two rows). Repeated until nothing is split, since
  * moving up can land inside another block. Never moves back to `top`, or a page would
  * be empty and the loop would not advance.
+ *
+ * Except a BIG block made of rows (owner's report, 2026-11-10): the P&L's "By period"
+ * table for Today — 24 hourly rows — fits on a page, so it was pushed whole to page 2
+ * and left page 1 more than half blank. A table or list card taller than half a page
+ * may therefore continue on the next page; its rows are blocks of their own, so the cut
+ * still falls between two rows, never through one. Charts and small cards stay whole.
  */
-function pageBreak(top: number, sliceH: number, fullH: number, blocks: { top: number; bottom: number }[]): number {
+function pageBreak(top: number, sliceH: number, fullH: number, blocks: Block[]): number {
   if (top + sliceH >= fullH) return fullH;
   let cut = top + sliceH;
   for (let moved = true; moved; ) {
     moved = false;
     for (const b of blocks) {
-      const fits = b.bottom - b.top <= sliceH;
+      const h = b.bottom - b.top;
+      const fits = h <= sliceH && !(b.rows && h > sliceH * SPLIT_ROWS_ABOVE);
       if (fits && b.top > top && b.top < cut && b.bottom > cut) {
         cut = b.top;
         moved = true;
@@ -169,7 +184,7 @@ export async function buildElementPdf(el: HTMLElement, opts: PdfOpts): Promise<{
   const restoreScroll = expandScrollAreas(el);
   let dataUrl: string;
   // Block positions in CSS px, and the element's width to convert them to the PDF's.
-  let blocks: { top: number; bottom: number }[] = [];
+  let blocks: Block[] = [];
   let cssWidth = 1;
   try {
     blocks = measureBlocks(el);
@@ -209,7 +224,7 @@ export async function buildElementPdf(el: HTMLElement, opts: PdfOpts): Promise<{
     const sliceH = pageH - margin * 2;
     // Block positions in the PDF's units (points), the same scale as the picture.
     const ptPerCss = contentW / cssWidth;
-    const ptBlocks = blocks.map((b) => ({ top: b.top * ptPerCss, bottom: b.bottom * ptPerCss }));
+    const ptBlocks = blocks.map((b) => ({ ...b, top: b.top * ptPerCss, bottom: b.bottom * ptPerCss }));
     const white = { color: rgb(1, 1, 1) };
     // Each page shows the next band of the image, from `top` to the break chosen for
     // it; the band is placed so it starts at the top margin, and everything outside it
