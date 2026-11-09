@@ -1,5 +1,10 @@
 # Build plan — WhatsApp intent understanding (`core/ai/chat-engine`)
 
+> **Owner-facing summary of ALL WhatsApp work** (what is sent, how the AI replies,
+> providers, costs, plans, pending questions with answer dropdowns):
+> https://claude.ai/artifact/Q4b91Wyj73DF9J4YcLGXSt — keep it in step when this file
+> changes.
+
 > Status: **ALL PHASES BUILT (2026-09-04).** Live against a real model for the prompt
 > smoke test; not yet exercised by a real patient. The three switches are OFF by
 > default, so nothing changes for any clinic until a super admin turns them on.
@@ -556,7 +561,9 @@ the model must decide WHICH question it is being asked, and that is where the ri
 ## Open questions
 
 1. **Cancellation cutoff** — the plan assumes 4 hours, per clinic, settable by super
-   admin or clinic admin. Confirm the default and who owns it.
+   admin or clinic admin. Confirm the default and who owns it. *(2026-11-10: built as
+   `clinics.cancel_cutoff_hours`, default 4, every clinic at 4 — but there is no screen
+   to change it yet. Also a dropdown in the owner's WhatsApp doc, "Pending questions".)*
 2. **Price wording** — the sentence above is the one that gets screenshotted. Worth the
    owner choosing it rather than an engineer.
 

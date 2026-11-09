@@ -540,6 +540,17 @@ are in `.env.example`.
   A medicine's `specialties` (module ids as text) put it first for clinics of that
   specialty. `core/clinical/medicines.ts`, `scripts/test-medicines.ts`.
 
+- **WhatsApp message allowance per clinic** — PLANNED, not built (owner, 2026-11-10;
+  `docs/whatsapp-allowance-plan.md`): a monthly allowance granted as one pool for the
+  months a subscription payment covers, extra packs on top; at zero the automatic and AI
+  messages stop (cancellation notices still go). Its open questions are asked when the
+  build starts.
+- **WhatsApp automations per clinic** — PLANNED, not built (owner, 2026-11-10;
+  `docs/whatsapp-automations-plan.md`): every automatic message or reply is an on/off
+  switch per clinic, set only by the super admin or the clinic's account manager, under
+  a main "WhatsApp API" switch. A notice that is off goes on a "To send by hand" list; a
+  reply that is off goes to the staff queue.
+
 Still NOT to build without instruction (§11/§12 unchanged): derma, hair, mobile apps,
 advanced analytics.
 

@@ -1,5 +1,10 @@
 # WhatsApp with WeTarSeel — discussion notes
 
+> **Owner-facing summary of ALL WhatsApp work** (what is sent, how the AI replies,
+> providers, costs, plans, pending questions with answer dropdowns):
+> https://claude.ai/artifact/Q4b91Wyj73DF9J4YcLGXSt — keep it in step when this file
+> changes.
+
 *Discussion with the owner, 2026-10-15/16. Saved to pick up later; nothing here is
 built yet. Pricing figures are as researched on 2026-10-16 and should be re-checked
 before quoting them to a clinic.*
@@ -211,6 +216,40 @@ Sources: [Dualhook comparison](https://dualhook.com/best-whatsapp-coexistence-pr
 [Chakra coexistence 2026](https://chakrahq.com/article/whatsapp-business-app-api-coexistence-2026/) ·
 [respond.io](https://respond.io/blog/how-to-use-whatsapp-business-app-and-api-at-the-same-time)
 
+## 4c. Message allowance per clinic (planned 2026-11-10)
+
+Each clinic buys WhatsApp messages with its subscription: a monthly allowance, granted
+as one pool for the months a payment covers (6 months × 1,000 = 6,000), topped up with
+an extra pack if it runs out early. At zero, automatic and AI messages stop (cancellation
+notices still go) and the clinic replies by hand from its WhatsApp Business app — which
+is why coexistence (§4, question 5) matters even more. Full plan and the questions left
+for build time: `docs/whatsapp-allowance-plan.md`.
+
+## 4d. Automations per clinic (planned 2026-11-10)
+
+Every automatic message or reply (17 today) becomes its own on/off switch per clinic,
+under a main "WhatsApp API" switch, set only by the super admin or the clinic's account
+manager. A notice that is off goes on a "To send by hand" list (opens the clinic's
+WhatsApp with the text typed in); a reply that is off goes to the staff queue. Replaces
+the three feature switches `whatsapp_ai`, `whatsapp_prices`, `whatsapp_cancel`. Full
+plan: `docs/whatsapp-automations-plan.md`.
+
+## 4e. To fix before going live (found in the 2026-11-10 review)
+
+- **Line breaks in reply text are lost.** Meta rejects a template variable containing a
+  newline, so `core/integrations/whatsapp/index.ts` collapses every variable to one line.
+  The booking and reschedule replies carry a multi-line slot list in `{{1}}`, which
+  arrives as one long line. Fix: one variable per line in those templates, or a fixed
+  layout around shorter variables.
+- **Daily jobs run on the server's clock (Europe/Berlin).** `deploy/install-cron.sh`
+  schedules reminders at 18:00 and recalls at 09:00 — German time, i.e. 22:00 / 13:00 in
+  Pakistan now, 21:00 / 12:00 in German summer. Fix: `CRON_TZ=Asia/Karachi` at the top of the
+  generated cron file, so the times are Pakistan's and survive daylight-saving changes.
+  The jobs are not installed on the server yet.
+- **Cancellation cut-off has no screen.** `clinics.cancel_cutoff_hours` defaults to 4 and
+  every clinic is at 4; nobody can change it in the app. Who sets it is an open question
+  (`docs/whatsapp-ai-plan.md`, open question 1).
+
 ## 5. Next step
 
 Ask WeTarSeel the five questions in §2. With the answers:
@@ -218,6 +257,9 @@ Ask WeTarSeel the five questions in §2. With the answers:
 - build receiving (needs the webhook sample and security);
 - if coexistence is supported, set up "staff reply free by hand, AI and automatic
   messages through the API" with the AI staying quiet when staff are answering.
+
+Then, when the owner says so: the automations (§4d) and the message allowance (§4c),
+and the three fixes in §4e before the first clinic goes live.
 
 ---
 

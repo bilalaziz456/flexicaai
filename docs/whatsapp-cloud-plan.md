@@ -1,7 +1,13 @@
 # Build plan — Per-clinic WhatsApp numbers (Meta Cloud API)
 
-> Status: **planned, not started.** Needs the Meta/WABA setup (below) to run live,
-> though Phases 1–4 can be built and tested against the Cloud API test number first.
+> **Owner-facing summary of ALL WhatsApp work** (what is sent, how the AI replies,
+> providers, costs, plans, pending questions with answer dropdowns):
+> https://claude.ai/artifact/Q4b91Wyj73DF9J4YcLGXSt — keep it in step when this file
+> changes.
+
+> Status: **built (Phases 1–5 in code), never connected to a real Meta account.** The
+> owner chose WeTarSeel instead (`docs/whatsapp-wetarseel-notes.md`); this path is the
+> fallback if WeTarSeel falls through. Phase 6 below is what taking it live would need.
 
 ## Goal
 One WhatsApp Business Account (WABA) + one system token; **each clinic sends from its
