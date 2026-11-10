@@ -6,14 +6,22 @@ import { Checkbox } from "@/core/ui/checkbox";
 import { PeriodTabs } from "@/core/ui/report-filters";
 import { DateRangeFields } from "@/core/ui/date-range-fields";
 import { SearchableSelect } from "@/core/ui/searchable-select";
+import { SelectField } from "@/core/ui/select-field";
+import { Label } from "@/core/ui/label";
+import { INVOICE_STATUS_FILTERS } from "@/core/admin/invoice-status";
 
-/** Filter bar for the subscription-invoices ledger — clinic, period, and a Trash
- *  toggle. Pushes the query params the server page reads. */
+// The select cannot hold "" as a value, so "All statuses" travels as "all" here and
+// as no `status` param in the URL.
+const STATUS_OPTIONS = INVOICE_STATUS_FILTERS.map((o) => ({ value: o.value || "all", label: o.label }));
+
+/** Filter bar for the subscription-invoices ledger — clinic, period, payment status
+ *  and a Trash toggle. Pushes the query params the server page reads. */
 export function InvoiceFilters({
   period,
   from,
   to,
   clinicId,
+  status,
   deleted,
   clinics,
 }: {
@@ -21,6 +29,8 @@ export function InvoiceFilters({
   from: string;
   to: string;
   clinicId: string;
+  /** "" = all. */
+  status: string;
   deleted: boolean;
   clinics: { id: string; name: string }[];
 }) {
@@ -30,8 +40,9 @@ export function InvoiceFilters({
   const [fromD, setFromD] = useState(from);
   const [toD, setToD] = useState(to);
   const [clinicV, setClinicV] = useState(clinicId);
+  const [statusV, setStatusV] = useState(status || "all");
 
-  function push(next: Partial<{ period: string; from: string; to: string; clinicId: string; deleted: boolean }>) {
+  function push(next: Partial<{ period: string; from: string; to: string; clinicId: string; status: string; deleted: boolean }>) {
     const pr = next.period ?? periodV;
     const params = new URLSearchParams();
     params.set("period", pr);
@@ -44,6 +55,8 @@ export function InvoiceFilters({
     const c = next.clinicId ?? clinicV;
     const del = next.deleted ?? deleted;
     if (c) params.set("clinicId", c);
+    const st = next.status ?? statusV;
+    if (st && st !== "all") params.set("status", st);
     if (del) params.set("deleted", "1");
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
@@ -71,6 +84,20 @@ export function InvoiceFilters({
           push({ clinicId: v });
         }}
       />
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="inv-status" className="text-xs font-normal text-muted-foreground">Payment</Label>
+        <SelectField
+          id="inv-status"
+          ariaLabel="Filter by payment status"
+          value={statusV}
+          options={STATUS_OPTIONS}
+          onValueChange={(v) => {
+            setStatusV(v);
+            push({ status: v });
+          }}
+          className="h-8 w-40"
+        />
+      </div>
       <DateRangeFields
         from={fromD}
         to={toD}

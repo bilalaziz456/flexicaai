@@ -43,8 +43,15 @@ export function InvoicePrintFrame({
   thermalLogo = null,
   fileName,
   serverPrintPaper = null,
+  credit = true,
   children,
 }: {
+  /**
+   * Print the "Powered by FlexicaAI" credit at the foot. Off for documents FlexicaAI
+   * itself issues (subscription invoices): there the company IS the issuer, and its
+   * contact is already in the header.
+   */
+  credit?: boolean;
   defaultFormat?: string;
   /** The `?print=` size, read by the server page, so the HTML is already drawn at it
    *  and can be printed before React starts (`EarlyPrint`). */
@@ -216,9 +223,11 @@ export function InvoicePrintFrame({
         {/* Brand credit — printed at the foot of every document that uses this frame.
             Full black and semibold (owner's call, 2026-10-31): at 70% size and 60%
             opacity it all but vanished, on thermal paper above all. */}
-        <div className="mt-4 border-t-2 border-black pt-2 text-center text-[0.85em] font-semibold">
-          {BRAND_POWERED_BY}
-        </div>
+        {credit ? (
+          <div className="mt-4 border-t-2 border-black pt-2 text-center text-[0.85em] font-semibold">
+            {BRAND_POWERED_BY}
+          </div>
+        ) : null}
       </div>
     </div>
   );

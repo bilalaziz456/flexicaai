@@ -150,6 +150,8 @@ export type ClinicPaymentRow = {
   note: string | null;
   occurredAt: Date;
   recordedByName: string | null;
+  /** The subscription invoice it was recorded against, if any. */
+  invoiceId: string | null;
 };
 
 /** Reads a clinic + its live payment ledger and derives the balance. */
@@ -192,6 +194,7 @@ export async function getClinicBilling(clinicId: string): Promise<{
       note: clinicPayments.note,
       occurredAt: clinicPayments.occurredAt,
       recordedByName: clinicPayments.recordedByName,
+      invoiceId: clinicPayments.invoiceId,
     })
     .from(clinicPayments)
     .where(and(eq(clinicPayments.clinicId, clinicId), notDeleted(clinicPayments.deletedAt)))
@@ -275,6 +278,12 @@ export async function recordClinicPayment(input: {
   recordedByName?: string | null;
   commitmentAt?: Date | null;
   commitmentNote?: string | null;
+  /**
+   * The subscription invoice this money is for — it decides which invoice shows as
+   * paid, and nothing else (the balance sums every payment either way). The CALLER
+   * checks it is one of this clinic's live invoices (`isLiveInvoiceOfClinic`).
+   */
+  invoiceId?: string | null;
 }): Promise<{ error: string } | { ok: true }> {
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     return { error: "Amount must be positive." };
@@ -292,6 +301,7 @@ export async function recordClinicPayment(input: {
     occurredAt: input.occurredAt ?? new Date(),
     recordedBy: input.recordedBy ?? null,
     recordedByName: input.recordedByName ?? null,
+    invoiceId: input.invoiceId ?? null,
   });
   await syncClinicBillingStatus(input.clinicId);
 

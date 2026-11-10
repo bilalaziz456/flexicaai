@@ -4,6 +4,7 @@ import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState, useTransition } from "react";
 import {
   recordClinicPaymentAction,
+  setClinicPaymentInvoiceAction,
   setClinicPrice,
   setPaymentNoticeEnabledAction,
   setPaymentReminderDaysAction,
@@ -22,6 +23,13 @@ import { Label } from "@/core/ui/label";
 import { ActionToast, toast } from "@/core/ui/toast";
 import { cn } from "@/core/lib/utils";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
+import {
+  formatIsoDay,
+  formatPeriod,
+  invoiceStatus,
+  invoiceStatusLabel,
+  invoiceStatusTone,
+} from "@/core/admin/invoice-status";
 
 const CYCLES = [
   { id: "monthly", label: "Monthly" },
@@ -56,7 +64,20 @@ export type BillingPayment = {
   note: string | null;
   occurredAt: string;
   recordedByName: string | null;
+  invoiceId: string | null;
 };
+/** A live subscription invoice of this clinic, with what is recorded against it. */
+export type BillingInvoice = {
+  id: string;
+  label: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  dueOn: string | null;
+  amount: number;
+  paid: number;
+};
+
+const NO_INVOICE = "none";
 
 function StatusBadge({ s }: { s: BillingBalance["billingStatus"] }) {
   const map = {
@@ -82,6 +103,10 @@ export function ClinicBilling({
   paymentNoticeEnabled,
   paymentReminderDays,
   canToggleNotice = false,
+  invoices = [],
+  today,
+  prefillInvoiceId,
+  canLinkPayments = false,
 }: {
   clinicId: string;
   monthlyPrice: number;
@@ -99,6 +124,14 @@ export function ClinicBilling({
   paymentReminderDays: number;
   /** May flip the notice + reminder — owner/super-admin or the account manager. */
   canToggleNotice?: boolean;
+  /** The clinic's live subscription invoices, oldest first. */
+  invoices?: BillingInvoice[];
+  /** YYYY-MM-DD on the server, so the overdue mark cannot differ between server and browser. */
+  today: string;
+  /** "Record payment" from the invoices page: open the form filled in for this one. */
+  prefillInvoiceId?: string;
+  /** May link / unlink a recorded payment to an invoice (billing:edit). */
+  canLinkPayments?: boolean;
 }) {
   // Methods come from the database (ADR-027): active only, in its own order.
   const methodOptions = useTenderOptions();
@@ -120,13 +153,44 @@ export function ClinicBilling({
   // NOT named `commitmentAt`: that is already a PROP — the clinic's CURRENT follow-up
   // date. This is the one being entered now, and shadowing the prop hid it.
   const [newCommitmentAt, setNewCommitmentAt] = useState("");
+
+  // Each invoice's status, worked out once with the same rules as the invoices page.
+  const invoiceRows = invoices.map((inv) => ({ ...inv, status: invoiceStatus(inv.amount, inv.paid, inv.dueOn, today) }));
+  const owing = invoiceRows.filter((i) => i.status.balance > 0);
+  const invoiceLabel = (id: string | null) => invoices.find((i) => i.id === id)?.label ?? null;
+
+  // The invoice this payment is for, and its amount — both controlled so "Record
+  // payment" on an invoice (here, or arriving from the invoices page) can fill them in.
+  const prefill = owing.find((i) => i.id === prefillInvoiceId);
+  const [payInvoiceId, setPayInvoiceId] = useState(prefill?.id ?? NO_INVOICE);
+  const [amountVal, setAmountVal] = useState(prefill ? String(prefill.status.balance) : "");
+
   const [lastPayState, setLastPayState] = useState(payState);
   if (payState !== lastPayState) {
     setLastPayState(payState);
     if (payState.saved) {
       setOccurredAt("");
       setNewCommitmentAt("");
+      setPayInvoiceId(NO_INVOICE);
+      setAmountVal("");
     }
+  }
+
+  function startPaymentFor(inv: (typeof invoiceRows)[number]) {
+    setKind("payment");
+    setPayInvoiceId(inv.id);
+    setAmountVal(String(inv.status.balance));
+    document.getElementById("record-payment")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    document.getElementById("amount")?.focus({ preventScroll: true });
+  }
+
+  const [linking, startLinking] = useTransition();
+  function linkPayment(paymentId: string, next: string) {
+    startLinking(async () => {
+      const r = await setClinicPaymentInvoiceAction(clinicId, paymentId, next === NO_INVOICE ? null : next);
+      if (r.error) toast.error(r.error);
+      else toast.success(next === NO_INVOICE ? "Payment unlinked from its invoice." : `Payment linked to ${invoiceLabel(next) ?? "the invoice"}.`);
+    });
   }
 
   // Clinic-facing payment-due notice toggle (optimistic; reverts on error).
@@ -322,6 +386,75 @@ export function ClinicBilling({
         </p>
       ) : null}
 
+      {/* ---- Subscription invoices and whether each is paid (owner, 2026-11-11) ---- */}
+      {invoiceRows.length > 0 ? (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div className="text-sm font-medium">Subscription invoices</div>
+            <div className="text-xs text-muted-foreground">
+              {owing.length === 0
+                ? "All paid"
+                : `${owing.length} not fully paid · ${rs(owing.reduce((s, i) => s + i.status.balance, 0))}`}
+            </div>
+          </div>
+          <DataTable
+            rows={invoiceRows}
+            getRowKey={(i) => i.id}
+            minWidthClassName="min-w-[40rem]"
+            initialSort={{ id: "invoice", dir: "desc" }}
+            empty="No invoices."
+            columns={[
+              { id: "invoice", header: "Invoice", cardTitle: true, sortValue: (i) => i.label, cell: (i) => <span className="font-medium">{i.label}</span> },
+              { id: "period", header: "Period", cell: (i) => <span className="whitespace-nowrap text-muted-foreground">{formatPeriod(i.periodStart, i.periodEnd) ?? "—"}</span> },
+              {
+                id: "due",
+                header: "Due",
+                sortValue: (i) => i.dueOn ?? "",
+                cell: (i) => (
+                  <span className={cn("whitespace-nowrap", i.status.overdue ? "font-medium text-destructive" : "")}>
+                    {i.dueOn ? formatIsoDay(i.dueOn) : "—"}
+                  </span>
+                ),
+              },
+              { id: "amount", header: "Amount", align: "right", sortValue: (i) => i.amount, cell: (i) => <span className="tabular-nums">{rs(i.amount)}</span> },
+              {
+                id: "balance",
+                header: "Balance",
+                align: "right",
+                sortValue: (i) => i.status.balance,
+                cell: (i) => (
+                  <span className={cn("tabular-nums", i.status.balance > 0 ? "font-medium" : "text-muted-foreground")}>
+                    {i.status.balance > 0 ? rs(i.status.balance) : i.status.overpaid > 0 ? `${rs(i.status.overpaid)} over` : "—"}
+                  </span>
+                ),
+              },
+              {
+                id: "status",
+                header: "Status",
+                // Room after the right-aligned Balance, or the two headings read as one word.
+                headerClassName: "pl-6",
+                cellClassName: "pl-6",
+                cell: (i) => <Badge variant={invoiceStatusTone(i.status)}>{invoiceStatusLabel(i.status)}</Badge> },
+              ...(canManage
+                ? [
+                    {
+                      id: "actions",
+                      header: "",
+                      align: "right",
+                      cell: (i) =>
+                        i.status.balance > 0 ? (
+                          <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => startPaymentFor(i)}>
+                            Record payment
+                          </Button>
+                        ) : null,
+                    } as Column<(typeof invoiceRows)[number]>,
+                  ]
+                : []),
+            ]}
+          />
+        </div>
+      ) : null}
+
       {/* ---- Price / cycle / grace (manage only) ---- */}
       {canManage ? (
       <ActionForm action={priceAction} state={priceState} className="space-y-3">
@@ -355,8 +488,9 @@ export function ClinicBilling({
 
       {/* ---- Record a payment (manage only) ---- */}
       {canManage ? (
-      <ActionForm action={payAction} state={payState} className="space-y-3 rounded-md border well p-4">
+      <ActionForm id="record-payment" action={payAction} state={payState} className="scroll-mt-32 space-y-3 rounded-md border well p-4">
         <input type="hidden" name="kind" value={kind} />
+        <input type="hidden" name="invoiceId" value={payInvoiceId === NO_INVOICE ? "" : payInvoiceId} />
         <div className="text-sm font-medium">Record payment / refund / credit</div>
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-2">
@@ -372,7 +506,15 @@ export function ClinicBilling({
           </div>
           <div className="space-y-2">
             <Label htmlFor="amount">Amount (PKR)</Label>
-            <Input id="amount" name="amount" type="number" min={1} required />
+            <Input
+              id="amount"
+              name="amount"
+              type="number"
+              min={1}
+              required
+              value={amountVal}
+              onChange={(e) => setAmountVal(e.target.value)}
+            />
             <p className="text-[11px] text-muted-foreground">
               {isPayment
                 ? "Partial ok: any remaining balance carries forward."
@@ -409,6 +551,34 @@ export function ClinicBilling({
             <Label htmlFor="note">Note</Label>
             <Input id="note" name="note" />
           </div>
+          {invoiceRows.length > 0 ? (
+            <div className="space-y-2">
+              <Label htmlFor="payInvoice">For invoice</Label>
+              <SelectField
+                id="payInvoice"
+                value={payInvoiceId}
+                onValueChange={(next) => {
+                  setPayInvoiceId(next);
+                  const inv = owing.find((i) => i.id === next);
+                  if (inv && kind === "payment") setAmountVal(String(inv.status.balance));
+                }}
+                options={[
+                  { value: NO_INVOICE, label: "Not for an invoice" },
+                  // Invoices still owed, plus the one already picked (a refund may be
+                  // recorded against an invoice that is paid).
+                  ...invoiceRows
+                    .filter((i) => i.status.balance > 0 || i.id === payInvoiceId)
+                    .map((i) => ({
+                      value: i.id,
+                      label: `${i.label} · ${i.status.balance > 0 ? `${rs(i.status.balance)} due` : "paid"}`,
+                    })),
+                ]}
+                ariaLabel="Invoice this payment is for"
+                className="h-8 w-full"
+              />
+              <p className="text-[11px] text-muted-foreground">Marks that invoice paid. The balance above counts it either way.</p>
+            </div>
+          ) : null}
         </div>
 
         {/* Follow-up on any remaining balance (payment only). */}
@@ -478,6 +648,34 @@ export function ClinicBilling({
               },
               { id: "method", header: "Method", sortValue: (p) => p.method ?? "", cell: (p) => <span className="capitalize">{p.method ?? "—"}</span> },
               { id: "reference", header: "Reference", sortValue: (p) => p.reference ?? "", cell: (p) => <span className="text-muted-foreground">{p.reference ?? "—"}</span> },
+              ...(invoiceRows.length > 0 || payments.some((p) => p.invoiceId)
+                ? [
+                    {
+                      id: "invoice",
+                      header: "Invoice",
+                      sortValue: (p) => invoiceLabel(p.invoiceId) ?? "",
+                      // Older payments were recorded before invoices had a status, so
+                      // they can be linked here; the balance does not change.
+                      cell: (p) =>
+                        canLinkPayments && invoiceRows.length > 0 ? (
+                          <SelectField
+                            value={p.invoiceId && invoiceLabel(p.invoiceId) ? p.invoiceId : NO_INVOICE}
+                            onValueChange={(next) => linkPayment(p.id, next)}
+                            options={[
+                              { value: NO_INVOICE, label: "—" },
+                              ...invoiceRows.map((i) => ({ value: i.id, label: i.label })),
+                            ]}
+                            ariaLabel="Invoice this payment was for"
+                            disabled={linking}
+                            size="sm"
+                            className="h-7 w-32"
+                          />
+                        ) : (
+                          <span className="text-muted-foreground">{invoiceLabel(p.invoiceId) ?? "—"}</span>
+                        ),
+                    } as Column<BillingPayment>,
+                  ]
+                : []),
               { id: "by", header: "By", align: "right", cell: (p) => <span className="text-muted-foreground">{p.recordedByName ?? "—"}</span> },
               ...(canManage
                 ? [

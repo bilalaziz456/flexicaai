@@ -214,6 +214,12 @@ export const clinicPayments = pgTable(
     reference: text("reference"),
     monthsCovered: integer("months_covered").notNull().default(1), // pushes paid_through
     note: text("note"),
+    // The subscription invoice this money was for (migration 0142). NULL = not tied to
+    // one: the clinic's BALANCE never reads this (computeClinicBalance sums every
+    // payment, as before) — it only decides which invoice shows as paid. `set null`, not
+    // cascade: an invoice is never hard-deleted except by a legal purge, and a purge
+    // must not take the money record with it.
+    invoiceId: uuid("invoice_id").references(() => clinicInvoices.id, { onDelete: "set null" }),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
     recordedBy: uuid("recorded_by"),
     recordedByName: text("recorded_by_name"),
@@ -226,6 +232,10 @@ export const clinicPayments = pgTable(
     // collected in the company P&L. An unrecognised kind is added as a plain payment,
     // overstating what we actually banked.
     index("clinic_payments_clinic_occurred_idx").on(t.clinicId, t.occurredAt),
+    // Each invoice's paid figure sums the payments pointing at it.
+    index("clinic_payments_invoice_idx")
+      .on(t.invoiceId)
+      .where(sql`${t.invoiceId} is not null`),
     index("clinic_payments_deleted_idx")
       .on(t.deletedAt)
       .where(sql`${t.deletedAt} is not null`),
@@ -380,7 +390,10 @@ export const companyExpenses = pgTable(
 export const companySettings = pgTable("company_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
   nextInvoiceNo: integer("next_invoice_no").notNull().default(1),
-  invoicePrefix: text("invoice_prefix").notNull().default("KL-INV-"),
+  // "FA" for FlexicaAI (owner, 2026-11-11; was "KL-INV-", a placeholder — migration
+  // 0144). The label is prefix + number, worked out on every read, so a change of
+  // prefix re-labels invoices already issued too.
+  invoicePrefix: text("invoice_prefix").notNull().default("FA-INV-"),
   // Company-wide default for the Owner Overview churn threshold: a live clinic quiet
   // for ≥ this many days is "at risk". The Overview dropdown overrides it per-view.
   churnInactiveDays: integer("churn_inactive_days").notNull().default(21),
@@ -413,6 +426,15 @@ export const companySettings = pgTable("company_settings", {
   // the company's number should change with a row update, not a deploy.
   supportPhone: text("support_phone"),
   supportEmail: text("support_email"),
+  // Tax on subscription invoices (migration 0145, owner 2026-11-11). Which tax applies,
+  // and at what rate, depends on the company's registration and the clinic's province,
+  // so nothing here is assumed: these are only the DEFAULTS the "Add tax" tick on an
+  // invoice starts from, and each invoice keeps its own copy. NTN / STRN print on the
+  // invoice when set — a sales-tax invoice must carry the supplier's registration.
+  taxLabel: text("tax_label").notNull().default("Sales tax"),
+  taxRate: numeric("tax_rate", { precision: 5, scale: 2 }).notNull().default("16"),
+  ntn: text("ntn"),
+  strn: text("strn"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -435,11 +457,29 @@ export const clinicInvoices = pgTable(
     invoiceNo: integer("invoice_no").notNull(),
     periodStart: date("period_start"),
     periodEnd: date("period_end"),
-    amount: integer("amount").notNull().default(0), // PKR
+    amount: integer("amount").notNull().default(0), // PKR, BEFORE tax
+    // Tax charged on top (migration 0145; NULL rate = no tax). The label and rate are
+    // copied from the form at issue/edit, never read back from company settings, so a
+    // later change of default cannot re-price an invoice already sent. What the clinic
+    // owes is amount + tax_amount.
+    taxLabel: text("tax_label"),
+    taxRate: numeric("tax_rate", { precision: 5, scale: 2 }),
+    taxAmount: integer("tax_amount").notNull().default(0),
     note: text("note"),
+    // When the invoice must be paid by (migration 0142). Unpaid after this = Overdue.
+    // Set at issue: the period start (or the issue day) plus the clinic's grace days,
+    // the same allowance its subscription balance gets. Nullable for safety only —
+    // the migration back-fills every existing invoice.
+    dueOn: date("due_on"),
     issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
     issuedBy: uuid("issued_by"),
     issuedByName: text("issued_by_name"),
+    // Last edit (migration 0143, owner's call 2026-11-11): an issued invoice can be
+    // corrected — amount, period, due date, note; never its clinic or number. NULL =
+    // never edited. Each edit is also in the activity log with what changed.
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    updatedBy: uuid("updated_by"),
+    updatedByName: text("updated_by_name"),
     ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

@@ -39,7 +39,8 @@ export const ADMIN_RESOURCES: PermResource[] = [
   { id: "pnl", label: "Company P&L", actions: ["view"] }, // /admin/finance dashboard + CSV export
   { id: "serving_cost", label: "Serving cost", actions: ["view", "edit"] }, // /admin/finance/costs; edit = unit rates
   { id: "expenses", label: "Operating expenses", actions: ["view", "create", "edit", "delete"] }, // /admin/finance/expenses
-  { id: "sub_invoices", label: "Subscription invoices", actions: ["view", "create", "delete"] }, // /admin/finance/invoices; create=issue, delete=void
+  // /admin/finance/invoices; create=issue, edit=correct amount/period/due/note (0143), delete=void
+  { id: "sub_invoices", label: "Subscription invoices", actions: ["view", "create", "edit", "delete"] },
   { id: "purge", label: "Data purge", actions: ["delete"] }, // delete = may legal-purge
   // The MASTER medicine list every clinic's prescriptions suggest from (/admin/medicines,
   // 2026-10-19). delete = retire (a medicine is never removed: old prescriptions name it).
@@ -83,7 +84,7 @@ export const ADMIN_SUBROLE_PRESETS: Record<AssignableSubRole, string[]> = {
   // Billing: full clinic billing (view/record/price/void) + issue/void subscription
   // invoices (the document side of the same bill-a-clinic cycle) + clinics + metrics.
   // NOT the P&L / serving cost / opex (owner-level "what WE earn/spend").
-  billing: ["clinics:view", "billing:view", "billing:create", "billing:edit", "billing:delete", "sub_invoices:view", "sub_invoices:create", "sub_invoices:delete", "metrics:view", "account:view", "account:edit"],
+  billing: ["clinics:view", "billing:view", "billing:create", "billing:edit", "billing:delete", "sub_invoices:view", "sub_invoices:create", "sub_invoices:edit", "sub_invoices:delete", "metrics:view", "account:view", "account:edit"],
 };
 
 /** Human labels + one-line descriptions for the sub-roles (UI). */
@@ -92,7 +93,7 @@ export const ADMIN_SUBROLE_META: Record<AdminSubRole, { label: string; desc: str
   super_admin: { label: "Super admin", desc: "Full access. Clinics, billing, announcements and the team (can't touch the owner)." },
   support: { label: "Support", desc: "Manage clinics, impersonate, announcements, metrics + overdue." },
   sales: { label: "Sales", desc: "Add & manage clinics, metrics + which clinics are overdue." },
-  billing: { label: "Billing", desc: "Record clinic payments, issue/void subscription invoices, view metrics + overdue." },
+  billing: { label: "Billing", desc: "Record clinic payments, issue/edit/void subscription invoices, view metrics + overdue." },
 };
 
 /** Keep only recognised admin capability slugs. */

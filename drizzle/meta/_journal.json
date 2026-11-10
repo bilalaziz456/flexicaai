@@ -995,6 +995,34 @@
       "when": 1793994770888,
       "tag": "0141_bill_price_acl",
       "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1794338189921,
+      "tag": "0142_invoice_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "7",
+      "when": 1794339360639,
+      "tag": "0143_invoice_edit",
+      "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1794339694767,
+      "tag": "0144_invoice_prefix_fa",
+      "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1794339988653,
+      "tag": "0145_invoice_tax",
+      "breakpoints": true
     }
   ]
 }

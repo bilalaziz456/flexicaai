@@ -15,6 +15,8 @@ import { resourcesForClinic } from "@/core/auth/permissions";
 import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin, canManageBilling, canManageTeam, canSeeBilling } from "@/core/auth/admin-permissions";
 import { getClinicBilling } from "@/core/admin/billing";
+import { listInvoicesForClinic } from "@/core/admin/clinic-invoices";
+import { localIsoDate } from "@/core/admin/invoice-status";
 import { listAssignableTeam } from "@/core/admin/assignment";
 import { Badge } from "@/core/ui/badge";
 import {
@@ -55,11 +57,13 @@ export default async function ClinicDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string }>;
+  searchParams: Promise<{ created?: string; invoice?: string }>;
 }) {
   const { id } = await params;
-  // Set by createClinicWithAdmin, which now lands here rather than on the list.
-  const { created } = await searchParams;
+  // `created`: set by createClinicWithAdmin, which now lands here rather than on the
+  // list. `invoice`: "Record payment" on the invoices page — the payment form opens
+  // filled in for that invoice.
+  const { created, invoice: invoiceParam } = await searchParams;
 
   const clinic = await getClinic(id);
 
@@ -74,7 +78,9 @@ export default async function ClinicDetailPage({
   // editable only with a billing manage action (sales sees it read-only).
   const showBilling = canSeeBilling(admin);
   const canManageBillingCard = canManageBilling(admin);
-  const billing = showBilling ? await getClinicBilling(clinic.id) : null;
+  const [billing, invoices] = showBilling
+    ? await Promise.all([getClinicBilling(clinic.id), listInvoicesForClinic(clinic.id)])
+    : [null, []];
   // Serve the preview via a route (not a data URI) so the large image isn't a prop on
   // the server-action-using logo form. `v` busts the cache after an upload.
   const logo = clinic.logoKey
@@ -259,7 +265,21 @@ export default async function ClinicDetailPage({
                 note: p.note,
                 occurredAt: p.occurredAt.toISOString(),
                 recordedByName: p.recordedByName,
+                invoiceId: p.invoiceId,
               }))}
+              invoices={invoices.map((i) => ({
+                id: i.id,
+                label: i.label,
+                periodStart: i.periodStart,
+                periodEnd: i.periodEnd,
+                dueOn: i.dueOn,
+                // What the clinic owes on it — tax included.
+                amount: i.total,
+                paid: i.paid,
+              }))}
+              today={localIsoDate(new Date())}
+              prefillInvoiceId={invoices.some((i) => i.id === invoiceParam) ? invoiceParam : undefined}
+              canLinkPayments={canAdmin(admin, "billing:edit")}
               canManage={canManageBillingCard}
               paymentNoticeEnabled={clinic.paymentNoticeEnabled}
               paymentReminderDays={clinic.paymentReminderDays}

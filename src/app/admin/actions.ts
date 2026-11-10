@@ -27,6 +27,7 @@ import {
   updateClinicUserProfile,
 } from "@/core/admin/clinics";
 import { getClinic } from "@/core/clinics/get-clinic";
+import { isLiveInvoiceOfClinic, setPaymentInvoice } from "@/core/admin/clinic-invoices";
 import { accountManagerFields } from "@/core/clinics/account-manager";
 import { getMyTotpSecrets, setMyBackupCodes } from "@/core/users/profile";
 import { getTeamMember } from "@/core/admin/team";
@@ -800,6 +801,8 @@ const clinicPaymentSchema = z.object({
   // Follow-up: when the clinic promised to clear any REMAINING balance.
   commitmentAt: z.string().trim().optional(),
   commitmentNote: z.string().trim().max(300).optional(),
+  // The subscription invoice this payment is for (optional).
+  invoiceId: z.string().uuid("Pick an invoice from the list.").optional(),
 });
 
 /** Records a manual clinic→FlexicaAI payment (extends paid-through) — Feature 6. */
@@ -818,8 +821,12 @@ export async function recordClinicPaymentAction(
     occurredAt: formData.get("occurredAt") || undefined,
     commitmentAt: formData.get("commitmentAt") || undefined,
     commitmentNote: formData.get("commitmentNote") || undefined,
+    invoiceId: formData.get("invoiceId") || undefined,
   });
   if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
+  if (parsed.data.invoiceId && !(await isLiveInvoiceOfClinic(parsed.data.invoiceId, clinicId))) {
+    return { error: "That invoice is not one of this clinic's, or it was voided." };
+  }
 
   const occurredAt = parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : undefined;
   if (occurredAt && Number.isNaN(occurredAt.getTime())) return { error: "Invalid date." };
@@ -840,6 +847,7 @@ export async function recordClinicPaymentAction(
     // A refund/credit isn't a promise to pay — only carry a follow-up on a payment.
     commitmentAt: kind === "payment" ? commitmentAt : null,
     commitmentNote: kind === "payment" ? parsed.data.commitmentNote : undefined,
+    invoiceId: parsed.data.invoiceId ?? null,
   });
   if ("error" in res) return { error: res.error };
 
@@ -853,6 +861,40 @@ export async function recordClinicPaymentAction(
   });
   revalidatePath(`/admin/clinics/${clinicId}`);
   revalidatePath("/admin");
+  revalidatePath("/admin/finance/invoices");
+  return { saved: true };
+}
+
+/**
+ * Ties an already-recorded payment to one of the clinic's subscription invoices, or
+ * unties it (`invoiceId` null) — for payments recorded before invoices had a status,
+ * or against the wrong invoice. The amount is untouched, so the clinic's balance does
+ * not move; only which invoice shows as paid does.
+ */
+export async function setClinicPaymentInvoiceAction(
+  clinicId: string,
+  paymentId: string,
+  invoiceId: string | null,
+): Promise<AdminActionState> {
+  const admin = await requireAdminCapability("billing:edit");
+  const ids = z.object({ paymentId: z.string().uuid(), invoiceId: z.string().uuid().nullable() }).safeParse({ paymentId, invoiceId });
+  if (!ids.success) return { error: "Invalid payment or invoice." };
+  const c = await getClinic(clinicId);
+  if (!c) return { error: "Clinic not found." };
+  if (!canManageTeam(admin) && c.assignedTo !== admin.id) {
+    return { error: "You can only change billing for clinics you manage." };
+  }
+  const res = await setPaymentInvoice(clinicId, ids.data.paymentId, ids.data.invoiceId);
+  if ("error" in res) return { error: res.error };
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: ids.data.invoiceId ? "Linked a clinic payment to a subscription invoice" : "Unlinked a clinic payment from its subscription invoice",
+  });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  revalidatePath("/admin/finance/invoices");
   return { saved: true };
 }
 

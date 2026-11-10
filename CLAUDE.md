@@ -433,6 +433,21 @@ are in `.env.example`.
   = net profit; cash-aware for refunds/credits), **subscription invoices** to clinics
   (`clinic_invoices`, company-global numbering), and a CSV export. `core/admin/cost.ts`
   / `pnl.ts` / `company-expenses.ts` / `clinic-invoices.ts`.
+  **Each invoice has a status** (`0142`, owner's call 2026-11-11): a payment is recorded
+  AGAINST an invoice ("Record payment" on the invoice, or linked later from the payment
+  history), and the invoice shows Paid / Partly paid / Unpaid / Overdue (past `due_on`)
+  with a payment-status filter — derived in the pure `core/admin/invoice-status.ts`,
+  never stored. The clinic's balance is unchanged by this: it still counts every payment.
+  An issued invoice can be **edited** (`0143`, admin ACL `sub_invoices:edit`, granted to
+  whoever could already issue one): amount, period, due date, note — never its clinic or
+  number; the list marks it "Edited", the activity log keeps old → new.
+  **Tax is an "Add tax" tick per invoice** (`0145`, owner 2026-11-11): name + rate typed
+  on the invoice (defaults and the company NTN/STRN set by full admins on the invoices
+  page); the clinic owes amount + tax and the printout (always titled "Invoice") shows the tax
+  line and the NTN/STRN (an invoice without tax prints neither). No rate
+  is assumed — which tax applies depends on registration and the clinic's province.
+  The P&L does not yet separate tax collected from revenue.
+  A team member who is not a full admin sees and acts on only the clinics they manage.
 - **Owner Overview** (`/admin/overview`, the super-admin's landing page) — company at a
   glance: money KPIs (`getCompanyMetrics`), **churn risk** (a live clinic quiet ≥ N
   days — visits/appointments/WhatsApp/logins — threshold persisted in

@@ -42,12 +42,23 @@ export async function listClinicOptions(
 /** The same list plus each clinic's subscription price — the invoice picker needs it. */
 // Return type inferred from the select, deliberately: hand-writing it here re-stated
 // `monthlyPrice`'s nullability and got it wrong (conventions.md §1 — derive, don't restate).
-export async function listClinicOptionsWithPrice() {
+export async function listClinicOptionsWithPrice(scope: { assignedTo?: string } = {}) {
   return unscoped("super admin picks a clinic to invoice", () =>
     db
-      .select({ id: clinics.id, name: clinics.name, monthlyPrice: clinics.monthlyPrice })
+      .select({
+        id: clinics.id,
+        name: clinics.name,
+        monthlyPrice: clinics.monthlyPrice,
+        assignedTo: clinics.assignedTo,
+      })
       .from(clinics)
-      .where(notDeleted(clinics.deletedAt))
+      .where(
+        and(
+          notDeleted(clinics.deletedAt),
+          // An account manager invoices only the clinics they look after.
+          scope.assignedTo ? eq(clinics.assignedTo, scope.assignedTo) : undefined,
+        ),
+      )
       .orderBy(asc(clinics.name)),
   );
 }

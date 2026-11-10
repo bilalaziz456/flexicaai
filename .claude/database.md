@@ -682,9 +682,15 @@ contact** (`owner_name`/`_email`/`_phone`, `city`, `country`). `users` gained
 `kind` (`payment` = money in / `refund` = money out / `credit` = non-cash goodwill;
 sign for the balance + cash-collected math comes from this), `method`, `reference`,
 `months_covered`, `note`, `occurred_at`, `recorded_by(+name)` snapshot, soft-delete,
-timestamps. Balance/status math in `core/admin/billing.ts` (advance/partial-payment,
+timestamps, and **`invoice_id`** → clinic_invoices (`set null`, nullable; migration
+`0142`) — the subscription invoice this money was for. It decides only which invoice
+shows as paid; the balance never reads it (`computeClinicBalance` sums every payment,
+linked or not). Set when a payment is recorded "for" an invoice, or later from the
+payment history (`setPaymentInvoice`, same clinic + live invoice only). Payments made
+before 0142 stay unlinked — nothing says which invoice they paid.
+Balance/status math in `core/admin/billing.ts` (advance/partial-payment,
 `computeClinicBalance`); a refund subtracts from paid, a credit adds without cash.
-Indexes: (`clinic_id`,`occurred_at`); partial trash index.
+Indexes: (`clinic_id`,`occurred_at`); partial `invoice_id` (not null); partial trash index.
 
 ### `announcements` — super-admin → clinic notices
 `id`, `clinic_id` → clinics (`cascade`, **nullable** — NULL = broadcast to ALL
@@ -741,13 +747,32 @@ Indexes: `incurred_on`; `category_id`; partial trash + recurring-due indexes.
 ### `clinic_invoices` — FlexicaAI → clinic subscription invoices (Owner Finance)
 `id`, `clinic_id` → clinics (`cascade`), `invoice_no` int (**company-global**
 sequence, allocated by locking `company_settings` + bumping its counter — distinct
-from patient `invoices`), `period_start`/`period_end` date, `amount` int, `note`,
-`issued_at`, `issued_by(+name)`, **soft-delete** (a void keeps the number), `created_at`.
-Printable receipt reuses the invoice frame. `core/admin/clinic-invoices.ts`. Indexes:
+from patient `invoices`), `period_start`/`period_end` date, **`due_on`** date (migration
+`0142`: set at issue — typed, or the period start (else the issue day) + the clinic's
+`grace_days`; back-filled the same way), `amount` int (BEFORE tax), **`tax_label` /
+`tax_rate` numeric(5,2) / `tax_amount` int** (migration `0145`: the "Add tax" tick; NULL
+rate = no tax; copied from the form, never read back from company settings, so a new
+default cannot re-price an issued invoice; `tax_amount` = round(amount × rate%) via the
+pure `invoiceTax`). **What the clinic owes = `amount + tax_amount`** — status, balance and
+the "Invoiced" KPI all use that. **Known gap:** the company P&L (`pnl.ts`) counts every
+`clinic_payments` row as collected revenue, so tax paid on an invoice shows as income
+until the P&L separates it. `note`, `issued_at`,
+`issued_by(+name)`, **`updated_at` / `updated_by(+name)`** (migration `0143`: last
+correction; NULL = never edited — amount, period, due date and note can be edited under
+`sub_invoices:edit`, never the clinic or the number; each edit is in the activity log
+as old → new), **soft-delete** (a void keeps the number), `created_at`.
+**Status is derived, never stored** (owner, 2026-11-11): paid = Σ live `clinic_payments`
+with this `invoice_id` (refunds negative, credits count) → Paid / Partly paid / Unpaid,
+plus Overdue once `due_on` has passed unpaid. Rules in the pure
+`core/admin/invoice-status.ts`; the SQL twin (`invoicePaidSql` / `statusCondition` in
+`clinic-invoices.ts`) is bound to it by `scripts/test-invoice-status.ts`.
+Printable A4 invoice (`/admin/finance/invoices/[id]/print`). `core/admin/clinic-invoices.ts`. Indexes:
 unique `invoice_no`; `clinic_id`; `issued_at`; partial trash index.
 
 ### `company_settings` — singleton company config · NO clinic_id
-`id`, `next_invoice_no` + `invoice_prefix` (the `clinic_invoices` counter),
+`id`, `tax_label` + `tax_rate` (defaults the invoice "Add tax" tick starts from) +
+`ntn` / `strn` (printed only on a subscription invoice that carries tax, and only when set; `0145`, full admins edit
+them on `/admin/finance/invoices`), `next_invoice_no` + `invoice_prefix` (the `clinic_invoices` counter; prefix `FA-INV-` since `0144`, was the placeholder `KL-INV-` — the label is read-time, so issued invoices re-label too),
 `support_phone` + `support_email` (the COMPANY's own contact, shown to a clinic with
 no account manager — or whose manager has no number; data rather than a constant so
 the number changes without a deploy),
