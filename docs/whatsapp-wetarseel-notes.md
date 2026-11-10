@@ -264,6 +264,9 @@ plan: `docs/whatsapp-automations-plan.md`.
 
 ## 5. Next step
 
+> The order of ALL WhatsApp work — sending, switches, credits, receiving, going live —
+> is in `docs/whatsapp-build-plan.md` (2026-11-10).
+
 Coexistence is confirmed (2026-11-10); WeTarSeel has not yet answered questions 1–4 or
 whether app replies reach our webhook. Meanwhile:
 - build WeTarSeel sending (can start now, Setup 1) — full plan:

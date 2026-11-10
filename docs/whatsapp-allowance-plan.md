@@ -50,19 +50,23 @@
    FlexicaAI. This needs coexistence (app + API on one number) — **WeTarSeel confirmed
    it is available (2026-11-10).**
 
-## 2. Open questions — ask when implementation starts
+## 2. Answered (owner, 2026-11-11) — nothing left open
 
-1. **The price of a pack.** Typed per pack, pre-filled from a company-wide rate per
-   message (e.g. Rs 6 × 500 = Rs 3,000) that the super admin can change? Or fixed pack
-   sizes with fixed prices? Recommended: any size, price pre-filled from the rate and
-   editable. The rate must sit above what WeTarSeel charges us (~Rs 4.2 per message).
-2. **Launch day.** With no free messages, every clinic starts at zero — so the day the
-   limit is switched on, automatic messages stop for any clinic without a pack.
-   Recommended: the limit is turned on per clinic, after its first pack is added; until
-   then the clinic sends as today and its messages are only counted.
-3. **Warning thresholds:** a notice at 80% used and at zero, or also at 50%? (With no
-   period, "80% used" means 80% of the credits added so far, or simply "fewer than N
-   left" — recommended: fewer than 20% of the last pack, and at zero.)
+1. **The rate per message is ours to set, pack by pack.** Any rate, paisa allowed —
+   Rs 4, 4.5, 5.2, 6 … The super admin types the rate when adding a pack; the pack's
+   price is messages × rate, rounded to the rupee (333 × Rs 4.5 = Rs 1,499). The form
+   pre-fills the rate of the clinic's last pack (none yet → empty) and shows our own
+   cost per message beside it (`platform_cost_rates.whatsapp_msg_cost` in PKR). A rate
+   below that cost is ALLOWED — a deliberate discount is the owner's call — but the
+   form says so in words ("below our cost of Rs 4.2: this pack loses Rs …"). The price
+   can still be overwritten for a round figure; the rate is then recomputed from it for
+   the record.
+2. **Launch day: the limit applies per clinic, once its first pack is added.** Until
+   then the clinic sends as today and its messages are only counted. Nobody's reminders
+   stop on launch day.
+3. **Warnings: under 20% of the last pack left, and at zero.** E.g. after a 500 pack,
+   one notice at 100 left and one when it runs out — to the clinic admin and to the
+   super admin (the account manager when the clinic has one).
 
 ## 3. How it works
 
@@ -120,7 +124,7 @@ the appointment is still tomorrow.
 
 ### Warnings
 
-- Running low (question 3) and at **zero**: an in-app notice to the clinic admin and to
+- Under **20% of the last pack** left (§2.3) and at **zero**: an in-app notice to the clinic admin and to
   the super admin (the clinic's account manager when it has one).
 - An **unpaid pack**: shown on the screens below and in the due list; no separate notice.
 
@@ -128,7 +132,8 @@ the appointment is still tomorrow.
 
 **Super admin — clinic page, new "WhatsApp credits" card**
 - Credits left · used · added in total
-- **Add pack** (messages, price, note) — usable at once, paid or not
+- **Add pack** (messages, rate per message, price = messages × rate, note) — usable at
+  once, paid or not; our cost per message shown beside the rate
 - Packs list: date · messages · price · paid · owed · status (Unpaid / Partly paid /
   Paid) · **Record payment** · void (to Trash)
 - **Adjust** (± messages with a reason)
@@ -149,15 +154,17 @@ the appointment is still tomorrow.
 
 **Schema** — one migration:
 - `whatsapp_credit_packs` — `clinic_id`, `messages int` (negative for an adjustment),
-  `price int` (PKR, 0 for an adjustment or a free goodwill pack), `kind`
+  `rate numeric(8,2)` (Rs per message, as typed; NULL for an adjustment), `price int`
+  (PKR, messages × rate rounded, or as overwritten; 0 for an adjustment or a free
+  goodwill pack), `kind`
   (`pack` | `adjustment`), `note`, `added_at`, `added_by` / `added_by_name`,
   soft-delete columns (voiding a pack is a soft delete; messages already sent stay
   counted).
 - `whatsapp_credit_payments` — `clinic_id`, `pack_id`, `amount int`, `kind`
   (`payment` | `refund`), `method`, `reference`, `occurred_at`, `recorded_by(+name)`,
   soft-delete columns.
-- `clinics.whatsapp_credits_enforced boolean` (default false; question 2) — the limit
-  applies only once it is on.
+- `clinics.whatsapp_credits_enforced boolean` (default false; §2.2) — set to true by
+  the clinic's first pack; the limit applies only once it is on.
 - `whatsapp_messages.counted boolean` (default false) — this send used a credit.
   Indexed with `clinic_id` for the used-credits sum.
 - A new message status `blocked_credits` beside `queued` / `sent` / `failed`.
@@ -196,6 +203,6 @@ figure hidden from some staff.
 
 1. Schema + the ledger + counting at send time + tests (counting only; nothing blocked).
 2. Super-admin card: add pack, record payment, adjust, void; due list + P&L lines.
-3. Turning the limit on per clinic; clinic admin card + banner; blocked messages in the
+3. The limit switching on with a clinic's first pack; clinic admin card + banner; blocked messages in the
    queue; warnings.
 4. Overview columns + highlight.

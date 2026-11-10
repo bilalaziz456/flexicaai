@@ -545,8 +545,12 @@ are in `.env.example`.
   that never expire; no free messages with the subscription. Each pack has a price and
   is Unpaid / Partly paid / Paid, usable at once either way; its payments live with the
   pack, NOT in `clinic_payments` (which would pay subscription months). At zero the
-  automatic and AI messages stop (cancellation notices still go). Its open questions are
-  asked when the build starts.
+  automatic and AI messages stop (cancellation notices still go). The rate per message is
+  typed per pack (paisa allowed); the limit starts with a clinic's first pack; warnings at
+  20% of the last pack and at zero (owner, 2026-11-11).
+- **WhatsApp build order** — `docs/whatsapp-build-plan.md` (2026-11-10) sequences the
+  three WhatsApp plans below plus receiving and going live; read it before starting any
+  WhatsApp step.
 - **Sending through WeTarSeel** — PLANNED, not built (owner, 2026-11-10;
   `docs/whatsapp-wetarseel-sending-plan.md`): a third provider (`WHATSAPP_PROVIDER=wetarseel`)
   with one WeTarSeel API key per clinic, stored ENCRYPTED (`WHATSAPP_KEY_SECRET`), set by
