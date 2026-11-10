@@ -22,6 +22,7 @@ import {
   formatRate,
   invoiceStatus,
   invoiceTax,
+  taxForProvince,
   invoiceStatusLabel,
   localIsoDate,
   type InvoiceStatusFilter,
@@ -60,6 +61,16 @@ function pureRules() {
   ok("tax rounds to the rupee (333 × 4.5% = 14.985 → 15)", invoiceTax(333, 4.5) === 15);
   ok("no rate, zero or negative → no tax", invoiceTax(1000, null) === 0 && invoiceTax(1000, 0) === 0 && invoiceTax(1000, -5) === 0);
   ok("a rate prints as written", formatRate("16.00") === "16" && formatRate(4.5) === "4.5");
+  const fallback = { label: "Sales tax", rate: 16 };
+  const byProvince = { punjab: { label: "Sales tax (PRA)", rate: 5 }, sindh: { label: "", rate: 3 } };
+  const pu = taxForProvince(byProvince, "punjab", fallback);
+  ok("a Punjab clinic starts from the Punjab rate", pu.fromProvince && pu.rate === 5 && pu.label === "Sales tax (PRA)");
+  const si = taxForProvince(byProvince, "sindh", fallback);
+  ok("a province entry with no name keeps the default name", si.rate === 3 && si.label === "Sales tax");
+  const kp = taxForProvince(byProvince, "kpk", fallback);
+  ok("a province with no rate uses the default", !kp.fromProvince && kp.rate === 16);
+  const none = taxForProvince(byProvince, null, fallback);
+  ok("a clinic with no province uses the default", !none.fromProvince && none.rate === 16);
 }
 
 async function againstTheDatabase() {

@@ -22,15 +22,39 @@ import { DatePicker } from "@/core/ui/date-picker";
 import { toast, useActionToast } from "@/core/ui/toast";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 import { Checkbox } from "@/core/ui/checkbox";
-import { formatRate, invoiceTax } from "@/core/admin/invoice-status";
+import { formatRate, invoiceTax, taxForProvince, type ProvinceTaxMap } from "@/core/admin/invoice-status";
+import { PROVINCES, provinceLabel } from "@/core/clinics/provinces";
 
 const inputCls =
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
-export type InvoiceClinic = { id: string; name: string; monthlyPrice: number };
+export type InvoiceClinic = { id: string; name: string; monthlyPrice: number; province: string | null };
 
-/** The company's tax defaults — what "Add tax" starts from. */
-export type TaxDefaults = { label: string; rate: number };
+/**
+ * What "Add tax" starts from: the clinic's province's tax when one is set
+ * (`byProvince`), otherwise the company default (`label` / `rate`).
+ */
+export type TaxDefaults = { label: string; rate: number; byProvince: ProvinceTaxMap };
+
+/** A name to suggest per province: who collects sales tax on services there. */
+const TAX_AUTHORITY_EXAMPLE: Partial<Record<string, string>> = {
+  punjab: "Sales tax (PRA)",
+  sindh: "Sales tax (SRB)",
+  kpk: "Sales tax (KPRA)",
+  balochistan: "Sales tax (BRA)",
+  ict: "Sales tax (FBR)",
+};
+
+/** The clinic's starting tax, and a line saying where it came from. */
+function startingTax(defaults: TaxDefaults, province: string | null | undefined) {
+  const t = taxForProvince(defaults.byProvince, province, defaults);
+  const source = t.fromProvince
+    ? `${provinceLabel(province)} rate`
+    : province
+      ? `No rate set for ${provinceLabel(province)}, so the default is used`
+      : "The clinic has no province set, so the default is used";
+  return { label: t.label, rate: formatRate(t.rate), source, fromProvince: t.fromProvince };
+}
 
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
 
@@ -49,8 +73,11 @@ function TaxFields({
   setLabel,
   rate,
   setRate,
+  source,
 }: {
   idPrefix: string;
+  /** Where the starting name and rate came from (the clinic's province, or the default). */
+  source?: React.ReactNode;
   amount: number;
   on: boolean;
   setOn: (v: boolean) => void;
@@ -70,7 +97,7 @@ function TaxFields({
         Add tax
       </label>
       {on ? (
-        <div className="grid gap-3 sm:grid-cols-[1fr_8rem_auto] sm:items-end">
+        <div className="grid gap-3 sm:grid-cols-[1fr_8rem] sm:items-end">
           <div className="space-y-1">
             <Label htmlFor={`${idPrefix}-tax-label`} className="text-xs text-muted-foreground">Tax name</Label>
             <Input
@@ -99,9 +126,10 @@ function TaxFields({
               required
             />
           </div>
-          <p className="pb-1.5 text-sm tabular-nums text-muted-foreground">
+          <p className="text-sm tabular-nums text-muted-foreground sm:col-span-2">
             Tax {rs(tax)} · Total <span className="font-semibold text-foreground">{rs(amount + tax)}</span>
           </p>
+          {source ? <p className="text-[11px] text-muted-foreground sm:col-span-2">{source}</p> : null}
         </div>
       ) : null}
     </div>
@@ -118,6 +146,7 @@ export function IssueInvoiceForm({ clinics, taxDefaults }: { clinics: InvoiceCli
   const [taxOn, setTaxOn] = useState(false);
   const [taxLabel, setTaxLabel] = useState(taxDefaults.label);
   const [taxRate, setTaxRate] = useState(formatRate(taxDefaults.rate));
+  const [taxSource, setTaxSource] = useState<string | null>(null);
 
   // Clearing the form is part of issuing the invoice, so it happens in the action
   // once the server has accepted it — not in an effect that watches for the save to
@@ -143,11 +172,18 @@ export function IssueInvoiceForm({ clinics, taxDefaults }: { clinics: InvoiceCli
 
   useActionToast(state, { saved: "Invoice issued.", error: true });
 
-  // Pre-fill the amount with the selected clinic's monthly price.
+  // Pre-fill the amount with the selected clinic's monthly price, and the tax with its
+  // province's (sales tax on services is provincial). Both stay editable.
   function onPickClinic(id: string) {
     setClinicId(id);
     const c = clinics.find((x) => x.id === id);
     if (c && c.monthlyPrice > 0) setAmount(String(c.monthlyPrice));
+    if (c) {
+      const t = startingTax(taxDefaults, c.province);
+      setTaxLabel(t.label);
+      setTaxRate(t.rate);
+      setTaxSource(t.source);
+    }
   }
 
   const clinicOptions = clinics.map((c) => ({ value: c.id, label: c.monthlyPrice > 0 ? `${c.name} (Rs ${c.monthlyPrice.toLocaleString("en-PK")}/mo)` : c.name }));
@@ -210,6 +246,7 @@ export function IssueInvoiceForm({ clinics, taxDefaults }: { clinics: InvoiceCli
         setLabel={setTaxLabel}
         rate={taxRate}
         setRate={setTaxRate}
+        source={taxSource}
       />
       <Button type="submit" disabled={pending || !clinicId}>{pending ? "Issuing…" : "Issue invoice"}</Button>
     </ActionForm>
@@ -221,6 +258,7 @@ export type EditableInvoice = {
   id: string;
   label: string;
   clinicName: string;
+  clinicProvince: string | null;
   /** Before tax. */
   amount: number;
   taxLabel: string | null;
@@ -249,11 +287,57 @@ function EditInvoiceDialog({
   onOpenChange: (next: boolean) => void;
 }) {
   const [amount, setAmount] = useState(String(invoice.amount));
-  // An invoice that has tax keeps ITS label and rate; one without starts from today's
-  // defaults if the tick is turned on.
+  // Editing follows the clinic's province, like issuing does (owner, 2026-11-11): the
+  // tax fields open on the province's rate. An invoice issued at a different rate says
+  // so, with one click to keep its own — saving with the province rate changes what the
+  // clinic owes, and the activity log records old → new. With no province rate (none
+  // set, or no province) an invoice keeps the tax it was issued with.
+  const startTax = startingTax(taxDefaults, invoice.clinicProvince);
+  const own =
+    invoice.taxRate !== null
+      ? { label: invoice.taxLabel ?? "Sales tax", rate: formatRate(invoice.taxRate) }
+      : null;
+  const initialTax = own && !startTax.fromProvince ? own : startTax;
   const [taxOn, setTaxOn] = useState(invoice.taxRate !== null);
-  const [taxLabel, setTaxLabel] = useState(invoice.taxLabel ?? taxDefaults.label);
-  const [taxRate, setTaxRate] = useState(formatRate(invoice.taxRate ?? taxDefaults.rate));
+  const [taxLabel, setTaxLabel] = useState(initialTax.label);
+  const [taxRate, setTaxRate] = useState(initialTax.rate);
+  const keepingOwn = own !== null && taxLabel === own.label && taxRate === own.rate;
+  const ownDiffers = own !== null && startTax.fromProvince && (own.label !== startTax.label || own.rate !== startTax.rate);
+  let taxSource: React.ReactNode;
+  if (own && !startTax.fromProvince) taxSource = "The tax this invoice was issued with";
+  else if (ownDiffers && !keepingOwn) {
+    taxSource = (
+      <>
+        {startTax.source}. This invoice was issued with {own.label} {own.rate}%.{" "}
+        <button
+          type="button"
+          className="font-medium text-primary-text underline underline-offset-2"
+          onClick={() => {
+            setTaxLabel(own.label);
+            setTaxRate(own.rate);
+          }}
+        >
+          Keep {own.rate}%
+        </button>
+      </>
+    );
+  } else if (ownDiffers && keepingOwn) {
+    taxSource = (
+      <>
+        Keeping the tax this invoice was issued with.{" "}
+        <button
+          type="button"
+          className="font-medium text-primary-text underline underline-offset-2"
+          onClick={() => {
+            setTaxLabel(startTax.label);
+            setTaxRate(startTax.rate);
+          }}
+        >
+          Use the {startTax.source}
+        </button>
+      </>
+    );
+  } else taxSource = startTax.source;
   const [start, setStart] = useState(invoice.periodStart ?? "");
   const [end, setEnd] = useState(invoice.periodEnd ?? "");
   const [due, setDue] = useState(invoice.dueOn ?? "");
@@ -335,6 +419,7 @@ function EditInvoiceDialog({
           setLabel={setTaxLabel}
           rate={taxRate}
           setRate={setTaxRate}
+          source={taxSource}
         />
         {state.error ? <p className="text-sm text-destructive" role="alert">{state.error}</p> : null}
         <div className="flex justify-end gap-2">
@@ -430,11 +515,13 @@ export function InvoiceTaxSettingsForm({
   taxRate,
   ntn,
   strn,
+  provinceTax,
 }: {
   taxLabel: string;
   taxRate: number;
   ntn: string | null;
   strn: string | null;
+  provinceTax: ProvinceTaxMap;
 }) {
   const [state, formAction, pending] = useActionState<InvoiceActionState, FormData>(saveInvoiceTaxSettingsAction, {});
   useActionToast(state, { saved: "Tax details saved.", error: true });
@@ -467,6 +554,39 @@ export function InvoiceTaxSettingsForm({
         <div className="space-y-1">
           <Label htmlFor="tax-strn" className="text-xs text-muted-foreground">Sales tax registration no. (STRN)</Label>
           <Input id="tax-strn" name="strn" className="h-8" defaultValue={strn ?? ""} placeholder="Not printed when empty" />
+        </div>
+      </div>
+      {/* One row per province: an invoice to a clinic there starts from this. A blank
+          rate leaves that province on the default above. */}
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium text-muted-foreground">
+          Tax by the clinic&rsquo;s province (empty rate = use the default)
+        </p>
+        <div className="divide-y divide-border/60 rounded-lg border border-border/70 well">
+          {PROVINCES.map((p) => (
+            <div key={p.code} className="grid items-center gap-2 px-3 py-2 sm:grid-cols-[12rem_1fr_7rem]">
+              <span className="text-sm">{p.label}</span>
+              <Input
+                name={`prov_${p.code}_label`}
+                aria-label={`Tax name for ${p.label}`}
+                className="h-8"
+                defaultValue={provinceTax[p.code]?.label ?? ""}
+                placeholder={`e.g. ${TAX_AUTHORITY_EXAMPLE[p.code] ?? "Sales tax"}`}
+              />
+              <input
+                name={`prov_${p.code}_rate`}
+                aria-label={`Tax rate for ${p.label} (%)`}
+                type="number"
+                inputMode="decimal"
+                min={0.01}
+                max={100}
+                step={0.01}
+                defaultValue={provinceTax[p.code] ? formatRate(provinceTax[p.code]!.rate) : ""}
+                placeholder="%"
+                className={inputCls}
+              />
+            </div>
+          ))}
         </div>
       </div>
       <Button type="submit" variant="outline" disabled={pending}>{pending ? "Saving…" : "Save tax details"}</Button>

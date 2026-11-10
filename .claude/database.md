@@ -771,7 +771,11 @@ unique `invoice_no`; `clinic_id`; `issued_at`; partial trash index.
 
 ### `company_settings` — singleton company config · NO clinic_id
 `id`, `tax_label` + `tax_rate` (defaults the invoice "Add tax" tick starts from) +
-`ntn` / `strn` (printed only on a subscription invoice that carries tax, and only when set; `0145`, full admins edit
+**`province_tax`** jsonb (migration `0146`: `{ <ProvinceCode>: { label, rate } }` —
+picking a clinic on an invoice fills "Add tax" from its province's entry, falling back to
+`tax_label`/`tax_rate`; read through zod in `getCompanyInvoiceSettings`, unknown
+provinces and bad entries dropped; seeded Punjab PRA 5%, Sindh SRB 3%, ICT FBR 5%, KP KPRA 5%,
+Balochistan BRA 6%, AJK 5% as starting values for the owner to confirm; GB left empty) + `ntn` / `strn` (printed only on a subscription invoice that carries tax, and only when set; `0145`, full admins edit
 them on `/admin/finance/invoices`), `next_invoice_no` + `invoice_prefix` (the `clinic_invoices` counter; prefix `FA-INV-` since `0144`, was the placeholder `KL-INV-` — the label is read-time, so issued invoices re-label too),
 `support_phone` + `support_email` (the COMPANY's own contact, shown to a clinic with
 no account manager — or whose manager has no number; data rather than a constant so

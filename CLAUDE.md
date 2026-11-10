@@ -446,6 +446,11 @@ are in `.env.example`.
   page); the clinic owes amount + tax and the printout (always titled "Invoice") shows the tax
   line and the NTN/STRN (an invoice without tax prints neither). No rate
   is assumed — which tax applies depends on registration and the clinic's province.
+  **The rate fills from the clinic's province** (`0146`, owner 2026-11-11): a name + rate
+  per province on the same card (`company_settings.province_tax`, pure
+  `taxForProvince`), the default when the province has none; still editable per invoice.
+  Editing an invoice opens on the province rate too, naming the rate it was issued with
+  and offering "Keep" for it.
   The P&L does not yet separate tax collected from revenue.
   A team member who is not a full admin sees and acts on only the clinics they manage.
 - **Owner Overview** (`/admin/overview`, the super-admin's landing page) — company at a

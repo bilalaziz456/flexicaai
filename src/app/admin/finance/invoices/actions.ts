@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { PROVINCES } from "@/core/clinics/provinces";
+import type { ProvinceTaxMap } from "@/core/admin/invoice-status";
 import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireAdminCapability } from "@/core/auth/user";
 import { canManageTeam } from "@/core/auth/admin-permissions";
@@ -182,6 +184,26 @@ const taxSettingsSchema = z.object({
 });
 
 /**
+ * The per-province rows of the tax settings form (`prov_<code>_label` / `_rate`). A
+ * blank rate means "no rate for this province" — its clinics then start from the
+ * company default — so it is left out, not stored as 0.
+ */
+function parseProvinceTaxFields(formData: FormData): { provinceTax: ProvinceTaxMap } | { error: string } {
+  const provinceTax: ProvinceTaxMap = {};
+  for (const p of PROVINCES) {
+    const rawRate = String(formData.get(`prov_${p.code}_rate`) ?? "").trim();
+    if (rawRate === "") continue;
+    const rate = Number(rawRate);
+    if (!Number.isFinite(rate) || rate <= 0 || rate > 100) {
+      return { error: `${p.label}: enter a rate above 0% and up to 100%, or leave it empty.` };
+    }
+    const label = String(formData.get(`prov_${p.code}_label`) ?? "").trim().slice(0, 60);
+    provinceTax[p.code] = { label: label || "Sales tax", rate: Math.round(rate * 100) / 100 };
+  }
+  return { provinceTax };
+}
+
+/**
  * The company's invoice-tax defaults (what "Add tax" starts from) and its NTN / STRN,
  * printed on every invoice. Company-wide, so full admins only — the same people who
  * manage the team. Changing them never touches an invoice already issued.
@@ -199,18 +221,24 @@ export async function saveInvoiceTaxSettingsAction(
     strn: formData.get("strn") ?? undefined,
   });
   if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
+  const prov = parseProvinceTaxFields(formData);
+  if ("error" in prov) return { error: prov.error };
   await setCompanyInvoiceTaxSettings({
     taxLabel: parsed.data.taxLabel,
     taxRate: Math.round(parsed.data.taxRate * 100) / 100,
     ntn: parsed.data.ntn ?? null,
     strn: parsed.data.strn ?? null,
+    provinceTax: prov.provinceTax,
   });
+  const provSummary = PROVINCES.filter((p) => prov.provinceTax[p.code])
+    .map((p) => `${p.label} ${prov.provinceTax[p.code]!.rate}%`)
+    .join(", ");
   await logActivity({
     action: "update",
     entity: "settings",
     entityId: null,
     clinicId: null,
-    summary: `Invoice tax settings: ${parsed.data.taxLabel} ${parsed.data.taxRate}%, NTN ${parsed.data.ntn || "none"}, STRN ${parsed.data.strn || "none"}`,
+    summary: `Invoice tax settings: default ${parsed.data.taxLabel} ${parsed.data.taxRate}%; by province: ${provSummary || "none"}; NTN ${parsed.data.ntn || "none"}, STRN ${parsed.data.strn || "none"}`,
   });
   revalidatePath("/admin/finance/invoices");
   return { saved: true };

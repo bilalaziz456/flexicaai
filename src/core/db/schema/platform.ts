@@ -435,6 +435,15 @@ export const companySettings = pgTable("company_settings", {
   taxRate: numeric("tax_rate", { precision: 5, scale: 2 }).notNull().default("16"),
   ntn: text("ntn"),
   strn: text("strn"),
+  // The tax for a clinic IN a given province (0146, owner 2026-11-11): keyed by
+  // ProvinceCode (core/clinics/provinces.ts), e.g. { punjab: { label: "Sales tax (PRA)",
+  // rate: 5 } }. Picking a clinic on an invoice fills "Add tax" from its province's
+  // entry; a province with none, or a clinic with no province, falls back to
+  // `tax_label` / `tax_rate` above. Read through zod (`getCompanyInvoiceSettings`).
+  provinceTax: jsonb("province_tax")
+    .$type<Record<string, { label: string; rate: number }>>()
+    .notNull()
+    .default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

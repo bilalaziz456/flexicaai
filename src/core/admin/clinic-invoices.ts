@@ -8,7 +8,14 @@ import { newDeleteGroup, restoreValues, softDeleteValues } from "@/core/db/soft-
 import { clinicInvoices, clinicPayments, cities,
   clinics, companySettings } from "@/core/db/schema";
 import { clinicPaymentKindId } from "@/core/db/vocabulary-seed";
-import { invoiceTax, localIsoDate, type InvoiceStatusFilter } from "@/core/admin/invoice-status";
+import {
+  invoiceTax,
+  localIsoDate,
+  type InvoiceStatusFilter,
+  type ProvinceTaxMap,
+} from "@/core/admin/invoice-status";
+import { isProvinceCode } from "@/core/clinics/provinces";
+import { z } from "zod";
 import {
   bucketLabel,
   nextBucket,
@@ -71,7 +78,27 @@ export type CompanyInvoiceSettings = {
   /** Printed on the invoice when set. */
   ntn: string | null;
   strn: string | null;
+  /** The tax per province; a clinic's invoice starts from its province's entry. */
+  provinceTax: ProvinceTaxMap;
 };
+
+const provinceTaxSchema = z.record(
+  z.string(),
+  z.object({ label: z.string().max(60), rate: z.coerce.number().gt(0).max(100) }),
+);
+
+/**
+ * The stored jsonb read back through zod: anything malformed, or keyed by a province
+ * this app no longer knows, is dropped rather than trusted — a bad entry then falls
+ * back to the company default instead of putting a wrong rate on an invoice.
+ */
+function parseProvinceTax(raw: unknown): ProvinceTaxMap {
+  const parsed = provinceTaxSchema.safeParse(raw);
+  if (!parsed.success) return {};
+  const out: ProvinceTaxMap = {};
+  for (const [code, t] of Object.entries(parsed.data)) if (isProvinceCode(code)) out[code] = t;
+  return out;
+}
 
 /** Seed + read the singleton company settings (counter, prefix, tax defaults). */
 export async function getCompanyInvoiceSettings(): Promise<CompanyInvoiceSettings> {
@@ -84,6 +111,7 @@ export async function getCompanyInvoiceSettings(): Promise<CompanyInvoiceSetting
     taxRate: Number(row.taxRate),
     ntn: row.ntn,
     strn: row.strn,
+    provinceTax: parseProvinceTax(row.provinceTax),
   };
 }
 
@@ -93,6 +121,7 @@ export async function setCompanyInvoiceTaxSettings(input: {
   taxRate: number;
   ntn: string | null;
   strn: string | null;
+  provinceTax: ProvinceTaxMap;
 }): Promise<void> {
   await getCompanyInvoiceSettings(); // makes sure the row exists
   await db.update(companySettings).set({
@@ -100,6 +129,7 @@ export async function setCompanyInvoiceTaxSettings(input: {
     taxRate: String(input.taxRate),
     ntn: input.ntn?.trim() || null,
     strn: input.strn?.trim() || null,
+    provinceTax: parseProvinceTax(input.provinceTax) as Record<string, { label: string; rate: number }>,
     updatedAt: new Date(),
   });
 }
@@ -182,6 +212,8 @@ export type ClinicInvoiceRow = {
   invoiceNo: number;
   label: string;
   clinicName: string;
+  /** For "Add tax" on edit: the province's rate is where an untaxed invoice starts. */
+  clinicProvince: string | null;
   periodStart: string | null;
   periodEnd: string | null;
   dueOn: string | null;
@@ -253,6 +285,7 @@ export async function listClinicInvoices(
           clinicId: clinicInvoices.clinicId,
           invoiceNo: clinicInvoices.invoiceNo,
           clinicName: clinics.name,
+          clinicProvince: clinics.province,
           periodStart: clinicInvoices.periodStart,
           periodEnd: clinicInvoices.periodEnd,
           dueOn: clinicInvoices.dueOn,

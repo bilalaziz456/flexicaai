@@ -101,7 +101,7 @@ export default async function ClinicInvoicesPage({
     invoicedTrend(range, scope),
     getCompanyInvoiceSettings(),
   ]);
-  const taxDefaults = { label: company.taxLabel, rate: company.taxRate };
+  const taxDefaults = { label: company.taxLabel, rate: company.taxRate, byProvince: company.provinceTax };
 
   const rangeLabel = `${formatIsoDay(range.from)} – ${formatIsoDay(range.to)}`;
   const hasTrend = trend.some((b) => b.total > 0);
@@ -186,14 +186,21 @@ export default async function ClinicInvoicesPage({
           <CardHeader>
             <CardTitle>Tax on invoices</CardTitle>
             <CardDescription>
-              What &ldquo;Add tax&rdquo; starts from, and the registration numbers printed on an
+              What &ldquo;Add tax&rdquo; starts from &mdash; the clinic&rsquo;s province&rsquo;s tax,
+              or the default when none is set &mdash; and the registration numbers printed on an
               invoice that carries tax. Which tax applies, and its rate, depends on our registration and the
               clinic&rsquo;s province: confirm with your tax adviser. Changing this never alters an
               invoice already issued.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <InvoiceTaxSettingsForm taxLabel={company.taxLabel} taxRate={company.taxRate} ntn={company.ntn} strn={company.strn} />
+            <InvoiceTaxSettingsForm
+              taxLabel={company.taxLabel}
+              taxRate={company.taxRate}
+              ntn={company.ntn}
+              strn={company.strn}
+              provinceTax={company.provinceTax}
+            />
           </CardContent>
         </Card>
       ) : null}
@@ -286,6 +293,7 @@ export default async function ClinicInvoicesPage({
                             id: r.id,
                             label: r.label,
                             clinicName: r.clinicName,
+                            clinicProvince: r.clinicProvince,
                             amount: r.amount,
                             taxLabel: r.taxLabel,
                             taxRate: r.taxRate,

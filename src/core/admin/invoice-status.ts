@@ -43,6 +43,28 @@ export function formatRate(rate: number | string): string {
   return Number.isFinite(n) ? String(Number(n.toFixed(2))) : String(rate);
 }
 
+/** A tax as the "Add tax" fields hold it: its name and its rate in percent. */
+export type InvoiceTaxRate = { label: string; rate: number };
+
+/** The tax for each province a clinic can be in, keyed by ProvinceCode. */
+export type ProvinceTaxMap = Partial<Record<string, InvoiceTaxRate>>;
+
+/**
+ * Which tax an invoice to this clinic starts from: its province's entry, or the
+ * company default when the clinic has no province or the province has no rate typed
+ * (sales tax on services is provincial — PRA, SRB, KPRA, BRA, FBR for Islamabad).
+ * `fromProvince` says which one was used, so the form can say so.
+ */
+export function taxForProvince(
+  provinceTax: ProvinceTaxMap,
+  province: string | null | undefined,
+  fallback: InvoiceTaxRate,
+): InvoiceTaxRate & { fromProvince: boolean } {
+  const own = province ? provinceTax[province] : undefined;
+  if (own && own.rate > 0) return { label: own.label || fallback.label, rate: own.rate, fromProvince: true };
+  return { ...fallback, fromProvince: false };
+}
+
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /**

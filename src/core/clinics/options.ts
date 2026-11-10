@@ -50,6 +50,8 @@ export async function listClinicOptionsWithPrice(scope: { assignedTo?: string } 
         name: clinics.name,
         monthlyPrice: clinics.monthlyPrice,
         assignedTo: clinics.assignedTo,
+        // The invoice form fills "Add tax" from the clinic's province.
+        province: clinics.province,
       })
       .from(clinics)
       .where(
