@@ -547,6 +547,12 @@ are in `.env.example`.
   pack, NOT in `clinic_payments` (which would pay subscription months). At zero the
   automatic and AI messages stop (cancellation notices still go). Its open questions are
   asked when the build starts.
+- **Sending through WeTarSeel** — PLANNED, not built (owner, 2026-11-10;
+  `docs/whatsapp-wetarseel-sending-plan.md`): a third provider (`WHATSAPP_PROVIDER=wetarseel`)
+  with one WeTarSeel API key per clinic, stored ENCRYPTED (`WHATSAPP_KEY_SECRET`), set by
+  `clinics:edit` admins; a clinic without a key does not send; no automatic retries; the
+  AI reply in `{{1}}` is shortened to stay under Meta's 1,024-character body limit.
+  Coexistence is confirmed; receiving waits on WeTarSeel's webhook answers.
 - **WhatsApp automations per clinic** — PLANNED, not built (owner, 2026-11-10;
   `docs/whatsapp-automations-plan.md`): every automatic message or reply is an on/off
   switch per clinic, set only by the super admin or the clinic's account manager, under

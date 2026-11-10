@@ -47,8 +47,8 @@
    appointment was cancelled. (These still count, and can take the balance below zero;
    the next pack makes that up first.)
 8. **The clinic replies by hand from its own WhatsApp Business app**, not from
-   FlexicaAI. This needs WeTarSeel to support coexistence (app + API on one number) —
-   the most important question for them.
+   FlexicaAI. This needs coexistence (app + API on one number) — **WeTarSeel confirmed
+   it is available (2026-11-10).**
 
 ## 2. Open questions — ask when implementation starts
 

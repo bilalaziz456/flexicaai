@@ -103,15 +103,21 @@ can be built straight away.
 
 ### Questions to ask WeTarSeel
 
+> **Answers so far (owner, 2026-11-10):** question 5 — **coexistence is available.**
+> Its second half (are replies typed in the app forwarded to our webhook?) and
+> questions 1–4 are still unanswered.
+
 1. Can one account have several WhatsApp numbers? If so, how does an API call choose
    the sending number, and how does a webhook say which number received a message?
 2. If not, can we have one account per clinic (each with its own key) under one billing?
 3. A **sample "message received" webhook**, and a delivery-status one.
 4. **How the webhook is secured** (secret key, signature header, …).
-5. Do they support **WhatsApp Business app coexistence** (§4)? If so, are replies sent
-   from the app forwarded to our webhook?
+5. ~~Do they support **WhatsApp Business app coexistence** (§4)?~~ **Yes** (2026-11-10).
+   Still to ask: are replies sent from the app forwarded to our webhook?
 
 ### Proposed build order
+
+Sending is planned in detail in `docs/whatsapp-wetarseel-sending-plan.md` (2026-11-10).
 
 1. WeTarSeel as a third provider + a "WeTarSeel API key" field per clinic (sending:
    confirmations, reminders, recalls from the clinic's own number). Fits Setup 1; only
@@ -171,7 +177,8 @@ Clinic's own number ─────┤     staff reply by hand here   →  FREE
 
 ### Conditions and catches
 
-1. **WeTarSeel must support coexistence** — the deciding question (§2, question 5).
+1. ~~**WeTarSeel must support coexistence**~~ — **confirmed available (2026-11-10).**
+   Still unknown: whether replies typed in the app reach our webhook (item 4 below).
 2. Some app features stop in one-to-one chats: disappearing messages, "view once",
    live location; broadcast lists become read-only. Normal chats, photos, voice notes
    and documents keep working. Up to 6 months of 1:1 history syncs.
@@ -198,7 +205,7 @@ Rs 4 a message.
 | **360dialog** | ~$59 per number per month | Close to Cloud API format, developer-focused. |
 | **Wati / respond.io** | ~$59–$99+/mo | Team-inbox products; work, but pay for features FlexicaAI already has. |
 | **Meta directly** | none | FlexicaAI must first become a Meta Tech Provider (Embedded Signup). Not practical yet. |
-| **WeTarSeel** | — | Unknown — ask (§2, question 5). |
+| **WeTarSeel** | — | **Supported** (confirmed by WeTarSeel, 2026-11-10). Whether app replies are forwarded to our webhook: not yet answered. |
 
 **Applies to all of them:**
 - **Message echoes:** replies sent from the WhatsApp Business app are mirrored to the API,
@@ -206,10 +213,12 @@ Rs 4 a message.
 - **~14-day rule:** coexistence disconnects if the WhatsApp Business app is not opened for
   about 14 days. A clinic must open the app on its phone at least once a fortnight.
 
-**Recommendation:** ask WeTarSeel first. If they don't support coexistence: **Dualhook**
+**Settled 2026-11-10:** WeTarSeel supports coexistence, so we stay with WeTarSeel. The
+alternatives in the table above are kept for reference only. (Was: ask WeTarSeel first; if they don't
+support coexistence, **Dualhook**
 (cheapest, no markup, matches our Cloud API code) or **AiSensy** (most established,
 already integrated; needs per-clinic keys). Confirm prices with each provider — figures
-are from a comparison article and change often.
+are from a comparison article and change often.)
 
 Sources: [Dualhook comparison](https://dualhook.com/best-whatsapp-coexistence-providers) ·
 [AiSensy co-existence](https://wiki.aisensy.com/en/articles/11939127-whatsapp-co-existence-everything-you-need-to-know) ·
@@ -222,7 +231,7 @@ Each clinic buys WhatsApp messages as credits: the super admin adds a pack of an
 (300, 500, 1,000), the credits never expire, and the subscription includes none. Each
 pack is recorded as paid or unpaid and can be used straight away. At zero, automatic and AI messages stop (cancellation
 notices still go) and the clinic replies by hand from its WhatsApp Business app — which
-is why coexistence (§4, question 5) matters even more. Full plan and the questions left
+is why coexistence matters — WeTarSeel has confirmed it is available (2026-11-10). Full plan and the questions left
 for build time: `docs/whatsapp-allowance-plan.md`.
 
 ## 4d. Automations per clinic (planned 2026-11-10)
@@ -246,20 +255,26 @@ plan: `docs/whatsapp-automations-plan.md`.
   Pakistan now, 21:00 / 12:00 in German summer. Fix: `CRON_TZ=Asia/Karachi` at the top of the
   generated cron file, so the times are Pakistan's and survive daylight-saving changes.
   The jobs are not installed on the server yet.
+- **A template body over 1,024 characters is refused by Meta.** Nothing shortens the AI
+  reply carried in `{{1}}` of the booking and reschedule replies today. Fix planned in
+  `docs/whatsapp-wetarseel-sending-plan.md` §2 decision 9.
 - **Cancellation cut-off has no screen.** `clinics.cancel_cutoff_hours` defaults to 4 and
   every clinic is at 4; nobody can change it in the app. Who sets it is an open question
   (`docs/whatsapp-ai-plan.md`, open question 1).
 
 ## 5. Next step
 
-Ask WeTarSeel the five questions in §2. With the answers:
-- build WeTarSeel sending (can start now, Setup 1);
-- build receiving (needs the webhook sample and security);
-- if coexistence is supported, set up "staff reply free by hand, AI and automatic
-  messages through the API" with the AI staying quiet when staff are answering.
+Coexistence is confirmed (2026-11-10); WeTarSeel has not yet answered questions 1–4 or
+whether app replies reach our webhook. Meanwhile:
+- build WeTarSeel sending (can start now, Setup 1) — full plan:
+  `docs/whatsapp-wetarseel-sending-plan.md`;
+- build receiving once they send the webhook sample and its security (questions 3–4);
+- set up "staff reply free by hand, AI and automatic messages through the API", with
+  the AI staying quiet when staff are answering — how quiet depends on whether app
+  replies are forwarded to us.
 
 Then, when the owner says so: the automations (§4d) and the message credits (§4c),
-and the three fixes in §4e before the first clinic goes live.
+and the fixes in §4e before the first clinic goes live.
 
 ---
 
