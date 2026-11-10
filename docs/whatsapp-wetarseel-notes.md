@@ -216,11 +216,11 @@ Sources: [Dualhook comparison](https://dualhook.com/best-whatsapp-coexistence-pr
 [Chakra coexistence 2026](https://chakrahq.com/article/whatsapp-business-app-api-coexistence-2026/) ·
 [respond.io](https://respond.io/blog/how-to-use-whatsapp-business-app-and-api-at-the-same-time)
 
-## 4c. Message allowance per clinic (planned 2026-11-10)
+## 4c. Message credits per clinic (planned 2026-11-10)
 
-Each clinic buys WhatsApp messages with its subscription: a monthly allowance, granted
-as one pool for the months a payment covers (6 months × 1,000 = 6,000), topped up with
-an extra pack if it runs out early. At zero, automatic and AI messages stop (cancellation
+Each clinic buys WhatsApp messages as credits: the super admin adds a pack of any size
+(300, 500, 1,000), the credits never expire, and the subscription includes none. Each
+pack is recorded as paid or unpaid and can be used straight away. At zero, automatic and AI messages stop (cancellation
 notices still go) and the clinic replies by hand from its WhatsApp Business app — which
 is why coexistence (§4, question 5) matters even more. Full plan and the questions left
 for build time: `docs/whatsapp-allowance-plan.md`.
@@ -258,7 +258,7 @@ Ask WeTarSeel the five questions in §2. With the answers:
 - if coexistence is supported, set up "staff reply free by hand, AI and automatic
   messages through the API" with the AI staying quiet when staff are answering.
 
-Then, when the owner says so: the automations (§4d) and the message allowance (§4c),
+Then, when the owner says so: the automations (§4d) and the message credits (§4c),
 and the three fixes in §4e before the first clinic goes live.
 
 ---

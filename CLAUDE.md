@@ -540,11 +540,13 @@ are in `.env.example`.
   A medicine's `specialties` (module ids as text) put it first for clinics of that
   specialty. `core/clinical/medicines.ts`, `scripts/test-medicines.ts`.
 
-- **WhatsApp message allowance per clinic** — PLANNED, not built (owner, 2026-11-10;
-  `docs/whatsapp-allowance-plan.md`): a monthly allowance granted as one pool for the
-  months a subscription payment covers, extra packs on top; at zero the automatic and AI
-  messages stop (cancellation notices still go). Its open questions are asked when the
-  build starts.
+- **WhatsApp message credits per clinic** — PLANNED, not built (owner, 2026-11-10;
+  `docs/whatsapp-allowance-plan.md`): the super admin adds packs of any size (300, 500…)
+  that never expire; no free messages with the subscription. Each pack has a price and
+  is Unpaid / Partly paid / Paid, usable at once either way; its payments live with the
+  pack, NOT in `clinic_payments` (which would pay subscription months). At zero the
+  automatic and AI messages stop (cancellation notices still go). Its open questions are
+  asked when the build starts.
 - **WhatsApp automations per clinic** — PLANNED, not built (owner, 2026-11-10;
   `docs/whatsapp-automations-plan.md`): every automatic message or reply is an on/off
   switch per clinic, set only by the super admin or the clinic's account manager, under

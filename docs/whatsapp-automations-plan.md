@@ -11,7 +11,7 @@
 >
 > Status: **PLANNED, not started.** Builds on the existing WhatsApp code
 > (`docs/whatsapp-ai-plan.md`, `docs/whatsapp-wetarseel-notes.md`) and pairs with the
-> message allowance (`docs/whatsapp-allowance-plan.md`).
+> message credits (`docs/whatsapp-allowance-plan.md`).
 
 ## 1. Decisions (owner, 2026-11-10)
 
@@ -161,17 +161,17 @@ With 11 off the AI never reads anything, so the label comes only from the fixed 
 - `queueManualSend(...)` — writes a To-send-by-hand row.
 
 **The send path** — every place that sends today asks `isAutomationOn` first: on → as
-today (and through the allowance, when that is built); off → `queueManualSend` for a
+today (and through the credits, when that is built); off → `queueManualSend` for a
 notice, or no reply (queue + label) for a reply. One check per sender, not scattered
 `if`s: `sendWhatsAppToPatient` takes the automation id and makes the choice itself.
 
 **Daily jobs** — the reminder and recall runs still run for a clinic with them off, but
 create To-send-by-hand rows instead of sending.
 
-## 7. With the message allowance
+## 7. With the message credits
 
-Only automations that are on use the allowance; messages sent by hand are free and never
-count. A clinic that turns reminders off uses fewer messages. At zero allowance an
+Only automations that are on use credits; messages sent by hand are free and never
+count. A clinic that turns reminders off uses fewer messages. At zero credits an
 automation that is on behaves like one that is off: its notices go to To send by hand
 (so a clinic at zero still has every reminder ready to send), its replies to the queue.
 
