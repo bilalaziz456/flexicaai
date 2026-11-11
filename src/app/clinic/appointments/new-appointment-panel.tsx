@@ -1,7 +1,7 @@
 import { clinicHasFeature } from "@/core/lib/features";
 import { offeredPapers } from "@/core/lib/print-papers";
 import { BackLink } from "@/core/ui/back-link";
-import { getPatientForPicker, listRecentPatients } from "@/core/patients/list";
+import { getPatientForPicker } from "@/core/patients/list";
 import { getClinic } from "@/core/clinics/get-clinic";
 import {
   Card,
@@ -60,8 +60,9 @@ export async function NewAppointmentPanel({
     phone: p.phone,
     mrn: p.mrnLabel,
   });
-  const [recentRows, doctors, bookingProcedures, preselectedRow] = await Promise.all([
-    listRecentPatients(clinicId),
+  // No recent-patients list: the form lists patients only once something is typed
+  // (owner, 2026-11-12), so loading them would be a query nobody sees.
+  const [doctors, bookingProcedures, preselectedRow] = await Promise.all([
     // `newest` preserves this picker's existing order (see appointment-detail).
     listClinicDoctors(clinicId, { order: "newest" }),
     getBookingProcedures(clinicId, { includeServices: true }),
@@ -69,7 +70,6 @@ export async function NewAppointmentPanel({
       ? getPatientForPicker(clinicId, preselectedPatientId)
       : Promise.resolve(null),
   ]);
-  const recentPatients = recentRows.map(toPatient);
   const preselectedPatient = preselectedRow ? toPatient(preselectedRow) : null;
 
   return (
@@ -98,7 +98,7 @@ export async function NewAppointmentPanel({
             canChangePrice={canChangePrice}
             clinicName={clinic?.name}
             papers={offeredPapers(clinic?.invoicePapersEnabled)}
-            initialPatients={recentPatients}
+            initialPatients={[]}
             doctors={doctors}
             procedures={bookingProcedures}
             chargesEnabled={clinicHasFeature(clinic?.featuresEnabled, "sales")}

@@ -696,9 +696,10 @@ export function NewAppointmentForm({
                 aria-label="Search patients"
               />
             </div>
-            {/* A new invoice lists matches only once something is typed (owner's call,
-                2026-10-18) — the recent-patients list pushed the bill below the fold. */}
-            {newInvoice && !query.trim() ? null : (
+            {/* Patients are listed only once something is typed — a new invoice since
+                2026-10-18, a booking too since 2026-11-12 (owner's calls): the
+                recent-patients list pushed the rest of the form below the fold. */}
+            {!query.trim() ? null : (
             <ul className="max-h-48 divide-y divide-border/60 overflow-y-auto rounded-md border border-border/60">
               {results.length === 0 ? (
                 <li className="p-3 text-sm text-muted-foreground">
