@@ -372,6 +372,12 @@ are in `.env.example`.
 - **Owner "Revenue Recovered" dashboard** — an optional per-clinic feature the super
   admin toggles. Columns `clinics.avg_visit_value`, `clinics.features_enabled`
   (registry in `core/lib/features.ts`; specialty-agnostic).
+  **The clinic Dashboard has one period for every figure** (owner, 2026-11-11): Today,
+  This month (the calendar month so far, compared with the same days last month; the
+  default), 3 months, 6 months, Year (rolling), remembered until sign-out. Two figures
+  stay outside it and say so: upcoming appointments and doctors' unpaid shares (a
+  balance). Outstanding is what visits in the period still owe, like Receivables.
+  It has a Download PDF of the period shown (`PageDownloadPdf`).
 - **Doctor scheduling** — per-weekday working hours + daily appointment cap +
   consultation fee. On `users`: `availability` (jsonb), `daily_appointment_limit`,
   `consultation_fee`. One validator — `core/appointments/availability.ts#checkDoctorSlot`

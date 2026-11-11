@@ -121,7 +121,7 @@ async function main() {
       const bal = (await getDoctorBalances(clinicId)).find((b) => b.doctorId === doctor.id);
       ok("Revenue shares: the doctor has earned Rs 100", bal?.earned === 100, String(bal?.earned));
       const kpis = await getFinanceKpis(clinicId);
-      ok("Dashboard: Collected (30d) includes the Rs 1,000", kpis.collected30d === 1000, String(kpis.collected30d));
+      ok("Dashboard: Collected (30 days) includes the Rs 1,000", kpis.collected === 1000, String(kpis.collected));
 
       console.log("\nWho owes money:");
       ok("Receivables: nothing yet — the visit is still ahead", (await getOutstandingTotal(clinicId)) === 0);

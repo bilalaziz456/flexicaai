@@ -7,7 +7,7 @@ import { appointmentProcedures, appointments, patients, sales, users } from "@/c
 import { procedureRowNetSql } from "@/core/appointments/procedures";
 
 export type SalesGranularity = "hour" | "day" | "week" | "month";
-export type SalesPeriod = "today" | "30d" | "quarter" | "half" | "year" | "all" | "custom";
+export type SalesPeriod = "today" | "month" | "30d" | "quarter" | "half" | "year" | "all" | "custom";
 
 /** Floor for an "all time" range when the caller can't supply the real earliest
  *  date (e.g. a cross-clinic admin view). Safely before any FlexicaAI data (the app
@@ -105,6 +105,12 @@ export function resolveSalesRange(
   switch (p) {
     case "today":
       return preset(1, "hour");
+    case "month": {
+      // THIS calendar month so far — the 1st through today (the dashboard's "This
+      // month", owner 2026-11-11), not the last 30 days.
+      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { period: "month", start, end: tomorrow, granularity: "day", from: ymd(start), to: ymd(today) };
+    }
     case "quarter":
       return preset(90, "week");
     case "half":
@@ -166,6 +172,16 @@ export function resolveSalesRange(
  * difference growth.)
  */
 export function precedingRange(range: ResolvedRange): ResolvedRange {
+  // "This month" so far compares with the same days of LAST month (1–11 Nov against
+  // 1–11 Oct), which is what a month-to-date figure is read against; the span rule
+  // would compare it with 21–31 Oct. Clamped where last month is shorter.
+  if (range.period === "month") {
+    const s = range.start;
+    const days = Math.round((range.end.getTime() - s.getTime()) / 86400000);
+    const prevStart = new Date(s.getFullYear(), s.getMonth() - 1, 1);
+    const prevEnd = new Date(s.getFullYear(), s.getMonth() - 1, 1 + days);
+    return { ...range, period: "custom", start: prevStart, end: prevEnd < s ? prevEnd : s };
+  }
   const spanMs = range.end.getTime() - range.start.getTime();
   return {
     ...range,

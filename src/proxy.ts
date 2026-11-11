@@ -139,6 +139,8 @@ const PRINT_PAGES = [
  * the moment, and coming back to a list silently still filtered by it would hide rows.
  */
 const REMEMBERED_FILTER_PAGES: readonly RememberedFilterPage[] = [
+  // The dashboard's period (Today / This month / 3 / 6 months / Year).
+  { key: "dashboard", path: "/clinic", params: ["period"] },
   { key: "invoices", path: "/clinic/invoices", params: ["period", "from", "to"] },
   { key: "sales", path: "/clinic/sales", params: ["period", "from", "to"] },
   // `period` + `dir` name a relative window ("next 7 days") so it stays right on later

@@ -25,17 +25,38 @@ import { OnboardingChecklist } from "@/core/ui/onboarding-checklist";
 import { AvgVisitValueForm } from "./avg-visit-value-form";
 import { DoctorLeaves } from "@/app/clinic/schedule/doctor-leaves";
 import { clinicStaffSummary } from "@/core/db/vocabulary-cache";
+import { DashboardPeriod } from "./dashboard-period";
+import { PageDownloadPdf } from "@/core/ui/page-download-pdf";
+import { PrintFileName } from "@/core/ui/print-file-name";
+import { ReportPeriod, formatReportRange } from "@/core/ui/report-period";
+import { dashboardPeriod } from "./dashboard-periods";
 
 /**
  * Owner dashboard (CLAUDE.md §11 Step 12). The hero metric is "Revenue
  * Recovered": recall reminders that brought patients back = return visits ×
  * the owner's average visit value. Everything is clinic-scoped.
  */
-export default async function ClinicDashboard() {
+export default async function ClinicDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string }>;
+}) {
   const user = await requireWorkspace();
   const { clinicId } = user;
   const isAdmin = user.role === "clinic_admin";
   const now = new Date();
+
+  // ONE period drives every figure on the page (owner, 2026-11-11): Today, This month
+  // (the default), 3 / 6 months, Year. Two figures are not period figures and say so:
+  // upcoming appointments (ahead of now) and the doctors' unpaid shares (a balance).
+  const per = dashboardPeriod((await searchParams).period);
+  const range = resolveSalesRange(per.value, undefined, undefined);
+  // The same window on the report a card links to. "This month" goes as dates, since
+  // the report pages offer rolling presets only.
+  const periodQs =
+    range.period === "month" ? `period=custom&from=${range.from}&to=${range.to}` : `period=${range.period}`;
+  // The hero sparkline: by day up to a month, by month beyond it.
+  const recoveredUnit: "day" | "month" = per.value === "today" || per.value === "month" ? "day" : "month";
 
   // The Revenue dashboard is an optional, super-admin-gated feature (works for
   // any specialty). Fetch the clinic first so we can SKIP the expensive
@@ -57,7 +78,7 @@ export default async function ClinicDashboard() {
   const financeKpiOn =
     clinicHasFeature(clinicRow?.featuresEnabled, "finance") && can(user, "finance", "view");
   const financeKpis =
-    billingKpiOn || financeKpiOn ? await getFinanceKpis(clinicId) : null;
+    billingKpiOn || financeKpiOn ? await getFinanceKpis(clinicId, range) : null;
 
   // A doctor manages their OWN leave right here on the dashboard (no separate
   // "Doctors" nav item). Fetch their upcoming leave; the add/remove controls are
@@ -69,22 +90,22 @@ export default async function ClinicDashboard() {
     ? await listUpcomingLeaves(clinicId, today, { doctorId: user.id })
     : [];
 
-  // Net sales over the last 30 days for the dashboard card (only when the feature
-  // is on). Runs in parallel with the other stats below.
+  // Net sales over the period for the dashboard card (only when the feature is on).
+  // Runs in parallel with the other stats below.
   const salesSummaryPromise = salesEnabled
-    ? getSalesSummary(clinicId, resolveSalesRange("30d", undefined, undefined))
+    ? getSalesSummary(clinicId, range)
     : Promise.resolve(null);
 
-  // No-show rate (30d) — operational, shown to anyone who can see appointments.
+  // No-show rate — operational, shown to anyone who can see appointments.
   const noShowPromise = can(user, "appointments", "view")
-    ? getNoShowStats(clinicId, resolveSalesRange("30d", undefined, undefined))
+    ? getNoShowStats(clinicId, range)
     : Promise.resolve(null);
 
   const [counts, recovered, recoveredTrendRows] = await Promise.all([
-    getClinicDashboardCounts(clinicId, now),
+    getClinicDashboardCounts(clinicId, now, range),
     // Only run the metric queries when the Revenue feature is on.
-    revenueEnabled ? getRecoveredCount(clinicId) : Promise.resolve(0),
-    revenueEnabled ? getRecoveredTrend(clinicId) : Promise.resolve([]),
+    revenueEnabled ? getRecoveredCount(clinicId, range) : Promise.resolve(0),
+    revenueEnabled ? getRecoveredTrend(clinicId, range, recoveredUnit) : Promise.resolve([]),
   ]);
 
   // First-run setup guide — shown to the clinic admin until the three essentials are
@@ -99,31 +120,28 @@ export default async function ClinicDashboard() {
   const showOnboarding = onboardingSteps.length > 0 && onboardingSteps.some((s) => !s.done);
 
   const revenueRecovered = recovered * avgVisitValue;
-  // Last 6 months of recovered revenue (visits × avg value), gap-filled → sparkline.
-  // The hero shows recovered REVENUE (counts × average visit value); the stat card
-  // below shows the visits themselves, so it needs the counts unconverted.
+  // Recovered return visits through the period, gap-filled by day or month → the
+  // sparklines. The hero shows recovered REVENUE (counts × average visit value); the
+  // stat card below shows the visits themselves, so it needs the counts unconverted.
   const recoveredCounts = (() => {
-    const byMonth = new Map<string, number>();
-    for (const r of recoveredTrendRows) byMonth.set(r.m, Number(r.n));
+    const byKey = new Map<string, number>();
+    for (const r of recoveredTrendRows) byKey.set(r.m, Number(r.n));
+    const p2 = (n: number) => String(n).padStart(2, "0");
     const out: number[] = [];
-    const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      out.push(byMonth.get(key) ?? 0);
+    const d = new Date(range.start);
+    if (recoveredUnit === "month") d.setDate(1);
+    while (d < range.end) {
+      const key =
+        recoveredUnit === "day"
+          ? `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`
+          : `${d.getFullYear()}-${p2(d.getMonth() + 1)}`;
+      out.push(byKey.get(key) ?? 0);
+      if (recoveredUnit === "day") d.setDate(d.getDate() + 1);
+      else d.setMonth(d.getMonth() + 1);
     }
     return out;
   })();
-
-  const recoveredTrend = (() => {
-    const byMonth = new Map<string, number>();
-    for (const r of recoveredTrendRows) byMonth.set(r.m, Number(r.n));
-    return Array.from({ length: 6 }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      return (byMonth.get(key) ?? 0) * avgVisitValue;
-    });
-  })();
+  const recoveredTrend = recoveredCounts.map((n) => n * avgVisitValue);
   const pkr = (n: number) =>
     new Intl.NumberFormat("en-PK", {
       style: "currency",
@@ -146,10 +164,9 @@ export default async function ClinicDashboard() {
           {
             title: "Outstanding",
             value: pkr(financeKpis.outstandingReceivable),
-            note: "Patients owe us",
+            note: `Patients owe us for visits ${per.phrase}`,
             href: "/clinic/appointments?status=completed&payment=unpaid",
-            // The running receivable balance over the same 30 days. `getFinanceKpis`
-            // has computed this since it was written and nothing ever drew it.
+            // What is owed, running through the period — it ends at the figure.
             trend: financeKpis.outstandingTrend,
             // A rising balance is money we have not been paid, so up is the bad
             // direction here — the opposite of every other figure on this row.
@@ -162,10 +179,11 @@ export default async function ClinicDashboard() {
           {
             title: "Payable to doctors",
             value: pkr(financeKpis.payableToDoctors),
-            note: "Unpaid shares",
+            // A balance owed as a whole, not a period figure — so it says "today".
+            note: "Unpaid shares, as of today",
             href: "/clinic/shares",
-            // The running unpaid balance over the same 30 days. It ENDS at the
-            // figure above it by construction — see `getPayableTrend`.
+            // The running unpaid balance through the period. It ENDS at the figure
+            // above it by construction — see `getPayableTrend`.
             trend: financeKpis.payableTrend,
             // Owing doctors more is not a win: the balance going up means we have
             // not settled, which is the same reading as the receivable above.
@@ -176,12 +194,12 @@ export default async function ClinicDashboard() {
     ...(salesEnabled && salesSummary
       ? [
           {
-            title: "Net sales (30 days)",
+            title: `Net sales (${per.suffix})`,
             value: pkr(salesSummary.netTotal),
             // Daily net sales, summed from the very rows that produced the total.
             trend: salesSummary.trend,
             note: `${salesSummary.count} completed visit${salesSummary.count === 1 ? "" : "s"} · View report`,
-            href: "/clinic/sales",
+            href: `/clinic/sales?${periodQs}`,
           },
         ]
       : []),
@@ -190,78 +208,75 @@ export default async function ClinicDashboard() {
           {
             title: "Return visits",
             value: recovered,
-            note: "From recall reminders",
-            // The same six monthly buckets the hero converts into money.
+            note: `From recall reminders, ${per.phrase}`,
+            // The same buckets the hero converts into money.
             trend: recoveredCounts,
           },
         ]
       : []),
-    { title: "Recalls sent", value: counts.recallsSent, note: "Reminders delivered", href: "/clinic/recalls" },
-    { title: "Upcoming appts", value: counts.upcoming, note: "Scheduled ahead", href: "/clinic/appointments" },
+    { title: "Recalls sent", value: counts.recallsSent, note: `Reminders sent ${per.phrase}`, href: "/clinic/recalls" },
+    // Ahead of now, whatever the period — a past window has no "upcoming".
+    { title: "Upcoming appts", value: counts.upcoming, note: "Scheduled from now on", href: "/clinic/appointments" },
     ...(noShow && noShow.attended > 0
       ? [
           {
-            title: "No-show rate (30d)",
+            title: `No-show rate (${per.suffix})`,
             value: `${(noShow.rate * 100).toFixed(1)}%`,
             note: `${noShow.noShow} of ${noShow.attended} missed`,
-            href: "/clinic/no-shows",
+            href: `/clinic/no-shows?${periodQs}`,
           },
         ]
       : []),
-    { title: "Patients", value: counts.patients, note: "Registered", href: "/clinic/patients" },
+    {
+      title: "New patients",
+      value: counts.newPatients,
+      note: `Registered ${per.phrase} · ${counts.patients} in all`,
+      href: "/clinic/patients",
+    },
     { title: "Team", value: counts.staff, note: clinicStaffSummary(), href: "/clinic/staff" },
   ];
 
   return (
     <div className="space-y-6">
+      {/* "Download PDF" saves the dashboard as it stands for the chosen period (owner,
+          2026-11-11). The picker, buttons, setup guide and forms are screen controls
+          and are left out; <ReportPeriod> writes the dates into the file instead. */}
+      <PrintFileName name={`Dashboard ${clinicRow?.name ?? ""} ${formatReportRange(range.start, range.end)}`.replace(/\s+/g, " ")} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Dashboard</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Your clinic at a glance.
           </p>
+          <ReportPeriod range={range} extra={clinicRow?.name} />
         </div>
-        {/* Gated on billingKpiOn, NOT financeKpiOn: the day book needs the sales
-            feature + billing:view, so gating on finance would show the button to a
-            clinic that lands on a notFound(). Same predicate the page itself uses. */}
-        {billingKpiOn ? (
-          <Link
-            href="/clinic/reports/daybook"
-            className={cn(buttonVariants({ variant: "outline" }))}
-          >
-            Day book
-            <ArrowRight aria-hidden="true" />
-          </Link>
-        ) : null}
+        <div className="no-print flex flex-wrap items-end gap-3">
+          <DashboardPeriod period={per.value} />
+          {/* The buttons sit on the period pills' centre line: the pill group is 34px
+              tall (h-7 + padding + border) and a small button 28px, so bottom-aligning
+              them left the buttons visibly low. Download PDF first, then Day book. */}
+          <div className="flex h-[2.125rem] items-center gap-2">
+            <PageDownloadPdf />
+            {/* Gated on billingKpiOn, NOT financeKpiOn: the day book needs the sales
+                feature + billing:view, so gating on finance would show the button to a
+                clinic that lands on a notFound(). Same predicate the page itself uses. */}
+            {billingKpiOn ? (
+              <Link
+                href="/clinic/reports/daybook"
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+              >
+                Day book
+                <ArrowRight aria-hidden="true" />
+              </Link>
+            ) : null}
+          </div>
+        </div>
       </div>
 
-      {showOnboarding ? <OnboardingChecklist steps={onboardingSteps} /> : null}
-
-      {/* Hero: Revenue Recovered — the top metric when the super admin enabled it. */}
-      {revenueEnabled ? (
-        <Card className="border-primary/40 bg-primary/5">
-          <CardHeader>
-            <CardDescription>Revenue recovered</CardDescription>
-            <CardTitle className="text-4xl text-primary-text">{money}</CardTitle>
-            <CardDescription>
-              {recovered} return visit{recovered === 1 ? "" : "s"} driven by
-              recall reminders ×{" "}
-              {new Intl.NumberFormat("en-PK").format(avgVisitValue)} PKR average
-              visit value.
-            </CardDescription>
-          </CardHeader>
-          {recoveredTrend.some((v) => v > 0) || isAdmin ? (
-            <CardContent className="space-y-3">
-              {recoveredTrend.some((v) => v > 0) ? (
-                <div>
-                  <Sparkline values={recoveredTrend} color="var(--brand-teal)" ariaLabel="Revenue recovered over the last 6 months" />
-                  <p className="text-xs text-muted-foreground">Recovered revenue · last 6 months</p>
-                </div>
-              ) : null}
-              {isAdmin ? <AvgVisitValueForm value={avgVisitValue} /> : null}
-            </CardContent>
-          ) : null}
-        </Card>
+      {showOnboarding ? (
+        <div className="no-print">
+          <OnboardingChecklist steps={onboardingSteps} />
+        </div>
       ) : null}
 
       {/* Finance KPIs — mirror the P&L cards: Collected − Doctor shares − Expenses =
@@ -276,12 +291,13 @@ export default async function ClinicDashboard() {
           {(() => {
             const fmt = (n: number) =>
               new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 }).format(n);
-            const loss = financeKpis.netProfit30d < 0;
+            const loss = financeKpis.netProfit < 0;
+            const sfx = `(${per.suffix})`;
             const kpis = [
-              { show: billingKpiOn || financeKpiOn, title: "Collected (30d)", value: fmt(financeKpis.collected30d), note: "Revenue received", href: financeKpiOn ? "/clinic/pl" : "/clinic/sales", tone: "default" as const, trend: financeKpis.collectedTrend, curr: financeKpis.collected30d, prev: financeKpis.collectedPrev30d, up: true, tint: "var(--color-chart-1)" },
-              { show: financeKpiOn, title: "Doctor shares (30d)", value: `− ${fmt(financeKpis.doctorShares30d)}`, note: "Earned on collection", href: "/clinic/pl", tone: "default" as const, trend: financeKpis.sharesTrend, curr: financeKpis.doctorShares30d, prev: financeKpis.doctorSharesPrev30d, up: "neutral" as const, tint: "var(--color-chart-2)" },
-              { show: financeKpiOn, title: "Expenses (30d)", value: `− ${fmt(financeKpis.expenses30d)}`, note: "Costs incurred", href: "/clinic/expenses", tone: "default" as const, trend: financeKpis.expenseTrend, curr: financeKpis.expenses30d, prev: financeKpis.expensesPrev30d, up: false, tint: "var(--color-warning)" },
-              { show: financeKpiOn, title: loss ? "Net loss (30d)" : "Net profit (30d)", value: fmt(Math.abs(financeKpis.netProfit30d)), note: "After shares + expenses", href: "/clinic/pl", tone: (loss ? "bad" : "good") as "bad" | "good", trend: financeKpis.profitTrend, curr: financeKpis.netProfit30d, prev: financeKpis.netProfitPrev30d, up: true, tint: loss ? "var(--color-destructive)" : "var(--color-success)" },
+              { show: billingKpiOn || financeKpiOn, title: `Collected ${sfx}`, value: fmt(financeKpis.collected), note: "Revenue received", href: financeKpiOn ? `/clinic/pl?${periodQs}` : `/clinic/sales?${periodQs}`, tone: "default" as const, trend: financeKpis.collectedTrend, curr: financeKpis.collected, prev: financeKpis.collectedPrev, up: true, tint: "var(--color-chart-1)" },
+              { show: financeKpiOn, title: `Doctor shares ${sfx}`, value: `− ${fmt(financeKpis.doctorShares)}`, note: "Earned on collection", href: `/clinic/pl?${periodQs}`, tone: "default" as const, trend: financeKpis.sharesTrend, curr: financeKpis.doctorShares, prev: financeKpis.doctorSharesPrev, up: "neutral" as const, tint: "var(--color-chart-2)" },
+              { show: financeKpiOn, title: `Expenses ${sfx}`, value: `− ${fmt(financeKpis.expenses)}`, note: "Costs incurred", href: `/clinic/expenses?${periodQs}`, tone: "default" as const, trend: financeKpis.expenseTrend, curr: financeKpis.expenses, prev: financeKpis.expensesPrev, up: false, tint: "var(--color-warning)" },
+              { show: financeKpiOn, title: loss ? `Net loss ${sfx}` : `Net profit ${sfx}`, value: fmt(Math.abs(financeKpis.netProfit)), note: "After shares + expenses", href: `/clinic/pl?${periodQs}`, tone: (loss ? "bad" : "good") as "bad" | "good", trend: financeKpis.profitTrend, curr: financeKpis.netProfit, prev: financeKpis.netProfitPrev, up: true, tint: loss ? "var(--color-destructive)" : "var(--color-success)" },
             ].filter((k) => k.show);
             return kpis.map((k) => (
               <Link key={k.title} href={k.href} className="h-full">
@@ -297,7 +313,7 @@ export default async function ClinicDashboard() {
                   // The same hue this measure wears in the money-flow chart below.
                   trendColor={k.tint}
                   tone={k.tone}
-                  comparisonLabel="vs previous 30 days"
+                  comparisonLabel={per.compare}
                 />
               </Link>
             ));
@@ -305,20 +321,19 @@ export default async function ClinicDashboard() {
         </div>
       ) : null}
 
-      {/* Money flow (last 30 days) — collected → −shares → −expenses → profit
-          (finance only). Tied to the SAME 30-day window as the KPI cards above so it
-          stays visible on a quiet day, instead of vanishing whenever today has no
-          collections yet. */}
-      {financeKpiOn && financeKpis && financeKpis.collected30d > 0 ? (
+      {/* Money flow over the period — collected → −shares → −expenses → profit
+          (finance only). The SAME window as the KPI cards above; hidden when nothing
+          was collected in it. */}
+      {financeKpiOn && financeKpis && financeKpis.collected > 0 ? (
         <Card>
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <CardTitle className="text-base">Money flow (30 days)</CardTitle>
-                <CardDescription>How the last 30 days&apos; collected revenue became profit.</CardDescription>
+                <CardTitle className="text-base">Money flow ({per.suffix})</CardTitle>
+                <CardDescription>How the revenue collected {per.phrase} became profit.</CardDescription>
               </div>
               <Link
-                href="/clinic/pl"
+                href={`/clinic/pl?${periodQs}`}
                 className="inline-flex min-h-7 items-center gap-1.5 text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
               >
                 Full report
@@ -328,12 +343,12 @@ export default async function ClinicDashboard() {
           </CardHeader>
           <CardContent>
             <WaterfallChart
-              ariaLabel="Last 30 days' collected revenue to net profit"
+              ariaLabel={`Revenue collected ${per.phrase} to net profit`}
               steps={[
-                { label: "Collected", value: financeKpis.collected30d, role: "start" },
-                { label: "− Shares", value: -financeKpis.doctorShares30d, role: "deduct", color: "var(--color-chart-2)" },
-                { label: "− Expenses", value: -financeKpis.expenses30d, role: "deduct", color: "var(--color-warning)" },
-                { label: financeKpis.netProfit30d < 0 ? "Net loss" : "Net profit", value: financeKpis.netProfit30d, role: "result" },
+                { label: "Collected", value: financeKpis.collected, role: "start" },
+                { label: "− Shares", value: -financeKpis.doctorShares, role: "deduct", color: "var(--color-chart-2)" },
+                { label: "− Expenses", value: -financeKpis.expenses, role: "deduct", color: "var(--color-warning)" },
+                { label: financeKpis.netProfit < 0 ? "Net loss" : "Net profit", value: financeKpis.netProfit, role: "result" },
               ]}
             />
           </CardContent>
@@ -385,10 +400,42 @@ export default async function ClinicDashboard() {
         </div>
       </Card>
 
+      {/* Revenue Recovered — at the foot of the figures (owner, 2026-11-11; it used to
+          lead the page), when the super admin enabled it. */}
+      {revenueEnabled ? (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardHeader>
+            <CardDescription>Revenue recovered ({per.suffix})</CardDescription>
+            <CardTitle className="text-4xl text-primary-text">{money}</CardTitle>
+            <CardDescription>
+              {recovered} return visit{recovered === 1 ? "" : "s"} driven by
+              recall reminders ×{" "}
+              {new Intl.NumberFormat("en-PK").format(avgVisitValue)} PKR average
+              visit value.
+            </CardDescription>
+          </CardHeader>
+          {(recoveredTrend.length > 1 && recoveredTrend.some((v) => v > 0)) || isAdmin ? (
+            <CardContent className="space-y-3">
+              {recoveredTrend.length > 1 && recoveredTrend.some((v) => v > 0) ? (
+                <div>
+                  <Sparkline values={recoveredTrend} color="var(--brand-teal)" ariaLabel={`Revenue recovered ${per.phrase}`} />
+                  <p className="text-xs text-muted-foreground">Recovered revenue · {per.title.toLowerCase()}</p>
+                </div>
+              ) : null}
+              {isAdmin ? (
+                <div className="no-print">
+                  <AvgVisitValueForm value={avgVisitValue} />
+                </div>
+              ) : null}
+            </CardContent>
+          ) : null}
+        </Card>
+      ) : null}
+
       {/* Doctor: manage your own leave / vacation (no separate nav page) — kept
           at the end of the dashboard. */}
       {isDoctor ? (
-        <Card>
+        <Card className="no-print">
           <CardHeader>
             <CardTitle>My leave</CardTitle>
             <CardDescription>

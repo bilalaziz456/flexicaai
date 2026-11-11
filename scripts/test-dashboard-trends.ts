@@ -30,7 +30,7 @@ import { isNull } from "drizzle-orm";
 import { db } from "../src/core/db";
 import { clinics } from "../src/core/db/schema";
 import { getFinanceKpis } from "../src/core/finance/kpis";
-import { getSalesSummary, resolveSalesRange } from "../src/core/sales/report";
+import { getSalesSummary, precedingRange, resolveSalesRange } from "../src/core/sales/report";
 
 let failures = 0;
 function ok(name: string, cond: boolean, detail = "") {
@@ -59,45 +59,66 @@ async function main() {
     return;
   }
 
-  const range = resolveSalesRange("30d", undefined, undefined);
-  const days = dayCount(range.start, range.end);
+  // "This month" is the 1st to today, and compares with the same days last month.
+  const month = resolveSalesRange("month", undefined, undefined);
+  const prevMonth = precedingRange(month);
+  ok("this month starts on the 1st", month.start.getDate() === 1 && month.start.getMonth() === new Date().getMonth());
+  ok(
+    "this month compares with the same days of last month",
+    prevMonth.start.getDate() === 1 &&
+      prevMonth.start.getMonth() === new Date(month.start.getFullYear(), month.start.getMonth() - 1, 1).getMonth() &&
+      prevMonth.end <= month.start &&
+      dayCount(prevMonth.start, prevMonth.end) <= dayCount(month.start, month.end),
+    `${prevMonth.start.toDateString()} – ${prevMonth.end.toDateString()}`,
+  );
 
-  for (const clinic of rows) {
-    console.log(`\n${clinic.name}`);
+  // Every period the dashboard offers (owner, 2026-11-11), plus the 30-day default.
+  for (const period of ["30d", "today", "month", "quarter", "half", "year"]) {
+    const range = resolveSalesRange(period, undefined, undefined);
+    const days = dayCount(range.start, range.end);
 
-    const kpis = await getFinanceKpis(clinic.id);
-    const last = kpis.payableTrend.at(-1);
-    ok(
-      "payable sparkline ends at the payable figure",
-      last === kpis.payableToDoctors,
-      `series ends ${last}, card shows ${kpis.payableToDoctors}`,
-    );
-    ok(
-      "payable sparkline has one point per day",
-      kpis.payableTrend.length === days,
-      `${kpis.payableTrend.length} points for ${days} days`,
-    );
-    // A running balance of clamped per-doctor positions can never be negative; a
-    // negative point would mean a doctor who OWES the clinic was allowed to reduce
-    // what is owed to everyone else.
-    ok(
-      "payable sparkline never goes negative",
-      kpis.payableTrend.every((v) => v >= 0),
-      `min ${Math.min(...kpis.payableTrend)}`,
-    );
+    for (const clinic of rows) {
+      console.log(`\n${clinic.name} · ${period}`);
 
-    const sales = await getSalesSummary(clinic.id, range);
-    const summed = sales.trend.reduce((a, v) => a + v, 0);
-    ok(
-      "net-sales sparkline sums to the net-sales figure",
-      summed === sales.netTotal,
-      `series sums to ${summed}, card shows ${sales.netTotal}`,
-    );
-    ok(
-      "net-sales sparkline has one point per day",
-      sales.trend.length === days,
-      `${sales.trend.length} points for ${days} days`,
-    );
+      const kpis = await getFinanceKpis(clinic.id, range);
+      ok(
+        "outstanding sparkline ends at the outstanding figure",
+        (kpis.outstandingTrend.at(-1) ?? 0) === kpis.outstandingReceivable,
+        `series ends ${kpis.outstandingTrend.at(-1)}, card shows ${kpis.outstandingReceivable}`,
+      );
+      const last = kpis.payableTrend.at(-1);
+      ok(
+        "payable sparkline ends at the payable figure",
+        last === kpis.payableToDoctors,
+        `series ends ${last}, card shows ${kpis.payableToDoctors}`,
+      );
+      ok(
+        "payable sparkline has one point per day",
+        kpis.payableTrend.length === days,
+        `${kpis.payableTrend.length} points for ${days} days`,
+      );
+      // A running balance of clamped per-doctor positions can never be negative; a
+      // negative point would mean a doctor who OWES the clinic was allowed to reduce
+      // what is owed to everyone else.
+      ok(
+        "payable sparkline never goes negative",
+        kpis.payableTrend.every((v) => v >= 0),
+        `min ${Math.min(...kpis.payableTrend)}`,
+      );
+
+      const sales = await getSalesSummary(clinic.id, range);
+      const summed = sales.trend.reduce((a, v) => a + v, 0);
+      ok(
+        "net-sales sparkline sums to the net-sales figure",
+        summed === sales.netTotal,
+        `series sums to ${summed}, card shows ${sales.netTotal}`,
+      );
+      ok(
+        "net-sales sparkline has one point per day",
+        sales.trend.length === days,
+        `${sales.trend.length} points for ${days} days`,
+      );
+    }
   }
 
   console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} FAILED\n`);

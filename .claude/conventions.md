@@ -469,7 +469,8 @@ throw — use it in tests.
   selecting no user column still joins `users` or fails at runtime.
 
 - **Invoices, Appointments and Sales open on TODAY and remember the period picked,
-  until sign-out** (owner's call, 2026-11-06). The proxy does it (`src/proxy.ts`
+  until sign-out** (owner's call, 2026-11-06). The clinic Dashboard remembers its
+  period the same way but opens on This month (2026-11-11). The proxy does it (`src/proxy.ts`
   `REMEMBERED_FILTER_PAGES`, mechanism in `core/lib/remembered-filters.ts`): a request
   carrying the page's date params saves them to a `flx_rf_*` cookie, a request carrying
   none is redirected to them. Only the DATE filter is remembered, never a search or

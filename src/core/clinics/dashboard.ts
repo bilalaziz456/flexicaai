@@ -1,11 +1,12 @@
 import "server-only";
 
-import { and, count, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, count, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
 import { appointments, patients, recalls, users } from "@/core/db/schema";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { CLINIC_STAFF_ROLES } from "@/core/types/auth";
 import { recallStatusId, appointmentStatusId } from "@/core/db/vocabulary-seed";
+import type { ResolvedRange } from "@/core/sales/report";
 
 /**
  * The clinic dashboard's numbers — CORE per ADR-014.
@@ -19,6 +20,9 @@ import { recallStatusId, appointmentStatusId } from "@/core/db/vocabulary-seed";
 export type DashboardCounts = {
   staff: number;
   patients: number;
+  /** Patients registered in the period. */
+  newPatients: number;
+  /** Recalls sent in the period (by when they went out, or were due if unstamped). */
   recallsSent: number;
   /** Scheduled or confirmed, from `now` forward. */
   upcoming: number;
@@ -29,8 +33,9 @@ export type DashboardCounts = {
 export async function getClinicDashboardCounts(
   clinicId: string,
   now: Date,
+  range: Pick<ResolvedRange, "start" | "end">,
 ): Promise<DashboardCounts> {
-  const [[staff], [pats], [sent], [soon], [ever]] = await Promise.all([
+  const [[staff], [pats], [fresh], [sent], [soon], [ever]] = await Promise.all([
     db
       .select({ value: count() })
       .from(users)
@@ -47,13 +52,28 @@ export async function getClinicDashboardCounts(
       .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt))),
     db
       .select({ value: count() })
+      .from(patients)
+      .where(
+        byClinic(
+          patients.clinicId,
+          clinicId,
+          notDeleted(patients.deletedAt),
+          and(gte(patients.createdAt, range.start), lt(patients.createdAt, range.end)),
+        ),
+      ),
+    db
+      .select({ value: count() })
       .from(recalls)
       .where(
         byClinic(
           recalls.clinicId,
           clinicId,
           notDeleted(recalls.deletedAt),
-          inArray(recalls.status, ["sent", "booked", "completed"]),
+          and(
+            inArray(recalls.status, ["sent", "booked", "completed"]),
+            sql`coalesce(${recalls.sentAt}, ${recalls.dueAt}) >= ${range.start}`,
+            sql`coalesce(${recalls.sentAt}, ${recalls.dueAt}) < ${range.end}`,
+          ),
         ),
       ),
     db
@@ -79,6 +99,7 @@ export async function getClinicDashboardCounts(
   return {
     staff: staff?.value ?? 0,
     patients: pats?.value ?? 0,
+    newPatients: fresh?.value ?? 0,
     recallsSent: sent?.value ?? 0,
     upcoming: soon?.value ?? 0,
     appointmentsEver: ever?.value ?? 0,
@@ -87,14 +108,18 @@ export async function getClinicDashboardCounts(
 
 /**
  * "Revenue Recovered": recalls that were SENT and were followed by a completed
- * appointment for that patient on or after the reminder went out.
+ * appointment for that patient on or after the reminder went out — counted in the
+ * period when that return visit falls in it.
  *
  * A correlated EXISTS — the analytics case where hand-written SQL on the same pool is
  * clearest (`core/db/index.ts` policy). `COALESCE(sent_at, due_at)` matters: a recall
  * marked sent without a timestamp would otherwise never match, quietly under-counting
  * the metric the product is sold on.
  */
-export async function getRecoveredCount(clinicId: string): Promise<number> {
+export async function getRecoveredCount(
+  clinicId: string,
+  range: Pick<ResolvedRange, "start" | "end">,
+): Promise<number> {
   const res = await db.execute(sql`
     SELECT count(DISTINCT r.id)::int AS recovered
     FROM recalls r
@@ -108,23 +133,32 @@ export async function getRecoveredCount(clinicId: string): Promise<number> {
           AND a.deleted_at IS NULL
           AND a.status = ${appointmentStatusId("completed")}
           AND a.scheduled_at >= COALESCE(r.sent_at, r.due_at)
+          AND a.scheduled_at >= ${range.start}
+          AND a.scheduled_at < ${range.end}
       )
   `);
   const rows = res.rows as { recovered?: number }[];
   return Number(rows[0]?.recovered ?? 0);
 }
 
-/** Recovered return VISITS per month for the last six months — the hero sparkline. */
+/**
+ * Recovered return VISITS per day (a period up to a month) or per month (longer), over
+ * the period — the hero sparkline. Keys are YYYY-MM-DD or YYYY-MM to match.
+ */
 export async function getRecoveredTrend(
   clinicId: string,
+  range: Pick<ResolvedRange, "start" | "end">,
+  unit: "day" | "month",
 ): Promise<{ m: string; n: number }[]> {
+  const fmt = unit === "day" ? "YYYY-MM-DD" : "YYYY-MM";
   const res = await db.execute(sql`
-    SELECT to_char(date_trunc('month', a.scheduled_at), 'YYYY-MM') AS m, count(*)::int AS n
+    SELECT to_char(date_trunc(${unit}, a.scheduled_at), ${fmt}) AS m, count(*)::int AS n
     FROM appointments a
     WHERE a.clinic_id = ${clinicId}
       AND a.deleted_at IS NULL
       AND a.status = ${appointmentStatusId("completed")}
-      AND a.scheduled_at >= date_trunc('month', now()) - interval '5 months'
+      AND a.scheduled_at >= ${range.start}
+      AND a.scheduled_at < ${range.end}
       AND EXISTS (
         SELECT 1 FROM recalls r
         WHERE r.patient_id = a.patient_id
