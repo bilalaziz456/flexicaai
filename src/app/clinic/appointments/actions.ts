@@ -47,7 +47,15 @@ import {
   doctorOnLeave,
   localDateStr,
 } from "@/core/appointments/availability";
-import { queueSessionKey, sameDoctorDay, withQueueNumber } from "@/core/appointments/queue";
+import {
+  QueueNumberTakenError,
+  queueNumberTaken,
+  queueSessionKey,
+  sameDoctorDay,
+  suggestQueueNumber,
+  withQueueNumber,
+} from "@/core/appointments/queue";
+import { queueNumberTakenMessage, requestedQueueNumberSchema } from "@/core/appointments/queue-number";
 import {
   applyClinicOffers,
   getAppointmentProcedureItems,
@@ -438,6 +446,20 @@ export async function createAppointment(
   // inside the doctor's hours anyway needs no override, so the flag is not stored.
   let customTime = false;
 
+  // An appointment number typed at the desk (owner, 2026-11-12) — e.g. #10 held for
+  // a patient coming in an hour. Posted only when typed; otherwise the next free
+  // number is taken as before. Means nothing without a doctor (no queue).
+  const typedNumber = requestedQueueNumberSchema.safeParse(formData.get("queueNumber") ?? undefined);
+  if (!typedNumber.success) return { error: zodErrorMessage(typedNumber.error) };
+  const requestedNumber = parsed.data.doctorId ? typedNumber.data : null;
+  if (
+    requestedNumber !== null &&
+    parsed.data.doctorId &&
+    (await queueNumberTaken(clinicId, parsed.data.doctorId, when, requestedNumber))
+  ) {
+    return { error: queueNumberTakenMessage(requestedNumber) };
+  }
+
   // Tenant guards: patient (and doctor, if set) must belong to this clinic.
   const patient = await findClinicPatient(clinicId, parsed.data.patientId);
   if (!patient) return { error: "Patient not found." };
@@ -479,7 +501,8 @@ export async function createAppointment(
   // Tag the appointment with the clinic's first enabled module (if any).
   const clinic = await getClinic(clinicId);
 
-  // Assign the patient's queue token within the doctor's window session.
+  // Assign the patient's queue token within the doctor's window session — the
+  // typed one if any, else the next free one.
   const created = await withQueueNumber(
     {
       clinicId,
@@ -487,6 +510,7 @@ export async function createAppointment(
       when,
       availability: queueAvailability,
       flexible: queueFlexible,
+      requested: requestedNumber,
     },
     (q) =>
       insertAppointment({
@@ -514,7 +538,12 @@ export async function createAppointment(
           queueSession: q.queueSession,
           queueNumber: q.queueNumber,
         }),
-  );
+  ).catch((e: unknown) => {
+    // Taken between the check above and the insert (another desk, same moment).
+    if (e instanceof QueueNumberTakenError) return null;
+    throw e;
+  });
+  if (!created) return { error: queueNumberTakenMessage(requestedNumber ?? 0) };
 
   // Attach the selected procedures (snapshotted prices) before notifying, so the
   // confirmation quotes the full total. Each line's performing doctor = the
@@ -959,6 +988,9 @@ export type DoctorDaySlots = {
   booked: number;
   remaining: number | null; // null = unlimited
   hours: string | null;
+  /** The appointment number the next booking would get (lowest free), shown on the
+   *  booking form and editable there. Null when the doctor is unknown. */
+  nextNumber: number | null;
 };
 
 /**
@@ -985,6 +1017,7 @@ export async function doctorDayAvailability(
       booked: 0,
       remaining: 0,
       hours: null,
+      nextNumber: null,
     };
   }
 
@@ -1015,7 +1048,9 @@ export async function doctorDayAvailability(
   const remaining =
     doc.dailyLimit > 0 ? Math.max(0, doc.dailyLimit - booked) : null;
 
-  return { available, onLeave, flexible, windows, limit: doc.dailyLimit, booked, remaining, hours };
+  const nextNumber = await suggestQueueNumber(clinicId, doctorId, when);
+
+  return { available, onLeave, flexible, windows, limit: doc.dailyLimit, booked, remaining, hours, nextNumber };
 }
 
 /**

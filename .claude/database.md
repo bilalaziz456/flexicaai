@@ -223,8 +223,11 @@ stays a request until staff confirm), `reminder_sent_at` (set once the day-befor
 reminder is sent; NULL = not reminded), `queue_session` (text, NULL when no doctor;
 groups a doctor's appointments for one visiting WINDOW on a day —
 `${doctorId}:${YYYY-MM-DD}:w{idx}`, or `:day` for flexible/no-window), `queue_number`
-(int, NULL when no doctor; FCFS patient token within that session, assigned at
-booking, stable across cancellations), timestamps. The net fee (doctor's
+(int, NULL when no doctor; the patient's appointment number, unique per doctor per
+DAY across that day's sessions; at booking the LOWEST number nobody holds that
+doctor-day, or one typed at the desk — e.g. #10 kept for a patient coming later,
+after which bookings take 6, 7, 8, 9, 11 (owner, 2026-11-12,
+`core/appointments/queue-number.ts`); stable across cancellations), timestamps. The net fee (doctor's
 `consultation_fee` − discount) is derived live via `core/appointments/fee.ts`, never
 stored, so a fee change flows through. Queue logic: `core/appointments/queue.ts`.
 Indexes: `clinic_id`; `patient_id`; (`clinic_id`,`scheduled_at`); `doctor_id`;

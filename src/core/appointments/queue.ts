@@ -12,6 +12,15 @@ import {
   type DayAvailability,
 } from "@/core/lib/availability";
 import { localDateStr } from "./availability";
+import { lowestFreeNumber } from "./queue-number";
+
+/** A number typed at the desk that another appointment of the doctor-day holds. */
+export class QueueNumberTakenError extends Error {
+  constructor(readonly number: number) {
+    super(`Queue number ${number} is taken`);
+    this.name = "QueueNumberTakenError";
+  }
+}
 
 /** 23505 = Postgres unique_violation, possibly nested on `err.cause`. */
 function isUniqueViolation(err: unknown): boolean {
@@ -77,8 +86,11 @@ export function sameDoctorDay(a: string | null, b: string | null): boolean {
 }
 
 /**
- * Next FCFS number = max existing + 1 across the doctor's WHOLE DAY (stable across
- * cancels).
+ * Next number = the LOWEST number nobody holds across the doctor's WHOLE DAY (stable
+ * across cancels: a cancelled or deleted visit keeps its number, so it is never given
+ * to someone else). Lowest-free rather than max + 1 because the desk can hold a later
+ * number for someone coming later (owner, 2026-11-12, `queue-number.ts`); without
+ * such a number the two are the same.
  *
  * Deliberately per doctor-day, not per session. A session is a display grouping —
  * one card per visiting window — but the TOKEN is what a patient is told and quotes
@@ -92,10 +104,9 @@ export function sameDoctorDay(a: string | null, b: string | null): boolean {
  * are automatically session-unique, so the existing
  * (clinic_id, queue_session, queue_number) index still holds.
  */
-async function nextQueueNumber(clinicId: string, session: string): Promise<number> {
-  const doctorDay = session.split(":").slice(0, 2).join(":");
-  const [row] = await db
-    .select({ max: sql<number>`coalesce(max(${appointments.queueNumber}), 0)` })
+async function takenQueueNumbers(clinicId: string, doctorDay: string): Promise<number[]> {
+  const rows = await db
+    .select({ n: appointments.queueNumber })
     .from(appointments)
     .where(
       and(
@@ -103,7 +114,27 @@ async function nextQueueNumber(clinicId: string, session: string): Promise<numbe
         like(appointments.queueSession, `${doctorDay}:%`),
       ),
     );
-  return Number(row?.max ?? 0) + 1;
+  return rows.map((r) => r.n).filter((n): n is number => n !== null);
+}
+
+async function nextQueueNumber(clinicId: string, session: string): Promise<number> {
+  const doctorDay = session.split(":").slice(0, 2).join(":");
+  return lowestFreeNumber(await takenQueueNumbers(clinicId, doctorDay));
+}
+
+/** The number the next booking with this doctor on this day would get. */
+export async function suggestQueueNumber(clinicId: string, doctorId: string, when: Date): Promise<number> {
+  return lowestFreeNumber(await takenQueueNumbers(clinicId, `${doctorId}:${localDateStr(when)}`));
+}
+
+/** Does another appointment of this doctor on this day already hold `n`? */
+export async function queueNumberTaken(
+  clinicId: string,
+  doctorId: string,
+  when: Date,
+  n: number,
+): Promise<boolean> {
+  return (await takenQueueNumbers(clinicId, `${doctorId}:${localDateStr(when)}`)).includes(n);
 }
 
 type QueueContext = {
@@ -112,6 +143,9 @@ type QueueContext = {
   when: Date;
   availability: DayAvailability[];
   flexible: boolean;
+  /** A number typed at the desk (checked free by the caller). Not retried: if it is
+   *  taken by the time the row is written, `QueueNumberTakenError` is thrown. */
+  requested?: number | null;
 };
 
 /**
@@ -126,10 +160,18 @@ export async function withQueueNumber<T>(
   ctx: QueueContext,
   write: (q: { queueSession: string | null; queueNumber: number | null }) => Promise<T>,
 ): Promise<T> {
-  const { clinicId, doctorId, when, availability, flexible } = ctx;
+  const { clinicId, doctorId, when, availability, flexible, requested } = ctx;
   if (!doctorId) return write({ queueSession: null, queueNumber: null });
 
   const session = queueSessionKey(doctorId, when, availability, flexible);
+  if (requested) {
+    try {
+      return await write({ queueSession: session, queueNumber: requested });
+    } catch (err) {
+      if (isUniqueViolation(err)) throw new QueueNumberTakenError(requested);
+      throw err;
+    }
+  }
   for (let attempt = 0; ; attempt++) {
     const queueNumber = await nextQueueNumber(clinicId, session);
     try {

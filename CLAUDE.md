@@ -383,6 +383,11 @@ are in `.env.example`.
   `consultation_fee`. One validator — `core/appointments/availability.ts#checkDoctorSlot`
   — is enforced by both booking and reschedule. Seen as a week grid at
   `/clinic/schedule` (who is in, who is away, what is booked against them).
+  **Appointment number** (owner, 2026-11-12): once a doctor and date are picked, the
+  booking form shows the number this visit will get — the lowest free number for that
+  doctor that day — and staff may type another (#10 for a patient coming in an hour;
+  the next bookings then take 6, 7, 8, 9, 11). A number already given is refused.
+  Posted only when changed, so an untouched one is picked again at save time.
   **ACL: `schedule`** — `view` for everyone in the clinic (a doctor sees only their own
   row), `edit` (the daily cap) for clinic admin + manager. The full editor — hours,
   flexible hours, fee — stays on the staff record behind `requireClinicAdmin()`.

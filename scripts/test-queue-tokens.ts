@@ -8,6 +8,9 @@
  * evening clinic two "#1"s, and a custom-time visit — which falls outside every window
  * into the `:day` bucket — a third.
  *
+ * And the desk may HOLD a number (owner, 2026-11-12): #10 for a patient coming in an
+ * hour while #5 is the last booked, after which bookings take 6, 7, 8, 9 and then 11.
+ *
  * Also pins the label: `:day` means "flexible/unscheduled" for a doctor with no windows
  * and "outside the hours" for one who has them, and those must not read alike.
  */
@@ -15,7 +18,16 @@ import { eq } from "drizzle-orm";
 import { db } from "@/core/db";
 import { unscoped } from "@/core/db/tenant-guard";
 import { appointments, clinics, patients, users } from "@/core/db/schema";
-import { getDayQueue, queueSessionKey, sameDoctorDay, withQueueNumber } from "@/core/appointments/queue";
+import {
+  QueueNumberTakenError,
+  getDayQueue,
+  queueNumberTaken,
+  queueSessionKey,
+  sameDoctorDay,
+  suggestQueueNumber,
+  withQueueNumber,
+} from "@/core/appointments/queue";
+import { lowestFreeNumber, requestedQueueNumberSchema } from "@/core/appointments/queue-number";
 
 let pass = 0;
 let fail = 0;
@@ -75,9 +87,9 @@ async function main() {
     const at = (h: number) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, 0, 0, 0);
 
     /** Book through the real assignment path and return the token it handed out. */
-    const book = async (doctorId: string, hour: number, av: typeof availability) =>
+    const book = async (doctorId: string, hour: number, av: typeof availability, requested?: number) =>
       withQueueNumber(
-        { clinicId: clinic.id, doctorId, when: at(hour), availability: av, flexible: false },
+        { clinicId: clinic.id, doctorId, when: at(hour), availability: av, flexible: false, requested },
         async (q) => {
           await db.insert(appointments).values({
             clinicId: clinic.id,
@@ -173,6 +185,33 @@ async function main() {
       labels.w0?.windowLabel !== "Outside visiting hours" &&
         labels.w0?.windowLabel !== "Any time",
     );
+
+    // ── A number held out of turn ─────────────────────────────────────────
+    console.log("\nA number kept for a later patient\n");
+    ok("lowest free: none taken → 1", lowestFreeNumber([]) === 1);
+    ok("lowest free: 1–5 and 10 taken → 6", lowestFreeNumber([1, 2, 3, 4, 5, 10]) === 6);
+    ok("lowest free: 1–10 taken → 11", lowestFreeNumber([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) === 11);
+    ok("a blank number means 'next free'", requestedQueueNumberSchema.safeParse("").data === null);
+    ok("0 is refused", !requestedQueueNumberSchema.safeParse("0").success);
+    ok("1000 is refused", !requestedQueueNumberSchema.safeParse("1000").success);
+
+    const desk = await mk("Desk", []);
+    for (let i = 0; i < 5; i++) await book(desk.id, 10, []);
+    ok("after five bookings the form offers #6", (await suggestQueueNumber(clinic.id, desk.id, at(10))) === 6);
+    const held = await book(desk.id, 10, [], 10);
+    ok("the desk can give #10 instead", held.queueNumber === 10, `got ${held.queueNumber}`);
+    ok("#10 now counts as taken", await queueNumberTaken(clinic.id, desk.id, at(10), 10));
+    ok("…and only for that doctor", !(await queueNumberTaken(clinic.id, windowed.id, at(10), 10)));
+    const next: (number | null)[] = [];
+    for (let i = 0; i < 5; i++) next.push((await book(desk.id, 10, [])).queueNumber);
+    ok("the next bookings take 6, 7, 8, 9, then 11", next.join(",") === "6,7,8,9,11", next.join(","));
+    let refused = false;
+    try {
+      await book(desk.id, 10, [], 10);
+    } catch (e) {
+      refused = e instanceof QueueNumberTakenError;
+    }
+    ok("typing a number already given is refused, never doubled", refused);
 
     await db.delete(appointments).where(eq(appointments.clinicId, clinic.id));
     await db.delete(patients).where(eq(patients.clinicId, clinic.id));

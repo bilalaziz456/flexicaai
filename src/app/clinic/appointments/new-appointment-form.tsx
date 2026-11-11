@@ -36,6 +36,7 @@ import {
 import type { BookablePlanItem } from "@/core/patients/treatment-plans";
 import { useDiscountDefault } from "@/app/clinic/discount-default-context";
 import { consultationSharePart, procedureSharePart, weightedSharePart } from "@/core/clinics/discount-default";
+import { MAX_QUEUE_NUMBER } from "@/core/appointments/queue-number";
 import {
   MAX_DISCOUNT_PERCENT,
   computeBill,
@@ -496,6 +497,12 @@ export function NewAppointmentForm({
   // a round trip after hydration, and a moment where the form offered times the
   // doctor does not work. The create flow has no doctor yet, so it passes nothing.
   const [slots, setSlots] = useState<DoctorDaySlots | null>(initialSlots ?? null);
+  // The appointment number (owner, 2026-11-12): the doctor-day's next free number,
+  // which the desk may change — #10 for a patient coming in an hour, while the next
+  // bookings take 6, 7, 8, 9. `null` = not typed, so the server picks the next free
+  // number at save time (it may have moved on since the form loaded). Reset when the
+  // doctor or the date changes, since a number belongs to one doctor-day.
+  const [typedNumber, setTypedNumber] = useState<string | null>(null);
   const action = isEdit
     ? updateAppointment.bind(null, appointmentId!)
     : createAppointment;
@@ -560,6 +567,15 @@ export function NewAppointmentForm({
   }
 
   const selectedDoctor = doctors.find((d) => d.id === doctorId) ?? null;
+  // Only a NEW booking with a doctor has a number to pick (a visit with no doctor is
+  // not queued; editing keeps the number it has).
+  const showNumber = !isEdit && !newInvoice && Boolean(doctorId);
+  const suggestedNumber = slots?.nextNumber ? String(slots.nextNumber) : "";
+  const shownNumber = typedNumber ?? suggestedNumber;
+  // Posted only when it differs from the suggestion: an untouched number is chosen
+  // again by the server at save time, so two desks booking at once do not collide.
+  const heldNumber =
+    showNumber && typedNumber !== null && typedNumber !== "" && typedNumber !== suggestedNumber ? typedNumber : "";
   const doctorOptions = [
     { value: "", label: "— Any —" },
     ...doctors.map((d) => ({ value: d.id, label: d.fullName ?? d.username })),
@@ -739,6 +755,7 @@ export function NewAppointmentForm({
             value={doctorId}
             onChange={(v) => {
               setDoctorId(v);
+              setTypedNumber(null);
               void refreshSlots(v, date);
             }}
             options={doctorOptions}
@@ -749,20 +766,46 @@ export function NewAppointmentForm({
         {newInvoice ? (
           <input type="hidden" name="durationMinutes" value={duration} />
         ) : (
-          <div className="space-y-2">
-            <Label htmlFor="durationMinutes">Duration (minutes)</Label>
-            <Input
-              id="durationMinutes"
-              name="durationMinutes"
-              type="number"
-              min={5}
-              max={480}
-              step={5}
-              value={duration}
-              onChange={(e) => setDuration(Number(e.target.value))}
-            />
+          <div className={cn(showNumber && "grid grid-cols-2 gap-4")}>
+            {showNumber ? (
+              <div className="space-y-2">
+                <Label htmlFor="queueNumber">Appointment no.</Label>
+                <Input
+                  id="queueNumber"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={MAX_QUEUE_NUMBER}
+                  value={shownNumber}
+                  placeholder={date ? "…" : "Pick a date"}
+                  disabled={!date}
+                  onChange={(e) => setTypedNumber(e.target.value.replace(/[^\d]/g, "").slice(0, 3))}
+                />
+              </div>
+            ) : null}
+            <div className="space-y-2">
+              <Label htmlFor="durationMinutes">Duration (minutes)</Label>
+              <Input
+                id="durationMinutes"
+                name="durationMinutes"
+                type="number"
+                min={5}
+                max={480}
+                step={5}
+                value={duration}
+                onChange={(e) => setDuration(Number(e.target.value))}
+              />
+            </div>
+            {showNumber && date && slots?.nextNumber ? (
+              <p className="col-span-2 -mt-2 text-xs text-muted-foreground">
+                {heldNumber
+                  ? `Number ${heldNumber} is kept for this patient; the next booking still takes ${slots.nextNumber}.`
+                  : "The next free number for this doctor on this day. Type another to keep a later number for this patient."}
+              </p>
+            ) : null}
           </div>
         )}
+        {heldNumber ? <input type="hidden" name="queueNumber" value={heldNumber} /> : null}
 
         <div className="space-y-2">
           <Label htmlFor="date">Date</Label>
@@ -772,6 +815,7 @@ export function NewAppointmentForm({
             value={date}
             onChange={(v) => {
               setDate(v);
+              setTypedNumber(null);
               void refreshSlots(doctorId, v);
             }}
           />
