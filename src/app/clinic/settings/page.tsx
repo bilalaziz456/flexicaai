@@ -17,6 +17,8 @@ import {
 } from "@/core/ui/account-forms";
 import { PrintingForm } from "./printing-form";
 import { PublicContactForm } from "./public-contact-form";
+import { DiscountDefaultForm } from "./discount-default-form";
+import { discountDefaultOf } from "@/core/clinics/discount-default";
 
 function initialsOf(name: string): string {
   return name
@@ -164,6 +166,20 @@ export default async function ClinicSettingsPage() {
               address={clinic.publicAddress}
               hours={clinic.openingHours ?? null}
             />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {clinic ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Discounts</CardTitle>
+            <CardDescription>
+              Who bears a new discount: the clinic, the doctor, or both.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DiscountDefaultForm value={discountDefaultOf(clinic)} />
           </CardContent>
         </Card>
       ) : null}

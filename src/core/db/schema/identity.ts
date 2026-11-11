@@ -4,6 +4,7 @@ import {
   type AnyPgColumn,
   bigint,
   boolean,
+  check,
   date,
   index,
   integer,
@@ -25,9 +26,12 @@ import {
   CLINIC_STATUS_ROWS,
   BILLING_CYCLE_ROWS,
   INVOICE_PAPER_ROWS,
+  DISCOUNT_BEARER_ROWS,
+  discountBearerId,
   type ClinicStatusCode,
   type BillingCycleCode,
   type InvoicePaperCode,
+  type DiscountBearerCode,
 } from "@/core/db/vocabulary-seed";
 import {
   userRoles,
@@ -36,6 +40,7 @@ import {
   clinicStatuses,
   billingCycles,
   invoicePapers,
+  discountBearers,
 } from "@/core/db/schema/vocabulary";
 
 /**
@@ -182,6 +187,19 @@ export const clinics = pgTable(
       .array()
       .notNull()
       .default(sql`ARRAY['thermal','a5','a4']::text[]`),
+    /**
+     * Who bears a NEW patient discount until someone picks otherwise — the clinic,
+     * the visit's doctor, or a split (owner, 2026-11-11; migration 0147). A split's
+     * doctor part is that doctor's own share % on the line (20% share → 20% of the
+     * discount), so there is no percentage to store. Set by the clinic admin in
+     * Settings. Only a starting choice: every discount still shows its own Clinic /
+     * Doctor / Split and keeps what was chosen on it. Never "proportional", which is
+     * for clinic offers only (CHECK below).
+     */
+    defaultDiscountBorneBy: vocabularyRef<DiscountBearerCode>(DISCOUNT_BEARER_ROWS, "default_discount_borne_by_id")
+      .notNull()
+      .default("clinic")
+      .references(() => discountBearers.id),
     invoicePrefix: text("invoice_prefix").notNull().default("INV-"),
     nextInvoiceNo: integer("next_invoice_no").notNull().default(100001),
     // Informational since migration 0121: numbers are ONE running series per clinic
@@ -329,6 +347,12 @@ export const clinics = pgTable(
     // Fast case-insensitive contains-search (ILIKE '%q%') on name via pg_trgm.
     // A plain btree can't serve a leading-wildcard LIKE; a GIN trigram index can.
     index("clinics_name_trgm_idx").using("gin", t.name.op("gin_trgm_ops")),
+    // The default discount bearer is a PATIENT discount's — never an offer's "In
+    // proportion".
+    check(
+      "clinics_default_bearer_not_proportional",
+      sql`${t.defaultDiscountBorneBy} <> ${sql.raw(String(discountBearerId("proportional")))}`,
+    ),
     // Trash listing (super admin): only the trashed rows.
     index("clinics_deleted_idx")
       .on(t.deletedAt)

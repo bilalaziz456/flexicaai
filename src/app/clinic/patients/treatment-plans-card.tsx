@@ -24,6 +24,8 @@ import {
 import { computePlanBill, discountByLabel, type PlanBearer } from "@/core/patients/plan-bill";
 import { MAX_DISCOUNT_PERCENT, type DiscountType } from "@/core/appointments/fee";
 import { describeOfferAmount, offerLabel } from "@/core/appointments/procedure-offer";
+import { useDiscountDefault } from "@/app/clinic/discount-default-context";
+import { procedureSharePart } from "@/core/clinics/discount-default";
 import {
   TREATMENT_ITEM_STATUS_ROWS,
   TREATMENT_PLAN_STATUS_ROWS,
@@ -698,9 +700,22 @@ function TermsForm({
   const [doctorId, setDoctorId] = useState(plan.doctorId ?? "");
   const [type, setType] = useState<DiscountType>(plan.discountType);
   const [value, setValue] = useState(plan.discountValue ? String(plan.discountValue) : "");
-  const [borneBy, setBorneBy] = useState<PlanBearer>(plan.borneBy);
-  const [splitType, setSplitType] = useState<DiscountType>(plan.splitType);
-  const [splitValue, setSplitValue] = useState(plan.splitValue ? String(plan.splitValue) : "");
+  // A plan with no discount anywhere yet starts on the clinic's default bearer (owner,
+  // 2026-11-11); one that has discounts keeps the bearer it was saved with.
+  const discountDefault = useDiscountDefault();
+  const fresh = plan.discountValue === 0 && plan.items.every((i) => i.discountValue === 0);
+  const [borneBy, setBorneBy] = useState<PlanBearer>(fresh ? discountDefault.borneBy : plan.borneBy);
+  const [splitType, setSplitType] = useState<DiscountType>(fresh ? "percent" : plan.splitType);
+  const [splitValue, setSplitValue] = useState(() => (fresh ? "" : plan.splitValue ? String(plan.splitValue) : ""));
+  // A split with no part typed FOLLOWS the plan doctor's procedure share (owner,
+  // 2026-11-11: a doctor who earns 20% bears 20% of the discount), until someone types
+  // a part. Only where the shares are known (`shareRates`).
+  const [splitAuto, setSplitAuto] = useState(fresh && discountDefault.borneBy === "split");
+  const autoSplit = splitAuto && borneBy === "split" && discountDefault.shareRates !== null;
+  const shownSplitType: DiscountType = autoSplit ? "percent" : splitType;
+  const shownSplitValue = autoSplit
+    ? String(procedureSharePart(discountDefault.shareRates ?? {}, doctorId || null, null))
+    : splitValue;
   const needsDoctor = borneBy !== "clinic" && !doctorId;
   return (
     <div className="space-y-3 rounded-md border well p-2.5">
@@ -730,13 +745,29 @@ function TermsForm({
               role="radio"
               aria-checked={borneBy === b.value}
               variant={borneBy === b.value ? "default" : "outline"}
-              onClick={() => setBorneBy(b.value)}
+              onClick={() => {
+                setBorneBy(b.value);
+                if (b.value === "split" && splitValue === "") setSplitAuto(true);
+              }}
             >
               {b.label}
             </Button>
           ))}
           {borneBy === "split" ? (
-            <DiscountInput label="Doctor's part" type={splitType} value={splitValue} onType={setSplitType} onValue={setSplitValue} />
+            <DiscountInput
+              label="Doctor's part"
+              type={shownSplitType}
+              value={shownSplitValue}
+              onType={(t) => {
+                setSplitValue(shownSplitValue);
+                setSplitAuto(false);
+                setSplitType(t);
+              }}
+              onValue={(v) => {
+                setSplitAuto(false);
+                setSplitValue(v);
+              }}
+            />
           ) : null}
         </div>
         <p className="text-xs text-muted-foreground">
@@ -755,8 +786,8 @@ function TermsForm({
               discountType: type,
               discountValue: Number(value) || 0,
               borneBy,
-              splitType,
-              splitValue: Number(splitValue) || 0,
+              splitType: shownSplitType,
+              splitValue: Number(shownSplitValue) || 0,
             })
           }
         >

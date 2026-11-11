@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { setInvoicePapers, setPublicContact } from "@/core/clinics/settings";
+import { setDiscountDefault, setInvoicePapers, setPublicContact } from "@/core/clinics/settings";
+import { discountDefaultSchema } from "@/core/clinics/discount-default";
+import { zodErrorMessage } from "@/core/lib/zod-error";
 import { parsePublicContact } from "@/core/clinics/public-contact";
 import { requireWorkspace } from "@/core/auth/user";
 import { logActivity } from "@/core/audit/log";
@@ -86,5 +88,38 @@ export async function setClinicPublicContact(
     summary: "Updated the clinic's public address and opening hours",
   });
   revalidatePath("/clinic/settings");
+  return { saved: true };
+}
+
+/**
+ * Who bears a new patient discount by default — the clinic, the doctor, or a split in
+ * which the doctor bears their own share % (owner, 2026-11-11). Clinic-admin only, like the rest of the
+ * clinic-wide settings. Discounts already given are not touched.
+ */
+export async function setClinicDiscountDefault(
+  _prev: SettingsActionState,
+  formData: FormData,
+): Promise<SettingsActionState> {
+  const user = await requireWorkspace();
+  if (user.role !== "clinic_admin" || !user.clinicId) {
+    return { error: "Only the clinic admin can change the discount default." };
+  }
+
+  const parsed = discountDefaultSchema.safeParse({ borneBy: formData.get("borneBy") });
+  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
+  const { borneBy } = parsed.data;
+  await setDiscountDefault(user.clinicId, borneBy);
+
+  await logActivity({
+    action: "update",
+    entity: "settings",
+    clinicId: user.clinicId,
+    summary:
+      borneBy === "split"
+        ? "New discounts are split by default, the doctor bearing their own share %"
+        : `New discounts are borne by the ${borneBy} by default`,
+  });
+  // The layout hands the default to every discount box in the workspace.
+  revalidatePath("/clinic", "layout");
   return { saved: true };
 }

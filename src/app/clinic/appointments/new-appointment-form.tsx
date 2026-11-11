@@ -28,11 +28,14 @@ import {
   LineDiscountEditor,
   NO_LINE_DISC,
   encodeLineDisc,
+  withSharePart,
   lineDiscFrom,
   lineDiscValue,
   type LineDisc,
 } from "@/app/clinic/appointments/line-discount";
 import type { BookablePlanItem } from "@/core/patients/treatment-plans";
+import { useDiscountDefault } from "@/app/clinic/discount-default-context";
+import { consultationSharePart, procedureSharePart, weightedSharePart } from "@/core/clinics/discount-default";
 import {
   MAX_DISCOUNT_PERCENT,
   computeBill,
@@ -231,19 +234,28 @@ export function NewAppointmentForm({
   const discountNumber = Math.max(0, Number(discountValue) || 0);
   // Who absorbs the discount: the clinic, the appointment's doctor, or split between
   // them (only matters once a discount is entered).
-  const [borneBy, setBorneBy] = useState<"clinic" | "doctor" | "split">(
-    initial?.discountBorneBy === "doctor" || initial?.discountBorneBy === "split"
+  // A visit with no discount yet starts on the clinic's default (Settings, owner
+  // 2026-11-11); one that has a discount keeps the bearer it was saved with.
+  const discountDefault = useDiscountDefault();
+  const hasSavedDiscount = (initial?.discountValue ?? 0) > 0;
+  const [borneBy, setBorneBy] = useState<"clinic" | "doctor" | "split">(() => {
+    if (!hasSavedDiscount) return discountDefault.borneBy;
+    return initial?.discountBorneBy === "doctor" || initial?.discountBorneBy === "split"
       ? initial.discountBorneBy
-      : "clinic",
-  );
+      : "clinic";
+  });
   // For borne-by = "split": how much of the discount the DOCTOR side bears.
   const [splitType, setSplitType] = useState<DiscountType>(
-    initial?.discountSplitType === "amount" ? "amount" : "percent",
+    hasSavedDiscount && initial?.discountSplitType === "amount" ? "amount" : "percent",
   );
-  const [splitValue, setSplitValue] = useState(
-    initial?.discountSplitValue ? String(initial.discountSplitValue) : "",
+  const [splitValue, setSplitValue] = useState(() =>
+    hasSavedDiscount && initial?.discountSplitValue ? String(initial.discountSplitValue) : "",
   );
-  const splitNumber = Math.max(0, Number(splitValue) || 0);
+  // A split with no part typed FOLLOWS the doctor's share of the visit (owner,
+  // 2026-11-11: a doctor who earns 20% bears 20% of the discount) — resolved below,
+  // once the bill is known, and dropped the moment someone types a part.
+  const [splitAuto, setSplitAuto] = useState(!hasSavedDiscount && discountDefault.borneBy === "split");
+  const shareRates = discountDefault.shareRates;
   // A procedure-only visit can skip the doctor's consultation fee.
   // A new invoice starts WITHOUT the consultation fee (owner's call, 2026-10-12): it
   // is usually for procedures, and the fee is ticked on when it applies.
@@ -278,10 +290,15 @@ export function NewAppointmentForm({
     for (const it of initial?.procedures ?? []) m.set(it.procedureId, lineDiscFrom(it.patientDiscount));
     return m;
   });
-  const discOf = (id: string) => lineDisc.get(id) ?? NO_LINE_DISC;
+  // A line's split part follows the doctor's share on that procedure while it is
+  // automatic (`withSharePart`); services and charges are the clinic's, so unaffected.
+  const discOf = (id: string) =>
+    withSharePart(lineDisc.get(id) ?? NO_LINE_DISC, shareRates ? procedureSharePart(shareRates, doctorId, id) : null);
   const patchLineDisc = (id: string, d: LineDisc) =>
     setLineDisc((prev) => new Map(prev).set(id, d));
   const [consultDisc, setConsultDisc] = useState<LineDisc>(() => lineDiscFrom(initial?.consultationDiscount));
+  // The consultation's split part follows the doctor's consultation share.
+  const consultEff = withSharePart(consultDisc, shareRates ? consultationSharePart(shareRates, doctorId) : null);
   // Selected services → quantity + the price on THIS bill (starts at the list price,
   // or what an edited visit was billed at).
   type SvcState = { quantity: number; price: string };
@@ -554,8 +571,30 @@ export function NewAppointmentForm({
     billLines,
     discountType,
     discountNumber,
-    { type: consultDisc.type, value: lineDiscValue(consultDisc) },
+    { type: consultEff.type, value: lineDiscValue(consultEff) },
   );
+  // The whole-visit split part, when automatic: the doctor's share of the bill —
+  // each line's share weighted by what it costs (services and charges earn none).
+  const visitSharePart = shareRates
+    ? weightedSharePart([
+        {
+          amount: chargeConsultation ? consultationFee - computeFee(consultationFee, consultEff.type, lineDiscValue(consultEff)).discount : 0,
+          pct: consultationSharePart(shareRates, doctorId),
+        },
+        ...procedures
+          .filter((p) => procSel.has(p.id))
+          .map((p) => ({ amount: procLine(p)?.net ?? 0, pct: procedureSharePart(shareRates, doctorId, p.id) })),
+        ...selectedPlanItems.map((it) => ({
+          amount: it.unitPrice * it.quantity,
+          pct: procedureSharePart(shareRates, doctorId, null),
+        })),
+        { amount: otherChargesTotal, pct: 0 },
+      ])
+    : null;
+  const autoSplit = splitAuto && borneBy === "split" && visitSharePart !== null;
+  const shownSplitType: DiscountType = autoSplit ? "percent" : splitType;
+  const shownSplitValue = autoSplit ? String(visitSharePart) : splitValue;
+  const splitNumber = Math.max(0, Number(shownSplitValue) || 0);
   // A custom time frees the picker exactly as a flexible doctor does — the server
   // applies the same relaxation (checkDoctorSlot's `customTime`), so the form can
   // never offer a time the action would then refuse.
@@ -884,7 +923,7 @@ export function NewAppointmentForm({
               {chargeConsultation ? (
                 <LineDiscountEditor
                   label="Consultation"
-                  value={consultDisc}
+                  value={consultEff}
                   onChange={setConsultDisc}
                   base={consultationFee}
                   bearerChoice
@@ -908,17 +947,17 @@ export function NewAppointmentForm({
         {(() => {
           // Sent always, so an edit that clears it records "none".
           const on = Boolean(selectedDoctor) && consultationFee > 0 && chargeConsultation;
-          const v = on ? lineDiscValue(consultDisc) : 0;
+          const v = on ? lineDiscValue(consultEff) : 0;
           return (
             <>
-              <input type="hidden" name="consultationDiscountType" value={consultDisc.type} />
+              <input type="hidden" name="consultationDiscountType" value={consultEff.type} />
               <input type="hidden" name="consultationDiscountValue" value={String(v)} />
-              <input type="hidden" name="consultationBorneBy" value={v > 0 ? consultDisc.borneBy : "clinic"} />
-              <input type="hidden" name="consultationSplitType" value={consultDisc.splitType} />
+              <input type="hidden" name="consultationBorneBy" value={v > 0 ? consultEff.borneBy : "clinic"} />
+              <input type="hidden" name="consultationSplitType" value={consultEff.splitType} />
               <input
                 type="hidden"
                 name="consultationSplitValue"
-                value={v > 0 && consultDisc.borneBy === "split" ? String(Math.max(0, Math.round(Number(consultDisc.splitValue) || 0))) : "0"}
+                value={v > 0 && consultEff.borneBy === "split" ? String(Math.max(0, Math.round(Number(consultEff.splitValue) || 0))) : "0"}
               />
             </>
           );
@@ -1340,9 +1379,11 @@ export function NewAppointmentForm({
           {/* Who absorbs the discount in the doctor/clinic revenue split. Only
               relevant once a discount is entered. Submitted always so an edit that
               clears the discount still records a sane value. */}
-          <input type="hidden" name="discountBorneBy" value={borneBy} />
-          <input type="hidden" name="discountSplitType" value={splitType} />
-          <input type="hidden" name="discountSplitValue" value={borneBy === "split" ? String(splitNumber) : "0"} />
+          {/* With no discount the bearer means nothing, so it goes as the clinic —
+              a default of "Doctor" must not mark a visit with no discount as one. */}
+          <input type="hidden" name="discountBorneBy" value={discountNumber > 0 ? borneBy : "clinic"} />
+          <input type="hidden" name="discountSplitType" value={shownSplitType} />
+          <input type="hidden" name="discountSplitValue" value={discountNumber > 0 && borneBy === "split" ? String(splitNumber) : "0"} />
           {discountNumber > 0 ? (
             <div className="space-y-1.5 pt-1">
               <Label className="text-xs text-muted-foreground">Discount borne by</Label>
@@ -1361,7 +1402,11 @@ export function NewAppointmentForm({
                       type="button"
                       role="radio"
                       aria-checked={checked}
-                      onClick={() => setBorneBy(val)}
+                      onClick={() => {
+                        setBorneBy(val);
+                        // Split picked with no part typed follows the doctor's share.
+                        if (val === "split" && splitValue === "") setSplitAuto(true);
+                      }}
                       className={cn(
                         "rounded-lg border px-3 py-1.5 text-sm transition-colors",
                         checked ? "border-primary bg-primary/10" : "hover:bg-accent",
@@ -1382,7 +1427,7 @@ export function NewAppointmentForm({
               {borneBy === "split" ? (
                 (() => {
                   const doctorBorne =
-                    splitType === "amount"
+                    shownSplitType === "amount"
                       ? Math.min(splitNumber, bill.appointmentDiscount)
                       : Math.round((bill.appointmentDiscount * splitNumber) / 100);
                   const clinicBorne = Math.max(0, bill.appointmentDiscount - doctorBorne);
@@ -1391,8 +1436,12 @@ export function NewAppointmentForm({
                       <Label className="text-xs text-muted-foreground">Doctor bears</Label>
                       <div className="flex gap-2">
                         <SelectField
-                          value={splitType}
-                          onValueChange={(next) => setSplitType(next as DiscountType)}
+                          value={shownSplitType}
+                          onValueChange={(next) => {
+                            setSplitValue(shownSplitValue);
+                            setSplitAuto(false);
+                            setSplitType(next as DiscountType);
+                          }}
                           options={[
                             { value: "percent", label: "Percent (%)" },
                             { value: "amount", label: "Amount (Rs)" },
@@ -1404,22 +1453,29 @@ export function NewAppointmentForm({
                           type="number"
                           inputMode="numeric"
                           min={0}
-                          max={splitType === "percent" ? MAX_DISCOUNT_PERCENT : bill.appointmentDiscount || undefined}
-                          step={splitType === "percent" ? 5 : 50}
-                          value={splitValue}
+                          max={shownSplitType === "percent" ? MAX_DISCOUNT_PERCENT : bill.appointmentDiscount || undefined}
+                          step={shownSplitType === "percent" ? 5 : 50}
+                          value={shownSplitValue}
                           onChange={(e) => {
-                            // Same clamp as the discount field above.
+                            // Same clamp as the discount field above. Typing a part
+                            // stops it following the doctor's share.
                             const v = e.target.value.replace(/[^\d]/g, "");
+                            setSplitAuto(false);
                             setSplitValue(
-                              splitType === "percent" && v !== ""
+                              shownSplitType === "percent" && v !== ""
                                 ? String(Math.min(Number(v), MAX_DISCOUNT_PERCENT))
                                 : v,
                             );
                           }}
-                          placeholder={splitType === "percent" ? "e.g. 50" : "e.g. 250"}
+                          placeholder={shownSplitType === "percent" ? "e.g. 50" : "e.g. 250"}
                           aria-label="Doctor's share of the discount"
                         />
                       </div>
+                      {autoSplit ? (
+                        <p className="text-xs text-muted-foreground">
+                          The doctor&apos;s share of this visit, so the doctor bears the same part of the discount.
+                        </p>
+                      ) : null}
                       {bill.appointmentDiscount > 0 ? (
                         <p className="text-xs text-muted-foreground">
                           Of the {formatPkr(bill.appointmentDiscount)} discount: clinic bears{" "}

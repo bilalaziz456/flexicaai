@@ -94,3 +94,14 @@ export async function setPublicContact(
     })
     .where(eq(clinics.id, clinicId));
 }
+
+/** Who bears a new patient discount by default (`core/clinics/discount-default.ts`). */
+export async function setDiscountDefault(
+  clinicId: string,
+  borneBy: "clinic" | "doctor" | "split",
+): Promise<void> {
+  await db
+    .update(clinics)
+    .set({ defaultDiscountBorneBy: borneBy, updatedAt: new Date() })
+    .where(eq(clinics.id, clinicId));
+}

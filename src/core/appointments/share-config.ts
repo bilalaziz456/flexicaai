@@ -167,3 +167,20 @@ export async function replaceDoctorProcedureShares(
     })),
   );
 }
+
+/**
+ * Every doctor's share rates in the clinic, as a plain object for the browser — the
+ * booking form fills a split discount's doctor part from them (owner, 2026-11-11:
+ * a doctor bears the same % of a discount as they earn). Loaded only where a split
+ * is the clinic's default; see the clinic layout.
+ */
+export async function getClinicShareRates(
+  clinicId: string,
+): Promise<Record<string, DoctorShareRates>> {
+  const doctors = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(byClinic(users.clinicId, clinicId, notDeleted(users.deletedAt), eq(users.role, "doctor")));
+  const map = await getDoctorShareRatesMany(clinicId, doctors.map((d) => d.id));
+  return Object.fromEntries(map);
+}

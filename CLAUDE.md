@@ -555,6 +555,19 @@ are in `.env.example`.
   discount stays. Each discount waits only on the approval of whoever bears it.
   `appointments.bearing_version` keeps every older visit on the old one-bearer rule.
   Offers gained a Borne by too (default "In proportion", the old rule).
+  **Each clinic sets who bears a NEW discount** (`0147`, owner 2026-11-11): Clinic,
+  Doctor or Split in `/clinic/settings`, clinic admin only. Every discount box — whole
+  visit, consultation, each line, a treatment plan — opens on it
+  (`DiscountDefaultProvider` in the clinic layout); staff can still change it, a
+  doctor-borne part still needs that doctor's approval, and discounts already given
+  are untouched. Offers keep their own default.
+  **A split's doctor part is the doctor's own share %** (owner, 2026-11-11): 20% share
+  → bears 20%, 0% → none; per procedure (overrides included), the consultation share
+  for the consultation, and the share of the bill for the whole visit
+  (`weightedSharePart`). The form fills it as an ordinary split % (so billing and
+  approvals are unchanged) and keeps it in step with the doctor until someone types a
+  part (`LineDisc.splitAuto`). The doctors' rates reach the browser only where Split
+  is the default, and only for someone who books or plans.
 
 - **Medicines** (`0132`, owner's call 2026-10-19) — a company MASTER list
   (`medicines`, no clinic_id, `/admin/medicines`, admin ACL **`medicines`**) that every

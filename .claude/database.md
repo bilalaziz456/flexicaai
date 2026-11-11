@@ -83,7 +83,7 @@ is_active)`, company-global — no
 | `approval_statuses` | pending, approved, rejected | `appointment_discount_approvals.status` |
 | `discount_statuses` | none, pending, approved, rejected | `appointments.discount_status` |
 | `discount_types` | amount, percent | the three `discount_type` / `discount_split_type` columns |
-| `discount_bearers` | clinic, doctor, split, **proportional** ("In proportion", offers only — `0138`) | `appointments.discount_borne_by` + `consultation_borne_by`, `appointment_procedures.discount_borne_by` + `offer_borne_by`, `procedures.offer_borne_by`, `treatment_plans.discount_borne_by` |
+| `discount_bearers` | clinic, doctor, split, **proportional** ("In proportion", offers only — `0138`) | `appointments.discount_borne_by` + `consultation_borne_by`, `appointment_procedures.discount_borne_by` + `offer_borne_by`, `procedures.offer_borne_by`, `treatment_plans.discount_borne_by`, `clinics.default_discount_borne_by` |
 | `clinic_statuses` | trial, active, suspended, past_due, cancelled | `clinics.status` |
 | `billing_cycles` | monthly, 2m, quarter, half, annual | `clinics.billing_cycle` |
 | `invoice_papers` | thermal, a5, a4 | `clinics.invoice_paper` (the default) + `clinics.invoice_papers_enabled` (which are offered) |
@@ -139,7 +139,10 @@ e.g. `{revenue_dashboard}` — see `core/lib/features.ts`), `log_access` text[]
 (activity-log action categories the clinic admin may see, e.g. `{login,update}`;
 empty = no log access — see `core/audit/access.ts`), `avg_visit_value` int
 (PKR, default 3000; drives "Revenue Recovered"), `trash_retention_days` int
-(default 30; §1 soft-delete). **Per-clinic WhatsApp sender (Meta Cloud API — see
+(default 30; §1 soft-delete). `default_discount_borne_by_id` (→ `discount_bearers`,
+default clinic, never proportional) — who bears a NEW patient discount until someone
+picks otherwise; a split's doctor part is the doctor's own share %, so no percentage
+is stored (`0147`, `core/clinics/discount-default.ts`). **Per-clinic WhatsApp sender (Meta Cloud API — see
 `docs/whatsapp-cloud-plan.md`):** `whatsapp_phone_number_id` (selects the sending
 number; **unique when set** — the inbound routing key), `whatsapp_display_number`
 (E.164), `whatsapp_sender_name`, `whatsapp_signature` (clinic-customisable footer

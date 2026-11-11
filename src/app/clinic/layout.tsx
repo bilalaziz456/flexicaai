@@ -16,6 +16,9 @@ import { getUnreadCount } from "@/core/notifications/in-app";
 import { accessibleResourceIds, can } from "@/core/auth/permissions";
 import { displayStaffName, staffInitials } from "@/core/types/auth";
 import { ClinicShell } from "@/app/clinic/clinic-shell";
+import { DiscountDefaultProvider } from "@/app/clinic/discount-default-context";
+import { discountDefaultOf } from "@/core/clinics/discount-default";
+import { getClinicShareRates } from "@/core/appointments/share-config";
 
 /**
  * Clinic Admin panel shell. Guards to clinic_admin (with a guaranteed clinicId)
@@ -65,6 +68,18 @@ export default async function ClinicLayout({
   // discounts off their own share) or anyone with the clinic approval capability.
   const approvalsEnabled =
     user.role === "doctor" || can(user, "discount_approval", "view");
+
+  // Who bears a new discount (Settings). With a split, the doctor's part is their own
+  // share %, so the doctors' rates come along — only then, and only for someone who
+  // books or plans treatment, since they say what each doctor earns.
+  const discountBorneBy = discountDefaultOf(clinic);
+  const booksOrPlans =
+    can(user, "appointments", "create") ||
+    can(user, "appointments", "edit") ||
+    can(user, "plans", "create") ||
+    can(user, "plans", "edit");
+  const shareRates =
+    discountBorneBy === "split" && booksOrPlans ? await getClinicShareRates(user.clinicId) : null;
 
   // Stacked shell notices, shown to EVERY clinic user.
   const notices: ReactNode[] = [];
@@ -205,7 +220,7 @@ export default async function ClinicLayout({
       tabs={{ storageKey: `klenic:tabs:${user.id}`, homeHref: "/clinic" }}
       bottomPill={paymentPill}
     >
-      {children}
+      <DiscountDefaultProvider value={{ borneBy: discountBorneBy, shareRates }}>{children}</DiscountDefaultProvider>
     </ClinicShell>
   );
 }
