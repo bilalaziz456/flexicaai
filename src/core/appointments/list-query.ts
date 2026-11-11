@@ -16,6 +16,7 @@ import { appointmentNetSql, consultationDiscountColumns } from "@/core/appointme
 import { patientPhoneMatchSql } from "@/core/patients/search-sql";
 import type { StatusFilter, VisitTypeFilter } from "./list-filters";
 import { appointmentStatusId, paymentKindId } from "@/core/db/vocabulary-seed";
+import { SERVER_TZ } from "@/core/lib/server-tz";
 
 /**
  * The appointment list's filter SQL, in ONE place — the list page, the CSV
@@ -155,15 +156,19 @@ export async function getAppointmentDetail(clinicId: string, appointmentId: stri
  * the reports all aggregate the SAME expression (ADR-015) rather than three that
  * happen to agree today.
  *
- * ORDER depends on the view: a QUEUE view sorts by token number, because that is the
- * order patients are actually seen in; every other view sorts by time. Sorting a queue
- * by clock time would show the list in an order the waiting room disagrees with.
+ * ORDER: day by day, and within a day by APPOINTMENT NUMBER (owner, 2026-11-12) —
+ * the order patients are seen in, and the one the waiting room and the printed list
+ * agree on. Time only breaks ties (two doctors' #3s) and orders the visits with no
+ * number (no doctor), which come after the numbered ones. Clock time alone put a
+ * patient given #10 for a later arrival among the 9 o'clocks.
+ * Within a day, those still to be SEEN come first and the finished ones (completed,
+ * cancelled, no-show) after them, each in number order (owner, 2026-11-12): with #1
+ * done, the desk wants #2, #3, #4 at the top, not the patient who has left.
  */
 export async function listClinicAppointments(
   clinicId: string,
   conds: (SQL | undefined)[],
   paging: { offset: number; limit: number },
-  opts: { byQueueNumber?: boolean } = {},
 ) {
   // Tenant scoping and the soft-delete filter belong HERE, not at the call site — the
   // page supplies only what the user filtered by (`buildAppointmentConds`).
@@ -208,7 +213,15 @@ export async function listClinicAppointments(
       .innerJoin(patients, eq(appointments.patientId, patients.id))
       .leftJoin(users, eq(appointments.doctorId, users.id))
       .where(where)
-      .orderBy(opts.byQueueNumber ? asc(appointments.queueNumber) : asc(appointments.scheduledAt))
+      .orderBy(
+        // The clinic's own calendar day (`cast(… as text)`: Postgres cannot infer a
+        // bare parameter's type in AT TIME ZONE; SERVER_TZ never comes from input).
+        sql`date(${appointments.scheduledAt} at time zone cast(${SERVER_TZ} as text))`,
+        sql`(${appointments.status} in (${appointmentStatusId("completed")}, ${appointmentStatusId("cancelled")}, ${appointmentStatusId("no_show")}))`,
+        sql`${appointments.queueNumber} asc nulls last`,
+        asc(appointments.scheduledAt),
+        asc(appointments.id),
+      )
       .limit(paging.limit)
       .offset(paging.offset),
     db

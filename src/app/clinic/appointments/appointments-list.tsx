@@ -228,7 +228,6 @@ export async function AppointmentsList({
       clinicId,
       conds,
       { offset: pageOffset(page, pageSize), limit: pageSize },
-      { byQueueNumber: Boolean(session) },
     ),
     getDayQueue(clinicId, new Date(), doctorId ? { doctorId } : undefined),
     // A queue view has no date range for a calendar to sit against.

@@ -388,6 +388,9 @@ are in `.env.example`.
   doctor that day — and staff may type another (#10 for a patient coming in an hour;
   the next bookings then take 6, 7, 8, 9, 11). A number already given is refused.
   Posted only when changed, so an untouched one is picked again at save time.
+  The appointments list and its printout run day by day in appointment-number order
+  — those still to be seen first, then completed / cancelled / no-show — (time breaks
+  ties; visits with no doctor, so no number, come last in each group).
   **ACL: `schedule`** — `view` for everyone in the clinic (a doctor sees only their own
   row), `edit` (the daily cap) for clinic admin + manager. The full editor — hours,
   flexible hours, fee — stays on the staff record behind `requireClinicAdmin()`.

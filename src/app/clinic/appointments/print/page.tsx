@@ -93,7 +93,6 @@ export default async function PrintAppointmentsPage({
     clinicId,
     conds,
     { offset: 0, limit: PRINT_LIMIT },
-    { byQueueNumber: Boolean(session) },
   );
 
   const range =
