@@ -172,6 +172,9 @@ export function AppointmentMonth({
         {days.map((d, i) => {
           const isToday = d.date === today;
           const selected = d.date >= selectedFrom && d.date <= selectedTo;
+          // ONE picked day is drawn solid; a range (7d, 30d…) only as a light band,
+          // or a month-long period would paint the whole calendar and bury it.
+          const picked = selected && selectedFrom === selectedTo;
           const visiting = d.doctors.filter((x) => !x.onLeave);
           // Anchor the card so it stays on screen: right-aligned in the last
           // columns, and opening upward on the bottom rows (otherwise it hangs
@@ -194,11 +197,16 @@ export function AppointmentMonth({
                   "flex min-h-14 flex-col gap-1 rounded-lg border p-1.5 outline-none transition-colors",
                   "hover:border-primary/60 focus-visible:ring-3 focus-visible:ring-ring/50",
                   // The day's LOAD, as a tint on the cell itself — a calendar heatmap.
-                  // A selected day keeps its own accent: the selection is what you did,
-                  // and it has to win over what the data is.
+                  // A selected day keeps its own colour: the selection is what you did,
+                  // and it has to win over what the data is. It is a SOLID fill of the
+                  // logo's blue with white text (owner, 2026-11-12) — a tint of it read
+                  // as one more busy day of the teal heatmap, so nobody could tell which
+                  // day was picked. Nothing else in the grid is solid.
                   !selected && HEAT[heatLevel(d.total, busiest)],
-                  isToday && "border-primary",
-                  selected && "bg-accent ring-1 ring-primary/40",
+                  isToday && !picked && "border-primary",
+                  picked &&
+                    "border-brand-blue bg-brand-blue text-white shadow-md ring-2 ring-brand-blue/30 ring-offset-1 ring-offset-background hover:border-brand-blue",
+                  selected && !picked && "border-brand-blue/60 bg-brand-blue/15",
                 )}
               >
                 {/* The WhatsApp badge sits beside the date rather than in the
@@ -207,7 +215,11 @@ export function AppointmentMonth({
                   <span
                     className={cn(
                       "text-sm tabular-nums",
-                      isToday ? "font-semibold text-primary-text" : "text-muted-foreground",
+                      picked
+                        ? "font-semibold text-white"
+                        : isToday
+                          ? "font-semibold text-primary-text"
+                          : "text-muted-foreground",
                     )}
                   >
                     {Number(d.date.slice(8))}
@@ -229,9 +241,14 @@ export function AppointmentMonth({
                 {/* Load and cover on ONE line. The doctor figure is a count, not
                     names: names live in the hover card, but a touch device gets no
                     hover, so it must still be able to see whether anyone is in. */}
-                <div className="truncate text-[0.65rem] leading-none tabular-nums text-muted-foreground">
+                <div
+                  className={cn(
+                    "truncate text-[0.65rem] leading-none tabular-nums",
+                    picked ? "text-white/85" : "text-muted-foreground",
+                  )}
+                >
                   {d.total > 0 ? (
-                    <span className="font-medium text-foreground">{d.total} appt{d.total === 1 ? "" : "s"}</span>
+                    <span className={cn("font-medium", picked ? "text-white" : "text-foreground")}>{d.total} appt{d.total === 1 ? "" : "s"}</span>
                   ) : (
                     "—"
                   )}
@@ -254,7 +271,9 @@ export function AppointmentMonth({
                   aria-label={`New appointment on ${longDate(d.date)}`}
                   className={cn(
                     "absolute right-1 top-0.5 z-10 inline-flex h-[1.375rem] min-w-[1.375rem] items-center justify-center rounded-md px-1 text-[0.7rem] font-medium leading-none outline-none transition",
-                    "bg-primary/10 text-primary-text hover:bg-primary hover:text-primary-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                    "hover:bg-primary hover:text-primary-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                    // On the solid blue of a selected day the usual teal tint vanishes.
+                    picked ? "bg-white/20 text-white" : "bg-primary/10 text-primary-text",
                   )}
                 >
                   {/* Words where the cell can hold them; a phone's cell is ~45px wide,

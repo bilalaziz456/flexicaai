@@ -166,19 +166,12 @@ export async function AppointmentsList({
   const session = typeof sp.session === "string" ? sp.session : "";
 
   /**
-   * "New appointment" carries the day the list is showing, so clicking a date in the
-   * calendar and then New opens the form with that date already chosen.
-   *
-   * Only when ONE day is selected. A multi-day range has no single intended date, and
-   * guessing `from` would quietly book into a day the user did not pick — an empty
-   * field is the honest answer there.
-   *
-   * Skipped in a QUEUE SESSION view too, and that one matters: a session pins its own
-   * doctor and day, but `fromStr` is not applied in that view and still reads today —
-   * so prefilling from it would offer today while the screen shows another date.
+   * "New appointment" (the header button, Alt+C and the floating button) always opens
+   * on TODAY (owner, 2026-11-12) — the form's own default — whatever day the list is
+   * showing. Booking a particular day is the add button on that day in the calendar
+   * (`bookHref` on the month view), which carries the day.
    */
-  const bookHref =
-    !session && fromStr === toStr ? `${newHref}?date=${fromStr}` : newHref;
+  const bookHref = newHref;
 
   // Payment status (Paid/Partial/Unpaid) only applies when the clinic bills (sales
   // feature). It's derived from the bill vs amount_collected.

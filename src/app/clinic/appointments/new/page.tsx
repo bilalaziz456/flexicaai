@@ -4,6 +4,7 @@ import { clinicHasFeature } from "@/core/lib/features";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { FlashToast } from "@/core/ui/toast";
 import { NewAppointmentPanel } from "@/app/clinic/appointments/new-appointment-panel";
+import { localDateStr } from "@/core/appointments/availability";
 
 /** YYYY-MM-DD. Matched here rather than trusted: the value is fed straight into a
  *  `<input type="date">` and into the doctor-availability lookup, and anything else
@@ -16,8 +17,11 @@ const YMD = /^\d{4}-\d{2}-\d{2}$/;
  * Two optional prefills, both arriving as query params so the form stays a plain
  * link away from wherever the intent was formed:
  *   `?patientId=` — from "Book" on a patient row or detail page.
- *   `?date=`      — from "New appointment" on the list, carrying whichever day the
- *                   calendar is showing, so picking a date and then New keeps it.
+ *   `?date=`      — from the add button on a day of the list's calendar. The
+ *                   list's New appointment button sends none (owner, 2026-11-12).
+ *                   Without one the form opens on TODAY (owner, 2026-11-12), the
+ *                   server's date like New invoice, so the doctor's times and the
+ *                   appointment number appear as soon as a doctor is picked.
  *   `?patientCreated=1` — the patient was just registered from the search box;
  *                   the toast belongs here, since this is where the save landed.
  */
@@ -42,7 +46,7 @@ export default async function ClinicNewAppointmentPage({
         clinicId={user.clinicId}
         backHref="/clinic/appointments"
         preselectedPatientId={patientId}
-        preselectedDate={date && YMD.test(date) ? date : undefined}
+        preselectedDate={date && YMD.test(date) ? date : localDateStr(new Date())}
         canTakePayment={canTakePayment}
         canChangePrice={can(user, "bill_price", "edit")}
       />

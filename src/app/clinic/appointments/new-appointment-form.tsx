@@ -257,12 +257,11 @@ export function NewAppointmentForm({
   // once the bill is known, and dropped the moment someone types a part.
   const [splitAuto, setSplitAuto] = useState(!hasSavedDiscount && discountDefault.borneBy === "split");
   const shareRates = discountDefault.shareRates;
-  // A procedure-only visit can skip the doctor's consultation fee.
-  // A new invoice starts WITHOUT the consultation fee (owner's call, 2026-10-12): it
-  // is usually for procedures, and the fee is ticked on when it applies.
-  const [chargeConsultation, setChargeConsultation] = useState(
-    initial?.chargeConsultation ?? !newInvoice,
-  );
+  // Whether the doctor's consultation fee is charged. A NEW booking or invoice starts
+  // WITHOUT it — picking a doctor no longer ticks it (owner's calls: invoices
+  // 2026-10-12, bookings 2026-11-12); staff tick it when the visit is a consultation.
+  // An existing visit keeps what was saved.
+  const [chargeConsultation, setChargeConsultation] = useState(initial?.chargeConsultation ?? false);
   // A new invoice bills a visit that is happening now — the doctor's visiting hours
   // are not a reason to refuse it, so it starts with the time free.
   const [customTime, setCustomTime] = useState(initial?.customTime ?? newInvoice);
@@ -943,21 +942,20 @@ export function NewAppointmentForm({
 
         {/* Consultation fee — its OWN section, separate from procedures. It comes
             from the doctor's set fee (staff → doctor), so it appears the moment a
-            doctor is selected. Uncheck to skip it for a procedure-only visit. The
+            doctor is selected, UNTICKED on a new visit; tick it to charge it. The
             hidden field always submits the decision (unchecked boxes don't post). */}
         <input
           type="hidden"
           name="chargeConsultation"
           value={chargeConsultation ? "1" : "0"}
         />
-        {/* One line (owner's call, 2026-10-18): tick to charge it, the amount beside —
-            untick for a procedure-only visit. */}
+        {/* One line (owner's call, 2026-10-18): tick to charge it, the amount beside. */}
         {selectedDoctor ? (
           consultationFee > 0 ? (
             <div
               className="flex min-h-9 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border well px-3 py-1 text-sm sm:col-span-2"
             >
-              <label className="flex items-center gap-2" title="Untick if the patient came only for a procedure">
+              <label className="flex items-center gap-2" title="Tick to charge the doctor's consultation fee">
                 <Checkbox
                   checked={chargeConsultation}
                   ref={syncChecked(chargeConsultation)}
