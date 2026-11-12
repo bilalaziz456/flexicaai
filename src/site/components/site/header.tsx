@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { WHATSAPP_URL } from "../../lib/contact";
-import { DEMO_PATH, FEATURE_LINKS, MAIN_NAV, featurePath } from "../../lib/nav";
+import { DEMO_PATH, FEATURE_LINKS, LOGIN_PATH, MAIN_NAV, featurePath } from "../../lib/nav";
 import { ButtonLink, cx } from "../ui";
 
 /**
@@ -91,6 +91,10 @@ export function Header() {
           >
             Contact
           </Link>
+          {/* Clinic staff come to the website to get into the app: one click, at every width. */}
+          <ButtonLink href={LOGIN_PATH} tone="ghost-dark" className="min-h-10 px-4 py-2 text-[0.88rem] sm:px-5">
+            Sign in
+          </ButtonLink>
           <ButtonLink href={DEMO_PATH} className="hidden min-h-10 px-5 py-2 text-[0.88rem] sm:inline-flex">
             Book a demo
           </ButtonLink>
@@ -142,6 +146,9 @@ export function Header() {
             </ButtonLink>
             <ButtonLink href={WHATSAPP_URL} tone="ghost-dark">
               WhatsApp us
+            </ButtonLink>
+            <ButtonLink href={LOGIN_PATH} tone="ghost-dark">
+              Sign in
             </ButtonLink>
           </div>
         </div>

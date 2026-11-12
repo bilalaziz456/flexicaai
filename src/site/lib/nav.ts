@@ -54,3 +54,5 @@ export const MAIN_NAV = [
 ];
 
 export const DEMO_PATH = "/contact#demo";
+/** The app's single sign-in page, for every role (clinic staff and the FlexicaAI team). */
+export const LOGIN_PATH = "/login";
