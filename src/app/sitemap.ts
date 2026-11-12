@@ -1,34 +1,30 @@
 import type { MetadataRoute } from "next";
 import { BRAND_WEBSITE } from "@/core/lib/brand";
+import { FEATURE_LINKS, featurePath } from "@/site/lib/nav";
 
 /**
- * The sitemap: the homepage plus each feature page. Everything else is behind
- * sign-in and is disallowed in robots.ts.
- *
- * Deliberately not listing the homepage's anchors like /#features: they are not
- * separate documents and tell a crawler nothing the page itself does not.
+ * The sitemap: every public website page, built from the same list the site's
+ * navigation uses (src/site/lib/nav.ts), so it cannot list a page that is not built.
+ * Everything else is behind sign-in and is disallowed in robots.ts.
  */
 const origin = `https://${BRAND_WEBSITE.replace(/^https?:\/\//, "")}`;
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
+  const page = (path: string, priority: number, changeFrequency: "monthly" | "yearly" = "monthly") => ({
+    url: `${origin}${path === "/" ? "" : path}`,
+    lastModified,
+    changeFrequency,
+    priority,
+  });
   return [
-    { url: origin, lastModified, changeFrequency: "monthly", priority: 1 },
-    ...["/ai-medical-scribe", "/whatsapp-for-patients", "/billing-and-revenue", "/contact"].map(
-      (path) => ({
-        url: `${origin}${path}`,
-        lastModified,
-        changeFrequency: "monthly" as const,
-        priority: 0.8,
-      }),
-    ),
-    // Listed so they are indexable and findable, at a low priority: an ad reviewer or
-    // a cautious buyer goes looking for these, but they are not what we want ranking.
-    ...["/privacy", "/terms"].map((path) => ({
-      url: `${origin}${path}`,
-      lastModified,
-      changeFrequency: "yearly" as const,
-      priority: 0.3,
-    })),
+    page("/", 1),
+    page("/features", 0.9),
+    ...FEATURE_LINKS.map((f) => page(featurePath(f.slug), 0.85)),
+    page("/about", 0.6),
+    page("/contact", 0.7),
+    // Indexable and findable, at a low priority.
+    page("/privacy", 0.3, "yearly"),
+    page("/terms", 0.3, "yearly"),
   ];
 }

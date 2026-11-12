@@ -63,6 +63,10 @@ const PRINT_PAGES = [
 const nextConfig: NextConfig = {
   // Don't advertise the framework/version.
   poweredByHeader: false,
+  // Development only: lets a phone on the same Wi-Fi open `next dev` at this machine's
+  // LAN address (otherwise Next blocks the dev assets and the page never hydrates —
+  // no menus, no animation). Ignored by `next build` / production.
+  allowedDevOrigins: ["192.168.100.237"],
   experimental: {
     serverActions: {
       // Every upload (clinical files, logos, imports) is a Server Action, and Next
@@ -87,6 +91,16 @@ const nextConfig: NextConfig = {
     // WHY: don't preload every page's modules into memory at server start — keeps
     // the baseline footprint low so the worker has headroom. (Next dev-memory doc.)
     preloadEntriesOnStart: false,
+  },
+  // The website redesign moved the feature pages under /features (src/site/lib/nav.ts).
+  // The old addresses are in search results and shared links, so they redirect.
+  async redirects() {
+    return [
+      { source: "/ai-medical-scribe", destination: "/features/ai-scribe", permanent: true },
+      { source: "/whatsapp-for-patients", destination: "/features/whatsapp-integration", permanent: true },
+      { source: "/billing-and-revenue", destination: "/features/billing-and-payments", permanent: true },
+      { source: "/features/ai-dental-scribe", destination: "/features/ai-scribe", permanent: true },
+    ];
   },
   async headers() {
     return [

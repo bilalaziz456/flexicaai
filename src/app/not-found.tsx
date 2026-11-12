@@ -1,61 +1,63 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { MarketingShell } from "./(marketing)/site-chrome";
-import { buttonVariants } from "@/core/ui/button";
-import { cn } from "@/core/lib/utils";
+import { SiteShell } from "@/site/components/site/site-shell";
+import { ButtonLink, Container } from "@/site/components/ui";
+import { FEATURE_LINKS, featurePath } from "@/site/lib/nav";
 
 /**
  * App-wide 404. Rendered for unmatched URLs and any `notFound()` call that has no
- * closer boundary.
- *
- * It carries the public site's header and footer. It previously rendered as a bare
- * centred block with one link and no chrome, so anyone who mistyped a URL or followed
- * a stale link landed somewhere with no navigation and no route onward except the
- * homepage. The shell is a plain component precisely so this file can use it —
- * `not-found.tsx` has to sit at the app root to catch unmatched URLs, which puts it
- * outside the `(marketing)` route group where a layout could reach it.
+ * closer boundary. It carries the public site's header and footer (SiteShell), because
+ * `not-found.tsx` has to sit at the app root — outside the `(marketing)` group.
  *
  * Two things this file must NOT do:
  *  - reach for a dynamic API (cookies/headers/session). It is composed into the ROOT
- *    segment, so anything dynamic here marks EVERY route in the app dynamic. That has
- *    bitten this project before.
+ *    segment, so anything dynamic here marks EVERY route in the app dynamic.
  *  - assume a session. Someone hitting a bad URL may well be signed in, but this page
  *    cannot know that without going dynamic, so the chrome stays the public one.
  *
- * The title comes from the `metadata` export below. Without it the tab read plain
- * "FlexicaAI", inherited from the root layout. Next's own docs only document a
- * metadata export on `global-not-found.js`, but it does work here — verified against
- * the served HTML, which carries exactly one <title>. Rendering an inline <title>
- * instead does NOT work: React hoists it, but the root layout's own title is emitted
- * too and wins, leaving two <title> tags in <head>.
+ * The title comes from the `metadata` export (verified to emit exactly one <title>).
  */
-export const metadata: Metadata = { title: "Page not found | FlexicaAI" };
+export const metadata: Metadata = {
+  title: "Page not found | FlexicaAI",
+  robots: { index: false, follow: true },
+};
 
 export default function NotFound() {
   return (
-    <MarketingShell>
-      <section className="mx-auto flex w-full max-w-6xl flex-col items-center px-4 py-20 text-center sm:px-6 sm:py-28">
-        <p className="font-mono text-sm tracking-widest text-primary-text uppercase">404</p>
-        <h1 className="mt-4 font-heading text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-          We cannot find that page
-        </h1>
-        <p className="mx-auto mt-4 max-w-md text-base text-muted-foreground">
-          The link may be out of date, or the address may have a typo in it. The rest of
-          the site is still where you left it.
+    <SiteShell mainClassName="band-dark grain relative overflow-hidden outline-none">
+      <div
+        className="pointer-events-none absolute inset-0 grid-dots-dark [mask-image:radial-gradient(ellipse_60%_60%_at_50%_40%,black,transparent)]"
+        aria-hidden
+      />
+      <Container className="relative flex min-h-[80svh] flex-col items-center justify-center py-32 text-center">
+        <p className="font-mono text-[clamp(5rem,16vw,10rem)] font-semibold leading-none tracking-tighter text-transparent [-webkit-text-stroke:1px_rgb(95_224_228/0.45)]" aria-hidden>
+          404
         </p>
-
-        <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-          <Link href="/" className={cn(buttonVariants(), "rounded-full px-5")}>
-            Back to the homepage
-          </Link>
-          <Link
-            href="/contact"
-            className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-medium ring-1 ring-foreground/15 transition-colors hover:bg-foreground/5"
-          >
-            Tell us what you were looking for
-          </Link>
+        <h1 className="text-h1 mt-6 max-w-2xl text-white">This page isn&apos;t in the diary.</h1>
+        <p className="text-lead mt-5 max-w-xl text-slate-300">
+          The link may be old, or the page may have moved. Here are the places most people are looking for.
+        </p>
+        <div className="mt-9 flex flex-wrap justify-center gap-3">
+          <ButtonLink href="/" arrow>
+            Back to home
+          </ButtonLink>
+          <ButtonLink href="/features" tone="ghost-dark">
+            Explore features
+          </ButtonLink>
+          <ButtonLink href="/contact" tone="ghost-dark">
+            Contact us
+          </ButtonLink>
         </div>
-      </section>
-    </MarketingShell>
+        <ul className="mt-12 flex flex-wrap justify-center gap-x-6 gap-y-2 text-[0.92rem]">
+          {FEATURE_LINKS.map((f) => (
+            <li key={f.slug}>
+              <Link href={featurePath(f.slug)} className="text-slate-400 underline-offset-4 hover:text-white hover:underline">
+                {f.name}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </Container>
+    </SiteShell>
   );
 }
