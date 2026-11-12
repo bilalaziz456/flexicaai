@@ -1,4 +1,7 @@
 import { apiRequireWorkspace } from "@/core/auth/user";
+import { can } from "@/core/auth/permissions";
+import { getClinic } from "@/core/clinics/get-clinic";
+import { clinicHasFeature } from "@/core/lib/features";
 import { toCsv } from "@/core/lib/csv";
 import { BRAND_POWERED_BY } from "@/core/lib/brand";
 import { listPatientsForExport } from "@/core/patients/list";
@@ -14,13 +17,18 @@ export async function GET(req: Request) {
   const auth = await apiRequireWorkspace("patients", "view");
   if (!auth.ok) return auth.response;
   const { clinicId } = auth;
-  const query = new URL(req.url).searchParams.get("q")?.trim() || "";
+  const params = new URL(req.url).searchParams;
+  const query = params.get("q")?.trim() || "";
+  // Same gate as the list: what a patient owes is for whoever may open Receivables.
+  const clinic = await getClinic(clinicId);
+  const withOwed = clinicHasFeature(clinic?.featuresEnabled, "sales") && can(auth.user, "receivables", "view");
+  const owesOnly = withOwed && params.get("owes") === "1";
 
-  const rows = await listPatientsForExport(clinicId, query);
+  const rows = await listPatientsForExport(clinicId, query, { withOwed, owesOnly });
 
 
   const csv = toCsv(
-    ["MRN", "Name", "Phone", "Email", "Gender", "Age", "Reference", "Registered"],
+    ["MRN", "Name", "Phone", "Email", "Gender", "Age", "Reference", "Registered", ...(withOwed ? ["Owes (Rs)"] : [])],
     rows.map((p) => [
       p.mrnLabel ?? "",
       p.fullName,
@@ -30,6 +38,7 @@ export async function GET(req: Request) {
       ageFromDob(p.dateOfBirth) ?? "",
       p.reference ?? "",
       ymd(p.createdAt),
+      ...(withOwed ? [p.owed ?? 0] : []),
     ]),
   );
 

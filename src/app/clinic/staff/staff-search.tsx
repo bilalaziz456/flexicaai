@@ -7,7 +7,7 @@ import { Input } from "@/core/ui/input";
 
 /**
  * Live, URL-driven search over the clinic's staff (name or username). Driven by the
- * typing, not by an effect on the value — see `patients-search.tsx` for the bug the
+ * typing, not by an effect on the value — see `core/ui/live-search-input.tsx` for the bug the
  * effect version had (it dragged any programmatic navigation back to this page).
  */
 export function StaffSearch({ initial }: { initial: string }) {

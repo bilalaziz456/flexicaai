@@ -1,8 +1,11 @@
 import "server-only";
 
-import { count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, gt, ilike, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/core/db";
-import { patients } from "@/core/db/schema";
+import { appointments, patientPayments, patients, users } from "@/core/db/schema";
+import { appointmentNetSql } from "@/core/appointments/bill-sql";
+import { procedureTotals } from "@/core/appointments/procedures";
+import { owedVisitSql } from "@/core/finance/owed";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { mrnMatchesSql } from "@/core/patients/mrn";
 import { patientPhoneMatchSql } from "@/core/patients/search-sql";
@@ -30,37 +33,128 @@ export function patientSearchWhere(clinicId: string, q = ""): SQL | undefined {
   return byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt), search);
 }
 
-/** One page of patients, newest first, plus the total the pager needs. */
+/**
+ * What each patient OWES, as joinable pieces (owner's call, 2026-10-31: the list
+ * highlights a patient who owes and can be filtered to them). The SAME rule as
+ * Receivables and the dashboard's Outstanding: every owed visit (`owedVisitSql`) at
+ * `greatest(0, bill − collected)`, plus the imported opening balance net of its
+ * `opening` payments — so "Owes money" lists exactly the patients Receivables does,
+ * for the same amounts. Pre-aggregated per patient and LEFT JOINed, never correlated,
+ * because the filter has to evaluate it for every patient in the clinic (ADR-030).
+ */
+function patientOwedParts(clinicId: string) {
+  const pt = procedureTotals(clinicId);
+  const net = appointmentNetSql(pt);
+  const visitOwed = db
+    .select({
+      patientId: appointments.patientId,
+      owed: sql<number>`coalesce(sum(greatest(0, ${net} - ${appointments.amountCollected})), 0)::int`.as("visit_owed_amt"),
+    })
+    .from(appointments)
+    .leftJoin(users, eq(users.id, appointments.doctorId))
+    .leftJoin(pt, eq(pt.appointmentId, appointments.id))
+    .where(byClinic(appointments.clinicId, clinicId, notDeleted(appointments.deletedAt), owedVisitSql()))
+    .groupBy(appointments.patientId)
+    .as("visit_owed");
+  const openingPaid = db
+    .select({
+      patientId: patientPayments.patientId,
+      paid: sql<number>`coalesce(sum(${patientPayments.amount}), 0)::int`.as("opening_paid_amt"),
+    })
+    .from(patientPayments)
+    .where(byClinic(patientPayments.clinicId, clinicId, notDeleted(patientPayments.deletedAt), eq(patientPayments.kind, "opening")))
+    .groupBy(patientPayments.patientId)
+    .as("opening_paid");
+  const owed = sql<number>`(coalesce(${visitOwed.owed}, 0) + greatest(0, ${patients.openingBalance} - coalesce(${openingPaid.paid}, 0)))::int`;
+  return { visitOwed, openingPaid, owed };
+}
+
+export type PatientListOptions = {
+  /** Also read what each patient owes (only for someone allowed to see money). */
+  withOwed?: boolean;
+  /** Only patients who owe — implies `withOwed`; sorted by the most owed first. */
+  owesOnly?: boolean;
+};
+
+/**
+ * One page of patients, newest first, plus the total the pager needs. With `withOwed`
+ * each row carries `owed`, and `owing` counts the matching patients who owe and sums
+ * what they owe — over the whole filtered set, never folded from the page.
+ */
 export async function listClinicPatients(
   clinicId: string,
   q: string,
   paging: { offset: number; limit: number },
-): Promise<{ rows: PatientListRow[]; total: number }> {
-  const where = patientSearchWhere(clinicId, q);
-  const [rows, [totalRow]] = await Promise.all([
+  opts: PatientListOptions = {},
+): Promise<{ rows: PatientListRow[]; total: number; owing?: { count: number; amount: number } }> {
+  const search = patientSearchWhere(clinicId, q);
+  if (!opts.withOwed && !opts.owesOnly) {
+    const [rows, [totalRow]] = await Promise.all([
+      db
+        .select(PATIENT_LIST_COLUMNS)
+        .from(patients)
+        .where(search)
+        .orderBy(desc(patients.createdAt))
+        .limit(paging.limit)
+        .offset(paging.offset),
+      db.select({ total: count() }).from(patients).where(search),
+    ]);
+    return { rows, total: totalRow?.total ?? 0 };
+  }
+
+  const { visitOwed, openingPaid, owed } = patientOwedParts(clinicId);
+  const where = opts.owesOnly ? and(search, gt(owed, 0)) : search;
+  const [rows, [totals]] = await Promise.all([
     db
-      .select(PATIENT_LIST_COLUMNS)
+      .select({ ...PATIENT_LIST_COLUMNS, owed })
       .from(patients)
+      .leftJoin(visitOwed, eq(visitOwed.patientId, patients.id))
+      .leftJoin(openingPaid, eq(openingPaid.patientId, patients.id))
       .where(where)
-      .orderBy(desc(patients.createdAt))
+      .orderBy(...(opts.owesOnly ? [desc(owed), desc(patients.createdAt)] : [desc(patients.createdAt)]))
       .limit(paging.limit)
       .offset(paging.offset),
-    db.select({ total: count() }).from(patients).where(where),
+    db
+      .select({
+        total: count(),
+        owingCount: sql<number>`count(*) filter (where ${owed} > 0)::int`,
+        owingAmount: sql<number>`coalesce(sum(${owed}) filter (where ${owed} > 0), 0)::int`,
+      })
+      .from(patients)
+      .leftJoin(visitOwed, eq(visitOwed.patientId, patients.id))
+      .leftJoin(openingPaid, eq(openingPaid.patientId, patients.id))
+      .where(where),
   ]);
-  return { rows, total: totalRow?.total ?? 0 };
+  return {
+    rows: rows.map((r) => ({ ...r, owed: Number(r.owed) })),
+    total: totals?.total ?? 0,
+    owing: { count: Number(totals?.owingCount ?? 0), amount: Number(totals?.owingAmount ?? 0) },
+  };
 }
 
 /**
  * Every matching patient, for the CSV. Unbounded ON PURPOSE — a download that stopped
- * at a page would be wrong in a way the file itself could not show. The row shape is
- * the same as the list, so the two stay in step.
+ * at a page would be wrong in a way the file itself could not show. The row shape and
+ * filters are the list's, so the two stay in step.
  */
-export async function listPatientsForExport(clinicId: string, q = ""): Promise<PatientListRow[]> {
-  return db
-    .select(PATIENT_LIST_COLUMNS)
+export async function listPatientsForExport(
+  clinicId: string,
+  q = "",
+  opts: PatientListOptions = {},
+): Promise<PatientListRow[]> {
+  const search = patientSearchWhere(clinicId, q);
+  if (!opts.withOwed && !opts.owesOnly) {
+    return db.select(PATIENT_LIST_COLUMNS).from(patients).where(search).orderBy(desc(patients.createdAt));
+  }
+  const { visitOwed, openingPaid, owed } = patientOwedParts(clinicId);
+  const rows = await db
+    .select({ ...PATIENT_LIST_COLUMNS, owed })
     .from(patients)
-    .where(patientSearchWhere(clinicId, q))
-    .orderBy(desc(patients.createdAt));
+    .leftJoin(visitOwed, eq(visitOwed.patientId, patients.id))
+    .leftJoin(openingPaid, eq(openingPaid.patientId, patients.id))
+    .where(opts.owesOnly ? and(search, gt(owed, 0)) : search)
+    .orderBy(...(opts.owesOnly ? [desc(owed), desc(patients.createdAt)] : [desc(patients.createdAt)]));
+  return rows.map((r) => ({ ...r, owed: Number(r.owed) }));
 }
 
 const PATIENT_LIST_COLUMNS = {
@@ -87,6 +181,8 @@ export type PatientListRow = {
   gender: string | null;
   dateOfBirth: string | null;
   reference: string | null;
+  /** What the patient owes, when the list was asked for it (`withOwed`). */
+  owed?: number;
 };
 
 /** The booking picker's shape: enough to identify a patient and show their MRN. */

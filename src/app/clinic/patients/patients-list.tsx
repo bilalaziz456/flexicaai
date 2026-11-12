@@ -19,7 +19,9 @@ import {
 import { FlashToast } from "@/core/ui/toast";
 import { RowLink } from "@/core/ui/row-link";
 import { ageFromDob } from "@/core/lib/age";
-import { PatientsSearch } from "./patients-search";
+import { LiveSearchInput } from "@/core/ui/live-search-input";
+import { Badge } from "@/core/ui/badge";
+import { formatPkr } from "@/core/appointments/fee";
 
 export type PatientsListSearchParams = {
   q?: string;
@@ -28,6 +30,8 @@ export type PatientsListSearchParams = {
   created?: string;
   updated?: string;
   deleted?: string;
+  /** "1" = only patients who owe money. */
+  owes?: string;
 };
 
 /**
@@ -43,6 +47,7 @@ export async function PatientsList({
   listPath,
   detailBase,
   newHref,
+  showOwed = false,
   searchParams,
 }: {
   clinicId: string;
@@ -54,6 +59,9 @@ export async function PatientsList({
   listPath: string;
   detailBase: string;
   newHref: string;
+  /** Highlight who owes money and offer the "Owes money" filter — for someone who
+   *  may see Receivables, in a clinic with billing on. */
+  showOwed?: boolean;
   searchParams: PatientsListSearchParams;
 }) {
   const showBook = canBook && Boolean(bookPath);
@@ -72,10 +80,26 @@ export async function PatientsList({
 
   // Search (name / phone / MRN) and paging live in core, shared with the CSV export
   // so the download can never return a different set from the list (ADR-014).
-  const { rows, total } = await listClinicPatients(clinicId, query ?? "", {
-    offset: pageOffset(page, pageSize),
-    limit: pageSize,
-  });
+  const owesOnly = showOwed && sp.owes === "1";
+  const { rows, total, owing } = await listClinicPatients(
+    clinicId,
+    query ?? "",
+    { offset: pageOffset(page, pageSize), limit: pageSize },
+    { withOwed: showOwed, owesOnly },
+  );
+  // The filter links keep the search and the page size; the page goes back to 1.
+  const filterHref = (owes: boolean) => {
+    const p = new URLSearchParams();
+    if (query) p.set("q", query);
+    if (sp.size) p.set("size", sp.size);
+    if (owes) p.set("owes", "1");
+    const s = p.toString();
+    return s ? `${listPath}?${s}` : listPath;
+  };
+  const exportParams = new URLSearchParams();
+  if (query) exportParams.set("q", query);
+  if (owesOnly) exportParams.set("owes", "1");
+  const exportQs = exportParams.toString();
 
   return (
     <div className="space-y-6">
@@ -84,7 +108,9 @@ export async function PatientsList({
         title="Patients"
         description={
           <>
-            {total} patient{total === 1 ? "" : "s"}
+            {owesOnly && owing
+              ? `${owing.count} patient${owing.count === 1 ? "" : "s"} owe${owing.count === 1 ? "s" : ""} ${formatPkr(owing.amount)}`
+              : `${total} patient${total === 1 ? "" : "s"}`}
             {query ? ` matching “${query}”` : ""}.
           </>
         }
@@ -92,7 +118,7 @@ export async function PatientsList({
           <>
           {total > 0 ? (
             <a
-              href={`/api/patients/export${query ? `?q=${encodeURIComponent(query)}` : ""}`}
+              href={`/api/patients/export${exportQs ? `?${exportQs}` : ""}`}
               className={cn(buttonVariants({ variant: "outline" }))}
             >
               <Download className="size-4" aria-hidden="true" /> CSV
@@ -107,7 +133,32 @@ export async function PatientsList({
         }
       />
 
-      <PatientsSearch initial={query ?? ""} />
+      <div className="flex flex-wrap items-center gap-3">
+        <LiveSearchInput
+          initial={query ?? ""}
+          placeholder="Search name, phone or MRN…"
+          ariaLabel="Search patients"
+          className="relative w-full max-w-xs"
+        />
+        {showOwed ? (
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Show">
+            <Link
+              href={filterHref(false)}
+              aria-current={!owesOnly ? "page" : undefined}
+              className={cn(buttonVariants({ variant: owesOnly ? "outline" : "default", size: "sm" }))}
+            >
+              All patients
+            </Link>
+            <Link
+              href={filterHref(true)}
+              aria-current={owesOnly ? "page" : undefined}
+              className={cn(buttonVariants({ variant: owesOnly ? "default" : "outline", size: "sm" }))}
+            >
+              Owes money{owing ? ` (${owing.count})` : ""}
+            </Link>
+          </div>
+        ) : null}
+      </div>
 
       <Pagination
         page={page}
@@ -121,9 +172,13 @@ export async function PatientsList({
       {rows.length === 0 ? (
         <EmptyState
           icon={Users}
-          title={query ? "No matching patients" : "No patients yet"}
+          title={owesOnly ? "Nobody owes money" : query ? "No matching patients" : "No patients yet"}
           description={
-            query
+            owesOnly
+              ? query
+                ? `No patient matching “${query}” has money outstanding.`
+                : "Every patient's visits are paid up."
+              : query
               ? `Nothing matches “${query}”. Try a name, a phone number or an MRN.`
               : "Patients you register appear here, newest first."
           }
@@ -145,11 +200,20 @@ export async function PatientsList({
               </TableHeader>
               <TableBody>
                 {rows.map((p) => (
-                  <RowLink key={p.id} href={`${detailBase}/${p.id}`} className="border-b">
+                  <RowLink
+                    key={p.id}
+                    href={`${detailBase}/${p.id}`}
+                    className={cn("border-b", (p.owed ?? 0) > 0 && "bg-destructive/5 hover:bg-destructive/10")}
+                  >
                     <TableCell className="tabular-nums text-muted-foreground">
                       {p.mrnLabel ?? "—"}
                     </TableCell>
-                    <TableCell className="font-medium">{p.fullName}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {p.fullName}
+                        <OwedBadge owed={p.owed} />
+                      </div>
+                    </TableCell>
                     <TableCell>{p.phone ?? "—"}</TableCell>
                     <TableCell className="capitalize">{p.gender ?? "—"}</TableCell>
                     <TableCell>{ageFromDob(p.dateOfBirth) ?? "—"}</TableCell>
@@ -186,10 +250,13 @@ export async function PatientsList({
                 key={p.id}
                 as="li"
                 href={`${detailBase}/${p.id}`}
-                className="block space-y-2 p-3"
+                className={cn("block space-y-2 p-3", (p.owed ?? 0) > 0 && "bg-destructive/5")}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="font-medium">{p.fullName}</div>
+                  <div className="flex flex-wrap items-center gap-2 font-medium">
+                    {p.fullName}
+                    <OwedBadge owed={p.owed} />
+                  </div>
                   {p.mrnLabel ? (
                     <span className="text-xs tabular-nums text-muted-foreground">
                       {p.mrnLabel}
@@ -248,4 +315,10 @@ export async function PatientsList({
       ) : null}
     </div>
   );
+}
+
+/** "Owes Rs 2,000" beside a patient who owes; nothing for one who does not. */
+function OwedBadge({ owed }: { owed?: number }) {
+  if (!owed || owed <= 0) return null;
+  return <Badge variant="destructive">Owes {formatPkr(owed)}</Badge>;
 }
