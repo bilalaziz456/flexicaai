@@ -18,6 +18,7 @@ import { logActivityAs } from "@/core/audit/log";
 import {
   createClinicWithAdmin as createClinicWithAdminRecord,
   findAssignableManager,
+  clinicOfClinicUser,
   getLiveClinic,
   resetClinicUserPassword,
   setClinicStatusFields,
@@ -37,7 +38,7 @@ import { isClinicStatus, isClinicUsable, type ClinicStatus } from "@/core/clinic
 import { permId, resourcesForClinic, sanitizePermissions } from "@/core/auth/permissions";
 import { recordClinicPayment, setPaymentCommitment, setPaymentNoticeEnabled, setPaymentReminderDays, syncClinicBillingStatus, voidClinicPayment } from "@/core/admin/billing";
 import { setHealthFollowup } from "@/core/admin/health";
-import { canManageTeam } from "@/core/auth/admin-permissions";
+import { canManageTeam, managesClinic } from "@/core/auth/admin-permissions";
 import { saveClinicFile, deleteFileByKey } from "@/core/integrations/storage";
 import { LOGO_EXT, MAX_LOGO_BYTES } from "@/core/clinics/logo-limits";
 import { backfillClinicSales } from "@/core/sales/ledger";
@@ -233,8 +234,25 @@ const clinicSettingsSchema = z.object({
  * server's half, because an action can be called without the page.
  */
 const NOT_YOUR_CLINIC = "You can only change clinics you manage.";
-function managesClinic(admin: Awaited<ReturnType<typeof requireAdminCapability>>, clinic: { assignedTo: string | null }) {
-  return canManageTeam(admin) || clinic.assignedTo === admin.id;
+type AdminUser = Awaited<ReturnType<typeof requireAdminCapability>>;
+
+/**
+ * The live clinic, if this admin may act on it — every action that names a clinic
+ * starts here (2026-11-14), so an account manager's reach is the clinics they manage
+ * however the action is called.
+ */
+async function clinicYouManage(admin: AdminUser, clinicId: string) {
+  const clinic = await getLiveClinic(clinicId);
+  if (!clinic) return { error: "Clinic not found." } as const;
+  if (!managesClinic(admin, clinic)) return { error: NOT_YOUR_CLINIC } as const;
+  return { clinic } as const;
+}
+
+/** The same, for an action that names a clinic's staff member. */
+async function clinicUserYouManage(admin: AdminUser, userId: string) {
+  const clinicId = await clinicOfClinicUser(userId);
+  if (!clinicId) return { error: "Staff member not found." } as const;
+  return clinicYouManage(admin, clinicId);
 }
 
 export async function updateClinic(
@@ -370,8 +388,9 @@ export async function setClinicStatus(
   if (!isClinicStatus(status)) return { error: "Unknown status." };
   const target = status as ClinicStatus;
 
-  const before = await getLiveClinic(clinicId);
-  if (!before) return { error: "Clinic not found." };
+  const scoped = await clinicYouManage(admin, clinicId);
+  if ("error" in scoped) return { error: scoped.error };
+  const before = scoped.clinic;
 
   const now = new Date();
   const nowUnusable = !isClinicUsable({ status: target, trialEndsAt: null });
@@ -430,14 +449,15 @@ export async function extendTrial(
   clinicId: string,
   days: number,
 ): Promise<AdminActionState> {
-  await requireAdminCapability("clinics:edit");
+  const admin = await requireAdminCapability("clinics:edit");
   const n = Math.trunc(Number(days));
   if (!Number.isFinite(n) || n < 1 || n > 365) {
     return { error: "Enter 1–365 days." };
   }
 
-  const before = await getLiveClinic(clinicId);
-  if (!before) return { error: "Clinic not found." };
+  const scoped = await clinicYouManage(admin, clinicId);
+  if ("error" in scoped) return { error: scoped.error };
+  const before = scoped.clinic;
 
   const now = Date.now();
   const base = Math.max(now, before.trialEndsAt?.getTime() ?? now);
@@ -619,13 +639,14 @@ export async function updateClinicPublicContact(
   _prevState: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  await requireAdminCapability("clinics:edit");
+  const admin = await requireAdminCapability("clinics:edit");
 
   const parsed = parsePublicContact(formData);
   if (!parsed.ok) return { error: parsed.error };
 
-  const before = await getLiveClinic(clinicId);
-  if (!before) return { error: "Clinic not found." };
+  const scoped = await clinicYouManage(admin, clinicId);
+  if ("error" in scoped) return { error: scoped.error };
+  const before = scoped.clinic;
 
   await setPublicContact(clinicId, parsed.values);
 
@@ -649,7 +670,7 @@ export async function updateClinicContact(
   _prevState: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  await requireAdminCapability("clinics:edit");
+  const admin = await requireAdminCapability("clinics:edit");
 
   const parsed = contactSchema.safeParse({
     ownerName: formData.get("ownerName") ?? undefined,
@@ -669,8 +690,9 @@ export async function updateClinicContact(
   const d = parsed.data;
   const orNull = (v?: string) => (v && v.length ? v : null);
 
-  const before = await getLiveClinic(clinicId);
-  if (!before) return { error: "Clinic not found." };
+  const scoped = await clinicYouManage(admin, clinicId);
+  if ("error" in scoped) return { error: scoped.error };
+  const before = scoped.clinic;
 
   // The city is TYPED, so it is resolved to a row here — found or created. A city
   // without a province cannot be filed (two Mirpurs), so it is dropped rather than
@@ -717,6 +739,8 @@ export async function startImpersonation(
   totp?: string,
 ): Promise<AdminActionState> {
   const admin = await requireAdminCapability("impersonate:view");
+  const scoped = await clinicYouManage(admin, clinicId);
+  if ("error" in scoped) return { error: scoped.error };
 
   if (!(await verifyCurrentUserPassword(password))) {
     return { error: "Incorrect password." };
@@ -779,8 +803,9 @@ export async function setClinicPrice(
   });
   if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
 
-  const before = await getLiveClinic(clinicId);
-  if (!before) return { error: "Clinic not found." };
+  const scoped = await clinicYouManage(admin, clinicId);
+  if ("error" in scoped) return { error: scoped.error };
+  const before = scoped.clinic;
 
   await updateClinicFields(clinicId, {
       monthlyPrice: parsed.data.monthlyPrice,
@@ -829,6 +854,8 @@ export async function recordClinicPaymentAction(
   formData: FormData,
 ): Promise<AdminActionState> {
   const admin = await requireAdminCapability("billing:create");
+  const scoped = await clinicYouManage(admin, clinicId);
+  if ("error" in scoped) return { error: scoped.error };
   const parsed = clinicPaymentSchema.safeParse({
     amount: formData.get("amount"),
     kind: formData.get("kind") || undefined,
@@ -898,7 +925,7 @@ export async function setClinicPaymentInvoiceAction(
   if (!ids.success) return { error: "Invalid payment or invoice." };
   const c = await getClinic(clinicId);
   if (!c) return { error: "Clinic not found." };
-  if (!canManageTeam(admin) && c.assignedTo !== admin.id) {
+  if (!managesClinic(admin, c)) {
     return { error: "You can only change billing for clinics you manage." };
   }
   const res = await setPaymentInvoice(clinicId, ids.data.paymentId, ids.data.invoiceId);
@@ -928,7 +955,9 @@ export async function setClinicAssigneeAction(
   assigneeId: string | null,
   notify = true,
 ): Promise<AdminActionState> {
-  await requireAdminCapability("clinics:edit");
+  const admin = await requireAdminCapability("clinics:edit");
+  const scoped = await clinicYouManage(admin, clinicId);
+  if ("error" in scoped) return { error: scoped.error };
 
   let assigned: string | null = null;
   let name = "unassigned";
@@ -981,7 +1010,7 @@ export async function setHealthFollowupAction(
   // Scope: a non-full admin (account manager) may only action their own clinics.
   const c = await getLiveClinic(clinicId);
   if (!c) return { error: "Clinic not found." };
-  if (!canManageTeam(admin) && c.assignedTo !== admin.id) {
+  if (!managesClinic(admin, c)) {
     return { error: "You can only follow up on clinics assigned to you." };
   }
 
@@ -1015,7 +1044,7 @@ export async function setPaymentCommitmentAction(
 
   const c = await getLiveClinic(clinicId);
   if (!c) return { error: "Clinic not found." };
-  if (!canManageTeam(admin) && c.assignedTo !== admin.id) {
+  if (!managesClinic(admin, c)) {
     return { error: "You can only follow up on clinics assigned to you." };
   }
 
@@ -1050,7 +1079,7 @@ export async function setPaymentNoticeEnabledAction(
 
   const c = await getLiveClinic(clinicId);
   if (!c) return { error: "Clinic not found." };
-  if (!canManageTeam(admin) && c.assignedTo !== admin.id) {
+  if (!managesClinic(admin, c)) {
     return { error: "You can only change clinics assigned to you." };
   }
 
@@ -1079,7 +1108,7 @@ export async function setPaymentReminderDaysAction(
 
   const c = await getLiveClinic(clinicId);
   if (!c) return { error: "Clinic not found." };
-  if (!canManageTeam(admin) && c.assignedTo !== admin.id) {
+  if (!managesClinic(admin, c)) {
     return { error: "You can only change clinics assigned to you." };
   }
 
@@ -1108,7 +1137,7 @@ async function assertCanEditClinicLogo(
   const admin = await requireAdminCapability("clinics:edit");
   const c = await getLiveClinic(clinicId);
   if (!c) return { error: "Clinic not found." };
-  if (!canManageTeam(admin) && c.assignedTo !== admin.id) {
+  if (!managesClinic(admin, c)) {
     return { error: "You can only change clinics assigned to you." };
   }
   return { logoKey: c.logoKey };
@@ -1242,6 +1271,8 @@ export async function voidClinicPaymentAction(
   paymentId: string,
 ): Promise<AdminActionState> {
   const admin = await requireAdminCapability("billing:delete");
+  const scoped = await clinicYouManage(admin, clinicId);
+  if ("error" in scoped) return { error: scoped.error };
   const res = await voidClinicPayment(clinicId, paymentId, admin.id);
   if ("error" in res) return { error: res.error };
 
@@ -1276,7 +1307,9 @@ export async function updateStaffProfile(
   _prevState: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  await requireAdminCapability("clinics:edit");
+  const admin = await requireAdminCapability("clinics:edit");
+  const scoped = await clinicUserYouManage(admin, userId);
+  if ("error" in scoped) return { error: scoped.error };
 
   const parsed = updateStaffSchema.safeParse({
     fullName: formData.get("fullName"),
@@ -1322,7 +1355,9 @@ export async function resetUserPassword(
   _prevState: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  await requireAdminCapability("clinics:edit");
+  const admin = await requireAdminCapability("clinics:edit");
+  const scoped = await clinicUserYouManage(admin, userId);
+  if ("error" in scoped) return { error: scoped.error };
 
   const parsed = resetPasswordSchema.safeParse({
     password: formData.get("password"),
@@ -1352,7 +1387,11 @@ export async function setUserActive(
   isActive: boolean,
   _formData: FormData,
 ): Promise<void> {
-  await requireAdminCapability("clinics:edit");
+  const admin = await requireAdminCapability("clinics:edit");
+  // A form action with nothing to show an error in: a refused one changes nothing.
+  // The button is only drawn on the clinics this admin can see.
+  const scoped = await clinicUserYouManage(admin, userId);
+  if ("error" in scoped) return;
 
   // A CLINIC ADMIN's active state cascades to their whole clinic in ONE action:
   // suspending takes the clinic offline (staff suspended + logged out), reactivating
@@ -1382,6 +1421,8 @@ export async function deleteClinic(
   password: string,
 ): Promise<AdminActionState> {
   const admin = await requireAdminCapability("clinics:delete");
+  const scoped = await clinicYouManage(admin, clinicId);
+  if ("error" in scoped) return { error: scoped.error };
 
   // Step-up auth: re-verify the super admin's own password before wiping a clinic.
   if (!(await verifyCurrentUserPassword(password))) {

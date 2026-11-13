@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdminCapability } from "@/core/auth/user";
+import { managesClinic } from "@/core/auth/admin-permissions";
+import { getLiveClinic } from "@/core/admin/clinics";
 import { displayStaffName } from "@/core/types/auth";
 import { commitImport, previewImport, undoBatch } from "@/core/admin/import";
 import type { ImportEntity, ImportPreview, ImportResult } from "@/core/admin/import";
@@ -35,12 +37,21 @@ async function fileFrom(
   return { name: f.name, buf: await f.arrayBuffer() };
 }
 
+/** Only a clinic this admin manages (core/auth/admin-permissions#managesClinic). */
+async function refuseUnmanaged(admin: Awaited<ReturnType<typeof requireAdminCapability>>, clinicId: string): Promise<string | null> {
+  const clinic = await getLiveClinic(clinicId);
+  if (!clinic) return "Clinic not found.";
+  return managesClinic(admin, clinic) ? null : "You can only change clinics you manage.";
+}
+
 /** Dry-run: validate the file and return the preview. Never writes. */
 export async function previewImportAction(
   clinicId: string,
   formData: FormData,
 ): Promise<ImportPreview | { error: string }> {
-  await requireAdminCapability("import:create");
+  const admin = await requireAdminCapability("import:create");
+  const refused = await refuseUnmanaged(admin, clinicId);
+  if (refused) return { error: refused };
   const entity = entityOf(formData.get("entity"));
   const file = await fileFrom(formData);
   if ("error" in file) return file;
@@ -57,6 +68,8 @@ export async function commitImportAction(
   formData: FormData,
 ): Promise<ImportResult | { error: string }> {
   const admin = await requireAdminCapability("import:create");
+  const refused = await refuseUnmanaged(admin, clinicId);
+  if (refused) return { error: refused };
   const entity = entityOf(formData.get("entity"));
   const file = await fileFrom(formData);
   if ("error" in file) return file;
@@ -74,6 +87,7 @@ export async function commitImportAction(
 /** Undo an import (soft-delete the whole batch). */
 export async function undoImportAction(clinicId: string, batchId: string): Promise<{ ok: boolean }> {
   const admin = await requireAdminCapability("import:create");
+  if (await refuseUnmanaged(admin, clinicId)) return { ok: false };
   const ok = await undoBatch(clinicId, batchId, { id: admin.id });
   revalidatePath(`/admin/clinics/${clinicId}/import`);
   return { ok };

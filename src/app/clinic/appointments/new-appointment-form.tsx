@@ -799,7 +799,7 @@ export function NewAppointmentForm({
               <p className="col-span-2 -mt-2 text-xs text-muted-foreground">
                 {heldNumber
                   ? `Number ${heldNumber} is kept for this patient; the next booking still takes ${slots.nextNumber}.`
-                  : "The next free number for this doctor on this day. Type another to keep a later number for this patient."}
+                  : `Number ${slots.nextNumber} is the next free one for this doctor that day, whatever the time. To give this patient a later place in the queue, type a higher number.`}
               </p>
             ) : null}
           </div>
@@ -807,7 +807,11 @@ export function NewAppointmentForm({
         {heldNumber ? <input type="hidden" name="queueNumber" value={heldNumber} /> : null}
 
         <div className="space-y-2">
-          <Label htmlFor="date">Date</Label>
+          {/* Same height as the Time label row, which carries the Custom time tick —
+              otherwise the two labels and the two fields sit at different heights. */}
+          <div className="flex min-h-6 items-center">
+            <Label htmlFor="date">Date</Label>
+          </div>
           <DatePicker
             id="date"
             ariaLabel="Appointment date"
@@ -851,7 +855,15 @@ export function NewAppointmentForm({
                 ariaLabel="Appointment time"
                 value={effectiveTime || "09:00"}
                 onChange={setTime}
+                size="default"
               />
+              {customTime && !customTimeUnnecessary && slots?.available && slots.windows.length > 0 ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Outside the doctor&apos;s working hours (
+                  {slots.windows.map((w) => `${w.start}–${w.end}`).join(", ")}), so it is booked as a
+                  custom-time visit.
+                </p>
+              ) : null}
               {customTimeUnnecessary ? (
                 <p className="mt-1 text-xs text-muted-foreground">
                   This time is within the doctor&apos;s visiting hours, so no exception
@@ -1543,7 +1555,6 @@ export function NewAppointmentForm({
             : slots.windows.length
               ? `Working hours ${slots.windows.map((w) => `${w.start}–${w.end}${w.kind === "procedure" ? " (procedures)" : ""}`).join(", ")}.`
               : ""}
-          {customTime ? " Custom time on — this visit is booked outside them." : ""}
           {slots.remaining !== null
             ? ` ${slots.remaining} of ${slots.limit} appointment${slots.remaining === 1 ? "" : "s"} left that day.`
             : ""}

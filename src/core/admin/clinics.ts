@@ -2,7 +2,7 @@ import "server-only";
 
 import { DEFAULT_CLINIC_FEATURES } from "@/core/lib/features";
 
-import { and, eq, inArray, isNull, ne } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import { db } from "@/core/db";
 import {
   appointments,
@@ -197,7 +197,26 @@ export async function updateClinicUserProfile(
     await db
       .update(users)
       .set({ ...input, updatedAt: new Date() })
-      .where(eq(users.id, userId));
+      .where(clinicUserOnly(userId));
+  });
+}
+
+/**
+ * These three act on a CLINIC's staff only. A row with no clinic is the company's own
+ * team — the owner included — and was reachable here by id until 2026-11-14: anyone
+ * holding `clinics:edit` could reset the owner's password. Matching nothing is the
+ * refusal; the actions check first and say so (`clinicOfClinicUser`).
+ */
+function clinicUserOnly(userId: string) {
+  return and(eq(users.id, userId), isNotNull(users.clinicId), notDeleted(users.deletedAt));
+}
+
+/** The clinic a clinic user belongs to; null for the company's team or no such user. */
+export async function clinicOfClinicUser(userId: string): Promise<string | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(userId)) return null;
+  return unscoped("super admin finds a clinic user's clinic", async () => {
+    const [row] = await db.select({ clinicId: users.clinicId }).from(users).where(clinicUserOnly(userId)).limit(1);
+    return row?.clinicId ?? null;
   });
 }
 
@@ -208,11 +227,12 @@ export async function resetClinicUserPassword(
 ): Promise<void> {
   await unscoped("super admin resets a clinic user's password", async () => {
     await db.transaction(async (tx) => {
-      await tx
+      const changed = await tx
         .update(users)
         .set({ passwordHash, mustChangePassword: true, updatedAt: new Date() })
-        .where(eq(users.id, userId));
-      await tx.delete(sessions).where(eq(sessions.userId, userId));
+        .where(clinicUserOnly(userId))
+        .returning({ id: users.id });
+      if (changed.length > 0) await tx.delete(sessions).where(eq(sessions.userId, userId));
     });
   });
 }
@@ -243,8 +263,9 @@ export async function setClinicUserActive(userId: string, isActive: boolean): Pr
       const [target] = await tx
         .update(users)
         .set({ isActive, updatedAt: new Date() })
-        .where(eq(users.id, userId))
+        .where(clinicUserOnly(userId))
         .returning({ role: users.role, clinicId: users.clinicId });
+      if (!target) return;
 
       if (!isActive) await tx.delete(sessions).where(eq(sessions.userId, userId));
       if (target?.role !== "clinic_admin" || !target.clinicId) return;

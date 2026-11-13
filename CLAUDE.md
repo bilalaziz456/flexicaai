@@ -428,8 +428,12 @@ are in `.env.example`.
   note has a treating doctor; one someone else writes waits for that doctor's approval
   unless the clinic admin turned it off for them (staff record → Clinical notes) —
   Approve, or Send back with a reason (ADR-038). **A team member who
-  is not a full admin can change only the clinics they manage** — the clinic settings,
-  capabilities and log-access saves re-check it on the server.
+  is not a full admin can change only the clinics they manage** — EVERY admin action that
+  names a clinic or a clinic's staff member re-checks it on the server through one
+  predicate, `core/auth/admin-permissions.ts#managesClinic` (settings, status, trial,
+  contacts, account manager, price, payments, impersonation, logo/letterhead, import,
+  staff profile/password/suspend, delete). The staff actions reach CLINIC users only
+  (`clinicOfClinicUser`), never the company's own team.
 - **Per-user ACL (permissions)** — two-tier: super admin → clinic capabilities, and
   clinic admin → per-user `resource:action` grants (`users.permissions`; catalog +
   role defaults in `core/auth/permissions.ts`). A `manager` role was added. Unified

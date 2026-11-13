@@ -136,6 +136,16 @@ export function canManageTeam(user: AdminUser): boolean {
 }
 
 /**
+ * May act on THIS clinic: a full admin on any, anyone else only on the clinics they
+ * are the account manager of (owner, 2026-11-14). Every admin action that names a
+ * clinic or a clinic's staff member checks this on the server — the clinic pages hide
+ * the others, but an action can be called without its page.
+ */
+export function managesClinic(user: AdminUser & { id: string }, clinic: { assignedTo: string | null }): boolean {
+  return canManageTeam(user) || clinic.assignedTo === user.id;
+}
+
+/**
  * PRIVILEGE GUARD: an actor may only grant capabilities they themselves hold — so
  * a partial admin with `team:edit`/`team:create` can't mint or elevate someone
  * above their own access (no self- or lateral escalation). A full admin/owner

@@ -18,9 +18,10 @@ import { cn } from "@/core/lib/utils";
  * `className` sets the width — callers know what has to fit; fix it rather than
  * letting it re-measure, or the control jumps as the selection changes.
  *
- * Use a native `<select>` instead where the list is long and unremarkable (an
- * hour, a minute): the OS list scrolls better on a phone and types-ahead for
- * free. This is for the short, meaningful choice.
+ * Use a native `<select>` instead where the list is long and unremarkable: the OS
+ * list scrolls better on a phone and types-ahead for free. An hour or a minute was
+ * the example here until the owner found the time picker's OS list out of place
+ * (2026-11-14) — twelve rows in a scrolling popup are short enough to be this.
  */
 export function SelectField<T extends string>({
   value,

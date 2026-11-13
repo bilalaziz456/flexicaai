@@ -3,7 +3,7 @@ import { getClinic } from "@/core/clinics/get-clinic";
 
 import { Breadcrumbs } from "@/core/ui/breadcrumbs";
 import { requireAdminCapability } from "@/core/auth/user";
-import { canManageTeam } from "@/core/auth/admin-permissions";
+import { managesClinic } from "@/core/auth/admin-permissions";
 import { listBatches } from "@/core/admin/import";
 import { ImportUI } from "./import-ui";
 
@@ -20,7 +20,7 @@ export default async function ClinicImportPage({
   const clinic = await getClinic(id);
   if (!clinic) notFound();
   // Same visibility scope as the clinic detail page.
-  if (!canManageTeam(admin) && clinic.assignedTo !== admin.id) notFound();
+  if (!managesClinic(admin, clinic)) notFound();
 
   const batches = await listBatches(clinic.id);
 

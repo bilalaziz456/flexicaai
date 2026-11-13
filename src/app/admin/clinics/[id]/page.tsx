@@ -13,7 +13,7 @@ import { SPECIALTY_CATALOG } from "@/config/modules";
 import { CLINIC_FEATURES } from "@/core/lib/features";
 import { resourcesForClinic } from "@/core/auth/permissions";
 import { requireAdminCapability } from "@/core/auth/user";
-import { canAdmin, canManageBilling, canManageTeam, canSeeBilling } from "@/core/auth/admin-permissions";
+import { canAdmin, canManageBilling, canManageTeam, canSeeBilling, managesClinic } from "@/core/auth/admin-permissions";
 import { getClinicBilling } from "@/core/admin/billing";
 import { listInvoicesForClinic } from "@/core/admin/clinic-invoices";
 import { localIsoDate } from "@/core/admin/invoice-status";
@@ -73,7 +73,7 @@ export default async function ClinicDetailPage({
   const admin = await requireAdminCapability("clinics:view");
   // Visibility scope: a non-full-access team member may only open clinics
   // assigned to them (owner + super_admin see all).
-  if (!canManageTeam(admin) && clinic.assignedTo !== admin.id) notFound();
+  if (!managesClinic(admin, clinic)) notFound();
   // Billing card: visible to billing VISIBILITY (owner/sales/billing/support), and
   // editable only with a billing manage action (sales sees it read-only).
   const showBilling = canSeeBilling(admin);
