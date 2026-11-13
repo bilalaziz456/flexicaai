@@ -31,6 +31,7 @@ import { replaceDoctorProcedureShares } from "@/core/appointments/share-config";
 import { TIME_RE, timeToMinutes, type DayAvailability } from "@/core/lib/availability";
 import { dobFromAgeField } from "@/core/lib/age";
 import { logActivity } from "@/core/audit/log";
+import { setDoctorNotesApproval } from "@/core/clinical/note-approval";
 import { CLINIC_STAFF_ROLES, STAFF_PREFIXES, USERNAME_REGEX } from "@/core/types/auth";
 import { sanitizePermissions } from "@/core/auth/permissions";
 import { getDoctorActivity, type DoctorActivity } from "@/core/users/doctor-activity";
@@ -510,6 +511,26 @@ const sharePctSchema = z.coerce
  * empty rate means "no override" (use the default) and is simply not submitted, so
  * a stored 0 stays distinct from unset. Stays on the page (toast).
  */
+/** The clinic admin's per-doctor switch: notes others write for this doctor's patients
+ *  wait for their approval (2026-11-14). */
+export async function updateDoctorNotesApproval(
+  doctorId: string,
+  _prev: ClinicActionState,
+  formData: FormData,
+): Promise<ClinicActionState> {
+  const { clinicId } = await requireClinicAdmin();
+  const needs = formData.get("notesNeedApproval") === "on";
+  if (!(await setDoctorNotesApproval(clinicId, doctorId, needs))) return { error: "Doctor not found." };
+  await logActivity({
+    action: "update",
+    entity: "user",
+    entityId: doctorId,
+    summary: needs ? "Notes for this doctor's patients now need their approval" : "Notes for this doctor's patients no longer need their approval",
+  });
+  revalidatePath(`/clinic/staff/${doctorId}`);
+  return { saved: true };
+}
+
 export async function updateDoctorShares(
   doctorId: string,
   _prev: ClinicActionState,

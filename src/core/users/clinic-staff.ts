@@ -336,6 +336,7 @@ export async function getClinicStaffMember(clinicId: string, userId: string) {
       consultationSharePct: users.consultationSharePct,
       procedureSharePct: users.procedureSharePct,
       discountNeedsApproval: users.discountNeedsApproval,
+      notesNeedApproval: users.notesNeedApproval,
     })
     .from(users)
     .where(byClinic(users.clinicId, clinicId, notDeleted(users.deletedAt), eq(users.id, userId)))

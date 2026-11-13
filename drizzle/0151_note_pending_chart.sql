@@ -1,0 +1,1 @@
+ALTER TABLE "visits" ADD COLUMN "pending_chart" jsonb;

@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { DictationPlayer } from "@/core/ui/dictation-player";
 import { RecordingIndicator } from "@/app/clinic/scribe/recording-indicator";
-import { FileClock, Loader2, Mic, Square, UserX, X } from "lucide-react";
+import { FileClock, Loader2, Mic, PenLine, Square, UserX, X } from "lucide-react";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import {
@@ -14,17 +14,21 @@ import {
   CardTitle,
 } from "@/core/ui/card";
 import { NoteEditor } from "@/core/ui/note-editor";
+import { SelectField } from "@/core/ui/select-field";
 import { clinicalUiFor } from "@/config/clinical-record-ui";
 import {
   approveVisit,
   discardDraft,
   loadDraft,
   loadPatientChart,
+  saveTypedNote,
   searchPatients,
   getScribeStatus,
 } from "@/app/clinic/scribe/actions";
 
 type Patient = { id: string; fullName: string; phone: string | null };
+/** The appointment a note is started from (the Clinical notes list, 2026-11-14). */
+type ForAppointment = { id: string; label: string; doctorName: string | null };
 type PendingDraft = { id: string; visitDate: Date | null; patientName: string };
 /** A draft whose author can no longer log in (delta D-18) — see StrandedDrafts. */
 type StrandedDraftItem = PendingDraft & { authorName: string | null };
@@ -37,28 +41,62 @@ type Draft = {
 };
 
 /**
- * The voice scribe (CLAUDE.md §8). Client component (browser MediaRecorder):
- * pick a patient → record → the /api/ai/scribe route transcribes + drafts a
- * note → the doctor reviews/edits → Approve saves it. Every note is a DRAFT
- * until the doctor approves; nothing is auto-finalized.
+ * The voice scribe (CLAUDE.md §8) and the typed note. Client component (browser
+ * MediaRecorder): pick a patient → record → the /api/ai/scribe route transcribes +
+ * drafts a note → the doctor reviews/edits → Approve saves it. Every AI note is a
+ * DRAFT until the doctor approves; nothing is auto-finalized.
+ *
+ * Or pick a patient → "Type the note" (2026-11-14): the same form, empty, saved
+ * straight to the record and signed by its author — nothing machine-written to check.
+ * Which of the two a person sees is the clinic admin's call (`scribe` / `clinical`).
  */
 export function ScribeWorkspace({
-  initialPatients,
   pendingDrafts = [],
   strandedDrafts = [],
   modulesEnabled = [],
+  canRecord = true,
+  canType = false,
+  writeFor = null,
+  writeForChart = null,
+  forAppointment = null,
+  appointmentPatient = null,
+  doctors = [],
 }: {
-  initialPatients: Patient[];
   /** Your own drafts that were never approved — see PendingApproval below. */
   pendingDrafts?: PendingDraft[];
   /** Someone ELSE's drafts, reachable only via `handover` — see StrandedDrafts. */
   strandedDrafts?: StrandedDraftItem[];
   /** The clinic's enabled modules — drives the specialty chart editor (if any). */
   modulesEnabled?: string[];
+  /** Voice scribe on for the clinic AND `scribe:create` held. */
+  canRecord?: boolean;
+  /** `clinical:create`: may write a note by hand. */
+  canType?: boolean;
+  /** Open straight on a typed note for this patient ("Write note" on their page). */
+  writeFor?: Patient | null;
+  /** That patient's current chart, loaded by the server so the form opens complete. */
+  writeForChart?: unknown;
+  /** Started from an appointment: the note is linked to it and belongs to its doctor. */
+  forAppointment?: ForAppointment | null;
+  /** That appointment's patient, chosen already. */
+  appointmentPatient?: Patient | null;
+  /** The clinic's doctors other than you, for "Whose patient" on a typed note written
+   *  without an appointment. Empty = it is your own patient. */
+  doctors?: { id: string; name: string }[];
 }) {
   const clinicalUi = clinicalUiFor(modulesEnabled);
-  const [patient, setPatient] = useState<Patient | null>(null);
-  const [results, setResults] = useState<Patient[]>(initialPatients);
+  const [patient, setPatient] = useState<Patient | null>(writeFor ?? appointmentPatient);
+  // The appointment this note is for; dropped if a different patient is chosen.
+  const [appt, setAppt] = useState<ForAppointment | null>(forAppointment);
+  // Whose patient a typed note without an appointment is ("" = yours).
+  const [forDoctor, setForDoctor] = useState("");
+  // "Sent to Dr X for approval" after a save that waits.
+  const [notice, setNotice] = useState<string | null>(null);
+  // A typed note in progress (no draft behind it).
+  const [typing, setTyping] = useState(Boolean(writeFor));
+  // The allergy / medicine checks a typed note tripped; saving again confirms them.
+  const [typedWarnings, setTypedWarnings] = useState<{ drugWarnings: string[]; allergyWarnings: string[] } | null>(null);
+  const [results, setResults] = useState<Patient[]>([]);
   const [query, setQuery] = useState("");
 
   const [recording, setRecording] = useState(false);
@@ -71,8 +109,8 @@ export function ScribeWorkspace({
   // patient's CURRENT chart and is saved only if the doctor changes it (owner's call,
   // 2026-10-24) — a misheard dictation must not quietly re-mark a tooth. What the note
   // suggests is offered as one click instead (`chartSuggestion`), never pre-applied.
-  const [chart, setChart] = useState<unknown>(null);
-  const [chartBaseline, setChartBaseline] = useState<string>("null");
+  const [chart, setChart] = useState<unknown>(writeFor ? (writeForChart ?? {}) : null);
+  const [chartBaseline, setChartBaseline] = useState<string>(writeFor ? JSON.stringify(writeForChart ?? {}) : "null");
   const [chartSuggestion, setChartSuggestion] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resuming, setResuming] = useState<string | null>(null);
@@ -88,6 +126,8 @@ export function ScribeWorkspace({
   const runIdRef = useRef<string | null>(null);
 
   function reset() {
+    setTyping(false);
+    setTypedWarnings(null);
     setDraft(null);
     setNote({});
     setChart(null);
@@ -109,6 +149,13 @@ export function ScribeWorkspace({
     setChart(start);
     setChartBaseline(JSON.stringify(start));
     setChartSuggestion(seeded && Object.keys(seeded).length > 0 ? seeded : null);
+  }
+
+  function startTyping() {
+    if (!patient) return;
+    reset();
+    setTyping(true);
+    void seedChart(patient.id, {});
   }
 
   async function runSearch(q: string) {
@@ -199,6 +246,7 @@ export function ScribeWorkspace({
       const form = new FormData();
       form.append("audio", blob, `recording.${ext}`);
       form.append("patientId", patient.id);
+      if (appt) form.append("appointmentId", appt.id);
       const res = await fetch("/api/ai/scribe", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) {
@@ -298,22 +346,46 @@ export function ScribeWorkspace({
   }
 
   function onApprove() {
-    if (!draft) return;
+    if (!draft && !(typing && patient)) return;
     setError(null);
     startTransition(async () => {
       // The chart goes with the approval only when the doctor changed it; otherwise
       // the patient's chart is left exactly as it was.
       const chartChanged = clinicalUi && JSON.stringify(chart) !== chartBaseline;
+      if (typing && patient) {
+        // Second press after the checks showed = the clinician has seen them.
+        const r = await saveTypedNote(patient.id, note, chartChanged ? chart : undefined, typedWarnings !== null, {
+          appointmentId: appt?.id ?? null,
+          doctorId: appt ? null : forDoctor || null,
+        });
+        if ("warnings" in r) setTypedWarnings(r.warnings);
+        else if ("error" in r) setError(r.error);
+        else {
+          reset();
+          setPatient(null);
+          setAppt(null);
+          setNotice(r.waiting ? "Saved. The patient's doctor has been asked to approve it." : "Note saved.");
+        }
+        return;
+      }
+      if (!draft) return;
       const r = await approveVisit(draft.visitId, note, chartChanged ? chart : undefined);
       if ("error" in r) setError(r.error);
       else {
         reset();
         setPatient(null);
+        setAppt(null);
+        setNotice("waiting" in r && r.waiting ? "Approved. The patient's doctor has been asked to approve it too." : "Note saved.");
       }
     });
   }
 
   function onDiscard() {
+    // A typed note has nothing stored yet: cancelling just closes it.
+    if (typing) {
+      reset();
+      return;
+    }
     if (!draft) return;
     startTransition(async () => {
       await discardDraft(draft.visitId);
@@ -321,47 +393,88 @@ export function ScribeWorkspace({
     });
   }
 
-  // ---- Review the AI draft ----
-  if (draft) {
+  // ---- Review the AI draft, or write a note by hand ----
+  if (draft || (typing && patient)) {
+    const warnings = draft ?? typedWarnings;
+    const allergyWarnings = warnings?.allergyWarnings ?? [];
+    const drugWarnings = warnings?.drugWarnings ?? [];
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Review draft: {patient?.fullName}</CardTitle>
+          <CardTitle>{draft ? `Review draft: ${patient?.fullName}` : `New note: ${patient?.fullName}`}</CardTitle>
           <CardDescription>
-            AI-generated draft. Edit anything, then approve to save. Nothing is
-            saved to the record until you approve.
+            {draft
+              ? "AI-generated draft. Edit anything, then approve to save. Nothing is saved to the record until you approve."
+              : "Type the visit note. It is saved to the patient's record, signed by you, when you press Save."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {draft.allergyWarnings && draft.allergyWarnings.length > 0 && (
+          {allergyWarnings.length > 0 && (
             <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive-text">
               <p className="font-semibold">⚠ Allergy conflict. Review before prescribing:</p>
               <ul className="mt-1 list-inside list-disc">
-                {draft.allergyWarnings.map((w, i) => (
+                {allergyWarnings.map((w, i) => (
                   <li key={i}>{w}</li>
                 ))}
               </ul>
             </div>
           )}
 
-          {draft.drugWarnings.length > 0 && (
+          {drugWarnings.length > 0 && (
             <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
               <p className="font-medium">These drugs are not in the formulary:</p>
-              <p className="text-muted-foreground">{draft.drugWarnings.join(", ")}</p>
+              <p className="text-muted-foreground">{drugWarnings.join(", ")}</p>
             </div>
           )}
 
-          {/* Listen back when the text looks wrong (2026-10-20). */}
-          <DictationPlayer src={`/api/clinical/visit-audio/${draft.visitId}`} />
+          {draft ? (
+            <>
+              {/* Listen back when the text looks wrong (2026-10-20). */}
+              <DictationPlayer src={`/api/clinical/visit-audio/${draft.visitId}`} />
 
-          <details className="rounded-md border well p-3 text-sm">
-            <summary className="cursor-pointer font-medium">Transcript</summary>
-            <p className="mt-2 whitespace-pre-wrap text-muted-foreground">
-              {draft.transcript}
-            </p>
-          </details>
+              <details className="rounded-md border well p-3 text-sm">
+                <summary className="cursor-pointer font-medium">Transcript</summary>
+                <p className="mt-2 whitespace-pre-wrap text-muted-foreground">
+                  {draft.transcript}
+                </p>
+              </details>
+            </>
+          ) : null}
 
-          <NoteEditor note={note} onChange={setNote} />
+          {typing && !draft ? (
+            appt ? (
+              <p className="text-sm text-muted-foreground">
+                For the appointment {appt.label}
+                {appt.doctorName ? ` with ${appt.doctorName}` : ""}.
+              </p>
+            ) : doctors.length > 0 ? (
+              <div className="space-y-1">
+                <label htmlFor="note-for-doctor" className="text-sm font-medium">
+                  Whose patient
+                </label>
+                <SelectField
+                  id="note-for-doctor"
+                  ariaLabel="Whose patient"
+                  value={forDoctor}
+                  onValueChange={setForDoctor}
+                  options={[{ value: "", label: "Mine" }, ...doctors.map((d) => ({ value: d.id, label: d.name }))]}
+                  className="w-full max-w-xs"
+                />
+                <p className="text-xs text-muted-foreground">
+                  A note for another doctor&apos;s patient may wait for that doctor to approve it.
+                </p>
+              </div>
+            ) : null
+          ) : null}
+
+          <NoteEditor
+            note={note}
+            onChange={(n) => {
+              setNote(n);
+              // An edited typed note is checked again before it saves.
+              if (typing) setTypedWarnings(null);
+            }}
+          />
 
           {clinicalUi ? (
             <div className="space-y-2 rounded-lg border well p-3">
@@ -394,10 +507,10 @@ export function ScribeWorkspace({
 
           <div className="flex flex-wrap gap-2">
             <Button onClick={onApprove} disabled={pending}>
-              {pending ? "Saving…" : "Approve & save"}
+              {pending ? "Saving…" : draft ? "Approve & save" : typedWarnings ? "Save anyway" : "Save note"}
             </Button>
             <Button variant="outline" onClick={onDiscard} disabled={pending}>
-              Discard
+              {draft ? "Discard" : "Cancel"}
             </Button>
           </div>
         </CardContent>
@@ -427,11 +540,26 @@ export function ScribeWorkspace({
           <CardTitle>New note</CardTitle>
           <CardDescription>
             {patient
-              ? `Recording for ${patient.fullName}.`
-              : "Choose a patient, then record the visit."}
+              ? canRecord
+                ? `For ${patient.fullName}: record the visit${canType ? ", or type the note" : ""}.`
+                : `For ${patient.fullName}: type the visit note.`
+              : canRecord
+                ? `Choose a patient, then record the visit${canType ? " or type the note" : ""}.`
+                : "Choose a patient, then type the visit note."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {notice ? (
+            <p role="status" className="rounded-md border border-success/40 bg-success/10 px-3 py-2 text-sm">
+              {notice}
+            </p>
+          ) : null}
+          {appt && patient ? (
+            <p className="text-sm text-muted-foreground">
+              Appointment {appt.label}
+              {appt.doctorName ? ` with ${appt.doctorName}` : ""}. The note is saved with it.
+            </p>
+          ) : null}
           {!patient ? (
             <div className="space-y-3">
               <Input
@@ -440,26 +568,34 @@ export function ScribeWorkspace({
                 value={query}
                 onChange={(e) => void runSearch(e.target.value)}
               />
-              <ul className="max-h-64 divide-y divide-border/60 overflow-y-auto rounded-md border border-border/60">
-                {results.length === 0 ? (
-                  <li className="p-3 text-sm text-muted-foreground">
-                    No patients found.
-                  </li>
-                ) : (
-                  results.map((p) => (
-                    <li key={p.id}>
-                      <button
-                        type="button"
-                        onClick={() => setPatient(p)}
-                        className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-accent"
-                      >
-                        <span className="font-medium">{p.fullName}</span>
-                        <span className="text-muted-foreground">{p.phone ?? ""}</span>
-                      </button>
+              {/* No list of patients until something is typed (owner, 2026-11-14): a note
+                  mostly starts from the queue or the appointments list, and an unasked-for
+                  list of names only pushed the recorder down the page. */}
+              {query.trim() ? (
+                <ul className="max-h-64 divide-y divide-border/60 overflow-y-auto rounded-md border border-border/60">
+                  {results.length === 0 ? (
+                    <li className="p-3 text-sm text-muted-foreground">
+                      No patients found.
                     </li>
-                  ))
-                )}
-              </ul>
+                  ) : (
+                    results.map((p) => (
+                      <li key={p.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPatient(p);
+                            setNotice(null);
+                          }}
+                          className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-accent"
+                        >
+                          <span className="font-medium">{p.fullName}</span>
+                          <span className="text-muted-foreground">{p.phone ?? ""}</span>
+                        </button>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              ) : null}
             </div>
           ) : (
             <div className="space-y-4">
@@ -473,6 +609,8 @@ export function ScribeWorkspace({
                   variant="ghost"
                   onClick={() => {
                     setPatient(null);
+                    setAppt(null);
+                    setNotice(null);
                     reset();
                   }}
                 >
@@ -506,15 +644,25 @@ export function ScribeWorkspace({
                 </div>
               ) : (
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button onClick={startRecording}>
-                    <Mic className="size-4" aria-hidden="true" />
-                    Start recording
-                  </Button>
+                  {canRecord ? (
+                    <Button onClick={startRecording}>
+                      <Mic className="size-4" aria-hidden="true" />
+                      Start recording
+                    </Button>
+                  ) : null}
+                  {canType ? (
+                    <Button variant={canRecord ? "outline" : "default"} onClick={startTyping}>
+                      <PenLine className="size-4" aria-hidden="true" />
+                      Type the note
+                    </Button>
+                  ) : null}
                   {/* No language to choose (owner's call, 2026-10-24): the server works out
                       Urdu, English or a mix of both (core/ai/scribe-engine, AUTO). */}
-                  <span className="text-xs text-muted-foreground">
-                    Speak in Urdu, English or both. The language is detected automatically.
-                  </span>
+                  {canRecord ? (
+                    <span className="text-xs text-muted-foreground">
+                      Speak in Urdu, English or both. The language is detected automatically.
+                    </span>
+                  ) : null}
                 </div>
               )}
 

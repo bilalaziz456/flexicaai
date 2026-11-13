@@ -9,6 +9,7 @@ import {
   updateDoctorShares,
   updateStaffProfile,
   type ClinicActionState,
+  updateDoctorNotesApproval,
 } from "@/app/clinic/actions";
 import { SelectField } from "@/core/ui/select-field";
 import { Checkbox } from "@/core/ui/checkbox";
@@ -347,5 +348,34 @@ export function DeleteStaffButton({
       }
       onConfirm={(password) => deleteStaff(userId, password)}
     />
+  );
+}
+
+/**
+ * Whether notes others write for this doctor's patients wait for this doctor's
+ * approval (owner, 2026-11-14). On by default; the clinic admin turns it off for a
+ * doctor who does not want to check them.
+ */
+export function NotesApprovalForm({ userId, notesNeedApproval }: { userId: string; notesNeedApproval: boolean }) {
+  const action = updateDoctorNotesApproval.bind(null, userId);
+  const [state, formAction, pending] = useActionState<ClinicActionState, FormData>(action, {});
+  useActionToast(state, { saved: "Saved.", error: true });
+  const [needs, setNeeds] = useState(notesNeedApproval);
+  return (
+    <ActionForm action={formAction} state={state} className="space-y-3">
+      <input type="hidden" name="notesNeedApproval" value={needs ? "on" : ""} />
+      <label className="flex min-h-6 items-center gap-2 text-sm">
+        <Checkbox checked={needs} ref={syncChecked(needs)} onCheckedChange={setNeeds} />
+        Notes written by others for this doctor&apos;s patients need their approval
+      </label>
+      <p className="text-xs text-muted-foreground">
+        When on, a note another doctor, the clinic admin or anyone else writes for this
+        doctor&apos;s appointment waits for this doctor to approve it. Its prescription and
+        recall wait too. When off, it is saved straight away, signed by whoever wrote it.
+      </p>
+      <Button type="submit" disabled={pending}>
+        {pending ? "Saving…" : "Save"}
+      </Button>
+    </ActionForm>
   );
 }

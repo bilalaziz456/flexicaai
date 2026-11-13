@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   MessageCircle,
   Mic,
+  Stethoscope,
   PieChart,
   Pill,
   Receipt,
@@ -58,7 +59,12 @@ export const CLINIC_NAV: PanelNav = {
     // visit it has just seen, so the two are used together all day.
     { href: "/clinic/invoices", label: "Invoices", Icon: FileText, resource: "billing", feature: "sales", shortcut: "i" },
     { href: "/clinic/patients", label: "Patients", Icon: Contact, resource: "patients", shortcut: "p" },
-    { href: "/clinic/scribe", label: "Voice scribe", Icon: Mic, resource: "clinical" },
+    // For whoever may RECORD (the `scribe` grant, in a clinic with the scribe on).
+    { href: "/clinic/scribe", label: "Clinical history", Icon: Mic, resource: "scribe", feature: "voice_scribe" },
+    // The same page for everyone else with clinical access — writing notes by hand,
+    // the doctor's queue, the recent notes — under a name that doesn't promise a
+    // recorder (`notesNav`, computed by the layout). Never both.
+    { href: "/clinic/scribe", label: "Clinical notes", Icon: Stethoscope, resource: "clinical", gate: "notesNav" },
     // Top level, not under Finance: it now holds appointment and procedure reports
     // as well as the money ones. Shown when the user can open at least one report
     // (`reports/catalog.ts`, computed by the layout).

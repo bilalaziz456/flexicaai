@@ -26,7 +26,7 @@ export function QueueAdvanceButton({
       type="button"
       disabled={pending}
       onClick={() => startTransition(() => void advanceMyQueue(appointmentId, advance.status))}
-      className="inline-flex h-8 shrink-0 items-center rounded-lg border border-primary bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
+      className="inline-flex h-7 shrink-0 items-center rounded-md border border-primary bg-primary px-2.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
     >
       {advance.label}
     </button>

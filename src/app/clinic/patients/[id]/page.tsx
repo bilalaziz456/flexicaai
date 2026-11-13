@@ -40,6 +40,7 @@ export default async function PatientDetailPage({
       invoicePath="/clinic/invoices/new"
       canViewClinical={can(user, "clinical", "view")}
       canEditClinical={can(user, "clinical", "edit")}
+      writeNoteHref={can(user, "clinical", "create") ? `/clinic/scribe?patient=${id}&write=1` : undefined}
       canViewPrescriptions={can(user, "prescriptions", "view")}
       canCreatePrescriptions={can(user, "prescriptions", "create")}
       canEditPrescriptions={can(user, "prescriptions", "edit")}

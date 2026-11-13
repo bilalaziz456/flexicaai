@@ -287,7 +287,7 @@ doctor reviews, edits, approves. Full flow map, timeout budget and failure taxon
 ### Critical AI rules (non-negotiable)
 - The scribe engine in `/core` is generic. It receives a prompt; it does not know dental from derma.
 - The dental prompt lives in `/modules/dental/prompts`.
-- **Every AI output is a DRAFT.** A clinician must review and approve before it becomes the record. Never auto-finalize medical notes or prescriptions. Who may approve is the `clinical:create` PERMISSION, not the `doctor` role — in this market the clinic owner is usually the practising dentist, so the scribe actions gate on `can()` and admit any workspace role holding that grant. A draft still belongs to whoever dictated it: only its author can reopen or approve it — with ONE opt-in exception, the `handover` grant, and only for a draft whose author can no longer log in (ADR-022).
+- **Every AI output is a DRAFT.** A clinician must review and approve before it becomes the record. Never auto-finalize medical notes or prescriptions. Who may record and approve is the `scribe:create` PERMISSION (split out of `clinical:create` on 2026-11-14), not the `doctor` role — in this market the clinic owner is usually the practising dentist, so the scribe actions gate on `can()` and admit any workspace role holding that grant. A note a clinician TYPES (`clinical:create`) is not AI output: it is saved approved, signed by its author. **A note written for ANOTHER doctor's patient** (any note — dictated or typed) waits in `pending_approval` for that doctor when their per-doctor `notes_need_approval` is on (default on, the clinic admin's switch); its chart change, prescription and recall wait too (ADR-038). A draft still belongs to whoever dictated it: only its author can reopen or approve it — with ONE opt-in exception, the `handover` grant, and only for a draft whose author can no longer log in (ADR-022).
 - Drug names must be validated against the module's drug formulary before showing.
 - Always include confidence handling: if transcription is unclear, flag it for the doctor rather than guessing.
 - Log every AI interaction (input, output, doctor's edits) for the accuracy flywheel.
@@ -409,6 +409,27 @@ are in `.env.example`.
   over inbound replies — **reschedule** (`core/appointments/reschedule.ts`) and
   **new booking** (`core/appointments/booking.ts`), both parsing dates via
   `parse-when.ts` and validating via `checkDoctorSlot`. Wired in the inbound webhook.
+- **Voice scribe switched per clinic** (`0148`, owner 2026-11-14) — the `voice_scribe`
+  feature, on for every clinic (and every new one) until the super admin or the
+  clinic's account manager unticks it. Off: no recording, no AI drafts (route and
+  actions refuse, not just the UI), and the page becomes "Clinical notes" — queue and
+  recent notes stay. **Two per-person grants the clinic admin gives** (`0149`):
+  **Voice scribe** (`scribe:create` — record and approve the AI draft; offered only
+  where the clinic has the scribe) and **Clinical notes → Create** (`clinical:create` —
+  write a note by hand: "Type the note" beside "Start recording", or "Write note" on
+  the patient's page; saved approved, signed by its author, with the same allergy and
+  medicine checks, chart, prescription and recall as an approved draft). Doctors and
+  clinic admins hold both by default. **The page lists the period's appointments**
+  (`0150`/`0151`, owner 2026-11-14): Today, This month, 3/6/9 months, Year or two dates;
+  a Doctor filter (a doctor sees only their own) and a Note filter (none yet / waiting /
+  written); each row says who wrote its note, recorded or typed, and who approved it, and
+  one without a note opens the note screen for that appointment (so does a row of the
+  compact "Your queue today" card above it; a row with a note opens the patient). **Whose patient**: every
+  note has a treating doctor; one someone else writes waits for that doctor's approval
+  unless the clinic admin turned it off for them (staff record → Clinical notes) —
+  Approve, or Send back with a reason (ADR-038). **A team member who
+  is not a full admin can change only the clinics they manage** — the clinic settings,
+  capabilities and log-access saves re-check it on the server.
 - **Per-user ACL (permissions)** — two-tier: super admin → clinic capabilities, and
   clinic admin → per-user `resource:action` grants (`users.permissions`; catalog +
   role defaults in `core/auth/permissions.ts`). A `manager` role was added. Unified
@@ -620,7 +641,7 @@ advanced analytics.
 - Do NOT hardcode "dental" logic in `/core`. Core is specialty-agnostic.
 - Do NOT build derma or hair modules now. Only architect for them.
 - Do NOT over-abstract. Build dental concretely; extract patterns into core only when a second module actually needs them.
-- Do NOT auto-finalize AI-generated medical content. Always approved by a clinician holding `clinical:create`, and only ever by the author of that draft — unless the author can no longer log in AND the approver holds `handover` (ADR-022; nothing else relaxes this).
+- Do NOT auto-finalize AI-generated medical content. Always approved by a clinician holding `scribe:create`, and only ever by the author of that draft — unless the author can no longer log in AND the approver holds `handover` (ADR-022; nothing else relaxes this).
 - Do NOT put specialty columns on core tables. Use related specialty tables.
 - Do NOT skip `clinic_id` filtering on any query.
 - Do NOT hard-delete records. Everything soft-deletes to Trash (`softDeleteColumns()`);

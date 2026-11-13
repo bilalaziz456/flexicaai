@@ -453,6 +453,10 @@ export const users = pgTable(
     // When true, a discount taken from THIS doctor's share needs their approval
     // before it applies (the doctor's own policy; editable by them and the admin).
     discountNeedsApproval: boolean("discount_needs_approval").notNull().default(false),
+    // When true, a clinical note someone ELSE writes for this doctor's patient waits
+    // for this doctor's approval (owner, 2026-11-14). On by default — a medical record
+    // should be checked by the treating doctor; the clinic admin switches it off.
+    notesNeedApproval: boolean("notes_need_approval").notNull().default(true),
     // ---- 2FA / TOTP (super-admin panel security; usable by any account) ----
     // `totpSecret` = base32 shared secret (present once enrolled); `totpEnabled` gates
     // the login TOTP challenge + step-up; `totpBackup` = SHA-256 hashes of one-time

@@ -193,6 +193,8 @@ export function AppointmentMonth({
               <Link
                 href={dayHref(d.date)}
                 scroll={false}
+                // The page may glide to its list on this click (`ScrollToList`).
+                data-day-link=""
                 className={cn(
                   "flex min-h-14 flex-col gap-1 rounded-lg border p-1.5 outline-none transition-colors",
                   "hover:border-primary/60 focus-visible:ring-3 focus-visible:ring-ring/50",

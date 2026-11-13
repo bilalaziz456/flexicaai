@@ -2,7 +2,7 @@ import { getClinic } from "@/core/clinics/get-clinic";
 import { assertNotLastAdmin, getClinicStaffMember } from "@/core/users/clinic-staff";
 import { listUpcomingLeaves } from "@/core/appointments/availability";
 import { notFound } from "next/navigation";
-import { Ban, CalendarClock, CalendarOff, Percent, RotateCcw, ShieldCheck } from "lucide-react";
+import { Ban, CalendarClock, CalendarOff, Percent, RotateCcw, ShieldCheck, Stethoscope } from "lucide-react";
 import { requireWorkspace } from "@/core/auth/user";
 import { setStaffActive } from "@/app/clinic/actions";
 import { DoctorLeaves } from "@/app/clinic/schedule/doctor-leaves";
@@ -34,6 +34,7 @@ import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 import {
   DeleteStaffButton,
   DoctorSharesForm,
+  NotesApprovalForm,
   EditStaffForm,
   ResetPasswordForm,
 } from "./staff-admin";
@@ -229,6 +230,23 @@ export default async function StaffDetailPage({
           </CardHeader>
           <CardContent>
             <DoctorLeaves doctorId={member.id} leaves={leaves} />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {isAdmin && member.role === "doctor" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Stethoscope className="size-5 text-muted-foreground" aria-hidden="true" />
+              Clinical notes
+            </CardTitle>
+            <CardDescription>
+              Who checks the notes written for this doctor&apos;s patients.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <NotesApprovalForm userId={member.id} notesNeedApproval={member.notesNeedApproval} />
           </CardContent>
         </Card>
       ) : null}

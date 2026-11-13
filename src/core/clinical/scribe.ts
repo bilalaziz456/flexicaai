@@ -5,7 +5,7 @@ import { db } from "@/core/db";
 import { appointments, patients, visits } from "@/core/db/schema";
 import { byClinic, notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
-import { draftAccessCondition } from "@/core/clinical/drafts";
+import { draftAccessCondition, readableNoteCondition } from "@/core/clinical/drafts";
 import { patientPhoneMatchSql } from "@/core/patients/search-sql";
 
 /**
@@ -22,17 +22,7 @@ import { patientPhoneMatchSql } from "@/core/patients/search-sql";
  * action owns permissions, module resolution and `revalidatePath`.
  */
 
-/** Patients for the scribe picker — most recently added first. */
-export async function listScribePatients(clinicId: string, limit = 20) {
-  return db
-    .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })
-    .from(patients)
-    .where(byClinic(patients.clinicId, clinicId, notDeleted(patients.deletedAt)))
-    .orderBy(desc(patients.createdAt))
-    .limit(limit);
-}
-
-/** The picker's search. Same shape as `listScribePatients`, so the UI can't tell them apart. */
+/** The scribe's patient search (the list shows only once something is typed). */
 export async function searchScribePatients(clinicId: string, q: string, limit = 20) {
   const query = q.trim();
   const search = query
@@ -143,12 +133,54 @@ export async function createScribeRun(input: {
   audioKey: string;
   /** What the doctor said they dictate in; null = let speech-to-text detect it. */
   scribeLanguage?: string | null;
+  /** The appointment it was recorded for, and whose patient it is (2026-11-14). */
+  appointmentId?: string | null;
+  treatingDoctorId?: string | null;
 }): Promise<string> {
   const [visit] = await db
     .insert(visits)
     .values({ ...input, status: "transcribing" })
     .returning({ id: visits.id });
   return visit.id;
+}
+
+/**
+ * A note the clinician TYPED (owner, 2026-11-14), stored approved and signed by its
+ * author in one step. The draft-then-approve rule (CLAUDE.md §8) exists so a clinician
+ * checks what the AI wrote; nothing was machine-written here, so there is nothing to
+ * check before it counts. No `ai_draft`, transcript or audio — which is also how the
+ * accuracy flywheel tells it apart from a dictated note. The note arrives validated by
+ * the caller against the module's shape, as `approveDraftRow`'s does.
+ */
+export async function createTypedNote(input: {
+  clinicId: string;
+  patientId: string;
+  authorId: string;
+  module: string;
+  note: Record<string, unknown>;
+  appointmentId: string | null;
+  treatingDoctorId: string;
+  /** Written for another doctor who approves notes: it waits, with its chart change. */
+  waitForApproval: boolean;
+  pendingChart: unknown;
+}): Promise<{ id: string; patientId: string; module: string | null }> {
+  const now = new Date();
+  const [visit] = await db
+    .insert(visits)
+    .values({
+      clinicId: input.clinicId,
+      patientId: input.patientId,
+      appointmentId: input.appointmentId,
+      treatingDoctorId: input.treatingDoctorId,
+      doctorId: input.authorId,
+      module: input.module,
+      note: input.note,
+      ...(input.waitForApproval
+        ? { status: "pending_approval" as const, pendingChart: input.pendingChart ?? null }
+        : { status: "approved" as const, approvedAt: now, approvedBy: input.authorId }),
+    })
+    .returning({ id: visits.id, patientId: visits.patientId, module: visits.module });
+  return visit;
 }
 
 /**
@@ -170,6 +202,7 @@ export async function loadDraftRow(
       id: visits.id,
       transcript: visits.transcript,
       note: visits.note,
+      treatingDoctorId: visits.treatingDoctorId,
       patientId: patients.id,
       patientName: patients.fullName,
       patientPhone: patients.phone,
@@ -194,8 +227,9 @@ export async function loadDraftRow(
  * Marks a draft approved with the clinician's edited note.
  *
  * The note arrives ALREADY VALIDATED — the caller parses it against the module's
- * shape (ADR-007), which core cannot do. This is the only writer of `visits.note`,
- * and it matches `status = 'draft'` only, so an approved note is never rewritten.
+ * shape (ADR-007), which core cannot do. It matches `status = 'draft'` only, and the
+ * one other writer of `visits.note` (`createTypedNote`) only inserts, so an approved
+ * note is never rewritten.
  */
 export async function approveDraftRow(
   clinicId: string,
@@ -203,16 +237,17 @@ export async function approveDraftRow(
   visitId: string,
   note: Record<string, unknown>,
   canHandover: boolean,
+  /** The patient's doctor must approve it too (note-approval.ts): it waits for them,
+   *  holding its chart change, instead of being signed now. */
+  waitFor: { pendingChart: unknown } | null = null,
 ) {
   const [row] = await db
     .update(visits)
-    .set({
-      note,
-      status: "approved",
-      approvedAt: new Date(),
-      approvedBy: userId,
-      updatedAt: new Date(),
-    })
+    .set(
+      waitFor
+        ? { note, status: "pending_approval", pendingChart: waitFor.pendingChart ?? null, updatedAt: new Date() }
+        : { note, status: "approved", approvedAt: new Date(), approvedBy: userId, updatedAt: new Date() },
+    )
     .where(
       byClinic(
         visits.clinicId,
@@ -296,7 +331,7 @@ export async function getVisitAudio(clinicId: string, visitId: string, viewerId:
         clinicId,
         notDeleted(visits.deletedAt),
         eq(visits.id, visitId),
-        or(eq(visits.status, "approved"), eq(visits.doctorId, viewerId)),
+        readableNoteCondition(viewerId),
       ),
     );
   return row?.audioKey ? { ...row, audioKey: row.audioKey } : null;

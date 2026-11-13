@@ -17,6 +17,7 @@ import { getCalendarDays, monthBounds } from "@/core/appointments/calendar";
 import { listClinicDoctors } from "@/core/appointments/doctors";
 import { listProcedureCatalog } from "@/core/appointments/procedures";
 import { AppointmentMonth } from "@/app/clinic/appointments/appointment-month";
+import { ScrollToList } from "@/app/clinic/appointments/scroll-to-list";
 import {
   HEADER_SENTINEL_ID,
   NewAppointmentFab,
@@ -398,7 +399,10 @@ export async function AppointmentsList({
       {/* Print sits on the pagination line because it answers the same question —
           "what is this list?" — and prints ALL of it, not the page showing: a
           printed day list that silently stops at row 20 is worse than none. */}
-      <div className="flex flex-wrap items-center gap-3">
+      {/* Clicking a calendar day glides here (owner, 2026-11-14); the margin keeps it
+          clear of the top bar. */}
+      <ScrollToList targetId="appointment-list" />
+      <div id="appointment-list" className="flex scroll-mt-20 flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
           <Pagination
             page={page}

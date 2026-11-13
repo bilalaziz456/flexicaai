@@ -11,7 +11,7 @@ import { getPatientPaymentsPage } from "@/core/billing/account";
 import Link from "next/link";
 import { TabTitle } from "@/core/ui/app-tabs";
 import { notFound } from "next/navigation";
-import { CalendarDays, CalendarPlus, ClipboardList, ReceiptText } from "lucide-react";
+import { CalendarDays, CalendarPlus, ClipboardList, PenLine, ReceiptText } from "lucide-react";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicalRecordFor } from "@/config/modules";
 import { medicineSuggestions } from "@/core/clinical/medicines";
@@ -80,6 +80,7 @@ export async function PatientDetail({
   viewerId,
   canViewClinical = false,
   canEditClinical = false,
+  writeNoteHref,
   canViewPrescriptions = false,
   canCreatePrescriptions = false,
   canEditPrescriptions = false,
@@ -122,6 +123,8 @@ export async function PatientDetail({
   canViewClinical?: boolean;
   /** Allow editing the chart (existing conditions) — needs `clinical:edit`. */
   canEditClinical?: boolean;
+  /** Where "Write note" goes — set only for someone holding `clinical:create`. */
+  writeNoteHref?: string;
   /** Show the patient's prescription history (reprint) — needs `prescriptions:view`.
    *  Independent of clinical: front desk may reprint without seeing full notes. */
   canViewPrescriptions?: boolean;
@@ -674,11 +677,21 @@ export async function PatientDetail({
       {canViewClinical ? (
         <Card id="clinical-history" className="scroll-mt-32">
           <CardHeader>
-            <CardTitle>Clinical history</CardTitle>
-            <CardDescription>
-              The patient&apos;s visit records. Chief complaint, findings, diagnosis and
-              treatment.
-            </CardDescription>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle>Clinical history</CardTitle>
+                <CardDescription>
+                  The patient&apos;s visit records. Chief complaint, findings, diagnosis and
+                  treatment.
+                </CardDescription>
+              </div>
+              {writeNoteHref ? (
+                <Link href={writeNoteHref} className={buttonVariants({ size: "sm", variant: "outline" })}>
+                  <PenLine className="size-4" aria-hidden="true" />
+                  Write note
+                </Link>
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent>
             {clinicalVisits.length === 0 ? (
@@ -686,7 +699,7 @@ export async function PatientDetail({
                 compact
                 icon={ClipboardList}
                 title="No clinical notes yet"
-                description="Notes appear here once a visit is dictated and approved."
+                description="Notes appear here once a visit is written, or dictated and approved."
               />
             ) : (
               <ol className="divide-y divide-border/60 rounded-lg border border-border/60">
@@ -717,6 +730,11 @@ export async function PatientDetail({
                     v.approvedById && v.approvedById !== v.doctorId && v.approvedByName
                       ? `${v.approvedByPrefix ? `${v.approvedByPrefix}. ` : ""}${v.approvedByName}`
                       : null;
+                  // Written for another doctor's patient (2026-11-14): name that doctor.
+                  const forDoctor =
+                    v.treatingDoctorId && v.treatingDoctorId !== v.doctorId && v.treatingName
+                      ? `${v.treatingPrefix ? `${v.treatingPrefix}. ` : ""}${v.treatingName}`
+                      : null;
                   return (
                     <li
                       key={v.id}
@@ -726,6 +744,9 @@ export async function PatientDetail({
                         <span className="font-medium">
                           {v.visitDate ? dayFmt(v.visitDate) : "—"}
                           <span className="text-muted-foreground"> · {doctor}</span>
+                          {forDoctor ? (
+                            <span className="text-muted-foreground"> · for {forDoctor}&apos;s patient</span>
+                          ) : null}
                           {approvedBy ? (
                             <span className="text-muted-foreground">
                               {" "}
@@ -746,6 +767,10 @@ export async function PatientDetail({
                             a run that died is not a note awaiting a signature. */}
                         {note.imported ? (
                           <Badge variant="outline">Imported</Badge>
+                        ) : v.status === "pending_approval" ? (
+                          <Badge variant="warning">Waiting for {forDoctor ?? "the doctor"}&apos;s approval</Badge>
+                        ) : v.status === "returned" ? (
+                          <Badge variant="secondary">Sent back to you</Badge>
                         ) : v.status === "draft" ? (
                           <Badge variant="secondary">Draft</Badge>
                         ) : v.status === "transcribing" ? (

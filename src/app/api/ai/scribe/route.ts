@@ -2,6 +2,8 @@ import { NextResponse, after } from "next/server";
 import { apiRequireWorkspace } from "@/core/auth/user";
 import { getClinicWorkspace } from "@/config/modules";
 import { getClinic } from "@/core/clinics/get-clinic";
+import { resolveTreatingDoctor } from "@/core/clinical/note-approval";
+import { clinicHasFeature } from "@/core/lib/features";
 import { createScribeRun, patientBelongsToClinic } from "@/core/clinical/scribe";
 import { saveClinicFile } from "@/core/integrations/storage";
 import { runScribeJob } from "@/core/ai/scribe-job";
@@ -50,9 +52,18 @@ export async function POST(request: Request) {
   //
   // Going through the shared guard also means a paused clinic can't reach the PAID
   // AI providers: it was blocked from every page but not from this route.
-  const auth = await apiRequireWorkspace("clinical", "create");
+  // `scribe:create` since 2026-11-14 (split out of `clinical:create`, which now means
+  // writing a note by hand), so the clinic admin grants dictation on its own.
+  const auth = await apiRequireWorkspace("scribe", "create");
   if (!auth.ok) return auth.response;
   const { user, clinicId } = auth;
+
+  // The clinic's voice scribe can be switched off by the super admin or its account
+  // manager (a subscription decision) — refused before anything paid or stored.
+  const clinicRow = await getClinic(clinicId);
+  if (!clinicHasFeature(clinicRow?.featuresEnabled, "voice_scribe")) {
+    return NextResponse.json({ error: "Voice scribe is switched off for this clinic." }, { status: 403 });
+  }
 
   // Throttle before reading the (large) upload or hitting the PAID AI APIs — bounds
   // spend if a client loops. Per doctor.
@@ -89,9 +100,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Patient not found." }, { status: 404 });
   }
 
+  // Recorded for an appointment (the Clinical notes list): the note is linked to it and
+  // belongs to that appointment's doctor, who may have to approve it (2026-11-14).
+  const appointmentField = form.get("appointmentId");
+  const treating = await resolveTreatingDoctor(clinicId, {
+    patientId,
+    authorId: user.id,
+    appointmentId: typeof appointmentField === "string" && appointmentField ? appointmentField : null,
+  });
+  if ("error" in treating) return NextResponse.json({ error: treating.error }, { status: 404 });
+
   // Resolve the clinic's enabled module + its scribe prompt (module-agnostic:
   // core reads modules_enabled, never hardcodes "dental").
-  const clinic = await getClinic(clinicId);
+  const clinic = clinicRow;
   const moduleId = clinic?.modulesEnabled?.[0];
   const workspace = getClinicWorkspace(clinic?.modulesEnabled ?? []);
   const scribePrompt = moduleId ? workspace.scribePrompts[moduleId] : undefined;
@@ -122,6 +143,8 @@ export async function POST(request: Request) {
       module: moduleId,
       audioKey,
       scribeLanguage,
+      appointmentId: treating.appointmentId,
+      treatingDoctorId: treating.treatingDoctorId,
     });
 
     // `after` runs the callback once the response is flushed (Next 16, sanctioned for

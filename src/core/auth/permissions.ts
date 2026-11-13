@@ -39,7 +39,16 @@ export type PermResource = {
 export const PERM_RESOURCES: PermResource[] = [
   { id: "appointments", label: "Appointments", actions: ["view", "create", "edit", "delete"] },
   { id: "patients", label: "Patients", actions: ["view", "create", "edit", "delete"] },
+  // `create` = WRITE a note by hand (typed, signed on save — no AI, so no draft);
+  // `edit` = the patient's clinical records (chart, perio, medical history).
   { id: "clinical", label: "Clinical notes", actions: ["view", "create", "edit"] },
+  // RECORD a visit and approve the AI's draft. Split out of `clinical:create`
+  // (owner, 2026-11-14) so the clinic admin decides separately who may dictate (a paid
+  // AI service) and who may write a note — until then `clinical:create` meant the
+  // scribe and nothing else. Gated by the clinic's `voice_scribe` feature, so the grid
+  // offers it only where the super admin / account manager left the scribe on.
+  // Migration 0149 gave it to everyone who held `clinical:create`.
+  { id: "scribe", label: "Voice scribe", actions: ["create"], feature: "voice_scribe", createLabel: "Record" },
   // Taking over an unapproved note dictated by SOMEONE ELSE. Its own slug — split out
   // of `clinical` the same way `refund` was split out of `billing:delete` — because it
   // is a different authority in kind, not a bigger dose of the same one: `clinical`
@@ -262,6 +271,7 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
   // patients/appointments/recalls.
   doctor: grant({
     clinical: [V, C, E],
+    scribe: [C],
     // Clinical imaging — a doctor uploads/views x-rays & photos, and can remove them.
     attachments: [V, C, D],
     // Treatment plans — a doctor proposes/edits the course.

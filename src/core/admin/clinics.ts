@@ -1,5 +1,7 @@
 import "server-only";
 
+import { DEFAULT_CLINIC_FEATURES } from "@/core/lib/features";
+
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { db } from "@/core/db";
 import {
@@ -97,6 +99,7 @@ export async function createClinicWithAdmin(input: {
         .values({
           name: input.clinicName,
           modulesEnabled: input.modulesEnabled,
+          featuresEnabled: [...DEFAULT_CLINIC_FEATURES],
           // Through the paired helper like every other assignment write, so a clinic
           // created WITH a manager carries the date too. That is what puts the contact
           // notice in front of them during onboarding — the fortnight they are most

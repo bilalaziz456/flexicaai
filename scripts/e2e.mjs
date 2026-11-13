@@ -957,10 +957,10 @@ async function run() {
     }
   }
   {
-    // The scribe gates on the `clinical:create` PERMISSION, not the `doctor` ROLE
+    // The scribe gates on the `scribe:create` PERMISSION, not the `doctor` ROLE
     // (CLAUDE.md §8). A receptionist doesn't hold it → 403.
     const rec = await req("/api/ai/scribe", { cookie: S.recepA, method: "POST", body: mkForm(ids.patients[0]) });
-    record("receptionist scribe → 403 (lacks clinical:create)", rec.status === 403, `status=${rec.status}`);
+    record("receptionist scribe → 403 (lacks scribe:create)", rec.status === 403, `status=${rec.status}`);
 
     // …and the clinic OWNER who is the practising dentist must NOT be locked out.
     // The old `role === "doctor"` check 401'd them even though /clinic/scribe let

@@ -320,6 +320,10 @@ export const VISIT_STATUS_ROWS = [
   { id: 2, code: "draft", label: "Draft", sortOrder: 2 },
   { id: 3, code: "approved", label: "Approved", sortOrder: 3 },
   { id: 4, code: "failed", label: "Failed", sortOrder: 4 },
+  // Written by someone other than the patient's doctor, waiting for that doctor
+  // (2026-11-14) — and sent back by them to its author with a reason.
+  { id: 5, code: "pending_approval", label: "Waiting for approval", sortOrder: 5 },
+  { id: 6, code: "returned", label: "Sent back", sortOrder: 6 },
 ] as const satisfies readonly VocabularyRow[];
 
 /** `recalls.status`. */

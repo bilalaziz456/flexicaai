@@ -226,12 +226,27 @@ const clinicSettingsSchema = z.object({
  * sender. Unknown ids in any group are dropped. Access control (capabilities +
  * log access) has its own saves. Only the super admin can change these.
  */
+/**
+ * A team member who is not a full admin acts only on the clinics they manage (owner,
+ * 2026-11-14: an account manager may switch the voice scribe or clinical notes off for
+ * THEIR clinics, not anyone's). The clinic page already hides the others; this is the
+ * server's half, because an action can be called without the page.
+ */
+const NOT_YOUR_CLINIC = "You can only change clinics you manage.";
+function managesClinic(admin: Awaited<ReturnType<typeof requireAdminCapability>>, clinic: { assignedTo: string | null }) {
+  return canManageTeam(admin) || clinic.assignedTo === admin.id;
+}
+
 export async function updateClinic(
   clinicId: string,
   _prevState: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  await requireAdminCapability("clinics:edit");
+  const admin = await requireAdminCapability("clinics:edit");
+  // Before anything is written (the MRN series below saves on its own).
+  const scope = await getClinic(clinicId);
+  if (!scope) return { error: "Clinic not found." };
+  if (!managesClinic(admin, scope)) return { error: NOT_YOUR_CLINIC };
 
   const parsed = clinicSettingsSchema.safeParse({
     name: formData.get("name"),
@@ -471,10 +486,11 @@ export async function setClinicCapabilities(
   clinicId: string,
   slugs: string[],
 ): Promise<AdminActionState> {
-  await requireAdminCapability("clinics:edit");
+  const admin = await requireAdminCapability("clinics:edit");
 
   const before = await getLiveClinic(clinicId);
   if (!before) return { error: "Clinic not found." };
+  if (!managesClinic(admin, before)) return { error: NOT_YOUR_CLINIC };
 
   const usable = usableCapabilitySlugs(before.featuresEnabled);
   const usableSet = new Set(usable);
@@ -509,10 +525,11 @@ export async function setClinicLogAccess(
   clinicId: string,
   ids: string[],
 ): Promise<AdminActionState> {
-  await requireAdminCapability("clinics:edit");
+  const admin = await requireAdminCapability("clinics:edit");
 
   const before = await getLiveClinic(clinicId);
   if (!before) return { error: "Clinic not found." };
+  if (!managesClinic(admin, before)) return { error: NOT_YOUR_CLINIC };
 
   const logAccess = sanitizeLogAccess(ids);
   await updateClinicFields(clinicId, { logAccess, updatedAt: new Date() });

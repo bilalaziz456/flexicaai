@@ -24,6 +24,17 @@ import { byClinic, notDeleted } from "@/core/db/tenant";
  * only *temporarily* out of reach (reactivating restores them), which is a different
  * situation from deletion and shouldn't be conflated here.
  */
+/**
+ * Which notes a viewer with clinical view may READ: approved ones, ones waiting for
+ * the patient's doctor (shown marked — written by a person, and about to be the
+ * record; 2026-11-14), and their own in any state. One rule for the clinical timeline
+ * and the recording player, so the two cannot disagree.
+ */
+export function readableNoteCondition(viewerId: string | null): SQL {
+  const shared = or(eq(visits.status, "approved"), eq(visits.status, "pending_approval"))!;
+  return viewerId ? or(shared, eq(visits.doctorId, viewerId))! : shared;
+}
+
 export async function countOpenDrafts(clinicId: string, userId: string): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })

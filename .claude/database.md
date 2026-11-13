@@ -68,7 +68,7 @@ is_active)`, company-global — no
 | Table | Codes | Column(s) it backs |
 |---|---|---|
 | `appointment_statuses` | scheduled, confirmed, arrived, in_progress, completed, cancelled, no_show | `appointments.status` |
-| `visit_statuses` | transcribing, draft, approved, failed | `visits.status` |
+| `visit_statuses` | transcribing, draft, approved, failed, pending_approval, returned | `visits.status` |
 | `recall_statuses` | pending, scheduled, sent, booked, completed, cancelled | `recalls.status` |
 | `user_roles` | super_admin, clinic_admin, manager, doctor, receptionist | `users.role` |
 | `theme_preferences` | system, light, dark | `users.theme` |
@@ -135,7 +135,8 @@ vocabulary changing.
 ### `clinics` — tenants
 `id`, `name`, `modules_enabled` text[] (e.g. `{dental}`; specialty checkboxes
 read/write this), `features_enabled` text[] (super-admin-toggled optional features,
-e.g. `{revenue_dashboard}` — see `core/lib/features.ts`), `log_access` text[]
+e.g. `{revenue_dashboard}` — see `core/lib/features.ts`; `voice_scribe` is on for every
+clinic unless unticked — migration `0148`, and new clinics start with it), `log_access` text[]
 (activity-log action categories the clinic admin may see, e.g. `{login,update}`;
 empty = no log access — see `core/audit/access.ts`), `avg_visit_value` int
 (PKR, default 3000; drives "Revenue Recovered"), `trash_retention_days` int
@@ -261,6 +262,13 @@ draft — **AI notes are draft until a doctor approves**), `transcript` (raw Whi
 `note` jsonb (module-shaped, doctor's approved version), `ai_draft` jsonb (frozen
 original for the accuracy flywheel), `audio_key` (storage key), `visit_date`,
 `approved_at`, `approved_by` → users (`set null`), timestamps.
+`treating_doctor_id` → users (`set null`) — whose patient the note is for (`0150`,
+ADR-038): the appointment's doctor, the doctor chosen, or the author (`doctor_id`);
+NULL on notes before 2026-11-14. `review_note` — why the treating doctor sent it back
+(`returned`). `pending_chart` jsonb (`0151`) — the chart change a `pending_approval`
+note proposes, applied only on approval and validated against the module's chart shape.
+`appointment_id` is set on notes started from an appointment since 2026-11-14; older
+notes are matched to one by patient + clinic day when listed, never rewritten.
 Indexes: `clinic_id`; `patient_id`; (`clinic_id`,`visit_date`); `appointment_id`.
 
 ### `recalls` — recall engine reads/advances these
@@ -558,6 +566,8 @@ affected doctor for a 'doctor' row, NULL for a 'clinic' row),
 doctor) that must sign off before an appointment's discount applies. Rows are
 (re)generated on every discount/borne-by/procedures change by
 `core/appointments/approvals.ts#syncDiscountApprovals`, which reads
+`users.notes_need_approval` (default **true**, `0150`, ADR-038) — a note someone else
+writes for this doctor's patient waits for this doctor; the clinic admin's per-doctor switch.
 `clinics.discount_needs_approval` (clinic side) and `users.discount_needs_approval`
 (each affected doctor) to decide who is required; the appointment's
 `discount_status` is derived from the rows. A doctor decides only their own row; a

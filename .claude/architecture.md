@@ -204,8 +204,10 @@ grows — so list queries over trashed data must paginate in SQL (delta D-07) an
 `activity_logs` needs a retention policy (delta D-11).
 
 **ADR-007 — AI output is always a draft** · *project start* · `Accepted`
-Scribe output lands as `status: draft`; a clinician holding `clinical:create`
-approves it, and only its author may approve. The frozen `ai_draft` is kept.
+Scribe output lands as `status: draft`; a clinician holding `scribe:create`
+(`clinical:create` until 2026-11-14, when the scribe got its own grant and
+`clinical:create` became writing a note by hand — a typed note is not AI output and is
+stored approved, signed by its author) approves it, and only its author may approve. The frozen `ai_draft` is kept.
 **Why:** clinical safety, and the accuracy flywheel.
 **Consequence:** gate on the PERMISSION, never the `doctor` role — in this market the
 owner is usually the practising dentist. (A role check here was a real bug, fixed
@@ -1268,6 +1270,41 @@ bearer; the default "In proportion" is the old rule.
 "is anything on this visit waiting?" asks the approval rows, not that column. Plan
 discounts travel per line and need no approval. The Discounts report lists one row per
 discount.
+
+---
+
+**ADR-038 — A note has a treating doctor; one written by someone else waits for them**
+· *2026-11-14* · `Accepted` *(refines ADR-007)*
+
+*Context.* Clinical notes split into two grants (`scribe:create` records, `clinical:create`
+types), and the owner wanted a Clinical notes list of appointments from which anyone with
+a grant writes the note. That puts notes for Dr A's patient in the hands of an assistant,
+another doctor or the clinic admin. ADR-007 only made the AUTHOR sign their own AI
+draft; nothing said the patient's own doctor ever saw what was written in their name.
+
+*Decision.* (1) A note carries `treating_doctor_id` — whose patient it is: the
+appointment's doctor, the doctor chosen when typed without one, else the author.
+`doctor_id` stays the author and `approved_by` the signer, so all three are on the
+row. (2) When the treating doctor is not the author and their
+`users.notes_need_approval` is on (per doctor, ON by default, set by the clinic admin),
+the note is stored `pending_approval` — after the author has approved the AI draft, if
+it was dictated. The treating doctor approves it (editing allowed) or sends it back
+(`returned`, with `review_note`); the author corrects and resends, or discards it.
+(3) Nothing follows from an unapproved note: the chart change rides in
+`visits.pending_chart`, and the prescription and recall are made only on approval
+(`finishApprovedNote`). (4) A waiting note is READABLE (marked) by anyone with clinical
+view — one predicate, `core/clinical/drafts.ts#readableNoteCondition`, for the timeline
+and the recording player; a returned one only by its author. (5) A note does not wait
+for a doctor who cannot sign in. (6) Notes started from an appointment carry its
+`appointment_id`; older notes are matched to an appointment by patient and clinic day
+(`core/clinical/notes-appointments.ts`), never rewritten.
+
+*Consequences.* Every reader that means "the record" keeps filtering `status =
+'approved'` (prescriptions, recalls, printouts), so a waiting note never reaches a
+patient. `core/clinical/note-approval.ts` holds the row transitions, each guarded in its
+WHERE clause by who may make it (`scripts/test-note-approval.ts`). A treating doctor who
+loses both note grants leaves their waiting notes unapprovable until the clinic admin
+turns their approval off and the author resends — accepted for now.
 
 ---
 

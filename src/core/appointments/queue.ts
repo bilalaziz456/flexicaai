@@ -13,6 +13,7 @@ import {
 } from "@/core/lib/availability";
 import { localDateStr } from "./availability";
 import { lowestFreeNumber } from "./queue-number";
+import { appointmentNoteIdSql } from "@/core/clinical/notes-appointments";
 
 /** A number typed at the desk that another appointment of the doctor-day holds. */
 export class QueueNumberTakenError extends Error {
@@ -190,7 +191,10 @@ const NOT_ARRIVED = new Set(["scheduled", "confirmed"]);
 export type QueueItem = {
   appointmentId: string;
   number: number | null;
+  patientId: string;
   patientName: string;
+  /** A note (any state but failed) has been written for this visit. */
+  hasNote: boolean;
   status: string;
   scheduledAt: Date;
   arrivedAt: Date | null;
@@ -273,7 +277,9 @@ export async function getDayQueue(
       doctorUsername: users.username,
       doctorPrefix: users.prefix,
       availability: users.availability,
+      patientId: patients.id,
       patientName: patients.fullName,
+      noteId: sql<string | null>`${appointmentNoteIdSql}`,
     })
     .from(appointments)
     .innerJoin(patients, eq(appointments.patientId, patients.id))
@@ -323,7 +329,9 @@ export async function getDayQueue(
     s.items.push({
       appointmentId: r.appointmentId,
       number: r.number,
+      patientId: r.patientId,
       patientName: r.patientName,
+      hasNote: r.noteId != null,
       status: r.status,
       scheduledAt: r.scheduledAt,
       arrivedAt: r.arrivedAt,

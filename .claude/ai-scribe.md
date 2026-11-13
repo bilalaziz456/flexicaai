@@ -14,9 +14,11 @@
 
 1. **Every AI output is a DRAFT.** A clinician reviews and approves before it becomes
    the record. Nothing auto-finalizes a note or a prescription — ever.
-2. **Approval is gated on the `clinical:create` PERMISSION, not the `doctor` role.**
-   In this market the clinic owner is usually the practising dentist. A role check
-   here locks out the primary persona; that was a real bug, fixed 2026-08-21.
+2. **Recording and approval are gated on the `scribe:create` PERMISSION, not the
+   `doctor` role.** In this market the clinic owner is usually the practising dentist.
+   A role check here locks out the primary persona; that was a real bug, fixed
+   2026-08-21. (It was `clinical:create` until 2026-11-14, when the scribe got its own
+   grant and `clinical:create` became writing a note by hand — §2c.)
 3. **A draft belongs to whoever dictated it.** Only its author reopens, approves or
    discards it — not another doctor, not the clinic admin. Enforced in the WHERE
    clause of all three, through ONE shared predicate
@@ -51,7 +53,8 @@ Doctor records (MediaRecorder, client)
         │  multipart: audio + patientId
         ▼
 POST /api/ai/scribe                          app/api/ai/scribe/route.ts
-   ├─ apiRequireWorkspace("clinical","create")   permission, not role (rule 2)
+   ├─ apiRequireWorkspace("scribe","create")     permission, not role (rule 2)
+   ├─ the clinic's `voice_scribe` feature is on    403 otherwise (switched off per clinic)
    ├─ throttle: 20 runs / 10 min per user        bounds PAID spend on a loop
    ├─ reject > 25 MB (Content-Length, then size) before buffering the body
    ├─ verify the patient belongs to THIS clinic  tenant boundary
@@ -79,7 +82,7 @@ Doctor reviews / edits in the workspace       app/doctor/scribe-workspace.tsx
         │
         ▼
 approveVisit()                                app/doctor/actions.ts
-   ├─ can(clinical:create) + author-only            re-checked server-side
+   ├─ can(scribe:create) + author-only              re-checked server-side
    ├─ parseClinicalNote / parseClinicalChart        the EDITED note is untrusted too
    ├─ UPDATE visits SET status='approved', approved_by, note = the EDITED note
    ├─ module.saveRecord()                      specialty chart — changed ONLY if the doctor
@@ -93,6 +96,47 @@ approved version. The diff between them **is** the accuracy flywheel — never
 overwrite `ai_draft` on edit.
 
 ---
+
+## 2b. Switched off per clinic (2026-11-14)
+
+The scribe is a clinic FEATURE, `voice_scribe` (`core/lib/features.ts`), on for every
+clinic by default (migration `0148`, `DEFAULT_CLINIC_FEATURES` for new ones). The super
+admin or the clinic's account manager can untick it — a subscription decision, separate
+from `scribe:create`, the per-person "who may dictate" the clinic admin grants. Off: the route
+answers 403 before anything is stored or paid for, and loading, approving, discarding or
+re-running a draft is refused; the page and its menu item become "Clinical notes" (the
+doctor's queue and recent notes stay); drafts already made wait, untouched, until it is
+turned back on.
+
+## 2c. A typed note (2026-11-14)
+
+`clinical:create` writes a note by HAND — "Type the note" beside "Start recording", or
+"Write note" on the patient's page (`saveTypedNote` → `core/clinical/scribe.ts#createTypedNote`).
+The same form as the draft review and the same validation (module note + chart shape).
+It is NOT AI output, so rule 1 does not apply: it is inserted `approved`, with
+`doctor_id` = `approved_by` = its author and no `ai_draft`, transcript or audio (which
+is how the flywheel tells it apart). The formulary and allergy checks still run; a note
+that trips one comes back with them and saves only on a second, confirming press. It is
+finished exactly like an approved draft (`finishApprovedNote`: chart, prescription,
+recall) and audit-logged. It works whether the clinic's scribe is on or off.
+
+## 2d. A note for another doctor's patient (2026-11-14, ADR-038)
+
+Every note has a **treating doctor** — whose patient it is — besides its author
+(`doctor_id`) and signer (`approved_by`). Started from an appointment on the Clinical
+notes list or a row of "Your queue today" (`/clinic/scribe?appointment=<id>`, recorded or typed), it is that
+appointment's doctor and the note is linked to the appointment; typed without one, the
+writer picks "Whose patient" (default: their own). When that doctor is not the writer and
+their `notes_need_approval` is on (per doctor, ON by default, the clinic admin's switch on
+the staff record), the note is stored **`pending_approval`** instead of `approved` — for a
+dictation, after its author has approved the AI draft (rule 1 still holds first). The
+doctor is notified and finds it under "Notes for you to look at" (`?review=<id>`):
+**Approve & save** (editing allowed; the note is then signed by them, and only now are the
+chart change — held in `pending_chart` — the prescription and the recall made) or **Send
+back** with a reason (`returned`); the writer corrects and sends again, or discards it.
+Row transitions are in `core/clinical/note-approval.ts`, each WHERE-guarded by who may make
+it; `scripts/test-note-approval.ts`. A waiting note shows in the patient's history, marked;
+it never reaches a prescription or printout, which read `approved` only.
 
 ## 3. Module boundary
 

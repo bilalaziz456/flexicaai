@@ -1,7 +1,7 @@
 import "server-only";
 
 import { allocateMrns } from "@/core/patients/mrn";
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/core/db";
 import {
@@ -15,9 +15,11 @@ import {
   visits,
 } from "@/core/db/schema";
 import { byClinic, notDeleted } from "@/core/db/tenant";
+import { readableNoteCondition } from "@/core/clinical/drafts";
 
 /** `users` joined a SECOND time as the approver — a visit references two people. */
 const approver = alias(users, "approver");
+const treatingDoctor = alias(users, "treating_doctor");
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 
 /** The fields a clinic edits on a patient. Age is stored as a derived birth date. */
@@ -244,21 +246,24 @@ export async function listPatientVisits(
       approvedByName: approver.fullName,
       approvedByPrefix: approver.prefix,
       approvedById: visits.approvedBy,
+      // Whose patient it is, when someone else wrote it (2026-11-14).
+      treatingDoctorId: visits.treatingDoctorId,
+      treatingName: treatingDoctor.fullName,
+      treatingPrefix: treatingDoctor.prefix,
       // Whether a dictation was kept — the timeline offers a player then (2026-10-20).
       hasAudio: sql<boolean>`${visits.audioKey} is not null`,
     })
     .from(visits)
     .leftJoin(users, eq(visits.doctorId, users.id))
     .leftJoin(approver, eq(visits.approvedBy, approver.id))
+    .leftJoin(treatingDoctor, eq(visits.treatingDoctorId, treatingDoctor.id))
     .where(
       byClinic(
         visits.clinicId,
         clinicId,
         notDeleted(visits.deletedAt),
         eq(visits.patientId, patientId),
-        viewerId
-          ? or(eq(visits.status, "approved"), eq(visits.doctorId, viewerId))
-          : eq(visits.status, "approved"),
+        readableNoteCondition(viewerId),
       ),
     )
     .orderBy(desc(visits.visitDate))

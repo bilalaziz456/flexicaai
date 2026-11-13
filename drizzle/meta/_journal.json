@@ -1037,6 +1037,34 @@
       "when": 1794424598250,
       "tag": "0147_clinic_discount_default",
       "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1794605893110,
+      "tag": "0148_voice_scribe_feature",
+      "breakpoints": true
+    },
+    {
+      "idx": 149,
+      "version": "7",
+      "when": 1794607276129,
+      "tag": "0149_scribe_permission",
+      "breakpoints": true
+    },
+    {
+      "idx": 150,
+      "version": "7",
+      "when": 1794608435418,
+      "tag": "0150_note_approval",
+      "breakpoints": true
+    },
+    {
+      "idx": 151,
+      "version": "7",
+      "when": 1794608477962,
+      "tag": "0151_note_pending_chart",
+      "breakpoints": true
     }
   ]
 }

@@ -115,6 +115,20 @@ export const visits = pgTable(
     approvedBy: uuid("approved_by").references(() => users.id, {
       onDelete: "set null",
     }),
+    // WHOSE PATIENT this note is for (owner, 2026-11-14): the appointment's doctor, or
+    // the doctor chosen when it was written without one. `doctor_id` stays the author
+    // (who dictated or typed it), `approved_by` who signed it. When the treating doctor
+    // is not the author and their `notes_need_approval` is on, the note waits in
+    // `pending_approval` for them. NULL on every note before 2026-11-14.
+    treatingDoctorId: uuid("treating_doctor_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    // The treating doctor's reason for sending a note back to its author (`returned`).
+    reviewNote: text("review_note"),
+    // The tooth-chart change (or any specialty chart) a note waiting for approval
+    // proposes. Applied only when the treating doctor approves — never while it waits.
+    // Validated against the module's chart shape before it is stored.
+    pendingChart: jsonb("pending_chart"),
     ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

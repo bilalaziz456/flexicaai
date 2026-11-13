@@ -5,14 +5,28 @@ import { revalidatePath } from "next/cache";
 import { requireWorkspace } from "@/core/auth/user";
 import { can } from "@/core/auth/permissions";
 import { getClinic } from "@/core/clinics/get-clinic";
+import { clinicHasFeature } from "@/core/lib/features";
 import {
   approveDraftRow,
+  createTypedNote,
   discardDraftRow,
   getAppointmentDoctorId,
   getVisitForPrescription,
   loadDraftRow,
+  patientBelongsToClinic,
   searchScribePatients,
 } from "@/core/clinical/scribe";
+import { logActivity } from "@/core/audit/log";
+import { notify } from "@/core/notifications/in-app";
+import {
+  approveWaitingNoteRow,
+  discardReturnedNoteRow,
+  loadNoteForReview,
+  noteNeedsTreatingApproval,
+  resolveTreatingDoctor,
+  resubmitReturnedNoteRow,
+  returnWaitingNoteRow,
+} from "@/core/clinical/note-approval";
 import { getScribeRunStatus, retryScribeRun, runScribeJob } from "@/core/ai/scribe-job";
 import { scribeModuleConfig } from "@/config/module-scribe";
 import { after } from "next/server";
@@ -100,6 +114,19 @@ export async function loadPatientChart(patientId: string): Promise<unknown> {
  * whose author can no longer log in. Without it those drafts are unreachable by
  * everyone and their clinical content is silently lost — see `draftAccessCondition`.
  */
+/**
+ * The clinic's voice scribe is switched on. Checked by every authoring step, not just
+ * hidden in the UI: a draft open in a tab when the account manager turns it off must
+ * not be approved, discarded or re-run (a re-run is paid). `getClinic` is
+ * request-cached, so this costs no extra query on a page that already read the clinic.
+ */
+async function voiceScribeOn(clinicId: string): Promise<boolean> {
+  const clinic = await getClinic(clinicId);
+  return clinicHasFeature(clinic?.featuresEnabled, "voice_scribe");
+}
+
+const SCRIBE_OFF = "Voice scribe is switched off for this clinic.";
+
 export async function loadDraft(visitId: string): Promise<{
   visitId: string;
   transcript: string;
@@ -109,7 +136,8 @@ export async function loadDraft(visitId: string): Promise<{
   patient: { id: string; fullName: string; phone: string | null };
 } | null> {
   const user = await requireWorkspace();
-  if (!can(user, "clinical", "create")) return null;
+  if (!can(user, "scribe", "create")) return null;
+  if (!(await voiceScribeOn(user.clinicId))) return null;
   const canHandover = can(user, "handover", "view");
 
   const row = await loadDraftRow(user.clinicId, user.id, visitId, canHandover);
@@ -152,12 +180,14 @@ export async function approveVisit(
   visitId: string,
   note: Record<string, unknown>,
   chart?: unknown,
-): Promise<{ ok: true } | { error: string }> {
+): Promise<{ ok: true; waiting?: boolean } | { error: string }> {
   const user = await requireWorkspace();
-  // Approving finalises a clinical note — an authoring action.
-  if (!can(user, "clinical", "create")) {
-    return { error: "You don't have permission to save clinical notes." };
+  // Approving the AI's draft is part of the voice scribe (`scribe:create`); writing a
+  // note by hand is `clinical:create` — see saveTypedNote.
+  if (!can(user, "scribe", "create")) {
+    return { error: "You don't have permission to use the voice scribe." };
   }
+  if (!(await voiceScribeOn(user.clinicId))) return { error: SCRIBE_OFF };
 
   // BOTH arguments come straight from the browser and both land in `jsonb`. This is
   // the moment a draft becomes the legal record, so it is the one place that must not
@@ -165,8 +195,8 @@ export async function approveVisit(
   // amount of it) was written into a medical note. Validation follows the CLINIC's
   // enabled module — core never names a specialty (ADR-007, CLAUDE.md §9).
   //
-  // WHY THIS CAN'T STRAND EXISTING RECORDS: this is the ONLY writer of `visits.note`,
-  // and it only matches `status = 'draft'`, so an already-approved note is never
+  // WHY THIS CAN'T STRAND EXISTING RECORDS: this only matches `status = 'draft'` (the
+  // other writer, a typed note, only INSERTS a new row), so an already-approved note is never
   // re-validated — nothing in the archive can be made unsaveable by tightening the
   // shape. The exposure is limited to open drafts, and a draft that somehow can't
   // satisfy the schema can still be discarded (`discardDraft` takes no note) and
@@ -183,32 +213,74 @@ export async function approveVisit(
   const parsedChart = parseClinicalChart(chart, schemas.chartSchema);
   if (!parsedChart.ok) return { error: parsedChart.error };
 
+  // Recorded for another doctor's patient: once its author approves the AI's draft it
+  // may still wait for that doctor (note-approval.ts), holding its chart change.
+  const draftRow = await loadDraftRow(user.clinicId, user.id, visitId, can(user, "handover", "view"));
+  const waits = draftRow ? await noteNeedsTreatingApproval(user.clinicId, draftRow.treatingDoctorId, user.id) : false;
+
   const updated = await approveDraftRow(
     user.clinicId,
     user.id,
     visitId,
     parsedNote.value,
     can(user, "handover", "create"),
+    waits ? { pendingChart: parsedChart.value ?? null } : null,
   );
 
   // One query, so "not yours" and "not there" are indistinguishable here — say both
   // rather than a misleading "not found" to someone looking at a real draft.
   if (!updated) return { error: "Draft not found, or it belongs to another clinician." };
 
+  if (waits && draftRow?.treatingDoctorId) {
+    await askTreatingDoctor(user, draftRow.treatingDoctorId, visitId, updated.patientId);
+    revalidatePath("/clinic/scribe");
+    return { ok: true, waiting: true };
+  }
+
+  await finishApprovedNote(user, {
+    visitId,
+    patientId: updated.patientId,
+    module: updated.module,
+    modulesEnabled,
+    note: parsedNote.value,
+    chart: parsedChart.value,
+  });
+
+  revalidatePath("/clinic/scribe");
+  revalidatePath("/doctor");
+  return { ok: true };
+}
+
+/**
+ * What happens once a note counts — the same for an approved AI draft and a typed
+ * note, so the two can never drift: the specialty record and chart, the note's
+ * medicines as a printable prescription, and a recall from its next visit.
+ */
+async function finishApprovedNote(
+  user: Awaited<ReturnType<typeof requireWorkspace>>,
+  v: {
+    visitId: string;
+    patientId: string;
+    module: string | null;
+    modulesEnabled: string[];
+    note: Record<string, unknown>;
+    chart: unknown;
+  },
+): Promise<void> {
   // Persist the specialty structured record + fold the living chart (e.g. the dental
   // odontogram), via the enabled module's contract. App-level resolution, like the
   // recall capture below — core stays specialty-agnostic. Best-effort: the chart is
   // always recomputable, so a hiccup here must not fail the approval.
   try {
-    const clinicalRecord = clinicalRecordFor(modulesEnabled);
+    const clinicalRecord = clinicalRecordFor(v.modulesEnabled);
     if (clinicalRecord) {
       await clinicalRecord.saveRecord(user.clinicId, {
-        visitId,
-        patientId: updated.patientId,
-        note: parsedNote.value,
+        visitId: v.visitId,
+        patientId: v.patientId,
+        note: v.note,
         // The doctor's chart from the in-scribe editor, sent only when they changed
         // it; without it the module keeps the patient's chart as it was. Validated above.
-        chart: parsedChart.value,
+        chart: v.chart,
       });
     }
   } catch (e) {
@@ -218,7 +290,7 @@ export async function approveVisit(
       op: "clinical.saveModuleRecord",
       clinicId: user.clinicId,
       userId: user.id,
-      ids: { visitId, patientId: updated.patientId, module: updated.module },
+      ids: { visitId: v.visitId, patientId: v.patientId, module: v.module },
     });
   }
 
@@ -227,35 +299,340 @@ export async function approveVisit(
   // (owner's call, 2026-10-24). Best-effort: a failure here must not undo an approval,
   // but a doctor would look for that prescription, so it is reported.
   try {
-    await createPrescriptionFromVisit(user.clinicId, visitId, {
+    await createPrescriptionFromVisit(user.clinicId, v.visitId, {
       id: user.id,
       name: displayStaffName(user.prefix, user.fullName, user.username),
     });
   } catch (e) {
-    report(e, { op: "clinical.prescriptionFromNote", clinicId: user.clinicId, ids: { visitId } });
+    report(e, { op: "clinical.prescriptionFromNote", clinicId: user.clinicId, ids: { visitId: v.visitId } });
   }
 
   // Capture a recall from the note's nextVisit ({ reason, afterDays }) — the
   // scribe extracts it; approving schedules it (CLAUDE.md §10). Reading the note
   // shape is fine here (app-level), not in /core.
-  const nextVisit = parsedNote.value.nextVisit;
+  const nextVisit = v.note.nextVisit;
   if (nextVisit && typeof nextVisit === "object") {
     const nv = nextVisit as { reason?: unknown; afterDays?: unknown };
     const afterDays = Number(nv.afterDays);
     if (Number.isFinite(afterDays) && afterDays > 0) {
       await scheduleRecall({
         clinicId: user.clinicId,
-        patientId: updated.patientId,
-        sourceVisitId: visitId,
-        module: updated.module,
+        patientId: v.patientId,
+        sourceVisitId: v.visitId,
+        module: v.module,
         reason: typeof nv.reason === "string" ? nv.reason : null,
         afterDays,
       });
     }
   }
+}
+
+/**
+ * Write a clinical note by hand (owner, 2026-11-14) — with the voice scribe switched
+ * off, or a doctor who would rather type. `clinical:create`, not `scribe:create`: no
+ * recording, no AI, so it is stored approved and signed by its author in one step.
+ * Validated against the enabled module's note and chart shapes like an approval, and
+ * finished the same way (chart, prescription, recall).
+ *
+ * The allergy and medicine checks the scribe's review shows run here too; a note that
+ * trips one comes back with them, and is saved only once the clinician confirms.
+ */
+export async function saveTypedNote(
+  patientId: string,
+  note: Record<string, unknown>,
+  chart: unknown,
+  confirmWarnings: boolean,
+  /** The appointment it is for (it then belongs to that appointment's doctor), or —
+   *  with none — the doctor whose patient it is (default: the author). */
+  forWhom: { appointmentId?: string | null; doctorId?: string | null } = {},
+): Promise<{ ok: true; waiting?: boolean } | { error: string } | { warnings: { drugWarnings: string[]; allergyWarnings: string[] } }> {
+  const user = await requireWorkspace();
+  if (!can(user, "clinical", "create")) {
+    return { error: "You don't have permission to write clinical notes." };
+  }
+  if (typeof patientId !== "string" || !(await patientBelongsToClinic(user.clinicId, patientId))) {
+    return { error: "Patient not found." };
+  }
+
+  const clinicRow = await getClinic(user.clinicId);
+  const modulesEnabled = clinicRow?.modulesEnabled ?? [];
+  // The specialty the note belongs to — the same choice the scribe route makes.
+  const moduleId = modulesEnabled[0];
+  if (!moduleId) return { error: "This clinic has no specialty enabled." };
+  const schemas = clinicalSchemasFor(modulesEnabled);
+  const parsedNote = parseClinicalNote(note, schemas.noteSchema);
+  if (!parsedNote.ok) return { error: parsedNote.error };
+  const parsedChart = parseClinicalChart(chart, schemas.chartSchema);
+  if (!parsedChart.ok) return { error: parsedChart.error };
+
+  if (!confirmWarnings) {
+    const allergies = await getPatientAllergies(user.clinicId, patientId);
+    const warnings = noteWarnings(
+      parsedNote.value,
+      [...getClinicWorkspace(modulesEnabled).drugFormulary, ...(await medicineFormulary(user.clinicId))],
+      allergies,
+    );
+    if (warnings.drugWarnings.length > 0 || warnings.allergyWarnings.length > 0) {
+      return { warnings };
+    }
+  }
+
+  const treating = await resolveTreatingDoctor(user.clinicId, {
+    patientId,
+    authorId: user.id,
+    appointmentId: forWhom.appointmentId ?? null,
+    chosenDoctorId: forWhom.doctorId ?? null,
+  });
+  if ("error" in treating) return { error: treating.error };
+  const waits = await noteNeedsTreatingApproval(user.clinicId, treating.treatingDoctorId, user.id);
+
+  const created = await createTypedNote({
+    clinicId: user.clinicId,
+    patientId,
+    authorId: user.id,
+    module: moduleId,
+    note: parsedNote.value,
+    appointmentId: treating.appointmentId,
+    treatingDoctorId: treating.treatingDoctorId,
+    waitForApproval: waits,
+    pendingChart: parsedChart.value ?? null,
+  });
+
+  await logActivity({
+    action: "create",
+    entity: "visit",
+    entityId: created.id,
+    summary: waits ? "Wrote a clinical note for another doctor's approval" : "Wrote a clinical note",
+    metadata: { patientId, typed: true, waiting: waits },
+  });
+
+  if (waits) {
+    await askTreatingDoctor(user, treating.treatingDoctorId, created.id, patientId);
+    revalidatePath("/clinic/scribe");
+    revalidatePath(`/clinic/patients/${patientId}`);
+    return { ok: true, waiting: true };
+  }
+
+  await finishApprovedNote(user, {
+    visitId: created.id,
+    patientId: created.patientId,
+    module: created.module,
+    modulesEnabled,
+    note: parsedNote.value,
+    chart: parsedChart.value,
+  });
 
   revalidatePath("/clinic/scribe");
-  revalidatePath("/doctor");
+  revalidatePath(`/clinic/patients/${patientId}`);
+  return { ok: true };
+}
+
+type WorkspaceUser = Awaited<ReturnType<typeof requireWorkspace>>;
+
+/** Tell the patient's doctor a note waits for them. Best-effort, like every notice. */
+async function askTreatingDoctor(user: WorkspaceUser, doctorId: string, visitId: string, patientId: string) {
+  try {
+    await notify(user.clinicId, doctorId, {
+      type: "clinical.note_approval_needed",
+      title: "A clinical note is waiting for your approval",
+      body: `${displayStaffName(user.prefix, user.fullName, user.username)} wrote a note for your patient.`,
+      entity: "visit",
+      entityId: visitId,
+      link: `/clinic/scribe?review=${visitId}`,
+      actor: { userId: user.id, name: displayStaffName(user.prefix, user.fullName, user.username) },
+      metadata: { patientId },
+    });
+  } catch (e) {
+    report(e, { op: "clinical.noteApprovalNotify", clinicId: user.clinicId, ids: { visitId } });
+  }
+}
+
+/** Approving or sending back is the patient's doctor's, and needs a note grant. */
+function mayReviewNotes(user: WorkspaceUser) {
+  return can(user, "clinical", "create") || can(user, "scribe", "create");
+}
+
+/**
+ * Open a note waiting for you (you are the patient's doctor) or one sent back to you
+ * (you wrote it), with the allergy and medicine checks as they stand now.
+ */
+export async function loadNoteToReview(visitId: string): Promise<{
+  visitId: string;
+  mode: "approve" | "returned";
+  note: Record<string, unknown>;
+  chart: unknown;
+  /** The writer proposed a chart change (it rides with the note until approved). */
+  chartProposed: boolean;
+  reviewNote: string | null;
+  transcript: string | null;
+  hasAudio: boolean;
+  drugWarnings: string[];
+  allergyWarnings: string[];
+  patient: { id: string; fullName: string; phone: string | null };
+  /** The writer (approve mode) or the patient's doctor (returned mode). */
+  otherName: string;
+} | null> {
+  const user = await requireWorkspace();
+  if (!mayReviewNotes(user)) return null;
+  if (typeof visitId !== "string") return null;
+  const row = await loadNoteForReview(user.clinicId, visitId, user.id);
+  if (!row) return null;
+  const note = (row.note ?? {}) as Record<string, unknown>;
+  const clinicRow = await getClinic(user.clinicId);
+  const { drugWarnings, allergyWarnings } = noteWarnings(
+    note,
+    [...getClinicWorkspace(clinicRow?.modulesEnabled ?? []).drugFormulary, ...(await medicineFormulary(user.clinicId))],
+    await getPatientAllergies(user.clinicId, row.patientId),
+  );
+  const clinicalRecord = clinicalRecordFor(clinicRow?.modulesEnabled ?? []);
+  // The chart the author proposed, else the patient's chart as it is now.
+  const chart = row.pendingChart ?? (clinicalRecord ? await clinicalRecord.loadChart(user.clinicId, row.patientId) : null);
+  return {
+    visitId: row.id,
+    mode: row.status === "pending_approval" ? "approve" : "returned",
+    note,
+    chart,
+    chartProposed: row.pendingChart != null,
+    reviewNote: row.reviewNote,
+    transcript: row.transcript,
+    hasAudio: Boolean(row.hasAudio),
+    drugWarnings,
+    allergyWarnings,
+    patient: { id: row.patientId, fullName: row.patientName, phone: row.patientPhone },
+    otherName:
+      row.status === "pending_approval"
+        ? displayStaffName(row.authorPrefix, row.authorName, row.authorUsername ?? "A colleague")
+        : displayStaffName(row.treatingPrefix, row.treatingName, row.treatingUsername ?? "The patient's doctor"),
+  };
+}
+
+/** The patient's doctor approves a note someone else wrote (with any edits). */
+export async function approveWaitingNote(
+  visitId: string,
+  note: Record<string, unknown>,
+  chart?: unknown,
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireWorkspace();
+  if (!mayReviewNotes(user)) return { error: "You don't have permission to approve clinical notes." };
+  const clinicRow = await getClinic(user.clinicId);
+  const modulesEnabled = clinicRow?.modulesEnabled ?? [];
+  const schemas = clinicalSchemasFor(modulesEnabled);
+  const parsedNote = parseClinicalNote(note, schemas.noteSchema);
+  if (!parsedNote.ok) return { error: parsedNote.error };
+  const parsedChart = parseClinicalChart(chart, schemas.chartSchema);
+  if (!parsedChart.ok) return { error: parsedChart.error };
+
+  const row = await approveWaitingNoteRow(user.clinicId, visitId, user.id, parsedNote.value);
+  if (!row) return { error: "Note not found, or it is not waiting for you." };
+
+  await finishApprovedNote(user, {
+    visitId,
+    patientId: row.patientId,
+    module: row.module,
+    modulesEnabled,
+    note: parsedNote.value,
+    chart: parsedChart.value,
+  });
+  await logActivity({ action: "update", entity: "visit", entityId: visitId, summary: "Approved a clinical note written by a colleague", metadata: { patientId: row.patientId } });
+  if (row.authorId && row.authorId !== user.id) {
+    try {
+      await notify(user.clinicId, row.authorId, {
+        type: "clinical.note_approved",
+        title: "Your clinical note was approved",
+        body: `${displayStaffName(user.prefix, user.fullName, user.username)} approved it.`,
+        entity: "visit",
+        entityId: visitId,
+        link: `/clinic/patients/${row.patientId}#clinical-history`,
+        actor: { userId: user.id, name: displayStaffName(user.prefix, user.fullName, user.username) },
+      });
+    } catch (e) {
+      report(e, { op: "clinical.noteApprovedNotify", clinicId: user.clinicId, ids: { visitId } });
+    }
+  }
+  revalidatePath("/clinic/scribe");
+  revalidatePath(`/clinic/patients/${row.patientId}`);
+  return { ok: true };
+}
+
+/** The patient's doctor sends a note back to whoever wrote it, saying why. */
+export async function sendNoteBack(visitId: string, reason: string): Promise<{ ok: true } | { error: string }> {
+  const user = await requireWorkspace();
+  if (!mayReviewNotes(user)) return { error: "You don't have permission to review clinical notes." };
+  const why = typeof reason === "string" ? reason.trim().slice(0, 1000) : "";
+  if (!why) return { error: "Say what needs changing." };
+  const row = await returnWaitingNoteRow(user.clinicId, visitId, user.id, why);
+  if (!row) return { error: "Note not found, or it is not waiting for you." };
+  await logActivity({ action: "update", entity: "visit", entityId: visitId, summary: "Sent a clinical note back to its author", metadata: { patientId: row.patientId } });
+  if (row.authorId) {
+    try {
+      await notify(user.clinicId, row.authorId, {
+        type: "clinical.note_returned",
+        title: "A clinical note was sent back to you",
+        body: why,
+        entity: "visit",
+        entityId: visitId,
+        link: `/clinic/scribe?review=${visitId}`,
+        actor: { userId: user.id, name: displayStaffName(user.prefix, user.fullName, user.username) },
+      });
+    } catch (e) {
+      report(e, { op: "clinical.noteReturnedNotify", clinicId: user.clinicId, ids: { visitId } });
+    }
+  }
+  revalidatePath("/clinic/scribe");
+  return { ok: true };
+}
+
+/** The author sends a returned note again, corrected. */
+export async function resubmitNote(
+  visitId: string,
+  note: Record<string, unknown>,
+  chart?: unknown,
+): Promise<{ ok: true; waiting?: boolean } | { error: string }> {
+  const user = await requireWorkspace();
+  if (!mayReviewNotes(user)) return { error: "You don't have permission to write clinical notes." };
+  const row0 = await loadNoteForReview(user.clinicId, visitId, user.id);
+  if (!row0 || row0.status !== "returned") return { error: "Note not found." };
+  const clinicRow = await getClinic(user.clinicId);
+  const modulesEnabled = clinicRow?.modulesEnabled ?? [];
+  const schemas = clinicalSchemasFor(modulesEnabled);
+  const parsedNote = parseClinicalNote(note, schemas.noteSchema);
+  if (!parsedNote.ok) return { error: parsedNote.error };
+  const parsedChart = parseClinicalChart(chart, schemas.chartSchema);
+  if (!parsedChart.ok) return { error: parsedChart.error };
+
+  // The doctor may have switched approval off since: then it is signed now.
+  const waits = await noteNeedsTreatingApproval(user.clinicId, row0.treatingDoctorId, user.id);
+  const row = await resubmitReturnedNoteRow(user.clinicId, visitId, user.id, {
+    note: parsedNote.value,
+    pendingChart: parsedChart.value ?? null,
+    approveNow: !waits,
+  });
+  if (!row) return { error: "Note not found." };
+  if (waits && row.treatingDoctorId) {
+    await askTreatingDoctor(user, row.treatingDoctorId, visitId, row.patientId);
+  } else {
+    await finishApprovedNote(user, {
+      visitId,
+      patientId: row.patientId,
+      module: row.module,
+      modulesEnabled,
+      note: parsedNote.value,
+      chart: parsedChart.value,
+    });
+  }
+  await logActivity({ action: "update", entity: "visit", entityId: visitId, summary: "Corrected a clinical note that was sent back", metadata: { patientId: row.patientId } });
+  revalidatePath("/clinic/scribe");
+  revalidatePath(`/clinic/patients/${row.patientId}`);
+  return { ok: true, waiting: waits };
+}
+
+/** The author bins a note that was sent back (Trash). */
+export async function discardReturnedNote(visitId: string): Promise<{ ok: true } | { error: string }> {
+  const user = await requireWorkspace();
+  if (!mayReviewNotes(user)) return { error: "You don't have permission to write clinical notes." };
+  if (!(await discardReturnedNoteRow(user.clinicId, visitId, user.id))) return { error: "Note not found." };
+  await logActivity({ action: "delete", entity: "visit", entityId: visitId, summary: "Discarded a clinical note that was sent back" });
+  revalidatePath("/clinic/scribe");
   return { ok: true };
 }
 
@@ -264,9 +641,10 @@ export async function discardDraft(
   visitId: string,
 ): Promise<{ ok: true } | { error: string }> {
   const user = await requireWorkspace();
-  if (!can(user, "clinical", "create")) {
+  if (!can(user, "scribe", "create")) {
     return { error: "You don't have permission to modify clinical drafts." };
   }
+  if (!(await voiceScribeOn(user.clinicId))) return { error: SCRIBE_OFF };
 
   const discarded = await discardDraftRow(
     user.clinicId,
@@ -355,7 +733,7 @@ export async function getScribeStatus(
   visitId: string,
 ): Promise<{ status: string; error: string | null } | null> {
   const user = await requireWorkspace();
-  if (!can(user, "clinical", "create")) return null;
+  if (!can(user, "scribe", "create")) return null;
   return getScribeRunStatus(user.clinicId, user.id, visitId);
 }
 
@@ -364,9 +742,10 @@ export async function retryScribe(
   visitId: string,
 ): Promise<{ ok: true } | { error: string }> {
   const user = await requireWorkspace();
-  if (!can(user, "clinical", "create")) {
+  if (!can(user, "scribe", "create")) {
     return { error: "You don't have permission to modify clinical drafts." };
   }
+  if (!(await voiceScribeOn(user.clinicId))) return { error: SCRIBE_OFF };
   const r = await retryScribeRun(user.clinicId, user.id, visitId);
   if ("error" in r) return r;
   // Kick it off now; the recovery sweep is the backstop if this process dies.

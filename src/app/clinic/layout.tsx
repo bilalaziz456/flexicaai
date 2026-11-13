@@ -204,8 +204,10 @@ export default async function ClinicLayout({
       features={{
         sales: clinicHasFeature(clinic?.featuresEnabled, "sales"),
         finance: clinicHasFeature(clinic?.featuresEnabled, "finance"),
+        voice_scribe: clinicHasFeature(clinic?.featuresEnabled, "voice_scribe"),
       }}
       gates={{
+        notesNav: !(clinicHasFeature(clinic?.featuresEnabled, "voice_scribe") && can(user, "scribe", "create")),
         logs: logsEnabled,
         approvals: approvalsEnabled,
         reports:
