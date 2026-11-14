@@ -546,3 +546,100 @@ html:has(.flx-site)::-webkit-scrollbar-thumb,
 @keyframes flow-dash {
   to { stroke-dashoffset: -28; }
 }
+
+/* ── AI Scribe hero (scribe-hero.tsx) ─────────────────────────────────────────
+   The loop's continuous motion lives here as CSS; the component only flips classes
+   on a coarse clock. All of it stops under reduced motion. */
+.sh-bar {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: sh-bar 0.9s ease-in-out infinite alternate;
+  transition: transform 0.6s var(--ease-soft);
+}
+.sh-bar-idle {
+  animation: none;
+  transform: scaleY(0.16);
+}
+@keyframes sh-bar {
+  from {
+    transform: scaleY(0.18);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+.sh-ring {
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, transparent 0 55%, rgb(95 224 228 / 0.95) 78%, transparent 92%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+  animation: sh-spin 5s linear infinite;
+}
+@keyframes sh-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+.sh-shimmer {
+  background: linear-gradient(90deg, rgb(255 255 255 / 0.05) 0%, rgb(95 224 228 / 0.22) 50%, rgb(255 255 255 / 0.05) 100%);
+  background-size: 200% 100%;
+  animation: sh-shimmer 1.3s linear infinite;
+}
+@keyframes sh-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+.sh-aurora {
+  animation: sh-aurora 14s ease-in-out infinite alternate;
+}
+@keyframes sh-aurora {
+  from {
+    transform: translate3d(-8%, -4%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(8%, 6%, 0) scale(1.15);
+  }
+}
+.sh-dash {
+  stroke-dasharray: 3 9;
+  animation: sh-dash 0.7s linear infinite;
+}
+@keyframes sh-dash {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+@keyframes sh-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+.sh-check {
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  transition: stroke-dashoffset 0.7s var(--ease-out-expo) 0.2s;
+}
+.sh-check-on {
+  stroke-dashoffset: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sh-bar,
+  .sh-ring,
+  .sh-shimmer,
+  .sh-aurora,
+  .sh-dash {
+    animation: none;
+  }
+}
+
