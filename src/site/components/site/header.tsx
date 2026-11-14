@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { WHATSAPP_URL } from "../../lib/contact";
-import { DEMO_PATH, FEATURE_LINKS, LOGIN_PATH, MAIN_NAV, featurePath } from "../../lib/nav";
+import { FEATURE_LINKS, LOGIN_PATH, MAIN_NAV, featurePath } from "../../lib/nav";
 import { ButtonLink, cx } from "../ui";
 
 /**
@@ -85,19 +85,18 @@ export function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Link
-            href="/contact"
-            className="hidden rounded-full px-3.5 py-2 text-[0.9rem] font-medium text-slate-300 transition-colors hover:text-white md:inline-flex"
-          >
-            Contact
-          </Link>
-          {/* Clinic staff come to the website to get into the app: one click, at every width. */}
-          <ButtonLink href={LOGIN_PATH} tone="ghost-dark" className="min-h-10 px-4 py-2 text-[0.88rem] sm:px-5">
-            Sign in
-          </ButtonLink>
-          <ButtonLink href={DEMO_PATH} className="hidden min-h-10 px-5 py-2 text-[0.88rem] sm:inline-flex">
+          {/* Book a demo opens a WhatsApp chat (new tab), prefilled with a demo request.
+              The one call to action is the solid button; Log in is a quiet text link after it,
+              so the two never compete. Clinic staff still reach the app in one click, at every width. */}
+          <ButtonLink href={WHATSAPP_URL} className="hidden min-h-10 px-5 py-2 text-[0.88rem] sm:inline-flex">
             Book a demo
           </ButtonLink>
+          <Link
+            href={LOGIN_PATH}
+            className="inline-flex min-h-10 items-center rounded-full px-3.5 py-2 text-[0.9rem] font-medium text-slate-300 transition-colors hover:text-white"
+          >
+            Log in
+          </Link>
           <button
             ref={menuButton}
             type="button"
@@ -141,14 +140,11 @@ export function Header() {
             </ul>
           </nav>
           <div className="mt-8 grid gap-3">
-            <ButtonLink href={DEMO_PATH} arrow>
-              Book a personalised demo
-            </ButtonLink>
-            <ButtonLink href={WHATSAPP_URL} tone="ghost-dark">
-              WhatsApp us
+            <ButtonLink href={WHATSAPP_URL} arrow>
+              Book a demo on WhatsApp
             </ButtonLink>
             <ButtonLink href={LOGIN_PATH} tone="ghost-dark">
-              Sign in
+              Log in
             </ButtonLink>
           </div>
         </div>

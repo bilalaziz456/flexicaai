@@ -51,6 +51,7 @@ export const MAIN_NAV = [
   { href: "/features/ai-scribe", label: "AI Scribe" },
   { href: "/features/whatsapp-integration", label: "WhatsApp" },
   { href: "/about", label: "About" },
+  { href: "/contact", label: "Contact" },
 ];
 
 export const DEMO_PATH = "/contact#demo";
