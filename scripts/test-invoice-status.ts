@@ -17,6 +17,9 @@ import { unscoped } from "@/core/db/tenant-guard";
 import { clinicInvoices, clinicPayments, clinics } from "@/core/db/schema";
 import { isLiveInvoiceOfClinic, listClinicInvoices, setPaymentInvoice, updateClinicInvoice } from "@/core/admin/clinic-invoices";
 import {
+  describePeriodLength,
+  periodEndFor,
+  periodLength,
   formatIsoDay,
   formatPeriod,
   formatRate,
@@ -55,6 +58,20 @@ function pureRules() {
   ok("a refund that leaves nothing paid → Unpaid", s(1000, 0, null).state === "unpaid");
   ok("no due date → never overdue", !s(1000, 0, null).overdue);
   ok("dates print as words", formatIsoDay("2026-11-04") === "4 Nov 2026");
+  // How many months an invoice bills (owner, 2026-11-16): the form and the printout count alike.
+  const len = (a: string, b: string) => {
+    const l = periodLength(a, b);
+    return l ? describePeriodLength(l) : null;
+  };
+  ok("1 Jan–31 Jan is 1 month", len("2026-01-01", "2026-01-31") === "1 month");
+  ok("1 Jan–30 Jun is 6 months", len("2026-01-01", "2026-06-30") === "6 months");
+  ok("1 Jan–31 Dec is 12 months", len("2026-01-01", "2026-12-31") === "12 months");
+  ok("15 Jan–14 Feb is 1 month", len("2026-01-15", "2026-02-14") === "1 month");
+  ok("1 Nov–28 Feb crosses the year: 4 months", len("2026-11-01", "2027-02-28") === "4 months");
+  ok("1 Jan–10 Mar is 2 months 10 days", len("2026-01-01", "2026-03-10") === "2 months 10 days");
+  ok("1 Jan–10 Jan is 10 days", len("2026-01-01", "2026-01-10") === "10 days");
+  ok("an end before the start has no length", periodLength("2026-02-01", "2026-01-01") === null);
+  ok("31 Jan + 1 month ends 28 Feb", periodEndFor("2026-01-31", 1) === "2026-02-28");
   ok("a period prints as a range", formatPeriod("2026-11-04", "2026-12-04") === "4 Nov 2026 – 4 Dec 2026");
   ok("no period → null", formatPeriod(null, null) === null);
   ok("tax: 16% of Rs 15,000 is Rs 2,400", invoiceTax(15000, 16) === 2400);

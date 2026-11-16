@@ -153,11 +153,37 @@ export type IssueInvoiceInput = {
   periodEnd: string | null;
   /** YYYY-MM-DD; null = the period start (or today) plus the clinic's grace days. */
   dueOn?: string | null;
-  /** Before tax. */
+  /** The SUBSCRIPTION part, before tax (0 for an invoice of one-time fees only). */
   amount: number;
+  /**
+   * One-time fees billed on this invoice (0152), already checked by the caller to be
+   * this clinic's and not on another live invoice (`feeLinesForInvoice`). Added to the
+   * amount; tax, when ticked, is on the whole.
+   */
+  feeLines?: { feeId: string; kind: string; label: string; amount: number }[];
   tax?: InvoiceTaxInput;
   note: string | null;
 };
+
+/** A fee line as stored: bounded, whole rupees, never negative. */
+function cleanFeeLines(lines: IssueInvoiceInput["feeLines"]) {
+  return (lines ?? []).slice(0, 20).map((l) => ({
+    feeId: l.feeId,
+    kind: l.kind.slice(0, 40),
+    label: l.label.slice(0, 200),
+    amount: Math.max(0, Math.round(l.amount)),
+  }));
+}
+
+const feeLinesSchema = z
+  .array(z.object({ feeId: z.string(), kind: z.string(), label: z.string().max(200), amount: z.number().int().min(0) }))
+  .max(20);
+
+/** The stored jsonb read back through zod; anything malformed prints no fee lines. */
+function parseFeeLines(raw: unknown): { label: string; amount: number }[] {
+  const parsed = feeLinesSchema.safeParse(raw);
+  return parsed.success ? parsed.data.map((l) => ({ label: l.label, amount: l.amount })) : [];
+}
 
 /** Issues a numbered subscription invoice; allocates the company-global number under
  *  a row lock so concurrent issues never collide. */
@@ -185,6 +211,9 @@ export async function issueClinicInvoice(
       const allocated = cfg.nextInvoiceNo;
       await tx.update(companySettings).set({ nextInvoiceNo: allocated + 1, updatedAt: new Date() }).where(eq(companySettings.id, cfg.id));
 
+      const feeLines = cleanFeeLines(input.feeLines);
+      const feeAmount = feeLines.reduce((sum, l) => sum + l.amount, 0);
+      const amount = Math.max(0, Math.round(input.amount)) + feeAmount;
       const [inv] = await tx
         .insert(clinicInvoices)
         .values({
@@ -193,8 +222,10 @@ export async function issueClinicInvoice(
           periodStart: input.periodStart,
           periodEnd: input.periodEnd,
           dueOn,
-          amount: Math.max(0, Math.round(input.amount)),
-          ...taxColumns(Math.max(0, Math.round(input.amount)), input.tax ?? null),
+          amount,
+          feeLines,
+          feeAmount,
+          ...taxColumns(amount, input.tax ?? null),
           note: input.note?.slice(0, 500) || null,
           issuedBy: actor.id,
           issuedByName: actor.name,
@@ -217,8 +248,10 @@ export type ClinicInvoiceRow = {
   periodStart: string | null;
   periodEnd: string | null;
   dueOn: string | null;
-  /** Before tax. */
+  /** Before tax — subscription and one-time fees together. */
   amount: number;
+  /** Of `amount`, the one-time fees billed on it (0152). */
+  feeAmount: number;
   taxLabel: string | null;
   taxRate: number | null;
   taxAmount: number;
@@ -253,6 +286,10 @@ export type InvoiceListSummary = {
   invoiced: number;
   /** Of which tax. */
   tax: number;
+  /** Paid against the filtered invoices (refunds off, credits on). */
+  received: number;
+  /** How many of them are paid in full. */
+  paidCount: number;
   /** Still owed across the filtered invoices. */
   outstanding: number;
   overdueCount: number;
@@ -290,6 +327,7 @@ export async function listClinicInvoices(
           periodEnd: clinicInvoices.periodEnd,
           dueOn: clinicInvoices.dueOn,
           amount: clinicInvoices.amount,
+          feeAmount: clinicInvoices.feeAmount,
           taxLabel: clinicInvoices.taxLabel,
           taxRate: clinicInvoices.taxRate,
           taxAmount: clinicInvoices.taxAmount,
@@ -313,6 +351,8 @@ export async function listClinicInvoices(
           total: sql<number>`count(*)::int`,
           invoiced: sql<number>`coalesce(sum(${invoiceTotalSql}), 0)::int`,
           tax: sql<number>`coalesce(sum(${clinicInvoices.taxAmount}), 0)::int`,
+          received: sql<number>`coalesce(sum(${invoicePaidSql}), 0)::int`,
+          paidCount: sql<number>`(count(*) filter (where ${invoiceTotalSql} > 0 and ${balanceSql} <= 0))::int`,
           outstanding: sql<number>`coalesce(sum(${balanceSql}), 0)::int`,
           overdueCount: sql<number>`(count(*) filter (where ${overdueSql}))::int`,
           overdueAmount: sql<number>`coalesce(sum(${balanceSql}) filter (where ${overdueSql}), 0)::int`,
@@ -325,6 +365,8 @@ export async function listClinicInvoices(
       total: Number(agg?.total ?? 0),
       invoiced: Number(agg?.invoiced ?? 0),
       tax: Number(agg?.tax ?? 0),
+      received: Number(agg?.received ?? 0),
+      paidCount: Number(agg?.paidCount ?? 0),
       outstanding: Number(agg?.outstanding ?? 0),
       overdueCount: Number(agg?.overdueCount ?? 0),
       overdueAmount: Number(agg?.overdueAmount ?? 0),
@@ -472,7 +514,10 @@ export type EditInvoiceInput = {
   periodEnd: string | null;
   /** YYYY-MM-DD; null = worked out again, as at issue. */
   dueOn: string | null;
-  /** Before tax. */
+  /**
+   * The SUBSCRIPTION part, before tax. One-time fees billed on the invoice are kept as
+   * issued and added back (to change them, void the invoice and issue it again).
+   */
   amount: number;
   tax: InvoiceTaxInput;
   note: string | null;
@@ -514,6 +559,7 @@ export async function updateClinicInvoice(
         invoiceNo: clinicInvoices.invoiceNo,
         clinicId: clinicInvoices.clinicId,
         amount: clinicInvoices.amount,
+        feeAmount: clinicInvoices.feeAmount,
         taxLabel: clinicInvoices.taxLabel,
         taxRate: clinicInvoices.taxRate,
         taxAmount: clinicInvoices.taxAmount,
@@ -529,7 +575,7 @@ export async function updateClinicInvoice(
       .limit(1);
     if (!cur) return { error: "Invoice not found, or it was voided. Restore it to edit it." };
 
-    const amount = Math.max(0, Math.round(input.amount));
+    const amount = Math.max(0, Math.round(input.amount)) + cur.feeAmount;
     const taxCols = taxColumns(amount, input.tax);
     const after: InvoiceFields = {
       amount,
@@ -608,6 +654,10 @@ export type ClinicInvoicePrint = {
   note: string | null;
   issuedAt: Date;
   issuedByName: string | null;
+  /** One-time fees billed on it (0152), as invoiced; included in `amount`. */
+  feeLines: { label: string; amount: number }[];
+  /** `amount` less the fees — the subscription line. */
+  subscriptionAmount: number;
   /** Money recorded against this invoice, oldest first — printed as "Payments received". */
   payments: { occurredAt: Date; amount: number; kind: string; method: string | null; reference: string | null }[];
   clinic: {
@@ -627,6 +677,8 @@ export async function getClinicInvoiceForPrint(id: string): Promise<ClinicInvoic
         id: clinicInvoices.id,
         invoiceNo: clinicInvoices.invoiceNo,
         amount: clinicInvoices.amount,
+        feeLines: clinicInvoices.feeLines,
+        feeAmount: clinicInvoices.feeAmount,
         taxLabel: clinicInvoices.taxLabel,
         taxRate: clinicInvoices.taxRate,
         taxAmount: clinicInvoices.taxAmount,
@@ -677,6 +729,8 @@ export async function getClinicInvoiceForPrint(id: string): Promise<ClinicInvoic
       periodStart: row.periodStart,
       periodEnd: row.periodEnd,
       dueOn: row.dueOn,
+      feeLines: parseFeeLines(row.feeLines),
+      subscriptionAmount: Math.max(0, row.amount - row.feeAmount),
       payments,
       note: row.note,
       issuedAt: row.issuedAt,

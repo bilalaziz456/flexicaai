@@ -220,6 +220,12 @@ export const clinicPayments = pgTable(
     // cascade: an invoice is never hard-deleted except by a legal purge, and a purge
     // must not take the money record with it.
     invoiceId: uuid("invoice_id").references(() => clinicInvoices.id, { onDelete: "set null" }),
+    // How much of `amount` was for ONE-TIME FEES (training, implementation… migration
+    // 0152, owner 2026-11-17); the rest is subscription. 0 for every older row. The
+    // subscription balance reads `amount − fee_amount` (`subscriptionShare`), so fee
+    // money can never be counted as months paid; the fees' paid figure reads this.
+    // Same sign rule as the amount: a refund's fee share comes back off the fees.
+    feeAmount: integer("fee_amount").notNull().default(0),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
     recordedBy: uuid("recorded_by"),
     recordedByName: text("recorded_by_name"),
@@ -474,6 +480,16 @@ export const clinicInvoices = pgTable(
     taxLabel: text("tax_label"),
     taxRate: numeric("tax_rate", { precision: 5, scale: 2 }),
     taxAmount: integer("tax_amount").notNull().default(0),
+    // One-time fees billed on this invoice (migration 0152): a SNAPSHOT of each fee as
+    // invoiced, so the printout never changes if a fee is later corrected. `fee_amount`
+    // is their sum and is INCLUDED in `amount` (so every total, tax and status query
+    // keeps working unchanged); the subscription line is `amount − fee_amount`. A fee is
+    // "invoiced" while a LIVE invoice lists it — voiding the invoice frees it again.
+    feeLines: jsonb("fee_lines")
+      .$type<{ feeId: string; kind: string; label: string; amount: number }[]>()
+      .notNull()
+      .default([]),
+    feeAmount: integer("fee_amount").notNull().default(0),
     note: text("note"),
     // When the invoice must be paid by (migration 0142). Unpaid after this = Overdue.
     // Set at issue: the period start (or the issue day) plus the clinic's grace days,
@@ -501,6 +517,43 @@ export const clinicInvoices = pgTable(
       .where(sql`${t.deletedAt} is not null`),
   ],
 );
+
+/**
+ * One-time fees a clinic is charged by FlexicaAI — training, implementation, data
+ * migration… (migration 0152, owner 2026-11-17). Owed ON TOP of the subscription and
+ * kept apart from it: the subscription balance never counts them, and money paid for
+ * them is marked on the payment (`clinic_payments.fee_amount`). Set by a team member
+ * holding `fees:create` who manages the clinic (`managesClinic`). Billed by listing
+ * them on a subscription invoice (`clinic_invoices.fee_lines`). Soft-deletable.
+ */
+export const clinicFees = pgTable(
+  "clinic_fees",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    // training | implementation | data_migration | other (`core/admin/clinic-fee-kinds`).
+    // Free text, not an enum, so a new kind needs no migration.
+    kind: text("kind").notNull(),
+    description: text("description"),
+    amount: integer("amount").notNull(), // PKR, before tax
+    chargedOn: date("charged_on").notNull(),
+    createdBy: uuid("created_by"),
+    createdByName: text("created_by_name"),
+    ...softDeleteColumns(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("clinic_fees_clinic_idx").on(t.clinicId, t.chargedOn),
+    index("clinic_fees_deleted_idx")
+      .on(t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
+  ],
+);
+
+export type ClinicFee = typeof clinicFees.$inferSelect;
 
 /**
  * Activity / audit log — CORE, platform-wide. Records staff actions (create /

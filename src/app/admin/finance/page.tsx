@@ -107,6 +107,9 @@ export default async function CompanyPnlPage({
         <StatCard
           label="Collected revenue"
           value={rs(pnl.revenue)}
+          // Split so one-time fees (training, implementation…) are never mistaken for
+          // recurring subscription money (0152, owner 2026-11-17).
+          hint={`Subscription ${rs(pnl.subscriptionRevenue)} · One-time fees ${rs(pnl.feeRevenue)}`}
           trend={revenueTrend}
           trendLabels={bucketLabels}
           trendColor="var(--color-chart-1)"

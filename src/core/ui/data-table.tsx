@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ChevronsUpDown, type LucideIcon } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsUpDown, type LucideIcon } from "lucide-react";
+import { SelectField } from "@/core/ui/select-field";
 import { cn } from "@/core/lib/utils";
 import { RowLink } from "@/core/ui/row-link";
 import { EmptyState } from "@/core/ui/empty-state";
@@ -67,6 +68,7 @@ export function DataTable<T>({
   initialSort,
   minWidthClassName,
   rowHref,
+  paginate,
   className,
 }: {
   rows: T[];
@@ -82,6 +84,14 @@ export function DataTable<T>({
   /** When set, the whole row (and mobile card) navigates here on click — clicks on
    *  inner links/buttons still work (via RowLink). Keyboard: Enter/Space opens. */
   rowHref?: (row: T) => string;
+  /**
+   * Pages the rows IN THE BROWSER — for a table whose rows all arrive already (a
+   * clinic's payment history), where a server round trip per page buys nothing.
+   * `sizes` are the "N / page" choices, the first being the default. Sorting runs over
+   * every row first, so page 1 sorted by date is the newest of ALL rows. A list too
+   * big to send whole pages on the server instead (`Pagination`).
+   */
+  paginate?: { sizes: readonly number[] };
   className?: string;
 }) {
   const [sort, setSort] = useState<SortState | undefined>(initialSort);
@@ -100,6 +110,12 @@ export function DataTable<T>({
       return 0;
     });
   }, [rows, sort, columns]);
+
+  const [pageSize, setPageSize] = useState(paginate?.sizes[0] ?? 0);
+  const [page, setPage] = useState(1);
+  const pageCount = paginate ? Math.max(1, Math.ceil(sorted.length / pageSize)) : 1;
+  const current = Math.min(page, pageCount);
+  const shown = paginate ? sorted.slice((current - 1) * pageSize, current * pageSize) : sorted;
 
   function toggleSort(id: string) {
     setSort((prev) =>
@@ -122,6 +138,51 @@ export function DataTable<T>({
 
   return (
     <div className={className}>
+      {/* The pager sits ABOVE the table (owner, 2026-11-17), where the size choice
+          and the page arrows are seen before scrolling through the rows. */}
+      {paginate && sorted.length > paginate.sizes[0] ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground" data-no-pdf>
+          <span className="tabular-nums">
+            {(current - 1) * pageSize + 1}–{Math.min(current * pageSize, sorted.length)} of {sorted.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <SelectField
+              value={String(pageSize)}
+              onValueChange={(v) => {
+                setPageSize(Number(v));
+                setPage(1);
+              }}
+              options={paginate.sizes.map((n) => ({ value: String(n), label: `${n} / page` }))}
+              ariaLabel="Rows per page"
+              align="end"
+              size="sm"
+              className="w-28"
+              popupClassName="min-w-28"
+            />
+            <button
+              type="button"
+              className="inline-flex size-7 items-center justify-center rounded-md border hover:bg-muted disabled:opacity-40"
+              onClick={() => setPage(current - 1)}
+              disabled={current <= 1}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="size-4" aria-hidden="true" />
+            </button>
+            <span className="tabular-nums">
+              Page {current} of {pageCount}
+            </span>
+            <button
+              type="button"
+              className="inline-flex size-7 items-center justify-center rounded-md border hover:bg-muted disabled:opacity-40"
+              onClick={() => setPage(current + 1)}
+              disabled={current >= pageCount}
+              aria-label="Next page"
+            >
+              <ChevronRight className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      ) : null}
       {/* Desktop / tablet: the table */}
       <div className="hidden overflow-x-auto md:block">
         <table className={cn("w-full text-sm", minWidthClassName)}>
@@ -175,7 +236,7 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody>
-            {sorted.map((row, i) => {
+            {shown.map((row, i) => {
               const cells = columns.map((c) => (
                 <td key={c.id} className={cn("py-3 align-middle", c.align && alignClass[c.align], c.cellClassName, paperClass(c))}>
                   {c.cell(row)}
@@ -216,7 +277,7 @@ export function DataTable<T>({
 
       {/* Mobile: each row as a card */}
       <ul className="divide-y divide-border/60 rounded-lg border border-border/60 md:hidden">
-        {sorted.map((row, i) => {
+        {shown.map((row, i) => {
           const inner = (
             <>
               {titleCol ? <div className="mb-1 font-medium">{titleCol.cell(row)}</div> : null}

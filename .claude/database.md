@@ -704,6 +704,12 @@ shows as paid; the balance never reads it (`computeClinicBalance` sums every pay
 linked or not). Set when a payment is recorded "for" an invoice, or later from the
 payment history (`setPaymentInvoice`, same clinic + live invoice only). Payments made
 before 0142 stay unlinked — nothing says which invoice they paid.
+**`fee_amount`** int default 0 (migration `0152`) — how much of this money was for
+one-time fees (`clinic_fees`), never for subscription months. Every subscription balance
+(`computeClinicBalance` callers, `getClinicBalanceSummary`, `listDueClinics`, the payment
+rating) reads `subscriptionShare` = amount − clamp(fee_amount) (a credit is always all
+subscription); the P&L splits revenue with `signedFeeShare`. Pure rules in
+`core/admin/clinic-fee-rules.ts`.
 Balance/status math in `core/admin/billing.ts` (advance/partial-payment,
 `computeClinicBalance`); a refund subtracts from paid, a credit adds without cash.
 Indexes: (`clinic_id`,`occurred_at`); partial `invoice_id` (not null); partial trash index.
@@ -782,8 +788,22 @@ with this `invoice_id` (refunds negative, credits count) → Paid / Partly paid 
 plus Overdue once `due_on` has passed unpaid. Rules in the pure
 `core/admin/invoice-status.ts`; the SQL twin (`invoicePaidSql` / `statusCondition` in
 `clinic-invoices.ts`) is bound to it by `scripts/test-invoice-status.ts`.
+**One-time fees on it** (migration `0152`): `fee_lines` jsonb `[{feeId, kind, label,
+amount}]` (snapshot as billed, read back through zod) and `fee_amount` int (their sum).
+`amount` INCLUDES them, so status/balance/tax need no change; the subscription line is
+`amount − fee_amount`, and an edit changes only that part. A fee counts as invoiced only
+while a LIVE invoice's `fee_lines` names it.
 Printable A4 invoice (`/admin/finance/invoices/[id]/print`). `core/admin/clinic-invoices.ts`. Indexes:
 unique `invoice_no`; `clinic_id`; `issued_at`; partial trash index.
+
+### `clinic_fees` — one-time fees charged to a clinic (training, implementation…)
+Migration `0152` (owner, 2026-11-17). `id`, `clinic_id` → clinics (`cascade`), `kind`
+text (`training` / `implementation` / `data_migration` / `other` — app-level set
+`FEE_KINDS`, not an enum), `description` (optional), `amount` int PKR, `charged_on` date,
+`created_by(+name)` snapshot, soft-delete, `created_at`/`updated_at`. What is paid is
+DERIVED: the clinic's fee money (Σ `clinic_payments.fee_amount`, signed) spread over its
+fees oldest first (`allocateFeePayments`). A fee on a live invoice cannot be removed.
+`core/admin/clinic-fees.ts`. Indexes: `clinic_id`; partial trash index.
 
 ### `company_settings` — singleton company config · NO clinic_id
 `id`, `tax_label` + `tax_rate` (defaults the invoice "Add tax" tick starts from) +

@@ -39,6 +39,8 @@ import { permId, resourcesForClinic, sanitizePermissions } from "@/core/auth/per
 import { recordClinicPayment, setPaymentCommitment, setPaymentNoticeEnabled, setPaymentReminderDays, syncClinicBillingStatus, voidClinicPayment } from "@/core/admin/billing";
 import { setHealthFollowup } from "@/core/admin/health";
 import { canManageTeam, managesClinic } from "@/core/auth/admin-permissions";
+import { addClinicFee, clinicFeesOwed, invoiceFeesOwed, voidClinicFee } from "@/core/admin/clinic-fees";
+import { FEE_KINDS, defaultFeeShare, feeLineLabel, type FeeKind } from "@/core/admin/clinic-fee-rules";
 import { saveClinicFile, deleteFileByKey } from "@/core/integrations/storage";
 import { LOGO_EXT, MAX_LOGO_BYTES } from "@/core/clinics/logo-limits";
 import { backfillClinicSales } from "@/core/sales/ledger";
@@ -845,6 +847,8 @@ const clinicPaymentSchema = z.object({
   commitmentNote: z.string().trim().max(300).optional(),
   // The subscription invoice this payment is for (optional).
   invoiceId: z.string().uuid("Pick an invoice from the list.").optional(),
+  // How much of it is for one-time fees (0152). Empty = automatic: fees first.
+  feeAmount: z.coerce.number().int().min(0, "The fee part can't be negative.").optional(),
 });
 
 /** Records a manual clinic→FlexicaAI payment (extends paid-through) — Feature 6. */
@@ -866,10 +870,14 @@ export async function recordClinicPaymentAction(
     commitmentAt: formData.get("commitmentAt") || undefined,
     commitmentNote: formData.get("commitmentNote") || undefined,
     invoiceId: formData.get("invoiceId") || undefined,
+    feeAmount: formData.get("feeAmount") || undefined,
   });
   if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
   if (parsed.data.invoiceId && !(await isLiveInvoiceOfClinic(parsed.data.invoiceId, clinicId))) {
     return { error: "That invoice is not one of this clinic's, or it was voided." };
+  }
+  if (parsed.data.feeAmount !== undefined && parsed.data.feeAmount > parsed.data.amount) {
+    return { error: "The one-time fee part can't be more than the amount." };
   }
 
   const occurredAt = parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : undefined;
@@ -877,6 +885,18 @@ export async function recordClinicPaymentAction(
   const commitmentAt = parsed.data.commitmentAt ? new Date(parsed.data.commitmentAt) : null;
   if (commitmentAt && Number.isNaN(commitmentAt.getTime())) return { error: "Invalid follow-up date." };
   const kind = parsed.data.kind ?? "payment";
+  // The part for one-time fees: as typed, or — left empty on a payment — fees FIRST
+  // (owner, 2026-11-17): what the invoice it is recorded against still owes on its
+  // fees, else what the clinic still owes on its fees. A refund or credit is all
+  // subscription unless a fee part is typed.
+  const feeAmount =
+    parsed.data.feeAmount ??
+    (kind === "payment"
+      ? defaultFeeShare(
+          parsed.data.amount,
+          parsed.data.invoiceId ? await invoiceFeesOwed(parsed.data.invoiceId) : await clinicFeesOwed(clinicId),
+        )
+      : 0);
 
   const res = await recordClinicPayment({
     clinicId,
@@ -892,6 +912,7 @@ export async function recordClinicPaymentAction(
     commitmentAt: kind === "payment" ? commitmentAt : null,
     commitmentNote: kind === "payment" ? parsed.data.commitmentNote : undefined,
     invoiceId: parsed.data.invoiceId ?? null,
+    feeAmount,
   });
   if ("error" in res) return { error: res.error };
 
@@ -901,7 +922,7 @@ export async function recordClinicPaymentAction(
     entity: "clinic",
     entityId: clinicId,
     clinicId,
-    summary: `${verb} clinic ${parsed.data.amount} PKR`,
+    summary: `${verb} clinic ${parsed.data.amount} PKR${feeAmount > 0 && kind !== "credit" ? ` (${feeAmount} for one-time fees)` : ""}`,
   });
   revalidatePath(`/admin/clinics/${clinicId}`);
   revalidatePath("/admin");
@@ -1441,4 +1462,71 @@ export async function deleteClinic(
   });
   revalidatePath("/admin");
   redirect("/admin?deleted=1");
+}
+
+const clinicFeeSchema = z.object({
+  kind: z.enum(FEE_KINDS.map((k) => k.code) as [FeeKind, ...FeeKind[]], { message: "Pick what the fee is for." }),
+  description: z.string().trim().max(200).optional(),
+  amount: z.coerce.number({ message: "Enter the fee as a number." }).int().positive("Enter a fee greater than zero."),
+  chargedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick the date."),
+});
+
+/**
+ * Adds a one-time fee — training, implementation… (0152, owner 2026-11-17). Full
+ * admins on any clinic; anyone else (an account manager) only on the clinics they
+ * manage. It is owed on top of the subscription and billed by ticking it on an invoice.
+ */
+export async function addClinicFeeAction(
+  clinicId: string,
+  _prev: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  const admin = await requireAdminCapability("fees:create");
+  const scoped = await clinicYouManage(admin, clinicId);
+  if ("error" in scoped) return { error: scoped.error };
+  const parsed = clinicFeeSchema.safeParse({
+    kind: formData.get("kind"),
+    description: formData.get("description") || undefined,
+    amount: formData.get("amount"),
+    chargedOn: formData.get("chargedOn"),
+  });
+  if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
+  await addClinicFee({
+    clinicId,
+    kind: parsed.data.kind,
+    description: parsed.data.description ?? null,
+    amount: parsed.data.amount,
+    chargedOn: parsed.data.chargedOn,
+    actor: { id: admin.id, name: admin.username },
+  });
+  await logActivity({
+    action: "create",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: `Added a one-time fee: ${feeLineLabel(parsed.data.kind, parsed.data.description)} ${parsed.data.amount} PKR`,
+  });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  revalidatePath("/admin/finance/invoices");
+  return { saved: true };
+}
+
+/** Removes a one-time fee not yet on a live invoice (to Trash). */
+export async function voidClinicFeeAction(clinicId: string, feeId: string): Promise<AdminActionState> {
+  const admin = await requireAdminCapability("fees:delete");
+  if (!z.string().uuid().safeParse(feeId).success) return { error: "Fee not found." };
+  const scoped = await clinicYouManage(admin, clinicId);
+  if ("error" in scoped) return { error: scoped.error };
+  const res = await voidClinicFee(clinicId, feeId, admin.id);
+  if ("error" in res) return { error: res.error };
+  await logActivity({
+    action: "delete",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: `Removed a one-time fee: ${res.label} ${res.amount} PKR`,
+  });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  revalidatePath("/admin/finance/invoices");
+  return { saved: true };
 }

@@ -65,6 +65,8 @@ export type BillingPayment = {
   occurredAt: string;
   recordedByName: string | null;
   invoiceId: string | null;
+  /** Of `amount`, how much was for one-time fees (0152). */
+  feeAmount: number;
 };
 /** A live subscription invoice of this clinic, with what is recorded against it. */
 export type BillingInvoice = {
@@ -107,6 +109,7 @@ export function ClinicBilling({
   today,
   prefillInvoiceId,
   canLinkPayments = false,
+  feesOwed = 0,
 }: {
   clinicId: string;
   monthlyPrice: number;
@@ -128,6 +131,8 @@ export function ClinicBilling({
   invoices?: BillingInvoice[];
   /** YYYY-MM-DD on the server, so the overdue mark cannot differ between server and browser. */
   today: string;
+  /** Still owed on one-time fees (0152) — when above 0 the form offers the fee part. */
+  feesOwed?: number;
   /** "Record payment" from the invoices page: open the form filled in for this one. */
   prefillInvoiceId?: string;
   /** May link / unlink a recorded payment to an invoice (billing:edit). */
@@ -302,7 +307,8 @@ export function ClinicBilling({
           ) : null}
         </div>
         <div className="p-3">
-          <div className="text-xs text-muted-foreground">Total collected</div>
+          {/* Subscription money only: one-time fees are shown in their own card (0152). */}
+          <div className="text-xs text-muted-foreground">Subscription collected</div>
           <div className="mt-1 text-sm font-medium">{rs(balance.totalPaid)}</div>
           <div className="text-xs text-muted-foreground">{balance.monthsPaid} months paid</div>
         </div>
@@ -581,6 +587,21 @@ export function ClinicBilling({
           ) : null}
         </div>
 
+        {/* One-time fees (0152): how much of this money is for them. Left empty, a
+            payment goes to fees first; typed, it is split exactly as typed. */}
+        {feesOwed > 0 && kind !== "credit" ? (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="feeAmount">Of which one-time fees (PKR)</Label>
+              <Input id="feeAmount" name="feeAmount" type="number" min={0} placeholder="Automatic" />
+              <p className="text-[11px] text-muted-foreground">
+                {rs(feesOwed)} still owed on training / implementation fees.{" "}
+                {isPayment ? "Leave empty to pay those first; the rest goes to the subscription." : "Leave empty if none of this refund is for fees."}
+              </p>
+            </div>
+          </div>
+        ) : null}
+
         {/* Follow-up on any remaining balance (payment only). */}
         {isPayment ? (
           <div className="grid gap-3 rounded-md border border-dashed well p-3 sm:grid-cols-2">
@@ -620,6 +641,7 @@ export function ClinicBilling({
             getRowKey={(p) => p.id}
             minWidthClassName="min-w-[38rem]"
             initialSort={{ id: "date", dir: "desc" }}
+            paginate={{ sizes: [10, 20, 50, 100] }}
             empty="No payments yet."
             columns={[
               { id: "date", header: "Date", cardTitle: true, sortValue: (p) => p.occurredAt, cell: (p) => fmtDate(p.occurredAt) },
@@ -643,6 +665,11 @@ export function ClinicBilling({
                 cell: (p) => (
                   <span className={cn("font-medium tabular-nums", p.kind === "refund" ? "text-destructive" : "")}>
                     {p.kind === "refund" ? `−${rs(p.amount)}` : rs(p.amount)}
+                    {p.feeAmount > 0 && p.kind !== "credit" ? (
+                      <span className="block text-[11px] font-normal text-muted-foreground">
+                        {p.feeAmount >= p.amount ? "One-time fees" : `incl. ${rs(p.feeAmount)} fees`}
+                      </span>
+                    ) : null}
                   </span>
                 ),
               },

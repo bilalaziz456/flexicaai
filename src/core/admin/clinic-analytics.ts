@@ -1,6 +1,7 @@
 import "server-only";
 import { and, count, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/core/db";
+import { subscriptionShare } from "@/core/admin/clinic-fee-rules";
 import { unscoped } from "@/core/db/tenant-guard";
 import {
   appointments,
@@ -159,15 +160,22 @@ export async function getClinicAnalytics(
     });
 
     // ── A: what they have paid us, oldest first ──────────────────────────────
-    const ledger = await db
-      .select({
-        amount: clinicPayments.amount,
-        kind: clinicPayments.kind,
-        occurredAt: clinicPayments.occurredAt,
-      })
-      .from(clinicPayments)
-      .where(and(eq(clinicPayments.clinicId, clinicId), notDeleted(clinicPayments.deletedAt)))
-      .orderBy(clinicPayments.occurredAt);
+    // The SUBSCRIPTION share of each payment: money for one-time fees is neither months
+    // paid nor part of how promptly the clinic pays its subscription (0152).
+    const ledger = (
+      await db
+        .select({
+          amount: clinicPayments.amount,
+          feeAmount: clinicPayments.feeAmount,
+          kind: clinicPayments.kind,
+          occurredAt: clinicPayments.occurredAt,
+        })
+        .from(clinicPayments)
+        .where(and(eq(clinicPayments.clinicId, clinicId), notDeleted(clinicPayments.deletedAt)))
+        .orderBy(clinicPayments.occurredAt)
+    )
+      .map((p) => ({ amount: subscriptionShare(p), kind: p.kind, occurredAt: p.occurredAt }))
+      .filter((p) => p.amount > 0);
 
     const balance = computeClinicBalance(
       {

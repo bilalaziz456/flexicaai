@@ -183,7 +183,9 @@ note above it; obvious logic gets none.
   `TrendChart` for a flow over time (revenue, expenses, usage) · `ProfitLossChart`
   where the series crosses zero and the crossing is the point · `DonutChart` for
   parts of ONE whole, few enough to tell apart · `HBarChart` for a ranking across
-  named things · `WaterfallChart` for how one total became another · `Sparkline`
+  named things · `WaterfallChart` for how one total became another · `ColumnChart`
+  for one measure per discrete period (`multicolor` = a colour per column, carrying no
+  meaning, so no legend — the owner's call for "Invoiced over time", 2026-11-17) · `Sparkline`
   inside a `StatCard`. Three rules hold the set together:
   1. **A card shows a shape only when a shape exists.** No series, no sparkline; no
      baseline, no delta. Most figures here have no history (a day book is one day, a

@@ -42,6 +42,8 @@ import { ClinicAssignee } from "./clinic-assignee";
 import { ImpersonateClinic } from "./impersonate-clinic";
 import { ClinicContactForm } from "./clinic-contact-form";
 import { ClinicBilling } from "./clinic-billing";
+import { ClinicFees } from "./clinic-fees";
+import { getClinicFees } from "@/core/admin/clinic-fees";
 import { ClinicCapabilities } from "./clinic-capabilities";
 import { ClinicLogAccess } from "./clinic-log-access";
 import { FlashToast } from "@/core/ui/toast";
@@ -81,6 +83,9 @@ export default async function ClinicDetailPage({
   const [billing, invoices] = showBilling
     ? await Promise.all([getClinicBilling(clinic.id), listInvoicesForClinic(clinic.id)])
     : [null, []];
+  // One-time fees (training, implementation… 0152): their own permission, `fees:view`.
+  const showFees = canAdmin(admin, "fees:view");
+  const fees = showFees ? await getClinicFees(clinic.id) : null;
   // Serve the preview via a route (not a data URI) so the large image isn't a prop on
   // the server-action-using logo form. `v` busts the cache after an upload.
   const logo = clinic.logoKey
@@ -101,6 +106,7 @@ export default async function ClinicDetailPage({
     { id: "letterhead", label: "Letterhead", group: "Account" },
     { id: "plan", label: "Plan & features", group: "Account" },
     ...(billing ? [{ id: "billing", label: "Billing", group: "Account" }] : []),
+    ...(fees ? [{ id: "fees", label: "One-time fees", group: "Account" }] : []),
     { id: "manager", label: "Account manager", group: "Relationship" },
     { id: "contact", label: "Owner & contact", group: "Relationship" },
     { id: "public", label: "Patient-facing", group: "Relationship" },
@@ -266,6 +272,7 @@ export default async function ClinicDetailPage({
                 occurredAt: p.occurredAt.toISOString(),
                 recordedByName: p.recordedByName,
                 invoiceId: p.invoiceId,
+                feeAmount: p.feeAmount,
               }))}
               invoices={invoices.map((i) => ({
                 id: i.id,
@@ -284,6 +291,40 @@ export default async function ClinicDetailPage({
               paymentNoticeEnabled={clinic.paymentNoticeEnabled}
               paymentReminderDays={clinic.paymentReminderDays}
               canToggleNotice
+              feesOwed={fees?.owed ?? 0}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {fees ? (
+        <Card id="fees" className="scroll-mt-32">
+          <CardHeader>
+            <CardTitle>One-time fees</CardTitle>
+            <CardDescription>
+              Training, implementation and other one-off charges: what this clinic was charged
+              and what it has paid. Owed on top of the subscription, never counted as months paid.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ClinicFees
+              clinicId={clinic.id}
+              fees={fees.fees.map((f) => ({
+                id: f.id,
+                label: f.label,
+                amount: f.amount,
+                chargedOn: f.chargedOn,
+                createdByName: f.createdByName,
+                invoiceLabel: f.invoiceLabel,
+                paid: f.paid,
+                owed: f.owed,
+              }))}
+              charged={fees.charged}
+              paid={fees.paid}
+              owed={fees.owed}
+              today={localIsoDate(new Date())}
+              canCreate={canAdmin(admin, "fees:create")}
+              canDelete={canAdmin(admin, "fees:delete")}
             />
           </CardContent>
         </Card>

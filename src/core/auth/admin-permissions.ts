@@ -41,6 +41,10 @@ export const ADMIN_RESOURCES: PermResource[] = [
   { id: "expenses", label: "Operating expenses", actions: ["view", "create", "edit", "delete"] }, // /admin/finance/expenses
   // /admin/finance/invoices; create=issue, edit=correct amount/period/due/note (0143), delete=void
   { id: "sub_invoices", label: "Subscription invoices", actions: ["view", "create", "edit", "delete"] },
+  // One-time fees on a clinic — training, implementation… (0152, owner 2026-11-17).
+  // view = see them on the clinic page; create = add one; delete = remove one not yet
+  // invoiced. Still limited to the clinics the member manages (`managesClinic`).
+  { id: "fees", label: "One-time fees", actions: ["view", "create", "delete"] },
   { id: "purge", label: "Data purge", actions: ["delete"] }, // delete = may legal-purge
   // The MASTER medicine list every clinic's prescriptions suggest from (/admin/medicines,
   // 2026-10-19). delete = retire (a medicine is never removed: old prescriptions name it).
@@ -76,15 +80,16 @@ export const ADMIN_SUBROLE_PRESETS: Record<AssignableSubRole, string[]> = {
     "billing:view",
     "announcements:view", "announcements:create", "announcements:edit", "announcements:delete",
     "impersonate:view", "metrics:view",
+    "fees:view", "fees:create",
     "account:view", "account:edit",
   ],
   // Sales: onboard + manage clinics, see the numbers + which clinics are overdue
   // (read-only billing) — no record payments, impersonate, delete or purge.
-  sales: ["clinics:view", "clinics:create", "clinics:edit", "billing:view", "metrics:view", "account:view", "account:edit"],
+  sales: ["clinics:view", "clinics:create", "clinics:edit", "billing:view", "fees:view", "fees:create", "metrics:view", "account:view", "account:edit"],
   // Billing: full clinic billing (view/record/price/void) + issue/void subscription
   // invoices (the document side of the same bill-a-clinic cycle) + clinics + metrics.
   // NOT the P&L / serving cost / opex (owner-level "what WE earn/spend").
-  billing: ["clinics:view", "billing:view", "billing:create", "billing:edit", "billing:delete", "sub_invoices:view", "sub_invoices:create", "sub_invoices:edit", "sub_invoices:delete", "metrics:view", "account:view", "account:edit"],
+  billing: ["clinics:view", "billing:view", "billing:create", "billing:edit", "billing:delete", "sub_invoices:view", "sub_invoices:create", "sub_invoices:edit", "sub_invoices:delete", "fees:view", "fees:create", "fees:delete", "metrics:view", "account:view", "account:edit"],
 };
 
 /** Human labels + one-line descriptions for the sub-roles (UI). */

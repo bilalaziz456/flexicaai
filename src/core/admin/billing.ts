@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/core/db";
+import { subscriptionShare } from "@/core/admin/clinic-fee-rules";
 import { notDeleted } from "@/core/db/tenant";
 import { unscoped } from "@/core/db/tenant-guard";
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
@@ -152,6 +153,8 @@ export type ClinicPaymentRow = {
   recordedByName: string | null;
   /** The subscription invoice it was recorded against, if any. */
   invoiceId: string | null;
+  /** How much of `amount` was for one-time fees (0152); the rest is subscription. */
+  feeAmount: number;
 };
 
 /** Reads a clinic + its live payment ledger and derives the balance. */
@@ -195,6 +198,7 @@ export async function getClinicBilling(clinicId: string): Promise<{
       occurredAt: clinicPayments.occurredAt,
       recordedByName: clinicPayments.recordedByName,
       invoiceId: clinicPayments.invoiceId,
+      feeAmount: clinicPayments.feeAmount,
     })
     .from(clinicPayments)
     .where(and(eq(clinicPayments.clinicId, clinicId), notDeleted(clinicPayments.deletedAt)))
@@ -207,7 +211,12 @@ export async function getClinicBilling(clinicId: string): Promise<{
   return {
     clinic: { ...clinic, priceSchedule },
     payments,
-    balance: computeClinicBalance({ ...clinic, priceSchedule }, payments),
+    // Only the SUBSCRIPTION share of each payment counts toward months paid — money for
+    // one-time fees (training, implementation…) is owed and paid separately (0152).
+    balance: computeClinicBalance(
+      { ...clinic, priceSchedule },
+      payments.map((p) => ({ ...p, amount: subscriptionShare(p) })),
+    ),
   };
 }
 
@@ -222,8 +231,13 @@ export async function getClinicBalanceSummary(
   const [agg] = await db
     .select({
       months: sql<number>`coalesce(sum(${clinicPayments.monthsCovered}),0)`,
-      // Sign-aware: a refund subtracts from the paid balance.
-      amount: sql<number>`coalesce(sum(case when ${clinicPayments.kind} = ${clinicPaymentKindId("refund")} then -${clinicPayments.amount} else ${clinicPayments.amount} end),0)`,
+      // Sign-aware: a refund subtracts from the paid balance. The SUBSCRIPTION share only
+      // (`subscriptionShare`): the part of a payment that was for one-time fees is not
+      // months paid (0152). A credit carries no fee share.
+      amount: sql<number>`coalesce(sum(case
+        when ${clinicPayments.kind} = ${clinicPaymentKindId("refund")} then -(${clinicPayments.amount} - least(greatest(${clinicPayments.feeAmount}, 0), ${clinicPayments.amount}))
+        when ${clinicPayments.kind} = ${clinicPaymentKindId("credit")} then ${clinicPayments.amount}
+        else ${clinicPayments.amount} - least(greatest(${clinicPayments.feeAmount}, 0), ${clinicPayments.amount}) end),0)`,
     })
     .from(clinicPayments)
     .where(and(eq(clinicPayments.clinicId, clinic.id), notDeleted(clinicPayments.deletedAt)));
@@ -284,14 +298,22 @@ export async function recordClinicPayment(input: {
    * checks it is one of this clinic's live invoices (`isLiveInvoiceOfClinic`).
    */
   invoiceId?: string | null;
+  /**
+   * How much of the amount is for one-time fees (0152). The CALLER works out the
+   * default (fees first). Clamped to [0, amount]; always 0 on a credit.
+   */
+  feeAmount?: number;
 }): Promise<{ error: string } | { ok: true }> {
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     return { error: "Amount must be positive." };
   }
   const kind = input.kind ?? "payment";
+  const amount = Math.round(input.amount);
+  const feeAmount = kind === "credit" ? 0 : Math.min(amount, Math.max(0, Math.round(input.feeAmount ?? 0)));
   await db.insert(clinicPayments).values({
     clinicId: input.clinicId,
-    amount: Math.round(input.amount),
+    amount,
+    feeAmount,
     kind,
     // A refund/credit doesn't "cover" billing months; only a payment does.
     monthsCovered: kind === "payment" ? Math.max(0, Math.trunc(input.monthsCovered ?? 0)) : 0,
@@ -535,6 +557,7 @@ export async function listDueClinics(opts: { includeUpcoming?: boolean } = {}): 
         amount: clinicPayments.amount,
         monthsCovered: clinicPayments.monthsCovered,
         kind: clinicPayments.kind,
+        feeAmount: clinicPayments.feeAmount,
       })
       .from(clinicPayments)
       .where(notDeleted(clinicPayments.deletedAt));
@@ -542,7 +565,8 @@ export async function listDueClinics(opts: { includeUpcoming?: boolean } = {}): 
     const byClinicId = new Map<string, { amount: number; monthsCovered: number; kind: string }[]>();
     for (const p of pays) {
       const list = byClinicId.get(p.clinicId) ?? [];
-      list.push({ amount: p.amount, monthsCovered: p.monthsCovered, kind: p.kind });
+      // The subscription share only — fee money is not months paid (0152).
+      list.push({ amount: subscriptionShare(p), monthsCovered: p.monthsCovered, kind: p.kind });
       byClinicId.set(p.clinicId, list);
     }
 

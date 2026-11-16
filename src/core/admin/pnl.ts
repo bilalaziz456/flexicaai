@@ -6,6 +6,7 @@ import { unscoped } from "@/core/db/tenant-guard";
 import { notDeleted } from "@/core/db/tenant";
 import { clinics, clinicPayments } from "@/core/db/schema";
 import { computeServingCost } from "@/core/admin/cost";
+import { signedFeeShare } from "@/core/admin/clinic-fee-rules";
 import { companyExpensesTotal, companyExpensesTrend } from "@/core/admin/company-expenses";
 import {
   nextBucket,
@@ -48,6 +49,10 @@ export type CompanyPnl = {
   from: Date;
   to: Date;
   revenue: number;
+  /** Of `revenue`: one-time fees (training, implementation… 0152) — never in MRR/ARR. */
+  feeRevenue: number;
+  /** Of `revenue`: everything else — the subscription. */
+  subscriptionRevenue: number;
   servingCost: number;
   operatingExpenses: number;
   grossMargin: number; // revenue − serving cost
@@ -73,7 +78,7 @@ export async function getCompanyPnl(range: ResolvedRange): Promise<CompanyPnl> {
     // Collected revenue rows (CASH clinics paid FlexicaAI) in the window — payment counts
     // in, refund out, a non-cash credit is excluded.
     const payRows = await db
-      .select({ clinicId: clinicPayments.clinicId, amount: clinicPayments.amount, kind: clinicPayments.kind, at: clinicPayments.occurredAt })
+      .select({ clinicId: clinicPayments.clinicId, amount: clinicPayments.amount, feeAmount: clinicPayments.feeAmount, kind: clinicPayments.kind, at: clinicPayments.occurredAt })
       .from(clinicPayments)
       .where(and(notDeleted(clinicPayments.deletedAt), gte(clinicPayments.occurredAt, start), lt(clinicPayments.occurredAt, end)));
 
@@ -96,11 +101,14 @@ export async function getCompanyPnl(range: ResolvedRange): Promise<CompanyPnl> {
       revBuckets.push(0);
     }
     let revenue = 0;
+    let feeRevenue = 0;
     for (const r of payRows) {
       // Cash: payment + / refund − / credit 0 (non-cash).
       const cash = r.kind === "refund" ? -r.amount : r.kind === "credit" ? 0 : r.amount;
       if (cash === 0) continue;
       revenue += cash;
+      // The part that paid one-time fees, same sign as the cash (0152).
+      feeRevenue += signedFeeShare(r);
       revByClinic.set(r.clinicId, (revByClinic.get(r.clinicId) ?? 0) + cash);
       const idx = bucketIndex.get(startOfBucket(r.at, granularity).getTime());
       if (idx !== undefined) revBuckets[idx] += cash;
@@ -134,6 +142,8 @@ export async function getCompanyPnl(range: ResolvedRange): Promise<CompanyPnl> {
       from: start,
       to: end,
       revenue,
+      feeRevenue,
+      subscriptionRevenue: revenue - feeRevenue,
       servingCost,
       operatingExpenses: opexTotal,
       grossMargin,

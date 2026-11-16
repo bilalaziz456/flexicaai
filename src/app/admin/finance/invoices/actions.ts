@@ -18,6 +18,7 @@ import {
   voidClinicInvoice,
 } from "@/core/admin/clinic-invoices";
 import { getClinic } from "@/core/clinics/get-clinic";
+import { feeLinesForInvoice, invoiceFeesStillFree } from "@/core/admin/clinic-fees";
 import { logActivity } from "@/core/audit/log";
 
 type AdminUser = Awaited<ReturnType<typeof requireAdminCapability>>;
@@ -34,7 +35,9 @@ export type InvoiceActionState = { error?: string; saved?: boolean };
 
 const schema = z.object({
   clinicId: z.string().uuid("Pick a clinic."),
-  amount: z.coerce.number().int().positive("Enter an amount greater than zero."),
+  // The subscription part. 0 is allowed on its own only when one-time fees are billed
+  // (checked in the action), so an invoice can be for training alone.
+  amount: z.coerce.number().int().min(0, "Enter an amount of 0 or more."),
   periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("").transform(() => undefined)),
   periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("").transform(() => undefined)),
   dueOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("").transform(() => undefined)),
@@ -143,6 +146,13 @@ export async function issueClinicInvoiceAction(
   if (!parsed.success) return { error: zodErrorMessage(parsed.error) };
   const clinic = await getClinic(parsed.data.clinicId);
   if (!clinic || !mayActOn(user, clinic.assignedTo)) return { error: "Clinic not found." };
+  // One-time fees ticked on the form (0152): this clinic's, live, not already billed.
+  const feeIds = formData.getAll("feeId").map(String).filter((v) => z.string().uuid().safeParse(v).success);
+  const fees = await feeLinesForInvoice(parsed.data.clinicId, feeIds);
+  if ("error" in fees) return { error: fees.error };
+  if (parsed.data.amount <= 0 && fees.lines.length === 0) {
+    return { error: "Enter an amount greater than zero, or tick a one-time fee to bill." };
+  }
   if (parsed.data.periodStart && parsed.data.periodEnd && parsed.data.periodEnd < parsed.data.periodStart) {
     return { error: "The period ends before it starts." };
   }
@@ -157,22 +167,27 @@ export async function issueClinicInvoiceAction(
       periodEnd: parsed.data.periodEnd ?? null,
       dueOn: parsed.data.dueOn ?? null,
       amount: parsed.data.amount,
+      feeLines: fees.lines,
       note: parsed.data.note ?? null,
     },
     { id: user.id, name: displayStaffName(user.prefix, user.fullName, user.username) },
   );
   if ("error" in res) return { error: res.error };
+  const feeText = fees.lines.length
+    ? ` + one-time fees: ${fees.lines.map((l) => `${l.label} Rs ${l.amount}`).join(", ")}`
+    : "";
 
   await logActivity({
     action: "create",
     entity: "settings",
     entityId: res.id,
     clinicId: parsed.data.clinicId,
-    summary: `Issued subscription invoice ${res.label} (Rs ${parsed.data.amount}${
+    summary: `Issued subscription invoice ${res.label} (Rs ${parsed.data.amount}${feeText}${
       tax.tax ? ` + ${tax.tax.label} ${tax.tax.rate}%` : ""
     })`,
   });
   revalidatePath("/admin/finance/invoices");
+  revalidatePath(`/admin/clinics/${parsed.data.clinicId}`);
   return { saved: true };
 }
 
@@ -252,6 +267,7 @@ export async function voidClinicInvoiceAction(id: string): Promise<InvoiceAction
   if (!ok) return { error: "Invoice not found." };
   await logActivity({ action: "delete", entity: "settings", entityId: id, clinicId: owner.clinicId, summary: "Voided a subscription invoice" });
   revalidatePath("/admin/finance/invoices");
+  revalidatePath(`/admin/clinics/${owner.clinicId}`);
   return { saved: true };
 }
 
@@ -259,6 +275,11 @@ export async function restoreClinicInvoiceAction(id: string): Promise<InvoiceAct
   const user = await requireAdminCapability("sub_invoices:delete");
   const owner = await getInvoiceClinic(id);
   if (!owner || !mayActOn(user, owner.assignedTo)) return { error: "Invoice not found." };
+  // A fee billed on this invoice may have gone on another invoice since it was voided;
+  // restoring it then would bill that fee twice.
+  if (!(await invoiceFeesStillFree(id))) {
+    return { error: "A one-time fee on this invoice is now on another invoice, or was removed. It can't be restored." };
+  }
   const ok = await restoreClinicInvoice(id);
   if (!ok) return { error: "Invoice not found." };
   await logActivity({ action: "update", entity: "settings", entityId: id, clinicId: owner.clinicId, summary: "Restored a subscription invoice" });

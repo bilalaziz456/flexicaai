@@ -26,6 +26,8 @@ export async function GET(request: Request) {
     ["Metric", "Amount (PKR)"],
     [
       ["Collected revenue", pnl.revenue],
+      ["  of which subscription", pnl.subscriptionRevenue],
+      ["  of which one-time fees", pnl.feeRevenue],
       ["Serving cost", pnl.servingCost],
       ["Operating expenses", pnl.operatingExpenses],
       ["Gross margin", pnl.grossMargin],

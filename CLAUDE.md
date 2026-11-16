@@ -480,6 +480,12 @@ are in `.env.example`.
   An issued invoice can be **edited** (`0143`, admin ACL `sub_invoices:edit`, granted to
   whoever could already issue one): amount, period, due date, note — never its clinic or
   number; the list marks it "Edited", the activity log keeps old → new.
+  **The period sets the amount** (owner, 2026-11-16): on Issue invoice, Period start and
+  end fill Amount with the clinic's monthly price × the months between them (a part
+  month pro rata on 30 days; a new start proposes one month's end). Still editable — a
+  typed amount is kept until "Use Rs …" puts the worked-out one back.
+  The printed invoice and its PDF show a **Months** column ("6 months", "2 months 10
+  days"), counted by the same pure `periodLength` in `core/admin/invoice-status.ts`.
   **Tax is an "Add tax" tick per invoice** (`0145`, owner 2026-11-11): name + rate typed
   on the invoice (defaults and the company NTN/STRN set by full admins on the invoices
   page); the clinic owes amount + tax and the printout (always titled "Invoice") shows the tax
@@ -491,6 +497,19 @@ are in `.env.example`.
   Editing an invoice opens on the province rate too, naming the rate it was issued with
   and offering "Keep" for it.
   The P&L does not yet separate tax collected from revenue.
+  **One-time fees** (`0152`, owner 2026-11-17): training, implementation, data migration
+  or other one-off charges to a clinic (`clinic_fees`, admin ACL **`fees`**
+  view/create/delete; an account manager on their own clinics only). Added and listed on
+  the clinic page ("One-time fees" card: charged / paid / still owed, per fee). Billed by
+  ticking them on Issue invoice — the invoice's `amount` includes them (`fee_amount`
+  subtotal, `fee_lines` snapshot), printed one line each beside the subscription; a fee
+  is "invoiced" only while a live invoice lists it, so voiding frees it and a restore
+  that would bill it twice is refused. **Fee money is never subscription months:** each
+  payment carries `fee_amount` (fees FIRST by default — the invoice's open fees, else the
+  clinic's — or as typed), and every balance, dues list and payment rating reads
+  `subscriptionShare` (pure `core/admin/clinic-fee-rules.ts`). Unpaid fees never make a
+  clinic overdue. The P&L splits collected revenue into subscription and one-time fees.
+  `scripts/test-clinic-fees.ts`.
   A team member who is not a full admin sees and acts on only the clinics they manage.
 - **Owner Overview** (`/admin/overview`, the super-admin's landing page) — company at a
   glance: money KPIs (`getCompanyMetrics`), **churn risk** (a live clinic quiet ≥ N

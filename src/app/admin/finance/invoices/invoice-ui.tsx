@@ -2,6 +2,7 @@
 
 import { ActionForm } from "@/core/ui/action-form";
 import { useActionState, useState, useTransition } from "react";
+import { describePeriodLength, periodEndFor, periodLength, type PeriodLength } from "@/core/admin/invoice-status";
 import { Download, Pencil, Printer, RotateCcw, Trash2 } from "lucide-react";
 import { Dialog } from "@/core/ui/dialog";
 import { ActionMenu, type ActionMenuSection } from "@/core/ui/action-menu";
@@ -22,13 +23,23 @@ import { DatePicker } from "@/core/ui/date-picker";
 import { toast, useActionToast } from "@/core/ui/toast";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 import { Checkbox } from "@/core/ui/checkbox";
+import { SelectField } from "@/core/ui/select-field";
+import { useTenderOptions } from "@/core/ui/vocabulary-provider";
+import { recordClinicPaymentAction, type AdminActionState } from "@/app/admin/actions";
 import { formatRate, invoiceTax, taxForProvince, type ProvinceTaxMap } from "@/core/admin/invoice-status";
 import { PROVINCES, provinceLabel } from "@/core/clinics/provinces";
 
 const inputCls =
   "h-8 w-full rounded-lg border border-input bg-[var(--input-bg)] px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
-export type InvoiceClinic = { id: string; name: string; monthlyPrice: number; province: string | null };
+export type InvoiceClinic = {
+  id: string;
+  name: string;
+  monthlyPrice: number;
+  province: string | null;
+  /** One-time fees not on an invoice yet (0152) — offered as tick boxes. */
+  fees: { id: string; label: string; amount: number }[];
+};
 
 /**
  * What "Add tax" starts from: the clinic's province's tax when one is set
@@ -136,10 +147,27 @@ function TaxFields({
   );
 }
 
+/**
+ * The amount for a period at a monthly price (owner, 2026-11-16): each whole month at the
+ * monthly price, and a part month pro rata on a 30-day month (10 days = a third).
+ */
+function amountForPeriod(monthlyPrice: number, len: PeriodLength): number {
+  return monthlyPrice * len.months + Math.round((monthlyPrice * len.days) / 30);
+}
+
 /** Issue a subscription invoice to a clinic (sub_invoices:create). */
 export function IssueInvoiceForm({ clinics, taxDefaults }: { clinics: InvoiceClinic[]; taxDefaults: TaxDefaults }) {
   const [clinicId, setClinicId] = useState("");
   const [amount, setAmount] = useState("");
+  // Owner, 2026-11-16: an invoice may cover several months paid together, and the
+  // PERIOD decides how many — pick start and end, and the amount becomes the clinic's
+  // monthly price × the months between them. It is filled, not locked: once someone
+  // types an amount themselves (a discount for paying a year ahead) changing the dates
+  // or the clinic no longer overwrites it.
+  const [amountTyped, setAmountTyped] = useState(false);
+  // One-time fees ticked to bill on this invoice (0152). Picking a clinic ticks all of
+  // its open fees — an onboarding invoice usually carries them — and each can be unticked.
+  const [feeIds, setFeeIds] = useState<string[]>([]);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [due, setDue] = useState("");
@@ -150,16 +178,15 @@ export function IssueInvoiceForm({ clinics, taxDefaults }: { clinics: InvoiceCli
 
   // Clearing the form is part of issuing the invoice, so it happens in the action
   // once the server has accepted it — not in an effect that watches for the save to
-  // have happened and then re-renders to undo the fields. The fields are declared
-  // ABOVE this on purpose: the closure only runs after a submit, so referencing them
-  // from above worked, but it read as using a value before it exists and the linter
-  // said so.
+  // have happened and then re-renders to undo the fields.
   const [state, formAction, pending] = useActionState<InvoiceActionState, FormData>(
     async (prev, fd) => {
       const res = await issueClinicInvoiceAction(prev, fd);
       if (res.saved) {
         setClinicId("");
         setAmount("");
+        setAmountTyped(false);
+        setFeeIds([]);
         setStart("");
         setEnd("");
         setDue("");
@@ -172,12 +199,40 @@ export function IssueInvoiceForm({ clinics, taxDefaults }: { clinics: InvoiceCli
 
   useActionToast(state, { saved: "Invoice issued.", error: true });
 
-  // Pre-fill the amount with the selected clinic's monthly price, and the tax with its
-  // province's (sales tax on services is provincial). Both stay editable.
+  const picked = clinics.find((x) => x.id === clinicId);
+  const pickedFees = (picked?.fees ?? []).filter((f) => feeIds.includes(f.id));
+  const feesTotal = pickedFees.reduce((sum, f) => sum + f.amount, 0);
+  const len = periodLength(start, end);
+  const computed = picked && picked.monthlyPrice > 0 ? (len ? amountForPeriod(picked.monthlyPrice, len) : picked.monthlyPrice) : null;
+
+  /** Re-fill the amount for this clinic and period, unless someone typed their own. */
+  function refill(c: InvoiceClinic | undefined, s: string, e: string, force = false) {
+    if ((amountTyped && !force) || !c || c.monthlyPrice <= 0) return;
+    const l = periodLength(s, e);
+    setAmount(String(l ? amountForPeriod(c.monthlyPrice, l) : c.monthlyPrice));
+  }
+
+  function onStart(v: string) {
+    setStart(v);
+    // A new start with no end yet (or an end now before it) proposes one month.
+    const nextEnd = v && (!end || end < v) ? periodEndFor(v, 1) : end;
+    if (nextEnd !== end) setEnd(nextEnd);
+    refill(picked, v, nextEnd);
+  }
+
+  function onEnd(v: string) {
+    setEnd(v);
+    refill(picked, start, v);
+  }
+
+  // Pre-fill the amount with the selected clinic's price for the period, and the tax with
+  // its province's (sales tax on services is provincial). Both stay editable.
   function onPickClinic(id: string) {
     setClinicId(id);
     const c = clinics.find((x) => x.id === id);
-    if (c && c.monthlyPrice > 0) setAmount(String(c.monthlyPrice));
+    setAmountTyped(false);
+    setFeeIds((c?.fees ?? []).map((f) => f.id));
+    refill(c, start, end, true);
     if (c) {
       const t = startingTax(taxDefaults, c.province);
       setTaxLabel(t.label);
@@ -191,6 +246,9 @@ export function IssueInvoiceForm({ clinics, taxDefaults }: { clinics: InvoiceCli
   return (
     <ActionForm action={formAction} state={state} className="space-y-3">
       <input type="hidden" name="clinicId" value={clinicId} />
+      {pickedFees.map((f) => (
+        <input key={f.id} type="hidden" name="feeId" value={f.id} />
+      ))}
       <input type="hidden" name="periodStart" value={start} />
       <input type="hidden" name="periodEnd" value={end} />
       <input type="hidden" name="dueOn" value={due} />
@@ -206,26 +264,51 @@ export function IssueInvoiceForm({ clinics, taxDefaults }: { clinics: InvoiceCli
           className="h-8 w-full"
         />
         <div className="space-y-1">
-          <Label htmlFor="inv-amount" className="text-xs text-muted-foreground">Amount (Rs)</Label>
+          <Label htmlFor="inv-amount" className="text-xs text-muted-foreground">
+            {picked && picked.fees.length > 0 ? "Subscription (Rs)" : "Amount (Rs)"}
+          </Label>
           <input
             id="inv-amount"
             name="amount"
             type="number"
             inputMode="numeric"
-            min={1}
+            min={0}
             value={amount}
-            onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))}
+            onChange={(e) => {
+              setAmount(e.target.value.replace(/[^\d]/g, ""));
+              setAmountTyped(true);
+            }}
             className={inputCls}
             required
           />
+          {picked && computed !== null ? (
+            amountTyped && Number(amount) !== computed ? (
+              <button
+                type="button"
+                className="text-[11px] text-primary underline-offset-2 hover:underline"
+                onClick={() => {
+                  setAmountTyped(false);
+                  setAmount(String(computed));
+                }}
+              >
+                Use Rs {computed.toLocaleString("en-PK")}{len ? ` (${describePeriodLength(len)})` : ""}
+              </button>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                {len
+                  ? `Rs ${picked.monthlyPrice.toLocaleString("en-PK")}/mo × ${describePeriodLength(len)}`
+                  : "One month — pick the period to bill more"}
+              </p>
+            )
+          ) : null}
         </div>
         <div className="space-y-1">
           <Label htmlFor="inv-start" className="text-xs text-muted-foreground">Period start</Label>
-          <DatePicker id="inv-start" ariaLabel="Period start" value={start} onChange={setStart} />
+          <DatePicker id="inv-start" ariaLabel="Period start" value={start} onChange={onStart} />
         </div>
         <div className="space-y-1">
           <Label htmlFor="inv-end" className="text-xs text-muted-foreground">Period end</Label>
-          <DatePicker id="inv-end" ariaLabel="Period end" value={end} onChange={setEnd} />
+          <DatePicker id="inv-end" ariaLabel="Period end" value={end} onChange={onEnd} />
         </div>
         <div className="space-y-1">
           <Label htmlFor="inv-due" className="text-xs text-muted-foreground">Due date (optional)</Label>
@@ -237,9 +320,32 @@ export function IssueInvoiceForm({ clinics, taxDefaults }: { clinics: InvoiceCli
           <Input id="inv-note" name="note" className="h-8" placeholder="e.g. July 2026 subscription" />
         </div>
       </div>
+      {picked && picked.fees.length > 0 ? (
+        <div className="space-y-2 rounded-md border well p-3">
+          <div className="text-xs font-medium text-muted-foreground">One-time fees to bill on this invoice</div>
+          {picked.fees.map((f) => (
+            <label key={f.id} className="flex cursor-pointer items-center justify-between gap-3 text-sm">
+              <span className="flex items-center gap-2">
+                <Checkbox
+                  checked={feeIds.includes(f.id)}
+                  onCheckedChange={(on) => setFeeIds((cur) => (on ? [...cur, f.id] : cur.filter((x) => x !== f.id)))}
+                  aria-label={`Bill ${f.label}`}
+                />
+                {f.label}
+              </span>
+              <span className="tabular-nums">Rs {f.amount.toLocaleString("en-PK")}</span>
+            </label>
+          ))}
+          <p className="border-t pt-2 text-xs text-muted-foreground">
+            Subscription Rs {(Number(amount) || 0).toLocaleString("en-PK")} + fees Rs {feesTotal.toLocaleString("en-PK")} ={" "}
+            <span className="font-semibold text-foreground">Rs {((Number(amount) || 0) + feesTotal).toLocaleString("en-PK")}</span> before tax.
+            Set the subscription to 0 to bill the fees alone.
+          </p>
+        </div>
+      ) : null}
       <TaxFields
         idPrefix="inv"
-        amount={Number(amount) || 0}
+        amount={(Number(amount) || 0) + feesTotal}
         on={taxOn}
         setOn={setTaxOn}
         label={taxLabel}
@@ -259,8 +365,9 @@ export type EditableInvoice = {
   label: string;
   clinicName: string;
   clinicProvince: string | null;
-  /** Before tax. */
+  /** Before tax — the SUBSCRIPTION part; one-time fees are `feeAmount` (kept as issued). */
   amount: number;
+  feeAmount: number;
   taxLabel: string | null;
   taxRate: number | null;
   paid: number;
@@ -356,7 +463,8 @@ function EditInvoiceDialog({
     },
     {},
   );
-  const newAmount = Number(amount) || 0;
+  // Tax is on the whole: the subscription as typed plus the fees billed on it.
+  const newAmount = (Number(amount) || 0) + invoice.feeAmount;
   const newTotal = newAmount + (taxOn ? invoiceTax(newAmount, Number(taxRate)) : 0);
 
   return (
@@ -373,18 +481,25 @@ function EditInvoiceDialog({
         <input type="hidden" name="dueOn" value={due} />
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
-            <Label htmlFor={`edit-amount-${invoice.id}`} className="text-xs text-muted-foreground">Amount (Rs)</Label>
+            <Label htmlFor={`edit-amount-${invoice.id}`} className="text-xs text-muted-foreground">
+              {invoice.feeAmount > 0 ? "Subscription (Rs)" : "Amount (Rs)"}
+            </Label>
             <input
               id={`edit-amount-${invoice.id}`}
               name="amount"
               type="number"
               inputMode="numeric"
-              min={1}
+              min={invoice.feeAmount > 0 ? 0 : 1}
               value={amount}
               onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))}
               className={inputCls}
               required
             />
+            {invoice.feeAmount > 0 ? (
+              <p className="text-[11px] text-muted-foreground">
+                + Rs {invoice.feeAmount.toLocaleString("en-PK")} one-time fees, kept as issued.
+              </p>
+            ) : null}
             {invoice.paid > 0 && newTotal > 0 && newTotal < invoice.paid ? (
               <p className="text-[11px] text-warning-text">
                 Rs {invoice.paid.toLocaleString("en-PK")} is already paid on it. It will show as paid, with Rs{" "}
@@ -591,5 +706,121 @@ export function InvoiceTaxSettingsForm({
       </div>
       <Button type="submit" variant="outline" disabled={pending}>{pending ? "Saving…" : "Save tax details"}</Button>
     </ActionForm>
+  );
+}
+
+/**
+ * "Record payment" on an invoice row — the payment is recorded AGAINST this invoice
+ * from the list itself, instead of sending the admin to the clinic's billing card
+ * (owner, 2026-11-17). Same action and rules as that card (`recordClinicPaymentAction`):
+ * the amount starts at what the invoice still owes, any one-time fees on it are paid
+ * first, and partial payments are fine.
+ */
+export function RecordInvoicePaymentButton({
+  invoiceId,
+  clinicId,
+  label,
+  clinicName,
+  balance,
+  today,
+}: {
+  invoiceId: string;
+  clinicId: string;
+  label: string;
+  clinicName: string;
+  balance: number;
+  today: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState(String(balance));
+  const [occurredAt, setOccurredAt] = useState(today);
+  const methodOptions = useTenderOptions();
+  const [state, formAction, pending] = useActionState<AdminActionState, FormData>(async (prev, fd) => {
+    const res = await recordClinicPaymentAction(clinicId, prev, fd);
+    if (res.saved) setOpen(false);
+    return res;
+  }, {});
+  useActionToast(state, { saved: `Payment recorded on ${label}.`, error: true });
+  const paying = Number(amount) || 0;
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-7 whitespace-nowrap text-xs"
+        onClick={() => {
+          setAmount(String(balance));
+          setOccurredAt(today);
+          setOpen(true);
+        }}
+      >
+        Record payment
+      </Button>
+      <Dialog
+        open={open}
+        onOpenChange={setOpen}
+        size="md"
+        title={`Record payment · ${label}`}
+        description={`${clinicName}. Rs ${balance.toLocaleString("en-PK")} still to be paid on this invoice.`}
+      >
+        <ActionForm action={formAction} state={state} className="space-y-3">
+          <input type="hidden" name="invoiceId" value={invoiceId} />
+          <input type="hidden" name="kind" value="payment" />
+          <input type="hidden" name="occurredAt" value={occurredAt} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor={`pay-amount-${invoiceId}`} className="text-xs text-muted-foreground">Amount (Rs)</Label>
+              <input
+                id={`pay-amount-${invoiceId}`}
+                name="amount"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))}
+                className={inputCls}
+                required
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {paying > 0 && paying < balance
+                  ? `Part payment: Rs ${(balance - paying).toLocaleString("en-PK")} will still be owed.`
+                  : paying > balance
+                    ? `Rs ${(paying - balance).toLocaleString("en-PK")} more than the invoice owes.`
+                    : "Pays the invoice in full."}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`pay-date-${invoiceId}`} className="text-xs text-muted-foreground">Date</Label>
+              <DatePicker id={`pay-date-${invoiceId}`} ariaLabel="Payment date" value={occurredAt} onChange={setOccurredAt} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`pay-method-${invoiceId}`} className="text-xs text-muted-foreground">Method</Label>
+              <SelectField
+                id={`pay-method-${invoiceId}`}
+                name="method"
+                defaultValue="bank"
+                options={methodOptions.map((m) => ({ value: m.value, label: m.label }))}
+                ariaLabel="Payment method"
+                className="h-8 w-full"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`pay-ref-${invoiceId}`} className="text-xs text-muted-foreground">Reference</Label>
+              <Input id={`pay-ref-${invoiceId}`} name="reference" className="h-8" placeholder="Txn / cheque no." />
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <Label htmlFor={`pay-note-${invoiceId}`} className="text-xs text-muted-foreground">Note</Label>
+              <Input id={`pay-note-${invoiceId}`} name="note" className="h-8" />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={pending}>Cancel</Button>
+            <Button type="submit" disabled={pending}>{pending ? "Recording…" : "Record payment"}</Button>
+          </div>
+        </ActionForm>
+      </Dialog>
+    </>
   );
 }

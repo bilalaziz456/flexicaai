@@ -86,6 +86,50 @@ export function formatPeriod(start: string | null, end: string | null): string |
   return null;
 }
 
+/** How long an invoice's period is: whole months plus left-over days. */
+export type PeriodLength = { months: number; days: number };
+
+/**
+ * The last day of a period of `months` months starting on `startIso` (YYYY-MM-DD):
+ * 1 Jan + 3 months -> 31 Mar; 15 Jan + 1 month -> 14 Feb; 31 Jan + 1 month -> 28 Feb.
+ * Pure date arithmetic in UTC, so the browser's timezone cannot shift it by a day.
+ */
+export function periodEndFor(startIso: string, months: number): string {
+  const [y, m, d] = startIso.split("-").map(Number);
+  const target = new Date(Date.UTC(y, m - 1 + months, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  if (d > lastDay) target.setUTCDate(lastDay);
+  else target.setUTCDate(d - 1);
+  return target.toISOString().slice(0, 10);
+}
+
+const DAY_MS = 86_400_000;
+const isoDays = (iso: string) => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / DAY_MS;
+
+/**
+ * How long a period is, in whole months plus left-over days: 1 Jan–30 Jun is 6 months,
+ * 1 Jan–10 Mar is 2 months 10 days. Null when either date is missing or end < start.
+ */
+export function periodLength(startIso: string, endIso: string): PeriodLength | null {
+  if (!startIso || !endIso || endIso < startIso) return null;
+  let months = 0;
+  while (months < 120 && periodEndFor(startIso, months + 1) <= endIso) months++;
+  const lastFull = months > 0 ? isoDays(periodEndFor(startIso, months)) : isoDays(startIso) - 1;
+  return { months, days: isoDays(endIso) - lastFull };
+}
+
+/**
+ * A period's length in words — "6 months", "2 months 10 days", "10 days". The issue
+ * form and the printed invoice both say it, so they count the same way (owner,
+ * 2026-11-16: the invoice shows how many months it bills).
+ */
+export function describePeriodLength(len: PeriodLength): string {
+  const parts: string[] = [];
+  if (len.months) parts.push(`${len.months} month${len.months === 1 ? "" : "s"}`);
+  if (len.days) parts.push(`${len.days} day${len.days === 1 ? "" : "s"}`);
+  return parts.join(" ");
+}
+
 /**
  * @param paid   Σ payments + credits − refunds recorded against the invoice.
  * @param dueOn  `YYYY-MM-DD`, or null for an invoice with no due date (never overdue).
