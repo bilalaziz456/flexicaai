@@ -54,7 +54,8 @@ export type ClinicBalance = {
   totalPaid: number;
   /** Billed to date — advance: (whole months elapsed + 1) × price. */
   accrued: number;
-  billingStatus: "free" | "active" | "due" | "overdue";
+  /** `trial`: on a free trial — nothing is billed until it is activated. */
+  billingStatus: "free" | "trial" | "active" | "due" | "overdue";
   /** MONEY owed right now = max(0, accrued − paid). Supports partial payments. */
   owed: number;
   /** MONEY paid ahead = max(0, paid − accrued). */
@@ -77,6 +78,11 @@ type BalanceClinic = {
   graceDays: number;
   activatedAt: Date | null;
   createdAt: Date;
+  /**
+   * The lifecycle status, when the caller has it. A clinic on `trial` is not billed
+   * (owner, 2026-11-17); billing starts at activation. Absent = billed as before.
+   */
+  status?: string;
 };
 
 /**
@@ -107,6 +113,17 @@ export function computeClinicBalance(
     ? clinic.priceSchedule
     : [{ from: billingStart, price }];
   const monthAt = (n: number) => addMonths(billingStart, n);
+
+  // A clinic on a free trial owes nothing yet: billing starts when it is activated
+  // ("Activate (paid)" sets `activated_at`). Without this a trial clinic with a price
+  // was billed from the day it was created — "payment due" to its staff, and on the
+  // dues list — for months it was never meant to pay.
+  if (clinic.status === "trial") {
+    return {
+      monthlyPrice: price, billingStart: now, monthsPaid: 0, paidThrough: now, totalPaid: paid,
+      accrued: 0, billingStatus: "trial", owed: 0, credit: Math.max(0, paid), daysRemaining: 0, daysOverdue: 0,
+    };
+  }
 
   // A free clinic (no price) is never billed.
   if (price <= 0) {
@@ -663,5 +680,22 @@ export async function getFirstPaymentDates(clinicIds: string[]): Promise<Map<str
       .groupBy(clinicPayments.clinicId);
     for (const r of rows) if (r.firstAt) out.set(r.clinicId, r.firstAt);
     return out;
+  });
+}
+
+/**
+ * Whether a clinic has any billing history — a live payment or a live subscription
+ * invoice. "Start trial" is offered only to a clinic with none: putting a clinic that
+ * has paid back on trial would stop billing months it already owes.
+ */
+export async function clinicHasBeenBilled(clinicId: string): Promise<boolean> {
+  return unscoped("admin: has this clinic ever been billed", async () => {
+    const [row] = await db.execute<{ billed: boolean }>(sql`
+      select (
+        exists (select 1 from ${clinicPayments} where ${clinicPayments.clinicId} = ${clinicId} and ${clinicPayments.deletedAt} is null)
+        or exists (select 1 from clinic_invoices i where i.clinic_id = ${clinicId} and i.deleted_at is null)
+      ) as billed
+    `).then((r) => r.rows);
+    return Boolean(row?.billed);
   });
 }

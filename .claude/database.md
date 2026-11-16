@@ -678,7 +678,10 @@ subscription **billing** (`monthly_price`, `billing_cycle` = the package
 monthly/2m/quarter/half/annual, `grace_days`, `payment_reminder_days` [days before the
 paid-through date to show a "payment coming up" heads-up, default 5], lifecycle dates
 `trial_start_at` / `trial_ends_at` / `activated_at` [= subscription/active start] +
-`status`, invoice counter `next_invoice_no`/`invoice_prefix`/`invoice_paper`
+`status` (a `trial` clinic is usable until `trial_ends_at` and is NOT billed —
+`computeClinicBalance` returns `billingStatus: "trial"`; `activated_at` is written ONCE,
+when it first becomes paid, and kept on a resume — ADR-039; `trial_notice_enabled`
+[`0153`, default true] shows or hides the staff's "Free trial · ends …" pill, nothing else), invoice counter `next_invoice_no`/`invoice_prefix`/`invoice_paper`
 [the size a print screen OPENS at] + `invoice_papers_enabled` [which sizes it OFFERS]),
 **account-manager** `assigned_to` → users (self-ref FK) + `assigned_at` (when the
 CURRENT assignment began — written ONLY through `accountManagerFields()`, which nulls

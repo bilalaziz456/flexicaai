@@ -16,7 +16,7 @@ import { requireAdminCapability } from "@/core/auth/user";
 import { canAdmin, canManageBilling, canManageTeam, canSeeBilling, managesClinic } from "@/core/auth/admin-permissions";
 import { getClinicBilling } from "@/core/admin/billing";
 import { listInvoicesForClinic } from "@/core/admin/clinic-invoices";
-import { localIsoDate } from "@/core/admin/invoice-status";
+import { isoDaysFromToday, localIsoDate } from "@/core/admin/invoice-status";
 import { listAssignableTeam } from "@/core/admin/assignment";
 import { Badge } from "@/core/ui/badge";
 import {
@@ -43,6 +43,7 @@ import { ImpersonateClinic } from "./impersonate-clinic";
 import { ClinicContactForm } from "./clinic-contact-form";
 import { ClinicBilling } from "./clinic-billing";
 import { ClinicFees } from "./clinic-fees";
+import { clinicHasBeenBilled } from "@/core/admin/billing";
 import { getClinicFees } from "@/core/admin/clinic-fees";
 import { ClinicCapabilities } from "./clinic-capabilities";
 import { ClinicLogAccess } from "./clinic-log-access";
@@ -165,6 +166,15 @@ export default async function ClinicDetailPage({
             status={clinic.status}
             trialEndsAt={clinic.trialEndsAt ? clinic.trialEndsAt.toISOString() : null}
             canPause={canManageTeam(admin)}
+            canStartTrial={clinic.status === "active" && !(await clinicHasBeenBilled(clinic.id))}
+            defaultTrialEnd={
+              clinic.status === "trial" && clinic.trialEndsAt && clinic.trialEndsAt > new Date()
+                ? localIsoDate(clinic.trialEndsAt)
+                : isoDaysFromToday(30)
+            }
+            minTrialEnd={isoDaysFromToday(1)}
+            trialNoticeEnabled={clinic.trialNoticeEnabled}
+            canToggleTrialNotice
           />
           <div className="mt-4 border-t pt-4">
             <ImpersonateClinic clinicId={clinic.id} />

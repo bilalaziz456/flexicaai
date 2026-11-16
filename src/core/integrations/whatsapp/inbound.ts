@@ -1,4 +1,6 @@
 import "server-only";
+import { getClinic } from "@/core/clinics/get-clinic";
+import { isClinicUsable } from "@/core/clinics/status";
 
 import { and, eq, ilike, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/core/db";
@@ -204,7 +206,11 @@ export async function recordInboundMessage(msg: {
   let cancelled = false;
   let appointmentId: string | null = null;
   let assistantIntent: ChatIntent | null = null;
-  if (clinicId && patientId && text) {
+  // A clinic that cannot be used — trial ended, paused — answers nothing and books
+  // nothing (owner, 2026-11-17). The message is still stored above, so the front desk
+  // finds it when access comes back.
+  const clinicUsable = clinicId ? await isClinicUsableById(clinicId) : false;
+  if (clinicId && patientId && text && clinicUsable) {
     const resched = await handleRescheduleReply({ clinicId, patientId, phone, text });
     rescheduled = resched.rescheduled;
     if (resched.rescheduled) appointmentId = resched.appointmentId ?? null;
@@ -262,4 +268,9 @@ export async function recordInboundMessage(msg: {
   });
 
   return { kind: "handled", booked, rescheduled, cancelled, appointmentId };
+}
+
+async function isClinicUsableById(clinicId: string): Promise<boolean> {
+  const clinic = await getClinic(clinicId);
+  return !!clinic && isClinicUsable(clinic);
 }

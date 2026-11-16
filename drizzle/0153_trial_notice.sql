@@ -1,0 +1,1 @@
+ALTER TABLE "clinics" ADD COLUMN "trial_notice_enabled" boolean DEFAULT true NOT NULL;

@@ -179,6 +179,7 @@ export async function getClinicAnalytics(
 
     const balance = computeClinicBalance(
       {
+        status: row.status,
         monthlyPrice: row.monthlyPrice,
         graceDays: row.graceDays,
         activatedAt: row.activatedAt,

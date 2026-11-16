@@ -28,13 +28,17 @@ import {
   updateClinicUserProfile,
 } from "@/core/admin/clinics";
 import { getClinic } from "@/core/clinics/get-clinic";
+import type { Clinic } from "@/core/db/schema";
+import { localIsoDate } from "@/core/admin/invoice-status";
 import { isLiveInvoiceOfClinic, setPaymentInvoice } from "@/core/admin/clinic-invoices";
 import { accountManagerFields } from "@/core/clinics/account-manager";
 import { getMyTotpSecrets, setMyBackupCodes } from "@/core/users/profile";
 import { getTeamMember } from "@/core/admin/team";
 import { availableSpecialtyIds } from "@/config/modules";
 import { CLINIC_FEATURE_IDS } from "@/core/lib/features";
-import { isClinicStatus, isClinicUsable, type ClinicStatus } from "@/core/clinics/status";
+import { clinicLockedSince, isClinicStatus, isClinicUsable, type ClinicStatus } from "@/core/clinics/status";
+import { cancelRecallsMissedWhileLocked } from "@/core/recall";
+import { clinicHasBeenBilled } from "@/core/admin/billing";
 import { permId, resourcesForClinic, sanitizePermissions } from "@/core/auth/permissions";
 import { recordClinicPayment, setPaymentCommitment, setPaymentNoticeEnabled, setPaymentReminderDays, syncClinicBillingStatus, voidClinicPayment } from "@/core/admin/billing";
 import { setHealthFollowup } from "@/core/admin/health";
@@ -146,6 +150,15 @@ export async function createClinicWithAdmin(
     if ("error" in series) return { error: series.error };
   }
 
+  // Free trial (owner, 2026-11-17): ticked, the clinic starts on trial today and its
+  // access ends at the end of the chosen day.
+  let trialEndsAt: Date | null = null;
+  if (formData.get("trial") === "on") {
+    const end = parseTrialEnd(String(formData.get("trialEndsOn") ?? ""));
+    if ("error" in end) return { error: end.error };
+    trialEndsAt = end.date;
+  }
+
   const passwordHash = await hashPassword(parsed.data.adminPassword);
 
   let newClinicId: string;
@@ -159,6 +172,7 @@ export async function createClinicWithAdmin(
       adminFullName: parsed.data.adminFullName,
       publicAddress: contact.values.publicAddress,
       openingHours: contact.values.openingHours,
+      trialEndsAt,
     });
   } catch (err) {
     if (isUniqueViolation(err)) {
@@ -189,7 +203,9 @@ export async function createClinicWithAdmin(
     entity: "clinic",
     entityId: newClinicId,
     clinicId: newClinicId,
-    summary: `Created clinic “${parsed.data.clinicName}” with admin @${parsed.data.adminUsername}`,
+    summary: `Created clinic “${parsed.data.clinicName}” with admin @${parsed.data.adminUsername}${
+      trialEndsAt ? ` on a free trial until ${localIsoDate(trialEndsAt)}` : ""
+    }`,
   });
   // Land on the clinic itself, not the list. The form captures only a name, its
   // modules and an admin login; the subscription, plan, billing, capabilities and
@@ -418,7 +434,11 @@ export async function setClinicStatus(
     patch.suspendedAt = now;
     patch.suspendReason = reason?.trim() || null;
   } else if (target === "active") {
-    patch.activatedAt = now;
+    // Billing starts ONCE. Resuming a paused clinic used to restart it from today,
+    // which wiped what it owed and turned its past payments into credit. A trial
+    // clinic starts billing now; one that was billed from creation (no date stored)
+    // keeps that anchor.
+    patch.activatedAt = before.activatedAt ?? (before.status === "trial" ? now : before.createdAt);
     patch.suspendedAt = null;
     patch.suspendReason = null;
   } else if (target === "past_due" || target === "cancelled") {
@@ -426,6 +446,7 @@ export async function setClinicStatus(
   }
 
   await setClinicStatusFields(clinicId, patch, nowUnusable);
+  if (!nowUnusable) await startFromScratchIfWasLocked(before);
 
   await logActivity({
     action: "update",
@@ -475,6 +496,7 @@ export async function extendTrial(
       suspendReason: null,
       updatedAt: new Date(),
     });
+  await startFromScratchIfWasLocked(before);
 
   await logActivity({
     action: "update",
@@ -1117,6 +1139,33 @@ export async function setPaymentNoticeEnabledAction(
 }
 
 /**
+ * Show or hide the "Free trial · ends …" pill to a clinic's staff (0153, owner
+ * 2026-11-17). Same audience as the payment-notice switch: the owner / full admin and
+ * the clinic's account manager. Hiding it never changes when the trial ends.
+ */
+export async function setTrialNoticeEnabledAction(
+  clinicId: string,
+  enabled: boolean,
+): Promise<AdminActionState> {
+  const admin = await requireAdminCapability("metrics:view");
+  const c = await getLiveClinic(clinicId);
+  if (!c) return { error: "Clinic not found." };
+  if (!managesClinic(admin, c)) return { error: "You can only change clinics assigned to you." };
+
+  await updateClinicFields(clinicId, { trialNoticeEnabled: enabled, updatedAt: new Date() });
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: `${enabled ? "Showed" : "Hid"} the free-trial notice for ${c.name}`,
+  });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  revalidatePath("/clinic", "layout");
+  return { saved: true };
+}
+
+/**
  * Set how many days before the paid-through date a clinic shows in the "payment coming
  * up" list. Same audience/scope as the payment-notice toggle (owner / full super-admin /
  * the clinic's account manager). 0 disables the pre-due heads-up for the clinic.
@@ -1528,5 +1577,135 @@ export async function voidClinicFeeAction(clinicId: string, feeId: string): Prom
   });
   revalidatePath(`/admin/clinics/${clinicId}`);
   revalidatePath("/admin/finance/invoices");
+  return { saved: true };
+}
+
+/**
+ * A clinic coming back — trial extended or activated, resumed — starts FROM SCRATCH
+ * (owner, 2026-11-17): the recalls that fell due while it was locked are cancelled, not
+ * sent late. Only when it really was locked; a usable clinic loses nothing.
+ */
+async function startFromScratchIfWasLocked(
+  before: Pick<Clinic, "id" | "status" | "trialEndsAt" | "suspendedAt">,
+): Promise<void> {
+  if (isClinicUsable(before)) return;
+  try {
+    await cancelRecallsMissedWhileLocked(before.id, clinicLockedSince(before));
+  } catch (e) {
+    report(e, { op: "admin.clinicReturn.recalls", clinicId: before.id });
+  }
+}
+
+/** A trial end date from a form: a real day, after today, within two years. */
+function parseTrialEnd(raw: string): { date: Date } | { error: string } {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return { error: "Pick the date the trial ends." };
+  // Access ends at the END of that day, so "ends 16 Dec" means the clinic can work all of 16 Dec.
+  const date = new Date(`${raw}T23:59:59`);
+  if (Number.isNaN(date.getTime())) return { error: "Pick the date the trial ends." };
+  if (raw <= localIsoDate(new Date())) return { error: "The trial must end after today." };
+  const limit = new Date();
+  limit.setFullYear(limit.getFullYear() + 2);
+  if (date > limit) return { error: "A trial can't run for more than two years." };
+  return { date };
+}
+
+/**
+ * Sets the date a clinic's trial ends — any day after today, longer or shorter
+ * (owner, 2026-11-17). The super admin, or the clinic's account manager. Ending a trial
+ * TODAY cuts the clinic off, which is pausing access, so that is `endTrialNow`
+ * (owner / full admin, with a password) and not reachable from here.
+ */
+export async function setTrialEndDate(clinicId: string, endsOn: string): Promise<AdminActionState> {
+  const admin = await requireAdminCapability("clinics:edit");
+  const scoped = await clinicYouManage(admin, clinicId);
+  if ("error" in scoped) return { error: scoped.error };
+  const before = scoped.clinic;
+  if (before.status !== "trial") return { error: "This clinic is not on a trial." };
+  const end = parseTrialEnd(endsOn);
+  if ("error" in end) return { error: end.error };
+
+  await updateClinicFields(clinicId, {
+    trialStartAt: before.trialStartAt ?? new Date(),
+    trialEndsAt: end.date,
+    updatedAt: new Date(),
+  });
+  await startFromScratchIfWasLocked(before);
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: `Set the trial for “${before.name}” to end on ${endsOn}${
+      before.trialEndsAt ? ` (was ${localIsoDate(before.trialEndsAt)})` : ""
+    }`,
+  });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  revalidatePath("/admin");
+  revalidatePath("/clinic", "layout");
+  return { saved: true };
+}
+
+/**
+ * Puts an ACTIVE clinic that has never been billed on a free trial ending `endsOn` —
+ * for a clinic created without the trial tick. Refused once it has a payment or an
+ * invoice: trial stops billing, and months it already owes must stay owed.
+ */
+export async function startTrial(clinicId: string, endsOn: string): Promise<AdminActionState> {
+  const admin = await requireAdminCapability("clinics:edit");
+  const scoped = await clinicYouManage(admin, clinicId);
+  if ("error" in scoped) return { error: scoped.error };
+  const before = scoped.clinic;
+  if (before.status !== "active") return { error: "Only an active clinic can be put on a trial." };
+  if (await clinicHasBeenBilled(clinicId)) {
+    return { error: "This clinic already has payments or invoices, so it can't go on a trial." };
+  }
+  const end = parseTrialEnd(endsOn);
+  if ("error" in end) return { error: end.error };
+
+  await updateClinicFields(clinicId, {
+    status: "trial",
+    trialStartAt: new Date(),
+    trialEndsAt: end.date,
+    // Billing starts again from activation.
+    activatedAt: null,
+    updatedAt: new Date(),
+  });
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: `Started a free trial for “${before.name}” until ${endsOn}`,
+  });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  revalidatePath("/admin");
+  revalidatePath("/clinic", "layout");
+  return { saved: true };
+}
+
+/**
+ * Ends a clinic's trial NOW — its staff are signed out and locked out. That is pausing
+ * access, so the same rule: the owner or a full admin, confirming with their password.
+ */
+export async function endTrialNow(clinicId: string, password: string): Promise<AdminActionState> {
+  const admin = await requireAdminCapability("clinics:edit");
+  const scoped = await clinicYouManage(admin, clinicId);
+  if ("error" in scoped) return { error: scoped.error };
+  const before = scoped.clinic;
+  if (before.status !== "trial") return { error: "This clinic is not on a trial." };
+  if (!canManageTeam(admin)) return { error: "Only the owner or a super admin can end a trial early." };
+  if (!(await verifyCurrentUserPassword(password ?? ""))) return { error: "Incorrect password." };
+
+  await setClinicStatusFields(clinicId, { trialEndsAt: new Date(), updatedAt: new Date() }, true);
+  await logActivity({
+    action: "update",
+    entity: "clinic",
+    entityId: clinicId,
+    clinicId,
+    summary: `Ended the trial for “${before.name}” today`,
+  });
+  revalidatePath(`/admin/clinics/${clinicId}`);
+  revalidatePath("/admin");
+  revalidatePath("/clinic", "layout");
   return { saved: true };
 }

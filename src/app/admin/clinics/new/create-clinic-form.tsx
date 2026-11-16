@@ -27,6 +27,10 @@ import { PasswordInput } from "@/core/ui/password-input";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 import { MAX_LOGO_BYTES } from "@/core/clinics/logo-limits";
 import { PublicContactFields } from "@/core/ui/public-contact-fields";
+import { Checkbox } from "@/core/ui/checkbox";
+import { DatePicker } from "@/core/ui/date-picker";
+
+import { isoDaysFromToday } from "@/core/admin/invoice-status";
 
 export function CreateClinicForm({
   catalog,
@@ -48,6 +52,10 @@ export function CreateClinicForm({
   // Stable identity: the child reports validity from an effect.
   const onInvalidChange = useCallback((v: boolean) => setHoursInvalid(v), []);
   useActionToast(state, { error: true });
+  // Free trial (owner, 2026-11-17): starts today, ends at the end of the chosen day.
+  const [trial, setTrial] = useState(false);
+  const [trialEndsOn, setTrialEndsOn] = useState(() => isoDaysFromToday(30));
+  const [minTrialEnd] = useState(() => isoDaysFromToday(1));
 
   return (
     <ActionForm action={formAction} state={state} className="space-y-6">
@@ -131,6 +139,37 @@ export function CreateClinicForm({
               </p>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Free trial</CardTitle>
+          <CardDescription>
+            A clinic on trial uses FlexicaAI free until the end date and is not billed. On that
+            date its staff are locked out and nothing is sent to its patients, unless you extend
+            the trial or activate it.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <Checkbox name="trial" checked={trial} onCheckedChange={setTrial} aria-label="Start on a free trial" />
+            Start this clinic on a free trial
+          </label>
+          {trial ? (
+            <div className="max-w-xs space-y-2">
+              <Label htmlFor="trialEndsOn">Trial ends on</Label>
+              <input type="hidden" name="trialEndsOn" value={trialEndsOn} />
+              <DatePicker
+                id="trialEndsOn"
+                ariaLabel="Trial end date"
+                value={trialEndsOn}
+                onChange={setTrialEndsOn}
+                min={minTrialEnd}
+              />
+              <p className="text-xs text-muted-foreground">Starts today. Access ends at the end of this day.</p>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

@@ -44,7 +44,7 @@ const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 
 export type BillingBalance = {
-  billingStatus: "free" | "active" | "due" | "overdue";
+  billingStatus: "free" | "trial" | "active" | "due" | "overdue";
   paidThrough: string;
   monthsPaid: number;
   totalPaid: number;
@@ -87,6 +87,7 @@ function StatusBadge({ s }: { s: BillingBalance["billingStatus"] }) {
     due: ["Due", "warning"],
     overdue: ["Overdue", "destructive"],
     free: ["Free", "secondary"],
+    trial: ["Free trial", "secondary"],
   } as const;
   const [label, variant] = map[s];
   return <Badge variant={variant}>{label}</Badge>;
@@ -281,10 +282,12 @@ export function ClinicBilling({
         </div>
         <div className="p-3">
           <div className="text-xs text-muted-foreground">Paid through</div>
-          <div className="mt-1 text-sm font-medium">{fmtDate(balance.paidThrough)}</div>
+          <div className="mt-1 text-sm font-medium">{balance.billingStatus === "trial" ? "—" : fmtDate(balance.paidThrough)}</div>
           <div className="text-xs text-muted-foreground">
             {balance.billingStatus === "free"
               ? "not billed"
+              : balance.billingStatus === "trial"
+                ? "billing starts when activated"
               : balance.daysOverdue > 0
                 ? `${balance.daysOverdue}d overdue`
                 : `${balance.daysRemaining}d left`}
@@ -302,7 +305,7 @@ export function ClinicBilling({
           >
             {rs(balance.credit > 0 ? balance.credit : balance.owed)}
           </div>
-          {balance.billingStatus !== "free" ? (
+          {balance.billingStatus !== "free" && balance.billingStatus !== "trial" ? (
             <div className="text-xs text-muted-foreground">billed {rs(balance.accrued)}</div>
           ) : null}
         </div>

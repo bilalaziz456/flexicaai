@@ -145,6 +145,8 @@ export function computePaymentBehaviour(
     activatedAt: Date | null;
     createdAt: Date;
     graceDays?: number;
+    /** A clinic on `trial` has no billed months yet (owner, 2026-11-17). */
+    status?: string;
     /** Price history. Absent means the price has never moved — see price-schedule.ts. */
     priceSchedule?: PricePoint[];
   },
@@ -164,7 +166,7 @@ export function computePaymentBehaviour(
   // Never billed at all — today's price is zero AND it has never been anything else.
   // A clinic moved to free keeps the history it earned while it was paying.
   const everPriced = price > 0 || (clinic.priceSchedule ?? []).some((pt) => pt.price > 0);
-  if (!everPriced) return empty;
+  if (!everPriced || clinic.status === "trial") return empty;
 
   const billingStart = clinic.activatedAt ?? clinic.createdAt;
   if (billingStart.getTime() > now.getTime()) return empty;

@@ -1,9 +1,10 @@
 import "server-only";
 
-import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, lte } from "drizzle-orm";
 import { db } from "@/core/db";
-import { notDeleted } from "@/core/db/tenant";
+import { byClinic, notDeleted } from "@/core/db/tenant";
 import { clinics, patients, recalls } from "@/core/db/schema";
+import { clinicUsableSql } from "@/core/clinics/usable-sql";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import { serverEnv } from "@/core/lib/env";
 
@@ -65,11 +66,16 @@ export async function processDueRecalls(
       reason: recalls.reason,
     })
     .from(recalls)
+    // Only clinics that can be used: a clinic whose trial ended, or that is paused,
+    // sends its patients nothing (owner, 2026-11-17). Its recalls wait, and are
+    // dropped — not sent late — when it comes back (`cancelRecallsMissedWhileLocked`).
+    .innerJoin(clinics, eq(clinics.id, recalls.clinicId))
     .where(
       and(
         notDeleted(recalls.deletedAt),
         inArray(recalls.status, ["pending"]),
         lte(recalls.dueAt, now),
+        clinicUsableSql(now),
       ),
     )
     .limit(200);
@@ -126,4 +132,35 @@ export async function processDueRecalls(
   }
 
   return { processed: due.length, sent, skipped };
+}
+
+/**
+ * A clinic that comes back — trial extended, activated, resumed — STARTS FROM SCRATCH
+ * (owner, 2026-11-17): the recalls that fell due while it was locked are cancelled
+ * rather than sent weeks late, all at once. `lockedSince` is when it lost access
+ * (`clinicLockedSince`); null when unknown, which drops every recall already due.
+ * Returns how many were cancelled.
+ */
+export async function cancelRecallsMissedWhileLocked(
+  clinicId: string,
+  lockedSince: Date | null,
+  now: Date = new Date(),
+): Promise<number> {
+  const rows = await db
+    .update(recalls)
+    .set({ status: "cancelled", updatedAt: now })
+    .where(
+      byClinic(
+        recalls.clinicId,
+        clinicId,
+        and(
+          notDeleted(recalls.deletedAt),
+          inArray(recalls.status, ["pending"]),
+          lte(recalls.dueAt, now),
+          lockedSince ? gte(recalls.dueAt, lockedSince) : undefined,
+        ),
+      ),
+    )
+    .returning({ id: recalls.id });
+  return rows.length;
 }

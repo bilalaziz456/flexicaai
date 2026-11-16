@@ -91,6 +91,8 @@ export async function createClinicWithAdmin(input: {
   // instead of sending every such message to a person until the clinic logs in.
   publicAddress?: string | null;
   openingHours?: ClinicHour[] | null;
+  /** Start the clinic on a free trial ending then (owner, 2026-11-17). Absent = active. */
+  trialEndsAt?: Date | null;
 }): Promise<string> {
   return unscoped("super admin creates a clinic", async () =>
     db.transaction(async (tx) => {
@@ -107,6 +109,9 @@ export async function createClinicWithAdmin(input: {
           ...accountManagerFields(input.assignedTo),
           publicAddress: input.publicAddress ?? null,
           openingHours: input.openingHours ?? null,
+          ...(input.trialEndsAt
+            ? { status: "trial" as const, trialStartAt: new Date(), trialEndsAt: input.trialEndsAt }
+            : {}),
         })
         .returning({ id: clinics.id });
 

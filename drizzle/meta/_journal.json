@@ -1072,6 +1072,13 @@
       "when": 1794855909383,
       "tag": "0152_one_time_fees",
       "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1794860145453,
+      "tag": "0153_trial_notice",
+      "breakpoints": true
     }
   ]
 }

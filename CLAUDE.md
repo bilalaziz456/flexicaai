@@ -511,6 +511,20 @@ are in `.env.example`.
   clinic overdue. The P&L splits collected revenue into subscription and one-time fees.
   `scripts/test-clinic-fees.ts`.
   A team member who is not a full admin sees and acts on only the clinics they manage.
+- **Free trials** (owner, 2026-11-17, ADR-039) — "Start this clinic on a free trial"
+  with an end date on New clinic, or **Start free trial** on an active clinic never
+  billed; on the clinic page the super admin or its account manager sets the end date
+  (any day after today); **End trial now** is the owner's / a full admin's, with a
+  password, because it locks the clinic out. A trial clinic is not billed; **Activate
+  (paid)** starts billing that day, and billing starts only once (a resume keeps it).
+  Every staff member sees a bottom "Free trial · ends …" pill (amber, with the account
+  manager's number, in the last 7 days) — the super admin or account manager can hide
+  it ("Show trial notice to clinic staff", `clinics.trial_notice_enabled`, `0153`; the
+  trial still ends on its date); when it ends they are locked out and the lock
+  screen says who to call. **A clinic that cannot be used sends its patients nothing**
+  (one check in `sendWhatsAppToPatient`; the crons skip it via `clinicUsableSql`; an
+  inbound message is stored but not acted on), and when it comes back the recalls that
+  fell due meanwhile are cancelled, not sent late. `scripts/test-clinic-trial.ts`.
 - **Owner Overview** (`/admin/overview`, the super-admin's landing page) — company at a
   glance: money KPIs (`getCompanyMetrics`), **churn risk** (a live clinic quiet ≥ N
   days — visits/appointments/WhatsApp/logins — threshold persisted in

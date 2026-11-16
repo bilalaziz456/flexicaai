@@ -22,6 +22,13 @@ export type InvoiceStatus = {
 };
 
 /** YYYY-MM-DD of a local date — the shape `due_on` is stored and compared in. */
+/** yyyy-mm-dd, `days` from today in local time (a trial end date's default and floor). */
+export function isoDaysFromToday(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return localIsoDate(d);
+}
+
 export function localIsoDate(d: Date): string {
   const p2 = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;

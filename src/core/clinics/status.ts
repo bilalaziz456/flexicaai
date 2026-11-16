@@ -68,3 +68,26 @@ export function unusableReason(
 // Labels for these live in the `clinic_statuses` and `billing_cycles` tables and reach
 // the UI through core/db/vocabulary-cache.ts (server) or core/ui/vocabulary-provider.tsx
 // (client) — ADR-027. The CODES stay here: `can()` and the billing maths branch on them.
+const MS_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Whole days a trial has left, counting today's remainder as a day (ends tomorrow at
+ * this hour → 1). 0 once it has ended; null for an open-ended trial.
+ */
+export function trialDaysLeft(trialEndsAt: Date | null, now: Date = new Date()): number | null {
+  if (!trialEndsAt) return null;
+  return Math.max(0, Math.ceil((trialEndsAt.getTime() - now.getTime()) / MS_DAY));
+}
+
+/**
+ * When a clinic that cannot be used LOST access, as far as the row says: a trial's end
+ * date, else the suspension date. null when unknown (a past-due or cancelled clinic
+ * that never recorded one). What its recalls are measured against when it returns —
+ * `cancelRecallsMissedWhileLocked`.
+ */
+export function clinicLockedSince(
+  clinic: Pick<Clinic, "status" | "trialEndsAt" | "suspendedAt">,
+): Date | null {
+  if (clinic.status === "trial") return clinic.trialEndsAt;
+  return clinic.suspendedAt;
+}

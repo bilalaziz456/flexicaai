@@ -301,6 +301,10 @@ export const clinics = pgTable(
     // for a clinic (e.g. one on a payment plan) without affecting the super-admin dues
     // dashboard or the hard `past_due` access lock. (src/app/clinic/layout.tsx)
     paymentNoticeEnabled: boolean("payment_notice_enabled").notNull().default(true),
+    // Whether this clinic's staff see the "Free trial · ends …" pill (0153, owner
+    // 2026-11-17). The super admin / account manager can hide it; the trial still ends
+    // on its date either way — this is only the reminder. (src/app/clinic/layout.tsx)
+    trialNoticeEnabled: boolean("trial_notice_enabled").notNull().default(true),
     // Follow-up on an OUTSTANDING balance: when a clinic partly pays and commits to
     // pay the rest by a date, we save it here so the super admin knows when to chase.
     // Cleared automatically once the balance settles. (core/admin/billing.ts)

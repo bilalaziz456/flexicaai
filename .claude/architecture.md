@@ -1308,6 +1308,46 @@ turns their approval off and the author resends — accepted for now.
 
 ---
 
+**ADR-039 — A clinic that cannot be used is silent, unbilled while on trial, and comes back from scratch**
+· *2026-11-17* · `Accepted`
+
+*Context.* Free trials existed in the schema (`status = 'trial'`, `trial_ends_at`) and
+access already ended with them (`isClinicUsable`, checked on every request), but
+nothing created one, nothing told the clinic it was on one, and three things were
+wrong around it: a trial clinic with a price was BILLED from its creation date
+(`computeClinicBalance` never read the status); the reminder and recall crons and the
+WhatsApp self-service/assistant kept messaging the patients of a clinic whose access
+had ended; and "Resume (activate)" restarted billing from that day, wiping what a
+paused clinic owed.
+
+*Decision.* (1) **Silent.** A clinic that is not usable — trial over, suspended, past
+due, cancelled — sends its patients nothing. One check in the one outbound path,
+`core/notifications/whatsapp.ts#sendWhatsAppToPatient` (the row is kept, failed, with
+the reason); the crons also leave such clinics out of their queries
+(`core/clinics/usable-sql.ts#clinicUsableSql`, bound to `isClinicUsable` by
+`scripts/test-clinic-trial.ts`); an inbound message is stored but no reschedule,
+cancel, booking or assistant reply runs. (2) **Unbilled while on trial.** A
+`trial` clinic's balance is `billingStatus: "trial"`, nothing owed, not on the dues
+list, no payment rating; billing starts at activation. (3) **Billing starts once.**
+`activated_at` is written the first time a clinic becomes paid (trial → active), and
+a resume keeps it (`before.activatedAt ?? createdAt`). (4) **Back from scratch.** When a
+locked clinic becomes usable again (trial extended or re-dated, activated, resumed),
+the recalls that fell due while it was locked are cancelled, not sent late
+(`cancelRecallsMissedWhileLocked`, measured from `clinicLockedSince`). (5) **Who
+moves the date.** Any editor of the clinic — the super admin, or its account
+manager — sets the trial end to any day after today; ending it TODAY cuts the clinic
+off, which is pausing access, so it stays with the owner / a full admin and a password
+(`endTrialNow`). "Start trial" is refused once a clinic has a payment or an invoice.
+
+*Consequences.* A clinic's staff see a bottom "Free trial · ends …" pill
+(`core/ui/trial-notice-pill.tsx`), amber with the account manager's contact in the last
+week, and the lock screen names who to call. A trial in the future (a start date
+ahead of today) is not modelled: a trial starts when it is created. Messages a locked
+clinic would have sent are not queued for later — the owner's call is that it starts
+from scratch.
+
+---
+
 ## 6. Deltas — where the code is not yet the architecture
 
 Each is a known, accepted gap with a decision behind it. **Tick items off here as

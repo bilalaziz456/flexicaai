@@ -1,4 +1,5 @@
 import "server-only";
+import { clinicUsableSql } from "@/core/clinics/usable-sql";
 
 import { and, eq, gte, inArray, isNotNull, isNull, lt } from "drizzle-orm";
 import { db } from "@/core/db";
@@ -254,6 +255,8 @@ export async function sendDueAppointmentReminders(
         lt(appointments.scheduledAt, end),
         isNull(appointments.reminderSentAt),
         isNotNull(patients.phone),
+        // A clinic whose trial ended, or that is paused, sends nothing (2026-11-17).
+        clinicUsableSql(),
       ),
     );
 

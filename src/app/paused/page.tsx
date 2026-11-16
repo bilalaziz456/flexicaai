@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/core/auth/user";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { isClinicUsable, unusableReason } from "@/core/clinics/status";
+import { getAccountManagerContact } from "@/core/clinics/account-manager";
 import { SignOutButton } from "@/core/auth/sign-out-button";
 import { PauseCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/core/ui/card";
@@ -21,6 +22,8 @@ export default async function PausedPage() {
   const clinic = await getClinic(user.clinicId);
   // If the clinic is actually usable, this page doesn't apply — go home.
   if (!clinic || isClinicUsable(clinic)) redirect("/clinic");
+  // Who to call to get back in: the clinic's account manager, else the company.
+  const contact = await getAccountManagerContact(clinic.id);
 
   return (
     <main className="app-root relative flex min-h-screen items-center justify-center overflow-hidden p-4">
@@ -40,10 +43,16 @@ export default async function PausedPage() {
         <CardContent className="space-y-4">
           <p className="text-sm leading-relaxed text-muted-foreground">{unusableReason(clinic)}</p>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Contact FlexicaAI support to restore access to{" "}
-            <span className="font-medium text-foreground">{clinic.name}</span>. Nothing has
-            been deleted — your records are exactly as you left them.
+            {clinic.status === "trial" ? "To continue using FlexicaAI at " : "To restore access to "}
+            <span className="font-medium text-foreground">{clinic.name}</span>, contact{" "}
+            {contact.kind === "manager" ? "your account manager" : "FlexicaAI"}. Nothing has been
+            deleted — your records are exactly as you left them.
           </p>
+          <div className="rounded-md border well p-3 text-sm">
+            {contact.name ? <div className="font-medium">{contact.name}</div> : <div className="font-medium">FlexicaAI</div>}
+            {contact.phone ? <div className="text-muted-foreground">{contact.phone}</div> : null}
+            {contact.email ? <div className="text-muted-foreground">{contact.email}</div> : null}
+          </div>
           <div className="pt-1">
             <SignOutButton />
           </div>

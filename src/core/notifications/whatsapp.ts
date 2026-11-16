@@ -12,6 +12,8 @@ import {
   type SendTemplateArgs,
 } from "@/core/integrations/whatsapp";
 import { getClinicSender } from "@/core/notifications/clinic-whatsapp";
+import { getClinic } from "@/core/clinics/get-clinic";
+import { isClinicUsable } from "@/core/clinics/status";
 
 /**
  * WhatsApp notification channel — CORE. Records the outbound message FIRST
@@ -46,6 +48,19 @@ export async function sendWhatsAppToPatient(args: {
     })
     .returning({ id: whatsappMessages.id });
   const messageId = row.id;
+
+  // A clinic whose trial has ended, or that is paused, sends its patients NOTHING
+  // (owner, 2026-11-17). Every patient message passes through here, so this one check
+  // covers reminders, recalls, confirmations and the assistant alike. The row stays,
+  // marked failed with the reason, so the trail shows what was held back.
+  const clinic = await getClinic(args.clinicId);
+  if (clinic && !isClinicUsable(clinic)) {
+    await db
+      .update(whatsappMessages)
+      .set({ status: "failed", error: "Not sent: the clinic's access is paused.", updatedAt: new Date() })
+      .where(byClinic(whatsappMessages.clinicId, args.clinicId, eq(whatsappMessages.id, messageId)));
+    return { messageId, ok: false, error: "The clinic's access is paused." };
+  }
 
   if (!isWhatsAppConfigured()) {
     await db

@@ -4,6 +4,8 @@ import { PRINT_FRAME_HEADER } from "@/core/lib/print-papers";
 import { reportsFor } from "@/app/clinic/reports/catalog";
 import { Megaphone, ShieldAlert, UserRound } from "lucide-react";
 import { PaymentNoticePill } from "@/core/ui/payment-notice-pill";
+import { TrialNoticePill } from "@/core/ui/trial-notice-pill";
+import { trialDaysLeft } from "@/core/clinics/status";
 import { requireWorkspace } from "@/core/auth/user";
 import { endImpersonation } from "@/core/auth/actions";
 import { getClinic } from "@/core/clinics/get-clinic";
@@ -121,6 +123,23 @@ export default async function ClinicLayout({
     if (bal.billingStatus === "due" || bal.billingStatus === "overdue") {
       paymentPill = <PaymentNoticePill status={bal.billingStatus} />;
     }
+  }
+
+  // Free trial (owner, 2026-11-17): every user sees when it ends, in the same bottom
+  // slot — a trial clinic is never billed, so it never has a payment pill as well. An
+  // open-ended trial (no date) has nothing to count down and shows nothing.
+  // The super admin / account manager can hide it (`trial_notice_enabled`, 0153).
+  if (!user.impersonation && clinic?.status === "trial" && clinic.trialEndsAt && clinic.trialNoticeEnabled) {
+    const daysLeft = trialDaysLeft(clinic.trialEndsAt) ?? 0;
+    // Who to call is only said in the last week, so the contact is fetched only then.
+    const contact = daysLeft <= 7 ? await getAccountManagerContact(clinic.id) : null;
+    paymentPill = (
+      <TrialNoticePill
+        endsOn={clinic.trialEndsAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+        daysLeft={daysLeft}
+        contact={contact ? [contact.name, contact.phone].filter(Boolean).join(", ") || null : null}
+      />
+    );
   }
 
   // "Your account manager is now X" — a DERIVED notice, not an announcement row.
