@@ -470,7 +470,7 @@ are in `.env.example`.
   `ai_usage`, flat estimate fallback; `platform_cost_rates`), a company **operating-
   expenses** ledger (`company_expenses`), the **P&L** (collected − serving cost − opex
   = net profit; cash-aware for refunds/credits), **subscription invoices** to clinics
-  (`clinic_invoices`, company-global numbering), and a CSV export. `core/admin/cost.ts`
+  (`clinic_invoices`, company-global numbering from FA-INV-1001, `0156`), and a CSV export. `core/admin/cost.ts`
   / `pnl.ts` / `company-expenses.ts` / `clinic-invoices.ts`.
   **Each invoice has a status** (`0142`, owner's call 2026-11-11): a payment is recorded
   AGAINST an invoice ("Record payment" on the invoice, or linked later from the payment
@@ -497,8 +497,8 @@ are in `.env.example`.
   Editing an invoice opens on the province rate too, naming the rate it was issued with
   and offering "Keep" for it.
   The P&L does not yet separate tax collected from revenue.
-  **One-time fees** (`0152`, owner 2026-11-17): training, implementation, data migration
-  or other one-off charges to a clinic (`clinic_fees`, admin ACL **`fees`**
+  **One-time fees** (`0152`, owner 2026-11-17): training & implementation (the default),
+  training, implementation, data migration or other one-off charges to a clinic (`clinic_fees`, admin ACL **`fees`**
   view/create/delete; an account manager on their own clinics only). Added and listed on
   the clinic page ("One-time fees" card: charged / paid / still owed, per fee). Billed by
   ticking them on Issue invoice — the invoice's `amount` includes them (`fee_amount`
@@ -509,6 +509,16 @@ are in `.env.example`.
   clinic's — or as typed), and every balance, dues list and payment rating reads
   `subscriptionShare` (pure `core/admin/clinic-fee-rules.ts`). Unpaid fees never make a
   clinic overdue. The P&L splits collected revenue into subscription and one-time fees.
+  **Invoice discount** (`0154`, owner 2026-11-17): Issue / Edit invoice take a Discount
+  as % or Rs, before tax, on the whole invoice, the subscription only or the one-time
+  fees only (`discount_on`, `0155`; the choice shows when the invoice has both); the invoice and its
+  PDF show only the rupees ("Discount − Rs 1,000", never "10%"), and a fees-only one names
+  the fee ("Discount on Training & implementation"); the PDF never says "one-time fees". Each discount also
+  writes a matching **credit** to the clinic, split between subscription and fees as the
+  discount was (in proportion for the whole invoice), because the balance never reads invoices — without it the clinic would
+  still owe, and go overdue for, what was forgiven. The credit changes, voids and
+  restores only with its invoice (shown as "Discount on FA-INV-…", no Void, no link).
+  `scripts/test-invoice-discount.ts`.
   `scripts/test-clinic-fees.ts`.
   A team member who is not a full admin sees and acts on only the clinics they manage.
 - **Free trials** (owner, 2026-11-17, ADR-039) — "Start this clinic on a free trial"

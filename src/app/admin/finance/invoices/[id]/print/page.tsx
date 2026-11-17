@@ -17,8 +17,7 @@ import {
   invoiceStatusLabel,
   localIsoDate,
   type InvoiceStatus,
-  type PeriodLength,
-} from "@/core/admin/invoice-status";
+  type PeriodLength, discountLineLabel, feeNames } from "@/core/admin/invoice-status";
 import { BRAND_EMAIL, BRAND_PHONE, BRAND_WEBSITE } from "@/core/lib/brand";
 import { getCompanyLogoDataUri } from "@/core/lib/company-logo";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
@@ -236,8 +235,18 @@ export default async function ClinicInvoicePrintPage({
               ))}
             </div>
 
-            {/* ---- From · Billed to ---- */}
+            {/* ---- Billed to (left) · From (right) — owner, 2026-11-18 ---- */}
             <div className="mt-7 grid grid-cols-2 gap-6 text-[0.88em]">
+              <div className="rounded-[0.9em] border border-brand-teal/50 bg-[#f1fbfb] p-4">
+                <Eyebrow>Billed to</Eyebrow>
+                <div className="mt-1.5 text-[1.12em] font-bold">{c.name}</div>
+                <div className="mt-1.5 space-y-0.5 text-black/65">
+                  {c.ownerName ? <div className="font-medium text-brand-navy/80">{c.ownerName}</div> : null}
+                  {c.ownerPhone ? <Line icon={Phone}>{c.ownerPhone}</Line> : null}
+                  {c.ownerEmail ? <Line icon={Mail}>{c.ownerEmail}</Line> : null}
+                  {location ? <Line icon={MapPin}>{location}</Line> : null}
+                </div>
+              </div>
               <div className="rounded-[0.9em] border border-brand-navy/10 p-4">
                 <Eyebrow>From</Eyebrow>
                 <div className="mt-1.5 text-[1.12em] font-bold">FlexicaAI</div>
@@ -247,16 +256,6 @@ export default async function ClinicInvoicePrintPage({
                   {email ? <Line icon={Mail}>{email}</Line> : null}
                   {hasTax && company.ntn ? <div>NTN: {company.ntn}</div> : null}
                   {hasTax && company.strn ? <div>STRN: {company.strn}</div> : null}
-                </div>
-              </div>
-              <div className="rounded-[0.9em] border border-brand-teal/50 bg-[#f1fbfb] p-4">
-                <Eyebrow>Billed to</Eyebrow>
-                <div className="mt-1.5 text-[1.12em] font-bold">{c.name}</div>
-                <div className="mt-1.5 space-y-0.5 text-black/65">
-                  {c.ownerName ? <div className="font-medium text-brand-navy/80">{c.ownerName}</div> : null}
-                  {c.ownerPhone ? <Line icon={Phone}>{c.ownerPhone}</Line> : null}
-                  {c.ownerEmail ? <Line icon={Mail}>{c.ownerEmail}</Line> : null}
-                  {location ? <Line icon={MapPin}>{location}</Line> : null}
                 </div>
               </div>
             </div>
@@ -289,12 +288,9 @@ export default async function ClinicInvoicePrintPage({
               {inv.feeLines.map((f, i) => (
                 <div key={i} className="grid grid-cols-[1fr_auto] gap-6 border-b border-brand-navy/10 py-4">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[1.05em] font-bold">{f.label}</span>
-                      <span className="rounded-full border border-brand-teal px-2 py-0.5 text-[0.68em] font-bold uppercase tracking-wide text-[#0a7d84]">
-                        One-time
-                      </span>
-                    </div>
+                    {/* Named as charged ("Training & implementation"); no "One-time" tag
+                        (owner, 2026-11-18). */}
+                    <div className="text-[1.05em] font-bold">{f.label}</div>
                     {!showSubscription && i === 0 && inv.note ? (
                       <div className="mt-0.5 text-[0.85em] text-black/60">{inv.note}</div>
                     ) : null}
@@ -393,12 +389,24 @@ export default async function ClinicInvoicePrintPage({
                   {inv.feeLines.length > 0 && showSubscription ? (
                     <>
                       <TotalRow label="Subscription" value={fmtMoney(inv.subscriptionAmount)} />
-                      <TotalRow label="One-time fees" value={fmtMoney(inv.amount - inv.subscriptionAmount)} />
+                      <TotalRow
+                        label={feeNames(inv.feeLines.map((f) => f.label))}
+                        value={fmtMoney(inv.amount + inv.discountAmount - inv.subscriptionAmount)}
+                      />
                     </>
+                  ) : null}
+                  {/* The discount in rupees only — never the percentage (owner, 2026-11-17).
+                      Without the subscription/fees rows above, the full amount it comes off
+                      is said first. */}
+                  {inv.discountAmount > 0 && !(inv.feeLines.length > 0 && showSubscription) ? (
+                    <TotalRow label="Subtotal" value={fmtMoney(inv.amount + inv.discountAmount)} />
+                  ) : null}
+                  {inv.discountAmount > 0 ? (
+                    <TotalRow label={discountLineLabel(inv.discountOn, inv.feeLines.map((f) => f.label))} value={`− ${fmtMoney(inv.discountAmount)}`} />
                   ) : null}
                   {hasTax ? (
                     <>
-                      <TotalRow label="Subtotal" value={fmtMoney(inv.amount)} />
+                      <TotalRow label={inv.discountAmount > 0 ? "After discount" : "Subtotal"} value={fmtMoney(inv.amount)} />
                       <TotalRow label={taxName} value={fmtMoney(inv.taxAmount)} />
                     </>
                   ) : null}

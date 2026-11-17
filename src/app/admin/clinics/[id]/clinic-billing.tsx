@@ -67,6 +67,8 @@ export type BillingPayment = {
   invoiceId: string | null;
   /** Of `amount`, how much was for one-time fees (0152). */
   feeAmount: number;
+  /** The invoice whose discount this credit is (0154), or null. */
+  discountOfInvoiceId: string | null;
 };
 /** A live subscription invoice of this clinic, with what is recorded against it. */
 export type BillingInvoice = {
@@ -412,6 +414,7 @@ export function ClinicBilling({
             minWidthClassName="min-w-[40rem]"
             initialSort={{ id: "invoice", dir: "desc" }}
             empty="No invoices."
+            paginate={{ sizes: [10, 20, 50, 100] }}
             columns={[
               { id: "invoice", header: "Invoice", cardTitle: true, sortValue: (i) => i.label, cell: (i) => <span className="font-medium">{i.label}</span> },
               { id: "period", header: "Period", cell: (i) => <span className="whitespace-nowrap text-muted-foreground">{formatPeriod(i.periodStart, i.periodEnd) ?? "—"}</span> },
@@ -656,7 +659,7 @@ export function ClinicBilling({
                   p.kind === "refund" ? (
                     <Badge variant="destructive">Refund</Badge>
                   ) : p.kind === "credit" ? (
-                    <Badge variant="warning">Credit</Badge>
+                    <Badge variant="warning">{p.discountOfInvoiceId ? "Discount" : "Credit"}</Badge>
                   ) : (
                     <span className="text-muted-foreground">Payment</span>
                   ),
@@ -668,7 +671,7 @@ export function ClinicBilling({
                 cell: (p) => (
                   <span className={cn("font-medium tabular-nums", p.kind === "refund" ? "text-destructive" : "")}>
                     {p.kind === "refund" ? `−${rs(p.amount)}` : rs(p.amount)}
-                    {p.feeAmount > 0 && p.kind !== "credit" ? (
+                    {p.feeAmount > 0 ? (
                       <span className="block text-[11px] font-normal text-muted-foreground">
                         {p.feeAmount >= p.amount ? "One-time fees" : `incl. ${rs(p.feeAmount)} fees`}
                       </span>
@@ -687,7 +690,12 @@ export function ClinicBilling({
                       // Older payments were recorded before invoices had a status, so
                       // they can be linked here; the balance does not change.
                       cell: (p) =>
-                        canLinkPayments && invoiceRows.length > 0 ? (
+                        // An invoice's discount (0154) says which invoice, and is not linkable.
+                        p.discountOfInvoiceId ? (
+                          <span className="text-muted-foreground">
+                            Discount on {invoiceLabel(p.discountOfInvoiceId) ?? "an invoice"}
+                          </span>
+                        ) : canLinkPayments && invoiceRows.length > 0 ? (
                           <SelectField
                             value={p.invoiceId && invoiceLabel(p.invoiceId) ? p.invoiceId : NO_INVOICE}
                             onValueChange={(next) => linkPayment(p.id, next)}
@@ -713,7 +721,8 @@ export function ClinicBilling({
                       id: "actions",
                       header: "",
                       align: "right",
-                      cell: (p) => (
+                      // A discount credit is changed only through its invoice (0154).
+                      cell: (p) => p.discountOfInvoiceId ? null : (
                         <ConfirmDialog
                           triggerLabel="Void"
                           triggerVariant="ghost"

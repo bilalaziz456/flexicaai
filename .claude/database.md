@@ -710,9 +710,18 @@ before 0142 stay unlinked — nothing says which invoice they paid.
 **`fee_amount`** int default 0 (migration `0152`) — how much of this money was for
 one-time fees (`clinic_fees`), never for subscription months. Every subscription balance
 (`computeClinicBalance` callers, `getClinicBalanceSummary`, `listDueClinics`, the payment
-rating) reads `subscriptionShare` = amount − clamp(fee_amount) (a credit is always all
-subscription); the P&L splits revenue with `signedFeeShare`. Pure rules in
-`core/admin/clinic-fee-rules.ts`.
+rating) reads `subscriptionShare` = amount − clamp(fee_amount); the P&L splits revenue
+with `signedFeeShare`. Pure rules in `core/admin/clinic-fee-rules.ts`. A credit recorded
+by hand always has `fee_amount` 0 (all subscription); only an invoice's discount credit
+carries a fee share (0154, below).
+**`discount_of_invoice_id`** uuid → `clinic_invoices` (set null; migration `0154`) — set
+on the CREDIT an invoice's discount writes: `amount` = the discount, `fee_amount` = the
+one-time fees' share of it (all of it for a fees-only discount, none for a
+subscription-only one, else in proportion), so the subscription
+balance AND the fees still owed both drop by what was forgiven. Written, changed and
+voided only with its invoice (issue / edit / void / restore, `clinic-invoices.ts`); it
+cannot be voided alone (`voidClinicPayment`) nor linked to an invoice as a payment
+(`setPaymentInvoice`), and an invoice's open fees subtract it (`invoiceFeesOwed`).
 Balance/status math in `core/admin/billing.ts` (advance/partial-payment,
 `computeClinicBalance`); a refund subtracts from paid, a credit adds without cash.
 Indexes: (`clinic_id`,`occurred_at`); partial `invoice_id` (not null); partial trash index.
@@ -796,8 +805,21 @@ amount}]` (snapshot as billed, read back through zod) and `fee_amount` int (thei
 `amount` INCLUDES them, so status/balance/tax need no change; the subscription line is
 `amount − fee_amount`, and an edit changes only that part. A fee counts as invoiced only
 while a LIVE invoice's `fee_lines` names it.
+**Discount** (migration `0154`, owner 2026-11-17): `discount_amount` int default 0 and
+`discount_percent` numeric(5,2) (NULL = typed in rupees), and `discount_on` text default
+'all' (migration `0155`: 'all' | 'subscription' | 'fees' — what a % is of, the most it
+can be, and how its credit splits; `splitInvoiceDiscount`). Before tax, typed as % or
+Rs; only the rupees are printed ("Discount on one-time fees − Rs 500"). `amount`
+is stored AFTER it (tax is on the discounted amount; every total/status query
+unchanged), so the subscription line before it is `amount − fee_amount +
+discount_amount`. Each discount writes a credit to the clinic
+(`clinic_payments.discount_of_invoice_id`, above) — the balance never reads invoices.
 Printable A4 invoice (`/admin/finance/invoices/[id]/print`). `core/admin/clinic-invoices.ts`. Indexes:
 unique `invoice_no`; `clinic_id`; `issued_at`; partial trash index.
+**Numbering** (owner, 2026-11-18, migration `0156`): from **1001** — FA-INV-1001, 1002…
+1999, 2000… (`company_settings.next_invoice_no` default 1001, lifted to 1001 where it was
+lower; `issueClinicInvoice` never allocates below `FIRST_SUBSCRIPTION_INVOICE_NO`).
+Invoices issued before keep their numbers.
 
 ### `clinic_fees` — one-time fees charged to a clinic (training, implementation…)
 Migration `0152` (owner, 2026-11-17). `id`, `clinic_id` → clinics (`cascade`), `kind`

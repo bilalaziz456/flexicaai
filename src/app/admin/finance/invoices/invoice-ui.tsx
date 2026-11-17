@@ -26,7 +26,15 @@ import { Checkbox } from "@/core/ui/checkbox";
 import { SelectField } from "@/core/ui/select-field";
 import { useTenderOptions } from "@/core/ui/vocabulary-provider";
 import { recordClinicPaymentAction, type AdminActionState } from "@/app/admin/actions";
-import { formatRate, invoiceTax, taxForProvince, type ProvinceTaxMap } from "@/core/admin/invoice-status";
+import {
+  DISCOUNT_SCOPES,
+  formatRate,
+  invoiceTax,
+  splitInvoiceDiscount,
+  taxForProvince,
+  type DiscountScope,
+  type ProvinceTaxMap,
+} from "@/core/admin/invoice-status";
 import { PROVINCES, provinceLabel } from "@/core/clinics/provinces";
 
 const inputCls =
@@ -68,6 +76,115 @@ function startingTax(defaults: TaxDefaults, province: string | null | undefined)
 }
 
 const rs = (n: number) => `Rs ${n.toLocaleString("en-PK")}`;
+
+type DiscountKind = "percent" | "amount";
+
+/** A typed discount worked out as the server will (`splitInvoiceDiscount`). */
+function typedDiscount(subscription: number, fees: number, kind: DiscountKind, value: string, on: DiscountScope) {
+  const v = Number(value);
+  return splitInvoiceDiscount(subscription, fees, value.trim() === "" || !(v > 0) ? null : { kind, value: v, on });
+}
+
+/** Only an invoice with both a subscription and fees has a choice of what to discount. */
+function effectiveScope(subscription: number, fees: number, on: DiscountScope): DiscountScope {
+  return subscription > 0 && fees > 0 ? on : "all";
+}
+
+/**
+ * Discount (owner, 2026-11-17): off the whole invoice before tax — subscription and
+ * one-time fees — typed as a percentage or in rupees. The invoice and its PDF show only
+ * the rupees ("Discount − Rs 1,000", never "10%"), so this says what it comes to as
+ * you type.
+ */
+function DiscountFields({
+  idPrefix,
+  subscription,
+  fees,
+  kind,
+  setKind,
+  value,
+  setValue,
+  on,
+  setOn,
+}: {
+  idPrefix: string;
+  /** The subscription part and the one-time fees, before discount and tax. */
+  subscription: number;
+  fees: number;
+  kind: DiscountKind;
+  setKind: (v: DiscountKind) => void;
+  value: string;
+  setValue: (v: string) => void;
+  /** What it comes off (0155) — offered only when the invoice has both. */
+  on: DiscountScope;
+  setOn: (v: DiscountScope) => void;
+}) {
+  const choose = subscription > 0 && fees > 0;
+  const scope = effectiveScope(subscription, fees, on);
+  const { base, amount: off } = typedDiscount(subscription, fees, kind, value, scope);
+  const over = kind === "amount" && Number(value) > base;
+  const what = scope === "fees" ? "the one-time fees" : scope === "subscription" ? "the subscription" : "the invoice";
+  return (
+    <div className="space-y-2 rounded-lg border border-border/70 well p-3">
+      <input type="hidden" name="discountKind" value={kind} />
+      <input type="hidden" name="discountOn" value={scope} />
+      <Label htmlFor={`${idPrefix}-discount`} className="text-sm font-medium">Discount (optional)</Label>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          id={`${idPrefix}-discount`}
+          name="discountValue"
+          type="number"
+          inputMode="decimal"
+          min={0}
+          max={kind === "percent" ? 100 : undefined}
+          step={kind === "percent" ? 0.01 : 1}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          // `inputCls` is full width; this box only needs room for "12.5" or "15000".
+          className={inputCls.replace("w-full", "w-32")}
+          placeholder="0"
+        />
+        <SelectField
+          value={kind}
+          onValueChange={(v) => setKind(v as DiscountKind)}
+          options={[
+            { value: "percent", label: "%" },
+            { value: "amount", label: "Rs" },
+          ]}
+          ariaLabel="Discount as a percentage or in rupees"
+          size="sm"
+          className="w-20"
+          popupClassName="min-w-20"
+        />
+        {choose ? (
+          <SelectField
+            value={on}
+            onValueChange={(v) => setOn(v as DiscountScope)}
+            options={DISCOUNT_SCOPES.map((s) => ({ value: s.code, label: s.label }))}
+            ariaLabel="What the discount is on"
+            size="sm"
+            className="w-44"
+            popupClassName="min-w-44"
+          />
+        ) : null}
+        {off > 0 ? (
+          <span className="text-sm tabular-nums text-muted-foreground">
+            − {rs(off)} off {what} ({rs(base)} becomes <span className="font-semibold text-foreground">{rs(base - off)}</span>)
+          </span>
+        ) : null}
+      </div>
+      {over ? (
+        <p className="text-[11px] text-destructive">The discount is more than {what} ({rs(base)}).</p>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          {choose
+            ? "Before tax, off what you choose. The invoice shows the discount in rupees."
+            : "Before tax. The invoice shows the discount in rupees."}
+        </p>
+      )}
+    </div>
+  );
+}
 
 /**
  * "Add tax" — a tick, and when ticked the tax's name and rate, with the tax and the
@@ -175,6 +292,9 @@ export function IssueInvoiceForm({ clinics, taxDefaults }: { clinics: InvoiceCli
   const [taxLabel, setTaxLabel] = useState(taxDefaults.label);
   const [taxRate, setTaxRate] = useState(formatRate(taxDefaults.rate));
   const [taxSource, setTaxSource] = useState<string | null>(null);
+  const [discKind, setDiscKind] = useState<DiscountKind>("percent");
+  const [discValue, setDiscValue] = useState("");
+  const [discOn, setDiscOn] = useState<DiscountScope>("all");
 
   // Clearing the form is part of issuing the invoice, so it happens in the action
   // once the server has accepted it — not in an effect that watches for the save to
@@ -190,6 +310,8 @@ export function IssueInvoiceForm({ clinics, taxDefaults }: { clinics: InvoiceCli
         setStart("");
         setEnd("");
         setDue("");
+        setDiscValue("");
+        setDiscOn("all");
         // The tick is left as it was: invoices issued in a row usually share their tax.
       }
       return res;
@@ -343,9 +465,24 @@ export function IssueInvoiceForm({ clinics, taxDefaults }: { clinics: InvoiceCli
           </p>
         </div>
       ) : null}
+      <DiscountFields
+        idPrefix="inv"
+        subscription={Number(amount) || 0}
+        fees={feesTotal}
+        kind={discKind}
+        setKind={setDiscKind}
+        value={discValue}
+        setValue={setDiscValue}
+        on={discOn}
+        setOn={setDiscOn}
+      />
       <TaxFields
         idPrefix="inv"
-        amount={(Number(amount) || 0) + feesTotal}
+        amount={
+          (Number(amount) || 0) +
+          feesTotal -
+          typedDiscount(Number(amount) || 0, feesTotal, discKind, discValue, effectiveScope(Number(amount) || 0, feesTotal, discOn)).amount
+        }
         on={taxOn}
         setOn={setTaxOn}
         label={taxLabel}
@@ -368,6 +505,12 @@ export type EditableInvoice = {
   /** Before tax — the SUBSCRIPTION part; one-time fees are `feeAmount` (kept as issued). */
   amount: number;
   feeAmount: number;
+  /** Already off the invoice (0154); `amount` is the subscription BEFORE it. */
+  discountAmount: number;
+  /** As typed, when it was given as a percentage. */
+  discountPercent: number | null;
+  /** What it was on (0155). */
+  discountOn: string;
   taxLabel: string | null;
   taxRate: number | null;
   paid: number;
@@ -394,6 +537,18 @@ function EditInvoiceDialog({
   onOpenChange: (next: boolean) => void;
 }) {
   const [amount, setAmount] = useState(String(invoice.amount));
+  // Opens as the discount was typed: a percentage stays a percentage.
+  const [discKind, setDiscKind] = useState<DiscountKind>(invoice.discountPercent !== null ? "percent" : "amount");
+  const [discValue, setDiscValue] = useState(
+    invoice.discountPercent !== null
+      ? String(invoice.discountPercent)
+      : invoice.discountAmount > 0
+        ? String(invoice.discountAmount)
+        : "",
+  );
+  const [discOn, setDiscOn] = useState<DiscountScope>(
+    invoice.discountOn === "fees" || invoice.discountOn === "subscription" ? invoice.discountOn : "all",
+  );
   // Editing follows the clinic's province, like issuing does (owner, 2026-11-11): the
   // tax fields open on the province's rate. An invoice issued at a different rate says
   // so, with one click to keep its own — saving with the province rate changes what the
@@ -464,7 +619,16 @@ function EditInvoiceDialog({
     {},
   );
   // Tax is on the whole: the subscription as typed plus the fees billed on it.
-  const newAmount = (Number(amount) || 0) + invoice.feeAmount;
+  const beforeDiscount = (Number(amount) || 0) + invoice.feeAmount;
+  const newAmount =
+    beforeDiscount -
+    typedDiscount(
+      Number(amount) || 0,
+      invoice.feeAmount,
+      discKind,
+      discValue,
+      effectiveScope(Number(amount) || 0, invoice.feeAmount, discOn),
+    ).amount;
   const newTotal = newAmount + (taxOn ? invoiceTax(newAmount, Number(taxRate)) : 0);
 
   return (
@@ -525,6 +689,17 @@ function EditInvoiceDialog({
             <Input id={`edit-note-${invoice.id}`} name="note" className="h-8" defaultValue={invoice.note ?? ""} />
           </div>
         </div>
+        <DiscountFields
+          idPrefix={`edit-${invoice.id}`}
+          subscription={Number(amount) || 0}
+          fees={invoice.feeAmount}
+          kind={discKind}
+          setKind={setDiscKind}
+          value={discValue}
+          setValue={setDiscValue}
+          on={discOn}
+          setOn={setDiscOn}
+        />
         <TaxFields
           idPrefix={`edit-${invoice.id}`}
           amount={newAmount}

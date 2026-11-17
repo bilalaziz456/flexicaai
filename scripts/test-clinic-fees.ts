@@ -52,7 +52,10 @@ function pureRules() {
   ok("a plain payment is all subscription", subscriptionShare({ amount: 1000, feeAmount: 0, kind: "payment" }) === 1000);
   ok("a split payment gives its fee share to fees", subscriptionShare({ amount: 1000, feeAmount: 300, kind: "payment" }) === 700);
   ok("a fee share above the amount is clamped", subscriptionShare({ amount: 1000, feeAmount: 5000, kind: "payment" }) === 0);
-  ok("a credit is never fee money", subscriptionShare({ amount: 500, feeAmount: 200, kind: "credit" }) === 500 && signedFeeShare({ amount: 500, feeAmount: 200, kind: "credit" }) === 0);
+  // A credit recorded by hand always has a fee share of 0 (`recordClinicPayment`), so it
+  // is all subscription; only an invoice's discount credit carries one (0154).
+  ok("a credit with no fee share is all subscription", subscriptionShare({ amount: 500, feeAmount: 0, kind: "credit" }) === 500 && signedFeeShare({ amount: 500, feeAmount: 0, kind: "credit" }) === 0);
+  ok("a discount credit splits like a payment", subscriptionShare({ amount: 500, feeAmount: 200, kind: "credit" }) === 300 && signedFeeShare({ amount: 500, feeAmount: 200, kind: "credit" }) === 200);
   ok("a refund's fee share comes off the fees", signedFeeShare({ amount: 1000, feeAmount: 400, kind: "refund" }) === -400);
   ok("fees first: up to what is owed", defaultFeeShare(25_000, 50_000) === 25_000 && defaultFeeShare(80_000, 50_000) === 50_000);
   ok("fees first: nothing owed, nothing to fees", defaultFeeShare(10_000, 0) === 0);

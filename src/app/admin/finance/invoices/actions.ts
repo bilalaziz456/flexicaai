@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { PROVINCES } from "@/core/clinics/provinces";
-import type { ProvinceTaxMap } from "@/core/admin/invoice-status";
+import { isDiscountScope, type InvoiceDiscountInput, type ProvinceTaxMap } from "@/core/admin/invoice-status";
 import { zodErrorMessage } from "@/core/lib/zod-error";
 import { requireAdminCapability } from "@/core/auth/user";
 import { canManageTeam } from "@/core/auth/admin-permissions";
@@ -66,6 +66,27 @@ function parseTax(formData: FormData): { tax: InvoiceTaxInput } | { error: strin
   return { tax: { label: parsed.data.label, rate: Math.round(parsed.data.rate * 100) / 100 } };
 }
 
+/**
+ * The Discount field (owner, 2026-11-17): a number and whether it is "%" or "Rs". Off
+ * the whole invoice before tax. Empty or 0 = no discount. Only the rupees it comes to
+ * are printed; a percentage is kept so the edit form opens as it was typed.
+ */
+function parseDiscount(formData: FormData): { discount: InvoiceDiscountInput } | { error: string } {
+  const raw = String(formData.get("discountValue") ?? "").trim();
+  if (raw === "") return { discount: null };
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) return { error: "Enter the discount as a number, or leave it empty." };
+  if (value === 0) return { discount: null };
+  // What it comes off (0155): the whole invoice unless "subscription" / "fees" is chosen.
+  const rawOn = formData.get("discountOn");
+  const on = isDiscountScope(rawOn) ? rawOn : "all";
+  if (formData.get("discountKind") === "percent") {
+    if (value > 100) return { error: "A discount cannot be more than 100%." };
+    return { discount: { kind: "percent", value: Math.round(value * 100) / 100, on } };
+  }
+  return { discount: { kind: "amount", value: Math.round(value), on } };
+}
+
 const fmtField = (v: string | number | null) => (v === null || v === "" ? "none" : String(v));
 
 /**
@@ -95,12 +116,15 @@ export async function editClinicInvoiceAction(
   }
   const tax = parseTax(formData);
   if ("error" in tax) return { error: tax.error };
+  const discount = parseDiscount(formData);
+  if ("error" in discount) return { error: discount.error };
 
   const res = await updateClinicInvoice(
     id,
     {
       amount: d.amount,
       tax: tax.tax,
+      discount: discount.discount,
       periodStart: d.periodStart ?? null,
       periodEnd: d.periodEnd ?? null,
       dueOn: d.dueOn ?? null,
@@ -110,7 +134,7 @@ export async function editClinicInvoiceAction(
   );
   if ("error" in res) return { error: res.error };
 
-  const labels = { amount: "amount", tax: "tax", taxAmount: "tax amount", periodStart: "period start", periodEnd: "period end", dueOn: "due date", note: "note" } as const;
+  const labels = { amount: "amount", discountAmount: "discount", tax: "tax", taxAmount: "tax amount", periodStart: "period start", periodEnd: "period end", dueOn: "due date", note: "note" } as const;
   const changes = (Object.keys(labels) as (keyof typeof labels)[])
     .filter((k) => res.before[k] !== res.after[k])
     // The note is free text the clinic wrote nothing in; say THAT it changed, not what.
@@ -158,11 +182,14 @@ export async function issueClinicInvoiceAction(
   }
   const tax = parseTax(formData);
   if ("error" in tax) return { error: tax.error };
+  const discount = parseDiscount(formData);
+  if ("error" in discount) return { error: discount.error };
 
   const res = await issueClinicInvoice(
     {
       clinicId: parsed.data.clinicId,
       tax: tax.tax,
+      discount: discount.discount,
       periodStart: parsed.data.periodStart ?? null,
       periodEnd: parsed.data.periodEnd ?? null,
       dueOn: parsed.data.dueOn ?? null,
@@ -183,8 +210,12 @@ export async function issueClinicInvoiceAction(
     entityId: res.id,
     clinicId: parsed.data.clinicId,
     summary: `Issued subscription invoice ${res.label} (Rs ${parsed.data.amount}${feeText}${
-      tax.tax ? ` + ${tax.tax.label} ${tax.tax.rate}%` : ""
-    })`,
+      discount.discount
+        ? ` − discount ${discount.discount.kind === "percent" ? `${discount.discount.value}%` : `Rs ${discount.discount.value}`}${
+            discount.discount.on === "fees" ? " on one-time fees" : discount.discount.on === "subscription" ? " on subscription" : ""
+          }`
+        : ""
+    }${tax.tax ? ` + ${tax.tax.label} ${tax.tax.rate}%` : ""})`,
   });
   revalidatePath("/admin/finance/invoices");
   revalidatePath(`/admin/clinics/${parsed.data.clinicId}`);

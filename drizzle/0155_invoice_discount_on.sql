@@ -1,0 +1,1 @@
+ALTER TABLE "clinic_invoices" ADD COLUMN "discount_on" text DEFAULT 'all' NOT NULL;

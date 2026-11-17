@@ -44,6 +44,86 @@ export function invoiceTax(amount: number, rate: number | null | undefined): num
   return Math.round((Math.max(0, amount) * rate) / 100);
 }
 
+/**
+ * A discount as typed on an invoice (owner, 2026-11-17): a percentage of what the
+ * invoice bills before tax — subscription AND one-time fees — or a rupee amount. Only
+ * the rupees are stored and printed.
+ */
+export const DISCOUNT_SCOPES = [
+  { code: "all", label: "Whole invoice" },
+  { code: "subscription", label: "Subscription only" },
+  { code: "fees", label: "One-time fees only" },
+] as const;
+export type DiscountScope = (typeof DISCOUNT_SCOPES)[number]["code"];
+
+export function isDiscountScope(v: unknown): v is DiscountScope {
+  return DISCOUNT_SCOPES.some((s) => s.code === v);
+}
+
+export type InvoiceDiscountInput = {
+  kind: "percent" | "amount";
+  value: number;
+  /** What it comes off (0155). Absent = the whole invoice. */
+  on?: DiscountScope;
+} | null;
+
+/** The discount in whole rupees on `before` (the invoice before tax), never more than it. */
+export function invoiceDiscount(before: number, discount: InvoiceDiscountInput): number {
+  const base = Math.max(0, Math.round(before));
+  if (!discount || !Number.isFinite(discount.value) || discount.value <= 0) return 0;
+  const raw = discount.kind === "percent" ? (base * Math.min(discount.value, 100)) / 100 : discount.value;
+  return Math.min(base, Math.max(0, Math.round(raw)));
+}
+
+/**
+ * The one-time fees' part of a discount, in proportion to what they are of the invoice
+ * (0154). The credit the discount writes carries it, so a discounted fee is not left
+ * "owed" while the subscription share lowers the subscription balance.
+ */
+export function discountFeeShare(discount: number, fees: number, before: number): number {
+  if (discount <= 0 || fees <= 0 || before <= 0) return 0;
+  return Math.min(fees, discount, Math.round((discount * fees) / before));
+}
+
+/**
+ * An invoice's discount, worked out on what it is ON (0155): the whole invoice, the
+ * subscription only, or the one-time fees only. `base` is what a % is of and the most
+ * it can be; `feeShare` is the part that comes off the fees — all of it for a fees-only
+ * discount, none for a subscription-only one, in proportion for the whole invoice.
+ */
+export function splitInvoiceDiscount(
+  subscription: number,
+  fees: number,
+  discount: InvoiceDiscountInput,
+): { base: number; amount: number; feeShare: number } {
+  const sub = Math.max(0, Math.round(subscription));
+  const fee = Math.max(0, Math.round(fees));
+  const on = discount?.on ?? "all";
+  const base = on === "subscription" ? sub : on === "fees" ? fee : sub + fee;
+  const amount = invoiceDiscount(base, discount);
+  const feeShare = on === "fees" ? amount : on === "subscription" ? 0 : discountFeeShare(amount, fee, sub + fee);
+  return { base, amount, feeShare };
+}
+
+/**
+ * The fees billed on an invoice, by name, as the clinic reads them: "Training",
+ * "Training & implementation", "Training, Data migration and Other" (owner,
+ * 2026-11-18 — the printout names the fee, never "one-time fees").
+ */
+export function feeNames(labels: string[]): string {
+  if (labels.length <= 1) return labels[0] ?? "";
+  return `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
+}
+
+/**
+ * The Discount line's label on the invoice, saying what it was on when not the whole:
+ * "Discount on Training & implementation", "Discount on subscription", "Discount".
+ */
+export function discountLineLabel(on: string, feeLabels: string[] = []): string {
+  if (on === "fees") return feeLabels.length ? `Discount on ${feeNames(feeLabels)}` : "Discount";
+  return on === "subscription" ? "Discount on subscription" : "Discount";
+}
+
 /** "16" / "16.00" / "4.5" → "16" / "16" / "4.5" — a rate as a person writes it. */
 export function formatRate(rate: number | string): string {
   const n = Number(rate);

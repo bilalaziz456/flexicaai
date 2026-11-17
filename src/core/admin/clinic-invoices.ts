@@ -5,6 +5,7 @@ import { db } from "@/core/db";
 import { unscoped } from "@/core/db/tenant-guard";
 import { notDeleted } from "@/core/db/tenant";
 import { newDeleteGroup, restoreValues, softDeleteValues } from "@/core/db/soft-delete";
+import { syncClinicBillingStatus } from "@/core/admin/billing";
 import { clinicInvoices, clinicPayments, cities,
   clinics, companySettings } from "@/core/db/schema";
 import { clinicPaymentKindId } from "@/core/db/vocabulary-seed";
@@ -13,6 +14,8 @@ import {
   localIsoDate,
   type InvoiceStatusFilter,
   type ProvinceTaxMap,
+  splitInvoiceDiscount,
+  type InvoiceDiscountInput,
 } from "@/core/admin/invoice-status";
 import { isProvinceCode } from "@/core/clinics/provinces";
 import { z } from "zod";
@@ -52,6 +55,9 @@ const invoicePaidSql = sql<number>`coalesce((
 ), 0)::int`;
 
 /** What the clinic owes on an invoice: the amount plus any tax on it (0145). */
+/** The first subscription invoice number (owner, 2026-11-18): FA-INV-1001, then 1002… */
+export const FIRST_SUBSCRIPTION_INVOICE_NO = 1001;
+
 const invoiceTotalSql = sql<number>`(${clinicInvoices.amount} + ${clinicInvoices.taxAmount})`;
 
 /** The status filter as SQL — the same rules as `invoiceStatus` (invoice-status.ts). */
@@ -162,8 +168,92 @@ export type IssueInvoiceInput = {
    */
   feeLines?: { feeId: string; kind: string; label: string; amount: number }[];
   tax?: InvoiceTaxInput;
+  /** Off the whole invoice — subscription and fees — before tax (0154). */
+  discount?: InvoiceDiscountInput;
   note: string | null;
 };
+
+/**
+ * The stored discount columns, and the fees' share for the credit, for a subscription
+ * part and fees — one place, for issue and edit (0154 / 0155).
+ */
+function discountColumns(subscription: number, fees: number, discount: InvoiceDiscountInput | undefined) {
+  const split = splitInvoiceDiscount(subscription, fees, discount ?? null);
+  return {
+    columns: {
+      discountAmount: split.amount,
+      discountPercent: split.amount > 0 && discount?.kind === "percent" ? String(Math.round(discount.value * 100) / 100) : null,
+      discountOn: split.amount > 0 ? (discount?.on ?? "all") : "all",
+    },
+    feeShare: split.feeShare,
+    base: split.base,
+  };
+}
+
+/** Refuses a discount typed in rupees that is more than what it comes off. */
+function discountTooBig(subscription: number, fees: number, discount: InvoiceDiscountInput | undefined): string | null {
+  if (!discount || discount.value <= 0) return null;
+  const { base } = splitInvoiceDiscount(subscription, fees, discount);
+  if (base <= 0) {
+    return discount.on === "fees" ? "There are no one-time fees on this invoice to discount." : "There is nothing to discount.";
+  }
+  if (discount.kind === "amount" && discount.value > base) {
+    return discount.on === "fees"
+      ? "The discount is more than the one-time fees."
+      : discount.on === "subscription"
+        ? "The discount is more than the subscription."
+        : "The discount is more than the invoice.";
+  }
+  return null;
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Keeps the CREDIT that carries an invoice's discount to the clinic's balance in step
+ * with it (0154): written when there is a discount, its amount changed with it, voided
+ * when the discount is taken off. The balance never reads invoices, so without this
+ * the rupees forgiven on the invoice would still be owed, and the clinic would go
+ * overdue for them.
+ */
+async function syncDiscountCredit(
+  tx: Tx,
+  inv: { id: string; clinicId: string; label: string },
+  discountAmount: number,
+  /** Of it, the one-time fees' share (`discountFeeShare`). */
+  feeShare: number,
+  actor: { id: string; name: string },
+): Promise<void> {
+  const [credit] = await tx
+    .select({ id: clinicPayments.id })
+    .from(clinicPayments)
+    .where(and(eq(clinicPayments.discountOfInvoiceId, inv.id), notDeleted(clinicPayments.deletedAt)))
+    .limit(1);
+  const note = `Discount on invoice ${inv.label}`;
+  if (discountAmount > 0 && credit) {
+    await tx
+      .update(clinicPayments)
+      .set({ amount: discountAmount, feeAmount: feeShare, note, updatedAt: new Date() })
+      .where(eq(clinicPayments.id, credit.id));
+  } else if (discountAmount > 0) {
+    await tx.insert(clinicPayments).values({
+      clinicId: inv.clinicId,
+      amount: discountAmount,
+      feeAmount: feeShare,
+      kind: "credit",
+      monthsCovered: 0,
+      note,
+      recordedBy: actor.id,
+      recordedByName: actor.name,
+      discountOfInvoiceId: inv.id,
+    });
+  } else if (credit) {
+    await tx
+      .update(clinicPayments)
+      .set(softDeleteValues(actor.id, newDeleteGroup()))
+      .where(eq(clinicPayments.id, credit.id));
+  }
+}
 
 /** A fee line as stored: bounded, whole rupees, never negative. */
 function cleanFeeLines(lines: IssueInvoiceInput["feeLines"]) {
@@ -198,6 +288,9 @@ export async function issueClinicInvoice(
       .where(and(eq(clinics.id, input.clinicId), notDeleted(clinics.deletedAt)))
       .limit(1);
     if (!clinic) return { error: "Clinic not found." };
+    const feeTotal = cleanFeeLines(input.feeLines).reduce((sum, l) => sum + l.amount, 0);
+    const tooBig = discountTooBig(input.amount, feeTotal, input.discount);
+    if (tooBig) return { error: tooBig };
     // Due when the period starts (advance billing, like the balance), plus the same
     // grace the clinic's subscription gets — so an invoice is never "overdue" on a day
     // the clinic itself is not yet late.
@@ -208,12 +301,16 @@ export async function issueClinicInvoice(
       // Lock the singleton settings row so number allocation serializes.
       let [cfg] = await tx.select().from(companySettings).for("update").limit(1);
       if (!cfg) [cfg] = await tx.insert(companySettings).values({}).returning();
-      const allocated = cfg.nextInvoiceNo;
+      // Never below 1001 (owner, 2026-11-18): FA-INV-1001 is the first number.
+      const allocated = Math.max(cfg.nextInvoiceNo, FIRST_SUBSCRIPTION_INVOICE_NO);
       await tx.update(companySettings).set({ nextInvoiceNo: allocated + 1, updatedAt: new Date() }).where(eq(companySettings.id, cfg.id));
 
       const feeLines = cleanFeeLines(input.feeLines);
       const feeAmount = feeLines.reduce((sum, l) => sum + l.amount, 0);
-      const amount = Math.max(0, Math.round(input.amount)) + feeAmount;
+      const before = Math.max(0, Math.round(input.amount)) + feeAmount;
+      const disc = discountColumns(input.amount, feeAmount, input.discount);
+      // Stored AFTER the discount, so tax is on what the clinic actually pays.
+      const amount = before - disc.columns.discountAmount;
       const [inv] = await tx
         .insert(clinicInvoices)
         .values({
@@ -225,6 +322,7 @@ export async function issueClinicInvoice(
           amount,
           feeLines,
           feeAmount,
+          ...disc.columns,
           ...taxColumns(amount, input.tax ?? null),
           note: input.note?.slice(0, 500) || null,
           issuedBy: actor.id,
@@ -232,8 +330,21 @@ export async function issueClinicInvoice(
         })
         .returning({ id: clinicInvoices.id });
 
-      return { id: inv.id, invoiceNo: allocated, label: `${cfg.invoicePrefix}${allocated}` };
+      const label = `${cfg.invoicePrefix}${allocated}`;
+      await syncDiscountCredit(
+        tx,
+        { id: inv.id, clinicId: input.clinicId, label },
+        disc.columns.discountAmount,
+        disc.feeShare,
+        actor,
+      );
+      return { id: inv.id, invoiceNo: allocated, label };
     });
+  }).then(async (res) => {
+    // The credit may have settled the clinic's balance; its status follows (outside the
+    // transaction, as `recordClinicPayment` does).
+    if (!("error" in res)) await syncClinicBillingStatus(input.clinicId);
+    return res;
   });
 }
 
@@ -252,6 +363,12 @@ export type ClinicInvoiceRow = {
   amount: number;
   /** Of `amount`, the one-time fees billed on it (0152). */
   feeAmount: number;
+  /** Off the invoice before tax, already taken out of `amount` (0154). */
+  discountAmount: number;
+  /** As typed, when the discount was given as a percentage; else null. */
+  discountPercent: number | null;
+  /** What it was on: 'all' | 'subscription' | 'fees' (0155). */
+  discountOn: string;
   taxLabel: string | null;
   taxRate: number | null;
   taxAmount: number;
@@ -328,6 +445,9 @@ export async function listClinicInvoices(
           dueOn: clinicInvoices.dueOn,
           amount: clinicInvoices.amount,
           feeAmount: clinicInvoices.feeAmount,
+          discountAmount: clinicInvoices.discountAmount,
+          discountPercent: clinicInvoices.discountPercent,
+          discountOn: clinicInvoices.discountOn,
           taxLabel: clinicInvoices.taxLabel,
           taxRate: clinicInvoices.taxRate,
           taxAmount: clinicInvoices.taxAmount,
@@ -375,6 +495,7 @@ export async function listClinicInvoices(
       rows: rows.map(({ deletedAt, ...r }) => ({
         ...r,
         taxRate: r.taxRate === null ? null : Number(r.taxRate),
+        discountPercent: r.discountPercent === null ? null : Number(r.discountPercent),
         total: r.amount + r.taxAmount,
         paid: Number(r.paid),
         label: `${invoicePrefix}${r.invoiceNo}`,
@@ -413,7 +534,16 @@ export async function setPaymentInvoice(
     const res = await db
       .update(clinicPayments)
       .set({ invoiceId, updatedAt: new Date() })
-      .where(and(eq(clinicPayments.id, paymentId), eq(clinicPayments.clinicId, clinicId), notDeleted(clinicPayments.deletedAt)))
+      .where(
+        and(
+          eq(clinicPayments.id, paymentId),
+          eq(clinicPayments.clinicId, clinicId),
+          notDeleted(clinicPayments.deletedAt),
+          // An invoice's discount credit (0154) is already counted off that invoice;
+          // linking it as a payment would count it twice.
+          isNull(clinicPayments.discountOfInvoiceId),
+        ),
+      )
       .returning({ id: clinicPayments.id });
     return res.length > 0 ? { ok: true } : { error: "Payment not found." };
   });
@@ -520,11 +650,15 @@ export type EditInvoiceInput = {
    */
   amount: number;
   tax: InvoiceTaxInput;
+  /** Off the whole invoice before tax (0154). Null or absent = none. */
+  discount?: InvoiceDiscountInput;
   note: string | null;
 };
 
 type InvoiceFields = {
   amount: number;
+  /** In rupees — what the invoice prints. */
+  discountAmount: number;
   /** "Sales tax 16%", or null for none — one comparable value for the audit line. */
   tax: string | null;
   taxAmount: number;
@@ -560,6 +694,7 @@ export async function updateClinicInvoice(
         clinicId: clinicInvoices.clinicId,
         amount: clinicInvoices.amount,
         feeAmount: clinicInvoices.feeAmount,
+        discountAmount: clinicInvoices.discountAmount,
         taxLabel: clinicInvoices.taxLabel,
         taxRate: clinicInvoices.taxRate,
         taxAmount: clinicInvoices.taxAmount,
@@ -575,10 +710,16 @@ export async function updateClinicInvoice(
       .limit(1);
     if (!cur) return { error: "Invoice not found, or it was voided. Restore it to edit it." };
 
-    const amount = Math.max(0, Math.round(input.amount)) + cur.feeAmount;
+    const preTax = Math.max(0, Math.round(input.amount)) + cur.feeAmount;
+    const tooBig = discountTooBig(input.amount, cur.feeAmount, input.discount);
+    if (tooBig) return { error: tooBig };
+    const disc = discountColumns(input.amount, cur.feeAmount, input.discount);
+    const amount = preTax - disc.columns.discountAmount;
     const taxCols = taxColumns(amount, input.tax);
+    const label = `${invoicePrefix}${cur.invoiceNo}`;
     const after: InvoiceFields = {
       amount,
+      discountAmount: disc.columns.discountAmount,
       tax: taxText(taxCols.taxLabel, taxCols.taxRate),
       taxAmount: taxCols.taxAmount,
       periodStart: input.periodStart,
@@ -588,22 +729,34 @@ export async function updateClinicInvoice(
         addDaysIso(input.periodStart ?? isoDate(new Date()), Math.max(0, cur.graceDays ?? 0)),
       note: input.note?.trim() || null,
     };
-    await db
-      .update(clinicInvoices)
-      .set({
-        amount: after.amount,
-        ...taxCols,
-        periodStart: after.periodStart,
-        periodEnd: after.periodEnd,
-        dueOn: after.dueOn,
-        note: after.note,
-        updatedAt: new Date(),
-        updatedBy: actor.id,
-        updatedByName: actor.name,
-      })
-      .where(eq(clinicInvoices.id, id));
+    await db.transaction(async (tx) => {
+      await tx
+        .update(clinicInvoices)
+        .set({
+          amount: after.amount,
+          ...disc.columns,
+          ...taxCols,
+          periodStart: after.periodStart,
+          periodEnd: after.periodEnd,
+          dueOn: after.dueOn,
+          note: after.note,
+          updatedAt: new Date(),
+          updatedBy: actor.id,
+          updatedByName: actor.name,
+        })
+        .where(eq(clinicInvoices.id, id));
+      await syncDiscountCredit(
+        tx,
+        { id, clinicId: cur.clinicId, label },
+        disc.columns.discountAmount,
+        disc.feeShare,
+        actor,
+      );
+    });
+    if (disc.columns.discountAmount !== cur.discountAmount) await syncClinicBillingStatus(cur.clinicId);
     const before: InvoiceFields = {
       amount: cur.amount,
+      discountAmount: cur.discountAmount,
       tax: taxText(cur.taxLabel, cur.taxRate),
       taxAmount: cur.taxAmount,
       periodStart: cur.periodStart,
@@ -611,29 +764,63 @@ export async function updateClinicInvoice(
       dueOn: cur.dueOn,
       note: cur.note,
     };
-    return { ok: true, label: `${invoicePrefix}${cur.invoiceNo}`, clinicId: cur.clinicId, before, after };
+    return { ok: true, label, clinicId: cur.clinicId, before, after };
   });
 }
 
+/**
+ * Voids an invoice — and, under the same delete group, the credit its discount wrote
+ * (0154): a discount on an invoice that no longer exists is not owed to the clinic.
+ */
 export async function voidClinicInvoice(id: string, actorId: string): Promise<boolean> {
   return unscoped("admin: void clinic invoice", async () => {
-    const res = await db
-      .update(clinicInvoices)
-      .set(softDeleteValues(actorId, newDeleteGroup()))
-      .where(and(notDeleted(clinicInvoices.deletedAt), eq(clinicInvoices.id, id)))
-      .returning({ id: clinicInvoices.id });
-    return res.length > 0;
+    const group = newDeleteGroup();
+    const res = await db.transaction(async (tx) => {
+      const rows = await tx
+        .update(clinicInvoices)
+        .set(softDeleteValues(actorId, group))
+        .where(and(notDeleted(clinicInvoices.deletedAt), eq(clinicInvoices.id, id)))
+        .returning({ id: clinicInvoices.id, clinicId: clinicInvoices.clinicId });
+      if (rows.length === 0) return null;
+      const credits = await tx
+        .update(clinicPayments)
+        .set({ ...softDeleteValues(actorId, group), deletedByCascade: true })
+        .where(and(eq(clinicPayments.discountOfInvoiceId, id), notDeleted(clinicPayments.deletedAt)))
+        .returning({ id: clinicPayments.id });
+      return { clinicId: rows[0].clinicId, credit: credits.length > 0 };
+    });
+    if (res?.credit) await syncClinicBillingStatus(res.clinicId);
+    return res !== null;
   });
 }
 
+/** Restores a voided invoice, and the discount credit that was voided WITH it. */
 export async function restoreClinicInvoice(id: string): Promise<boolean> {
   return unscoped("admin: restore clinic invoice", async () => {
-    const res = await db
-      .update(clinicInvoices)
-      .set(restoreValues())
-      .where(eq(clinicInvoices.id, id))
-      .returning({ id: clinicInvoices.id });
-    return res.length > 0;
+    const res = await db.transaction(async (tx) => {
+      const [cur] = await tx
+        .select({ group: clinicInvoices.deleteGroup })
+        .from(clinicInvoices)
+        .where(eq(clinicInvoices.id, id))
+        .limit(1);
+      const rows = await tx
+        .update(clinicInvoices)
+        .set(restoreValues())
+        .where(eq(clinicInvoices.id, id))
+        .returning({ id: clinicInvoices.id, clinicId: clinicInvoices.clinicId });
+      if (rows.length === 0) return null;
+      // Only the credit voided in the same act: one an edit took off stays off.
+      const credits = cur?.group
+        ? await tx
+            .update(clinicPayments)
+            .set(restoreValues())
+            .where(and(eq(clinicPayments.discountOfInvoiceId, id), eq(clinicPayments.deleteGroup, cur.group)))
+            .returning({ id: clinicPayments.id })
+        : [];
+      return { clinicId: rows[0].clinicId, credit: credits.length > 0 };
+    });
+    if (res?.credit) await syncClinicBillingStatus(res.clinicId);
+    return res !== null;
   });
 }
 
@@ -656,8 +843,12 @@ export type ClinicInvoicePrint = {
   issuedByName: string | null;
   /** One-time fees billed on it (0152), as invoiced; included in `amount`. */
   feeLines: { label: string; amount: number }[];
-  /** `amount` less the fees — the subscription line. */
+  /** The subscription line BEFORE the discount: `amount − fees + discount`. */
   subscriptionAmount: number;
+  /** Off the invoice before tax, in rupees (0154) — printed as a line of its own. */
+  discountAmount: number;
+  /** What it was on (0155) — names the line ("Discount on one-time fees"). */
+  discountOn: string;
   /** Money recorded against this invoice, oldest first — printed as "Payments received". */
   payments: { occurredAt: Date; amount: number; kind: string; method: string | null; reference: string | null }[];
   clinic: {
@@ -679,6 +870,8 @@ export async function getClinicInvoiceForPrint(id: string): Promise<ClinicInvoic
         amount: clinicInvoices.amount,
         feeLines: clinicInvoices.feeLines,
         feeAmount: clinicInvoices.feeAmount,
+        discountAmount: clinicInvoices.discountAmount,
+        discountOn: clinicInvoices.discountOn,
         taxLabel: clinicInvoices.taxLabel,
         taxRate: clinicInvoices.taxRate,
         taxAmount: clinicInvoices.taxAmount,
@@ -730,7 +923,9 @@ export async function getClinicInvoiceForPrint(id: string): Promise<ClinicInvoic
       periodEnd: row.periodEnd,
       dueOn: row.dueOn,
       feeLines: parseFeeLines(row.feeLines),
-      subscriptionAmount: Math.max(0, row.amount - row.feeAmount),
+      subscriptionAmount: Math.max(0, row.amount - row.feeAmount + row.discountAmount),
+      discountAmount: row.discountAmount,
+      discountOn: row.discountOn,
       payments,
       note: row.note,
       issuedAt: row.issuedAt,

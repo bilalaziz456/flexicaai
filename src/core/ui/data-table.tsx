@@ -211,7 +211,9 @@ export function DataTable<T>({
                           // columns rendered Title Case while the non-sortable ones beside them
                           // were uppercase — two header styles inside one table.
                           "inline-flex min-h-6 items-center gap-1 rounded text-2xs font-semibold tracking-[0.07em] uppercase outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60",
-                          c.align === "right" && "flex-row-reverse",
+                          // The arrow is always AFTER the heading (owner, 2026-11-17). It was
+                          // flipped before the label on right-aligned columns, so one table had
+                          // arrows on both sides.
                           active && "text-foreground",
                         )}
                         aria-label={`Sort by ${labelOf(c)}`}

@@ -60,6 +60,8 @@ const fmtDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", mon
  * Record payment `billing:create`. A team member who is not a full admin sees only the
  * clinics they manage — the same scope as the clinic pages themselves.
  */
+const INVOICE_PAGE_SIZES = [10, 20, 50, 100] as const;
+
 export default async function ClinicInvoicesPage({
   searchParams,
 }: {
@@ -77,7 +79,8 @@ export default async function ClinicInvoicesPage({
   const range = resolveSalesRange(sp.period ?? "year", sp.from, sp.to);
   const deleted = sp.deleted === "1";
   const page = parsePage(sp.page);
-  const pageSize = parsePageSize(sp.size);
+  // Same choices as the clinic page's payment history (owner, 2026-11-17).
+  const pageSize = parsePageSize(sp.size, INVOICE_PAGE_SIZES);
 
   const status = isInvoiceStatusFilter(sp.status) ? sp.status : undefined;
   const today = localIsoDate(new Date());
@@ -222,6 +225,17 @@ export default async function ClinicInvoicesPage({
           <CardDescription>{rangeLabel}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* The pager sits ABOVE the table, like the payment history's. */}
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            basePath="/admin/finance/invoices"
+            searchParams={sp}
+            unit="invoice"
+            sizeOptions={INVOICE_PAGE_SIZES}
+            keepParams={["deleted"]}
+          />
           {rows.length === 0 ? (
             <EmptyState
               compact
@@ -317,8 +331,12 @@ export default async function ClinicInvoicesPage({
                             label: r.label,
                             clinicName: r.clinicName,
                             clinicProvince: r.clinicProvince,
-                            amount: r.amount - r.feeAmount,
+                            // The subscription as typed, before the discount (0154).
+                            amount: r.amount - r.feeAmount + r.discountAmount,
                             feeAmount: r.feeAmount,
+                            discountAmount: r.discountAmount,
+                            discountPercent: r.discountPercent,
+                            discountOn: r.discountOn,
                             taxLabel: r.taxLabel,
                             taxRate: r.taxRate,
                             paid: r.paid,
@@ -340,7 +358,6 @@ export default async function ClinicInvoicesPage({
               </TableBody>
             </Table>
           )}
-          <Pagination page={page} pageSize={pageSize} total={total} basePath="/admin/finance/invoices" searchParams={sp} unit="invoice" />
         </CardContent>
       </Card>
     </div>

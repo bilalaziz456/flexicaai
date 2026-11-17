@@ -226,6 +226,12 @@ export const clinicPayments = pgTable(
     // money can never be counted as months paid; the fees' paid figure reads this.
     // Same sign rule as the amount: a refund's fee share comes back off the fees.
     feeAmount: integer("fee_amount").notNull().default(0),
+    // Set on the CREDIT a discounted invoice writes (0154): which invoice's discount
+    // it is. Written, changed, voided and restored only with that invoice
+    // (`core/admin/clinic-invoices.ts`), never linked to an invoice as a payment.
+    discountOfInvoiceId: uuid("discount_of_invoice_id").references(() => clinicInvoices.id, {
+      onDelete: "set null",
+    }),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
     recordedBy: uuid("recorded_by"),
     recordedByName: text("recorded_by_name"),
@@ -395,7 +401,10 @@ export const companyExpenses = pgTable(
  */
 export const companySettings = pgTable("company_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
-  nextInvoiceNo: integer("next_invoice_no").notNull().default(1),
+  // Subscription invoices are numbered from 1001 (owner, 2026-11-18: FA-INV-1001,
+  // …1999, 2000…). Migration 0156 lifted the counter; `issueClinicInvoice` also never
+  // allocates below `FIRST_SUBSCRIPTION_INVOICE_NO`, so a fresh database starts there too.
+  nextInvoiceNo: integer("next_invoice_no").notNull().default(1001),
   // "FA" for FlexicaAI (owner, 2026-11-11; was "KL-INV-", a placeholder — migration
   // 0144). The label is prefix + number, worked out on every read, so a change of
   // prefix re-labels invoices already issued too.
@@ -490,6 +499,20 @@ export const clinicInvoices = pgTable(
       .notNull()
       .default([]),
     feeAmount: integer("fee_amount").notNull().default(0),
+    // Discount given on the SUBSCRIPTION part (migration 0154, owner 2026-11-17), in
+    // rupees — the invoice prints only this. `amount` is already AFTER it (so every
+    // total, tax and status query is unchanged); the subscription line before the
+    // discount is `amount − fee_amount + discount_amount`. `discount_percent` is what
+    // was typed when it was given as a percentage (NULL = typed in rupees), kept only
+    // so the edit form opens as it was entered. Each discount also writes a CREDIT
+    // to the clinic (`clinic_payments.discount_of_invoice_id`), or the clinic's
+    // balance — which never reads invoices — would still count the rupees forgiven.
+    discountAmount: integer("discount_amount").notNull().default(0),
+    discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }),
+    // What the discount was on (0155): 'all' (subscription and one-time fees),
+    // 'subscription' or 'fees' (`core/admin/invoice-status.ts#DISCOUNT_SCOPES`). Decides
+    // what a % is of, and how the discount credit splits between the two balances.
+    discountOn: text("discount_on").notNull().default("all"),
     note: text("note"),
     // When the invoice must be paid by (migration 0142). Unpaid after this = Overdue.
     // Set at issue: the period start (or the issue day) plus the clinic's grace days,
@@ -533,7 +556,8 @@ export const clinicFees = pgTable(
     clinicId: uuid("clinic_id")
       .notNull()
       .references(() => clinics.id, { onDelete: "cascade" }),
-    // training | implementation | data_migration | other (`core/admin/clinic-fee-kinds`).
+    // training_implementation | training | implementation | data_migration | other
+    // (`core/admin/clinic-fee-rules.ts#FEE_KINDS`).
     // Free text, not an enum, so a new kind needs no migration.
     kind: text("kind").notNull(),
     description: text("description"),

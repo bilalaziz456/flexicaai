@@ -56,13 +56,13 @@ export function ClinicFees({
   canCreate: boolean;
   canDelete: boolean;
 }) {
-  const [kind, setKind] = useState<FeeKind>("training");
+  const [kind, setKind] = useState<FeeKind>(FEE_KINDS[0].code);
   const [chargedOn, setChargedOn] = useState(today);
   const [state, formAction, pending] = useActionState<AdminActionState, FormData>(
     async (prev, fd) => {
       const res = await addClinicFeeAction(clinicId, prev, fd);
       if (res.saved) {
-        setKind("training");
+        setKind(FEE_KINDS[0].code);
         setChargedOn(today);
       }
       return res;

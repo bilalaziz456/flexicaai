@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql, or } from "drizzle-orm";
 import { db } from "@/core/db";
 import { unscoped } from "@/core/db/tenant-guard";
 import { notDeleted } from "@/core/db/tenant";
@@ -33,13 +33,12 @@ const liveInvoiceOfFee = sql<number | null>`(
   limit 1
 )`;
 
-/** Σ signed fee money a clinic has paid (payment +, refund −, credit 0). */
+/** Σ signed fee money a clinic has paid (payment and an invoice-discount credit +, refund −). */
 async function feeMoneyPaid(clinicId: string): Promise<number> {
   const [row] = await db
     .select({
       v: sql<number>`coalesce(sum(case
         when ${clinicPayments.kind} = ${clinicPaymentKindId("refund")} then -${clinicPayments.feeAmount}
-        when ${clinicPayments.kind} = ${clinicPaymentKindId("credit")} then 0
         else ${clinicPayments.feeAmount} end), 0)::int`,
     })
     .from(clinicPayments)
@@ -126,11 +125,17 @@ export async function invoiceFeesOwed(invoiceId: string): Promise<number> {
       .select({
         v: sql<number>`coalesce(sum(case
           when ${clinicPayments.kind} = ${clinicPaymentKindId("refund")} then -${clinicPayments.feeAmount}
-          when ${clinicPayments.kind} = ${clinicPaymentKindId("credit")} then 0
           else ${clinicPayments.feeAmount} end), 0)::int`,
       })
       .from(clinicPayments)
-      .where(and(eq(clinicPayments.invoiceId, invoiceId), notDeleted(clinicPayments.deletedAt)));
+      // The invoice's own discount credit (0154) is not linked as a payment, but its fee
+      // share is off these fees all the same.
+      .where(
+        and(
+          or(eq(clinicPayments.invoiceId, invoiceId), eq(clinicPayments.discountOfInvoiceId, invoiceId)),
+          notDeleted(clinicPayments.deletedAt),
+        ),
+      );
     return Math.max(0, inv.feeAmount - Number(row?.v ?? 0));
   });
 }

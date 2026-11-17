@@ -8,7 +8,10 @@
  * money is never counted as months paid.
  */
 
+// The first is what the Add fee form opens on: training and implementation are usually
+// charged together (owner, 2026-11-17).
 export const FEE_KINDS = [
+  { code: "training_implementation", label: "Training & implementation" },
   { code: "training", label: "Training" },
   { code: "implementation", label: "Implementation" },
   { code: "data_migration", label: "Data migration" },
@@ -33,19 +36,18 @@ export function feeLineLabel(kind: string, description: string | null | undefine
 }
 
 /**
- * The part of a ledger entry that counts toward the SUBSCRIPTION. A credit is never
- * fee money; anything else gives its fee share to the fees. Clamped so a bad row can
- * never make the subscription share negative or larger than the entry.
+ * The part of a ledger entry that counts toward the SUBSCRIPTION; its fee share goes to
+ * the fees. A credit carries one only when it is an invoice discount that covered
+ * one-time fees (0154) — every other credit has none. Clamped so a bad row can never
+ * make the subscription share negative or larger than the entry.
  */
 export function subscriptionShare(p: { amount: number; feeAmount?: number | null; kind?: string }): number {
-  if (p.kind === "credit") return p.amount;
   const fee = Math.min(Math.max(0, p.feeAmount ?? 0), p.amount);
   return p.amount - fee;
 }
 
-/** The signed fee money in a ledger entry: + for a payment, − for a refund, 0 for a credit. */
+/** The signed fee money in a ledger entry: + for a payment or credit, − for a refund. */
 export function signedFeeShare(p: { amount: number; feeAmount?: number | null; kind?: string }): number {
-  if (p.kind === "credit") return 0;
   const fee = Math.min(Math.max(0, p.feeAmount ?? 0), p.amount);
   return p.kind === "refund" ? -fee : fee;
 }

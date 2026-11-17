@@ -1079,6 +1079,27 @@
       "when": 1794860145453,
       "tag": "0153_trial_notice",
       "breakpoints": true
+    },
+    {
+      "idx": 154,
+      "version": "7",
+      "when": 1794941394953,
+      "tag": "0154_invoice_discount",
+      "breakpoints": true
+    },
+    {
+      "idx": 155,
+      "version": "7",
+      "when": 1794942382689,
+      "tag": "0155_invoice_discount_on",
+      "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1794943887595,
+      "tag": "0156_invoice_numbers_from_1000",
+      "breakpoints": true
     }
   ]
 }

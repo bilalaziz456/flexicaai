@@ -20,6 +20,7 @@ export function PageSizeSelect({
   pageParam = "page",
   sizeParam = "size",
   options: choices = PAGE_SIZE_OPTIONS,
+  keepParams = [],
 }: {
   size: number;
   basePath: string;
@@ -27,13 +28,15 @@ export function PageSizeSelect({
   pageParam?: string;
   sizeParam?: string;
   options?: readonly number[];
+  /** See `Pagination#keepParams`. */
+  keepParams?: readonly string[];
 }) {
   const router = useRouter();
 
   const change = (value: string) => {
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(searchParams)) {
-      if (v && !DROP.has(k) && k !== pageParam && k !== sizeParam) params.set(k, v);
+      if (v && (!DROP.has(k) || keepParams.includes(k)) && k !== pageParam && k !== sizeParam) params.set(k, v);
     }
     params.set(sizeParam, value);
     const s = params.toString();

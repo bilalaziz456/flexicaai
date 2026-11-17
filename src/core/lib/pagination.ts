@@ -10,12 +10,13 @@ export function parsePage(raw: string | undefined): number {
   return Number.isInteger(n) && n >= 1 ? n : 1;
 }
 
-/** Parses a `?size=` value into an allowed page size (defaults to 20). */
-export function parsePageSize(raw: string | undefined): number {
+/** Parses a `?size=` value into one of `options` (default 20 / 50 / 100); else the first. */
+export function parsePageSize(
+  raw: string | undefined,
+  options: readonly number[] = PAGE_SIZE_OPTIONS,
+): number {
   const n = Number(raw);
-  return (PAGE_SIZE_OPTIONS as readonly number[]).includes(n)
-    ? n
-    : DEFAULT_PAGE_SIZE;
+  return options.includes(n) ? n : options[0];
 }
 
 /** SQL OFFSET for a 1-based page. */

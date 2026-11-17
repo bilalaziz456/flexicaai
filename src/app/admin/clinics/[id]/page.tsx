@@ -283,6 +283,7 @@ export default async function ClinicDetailPage({
                 recordedByName: p.recordedByName,
                 invoiceId: p.invoiceId,
                 feeAmount: p.feeAmount,
+                discountOfInvoiceId: p.discountOfInvoiceId,
               }))}
               invoices={invoices.map((i) => ({
                 id: i.id,

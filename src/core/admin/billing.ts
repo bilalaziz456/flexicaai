@@ -172,6 +172,8 @@ export type ClinicPaymentRow = {
   invoiceId: string | null;
   /** How much of `amount` was for one-time fees (0152); the rest is subscription. */
   feeAmount: number;
+  /** Set on the credit an invoice's discount wrote (0154): changed only with that invoice. */
+  discountOfInvoiceId: string | null;
 };
 
 /** Reads a clinic + its live payment ledger and derives the balance. */
@@ -215,6 +217,7 @@ export async function getClinicBilling(clinicId: string): Promise<{
       occurredAt: clinicPayments.occurredAt,
       recordedByName: clinicPayments.recordedByName,
       invoiceId: clinicPayments.invoiceId,
+      discountOfInvoiceId: clinicPayments.discountOfInvoiceId,
       feeAmount: clinicPayments.feeAmount,
     })
     .from(clinicPayments)
@@ -250,10 +253,9 @@ export async function getClinicBalanceSummary(
       months: sql<number>`coalesce(sum(${clinicPayments.monthsCovered}),0)`,
       // Sign-aware: a refund subtracts from the paid balance. The SUBSCRIPTION share only
       // (`subscriptionShare`): the part of a payment that was for one-time fees is not
-      // months paid (0152). A credit carries no fee share.
+      // months paid (0152). A credit's fee share (an invoice discount on fees, 0154) too.
       amount: sql<number>`coalesce(sum(case
         when ${clinicPayments.kind} = ${clinicPaymentKindId("refund")} then -(${clinicPayments.amount} - least(greatest(${clinicPayments.feeAmount}, 0), ${clinicPayments.amount}))
-        when ${clinicPayments.kind} = ${clinicPaymentKindId("credit")} then ${clinicPayments.amount}
         else ${clinicPayments.amount} - least(greatest(${clinicPayments.feeAmount}, 0), ${clinicPayments.amount}) end),0)`,
     })
     .from(clinicPayments)
@@ -506,11 +508,16 @@ export async function voidClinicPayment(
   actorId: string,
 ): Promise<{ error: string } | { ok: true }> {
   const [row] = await db
-    .select({ id: clinicPayments.id })
+    .select({ id: clinicPayments.id, discountOfInvoiceId: clinicPayments.discountOfInvoiceId })
     .from(clinicPayments)
     .where(and(eq(clinicPayments.clinicId, clinicId), eq(clinicPayments.id, paymentId), notDeleted(clinicPayments.deletedAt)))
     .limit(1);
   if (!row) return { error: "Payment not found." };
+  // An invoice's discount credit follows its invoice (0154); voiding it alone would
+  // leave the invoice discounted and the clinic owing the discount again.
+  if (row.discountOfInvoiceId) {
+    return { error: "This credit is an invoice's discount. Change the discount on the invoice, or void the invoice." };
+  }
 
   await db
     .update(clinicPayments)

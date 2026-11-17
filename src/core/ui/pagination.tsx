@@ -36,6 +36,7 @@ export function Pagination({
   pageParam = "page",
   sizeParam = "size",
   sizeOptions,
+  keepParams = [],
 }: {
   page: number;
   pageSize: number;
@@ -49,6 +50,9 @@ export function Pagination({
   sizeParam?: string;
   /** The "N / page" choices, when the list's default differs from 20 / 50 / 100. */
   sizeOptions?: readonly number[];
+  /** Params this list uses as a FILTER though their name is a flash flag elsewhere —
+   *  the invoice register's `deleted=1` is its Voided view, and must survive paging. */
+  keepParams?: readonly string[];
 }) {
   if (total <= 0) return null;
 
@@ -64,7 +68,7 @@ export function Pagination({
   const href = (p: number) => {
     const sp = new URLSearchParams();
     for (const [k, v] of Object.entries(searchParams)) {
-      if (v && !EXCLUDED_KEYS.has(k) && k !== pageParam) sp.set(k, v);
+      if (v && (!EXCLUDED_KEYS.has(k) || keepParams.includes(k)) && k !== pageParam) sp.set(k, v);
     }
     if (p > 1) sp.set(pageParam, String(p));
     const s = sp.toString();
@@ -91,6 +95,7 @@ export function Pagination({
           pageParam={pageParam}
           sizeParam={sizeParam}
           options={sizeOptions}
+          keepParams={keepParams}
         />
         {totalPages > 1 ? (
           <>
