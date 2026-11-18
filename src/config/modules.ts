@@ -136,6 +136,17 @@ export function clinicalSchemasFor(modulesEnabled: readonly ModuleId[]): {
   return {};
 }
 
+/**
+ * The empty note "Type the note" opens on, from the first enabled module that
+ * declares one; `undefined` → core's generic note (`core/clinical/note-template.ts`).
+ */
+export function blankNoteFor(modulesEnabled: readonly ModuleId[]): ModuleDefinition["blankNote"] {
+  for (const m of loadModules(modulesEnabled)) {
+    if (m.blankNote) return m.blankNote;
+  }
+  return undefined;
+}
+
 /** The specialty ids a clinic is allowed to enable right now. */
 export function availableSpecialtyIds(): ModuleId[] {
   return SPECIALTY_CATALOG.filter((s) => s.status === "available").map(

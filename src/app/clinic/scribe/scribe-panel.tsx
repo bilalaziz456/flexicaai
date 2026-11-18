@@ -1,8 +1,9 @@
 import { can } from "@/core/auth/permissions";
+import { medicineSuggestions } from "@/core/clinical/medicines";
 import type { CurrentUser } from "@/core/types/auth";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { getPatient } from "@/core/patients/manage";
-import { clinicalRecordFor } from "@/config/modules";
+import { blankNoteFor, clinicalRecordFor } from "@/config/modules";
 import { clinicHasFeature } from "@/core/lib/features";
 import { getDayQueue } from "@/core/appointments/queue";
 import { listStrandedDrafts } from "@/core/clinical/drafts";
@@ -143,6 +144,8 @@ export async function ScribePanel({
       : null;
 
   const recentVisits = recentPage.rows;
+  // What a typed note's prescription rows suggest — only fetched for someone who types.
+  const medicineList = canType ? await medicineSuggestions(clinicId, clinicRow?.modulesEnabled ?? []) : [];
 
   return (
     <div className="space-y-6">
@@ -228,6 +231,8 @@ export async function ScribePanel({
             forAppointment={forAppointment}
             appointmentPatient={forAppointment && apptRow ? { id: apptRow.patientId, fullName: apptRow.patientName, phone: apptRow.patientPhone } : null}
             doctors={activeDoctors.filter((d) => d.id !== user.id).map((d) => ({ id: d.id, name: d.name }))}
+            blankNote={blankNoteFor(clinicRow?.modulesEnabled ?? [])}
+            medicineSuggestions={medicineList}
           />
         </div>
       ) : scribeOn ? (

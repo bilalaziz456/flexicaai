@@ -3,7 +3,9 @@
 import { useRef, useState, useTransition } from "react";
 import { DictationPlayer } from "@/core/ui/dictation-player";
 import { RecordingIndicator } from "@/app/clinic/scribe/recording-indicator";
-import { FileClock, Loader2, Mic, PenLine, Square, UserX, X } from "lucide-react";
+import { FileClock, Loader2, Mic, PenLine, Plus, Square, UserX, X } from "lucide-react";
+import { MedicineRow, type MedicineOption } from "@/app/clinic/patients/medicine-row";
+import type { Medication } from "@/core/lib/medical-history";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
 import {
@@ -16,6 +18,7 @@ import {
 import { NoteEditor } from "@/core/ui/note-editor";
 import { SelectField } from "@/core/ui/select-field";
 import { clinicalUiFor } from "@/config/clinical-record-ui";
+import { blankNoteFrom } from "@/core/clinical/note-template";
 import {
   approveVisit,
   discardDraft,
@@ -61,6 +64,8 @@ export function ScribeWorkspace({
   forAppointment = null,
   appointmentPatient = null,
   doctors = [],
+  blankNote,
+  medicineSuggestions = [],
 }: {
   /** Your own drafts that were never approved — see PendingApproval below. */
   pendingDrafts?: PendingDraft[];
@@ -83,6 +88,10 @@ export function ScribeWorkspace({
   /** The clinic's doctors other than you, for "Whose patient" on a typed note written
    *  without an appointment. Empty = it is your own patient. */
   doctors?: { id: string; name: string }[];
+  /** The empty note "Type the note" opens on — the specialty's, else core's generic. */
+  blankNote?: Readonly<Record<string, unknown>>;
+  /** The medicine names a typed note's prescription rows suggest (clinic's, then master). */
+  medicineSuggestions?: readonly MedicineOption[];
 }) {
   const clinicalUi = clinicalUiFor(modulesEnabled);
   const [patient, setPatient] = useState<Patient | null>(writeFor ?? appointmentPatient);
@@ -104,7 +113,12 @@ export function ScribeWorkspace({
   const [liveStream, setLiveStream] = useState<MediaStream | null>(null);
   const [processing, setProcessing] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [note, setNote] = useState<Record<string, unknown>>({});
+  // A typed note opens on the empty note's fields (2026-11-18) — the editor shows only
+  // the keys a note has, so `{}` was a form with nothing to type into.
+  const [note, setNote] = useState<Record<string, unknown>>(() => (writeFor ? blankNoteFrom(blankNote) : {}));
+  // A typed note's medicines, entered as on the patient's Prescriptions card (owner,
+  // 2026-11-18); the server writes them into the note and the patient's prescription.
+  const [rxItems, setRxItems] = useState<Medication[]>([{ name: "" }]);
   // The specialty chart the doctor confirms (e.g. odontogram). It starts as the
   // patient's CURRENT chart and is saved only if the doctor changes it (owner's call,
   // 2026-10-24) — a misheard dictation must not quietly re-mark a tooth. What the note
@@ -130,6 +144,7 @@ export function ScribeWorkspace({
     setTypedWarnings(null);
     setDraft(null);
     setNote({});
+    setRxItems([{ name: "" }]);
     setChart(null);
     setChartBaseline("null");
     setChartSuggestion(null);
@@ -155,6 +170,7 @@ export function ScribeWorkspace({
     if (!patient) return;
     reset();
     setTyping(true);
+    setNote(blankNoteFrom(blankNote));
     void seedChart(patient.id, {});
   }
 
@@ -357,7 +373,7 @@ export function ScribeWorkspace({
         const r = await saveTypedNote(patient.id, note, chartChanged ? chart : undefined, typedWarnings !== null, {
           appointmentId: appt?.id ?? null,
           doctorId: appt ? null : forDoctor || null,
-        });
+        }, rxItems);
         if ("warnings" in r) setTypedWarnings(r.warnings);
         else if ("error" in r) setError(r.error);
         else {
@@ -475,6 +491,35 @@ export function ScribeWorkspace({
               if (typing) setTypedWarnings(null);
             }}
           />
+
+          {typing && !draft ? (
+            // The same medicine rows as the patient's Prescriptions card: the lines
+            // become this patient's prescription when the note is saved (approved).
+            <div className="space-y-2" role="group" aria-label="Prescription">
+              <p className="text-sm font-medium">Prescription</p>
+              {rxItems.map((m, i) => (
+                <MedicineRow
+                  key={i}
+                  value={m}
+                  showNote
+                  showInstruction
+                  suggestions={medicineSuggestions}
+                  namePlaceholder="Medicine, e.g. Augmentin"
+                  onChange={(next) => {
+                    setRxItems((prev) => prev.map((x, j) => (j === i ? next : x)));
+                    setTypedWarnings(null);
+                  }}
+                  onRemove={() => setRxItems((prev) => (prev.length > 1 ? prev.filter((_, j) => j !== i) : [{ name: "" }]))}
+                />
+              ))}
+              <Button type="button" size="sm" variant="outline" onClick={() => setRxItems((prev) => [...prev, { name: "" }])}>
+                <Plus className="size-4" aria-hidden="true" /> Medicine
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Saved to the patient&apos;s prescriptions too, ready to print, download or send.
+              </p>
+            </div>
+          ) : null}
 
           {clinicalUi ? (
             <div className="space-y-2 rounded-lg border well p-3">

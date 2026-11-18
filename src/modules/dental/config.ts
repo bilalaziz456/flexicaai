@@ -1,7 +1,7 @@
 import { dentalScribeVocabulary } from "@/modules/dental/prompts/vocabulary";
 import type { ModuleDefinition } from "@/core/types/module";
 import { dentalScribePrompt } from "@/modules/dental/prompts/scribe";
-import { dentalChartSchema, dentalNoteSchema } from "@/modules/dental/note-schema";
+import { dentalChartSchema, dentalNoteSchema, dentalBlankNote } from "@/modules/dental/note-schema";
 import { dentalRecallRules } from "@/modules/dental/recall-rules";
 import { dentalDrugFormulary } from "@/modules/dental/drug-formulary";
 import { dentalProcedureTemplates } from "@/modules/dental/procedure-templates";
@@ -44,6 +44,8 @@ export const dentalModule: ModuleDefinition = {
   // what the dentist edits it into before it becomes the record.
   noteSchema: dentalNoteSchema,
   chartSchema: dentalChartSchema,
+  // What "Type the note" opens on (2026-11-18): the same fields, empty.
+  blankNote: dentalBlankNote,
   recallRules: dentalRecallRules,
   drugFormulary: dentalDrugFormulary,
   procedureTemplates: dentalProcedureTemplates,

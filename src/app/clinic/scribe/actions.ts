@@ -1,5 +1,7 @@
 "use server";
 
+import { asPrescriptionItems, itemToNoteDrug } from "@/core/lib/prescription-items";
+import { pruneEmptyNote } from "@/core/clinical/note-template";
 import { medicineFormulary } from "@/core/clinical/medicines";
 import { revalidatePath } from "next/cache";
 import { requireWorkspace } from "@/core/auth/user";
@@ -345,6 +347,9 @@ export async function saveTypedNote(
   /** The appointment it is for (it then belongs to that appointment's doctor), or —
    *  with none — the doctor whose patient it is (default: the author). */
   forWhom: { appointmentId?: string | null; doctorId?: string | null } = {},
+  /** The medicines, entered as prescription lines (2026-11-18): written into the note,
+   *  and the patient's prescription is made from them on approval. */
+  prescription?: unknown,
 ): Promise<{ ok: true; waiting?: boolean } | { error: string } | { warnings: { drugWarnings: string[]; allergyWarnings: string[] } }> {
   const user = await requireWorkspace();
   if (!can(user, "clinical", "create")) {
@@ -360,7 +365,15 @@ export async function saveTypedNote(
   const moduleId = modulesEnabled[0];
   if (!moduleId) return { error: "This clinic has no specialty enabled." };
   const schemas = clinicalSchemasFor(modulesEnabled);
-  const parsedNote = parseClinicalNote(note, schemas.noteSchema);
+  // The empty rows the typed form opens with are dropped, not stored (2026-11-18).
+  const pruned = note && typeof note === "object" && !Array.isArray(note) ? pruneEmptyNote(note) : note;
+  // Medicines entered as prescription lines become the note's medicine lines — before
+  // the checks below, so the allergy and formulary warnings see them.
+  const rxItems = prescription === undefined ? null : asPrescriptionItems(prescription);
+  const parsedNote = parseClinicalNote(
+    rxItems && pruned && typeof pruned === "object" ? { ...pruned, prescriptions: rxItems.map(itemToNoteDrug) } : pruned,
+    schemas.noteSchema,
+  );
   if (!parsedNote.ok) return { error: parsedNote.error };
   const parsedChart = parseClinicalChart(chart, schemas.chartSchema);
   if (!parsedChart.ok) return { error: parsedChart.error };

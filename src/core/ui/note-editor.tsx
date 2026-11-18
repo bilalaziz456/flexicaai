@@ -2,6 +2,7 @@
 
 import { Checkbox } from "@/core/ui/checkbox";
 import { Input } from "@/core/ui/input";
+import { Textarea } from "@/core/ui/textarea";
 import { Label } from "@/core/ui/label";
 import { Button } from "@/core/ui/button";
 
@@ -140,6 +141,21 @@ function FieldBlock({
       <div className="space-y-2 rounded-md border well p-2">
         <Label className="text-sm font-medium">{humanize(label)}</Label>
         <ObjectFields value={value} onChange={(nv) => onChange(nv)} />
+      </div>
+    );
+  }
+
+  // Free text a clinician writes at length — any field named "...notes"
+  // (`clinicalNotes`), in whatever specialty — gets a box, not one line.
+  if (/notes$/i.test(label) && (value === null || typeof value === "string")) {
+    return (
+      <div className="space-y-1">
+        <Label className="text-sm font-medium">{humanize(label)}</Label>
+        <Textarea
+          rows={4}
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
+        />
       </div>
     );
   }

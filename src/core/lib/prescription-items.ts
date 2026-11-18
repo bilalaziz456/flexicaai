@@ -91,6 +91,26 @@ export function checkPrescription(
 }
 
 /**
+ * A prescription line as a NOTE's medicine line (owner, 2026-11-18): a typed note's
+ * medicines are entered exactly as on the patient's Prescriptions card, then stored in
+ * the note in the shape every reader of a note knows (`drug` / `dosage` / `duration` —
+ * the history, the allergy and formulary checks, the visit PDF), plus the full line as
+ * `item`, which `noteDrugToItem` reads back when the patient's prescription is made.
+ */
+export function itemToNoteDrug(item: PrescriptionItem): { drug: string; dosage: string | null; duration: string | null; item: PrescriptionItem } {
+  const duration =
+    item.durationValue && item.durationUnit
+      ? `${item.durationValue} ${item.durationValue === 1 ? item.durationUnit.replace(/s$/, "") : item.durationUnit}`
+      : null;
+  const details = describeMedication({ ...item, durationValue: undefined, durationUnit: undefined });
+  const dosage = [item.dose, details].filter((s) => s && s.trim()).join(" · ") || null;
+  // Only the fields that are set: a stored note holds no `undefined` (the core bounds
+  // refuse it), and the line reads back the same either way.
+  const stored = Object.fromEntries(Object.entries(item).filter(([, v]) => v !== undefined)) as PrescriptionItem;
+  return { drug: item.name, dosage, duration, item: stored };
+}
+
+/**
  * A scribe note's medicine line (`{ drug, dosage, duration }`) as a prescription line,
  * so an approved note's medicines become a prescription that prints, downloads, edits
  * and deletes like a typed one (owner's call, 2026-10-24). "5 days" / "1 week" fill
@@ -98,7 +118,13 @@ export function checkPrescription(
  * lost. Migration 0135 applies the same rule to notes approved before this existed.
  */
 export function noteDrugToItem(raw: unknown): PrescriptionItem | null {
-  const d = (raw && typeof raw === "object" ? raw : {}) as { drug?: unknown; dosage?: unknown; duration?: unknown };
+  const d = (raw && typeof raw === "object" ? raw : {}) as { drug?: unknown; dosage?: unknown; duration?: unknown; item?: unknown };
+  // A typed note's line carries the full prescription line it was entered as
+  // (`itemToNoteDrug`) — use it, so type, frequency and instructions are not lost.
+  if (d.item !== undefined) {
+    const [full] = asPrescriptionItems([d.item]);
+    if (full) return full;
+  }
   const name = typeof d.drug === "string" ? d.drug.trim().slice(0, 120) : "";
   if (!name) return null;
   const item: PrescriptionItem = { name };

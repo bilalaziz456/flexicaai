@@ -707,6 +707,7 @@ export async function PatientDetail({
                   const note = (v.note && typeof v.note === "object" ? v.note : {}) as {
                     chiefComplaint?: string | null;
                     diagnosis?: string | null;
+                    clinicalNotes?: string | null;
                     findings?: { tooth?: string | null; finding?: string }[];
                     treatmentPerformed?: string[];
                     treatmentPlan?: string[];
@@ -801,6 +802,12 @@ export async function PatientDetail({
                           {note.diagnosis}
                         </p>
                       ) : null}
+                      {note.clinicalNotes ? (
+                        <p className="whitespace-pre-line">
+                          <span className="text-muted-foreground">Clinical notes: </span>
+                          {note.clinicalNotes}
+                        </p>
+                      ) : null}
                       {findings.length > 0 ? (
                         <p>
                           <span className="text-muted-foreground">Findings: </span>
@@ -824,6 +831,7 @@ export async function PatientDetail({
                       ) : null}
                       {!note.chiefComplaint &&
                       !note.diagnosis &&
+                      !note.clinicalNotes &&
                       !note.summary &&
                       findings.length === 0 &&
                       performed.length === 0 ? (

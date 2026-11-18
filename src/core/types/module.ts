@@ -357,6 +357,12 @@ export interface ModuleDefinition {
    * stored unchecked (`core/clinical/note-schema.ts`).
    */
   noteSchema?: z.ZodType<Record<string, unknown>>;
+  /**
+   * The empty note a clinician types into by hand ("Type the note") — the same keys
+   * the scribe prompt asks for, with one empty row in each list so the form shows a
+   * box to type in. Absent → core's generic note (`core/clinical/note-template.ts`).
+   */
+  blankNote?: Readonly<Record<string, unknown>>;
   /** Shape of this specialty's living chart (the odontogram, for dental). */
   chartSchema?: z.ZodType;
   recallRules: RecallRule[];

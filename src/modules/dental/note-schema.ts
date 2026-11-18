@@ -33,6 +33,7 @@ export const dentalNoteSchema = z
   .object({
     chiefComplaint: z.string().nullish(),
     diagnosis: z.string().nullish(),
+    clinicalNotes: z.string().nullish(),
     findings: z
       .array(z.object({ tooth: toothRef, finding: z.string().nullish() }).loose())
       .nullish(),
@@ -51,7 +52,15 @@ export const dentalNoteSchema = z
       .nullish(),
     // Drives recall capture on approval, so `afterDays` must really be a number.
     nextVisit: z
-      .object({ reason: z.string().nullish(), afterDays: z.number().finite().nullish() })
+      .object({
+        reason: z.string().nullish(),
+        // The note form's boxes are text, so "180" arrives as a string; it is still a
+        // number of days, and must be stored as one for the recall to be scheduled.
+        afterDays: z.preprocess(
+          (v) => (typeof v === "string" ? (v.trim() === "" ? null : Number(v.trim())) : v),
+          z.number({ error: "Next visit: after days must be a number of days." }).finite().nullish(),
+        ),
+      })
       .loose()
       .nullish(),
     flags: z.array(z.string()).nullish(),
@@ -63,6 +72,21 @@ export const dentalNoteSchema = z
   // Anything the model — or a future field — adds is KEPT, not stripped. Discarding a
   // clinician's content because we didn't anticipate the key is worse than storing it.
   .loose();
+
+/**
+ * The empty note a dentist TYPES into (`ModuleDefinition.blankNote`): the keys the
+ * scribe prompt asks for, with one empty row in each list so the form shows a box.
+ * Empty rows are dropped on save (`core/clinical/note-template.ts#pruneEmptyNote`).
+ */
+export const dentalBlankNote: Readonly<Record<string, unknown>> = {
+  chiefComplaint: null,
+  findings: [{ tooth: null, finding: null }],
+  diagnosis: null,
+  // Free text (owner, 2026-11-18) in place of treatment performed / plan; the
+  // medicines are entered in prescription rows, not here (`core/clinical/note-template.ts`).
+  clinicalNotes: null,
+  nextVisit: { reason: null, afterDays: null },
+};
 
 /** One tooth's state in the living chart. Mirrors `ChartTooth` in `db/schema.ts`. */
 const chartToothSchema = z

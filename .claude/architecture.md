@@ -220,6 +220,10 @@ that asks for it). Deliberately permissive: unknown keys are KEPT, every field i
 optional, and only the fields the app actually reads are type-checked — several valid
 note shapes already exist (the scribe's, and imported historical visits), and
 over-strictness would reject real records rather than fail safe.
+**A typed note opens on the module's EMPTY note** (`ModuleDefinition.blankNote`,
+2026-11-18; core's `GENERIC_BLANK_NOTE` when a module declares none). The note editor
+is generic and renders only the keys a note has, so the module that owns the shape
+also owns the blank form; core never names its fields. Empty rows are pruned on save.
 
 **ADR-008 — Two-tier access control** · *2026-07-xx* · `Accepted`
 Effective access = **clinic capability ∩ user permission**. Super admin sets the

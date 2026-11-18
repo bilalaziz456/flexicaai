@@ -113,6 +113,16 @@ turned back on.
 `clinical:create` writes a note by HAND — "Type the note" beside "Start recording", or
 "Write note" on the patient's page (`saveTypedNote` → `core/clinical/scribe.ts#createTypedNote`).
 The same form as the draft review and the same validation (module note + chart shape).
+It opens on the module's empty note (`ModuleDefinition.blankNote`, else core's
+`GENERIC_BLANK_NOTE` in `core/clinical/note-template.ts`) — the editor shows only the keys
+a note has, so a note started as `{}` had nothing to type into (fixed 2026-11-18); empty
+rows are dropped on save (`pruneEmptyNote`), `scripts/test-note-template.ts`.
+Its fields (owner, 2026-11-18): chief complaint, findings, diagnosis, **clinical notes**
+(free text) and next visit — no treatment performed / plan. Its medicines are entered
+in the SAME rows as the patient's Prescriptions card (`MedicineRow`); the server writes
+each into the note as `{ drug, dosage, duration, item }` (`itemToNoteDrug` — every
+reader keeps its three fields) and the patient's prescription is made from `item`, so
+type, frequency, meal instruction and note carry through (`noteDrugToItem`).
 It is NOT AI output, so rule 1 does not apply: it is inserted `approved`, with
 `doctor_id` = `approved_by` = its author and no `ai_draft`, transcript or audio (which
 is how the flywheel tells it apart). The formulary and allergy checks still run; a note
