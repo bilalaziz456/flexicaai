@@ -412,6 +412,8 @@ export function PaymentPanel({
               href={tokenHref}
               papers={["thermal"]}
               single="Print token"
+              // Like the invoice: once printed, back to the list it came from.
+              afterPrintHref={afterPrintHref}
               className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
             />
           ) : null}

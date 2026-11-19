@@ -205,6 +205,7 @@ export async function AppointmentDetail({
               href={`/clinic/appointments/${appt.id}/token`}
               papers={["thermal"]}
               single="Print token"
+              afterPrintHref={backHref}
               className={buttonVariants({ variant: "outline", size: "sm" })}
             />
           ) : null}
