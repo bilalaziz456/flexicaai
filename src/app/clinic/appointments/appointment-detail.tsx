@@ -45,6 +45,8 @@ import { PrintLinks } from "@/core/ui/print-links";
 import { buttonVariants } from "@/core/ui/button";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 import { offeredPapers } from "@/core/lib/print-papers";
+import { appointmentWhatsAppLink } from "@/core/appointments/whatsapp-share-link";
+import { MessageCircle } from "lucide-react";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -148,6 +150,13 @@ export async function AppointmentDetail({
     minute: "2-digit",
   });
 
+  // "Send on WhatsApp" (owner, 2026-11-20): opens the patient's chat in the person's
+  // own WhatsApp with the appointment typed in — and the bill, for whoever may see it.
+  const waHref =
+    currentUser && can(currentUser, "whatsapp", "create")
+      ? await appointmentWhatsAppLink(clinicId, appt.id, Boolean(billingOn && can(currentUser, "billing", "view")))
+      : null;
+
   const payStatus =
     billingOn && aBill
       ? visitPaymentStatus({
@@ -200,14 +209,23 @@ export async function AppointmentDetail({
           {/* The patient's token slip (2026-11-20): the appointment number, doctor and
               patient on thermal paper — only once the visit has a number. With billing
               on it sits with the other prints in the Payment card instead. */}
-          {appt.queueNumber != null && !(billingOn && aBill) ? (
-            <PrintLinks
-              href={`/clinic/appointments/${appt.id}/token`}
-              papers={["thermal"]}
-              single="Print token"
-              afterPrintHref={backHref}
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-            />
+          {!(billingOn && aBill) && (appt.queueNumber != null || waHref) ? (
+            <span className="inline-flex flex-wrap items-center gap-2">
+              {appt.queueNumber != null ? (
+                <PrintLinks
+                  href={`/clinic/appointments/${appt.id}/token`}
+                  papers={["thermal"]}
+                  single="Print token"
+                  afterPrintHref={backHref}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                />
+              ) : null}
+              {waHref ? (
+                <a href={waHref} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "outline", size: "sm" })}>
+                  <MessageCircle className="size-3.5" aria-hidden="true" /> Send on WhatsApp
+                </a>
+              ) : null}
+            </span>
           ) : null}
         </div>
       </div>
@@ -376,7 +394,7 @@ export async function AppointmentDetail({
               canVoidPayment={Boolean(currentUser && can(currentUser, "billing", "delete"))}
               canVoidRefundEntry={Boolean(currentUser && can(currentUser, "refund", "delete"))}
               canInvoice={Boolean(currentUser && can(currentUser, "billing", "create"))}
-              canSendWhatsapp={Boolean(currentUser && can(currentUser, "whatsapp", "create"))}
+              whatsappHref={waHref}
               invoiceLabel={invoice ? (invoice.voided ? `${invoice.label} (void)` : invoice.label) : null}
               invoiceHref={`/clinic/appointments/${appt.id}/invoice`}
               papers={offeredPapers(clinicRow?.invoicePapersEnabled)}

@@ -42,6 +42,14 @@ export default async function PatientDetailPage({
       canEditClinical={can(user, "clinical", "edit")}
       canEditSavedNotes={can(user, "clinical", "edit")}
       canDeleteSavedNotes={can(user, "clinical", "delete")}
+      whatsappFrom={
+        can(user, "whatsapp", "create")
+          ? {
+              clinicName: clinic?.name ?? "the clinic",
+              contact: [clinic?.publicAddress, clinic?.whatsappDisplayNumber].filter(Boolean).join(" · ") || null,
+            }
+          : null
+      }
       writeNoteHref={can(user, "clinical", "create") ? `/clinic/scribe?patient=${id}&write=1` : undefined}
       canViewPrescriptions={can(user, "prescriptions", "view")}
       canCreatePrescriptions={can(user, "prescriptions", "create")}

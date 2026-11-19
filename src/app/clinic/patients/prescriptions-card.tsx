@@ -20,6 +20,8 @@ import {
 import { checkPrescription, describePrescriptionItem, type PrescriptionItem, type RxProblem } from "@/core/lib/prescription-items";
 import { SearchableSelect } from "@/core/ui/searchable-select";
 import { MedicineRow, type MedicineOption } from "./medicine-row";
+import { WhatsAppShareButton } from "@/core/ui/whatsapp-share-button";
+import { prescriptionWhatsAppText, type ShareParty } from "@/core/appointments/whatsapp-share";
 import { deletePrescriptionAction, savePrescriptionAction } from "./prescription-actions";
 
 export type TypedPrescription = {
@@ -65,7 +67,10 @@ export function PrescriptionsCard({
   allergies,
   medicineSuggestions,
   can,
+  share = null,
 }: {
+  /** "Send on WhatsApp" as text from the person's own WhatsApp (2026-11-20); null = not offered. */
+  share?: ShareParty | null;
   patientId: string;
   typed: TypedPrescription[];
   generated: GeneratedPrescription[];
@@ -148,6 +153,20 @@ export function PrescriptionsCard({
                     >
                       <Printer className="size-3.5" aria-hidden="true" /> Print without letterhead
                     </a>
+                    {share ? (
+                      <WhatsAppShareButton
+                        phone={share.phone}
+                        text={prescriptionWhatsAppText(share, {
+                          date: r.t.dateLabel,
+                          doctor: r.t.doctorName,
+                          lines: r.t.items.map((it) => {
+                            const d = describePrescriptionItem(it);
+                            return [`${it.name}${it.dose ? ` ${it.dose}` : ""}`, d, it.note].filter(Boolean).join(" · ");
+                          }),
+                          notes: r.t.notes,
+                        })}
+                      />
+                    ) : null}
                     <a
                       href={`/api/rx/${r.t.id}?download=1`}
                       title="Save the PDF with the letterhead, e.g. to send on WhatsApp"
@@ -199,9 +218,22 @@ export function PrescriptionsCard({
                     <span className="text-muted-foreground"> · {r.g.doctor}</span>{" "}
                     <Badge variant="secondary">From visit note</Badge>
                   </span>
-                  <a href={`/api/prescriptions/${r.g.visitId}`} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-                    <Printer className="size-3.5" aria-hidden="true" /> Print
-                  </a>
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    {share ? (
+                      <WhatsAppShareButton
+                        phone={share.phone}
+                        text={prescriptionWhatsAppText(share, {
+                          date: r.g.dateLabel,
+                          doctor: r.g.doctor,
+                          lines: r.g.drugs.map((d) => [d.drug, d.dosage, d.duration].filter(Boolean).join(" · ")),
+                          notes: null,
+                        })}
+                      />
+                    ) : null}
+                    <a href={`/api/prescriptions/${r.g.visitId}`} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+                      <Printer className="size-3.5" aria-hidden="true" /> Print
+                    </a>
+                  </span>
                 </div>
                 <p className="text-muted-foreground">
                   {r.g.drugs

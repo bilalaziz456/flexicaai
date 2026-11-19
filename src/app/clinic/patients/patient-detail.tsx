@@ -83,6 +83,7 @@ export async function PatientDetail({
   canViewClinical = false,
   canEditClinical = false,
   canEditSavedNotes = false,
+  whatsappFrom = null,
   canDeleteSavedNotes = false,
   writeNoteHref,
   canViewPrescriptions = false,
@@ -131,6 +132,9 @@ export async function PatientDetail({
   canEditSavedNotes?: boolean;
   /** "Delete" (to Trash) on a saved note — needs `clinical:delete` (2026-11-20). */
   canDeleteSavedNotes?: boolean;
+  /** "Send on WhatsApp" on prescriptions and plans, as text from the person's own
+   *  WhatsApp (2026-11-20) — set only for someone holding `whatsapp:create`. */
+  whatsappFrom?: { clinicName: string; contact: string | null } | null;
   /** Where "Write note" goes — set only for someone holding `clinical:create`. */
   writeNoteHref?: string;
   /** Show the patient's prescription history (reprint) — needs `prescriptions:view`.
@@ -165,6 +169,9 @@ export async function PatientDetail({
 }) {
   const patient = await getPatient(clinicId, patientId);
   if (!patient) notFound();
+  const share = whatsappFrom
+    ? { patientName: patient.fullName, phone: patient.phone, clinicName: whatsappFrom.clinicName, contact: whatsappFrom.contact }
+    : null;
 
   const apptPage = parsePage(appointmentsPaging?.page);
   const apptSize = (APPOINTMENT_PAGE_SIZES as readonly number[]).includes(Number(appointmentsPaging?.size))
@@ -889,6 +896,7 @@ export async function PatientDetail({
           </CardHeader>
           <CardContent>
             <PrescriptionsCard
+              share={share}
               patientId={patient.id}
               typed={typedRx.map((t) => ({
                 id: t.id,
@@ -1008,6 +1016,7 @@ export async function PatientDetail({
           </CardHeader>
           <CardContent>
             <TreatmentPlansCard
+              share={share}
               plans={plans}
               procedures={planProcedures}
               doctors={planDoctors}

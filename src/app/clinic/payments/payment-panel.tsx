@@ -11,7 +11,6 @@ import {
   refundAppointmentPayment,
   voidAppointmentPayment,
   issueAppointmentInvoice,
-  sendInvoiceWhatsAppAction,
   type BillingActionState,
 } from "@/app/clinic/payments/payment-actions";
 import { SelectField } from "@/core/ui/select-field";
@@ -70,7 +69,7 @@ export function PaymentPanel({
   canVoidPayment,
   canVoidRefundEntry,
   canInvoice,
-  canSendWhatsapp,
+  whatsappHref,
   invoiceLabel,
   invoiceHref,
   papers = ["a4"],
@@ -91,7 +90,10 @@ export function PaymentPanel({
   canVoidPayment: boolean;
   canVoidRefundEntry: boolean;
   canInvoice: boolean;
-  canSendWhatsapp: boolean;
+  /** "Send on WhatsApp" (owner, 2026-11-20): opens the patient's chat in the person's
+   *  OWN WhatsApp (app or WhatsApp Web) with the appointment and bill typed in — not
+   *  the WhatsApp API. Null = not offered (no `whatsapp:create`). */
+  whatsappHref?: string | null;
   invoiceLabel: string | null;
   /** Reserved for the printable invoice link (next step). */
   invoiceHref?: string;
@@ -182,11 +184,6 @@ export function PaymentPanel({
     startTransition(async () => {
       const r = await issueAppointmentInvoice(appointmentId);
       flash(r.error ?? "Invoice issued.", Boolean(r.error));
-    });
-  const doSendWhatsapp = () =>
-    startTransition(async () => {
-      const r = await sendInvoiceWhatsAppAction(appointmentId);
-      flash(r.error ?? "Invoice sent on WhatsApp.", Boolean(r.error));
     });
 
   const statusTone =
@@ -396,16 +393,15 @@ export function PaymentPanel({
             />
             </span>
           ) : null}
-          {canSendWhatsapp && billTotal > 0 ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={busy}
-              onClick={doSendWhatsapp}
+          {whatsappHref ? (
+            <a
+              href={whatsappHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
             >
               <MessageCircle className="size-3.5" aria-hidden="true" /> Send on WhatsApp
-            </Button>
+            </a>
           ) : null}
           {tokenHref ? (
             <PrintLinks

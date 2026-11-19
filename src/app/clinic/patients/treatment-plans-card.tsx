@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { SelectField } from "@/core/ui/select-field";
 import { EmptyState } from "@/core/ui/empty-state";
 import { Plus, Trash2, ClipboardList, Pencil, FileText, Printer, Download } from "lucide-react";
+import { WhatsAppShareButton } from "@/core/ui/whatsapp-share-button";
+import { planWhatsAppText, type ShareParty } from "@/core/appointments/whatsapp-share";
 import { ConfirmDialog } from "@/core/ui/confirm-dialog";
 import { Button } from "@/core/ui/button";
 import { Input } from "@/core/ui/input";
@@ -80,7 +82,10 @@ export function TreatmentPlansCard({
   canCreate,
   canEdit,
   canDelete,
+  share = null,
 }: {
+  /** "Send on WhatsApp" as text from the person's own WhatsApp (2026-11-20); null = not offered. */
+  share?: ShareParty | null;
   plans: PlanRow[];
   procedures: Proc[];
   /** The clinic's doctors, for the plan's optional doctor. */
@@ -241,6 +246,28 @@ export function TreatmentPlansCard({
                     >
                       <Download className="size-3.5" aria-hidden="true" /> Download with letterhead
                     </a>
+                    {share ? (
+                      <WhatsAppShareButton
+                        phone={share.phone}
+                        className="h-7"
+                        text={planWhatsAppText(share, {
+                          title: p.title,
+                          doctor: doctorName,
+                          // Cancelled treatments are not part of what the patient pays.
+                          items: p.items.flatMap((it, idx) =>
+                            it.status === "cancelled"
+                              ? []
+                              : [{ name: `${it.name}${it.tooth ? ` (${it.tooth})` : ""}${it.quantity > 1 ? ` × ${it.quantity}` : ""}`, amount: money(bill.items[idx].net) }],
+                          ),
+                          discount: (() => {
+                            const lines = p.items.reduce((s, it, idx) => s + (it.status === "cancelled" ? 0 : bill.items[idx].net), 0);
+                            return lines > bill.total ? money(lines - bill.total) : null;
+                          })(),
+                          total: money(bill.total),
+                          note: p.note,
+                        })}
+                      />
+                    ) : null}
                   </div>
                 ) : null}
 

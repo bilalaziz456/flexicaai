@@ -3,7 +3,8 @@
 import { paymentStatusBadge, visitPaymentStatus } from "@/core/billing/payment-status";
 import { Badge } from "@/core/ui/badge";
 import Link from "next/link";
-import { ChevronDown, Download, Pencil, Printer } from "lucide-react";
+import { ChevronDown, Download, MessageCircle, Pencil, Printer } from "lucide-react";
+import { invoiceWhatsAppText, whatsAppChatUrl } from "@/core/appointments/whatsapp-share";
 import { DeleteInvoiceButton } from "@/app/clinic/invoices/delete-invoice-button";
 import { DataTable, type Column } from "@/core/ui/data-table";
 import { ActionMenu } from "@/core/ui/action-menu";
@@ -61,7 +62,12 @@ export function InvoicesTable({
   canEdit,
   canDelete,
   papers,
+  whatsappFrom = null,
 }: {
+  /** "Send on WhatsApp" in the Print menu (owner, 2026-11-20): opens the patient's chat
+   *  in the person's own WhatsApp with the invoice typed in. Null = not offered
+   *  (no `whatsapp:create`). */
+  whatsappFrom?: { clinicName: string; contact: string | null } | null;
   rows: Row[];
   empty: string;
   canEdit: boolean;
@@ -185,6 +191,28 @@ export function InvoicesTable({
                       icon: <Download className="size-3.5 text-muted-foreground" aria-hidden="true" />,
                       onSelect: () => downloadDocument(printHref),
                     },
+                    // Not for a voided or deleted invoice: the patient owes nothing on it.
+                    ...(whatsappFrom && !r.voided && !r.deleted
+                      ? [
+                          {
+                            label: "Send on WhatsApp",
+                            icon: <MessageCircle className="size-3.5 text-muted-foreground" aria-hidden="true" />,
+                            onSelect: () => {
+                              const text = invoiceWhatsAppText(
+                                { patientName: r.patientName, ...whatsappFrom },
+                                {
+                                  invoice: r.label,
+                                  date: dayFmt(r.issuedAt),
+                                  total: money.format(r.amount),
+                                  paid: money.format(r.collected),
+                                  due: money.format(Math.max(0, r.amount - r.collected)),
+                                },
+                              );
+                              window.open(whatsAppChatUrl(r.patientPhone, text), "_blank", "noopener,noreferrer");
+                            },
+                          },
+                        ]
+                      : []),
                   ],
                 },
               ]}

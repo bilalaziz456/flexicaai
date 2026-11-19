@@ -212,6 +212,14 @@ export default async function InvoicesPage({
             canEdit={can(user, "appointments", "edit")}
             canDelete={can(user, "billing", "delete")}
             papers={offeredPapers(clinic?.invoicePapersEnabled)}
+            whatsappFrom={
+              can(user, "whatsapp", "create")
+                ? {
+                    clinicName: clinic?.name ?? "the clinic",
+                    contact: [clinic?.publicAddress, clinic?.whatsappDisplayNumber].filter(Boolean).join(" · ") || null,
+                  }
+                : null
+            }
           />
         </CardContent>
       </Card>

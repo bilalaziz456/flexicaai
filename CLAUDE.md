@@ -392,6 +392,14 @@ are in `.env.example`.
   slip — the number very large, the doctor, the patient and the "Powered by" line, nothing
   else (`/clinic/appointments/[id]/token`, `appointments:view`) — from the appointment
   page and each list row's "⋯" menu.
+  **Send on WhatsApp** (owner, 2026-11-20) on an appointment or invoice opens the patient's
+  chat in the person's OWN WhatsApp (app or WhatsApp Web, a `wa.me` link) with the
+  appointment — date, number, doctor, and the bill for whoever may see it — typed in; they
+  press Send. Not the WhatsApp API. Needs `whatsapp:create`
+  (`core/appointments/whatsapp-share.ts`, pure; `scripts/test-whatsapp-share.ts`). The same
+  button is on each prescription and treatment plan on the patient's page
+  (`core/ui/whatsapp-share-button.tsx`). Text only — a website cannot attach a file to a
+  WhatsApp chat; the owner chose text over a link to the PDF.
   The appointments list and its printout run day by day in appointment-number order
   — those still to be seen first, then completed / cancelled / no-show — (time breaks
   ties; visits with no doctor, so no number, come last in each group).

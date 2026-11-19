@@ -21,7 +21,6 @@ import {
   settleOpeningBalance,
 } from "@/core/billing/payments";
 import { issueInvoice } from "@/core/billing/invoice";
-import { sendInvoiceWhatsApp } from "@/core/notifications/billing";
 import { revalidateFinance } from "@/app/clinic/finance-revalidate";
 import { logActivity } from "@/core/audit/log";
 import { PAYMENT_METHODS } from "@/core/finance/payment-methods";
@@ -319,30 +318,3 @@ export async function issueAppointmentInvoice(
   return { saved: true };
 }
 
-/**
- * Send the appointment's invoice / bill summary to the patient on WhatsApp. Two
- * gates: `billing:view` (may see the bill) AND `whatsapp:create` (may send a
- * message) — so delivery is separate from collecting money.
- */
-export async function sendInvoiceWhatsAppAction(
-  appointmentId: string,
-): Promise<BillingActionState> {
-  const user = await requireRole(["receptionist", "manager", "doctor", "clinic_admin"]);
-  if (!user.clinicId) return { error: "No clinic access." };
-  const clinicId = user.clinicId;
-  if (!can(user, "billing", "view") || !can(user, "whatsapp", "create")) {
-    return { error: "You don't have permission for that." };
-  }
-
-  const res = await sendInvoiceWhatsApp(clinicId, appointmentId);
-  if (!res.ok) return { error: res.error ?? "Could not send." };
-
-  await logActivity({
-    action: "create",
-    entity: "appointment",
-    entityId: appointmentId,
-    summary: "Sent invoice on WhatsApp",
-  });
-  revalidateAppt(appointmentId, await apptPatient(clinicId, appointmentId));
-  return { saved: true };
-}

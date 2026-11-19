@@ -28,6 +28,7 @@ import { DeleteInvoiceButton } from "@/app/clinic/invoices/delete-invoice-button
 import { DownloadLink } from "@/core/ui/download-link";
 import { PrintLinks } from "@/core/ui/print-links";
 import { offeredPapers } from "@/core/lib/print-papers";
+import { appointmentWhatsAppLink } from "@/core/appointments/whatsapp-share-link";
 import { formatDateTime12h } from "@/core/lib/date-time";
 import { PrintOnArrival } from "@/core/ui/print-on-arrival";
 
@@ -250,7 +251,7 @@ export default async function InvoicePage({
             canVoidPayment={can(user, "billing", "delete")}
             canVoidRefundEntry={can(user, "refund", "delete")}
             canInvoice={false}
-            canSendWhatsapp={can(user, "whatsapp", "create")}
+            whatsappHref={can(user, "whatsapp", "create") ? await appointmentWhatsAppLink(user.clinicId, id, true, "invoice") : null}
             invoiceLabel={invoice.voided ? `${invoice.label} (void)` : invoice.label}
             invoiceHref={`/clinic/invoices/${id}/print`}
             papers={offeredPapers(clinic?.invoicePapersEnabled)}
