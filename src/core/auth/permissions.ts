@@ -40,8 +40,15 @@ export const PERM_RESOURCES: PermResource[] = [
   { id: "appointments", label: "Appointments", actions: ["view", "create", "edit", "delete"] },
   { id: "patients", label: "Patients", actions: ["view", "create", "edit", "delete"] },
   // `create` = WRITE a note by hand (typed, signed on save — no AI, so no draft);
-  // `edit` = the patient's clinical records (chart, perio, medical history).
-  { id: "clinical", label: "Clinical notes", actions: ["view", "create", "edit"] },
+  // `edit` = the patient's clinical records (chart, perio, medical history) AND a note
+  //   after it was saved, dictated or typed, anyone's in the clinic (owner, 2026-11-19):
+  //   each edit keeps the earlier text (`clinical_note_versions`) and marks it "Edited";
+  // `delete` = move a saved note to Trash with the prescription and waiting recall made
+  //   from it, restored together (owner, 2026-11-20). Clinic admin only by default —
+  //   removing a medical record is the clinic's call; the admin ticks it per person.
+  // Both on this row because that is where the clinic admin looks for them (owner's
+  // report, 2026-11-20: a separate "Saved clinical notes" row went unnoticed).
+  { id: "clinical", label: "Clinical notes", actions: ["view", "create", "edit", "delete"] },
   // RECORD a visit and approve the AI's draft. Split out of `clinical:create`
   // (owner, 2026-11-14) so the clinic admin decides separately who may dictate (a paid
   // AI service) and who may write a note — until then `clinical:create` meant the

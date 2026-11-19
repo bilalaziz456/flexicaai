@@ -269,7 +269,16 @@ NULL on notes before 2026-11-14. `review_note` — why the treating doctor sent 
 note proposes, applied only on approval and validated against the module's chart shape.
 `appointment_id` is set on notes started from an appointment since 2026-11-14; older
 notes are matched to one by patient + clinic day when listed, never rewritten.
+`edited_at`, `edited_by` → users (`set null`) (`0157`, 2026-11-19) — the last edit of a
+SAVED note (`clinical:edit`); NULL = never edited. `ai_draft` is never touched by an edit.
 Indexes: `clinic_id`; `patient_id`; (`clinic_id`,`visit_date`); `appointment_id`.
+
+### `clinical_note_versions` — a saved note's earlier texts (`0157`, 2026-11-19)
+`id`, `clinic_id` (`cascade`), `visit_id` → visits (`cascade`), `note` jsonb (the text
+until this edit), `edited_by` → users (`set null`), `edited_by_name` (snapshot),
+`edited_at`. Append-only: one row per edit, nothing updates or deletes it; no soft-delete
+columns of its own — it is read through its visit (`notDeleted(visits)`) and leaves only
+with a purged visit. Index (`clinic_id`,`visit_id`,`edited_at`). `core/clinical/note-edit.ts`.
 
 ### `recalls` — recall engine reads/advances these
 `id`, `clinic_id` (`cascade`), `patient_id` (`cascade`), `source_visit_id` → visits

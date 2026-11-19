@@ -18,6 +18,8 @@ import { medicineSuggestions } from "@/core/clinical/medicines";
 import { listPrescriptionAppointmentOptions, listPrescriptions, visitsWithPrescription } from "@/core/patients/prescriptions";
 import { listClinicDoctors } from "@/core/appointments/doctors";
 import { PrescriptionsCard } from "./prescriptions-card";
+import { EditSavedNoteButton } from "./edit-saved-note";
+import { DeleteSavedNoteButton } from "./delete-saved-note";
 import { BackLink } from "@/core/ui/back-link";
 import { EmptyState } from "@/core/ui/empty-state";
 import { Badge } from "@/core/ui/badge";
@@ -80,6 +82,8 @@ export async function PatientDetail({
   viewerId,
   canViewClinical = false,
   canEditClinical = false,
+  canEditSavedNotes = false,
+  canDeleteSavedNotes = false,
   writeNoteHref,
   canViewPrescriptions = false,
   canCreatePrescriptions = false,
@@ -123,6 +127,10 @@ export async function PatientDetail({
   canViewClinical?: boolean;
   /** Allow editing the chart (existing conditions) — needs `clinical:edit`. */
   canEditClinical?: boolean;
+  /** "Edit" on a saved note, dictated or typed — needs `clinical:edit` (2026-11-19). */
+  canEditSavedNotes?: boolean;
+  /** "Delete" (to Trash) on a saved note — needs `clinical:delete` (2026-11-20). */
+  canDeleteSavedNotes?: boolean;
   /** Where "Write note" goes — set only for someone holding `clinical:create`. */
   writeNoteHref?: string;
   /** Show the patient's prescription history (reprint) — needs `prescriptions:view`.
@@ -708,14 +716,26 @@ export async function PatientDetail({
                     chiefComplaint?: string | null;
                     diagnosis?: string | null;
                     clinicalNotes?: string | null;
-                    findings?: { tooth?: string | null; finding?: string }[];
+                    // A specialty's finding names a tooth ({ tooth, finding }); core's generic
+                    // note (a clinic with no specialty, 2026-11-20) stores plain text.
+                    findings?: (string | { tooth?: string | null; finding?: string | null })[];
                     treatmentPerformed?: string[];
                     treatmentPlan?: string[];
                     imported?: boolean;
                     summary?: string | null;
                     doctorName?: string | null;
                   };
-                  const findings = Array.isArray(note.findings) ? note.findings : [];
+                  const findings = (Array.isArray(note.findings) ? note.findings : [])
+                    .map((f) =>
+                      typeof f === "string"
+                        ? f.trim()
+                        : f && typeof f === "object"
+                          ? f.tooth
+                            ? `${f.tooth}: ${f.finding ?? ""}`.trim()
+                            : (f.finding ?? "").trim()
+                          : "",
+                    )
+                    .filter(Boolean);
                   const performed = Array.isArray(note.treatmentPerformed)
                     ? note.treatmentPerformed
                     : [];
@@ -754,7 +774,23 @@ export async function PatientDetail({
                               · approved by {approvedBy}
                             </span>
                           ) : null}
+                          {v.editedAt ? (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              · edited
+                              {v.editedByName ? ` by ${v.editedByPrefix ? `${v.editedByPrefix}. ` : ""}${v.editedByName}` : ""}
+                              {" "}on {dayFmt(v.editedAt)}
+                            </span>
+                          ) : null}
                         </span>
+                        {v.status === "approved" && ((canEditSavedNotes && !note.imported) || canDeleteSavedNotes) ? (
+                          <span className="flex items-center gap-1">
+                            {canEditSavedNotes && !note.imported ? (
+                              <EditSavedNoteButton visitId={v.id} medicineSuggestions={medicineList} />
+                            ) : null}
+                            {canDeleteSavedNotes ? <DeleteSavedNoteButton visitId={v.id} /> : null}
+                          </span>
+                        ) : null}
                         {/* A badge marks the EXCEPTION, never the norm. This list is
                             approved notes plus the viewer's own unsigned ones, so
                             "Approved" printed on almost every row said nothing and
@@ -811,10 +847,7 @@ export async function PatientDetail({
                       {findings.length > 0 ? (
                         <p>
                           <span className="text-muted-foreground">Findings: </span>
-                          {findings
-                            .map((f) => (f.tooth ? `${f.tooth}: ${f.finding ?? ""}` : f.finding ?? ""))
-                            .filter(Boolean)
-                            .join("; ")}
+                          {findings.join("; ")}
                         </p>
                       ) : null}
                       {performed.length > 0 ? (

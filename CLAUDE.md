@@ -424,7 +424,12 @@ are in `.env.example`.
   a Doctor filter (a doctor sees only their own) and a Note filter (none yet / waiting /
   written); each row says who wrote its note, recorded or typed, and who approved it, and
   one without a note opens the note screen for that appointment (so does a row of the
-  compact "Your queue today" card above it; a row with a note opens the patient). **Whose patient**: every
+  compact "Your queue today" card above it; a row with a note opens the patient).
+  **A saved note can be edited or deleted** (`0157`, owner 2026-11-19/20), dictated or
+  typed, from the patient's clinical history — on the **Clinical notes** ACL row: `clinical:edit`
+  (doctors + clinic admins by default; the earlier text is kept in `clinical_note_versions` and the
+  note shows "edited by …") and `clinical:delete` (clinic admins by default; password step-up, to
+  Trash with the prescription and waiting recall made from it, restored together). **Whose patient**: every
   note has a treating doctor; one someone else writes waits for that doctor's approval
   unless the clinic admin turned it off for them (staff record → Clinical notes) —
   Approve, or Send back with a reason (ADR-038). **A team member who

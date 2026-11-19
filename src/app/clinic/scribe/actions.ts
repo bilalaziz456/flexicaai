@@ -1,10 +1,14 @@
 "use server";
 
 import { asPrescriptionItems, itemToNoteDrug } from "@/core/lib/prescription-items";
-import { pruneEmptyNote } from "@/core/clinical/note-template";
+import { blankNoteFrom, pruneEmptyNote } from "@/core/clinical/note-template";
+import { loadSavedNote, replaceSavedNote, syncPrescriptionWithNote, syncRecallWithNote, trashSavedNote } from "@/core/clinical/note-edit";
+import { changedNoteFields, medicinesChanged, nextVisitChanged, noteForEditing } from "@/core/clinical/note-edit-rules";
+import type { Medication } from "@/core/lib/medical-history";
 import { medicineFormulary } from "@/core/clinical/medicines";
 import { revalidatePath } from "next/cache";
 import { requireWorkspace } from "@/core/auth/user";
+import { verifyCurrentUserPassword } from "@/core/auth/reauth";
 import { can } from "@/core/auth/permissions";
 import { getClinic } from "@/core/clinics/get-clinic";
 import { clinicHasFeature } from "@/core/lib/features";
@@ -39,7 +43,7 @@ import { serverEnv } from "@/core/lib/env";
 import { isPublicLinkingEnabled, signToken } from "@/core/lib/signed-link";
 import { sendWhatsAppToPatient } from "@/core/notifications/whatsapp";
 import { scheduleRecall } from "@/core/recall";
-import { clinicalRecordFor, clinicalSchemasFor, getClinicWorkspace } from "@/config/modules";
+import { blankNoteFor, clinicalRecordFor, clinicalSchemasFor, getClinicWorkspace } from "@/config/modules";
 import { parseClinicalChart, parseClinicalNote } from "@/core/clinical/note-schema";
 import { getPatientAllergies } from "@/core/patients/medical-history";
 import { noteWarnings } from "@/core/ai/note-warnings";
@@ -361,9 +365,12 @@ export async function saveTypedNote(
 
   const clinicRow = await getClinic(user.clinicId);
   const modulesEnabled = clinicRow?.modulesEnabled ?? [];
-  // The specialty the note belongs to — the same choice the scribe route makes.
-  const moduleId = modulesEnabled[0];
-  if (!moduleId) return { error: "This clinic has no specialty enabled." };
+  // The specialty the note belongs to — the same choice the scribe route makes. A
+  // clinic with none ticked still writes notes (2026-11-20, owner's report: "This
+  // clinic has no specialty enabled" on Save): a typed note needs no AI prompt, it
+  // opens on core's generic note and is checked by core's bounds alone. The scribe
+  // still needs a specialty, for its prompt.
+  const moduleId = modulesEnabled[0] ?? null;
   const schemas = clinicalSchemasFor(modulesEnabled);
   // The empty rows the typed form opens with are dropped, not stored (2026-11-18).
   const pruned = note && typeof note === "object" && !Array.isArray(note) ? pruneEmptyNote(note) : note;
@@ -764,5 +771,142 @@ export async function retryScribe(
   // Kick it off now; the recovery sweep is the backstop if this process dies.
   after(() => runScribeJob(visitId, scribeModuleConfig));
   revalidatePath("/clinic/scribe");
+  return { ok: true };
+}
+
+/** Editing a saved note is `clinical:edit` — and reading it, `clinical:view`. */
+function mayEditSavedNotes(user: WorkspaceUser) {
+  return can(user, "clinical", "edit") && can(user, "clinical", "view");
+}
+
+/**
+ * Open a SAVED note to edit (owner, 2026-11-19): its fields — with the specialty's
+ * empty fields it lacks added, so an older or dictated note gets a Clinical notes box
+ * — and its medicines as prescription rows. Dictated or typed, anyone's in the clinic.
+ */
+export async function loadSavedNoteForEdit(
+  visitId: string,
+): Promise<{ note: Record<string, unknown>; medicines: Medication[] } | { error: string }> {
+  const user = await requireWorkspace();
+  if (!mayEditSavedNotes(user)) return { error: "You don't have permission to edit saved notes." };
+  if (typeof visitId !== "string") return { error: "Note not found." };
+  const row = await loadSavedNote(user.clinicId, visitId);
+  if (!row) return { error: "This note can't be edited. It may have been deleted, or it is not saved yet." };
+  const clinicRow = await getClinic(user.clinicId);
+  return noteForEditing(row.note, blankNoteFrom(blankNoteFor(clinicRow?.modulesEnabled ?? [])));
+}
+
+/**
+ * Save the edit of a saved note. Validated like a new note (the module's shape, the
+ * allergy and medicine checks with a confirming second press); the text it replaces is
+ * kept (`clinical_note_versions`) and the note is marked edited. The patient's
+ * prescription from it follows a change of medicines, and its recall a change of next
+ * visit. The tooth chart is not part of a note edit — it has its own editor.
+ */
+export async function saveEditedNote(
+  visitId: string,
+  note: Record<string, unknown>,
+  prescription: unknown,
+  confirmWarnings: boolean,
+): Promise<{ ok: true } | { error: string } | { warnings: { drugWarnings: string[]; allergyWarnings: string[] } }> {
+  const user = await requireWorkspace();
+  if (!mayEditSavedNotes(user)) return { error: "You don't have permission to edit saved notes." };
+  if (typeof visitId !== "string") return { error: "Note not found." };
+  const current = await loadSavedNote(user.clinicId, visitId);
+  if (!current) return { error: "This note can't be edited. It may have been deleted, or it is not saved yet." };
+
+  const clinicRow = await getClinic(user.clinicId);
+  const modulesEnabled = clinicRow?.modulesEnabled ?? [];
+  const schemas = clinicalSchemasFor(modulesEnabled);
+  const pruned = note && typeof note === "object" && !Array.isArray(note) ? pruneEmptyNote(note) : note;
+  const rxItems = asPrescriptionItems(prescription);
+  const parsedNote = parseClinicalNote(
+    pruned && typeof pruned === "object" ? { ...pruned, prescriptions: rxItems.map(itemToNoteDrug) } : pruned,
+    schemas.noteSchema,
+  );
+  if (!parsedNote.ok) return { error: parsedNote.error };
+
+  const fields = changedNoteFields(current.note, parsedNote.value);
+  if (fields.length === 0) return { ok: true };
+
+  if (!confirmWarnings) {
+    const allergies = await getPatientAllergies(user.clinicId, current.patientId);
+    const warnings = noteWarnings(
+      parsedNote.value,
+      [...getClinicWorkspace(modulesEnabled).drugFormulary, ...(await medicineFormulary(user.clinicId))],
+      allergies,
+    );
+    if (warnings.drugWarnings.length > 0 || warnings.allergyWarnings.length > 0) return { warnings };
+  }
+
+  const actor = { id: user.id, name: displayStaffName(user.prefix, user.fullName, user.username) };
+  const saved = await replaceSavedNote(user.clinicId, visitId, parsedNote.value, actor);
+  if (!saved) return { error: "This note can't be edited. It may have been deleted, or it is not saved yet." };
+
+  // The prescription and recall follow the note. Best-effort, like on approval: the
+  // edit is saved either way, and a failure is reported so it can be put right.
+  let rx: string | null = null;
+  if (medicinesChanged(saved.before, parsedNote.value)) {
+    try {
+      rx = await syncPrescriptionWithNote(user.clinicId, visitId, parsedNote.value, actor);
+    } catch (e) {
+      report(e, { op: "clinical.noteEdit.prescription", clinicId: user.clinicId, ids: { visitId } });
+    }
+  }
+  let recall: string | null = null;
+  if (nextVisitChanged(saved.before, parsedNote.value)) {
+    try {
+      recall = await syncRecallWithNote(
+        user.clinicId,
+        { visitId, patientId: saved.patientId, module: saved.module, base: saved.base },
+        parsedNote.value,
+      );
+    } catch (e) {
+      report(e, { op: "clinical.noteEdit.recall", clinicId: user.clinicId, ids: { visitId } });
+    }
+  }
+
+  // Field NAMES only — the note's text is patient data (§10); the earlier text itself
+  // is kept in clinical_note_versions.
+  await logActivity({
+    action: "update",
+    entity: "visit",
+    entityId: visitId,
+    summary: "Edited a saved clinical note",
+    metadata: { patientId: saved.patientId, fields, prescription: rx, recall },
+  });
+
+  revalidatePath(`/clinic/patients/${saved.patientId}`);
+  revalidatePath("/clinic/scribe");
+  return { ok: true };
+}
+
+/**
+ * Delete a SAVED note (owner, 2026-11-20) — dictated or typed — to Trash, with the
+ * prescription and waiting recall made from it; restorable from Trash. Needs
+ * `clinical:delete` (clinic admin by default) and `clinical:view`.
+ */
+export async function deleteSavedNote(visitId: string, password: string): Promise<{ ok: true } | { error: string }> {
+  const user = await requireWorkspace();
+  if (!can(user, "clinical", "delete") || !can(user, "clinical", "view")) {
+    return { error: "You don't have permission to delete clinical notes." };
+  }
+  if (typeof visitId !== "string") return { error: "Note not found." };
+  // Every delete re-checks the password (ConfirmDeleteDialog), a medical record most of all.
+  if (typeof password !== "string" || !(await verifyCurrentUserPassword(password))) {
+    return { error: "Incorrect password." };
+  }
+  const r = await trashSavedNote(user.clinicId, visitId, user.id);
+  if (!r) return { error: "This note can't be deleted. It may already be in Trash." };
+  await logActivity({
+    action: "delete",
+    entity: "visit",
+    entityId: visitId,
+    summary: "Deleted a clinical note (to Trash)",
+    metadata: { patientId: r.patientId, prescription: r.prescription, recalls: r.recalls },
+  });
+  revalidatePath(`/clinic/patients/${r.patientId}`);
+  revalidatePath("/clinic/scribe");
+  revalidatePath("/clinic/trash");
   return { ok: true };
 }

@@ -129,6 +129,11 @@ export const visits = pgTable(
     // proposes. Applied only when the treating doctor approves — never while it waits.
     // Validated against the module's chart shape before it is stored.
     pendingChart: jsonb("pending_chart"),
+    // A SAVED note changed afterwards (owner, 2026-11-19) by someone holding
+    // `clinical:edit`: who and when, last time. Every earlier text is kept in
+    // `clinical_note_versions`; NULL = never edited since it was saved.
+    editedAt: timestamp("edited_at", { withTimezone: true }),
+    editedBy: uuid("edited_by").references(() => users.id, { onDelete: "set null" }),
     ...softDeleteColumns(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -148,6 +153,37 @@ export const visits = pgTable(
       .where(sql`${t.deletedAt} is not null`),
   ],
 );
+
+/**
+ * `clinical_note_versions` — CORE. The text a saved note had BEFORE each edit (owner,
+ * 2026-11-19). A clinical record is corrected, never silently overwritten: the visit
+ * holds the current note and this keeps every earlier one, with who replaced it and
+ * when. Append-only — nothing edits or deletes a row; it follows its visit to Trash
+ * (the visit's reads filter it) and goes with it only on a legal purge (cascade).
+ * `ai_draft` on the visit is untouched by an edit, so the flywheel still sees what the
+ * model wrote against what was approved.
+ */
+export const clinicalNoteVersions = pgTable(
+  "clinical_note_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    visitId: uuid("visit_id")
+      .notNull()
+      .references(() => visits.id, { onDelete: "cascade" }),
+    // The note as it was until this edit.
+    note: jsonb("note").$type<Record<string, unknown>>(),
+    // Who made the edit that replaced it, and when (name snapshotted, like the audit log).
+    editedBy: uuid("edited_by").references(() => users.id, { onDelete: "set null" }),
+    editedByName: text("edited_by_name"),
+    editedAt: timestamp("edited_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("clinical_note_versions_visit_idx").on(t.clinicId, t.visitId, t.editedAt)],
+);
+
+export type ClinicalNoteVersion = typeof clinicalNoteVersions.$inferSelect;
 
 /**
  * `patient_medical_history` — CORE, specialty-agnostic (every specialty needs it).

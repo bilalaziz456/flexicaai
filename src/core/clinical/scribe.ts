@@ -156,7 +156,8 @@ export async function createTypedNote(input: {
   clinicId: string;
   patientId: string;
   authorId: string;
-  module: string;
+  /** NULL when the clinic has no specialty ticked — a typed note is core's. */
+  module: string | null;
   note: Record<string, unknown>;
   appointmentId: string | null;
   treatingDoctorId: string;

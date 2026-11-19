@@ -20,6 +20,7 @@ import { readableNoteCondition } from "@/core/clinical/drafts";
 /** `users` joined a SECOND time as the approver — a visit references two people. */
 const approver = alias(users, "approver");
 const treatingDoctor = alias(users, "treating_doctor");
+const noteEditor = alias(users, "note_editor");
 import { newDeleteGroup, softDeleteValues } from "@/core/db/soft-delete";
 
 /** The fields a clinic edits on a patient. Age is stored as a derived birth date. */
@@ -252,11 +253,16 @@ export async function listPatientVisits(
       treatingPrefix: treatingDoctor.prefix,
       // Whether a dictation was kept — the timeline offers a player then (2026-10-20).
       hasAudio: sql<boolean>`${visits.audioKey} is not null`,
+      // Edited after it was saved (2026-11-19): who last, and when.
+      editedAt: visits.editedAt,
+      editedByName: noteEditor.fullName,
+      editedByPrefix: noteEditor.prefix,
     })
     .from(visits)
     .leftJoin(users, eq(visits.doctorId, users.id))
     .leftJoin(approver, eq(visits.approvedBy, approver.id))
     .leftJoin(treatingDoctor, eq(visits.treatingDoctorId, treatingDoctor.id))
+    .leftJoin(noteEditor, eq(visits.editedBy, noteEditor.id))
     .where(
       byClinic(
         visits.clinicId,

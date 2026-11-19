@@ -130,6 +130,28 @@ that trips one comes back with them and saves only on a second, confirming press
 finished exactly like an approved draft (`finishApprovedNote`: chart, prescription,
 recall) and audit-logged. It works whether the clinic's scribe is on or off.
 
+## 2c-bis. Editing a SAVED note (2026-11-19)
+
+An APPROVED note — dictated or typed, anyone's in the clinic — can be changed afterwards
+by a holder of **`clinical:edit`** (+ `clinical:view`), from "Edit" on the patient's
+clinical history (`saveEditedNote` → `core/clinical/note-edit.ts`). This does not relax
+rule 1: the note was already approved by a clinician; the edit is a CORRECTION of the
+signed record, so it is never silent — the replaced text goes to
+`clinical_note_versions`, `visits.edited_at/edited_by` mark it, and the activity log names
+the changed fields (names only, §10). `ai_draft` is untouched, so the flywheel still
+compares the model with what was first approved. Validation and the allergy/formulary
+checks run as for a typed note. The form adds the module's empty fields the note lacks
+(so a dictated note gets a Clinical notes box) and moves its medicines into prescription
+rows (`noteForEditing`, pure, `note-edit-rules.ts`). Medicines changed → the prescription
+made from the note follows (deleted stays deleted; none → made); next visit changed →
+the pending recall moves (from the visit's approval time) or is cancelled. Drafts,
+waiting/returned notes and imported notes are not edited this way; neither is the chart.
+**Deleting** a saved note (2026-11-20) is `clinical:delete` (clinic admin by default),
+with the password step-up every delete has: `trashSavedNote` soft-deletes the note, the
+prescription made from it and its PENDING recall under one delete group, so Trash restores
+them together; a sent recall and the tooth chart are left as they are.
+`scripts/test-note-edit.ts`.
+
 ## 2d. A note for another doctor's patient (2026-11-14, ADR-038)
 
 Every note has a **treating doctor** — whose patient it is — besides its author
