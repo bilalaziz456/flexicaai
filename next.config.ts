@@ -54,6 +54,7 @@ const PRINT_PAGES = [
   "/clinic/patients/:id/chart-print",
   "/clinic/patients/:id/estimate/:planId",
   "/clinic/appointments/:id/invoice",
+  "/clinic/appointments/:id/token",
   "/clinic/invoices/:id/print",
   "/clinic/shares/statement",
   "/clinic/appointments/print",

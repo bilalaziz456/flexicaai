@@ -388,6 +388,10 @@ are in `.env.example`.
   doctor that day — and staff may type another (#10 for a patient coming in an hour;
   the next bookings then take 6, 7, 8, 9, 11). A number already given is refused.
   Posted only when changed, so an untouched one is picked again at save time.
+  **Print token** (owner, 2026-11-20): an appointment with a number has a thermal token
+  slip — the number very large, the doctor, the patient and the "Powered by" line, nothing
+  else (`/clinic/appointments/[id]/token`, `appointments:view`) — from the appointment
+  page and each list row's "⋯" menu.
   The appointments list and its printout run day by day in appointment-number order
   — those still to be seen first, then completed / cancelled / no-show — (time breaks
   ties; visits with no doctor, so no number, come last in each group).

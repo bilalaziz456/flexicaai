@@ -125,7 +125,7 @@ function scriptSrc(strict: boolean, nonce?: string, scriptHash?: string): string
  */
 const PRINT_PAGES = [
   /^\/clinic\/patients\/[^/]+\/(statement|chart-print|estimate\/[^/]+)$/,
-  /^\/clinic\/appointments\/[^/]+\/invoice$/,
+  /^\/clinic\/appointments\/[^/]+\/(invoice|token)$/,
   /^\/clinic\/invoices\/[^/]+\/print$/,
   /^\/clinic\/shares\/statement$/,
   /^\/clinic\/appointments\/print$/,

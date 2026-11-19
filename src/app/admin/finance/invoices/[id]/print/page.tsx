@@ -204,8 +204,27 @@ export default async function ClinicInvoicePrintPage({
                 <div>
                   {logo ? (
                     <div className="inline-block rounded-lg bg-white px-3 py-2">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={logo} alt="FlexicaAI" className="h-9 w-auto object-contain" />
+                      {/* The logo's own tagline is ~8 px tall in a 480 x 119 picture, so on
+                          the invoice it came out ~3 px high and unreadable (owner's report,
+                          2026-11-20). It is covered here and set as real text beneath,
+                          which prints sharp at any size. The cover's box is the tagline's
+                          band in the picture (rows 88-101, right of the mark). */}
+                      <div className="relative">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={logo} alt="FlexicaAI" className="h-12 w-auto object-contain" />
+                        <span
+                          aria-hidden="true"
+                          className="absolute bg-white"
+                          style={{ left: "24%", top: "73%", width: "76%", height: "13%" }}
+                        />
+                        {/* Under the FLEXICAAI wordmark, where the picture had it. */}
+                        <span
+                          className="absolute text-center text-[6.5px] leading-none font-semibold tracking-[0.12em] whitespace-nowrap text-brand-navy uppercase"
+                          style={{ left: "24.6%", width: "75.4%", top: "75%" }}
+                        >
+                          AI-powered health management
+                        </span>
+                      </div>
                     </div>
                   ) : (
                     <div className="text-[1.6em] font-extrabold tracking-tight">

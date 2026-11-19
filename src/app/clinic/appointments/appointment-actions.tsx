@@ -1,6 +1,7 @@
 "use client";
 
-import { ActionMenu } from "@/core/ui/action-menu";
+import { ActionMenu, type ActionMenuSection } from "@/core/ui/action-menu";
+import { printDocument } from "@/core/ui/print-links";
 import { useTransition } from "react";
 import { Button } from "@/core/ui/button";
 import { SelectField } from "@/core/ui/select-field";
@@ -30,7 +31,7 @@ export function AppointmentActions({
   /** The LIST's form: the one next step as a button, and everything else — open the
    *  appointment, change its status — behind a "⋯" menu. The full status dropdown
    *  did not fit a table row once the list grew (owner's report, 2026-10-12). */
-  compact?: { openHref: string; label: string };
+  compact?: { openHref: string; label: string; tokenHref?: string | null };
 }) {
   const [pending, startTransition] = useTransition();
   const setStatus = (value: Status) => {
@@ -57,6 +58,7 @@ export function AppointmentActions({
           label={`More actions for ${compact.label}`}
           sections={[
             { kind: "links", items: [{ label: "Open appointment", href: compact.openHref }] },
+            ...tokenSection(compact.tokenHref),
             {
               kind: "choice",
               label: "Change status",
@@ -100,6 +102,25 @@ export function AppointmentActions({
         options={statuses}
         ariaLabel="Appointment status"
         popupClassName="min-w-[9rem]"
+      />
+    </div>
+  );
+}
+
+/** "Print token" in a row's menu (2026-11-20) — the thermal slip, printed without
+ *  opening it. Only for an appointment that has a number. */
+function tokenSection(tokenHref: string | null | undefined): ActionMenuSection[] {
+  if (!tokenHref) return [];
+  return [{ kind: "actions", items: [{ label: "Print token", onSelect: () => printDocument(tokenHref, "thermal", {}) }] }];
+}
+
+/** The row menu for someone who cannot change appointments: open it, print its token. */
+export function AppointmentRowMenu({ openHref, label, tokenHref }: { openHref: string; label: string; tokenHref?: string | null }) {
+  return (
+    <div className="flex justify-end">
+      <ActionMenu
+        label={`More actions for ${label}`}
+        sections={[{ kind: "links", items: [{ label: "Open appointment", href: openHref }] }, ...tokenSection(tokenHref)]}
       />
     </div>
   );

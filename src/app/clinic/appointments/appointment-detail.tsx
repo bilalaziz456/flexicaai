@@ -41,6 +41,8 @@ import { doctorDayAvailability } from "@/app/clinic/appointments/actions";
 import { DeleteAppointmentButton } from "@/app/clinic/appointments/edit-appointment-form";
 import { NewAppointmentForm } from "@/app/clinic/appointments/new-appointment-form";
 import { APPOINTMENT_STATUS_VARIANT } from "@/core/appointments/status";
+import { PrintLinks } from "@/core/ui/print-links";
+import { buttonVariants } from "@/core/ui/button";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 import { offeredPapers } from "@/core/lib/print-papers";
 
@@ -193,7 +195,20 @@ export async function AppointmentDetail({
               moment a payment, refund or cancelled payment is saved. */}
           {payBadge ? <Badge variant={payBadge.variant}>{payBadge.label}</Badge> : null}
         </div>
-        <p className="text-sm text-muted-foreground">{whenLabel}</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">{whenLabel}</p>
+          {/* The patient's token slip (2026-11-20): the appointment number, doctor and
+              patient on thermal paper — only once the visit has a number. With billing
+              on it sits with the other prints in the Payment card instead. */}
+          {appt.queueNumber != null && !(billingOn && aBill) ? (
+            <PrintLinks
+              href={`/clinic/appointments/${appt.id}/token`}
+              papers={["thermal"]}
+              single="Print token"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            />
+          ) : null}
+        </div>
       </div>
 
       {canEdit ? (
@@ -327,6 +342,7 @@ export async function AppointmentDetail({
             <PaymentPanel
               // After printing the visit's invoice, back to where this page came from.
               afterPrintHref={backHref}
+              tokenHref={appt.queueNumber != null ? `/clinic/appointments/${appt.id}/token` : null}
               appointmentId={appt.id}
               billTotal={aBill.billTotal}
               collected={aBill.collected}

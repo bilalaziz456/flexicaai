@@ -132,6 +132,8 @@ export async function getAppointmentDetail(clinicId: string, appointmentId: stri
       consultationSplitValue: appointments.consultationSplitValue,
       chargeConsultation: appointments.chargeConsultation,
       customTime: appointments.customTime,
+      // The appointment number, for "Print token" (2026-11-20).
+      queueNumber: appointments.queueNumber,
       patientId: patients.id,
       patientName: patients.fullName,
     })

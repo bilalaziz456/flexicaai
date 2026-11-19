@@ -77,6 +77,7 @@ export function PaymentPanel({
   extra = 0,
   canKeepAsCredit = false,
   afterPrintHref,
+  tokenHref,
 }: {
   appointmentId: string;
   billTotal: number;
@@ -103,6 +104,9 @@ export function PaymentPanel({
   canKeepAsCredit?: boolean;
   /** Where to go once an invoice print dialog closes (see `PrintLinks`). */
   afterPrintHref?: string;
+  /** The appointment's thermal token slip (2026-11-20), beside the other prints; only
+   *  when the visit has a number. */
+  tokenHref?: string | null;
 }) {
   const router = useRouter();
   // Labels come from the database (ADR-027); read once, since a hook cannot run
@@ -402,6 +406,14 @@ export function PaymentPanel({
             >
               <MessageCircle className="size-3.5" aria-hidden="true" /> Send on WhatsApp
             </Button>
+          ) : null}
+          {tokenHref ? (
+            <PrintLinks
+              href={tokenHref}
+              papers={["thermal"]}
+              single="Print token"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            />
           ) : null}
         </div>
         {invoiceHref ? (

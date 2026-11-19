@@ -1,5 +1,4 @@
 import { listClinicAppointments } from "@/core/appointments/list-query";
-import { ActionMenu } from "@/core/ui/action-menu";
 import { listAppointmentCreators } from "@/core/appointments/list-query";
 import { TableCard } from "@/core/ui/table-card";
 import Link from "next/link";
@@ -45,7 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/core/ui/table";
-import { AppointmentActions } from "@/app/clinic/appointments/appointment-actions";
+import { AppointmentActions, AppointmentRowMenu } from "@/app/clinic/appointments/appointment-actions";
 import { APPOINTMENT_STATUS_VARIANT } from "@/core/appointments/status";
 import { vocabularyLabel } from "@/core/db/vocabulary-cache";
 import { DownloadLink } from "@/core/ui/download-link";
@@ -540,15 +539,18 @@ export async function AppointmentsList({
                         <AppointmentActions
                           id={a.id}
                           status={a.status}
-                          compact={{ openHref: `${detailBase}/${a.id}`, label: a.patientName }}
+                          compact={{
+                            openHref: `${detailBase}/${a.id}`,
+                            label: a.patientName,
+                            tokenHref: a.queueNumber != null ? `/clinic/appointments/${a.id}/token` : null,
+                          }}
                         />
                       ) : (
-                        <div className="flex justify-end">
-                          <ActionMenu
-                            label={`More actions for ${a.patientName}`}
-                            sections={[{ kind: "links", items: [{ label: "Open appointment", href: `${detailBase}/${a.id}` }] }]}
-                          />
-                        </div>
+                        <AppointmentRowMenu
+                          openHref={`${detailBase}/${a.id}`}
+                          label={a.patientName}
+                          tokenHref={a.queueNumber != null ? `/clinic/appointments/${a.id}/token` : null}
+                        />
                       )}
                     </TableCell>
                   </RowLink>
